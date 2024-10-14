@@ -5,17 +5,13 @@ import { MessageItem, Uri, commands, window } from "vscode";
 import { withMinimumInspectVersion } from "../../inspect/version";
 import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import { inspectLogInfo } from "../../inspect/logs";
-
-export interface LogviewState {
-  log_file?: Uri;
-  log_dir: Uri;
-  background_refresh?: boolean;
-}
+import { LogviewState } from "./logview-state";
 
 export interface LogviewOptions {
   state?: LogviewState;
   activate?: boolean;
 }
+
 
 export async function logviewCommands(
   manager: InspectViewManager,

@@ -13,6 +13,7 @@ import { ExtensionHost, HostWebviewPanel } from "../hooks";
 import { isNotebook } from "./notebook";
 import { FocusManager } from "./focus";
 import { log } from "../core/log";
+import { InspectViewServer } from "../providers/inspect/inspect-view-server";
 
 export interface ShowOptions {
   readonly preserveFocus?: boolean;
@@ -21,20 +22,22 @@ export interface ShowOptions {
 
 export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   constructor(
-    protected readonly context: ExtensionContext,
+    protected readonly context_: ExtensionContext,
+    private readonly server_: InspectViewServer,
     private readonly viewType_: string,
     private readonly title_: string,
     private readonly localResourceRoots: Uri[],
     private webviewType_: new (
       context: ExtensionContext,
+      server: InspectViewServer,
       state: S,
       webviewPanel: HostWebviewPanel
     ) => T,
     private host_: ExtensionHost
   ) {
-    this.extensionUri_ = context.extensionUri;
+    this.extensionUri_ = context_.extensionUri;
 
-    context.subscriptions.push(
+    context_.subscriptions.push(
       window.registerWebviewPanelSerializer(this.viewType_, {
         deserializeWebviewPanel: (panel) => {
           //this.restoreWebview(panel as HostWebviewPanel, state);
@@ -46,7 +49,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
       })
     );
 
-    this.focusManager_ = new FocusManager(context);
+    this.focusManager_ = new FocusManager(context_);
   }
   private focusManager_: FocusManager;
 
@@ -62,10 +65,9 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     if (this.activeView_) {
       this.activeView_.show(state, options);
     } else {
-      const view = this.createWebview(this.context, state, options);
+      const view = this.createWebview(this.context_, state, options);
       this.registerWebviewListeners(view);
       this.activeView_ = view;
-      this.onViewCreated();
     }
     this.resolveOnShow();
 
@@ -98,14 +100,6 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
 
   protected onViewStateChanged() { }
 
-
-  protected onViewCreated() {
-
-  }
-
-  protected onViewDestroyed() {
-
-  }
 
   private resolveOnShow() {
     if (this.onShow_) {
@@ -157,7 +151,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
 
 
   private restoreWebview(panel: HostWebviewPanel, state: S): void {
-    const view = new this.webviewType_(this.context, state, panel);
+    const view = new this.webviewType_(this.context_, this.server_, state, panel);
     this.registerWebviewListeners(view);
     this.activeView_ = view;
   }
@@ -182,7 +176,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
       }
     );
 
-    const inspectWebView = new this.webviewType_(context, state, previewPanel);
+    const inspectWebView = new this.webviewType_(context, this.server_, state, previewPanel);
     return inspectWebView;
   }
 
@@ -190,7 +184,6 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     view.onDispose(() => {
       if (this.activeView_ === view) {
         this.activeView_ = undefined;
-        this.onViewDestroyed();
         this.onViewStateChanged();
         if (this.onClose_) {
           this.onClose_();
@@ -228,7 +221,8 @@ export abstract class InspectWebview<T> extends Disposable {
   public readonly onDispose = this._onDidDispose.event;
 
   public constructor(
-    private readonly context: ExtensionContext,
+    private readonly _context: ExtensionContext,
+    private readonly _server: InspectViewServer,
     state: T,
     webviewPanel: HostWebviewPanel
   ) {
@@ -265,7 +259,7 @@ export abstract class InspectWebview<T> extends Disposable {
   protected abstract getHtml(state: T): string;
 
   protected getExtensionVersion(): string {
-    return (this.context.extension.packageJSON as Record<string, unknown>)
+    return (this._context.extension.packageJSON as Record<string, unknown>)
       .version as string;
   }
 
@@ -342,7 +336,7 @@ export abstract class InspectWebview<T> extends Disposable {
 
   protected extensionResourceUrl(parts: string[]): Uri {
     return this._webviewPanel.webview.asWebviewUri(
-      Uri.joinPath(this.context.extensionUri, ...parts)
+      Uri.joinPath(this._context.extensionUri, ...parts)
     );
   }
 

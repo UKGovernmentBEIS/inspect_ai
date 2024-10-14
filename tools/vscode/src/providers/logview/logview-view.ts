@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 
 import {
+  Disposable,
   ExtensionContext,
   MessageItem,
   Uri,
@@ -22,14 +23,11 @@ import {
   InspectChangedEvent,
   InspectManager,
 } from "../inspect/inspect-manager";
-import { LogviewState } from "./commands";
+import { LogviewState } from "./logview-state";
 import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 import { showError } from "../../components/error";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
-import { join } from "path/posix";
-import { activeWorkspaceFolder } from "../../core/workspace";
-import { kInspectEnvValues } from "../inspect/inspect-constants";
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 
@@ -59,21 +57,9 @@ export class InspectViewManager {
 
   public async showInspectView() {
     // See if there is a log dir
-    const envVals = this.envMgr_.getValues();
-    const env_log = envVals[kInspectEnvValues.logDir];
-
-    // If there is a log dir, try to parse and use it
-    let log_uri;
-    try {
-      log_uri = Uri.parse(env_log, true);
-    } catch {
-      // This isn't a uri, bud
-      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
-      log_uri = Uri.file(logDir);
-    }
+    const log_dir = this.envMgr_.getDefaultLogDir();
 
     // Show the log view for the log dir (or the workspace)
-    const log_dir = log_uri || activeWorkspaceFolder().uri;
     await this.webViewManager_.showLogview({ log_dir }, "activate");
   }
 
@@ -90,7 +76,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
 > {
   constructor(
     inspectManager: InspectManager,
-    viewServer: InspectViewServer,
+    server: InspectViewServer,
     context: ExtensionContext,
     host: ExtensionHost
   ) {
@@ -111,16 +97,13 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     }
     super(
       context,
+      server,
       kLogViewId,
       "Inspect View",
       localResourceRoots,
       InspectViewWebview,
       host
     );
-
-    // ref to view server
-    this.viewServer_ = viewServer;
-
   }
   private activeLogDir_: Uri | null = null;
 
@@ -250,27 +233,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     }
   }
 
-  protected onViewCreated() {
-    this.viewDisconnect_ = webviewPanelJsonRpcServer(this.activeView_!.webviewPanel(), {
-      [kMethodEvalLogs]: async () => this.viewServer_.evalLogs(this.lastState_!.log_dir),
-      [kMethodEvalLog]: (params: unknown[]) => this.viewServer_.evalLog(params[0] as string, params[1] as number | boolean),
-      [kMethodEvalLogSize]: (params: unknown[]) => this.viewServer_.evalLogSize(params[0] as string),
-      [kMethodEvalLogBytes]: (params: unknown[]) => this.viewServer_.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => this.viewServer_.evalLogHeaders(params[0] as string[])
-    });
-  }
-
-  protected onViewDestroyed() {
-    // disconnect previous view if we had one
-    if (this.viewDisconnect_) {
-      this.viewDisconnect_();
-      this.viewDisconnect_ = undefined;
-    }
-  }
-
-  private viewServer_: InspectViewServer;
   private lastState_?: LogviewState = undefined;
-  private viewDisconnect_?: VoidFunction = undefined;
 }
 
 const logStateEquals = (a: LogviewState, b: LogviewState) => {
@@ -291,10 +254,23 @@ const logStateEquals = (a: LogviewState, b: LogviewState) => {
 class InspectViewWebview extends InspectWebview<LogviewState> {
   public constructor(
     context: ExtensionContext,
+    server: InspectViewServer,
     state: LogviewState,
     webviewPanel: HostWebviewPanel
   ) {
-    super(context, state, webviewPanel);
+    super(context, server, state, webviewPanel);
+
+    // register for eval log api 
+    const disconnect = webviewPanelJsonRpcServer(webviewPanel, {
+      [kMethodEvalLogs]: async () => server.evalLogs(state.log_dir),
+      [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
+      [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
+      [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
+      [kMethodEvalLogHeaders]: (params: unknown[]) => server.evalLogHeaders(params[0] as string[])
+    });
+    this._register(new Disposable(disconnect));
+
+
     this._register(
       this._webviewPanel.webview.onDidReceiveMessage(
         async (e: { type: string; url: string;[key: string]: unknown }) => {

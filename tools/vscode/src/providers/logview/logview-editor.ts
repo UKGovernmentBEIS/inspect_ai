@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
+import { Uri } from 'vscode';
+import { inspectViewPath } from '../../inspect/props';
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
@@ -9,7 +11,9 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
       InspectLogReadonlyEditor.viewType,
       provider,
       {
-        webviewOptions: { retainContextWhenHidden: false },
+        webviewOptions: {
+          retainContextWhenHidden: false
+        },
         supportsMultipleEditorsPerDocument: false
       }
     );
@@ -18,13 +22,13 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   private static readonly viewType = 'inspect-ai.log-editor';
 
-  constructor(private readonly context: vscode.ExtensionContext) { }
+  constructor(private readonly _context: vscode.ExtensionContext) { }
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async openCustomDocument(
     uri: vscode.Uri,
-    openContext: vscode.CustomDocumentOpenContext,
-    token: vscode.CancellationToken
+    _openContext: vscode.CustomDocumentOpenContext,
+    _token: vscode.CancellationToken
   ): Promise<vscode.CustomDocument> {
     return { uri, dispose: () => { } };
   }
@@ -33,10 +37,22 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
   async resolveCustomEditor(
     document: vscode.CustomDocument,
     webviewPanel: vscode.WebviewPanel,
-    token: vscode.CancellationToken
+    _token: vscode.CancellationToken
   ): Promise<void> {
+
+    // local resource roots
+    const localResourceRoots: Uri[] = [];
+    const viewDir = inspectViewPath();
+    if (viewDir) {
+      localResourceRoots.push(Uri.file(viewDir.path));
+    }
+    Uri.joinPath(this._context.extensionUri, "assets", "www");
+
+    // set webview  options
     webviewPanel.webview.options = {
       enableScripts: true,
+      enableForms: true,
+      localResourceRoots
     };
 
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.uri);
