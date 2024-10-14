@@ -9,15 +9,22 @@ import { InspectManager } from "../inspect/inspect-manager";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { ExtensionHost } from "../../hooks";
 import { InspectViewServer } from "../inspect/inspect-view-server";
+import { activateLogviewEditor } from "./logview-editor";
 
 export async function activateLogview(
   inspectManager: InspectManager,
-  inspectViewServer: InspectViewServer,
   settingsMgr: InspectSettingsManager,
   envMgr: WorkspaceEnvManager,
   context: ExtensionContext,
   host: ExtensionHost
 ): Promise<[Command[], InspectLogviewManager]> {
+
+  // initialiaze view server
+  const inspectViewServer = new InspectViewServer();
+
+  // activate the log viewer editor
+  activateLogviewEditor(context);
+
   // initilize manager
   const logviewWebManager = new InspectLogviewWebviewManager(
     inspectManager,
