@@ -1,8 +1,11 @@
+import pytest
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
+from inspect_ai.model._providers.google import chat_tools
 from inspect_ai.scorer import includes
+from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 
 @skip_if_no_google
@@ -25,4 +28,23 @@ def test_google_safety_settings():
         ),
         model="google/gemini-1.5-flash",
         model_args=dict(safety_settings=safety_settings),
+    )
+
+
+@pytest.mark.xfail
+def test_chat_tools():
+    chat_tools(
+        tools=[
+            ToolInfo(
+                name="tool",
+                description="tool",
+                parameters=ToolParams(
+                    type="object",
+                    properties=dict(
+                        a=ToolParam(type="number"),
+                        b=ToolParam(type="string"),
+                    ),
+                ),
+            )
+        ]
     )
