@@ -259,8 +259,9 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
 
     this.logviewPanel_ = new LogviewPanel(
       webviewPanel,
-      server,
       context,
+      server,
+      "dir",
       state.log_dir
     );
     this._register(this.logviewPanel_);

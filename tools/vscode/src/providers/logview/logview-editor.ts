@@ -76,9 +76,10 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     };
     this.logviewPanel_ = new LogviewPanel(
       webviewPanel as HostWebviewPanel,
-      this.server_,
       this.context_,
-      state.log_dir
+      this.server_,
+      "file",
+      document.uri
     );
 
     // set html

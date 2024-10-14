@@ -15,19 +15,22 @@ import { workspacePath } from "../../core/path";
 export class LogviewPanel extends Disposable {
   constructor(
     private panel_: HostWebviewPanel,
-    private server_: InspectViewServer,
     private context_: ExtensionContext,
-    private logDir_: Uri
+    server: InspectViewServer,
+    type: "file" | "dir",
+    uri: Uri,
   ) {
     super();
 
     // serve eval log api to webview
     this._rpcDisconnect = webviewPanelJsonRpcServer(panel_, {
-      [kMethodEvalLogs]: async () => this.server_.evalLogs(this.logDir_),
-      [kMethodEvalLog]: (params: unknown[]) => this.server_.evalLog(params[0] as string, params[1] as number | boolean),
-      [kMethodEvalLogSize]: (params: unknown[]) => this.server_.evalLogSize(params[0] as string),
-      [kMethodEvalLogBytes]: (params: unknown[]) => this.server_.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => this.server_.evalLogHeaders(params[0] as string[])
+      [kMethodEvalLogs]: async () => type === "dir" 
+           ? server.evalLogs(uri)
+           : JSON.stringify({ log_dir: "", files: [{ name: uri.toString() }] }),
+      [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
+      [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
+      [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
+      [kMethodEvalLogHeaders]: (params: unknown[]) => server.evalLogHeaders(params[0] as string[])
     });
 
     // serve post message api to webview
