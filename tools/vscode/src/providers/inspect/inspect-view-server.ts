@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import * as os from "os";
 import AsyncLock from "async-lock";
 
-import { Disposable, OutputChannel, Uri, window } from "vscode";
+import { Disposable, ExtensionContext, OutputChannel, Uri, window } from "vscode";
 
 import { findOpenPort } from "../../core/port";
 import { hasMinimumInspectVersion, withMinimumInspectVersion } from "../../inspect/version";
@@ -13,11 +13,21 @@ import { activeWorkspacePath } from "../../core/path";
 import { inspectBinPath } from "../../inspect/props";
 import { shQuote } from "../../core/string";
 import { spawnProcess } from "../../core/process";
+import { InspectManager } from "./inspect-manager";
 
 
 export class InspectViewServer implements Disposable {
-  constructor() {
+  constructor(context: ExtensionContext, inspectManager: InspectManager) {
+    // create output channel for debugging
     this.outputChannel_ = window.createOutputChannel("Inspect View");
+
+    // shutdown server when inspect version changes (then we'll launch
+    // a new instance w/ the correct version)
+    context.subscriptions.push(
+      inspectManager.onInspectChanged(() => {
+        this.shutdown();
+      })
+    );
   }
 
   public async evalLogs(log_dir: Uri): Promise<string | undefined> {
@@ -199,9 +209,15 @@ export class InspectViewServer implements Disposable {
     }
   }
 
+  private shutdown() {
+    this.serverProcess_?.kill();
+    this.serverProcess_ = undefined;
+    this.serverPort_ = undefined;
+    this.serverAuthToken_ = "";
+  }
 
   dispose() {
-    this.serverProcess_?.kill();
+    this.shutdown();
     this.outputChannel_.dispose();
   }
 

@@ -20,7 +20,7 @@ export async function activateLogview(
 ): Promise<[Command[], InspectViewManager]> {
 
   // initialiaze view server
-  const server = new InspectViewServer();
+  const server = new InspectViewServer(context, inspectManager);
 
   // activate the log viewer editor
   activateLogviewEditor(context, server);
