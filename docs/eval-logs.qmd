@@ -51,7 +51,7 @@ If you are running in VS Code, then you should restart terminals and notebooks u
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
 
-## Log Format
+## Log Format {#sec-log-format}
 
 ::: {.callout-note appearance="simple"}
 The `.eval` format described below is supported only in the development version of Inspect. To install the development version from GitHub:
@@ -64,11 +64,13 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
-|-----------------------|-------------------------------------------------|
+|------------------------|------------------------------------------------|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
 | `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
 : {tbl-colwidths=\[20,80\]}
+
+### Format Option
 
 Inspect currently defaults to using `.json` format, but will soon switch to `.eval` as the default because of its size and speed advantages. You can control the log format globally in your `.env` file:
 
@@ -82,7 +84,13 @@ Or specify it per-evaluation with the `--log-format` option:
 inspect eval ctf.py --log-format=eval
 ```
 
-## EvalLog
+### Reading Logs
+
+No matter which underlying file format you are using, all of the log file APIs described below (`EvalLog`, `read_eval_log()`, `write_eval_log()`, etc.) all work the same.
+
+Note that the variability in underlying file format makes it especially important that you use the public APIs for reading and writing log files (as opposed to reading/writing the JSON directly). If you do need to interact with the underlying JSON (for example, if you are reading log files from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the native JSON representation for any log file.
+
+## Log File API
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
 
@@ -156,48 +164,85 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
-## Log CLI Commands
+## Log Commands
 
-We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.
+::: {.callout-note appearance="simple"}
+The log commands described below are supported only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
+
+| Command               | Description                         |
+|-----------------------|-------------------------------------|
+| `inspect log list`    | List all logs in the log directory. |
+| `inspect log dump`    | Print log file contents as JSON.    |
+| `inspect log convert` | Convert between log file formats.   |
+| `inspect log schema`  | Print JSON schema for log files.    |
 
 ### Listing Logs
 
-You can use the `inspect list logs` command to enumerate all of the logs for a given log directory. This command will utilise the `INSPECT_LOG_DIR` if it is set (alternatively you can specify a `--log-dir` directly). You'll likely also want to use the `--json` flag to get more granular and structured information on the log files. For example:
+You can use the `inspect log list` command to enumerate all of the logs for a given log directory. This command will utilise the `INSPECT_LOG_DIR` if it is set (alternatively you can specify a `--log-dir` directly). You'll likely also want to use the `--json` flag to get more granular and structured information on the log files. For example:
 
 ``` bash
-$ inspect list logs --json           # uses INSPECT_LOG_DIR
-$ inspect list logs --json --log-dir ./security_04-07-2024
+$ inspect log list --json           # uses INSPECT_LOG_DIR
+$ inspect log list --json --log-dir ./security_04-07-2024
 ```
 
 You can also use the `--status` option to list only logs with a `success` or `error` status:
 
 ``` bash
-$ inspect list logs --json --status success
-$ inspect list logs --json --status error
+$ inspect log list --json --status success
+$ inspect log list --json --status error
 ```
 
 You can use the `--retryable` option to list only logs that are [retryable](#sec-errors-and-retries)
 
 ``` bash
-$ inspect list logs --json --retryable
+$ inspect log list --json --retryable
 ```
 
 ### Reading Logs
 
-The `inspect list logs` command will return set of URIs to log files which will use a variety of protocols (e.g. `file://`, `s3://`, `gcs://`, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the `inspect info log-file` command. This is because log files can be located on remote storage systems (e.g. Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you'll want to be sure to take advantage of these credentials.
+The `inspect log list` command will return set of URIs to log files which will use a variety of protocols (e.g. `file://`, `s3://`, `gcs://`, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the `inspect log dump` command for two reasons:
+
+1.  As described above in [Log Format](#sec-log-format), log files may be stored in binary or text. the `inspect log dump` command will print any log file as plain text JSON no matter its underlying format.
+2.  Log files can be located on remote storage systems (e.g. Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you'll want to be sure to take advantage of these credentials.
 
 For example, here we read a local log file and a log file on Amazon S3:
 
 ``` bash
-$ inspect info log-file file:///home/user/log/logfile.json
-$ inspect info log-file s3://my-evals-bucket/logfile.json
+$ inspect log dump file:///home/user/log/logfile.json
+$ inspect log dump s3://my-evals-bucket/logfile.json
 ```
 
-Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to `inspect info`:
+### Converting Logs
+
+You can convert between the two underlying [log formats](#sec-log-format) using the `inspect log convert` command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (`--to` and `--output-dir`). For example:
 
 ``` bash
-$ inspect info log-schema
-$ inspect info log-types
+$ inspect log convert source.json --to eval --output-dir log-output
+```
+
+Or for an entire directory:
+
+``` bash
+$ inspect log convert logs --to eval --output-dir logs-eval
+```
+
+Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the `--overwrite` flag to force an overwrite.
+
+Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.
+
+### Log Schema
+
+Log files are stored in JSON. You can get the JSON schema for the log file format with a call to `inspect log schema`:
+
+``` bash
+$ inspect log schema
 ```
 
 ::: {.callout-important appearance="simple"}
