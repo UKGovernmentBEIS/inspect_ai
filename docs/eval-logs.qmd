@@ -64,11 +64,13 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
-|------------------------|------------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
 | `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
 : {tbl-colwidths=\[20,80\]}
+
+Both formats are fully supported by the [Log File API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described below, and can be intermixed freely within a log directory.
 
 ### Format Option
 
@@ -84,13 +86,15 @@ Or specify it per-evaluation with the `--log-format` option:
 inspect eval ctf.py --log-format=eval
 ```
 
-### Reading Logs
+No matter which format you choose, the `EvalLog` returned from `eval()` will be the same, and the various APIs provided for log files (`read_eval_log()`, `write_eval_log()`, etc.) will also work the same.
 
-No matter which underlying file format you are using, all of the log file APIs described below (`EvalLog`, `read_eval_log()`, `write_eval_log()`, etc.) all work the same.
+::: {.callout-caution appearance="simple"}
+The variability in underlying file format makes it especially important that you use the Python [Log File API](#sec-log-file-api) for reading and writing log files (as opposed to reading/writing JSON directly).
 
-Note that the variability in underlying file format makes it especially important that you use the public APIs for reading and writing log files (as opposed to reading/writing the JSON directly). If you do need to interact with the underlying JSON (for example, if you are reading log files from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the native JSON representation for any log file.
+If you do need to interact with the underlying JSON (e.g., when reading logs from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the plain text JSON representation for any log file.
+:::
 
-## Log File API
+## Log File API {#sec-log-file-api}
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
 
