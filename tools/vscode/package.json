@@ -48,8 +48,8 @@
           ".eval"
         ],
         "icon": {
-          "light": "./assets/logo/inspect.svg",
-          "dark": "./assets/logo/inspect.svg"
+          "light": "./assets/icon/eval.svg",
+          "dark": "./assets/icon/eval.svg"
         }
       }
     ],

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 16 16">
+  <!-- Generator: Adobe Illustrator 28.7.1, SVG Export Plug-In . SVG Version: 1.2.0 Build 142)  -->
+  <g>
+    <g id="Layer_2">
+      <circle cx="10" cy="8" r="5.5" fill="#87479b"/>
+      <path d="M9.1,5.2c0-.2,0-.4.2-.5s.4-.2.7-.2.5,0,.7.2.2.3.2.5c0,.5-.3.7-.9.7s-.9-.2-.9-.7ZM10.8,11.1h-1.6v-4.3s1.6,0,1.6,0v4.3Z" fill="#fff"/>
+    </g>
+  </g>
+</svg>
