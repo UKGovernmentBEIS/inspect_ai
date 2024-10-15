@@ -27,6 +27,8 @@ import { decompress } from "fflate";
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory, and provides a method to read files within the ZIP.
  *
  * @param {string} url - The URL of the remote ZIP file.
+ * @param {(url: string) => Promise<number>} [fetchContentLength] - function to compute file length
+ * @param {(url: string, start:number, end: number) => Promise<Uint8Array>} [fetchBytes] - function to fetch bytes
  * @returns {Promise<{ centralDirectory: Map<string, CentralDirectoryEntry>, readFile: function(string): Promise<Uint8Array> }>} A promise that resolves with an object containing:
  *  - `centralDirectory`: A map of filenames to their corresponding central directory entries.
  *  - `readFile`: A function to read a specific file from the ZIP archive by name.
@@ -108,7 +110,7 @@ export const openRemoteZipFile = async (
 };
 
 export const fetchSize = async (url) => {
-  const response = await fetch(url, { method: "HEAD" });
+  const response = await fetch(`/api/log-size/${url}`, { method: "HEAD" });
   const contentLength = Number(response.headers.get("Content-Length"));
   return contentLength;
 };
@@ -123,7 +125,7 @@ export const fetchSize = async (url) => {
  * @throws {Error} If there is an issue with the network request.
  */
 export const fetchRange = async (url, start, end) => {
-  const response = await fetch(url, {
+  const response = await fetch(`/api/log-bytes/${url}`, {
     headers: { Range: `bytes=${start}-${end}` },
   });
   const arrayBuffer = await response.arrayBuffer();

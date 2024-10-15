@@ -10,13 +10,18 @@ import { openRemoteZipFile } from "../utils/remoteZipFile.mjs";
 
 /**
  * Opens a remote log file and provides methods to read its contents.
+ * @param {import("../api/Types.mjs").LogViewAPI} api - The api
  * @param {string} url - The URL of the remote zip file.
  * @param {number} concurrency - The number of concurrent operations allowed.
  * @returns {Promise<Object>} An object with methods to read the log file.
  */
-export const openRemoteLogFile = async (url, concurrency) => {
+export const openRemoteLogFile = async (api, url, concurrency) => {
   const queue = new AsyncQueue(concurrency);
-  const remoteZipFile = await openRemoteZipFile(url);
+  const remoteZipFile = await openRemoteZipFile(
+    `${encodeURIComponent(url)}`,
+    api.eval_log_size,
+    api.eval_log_bytes,
+  );
 
   /**
    * Reads and parses a JSON file from the zip.
@@ -116,7 +121,7 @@ export const openRemoteLogFile = async (url, concurrency) => {
    * Reads all summaries, falling back to individual files if necessary.
    * @returns {Promise<Object>} All summaries.
    */
-  const readAllSummaries = async () => {
+  const readSampleSummaries = async () => {
     try {
       return await readJSONFile("summary.json");
     } catch {
@@ -128,7 +133,23 @@ export const openRemoteLogFile = async (url, concurrency) => {
   };
 
   return {
-    readAllSummaries,
+    readLogSummary: async () => {
+      const [evalResult, startData, sampleSummaries] = await Promise.all([
+        readResults(),
+        readStart(),
+        readSampleSummaries(),
+      ]);
+      return {
+        status: evalResult.status,
+        eval: startData.eval,
+        plan: startData.plan,
+        results: evalResult.results,
+        stats: evalResult.stats,
+        error: evalResult.error,
+        sampleSummaries,
+      };
+    },
+    readSample,
     /**
      * Reads the complete log file.
      * @returns {Promise<import("../types/log").EvalLog>} The complete log data.

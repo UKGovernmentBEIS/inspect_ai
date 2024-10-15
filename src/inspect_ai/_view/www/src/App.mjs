@@ -90,7 +90,6 @@ export function App({ api, pollForLogs = true }) {
       api
         .get_log_sample(currentLog.name, summary.id, summary.epoch)
         .then((sample) => {
-          console.log("loaded");
           setSelectedSample(sample);
           setSampleStatus("ok");
           loadingSampleIndexRef.current = null;

@@ -1,4 +1,9 @@
 //@ts-check
+import { openRemoteLogFile } from "../log/remoteLogFile.mjs";
+
+const isEvalFile = (file) => {
+  return file.endsWith(".eval");
+};
 
 /**
  * This provides an API implementation that will serve a single
@@ -13,6 +18,19 @@ export const clientApi = (api) => {
   let current_log = undefined;
   let current_path = undefined;
 
+  const loadedEvalFile = {
+    file: undefined,
+    remoteLog: undefined,
+  };
+
+  const remoteEvalFile = async (log_file) => {
+    if (loadedEvalFile.file !== log_file) {
+      loadedEvalFile.file = log_file;
+      loadedEvalFile.remoteLog = await openRemoteLogFile(api, log_file, 5);
+    }
+    return loadedEvalFile.remoteLog;
+  };
+
   /**
    * Gets a log
    *
@@ -20,7 +38,7 @@ export const clientApi = (api) => {
    * @returns { Promise<import("./Types.mjs").LogContents> } A Log Viewer API
    */
   const get_log = async (log_file) => {
-    if (log_file !== current_path) {
+    if (log_file !== current_path || !current_log) {
       current_log = await api.eval_log(log_file, 100);
     }
     return current_log;
@@ -33,35 +51,40 @@ export const clientApi = (api) => {
    * @returns { Promise<import("./Types.mjs").EvalSummary> } A Log Viewer API
    */
   const get_log_summary = async (log_file) => {
-    const logContents = await get_log(log_file);
+    current_path = log_file;
+    if (isEvalFile(log_file)) {
+      const remoteLogFile = await remoteEvalFile(log_file);
+      return await remoteLogFile.readLogSummary();
+    } else {
+      const logContents = await get_log(log_file);
+      /**
+       * @type {import("./Types.mjs").SampleSummary[]}
+       */
+      const sampleSummaries = logContents.parsed.samples
+        ? logContents.parsed.samples?.map((sample) => {
+            return {
+              id: sample.id,
+              epoch: sample.epoch,
+              input: sample.input,
+              target: sample.target,
+              scores: sample.scores,
+              metadata: sample.metadata,
+            };
+          })
+        : [];
 
-    /**
-     * @type {import("./Types.mjs").SampleSummary[]}
-     */
-    const sampleSummaries = logContents.parsed.samples
-      ? logContents.parsed.samples?.map((sample) => {
-          return {
-            id: sample.id,
-            epoch: sample.epoch,
-            input: sample.input,
-            target: sample.target,
-            scores: sample.scores,
-            metadata: sample.metadata,
-          };
-        })
-      : [];
-
-    const parsed = logContents.parsed;
-    return {
-      version: parsed.version,
-      status: parsed.status,
-      eval: parsed.eval,
-      plan: parsed.plan,
-      results: parsed.results,
-      stats: parsed.stats,
-      error: parsed.error,
-      sampleSummaries,
-    };
+      const parsed = logContents.parsed;
+      return {
+        version: parsed.version,
+        status: parsed.status,
+        eval: parsed.eval,
+        plan: parsed.plan,
+        results: parsed.results,
+        stats: parsed.stats,
+        error: parsed.error,
+        sampleSummaries,
+      };
+    }
   };
 
   /**
@@ -73,11 +96,17 @@ export const clientApi = (api) => {
    * @returns { Promise<import("../types/log").EvalSample | undefined> }  The sample
    */
   const get_log_sample = async (log_file, id, epoch) => {
-    const logContents = await get_log(log_file);
-    if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
-      return logContents.parsed.samples.find((sample) => {
-        return sample.id === id && sample.epoch === epoch;
-      });
+    if (isEvalFile(log_file)) {
+      const remoteLogFile = await remoteEvalFile(log_file);
+      const sample = await remoteLogFile.readSample(id, epoch);
+      return sample;
+    } else {
+      const logContents = await get_log(log_file);
+      if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
+        return logContents.parsed.samples.find((sample) => {
+          return sample.id === id && sample.epoch === epoch;
+        });
+      }
     }
     return undefined;
   };

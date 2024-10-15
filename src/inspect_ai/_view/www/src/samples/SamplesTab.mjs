@@ -104,7 +104,6 @@ export const SamplesTab = ({
       return val.type === "sample";
     });
     if (items.length) {
-      console.log({ firstSample });
       setSelectedSampleIndex(firstSample);
     }
 
@@ -179,7 +178,6 @@ export const SamplesTab = ({
     );
   }
 
-  console.log({ selectedSampleIndex });
   const title =
     selectedSampleIndex > -1 && items.length > selectedSampleIndex
       ? items[selectedSampleIndex].label
