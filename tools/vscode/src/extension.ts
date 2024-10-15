@@ -24,6 +24,7 @@ import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
+import { activateStatusBar } from "./providers/statusbar";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -128,6 +129,9 @@ export async function activate(context: ExtensionContext) {
 
   // Activate Code Lens
   activateCodeLens(context);
+
+  // Activate Status Bar
+  activateStatusBar(context, inspectManager);
 
   // Activate commands
   [

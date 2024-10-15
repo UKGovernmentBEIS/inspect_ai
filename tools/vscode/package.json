@@ -32,9 +32,12 @@
     "onWebviewPanel:inspect.logview",
     "onWebviewPanel:inspect_ai.task-configuration",
     "onWebviewPanel:inspect_ai.env-configuration-view",
+    "onLanguage:eval",
+    "workspaceContains:**/*.eval",
+    "workspaceContains:**/{[0-9][0-9][0-9][0-9]}-{[0-9][0-9]}-{[0-9][0-9]}T{[0-9][0-9]}[:-]{[0-9][0-9]}[:-]{[0-9][0-9]}*{[A-Za-z0-9]{21}}*.json",
     "onLanguage:python",
-    "workspaceContains:*.py",
-    "workspaceContains:*.ipynb"
+    "workspaceContains:**/*.py",
+    "workspaceContains:**/*.ipynb"
   ],
   "main": "./dist/extension.js",
   "contributes": {
