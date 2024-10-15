@@ -51,22 +51,53 @@ If you are running in VS Code, then you should restart terminals and notebooks u
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluations to Amazon S3 buckets.
 
+## Log Format
+
+::: {.callout-note appearance="simple"}
+The `.eval` format described below is supported only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
+
+| Type | Description |
+|-----------------------|-------------------------------------------------|
+| `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
+| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
+
+: {tbl-colwidths=\[20,80\]}
+
+Inspect currently defaults to using `.json` format, but will soon switch to `.eval` as the default because of its size and speed advantages. You can control the log format globally in your `.env` file:
+
+``` {.bash filename=".env"}
+INSPECT_LOG_FORMAT=eval
+```
+
+Or specify it per-evaluation with the `--log-format` option:
+
+``` bash
+inspect eval ctf.py --log-format=eval
+```
+
 ## EvalLog
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
-| Field     | Type                   | Description                                                            |
-|------------------|--------------------|----------------------------------|
-| `status`  | `str`                  | Status of evaluation (`"started"`, `"success"`, or `"error"`).         |
-| `eval`    | `EvalSpec`             | Top level eval details including task, model, creation time, etc.      |
-| `plan`    | `EvalPlan`             | List of solvers and model generation config used for the eval.         |
-| `samples` | `list[EvalSample]`     | Each sample evaluated, including its input, output, target, and score. |
-| `results` | `EvalResults`          | Aggregate results computed by scorer metrics.                          |
-| `stats`   | `EvalStats`            | Model usage statistics (input and output tokens)                       |
-| `logging` | `list[LoggingMessage]` | Logging messages (e.g. from `log.info()`, `log.debug()`, etc.          |
-| `error`   | `EvalError`            | Error information (if `status == "error`) including traceback.         |
+| Field | Type | Description |
+|-------------------|--------------------|---------------------------------|
+| `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
+| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
+| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
+| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
+| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
+| `logging` | `list[LoggingMessage]` | Logging messages (e.g. from `log.info()`, `log.debug()`, etc. |
+| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
 
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
@@ -80,11 +111,11 @@ In the section below we'll talk more about how to deal with logs from failed eva
 
 You can enumerate, read, and write `EvalLog` objects using the following helper functions from the `inspect_ai.log` module:
 
-| Function                        | Description                                    |
+| Function | Description |
 |-------------------------------|-----------------------------------------|
-| `list_eval_logs()`              | List all of the eval logs at a given location. |
-| `read_eval_log(log_file)`       | Read an `EvalLog` from a log file path.        |
-| `write_eval_log(log, log_file)` | Write an `EvalLog` to a log file path.         |
+| `list_eval_logs()` | List all of the eval logs at a given location. |
+| `read_eval_log(log_file)` | Read an `EvalLog` from a log file path. |
+| `write_eval_log(log, log_file)` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
 
@@ -108,6 +139,7 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 ::: {.callout-note appearance="simple"}
 ### Eval Sets
+
 We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
 :::
 
