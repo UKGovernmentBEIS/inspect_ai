@@ -1,6 +1,7 @@
 import { ChildProcess, SpawnOptions } from "child_process";
 import { randomUUID } from "crypto";
 import * as os from "os";
+import AsyncLock from "async-lock";
 
 import { Disposable, OutputChannel, Uri, window } from "vscode";
 
@@ -90,66 +91,67 @@ export class InspectViewServer implements Disposable {
       return;
     }
 
-    if (this.serverProcess_ === undefined || this.serverProcess_.exitCode !== null) {
+    await this.serverStartupLock_.acquire("server-startup", async () => {
+      if (this.serverProcess_ === undefined || this.serverProcess_.exitCode !== null) {
 
-      // find port and establish auth token
-      this.serverProcess_ = undefined;
-      this.serverPort_ = await findOpenPort(7676);
-      this.serverAuthToken_ = randomUUID();
+        // find port and establish auth token
+        this.serverProcess_ = undefined;
+        this.serverPort_ = await findOpenPort(7676);
+        this.serverAuthToken_ = randomUUID();
 
-      // launch server and wait to resolve/return until it produces output
-      return new Promise((resolve, reject) => {
+        // launch server and wait to resolve/return until it produces output
+        return new Promise((resolve, reject) => {
 
-        // find inspect
-        const inspect = inspectBinPath();
-        if (!inspect) {
-          throw new Error("inspect view: inspect installation not found");
-        }
-
-        // launch process
-        const options: SpawnOptions = {
-          cwd: activeWorkspacePath().path,
-          env: {
-            "COLUMNS": "150",
-            "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
-          },
-          shell: os.platform() === "win32"
-        };
-
-        // forward output to channel and resolve promise
-        let resolved = false;
-        const onOutput = (output: string) => {
-          this.outputChannel_.append(output);
-          if (!resolved) {
-            resolved = true;
-            resolve(undefined);
+          // find inspect
+          const inspect = inspectBinPath();
+          if (!inspect) {
+            throw new Error("inspect view: inspect installation not found");
           }
-        };
 
-        // run server
-        const quote = os.platform() === "win32" ? shQuote : (arg: string) => arg;
-        const args = [
-          "view", "start",
-          "--port", String(this.serverPort_),
-          "--log-level", "info", "--no-ansi"
-        ];
-        this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
-          stdout: onOutput,
-          stderr: onOutput,
-        }, {
-          onClose: (code: number) => {
-            this.outputChannel_.appendLine(`Inspect View exited with code ${code} (pid=${this.serverProcess_?.pid})`);
-          },
-          onError: (error: Error) => {
-            this.outputChannel_.appendLine(`Error starting Inspect View ${error.message}`);
-            reject(error);
-          },
+          // launch process
+          const options: SpawnOptions = {
+            cwd: activeWorkspacePath().path,
+            env: {
+              "COLUMNS": "150",
+              "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
+            },
+            shell: os.platform() === "win32"
+          };
+
+          // forward output to channel and resolve promise
+          let resolved = false;
+          const onOutput = (output: string) => {
+            this.outputChannel_.append(output);
+            if (!resolved) {
+              resolved = true;
+              resolve(undefined);
+            }
+          };
+
+          // run server
+          const quote = os.platform() === "win32" ? shQuote : (arg: string) => arg;
+          const args = [
+            "view", "start",
+            "--port", String(this.serverPort_),
+            "--log-level", "info", "--no-ansi"
+          ];
+          this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
+            stdout: onOutput,
+            stderr: onOutput,
+          }, {
+            onClose: (code: number) => {
+              this.outputChannel_.appendLine(`Inspect View exited with code ${code} (pid=${this.serverProcess_?.pid})`);
+            },
+            onError: (error: Error) => {
+              this.outputChannel_.appendLine(`Error starting Inspect View ${error.message}`);
+              reject(error);
+            },
+          });
+          this.outputChannel_.appendLine(`Starting Inspect View on port ${this.serverPort_} (pid=${this.serverProcess_?.pid})`);
         });
-        this.outputChannel_.appendLine(`Starting Inspect View on port ${this.serverPort_} (pid=${this.serverProcess_?.pid})`);
-      });
 
-    }
-
+      }
+    });
   }
 
 
@@ -204,6 +206,7 @@ export class InspectViewServer implements Disposable {
   }
 
   private outputChannel_: OutputChannel;
+  private serverStartupLock_ = new AsyncLock();
   private serverProcess_?: ChildProcess = undefined;
   private serverPort_?: number = undefined;
   private serverAuthToken_: string = "";
