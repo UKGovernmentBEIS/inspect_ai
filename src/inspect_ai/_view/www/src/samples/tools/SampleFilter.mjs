@@ -9,6 +9,15 @@ import {
   kScoreTypePassFail,
 } from "../SamplesDescriptor.mjs";
 
+/**
+ * Renders the Sample Filter Control
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../SamplesDescriptor.mjs").SamplesDescriptor} props.descriptor - The sample descriptor
+ * @param {(filter: import("../../Types.mjs").ScoreFilter) => void} props.filterChanged - Filter changed function
+ * @param {import("../../Types.mjs").ScoreFilter} props.filter - Capabilities of the application host
+ * @returns {import("preact").JSX.Element | string} The TranscriptView component.
+ */
 export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   const filterCategory = (e) => {
     const val = e.currentTarget.value;

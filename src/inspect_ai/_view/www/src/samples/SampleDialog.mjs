@@ -2,10 +2,10 @@ import { html } from "htm/preact";
 import { useCallback, useMemo } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
 
 import { SampleDisplay } from "./SampleDisplay.mjs";
+import { EmptyPanel } from "../components/EmptyPanel.mjs";
 
 export const SampleDialog = (props) => {
   const {
@@ -18,14 +18,9 @@ export const SampleDialog = (props) => {
     prevSample,
     sampleDialogVisible,
     hideSample,
+    loading,
     context,
   } = props;
-
-  // If there is no sample, just show an empty panel
-  // This should never happen
-  if (!sample) {
-    return html`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
-  }
 
   const tools = useMemo(() => {
     const nextTool = {
@@ -78,13 +73,22 @@ export const SampleDialog = (props) => {
       onkeyup=${handleKeyUp}   
       visible=${sampleDialogVisible}
       onHide=${hideSample}
+      showProgress=${loading}
     >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      visible=${sampleDialogVisible}
-      context=${context}/>
+      ${
+        sample
+          ? html`<${SampleDisplay}
+              index=${index}
+              id=${id}
+              sample=${sample}
+              sampleDescriptor=${sampleDescriptor}
+              loading=${loading}
+              visible=${sampleDialogVisible}
+              context=${context}
+            />`
+          : html`<${EmptyPanel}></${EmptyPanel}>`
+      }
+      
+
     </${LargeModal}>`;
 };

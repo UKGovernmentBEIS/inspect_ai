@@ -102,13 +102,13 @@ export const sort = (sort, samples, sampleDescriptor) => {
         return b.epoch - a.epoch;
       case kScoreAscVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a).value,
-          sampleDescriptor.selectedScore(b).value,
+          sampleDescriptor.selectedScore(a),
+          sampleDescriptor.selectedScore(b),
         );
       case kScoreDescVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b).value,
-          sampleDescriptor.selectedScore(a).value,
+          sampleDescriptor.selectedScore(b),
+          sampleDescriptor.selectedScore(a),
         );
     }
   });

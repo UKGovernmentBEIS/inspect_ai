@@ -21,7 +21,7 @@ export const clientApi = (api) => {
    */
   const get_log = async (log_file) => {
     if (log_file !== current_path) {
-      current_log = await api.eval_log(log_file);
+      current_log = await api.eval_log(log_file, 100);
     }
     return current_log;
   };

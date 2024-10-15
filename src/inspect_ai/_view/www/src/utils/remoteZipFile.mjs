@@ -32,9 +32,12 @@ import { decompress } from "fflate";
  *  - `readFile`: A function to read a specific file from the ZIP archive by name.
  * @throws {Error} If the file is not found or an unsupported compression method is encountered.
  */
-export const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
-  
-  const contentLength = await fetchContentLength(url)
+export const openRemoteZipFile = async (
+  url,
+  fetchContentLength = fetchSize,
+  fetchBytes = fetchRange,
+) => {
+  const contentLength = await fetchContentLength(url);
 
   // Read the end of central directory record
   const eocdrBuffer = await fetchBytes(
@@ -107,8 +110,8 @@ export const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fet
 export const fetchSize = async (url) => {
   const response = await fetch(url, { method: "HEAD" });
   const contentLength = Number(response.headers.get("Content-Length"));
-  return contentLength
-}
+  return contentLength;
+};
 
 /**
  * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.

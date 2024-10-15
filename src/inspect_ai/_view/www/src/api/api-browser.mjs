@@ -30,7 +30,10 @@ async function eval_log_size(file) {
 }
 
 async function eval_log_bytes(file, start, end) {
-  return await api_bytes("GET", `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`);
+  return await api_bytes(
+    "GET",
+    `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
+  );
 }
 
 async function eval_log_headers(files) {
@@ -70,7 +73,6 @@ async function api(method, path, body) {
   }
 }
 
-
 async function api_bytes(method, path) {
   // build headers
   const headers = {
@@ -84,7 +86,7 @@ async function api_bytes(method, path) {
   const response = await fetch(`${path}`, { method, headers });
   if (response.ok) {
     const buffer = await response.arrayBuffer();
-    return new Uint8Array(buffer)
+    return new Uint8Array(buffer);
   } else if (response.status !== 200) {
     const message = (await response.text()) || response.statusText;
     const error = new Error(`Error: ${response.status}: ${message})`);
@@ -92,9 +94,7 @@ async function api_bytes(method, path) {
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
-
 }
-
 
 async function open_log_file() {
   // No op

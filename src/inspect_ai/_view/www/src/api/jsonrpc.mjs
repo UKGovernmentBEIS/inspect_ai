@@ -2,7 +2,7 @@ var kMethodEvalLogs = "eval_logs";
 
 var kMethodEvalLog = "eval_log";
 
-var kMethodEvalLogSize = "eval_log_size"
+var kMethodEvalLogSize = "eval_log_size";
 var kMethodEvalLogBytes = "eval_log_bytes";
 
 var kMethodEvalLogHeaders = "eval_log_headers";

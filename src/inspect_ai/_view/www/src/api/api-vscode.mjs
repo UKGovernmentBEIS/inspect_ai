@@ -42,7 +42,7 @@ async function eval_log(file, headerOnly, capabilities) {
   const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
   if (response) {
     let json;
-    if (capabilities.webWorkers) {
+    if (capabilities?.webWorkers) {
       json = await asyncJsonParse(response);
     } else {
       json = JSON5.parse(response);
@@ -57,7 +57,7 @@ async function eval_log(file, headerOnly, capabilities) {
 }
 
 async function eval_log_size(file) {
-  return await vscodeClient(kMethodEvalLogSize, [file])
+  return await vscodeClient(kMethodEvalLogSize, [file]);
 }
 
 async function eval_log_bytes(file, start, end) {

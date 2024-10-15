@@ -9,7 +9,7 @@ import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { CopyButton } from "./../components/CopyButton.mjs";
 import { SecondaryBar } from "./SecondaryBar.mjs";
 
-export const Navbar = ({ file, logs, log, offcanvas }) => {
+export const Navbar = ({ file, showToggle, log, offcanvas }) => {
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
 
@@ -42,7 +42,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
             minWidth: "250px",
           }}
         >
-          ${logs.files.length > 1 || logs.log_dir
+          ${showToggle
             ? html`<button
                 id="sidebarToggle"
                 class="btn${toggleOffCanClass}"

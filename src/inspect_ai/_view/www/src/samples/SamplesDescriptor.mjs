@@ -11,8 +11,48 @@ import { RenderedContent } from "../components/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 
 /**
- * A string or string array
- * @typedef {(string[]|string)} SampleDescriptor
+ * Represents a utility summary of the samples.
+ * @typedef {Object} SamplesDescriptor
+ * @property {ScoreDescriptor} scoreDescriptor - Provides information about the score types and how to render them.
+ * @property {number} epochs - The number of epochs.
+ * @property {MessageShape} messageShape - The normalized sizes of input, target, and answer messages.
+ * @property {(sample: import("../api/Types.mjs").SampleSummary) => SelectedScore} selectedScore - Returns the selected score for a sample.
+ * @property {(sample: import("../api/Types.mjs").SampleSummary, scorer: string) => ScorerDescriptor} scorer - Returns the scorer descriptor for a sample and a specified scorer.
+ * @property {(sample: import("../api/Types.mjs").SampleSummary) => ScorerDescriptor} selectedScorer - Returns the scorer descriptor for a sample using the selected scorer.
+ */
+
+/**
+ * Provides information about the score types and rendering functions.
+ * @typedef {Object} ScoreDescriptor
+ * @property {string} scoreType - The type of the score (e.g., 'numeric', 'categorical', 'boolean').
+ * @property {Array<Object>} [categories] - The categories for categorical scores.
+ * @property {number} [min] - The minimum value for numeric scores.
+ * @property {number} [max] - The maximum value for numeric scores.
+ * @property {(a: import("../types/log").Value2, b: import("../types/log").Value2) => number} compare - Function to compare two score values.
+ * @property {(score: import("../types/log").Value2) => any} render - Function to render the score value.
+ */
+
+/**
+ * Provides descriptor functions for a scorer.
+ * @typedef {Object} ScorerDescriptor
+ * @property {() => string} explanation - Function to retrieve the explanation of the score.
+ * @property {() => string} answer - Function to retrieve the answer associated with the score.
+ * @property {function(): Array<{name: string, rendered: function(): any}>} scores - Function to retrieve scores with their render functions.
+ */
+
+/**
+ * Represents the selected score for a sample, including its value and render function.
+ * @typedef {Object} SelectedScore
+ * @property {any} value - The value of the selected score.
+ * @property {function(): any} render - Function to render the selected score.
+ */
+
+/**
+ * Describes the shape of the messages based on their sizes.
+ * @typedef {Object} MessageShape
+ * @property {number} input - Normalized size of the input message.
+ * @property {number} target - Normalized size of the target message.
+ * @property {number} answer - Normalized size of the answer message.
  */
 
 export const kScoreTypePassFail = "passfail";
@@ -22,17 +62,32 @@ export const kScoreTypeOther = "other";
 export const kScoreTypeObject = "object";
 export const kScoreTypeBoolean = "boolean";
 
+/**
+ * Provides a utility summary of the samples
+ *
+ * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
+ * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
+ * @param {number} epochs - The number of epochs
+ * @param {import("..//Types.mjs").AppContext} context - The application context
+ * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
+ * @returns {SamplesDescriptor} The SamplesDescriptor
+ */
 export const samplesDescriptor = (
-  selectedScore,
   scorers,
   samples,
   epochs,
   context,
+  selectedScore,
 ) => {
   if (!samples) {
     return undefined;
   }
 
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {string} scorer - the scorer name
+   * @returns {import("../types/log").Score} The Score
+   */
   const score = (sample, scorer = selectedScore?.scorer) => {
     if (sample.scores[scorer]) {
       return sample.scores[scorer];
@@ -41,7 +96,10 @@ export const samplesDescriptor = (
     }
   };
 
-  // function for retrieving the sample score value
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @returns {import("../types/log").Value2} The Score
+   */
   const scoreValue = (sample) => {
     // no scores, no value
     if (Object.keys(sample.scores).length === 0 || !selectedScore) {
@@ -62,25 +120,28 @@ export const samplesDescriptor = (
   };
 
   // Retrieve the answer for a sample
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {string} scorer - the scorer name
+   * @returns {string} The answer
+   */
   const scoreAnswer = (sample, scorer) => {
     if (sample) {
       const sampleScore = score(sample, scorer);
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
-      } else if (sample.output.choices && sample.output.choices.length > 0) {
-        const content = sample.output.choices[0].message.content;
-        if (typeof content === "string") {
-          return content;
-        } else {
-          // TODO: Support image completions.
-          return content.length > 0 ? content[0].text : "";
-        }
       }
     } else {
       return undefined;
     }
   };
 
+  // Retrieve the answer for a sample
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {string} scorer - the scorer name
+   * @returns {string} The explanation
+   */
   const scoreExplanation = (sample, scorer) => {
     if (sample) {
       const sampleScore = score(sample, scorer);
@@ -124,6 +185,7 @@ export const samplesDescriptor = (
     ...new Set(uniqScoreValues.map((scoreValue) => typeof scoreValue)),
   ];
 
+  /** @type {ScoreDescriptor} */
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
     scoreDescriptor = categorizer.describe(
@@ -148,7 +210,10 @@ export const samplesDescriptor = (
         300,
       );
       previous[2] = Math.min(
-        Math.max(previous[2], scoreAnswer(current)?.length || 0),
+        Math.max(
+          previous[2],
+          scoreAnswer(current, selectedScore?.name)?.length || 0,
+        ),
         300,
       );
       return previous;
@@ -262,8 +327,17 @@ export const samplesDescriptor = (
   };
 };
 
+/**
+ * @typedef {Object} ScoreCategorizer
+ * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").AppContext) => ScoreDescriptor} describe
+ */
 const scoreCategorizers = [
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
         return booleanScoreCategorizer();
@@ -271,6 +345,10 @@ const scoreCategorizers = [
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values) => {
       if (
         (values.length === 1 || values.length === 2) &&
@@ -283,6 +361,11 @@ const scoreCategorizers = [
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (
         types[0] === "string" &&
@@ -297,13 +380,18 @@ const scoreCategorizers = [
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (values.length < 10 && types.length === 1 && types[0] === "string") {
         return {
           scoreType: kScoreTypeCategorical,
           categories: values,
           compare: (a, b) => {
-            return a.localeCompare(b);
+            return String(a).localeCompare(String(b));
           },
           render: (score) => {
             return score;
@@ -313,23 +401,44 @@ const scoreCategorizers = [
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (types.length !== 0 && types[0] === "number") {
+        const onlyNumeric = values.filter((val) => {
+          return typeof val === "number";
+        });
+
         return {
           scoreType: kScoreTypeNumeric,
-          min: Math.min(...values),
-          max: Math.max(...values),
+          min: Math.min(...onlyNumeric),
+          max: Math.max(...onlyNumeric),
           compare: (a, b) => {
-            return a - b;
+            if (typeof a === "number" && typeof b === "number") {
+              return a - b;
+            } else {
+              console.warn(
+                "Comparing non-numerics using a nuermic score descriptor",
+              );
+              return 0;
+            }
           },
           render: (score) => {
-            return formatDecimalNoTrailingZeroes(score);
+            return formatDecimalNoTrailingZeroes(Number(score));
           },
         };
       }
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (types.length !== 0 && types[0] === "object") {
         const buckets = values.map((val) => {
@@ -349,6 +458,9 @@ const scoreCategorizers = [
         return {
           scoreType: kScoreTypeObject,
           categories,
+          compare: () => {
+            return 0;
+          },
           render: (score) => {
             if (score === null || score === undefined) {
               return "[null]";
@@ -389,12 +501,22 @@ const scoreCategorizers = [
     },
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @param {import("../Types.mjs").AppContext} [context] - the application context
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    // @ts-ignore
     describe: (values, types, context) => {
       return {
         scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
         render: (score) => {
           return html`<${RenderedContent}
-            id="asdasdas"
+            id="other-score-value"
             entry=${{ value: score }}
             context=${context}
           />`;
@@ -419,6 +541,9 @@ const filledCircleStyle = {
 const booleanScoreCategorizer = () => {
   return {
     scoreType: "boolean",
+    compare: (a, b) => {
+      return Number(a.value) - Number(b.value);
+    },
     render: (score) => {
       const scoreColorStyle = score
         ? ApplicationStyles.scoreFills.green
@@ -504,7 +629,7 @@ const passFailScoreCategorizer = (values) => {
       }
     },
     compare: (a, b) => {
-      const sort = order.indexOf(a) - order.indexOf(b);
+      const sort = order.indexOf(a.value) - order.indexOf(b.value);
       return sort;
     },
   };

@@ -34,7 +34,7 @@ import { getVscodeApi } from "./utils/vscode.mjs";
  * Renders the Main Application
  *
  * @param {Object} props - The parameters for the component.
- * @param {import("./api/Types.mjs").LogViewAPI} props.api - The api that this view should use
+ * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
@@ -58,7 +58,48 @@ export function App({ api, pollForLogs = true }) {
     webWorkers: true,
   });
   const [showFind, setShowFind] = useState(false);
+
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
+  const [selectedSample, setSelectedSample] = useState(undefined);
+
   const mainAppRef = useRef();
+
+  // Load a sample
+  const [sampleStatus, setSampleStatus] = useState(undefined);
+  const loadingSampleIndexRef = useRef(null);
+
+  useEffect(() => {
+    if (
+      !currentLog ||
+      selectedSampleIndex == -1 ||
+      loadingSampleIndexRef.current === selectedSampleIndex
+    ) {
+      // If already loading the selected sample, do nothing
+      return;
+    }
+
+    if (
+      selectedSampleIndex > -1 &&
+      selectedSampleIndex < currentLog.contents.sampleSummaries.length
+    ) {
+      loadingSampleIndexRef.current = selectedSampleIndex;
+      setSampleStatus("loading");
+      setSelectedSample(undefined);
+
+      const summary = currentLog.contents.sampleSummaries[selectedSampleIndex];
+      api
+        .get_log_sample(currentLog.name, summary.id, summary.epoch)
+        .then((sample) => {
+          console.log("loaded");
+          setSelectedSample(sample);
+          setSampleStatus("ok");
+          loadingSampleIndexRef.current = null;
+        })
+        .catch(() => {
+          loadingSampleIndexRef.current = null;
+        });
+    }
+  }, [selectedSampleIndex, currentLog, setSelectedSample, setSampleStatus]);
 
   // Read header information for the logs
   // and then update
@@ -77,7 +118,7 @@ export function App({ api, pollForLogs = true }) {
       // Chunk by chunk, read the header information
       try {
         for (const fileList of fileLists) {
-          const headers = await api.eval_log_headers(fileList);
+          const headers = await api.get_log_headers(fileList);
           setLogHeaders((prev) => {
             const updatedHeaders = {};
             headers.forEach((header, index) => {
@@ -111,12 +152,17 @@ export function App({ api, pollForLogs = true }) {
           setStatus({ loading: true, error: undefined });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
-            const log = logContents.parsed;
+            const log = logContents;
             setCurrentLog({
               contents: log,
               name: targetLog.name,
-              raw: logContents.raw,
+              // TODO: need to do something async here
+              raw: JSON.stringify(logContents, undefined, 2),
             });
+
+            // Clear the sample index
+            setSelectedSampleIndex(-1);
+
             setStatus({ loading: false, error: undefined });
           }
         } catch (e) {
@@ -139,7 +185,7 @@ export function App({ api, pollForLogs = true }) {
   // Load the list of logs
   const loadLogs = async () => {
     try {
-      const result = await api.eval_logs();
+      const result = await api.get_log_paths();
       return result;
     } catch (e) {
       // Show an error
@@ -151,7 +197,7 @@ export function App({ api, pollForLogs = true }) {
   // Load a specific log file
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api.eval_log(logFileName, 100, capabilities);
+      const logContents = await api.get_log_summary(logFileName);
       return logContents;
     } catch (e) {
       // Show an error
@@ -166,7 +212,7 @@ export function App({ api, pollForLogs = true }) {
       const targetLog = logs.files[selected];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
-        const log = logContents.parsed;
+        const log = logContents;
         if (log.status !== "started") {
           setLogHeaders((prev) => {
             const updatedState = { ...prev };
@@ -186,7 +232,8 @@ export function App({ api, pollForLogs = true }) {
         setCurrentLog({
           contents: log,
           name: targetLog.name,
-          raw: logContents.raw,
+          // TODO: Need to deal with this and use async or something
+          raw: JSON.stringify(logContents, undefined, 2),
         });
         setStatus({ loading: false, error: undefined });
       }
@@ -376,19 +423,30 @@ export function App({ api, pollForLogs = true }) {
         error=${status.error}
       />`;
     } else {
+      const showToggle = logs.files.length > 1 || logs.log_dir;
       return html` <${WorkSpace}
-        logs=${logs}
+        showToggle=${showToggle}
         log=${currentLog}
-        selected=${selected}
-        fullScreen=${fullScreen}
+        sample=${selectedSample}
+        sampleStatus=${sampleStatus}
+        refreshLog=${refreshLog}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
-        showFind=${showFind}
-        setShowFind=${setShowFind}
-        refreshLog=${refreshLog}
+        selected=${selected}
+        selectedSampleIndex=${selectedSampleIndex}
+        setSelectedSampleIndex=${setSelectedSampleIndex}
       />`;
     }
-  }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
+  }, [
+    logs,
+    currentLog,
+    selected,
+    selectedSample,
+    offcanvas,
+    status,
+    sampleStatus,
+    selectedSampleIndex,
+  ]);
 
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";

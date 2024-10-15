@@ -20,25 +20,50 @@ import { FlatSampleError } from "./SampleError.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
+import { ProgressBar } from "../components/ProgressBar.mjs";
+
 import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
 
+/**
+ * Inline Sample Display
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {number} props.index - The task index
+ * @param {string} props.id - The task id
+ * @param {boolean} props.loading - is the sample loading?
+ * @param {import("../types/log").Sample} [props.sample] - the sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {import("../Types.mjs").AppContext} props.context - the app context
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export const InlineSampleDisplay = ({
   index,
   id,
   sample,
+  loading,
   sampleDescriptor,
   context,
 }) => {
   return html`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "1em" }}
+    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      context=${context}
+    <${ProgressBar}
+      animating=${loading}
+      containerStyle=${{
+        background: "var(--bs-body-bg)",
+      }}
     />
+    <div style=${{ height: "1em" }} />
+    ${sample
+      ? html` <${SampleDisplay}
+          index=${index}
+          id=${id}
+          sample=${sample}
+          loading=${loading}
+          sampleDescriptor=${sampleDescriptor}
+          context=${context}
+        />`
+      : ""}
   </div>`;
 };
 

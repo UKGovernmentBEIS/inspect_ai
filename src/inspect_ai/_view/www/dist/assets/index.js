@@ -13068,7 +13068,7 @@ const kScoreTypeCategorical = "categorical";
 const kScoreTypeNumeric = "numeric";
 const kScoreTypeOther = "other";
 const kScoreTypeObject = "object";
-const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => {
+const samplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
   if (!samples) {
     return void 0;
   }
@@ -13096,13 +13096,6 @@ const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => 
       const sampleScore = score(sample, scorer);
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
-      } else if (sample.output.choices && sample.output.choices.length > 0) {
-        const content = sample.output.choices[0].message.content;
-        if (typeof content === "string") {
-          return content;
-        } else {
-          return content.length > 0 ? content[0].text : "";
-        }
       }
     } else {
       return void 0;
@@ -13163,7 +13156,10 @@ const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => 
         300
       );
       previous[2] = Math.min(
-        Math.max(previous[2], ((_a = scoreAnswer(current)) == null ? void 0 : _a.length) || 0),
+        Math.max(
+          previous[2],
+          ((_a = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a.length) || 0
+        ),
         300
       );
       return previous;
@@ -13262,6 +13258,11 @@ const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => 
 };
 const scoreCategorizers = [
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
         return booleanScoreCategorizer();
@@ -13269,6 +13270,10 @@ const scoreCategorizers = [
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values) => {
       if ((values.length === 1 || values.length === 2) && values.every((val) => {
         return val === 1 || val === 0;
@@ -13278,6 +13283,11 @@ const scoreCategorizers = [
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
         return val !== "I" && val !== "C" && val !== "P" && val !== "N";
@@ -13287,13 +13297,18 @@ const scoreCategorizers = [
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (values.length < 10 && types.length === 1 && types[0] === "string") {
         return {
           scoreType: kScoreTypeCategorical,
           categories: values,
           compare: (a2, b2) => {
-            return a2.localeCompare(b2);
+            return String(a2).localeCompare(String(b2));
           },
           render: (score) => {
             return score;
@@ -13303,23 +13318,43 @@ const scoreCategorizers = [
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (types.length !== 0 && types[0] === "number") {
+        const onlyNumeric = values.filter((val) => {
+          return typeof val === "number";
+        });
         return {
           scoreType: kScoreTypeNumeric,
-          min: Math.min(...values),
-          max: Math.max(...values),
+          min: Math.min(...onlyNumeric),
+          max: Math.max(...onlyNumeric),
           compare: (a2, b2) => {
-            return a2 - b2;
+            if (typeof a2 === "number" && typeof b2 === "number") {
+              return a2 - b2;
+            } else {
+              console.warn(
+                "Comparing non-numerics using a nuermic score descriptor"
+              );
+              return 0;
+            }
           },
           render: (score) => {
-            return formatDecimalNoTrailingZeroes(score);
+            return formatDecimalNoTrailingZeroes(Number(score));
           }
         };
       }
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
     describe: (values, types) => {
       if (types.length !== 0 && types[0] === "object") {
         const buckets = values.map((val) => {
@@ -13338,6 +13373,9 @@ const scoreCategorizers = [
         return {
           scoreType: kScoreTypeObject,
           categories,
+          compare: () => {
+            return 0;
+          },
           render: (score) => {
             if (score === null || score === void 0) {
               return "[null]";
@@ -13374,12 +13412,22 @@ const scoreCategorizers = [
     }
   },
   {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @param {import("../Types.mjs").AppContext} [context] - the application context
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    // @ts-ignore
     describe: (values, types, context) => {
       return {
         scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
         render: (score) => {
           return m$1`<${RenderedContent}
-            id="asdasdas"
+            id="other-score-value"
             entry=${{ value: score }}
             context=${context}
           />`;
@@ -13402,6 +13450,9 @@ const filledCircleStyle = {
 const booleanScoreCategorizer = () => {
   return {
     scoreType: "boolean",
+    compare: (a2, b2) => {
+      return Number(a2.value) - Number(b2.value);
+    },
     render: (score) => {
       const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
       return m$1`<span
@@ -13482,7 +13533,7 @@ const passFailScoreCategorizer = (values) => {
       }
     },
     compare: (a2, b2) => {
-      const sort2 = order2.indexOf(a2) - order2.indexOf(b2);
+      const sort2 = order2.indexOf(a2.value) - order2.indexOf(b2.value);
       return sort2;
     }
   };
@@ -13577,13 +13628,13 @@ const sort = (sort2, samples, sampleDescriptor) => {
         return b2.epoch - a2.epoch;
       case kScoreAscVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a2).value,
-          sampleDescriptor.selectedScore(b2).value
+          sampleDescriptor.selectedScore(a2),
+          sampleDescriptor.selectedScore(b2)
         );
       case kScoreDescVal:
         return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b2).value,
-          sampleDescriptor.selectedScore(a2).value
+          sampleDescriptor.selectedScore(b2),
+          sampleDescriptor.selectedScore(a2)
         );
     }
   });
@@ -13602,6 +13653,7 @@ const LargeModal = (props) => {
     onkeyup,
     visible,
     onHide,
+    showProgress,
     children
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
@@ -13689,6 +13741,13 @@ const LargeModal = (props) => {
         >
           ${headerEls}
         </div>
+        <${ProgressBar}
+          animating=${showProgress}
+          containerStyle=${{
+    marginBottom: "-2px",
+    backgroundColor: "var(--bs-body-bg)"
+  }}
+        />
         <div class="modal-body">${children}</div>
         ${modalFooter}
       </div>
@@ -16958,19 +17017,28 @@ const InlineSampleDisplay = ({
   index,
   id,
   sample,
+  loading,
   sampleDescriptor,
   context
 }) => {
   return m$1`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "1em" }}
+    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      context=${context}
+    <${ProgressBar}
+      animating=${loading}
+      containerStyle=${{
+    background: "var(--bs-body-bg)"
+  }}
     />
+    <div style=${{ height: "1em" }} />
+    ${sample ? m$1` <${SampleDisplay}
+          index=${index}
+          id=${id}
+          sample=${sample}
+          loading=${loading}
+          sampleDescriptor=${sampleDescriptor}
+          context=${context}
+        />` : ""}
   </div>`;
 };
 const SampleDisplay = ({
@@ -17302,11 +17370,9 @@ const SampleDialog = (props) => {
     prevSample,
     sampleDialogVisible,
     hideSample,
+    loading,
     context
   } = props;
-  if (!sample) {
-    return m$1`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
-  }
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
@@ -17353,14 +17419,19 @@ const SampleDialog = (props) => {
       onkeyup=${handleKeyUp}   
       visible=${sampleDialogVisible}
       onHide=${hideSample}
+      showProgress=${loading}
     >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      visible=${sampleDialogVisible}
-      context=${context}/>
+      ${sample ? m$1`<${SampleDisplay}
+              index=${index}
+              id=${id}
+              sample=${sample}
+              sampleDescriptor=${sampleDescriptor}
+              loading=${loading}
+              visible=${sampleDialogVisible}
+              context=${context}
+            />` : m$1`<${EmptyPanel}></${EmptyPanel}>`}
+      
+
     </${LargeModal}>`;
 };
 const STYLE_INNER = "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -17765,20 +17836,20 @@ const gridColumns = (sampleDescriptor) => {
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
   return { input, target, answer };
 };
-const SamplesTab = (props) => {
-  const {
-    task,
-    model,
-    samples,
-    sampleDescriptor,
-    filter,
-    sort: sort$1,
-    epoch,
-    context,
-    selectedScore
-    //setSelectedScore,
-  } = props;
-  const [selectedIndex, setSelectedIndex] = h(0);
+const SamplesTab = ({
+  task_id,
+  sample,
+  samples,
+  sampleDescriptor,
+  filter,
+  sort: sort$1,
+  epoch,
+  context,
+  selectedScore,
+  sampleLoading,
+  selectedSampleIndex,
+  setSelectedSampleIndex
+}) => {
   const [filteredSamples, setFilteredSamples] = h([]);
   const [items, setItems] = h([]);
   const sampleListRef = A(
@@ -17792,14 +17863,14 @@ const SamplesTab = (props) => {
   const [sampleDialogVisible, setSampleDialogVisible] = h(false);
   y(() => {
     setFilteredSamples(
-      (samples || []).filter((sample) => {
+      (samples || []).filter((sample2) => {
         if (epoch && epoch !== "all") {
-          if (epoch !== sample.epoch + "") {
+          if (epoch !== sample2.epoch + "") {
             return false;
           }
         }
         if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample, filter.value);
+          return filter.filterFn(sample2, filter.value);
         } else {
           return true;
         }
@@ -17824,10 +17895,10 @@ const SamplesTab = (props) => {
       order2,
       sampleDescriptor
     );
-    const items2 = sorted.flatMap((sample, index) => {
+    const items2 = sorted.flatMap((sample2, index2) => {
       const results = [];
-      const previousSample2 = index !== 0 ? sorted[index - 1] : void 0;
-      const items3 = sampleProcessor(sample, index, previousSample2);
+      const previousSample2 = index2 !== 0 ? sorted[index2 - 1] : void 0;
+      const items3 = sampleProcessor(sample2, index2, previousSample2);
       results.push(...items3);
       return results;
     });
@@ -17836,7 +17907,8 @@ const SamplesTab = (props) => {
       return val.type === "sample";
     });
     if (items2.length) {
-      setSelectedIndex(firstSample);
+      console.log({ firstSample });
+      setSelectedSampleIndex(firstSample);
     }
     return items2;
   }, [filteredSamples, sort$1, epoch, sampleDescriptor]);
@@ -17844,41 +17916,42 @@ const SamplesTab = (props) => {
     hideSample();
   }, [items]);
   const nextSampleIndex = q(() => {
-    for (let i2 = selectedIndex + 1; i2 < items.length; i2++) {
+    for (let i2 = selectedSampleIndex + 1; i2 < items.length; i2++) {
       if (items[i2].type === "sample") {
         return i2;
       }
     }
     return -1;
-  }, [selectedIndex, items]);
+  }, [selectedSampleIndex, items]);
   const previousSampleIndex = q(() => {
-    for (let i2 = selectedIndex - 1; i2 >= 0; i2--) {
+    for (let i2 = selectedSampleIndex - 1; i2 >= 0; i2--) {
       if (items[i2].type === "sample") {
         return i2;
       }
     }
     return -1;
-  }, [selectedIndex, items]);
+  }, [selectedSampleIndex, items]);
   const nextSample = q(() => {
     const next = nextSampleIndex();
     if (next > -1) {
-      setSelectedIndex(next);
+      setSelectedSampleIndex(next);
     }
-  }, [selectedIndex, filteredSamples, nextSampleIndex]);
+  }, [selectedSampleIndex, filteredSamples, nextSampleIndex]);
   const previousSample = q(() => {
     const prev = previousSampleIndex();
     if (prev > -1) {
-      setSelectedIndex(prev);
+      setSelectedSampleIndex(prev);
     }
-  }, [selectedIndex, filteredSamples, previousSampleIndex]);
+  }, [selectedSampleIndex, filteredSamples, previousSampleIndex]);
   const elements = [];
   if ((samples == null ? void 0 : samples.length) === 1 && items.length === 1) {
     elements.push(
       m$1` <${InlineSampleDisplay}
         index="0"
-        key=${`${task}-single-sample`}
+        key=${`${task_id}-single-sample`}
         id="sample-display"
-        sample=${samples[0]}
+        sample=${sample}
+        loading=${sampleLoading}
         sampleDescriptor=${sampleDescriptor}
         context=${context}
       />`
@@ -17889,8 +17962,8 @@ const SamplesTab = (props) => {
         listRef=${sampleListRef}
         items=${items}
         sampleDescriptor=${sampleDescriptor}
-        selectedIndex=${selectedIndex}
-        setSelectedIndex=${setSelectedIndex}
+        selectedIndex=${selectedSampleIndex}
+        setSelectedIndex=${setSelectedSampleIndex}
         selectedScore=${selectedScore}
         nextSample=${nextSample}
         prevSample=${previousSample}
@@ -17898,14 +17971,17 @@ const SamplesTab = (props) => {
       />`
     );
   }
+  console.log({ selectedSampleIndex });
+  const title = selectedSampleIndex > -1 && items.length > selectedSampleIndex ? items[selectedSampleIndex].label : "";
+  const index = selectedSampleIndex > -1 && items.length > selectedSampleIndex ? items[selectedSampleIndex].number : -1;
   elements.push(m$1`
     <${SampleDialog}
       ref=${sampleDialogRef}
-      task=${task}
-      model=${model}
-      title=${items.length > 0 ? items[selectedIndex].label : void 0}
-      index=${items.length > 0 ? items[selectedIndex].number : void 0}
-      sample=${items.length > 0 ? items[selectedIndex].data : void 0}
+      task=${task_id}
+      title=${title}
+      index=${index}
+      sample=${sample}
+      loading=${sampleLoading}
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
@@ -17944,7 +18020,7 @@ const noGrouping = (samples, order2) => {
 };
 const groupBySample = (samples, sampleDescriptor, order2) => {
   samples = samples.sort((a2, b2) => {
-    return ("" + a2.id).localeCompare(b2.id);
+    return String(a2.id).localeCompare(String(b2.id));
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
@@ -18572,7 +18648,7 @@ const ParamSummary = ({ params }) => {
     return "";
   }
 };
-const Navbar = ({ file, logs, log, offcanvas }) => {
+const Navbar = ({ file, showToggle, log, offcanvas }) => {
   var _a, _b, _c;
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
@@ -18601,7 +18677,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
     minWidth: "250px"
   }}
         >
-          ${logs.files.length > 1 || logs.log_dir ? m$1`<button
+          ${showToggle ? m$1`<button
                 id="sidebarToggle"
                 class="btn${toggleOffCanClass}"
                 type="button"
@@ -18965,7 +19041,10 @@ async function eval_log_size$1(file) {
   return (await api$1("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
 }
 async function eval_log_bytes$1(file, start2, end2) {
-  return await api_bytes("GET", `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`);
+  return await api_bytes(
+    "GET",
+    `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`
+  );
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -20223,7 +20302,7 @@ async function eval_log(file, headerOnly, capabilities) {
   const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
   if (response) {
     let json;
-    if (capabilities.webWorkers) {
+    if (capabilities == null ? void 0 : capabilities.webWorkers) {
       json = await asyncJsonParse(response);
     } else {
       json = lib.parse(response);
@@ -20471,25 +20550,90 @@ function encodePathParts(url) {
     ).join("/");
   }
 }
+const clientApi = (api2) => {
+  let current_log = void 0;
+  let current_path = void 0;
+  const get_log = async (log_file) => {
+    if (log_file !== current_path) {
+      current_log = await api2.eval_log(log_file, 100);
+    }
+    return current_log;
+  };
+  const get_log_summary = async (log_file) => {
+    var _a;
+    const logContents = await get_log(log_file);
+    const sampleSummaries = logContents.parsed.samples ? (_a = logContents.parsed.samples) == null ? void 0 : _a.map((sample) => {
+      return {
+        id: sample.id,
+        epoch: sample.epoch,
+        input: sample.input,
+        target: sample.target,
+        scores: sample.scores,
+        metadata: sample.metadata
+      };
+    }) : [];
+    const parsed = logContents.parsed;
+    return {
+      version: parsed.version,
+      status: parsed.status,
+      eval: parsed.eval,
+      plan: parsed.plan,
+      results: parsed.results,
+      stats: parsed.stats,
+      error: parsed.error,
+      sampleSummaries
+    };
+  };
+  const get_log_sample = async (log_file, id, epoch) => {
+    const logContents = await get_log(log_file);
+    if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
+      return logContents.parsed.samples.find((sample) => {
+        return sample.id === id && sample.epoch === epoch;
+      });
+    }
+    return void 0;
+  };
+  return {
+    client_events: () => {
+      return api2.client_events();
+    },
+    get_log_paths: () => {
+      return api2.eval_logs();
+    },
+    get_log_headers: (log_files) => {
+      return api2.eval_log_headers(log_files);
+    },
+    get_log_summary,
+    get_log_sample,
+    open_log_file: (log_file, log_dir) => {
+      return api2.open_log_file(log_file, log_dir);
+    },
+    download_log_file: (log_file, download_files, web_workers) => {
+      return api2.download_file(log_file, download_files, web_workers);
+    }
+  };
+};
 const resolveApi = () => {
   if (getVscodeApi()) {
-    return vscodeApi;
+    return clientApi(vscodeApi);
   } else {
     const scriptEl = document.getElementById("log_dir_context");
     if (scriptEl) {
       const data = JSON.parse(scriptEl.textContent);
       if (data.log_dir || data.log_file) {
         const log_dir2 = data.log_dir || dirname(data.log_file);
-        return simpleHttpApi(log_dir2, data.log_file);
+        const api2 = simpleHttpApi(log_dir2, data.log_file);
+        return clientApi(api2);
       }
     }
     const urlParams = new URLSearchParams(window.location.search);
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
     if (log_file || log_dir) {
-      return simpleHttpApi(log_dir, log_file);
+      const api2 = simpleHttpApi(log_dir, log_file);
+      return clientApi(api2);
     }
-    return browserApi;
+    return clientApi(browserApi);
   }
 };
 const api = resolveApi();
@@ -20543,7 +20687,17 @@ const kJsonTabId = "json-tab";
 const kInfoTabId = "plan-tab";
 const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
-const WorkSpace = (props) => {
+const WorkSpace = ({
+  log: currentLog,
+  sample,
+  showToggle,
+  refreshLog,
+  capabilities,
+  offcanvas,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  sampleStatus
+}) => {
   var _a, _b;
   const divRef = A(
     /** @type {HTMLElement|null} */
@@ -20553,9 +20707,8 @@ const WorkSpace = (props) => {
     /** @type {HTMLElement|null} */
     null
   );
-  const workspaceLog = props.log;
   const [currentTaskId, setCurrentTaskId] = h(
-    (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
+    (_b = (_a = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
   );
   const [selectedTab, setSelectedTab] = h();
   const [scores, setScores] = h([]);
@@ -20578,21 +20731,21 @@ const WorkSpace = (props) => {
   }, [setEpoch, setFilter, setSort]);
   y(() => {
     var _a2;
-    if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
+    if (currentLog.contents && ((_a2 = currentLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
       const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
       if (divRef.current) {
         divRef.current.scrollTop = 0;
       }
     }
-  }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
+  }, [currentLog, divRef, currentTaskId, setSelectedTab]);
   y(() => {
     var _a2, _b2, _c, _d, _e, _f;
-    const scorer = ((_b2 = (_a2 = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
-      name: (_c = workspaceLog.contents.results) == null ? void 0 : _c.scores[0].name,
-      scorer: (_d = workspaceLog.contents.results) == null ? void 0 : _d.scores[0].scorer
+    const scorer = ((_b2 = (_a2 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
+      name: (_c = currentLog.contents.results) == null ? void 0 : _c.scores[0].name,
+      scorer: (_d = currentLog.contents.results) == null ? void 0 : _d.scores[0].scorer
     } : void 0;
-    const scorers = (((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
+    const scorers = (((_f = (_e = currentLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
       return {
         name: score2.name,
         scorer: score2.scorer
@@ -20609,41 +20762,43 @@ const WorkSpace = (props) => {
     setScore(scorer);
     clearSampleTools();
     setRenderedCode(false);
-  }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
+  }, [currentLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
   y(() => {
     clearSampleTools();
   }, [score]);
   y(() => {
     var _a2, _b2, _c, _d;
     const sampleDescriptor = samplesDescriptor(
-      score,
       scores,
-      (_a2 = workspaceLog.contents) == null ? void 0 : _a2.samples,
-      ((_d = (_c = (_b2 = workspaceLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-      context
+      (_a2 = currentLog.contents) == null ? void 0 : _a2.sampleSummaries,
+      ((_d = (_c = (_b2 = currentLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
+      context,
+      score
     );
     setSamplesDesc(sampleDescriptor);
-  }, [workspaceLog, score, scores, setSamplesDesc]);
+  }, [currentLog, score, scores, setSamplesDesc]);
   y(() => {
     var _a2, _b2;
-    setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
-  }, [workspaceLog]);
+    setCurrentTaskId((_b2 = (_a2 = currentLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
+  }, [currentLog]);
   const tabs = T(() => {
     var _a2, _b2, _c, _d, _e, _f;
     const resolvedTabs = {};
-    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples)) {
+    if (((_a2 = currentLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = currentLog.contents) == null ? void 0 : _b2.sampleSummaries)) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: ((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.samples) == null ? void 0 : _d.length) === 1,
-        label: ((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.samples) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
+        scrollable: ((_d = (_c = currentLog.contents) == null ? void 0 : _c.sampleSummaries) == null ? void 0 : _d.length) === 1,
+        label: ((_f = (_e = currentLog.contents) == null ? void 0 : _e.sampleSummaries) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
         content: () => {
-          var _a3, _b3, _c2, _d2, _e2;
+          var _a3, _b3, _c2;
           return m$1` <${SamplesTab}
-            task=${(_b3 = (_a3 = workspaceLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.task_id}
-            model=${(_d2 = (_c2 = workspaceLog.contents) == null ? void 0 : _c2.eval) == null ? void 0 : _d2.model}
+            task=${(_b3 = (_a3 = currentLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.task_id}
             selectedScore=${score}
-            setSelectedScore=${setScore}
-            samples=${(_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples}
+            sample=${sample}
+            sampleLoading=${sampleStatus === "loading"}
+            samples=${(_c2 = currentLog.contents) == null ? void 0 : _c2.sampleSummaries}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
             sampleDescriptor=${samplesDesc}
             filter=${filter}
             sort=${sort2}
@@ -20653,19 +20808,19 @@ const WorkSpace = (props) => {
         },
         tools: () => {
           var _a3, _b3, _c2, _d2, _e2, _f2;
-          if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
+          if (((_a3 = currentLog.contents) == null ? void 0 : _a3.status) === "started") {
             return m$1`<${ToolButton}
               name=${m$1`Refresh`}
               icon="${ApplicationIcons.refresh}"
-              onclick="${props.refreshLog}"
+              onclick="${refreshLog}"
             />`;
           }
-          if (((_c2 = (_b3 = workspaceLog.contents) == null ? void 0 : _b3.samples) == null ? void 0 : _c2.length) <= 1) {
+          if (((_c2 = (_b3 = currentLog.contents) == null ? void 0 : _b3.sampleSummaries) == null ? void 0 : _c2.length) <= 1) {
             return "";
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_f2 = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
+            epochs=${(_f2 = (_e2 = (_d2 = currentLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -20687,26 +20842,23 @@ const WorkSpace = (props) => {
         var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h, _i;
         const infoCards = [];
         infoCards.push([
-          m$1`<${PlanCard}
-            log="${workspaceLog.contents}"
-            context=${context}
-          />`
+          m$1`<${PlanCard} log="${currentLog.contents}" context=${context} />`
         ]);
-        if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) !== "started") {
+        if (((_a3 = currentLog.contents) == null ? void 0 : _a3.status) !== "started") {
           infoCards.push(
             m$1`<${UsageCard}
-              stats=${(_b3 = workspaceLog.contents) == null ? void 0 : _b3.stats}
+              stats=${(_b3 = currentLog.contents) == null ? void 0 : _b3.stats}
               context=${context}
             />`
           );
         }
-        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = workspaceLog.contents) == null ? void 0 : _d2.error)) {
+        if (((_c2 = currentLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = currentLog.contents) == null ? void 0 : _d2.error)) {
           infoCards.unshift(
-            m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
+            m$1`<${TaskErrorCard} evalError=${currentLog.contents.error} />`
           );
         }
         const warnings = [];
-        if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
+        if (!((_e2 = currentLog.contents) == null ? void 0 : _e2.sampleSummaries) && ((_h = (_g = (_f2 = currentLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = currentLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
               message="Unable to display samples (this evaluation log may be too large)."
@@ -20727,27 +20879,27 @@ const WorkSpace = (props) => {
       scrollable: true,
       content: () => {
         const renderedContent = [];
-        if (workspaceLog.raw.length > kJsonMaxSize && props.capabilities.downloadFiles) {
-          const file = `${filename(workspaceLog.name)}.json`;
+        if (currentLog.raw.length > kJsonMaxSize && capabilities.downloadFiles) {
+          const file = `${filename(currentLog.name)}.json`;
           renderedContent.push(
             m$1`<${DownloadPanel}
               message="Log file raw JSON is too large to render."
               buttonLabel="Download JSON File"
-              logFile=${workspaceLog.name}
+              logFile=${currentLog.name}
               fileName=${file}
-              fileContents=${workspaceLog.raw}
+              fileContents=${currentLog.raw}
             />`
           );
         } else {
           if (codeRef.current && !renderedCode) {
-            if (workspaceLog.raw.length < kPrismRenderMaxSize) {
+            if (currentLog.raw.length < kPrismRenderMaxSize) {
               codeRef.current.innerHTML = Prism$1.highlight(
-                workspaceLog.raw,
+                currentLog.raw,
                 Prism$1.languages.javascript,
                 "javacript"
               );
             } else {
-              const textNode = document.createTextNode(workspaceLog.raw);
+              const textNode = document.createTextNode(currentLog.raw);
               codeRef.current.innerText = "";
               codeRef.current.appendChild(textNode);
             }
@@ -20775,7 +20927,7 @@ const WorkSpace = (props) => {
         </div>`;
       },
       tools: () => {
-        if (workspaceLog.raw.length > kJsonMaxSize) {
+        if (currentLog.raw.length > kJsonMaxSize) {
           return [];
         } else {
           return [
@@ -20793,7 +20945,8 @@ const WorkSpace = (props) => {
     return resolvedTabs;
   }, [
     samplesDesc,
-    workspaceLog,
+    sample,
+    currentLog,
     filter,
     setFilter,
     epoch,
@@ -20801,7 +20954,9 @@ const WorkSpace = (props) => {
     sort2,
     setSort,
     renderedCode,
-    setRenderedCode
+    setRenderedCode,
+    selectedSampleIndex,
+    sampleStatus
   ]);
   const copyFeedback = q(
     (e2) => {
@@ -20840,18 +20995,17 @@ const WorkSpace = (props) => {
     divRef=${divRef}
     tabs=${tabs}
     tabTools=${tabTools}
-    log=${workspaceLog}
-    logs=${props.logs}
+    log=${currentLog}
+    showToggle=${showToggle}
     selectedTab=${selectedTab}
-    fullScreen=${props.fullScreen}
-    offcanvas=${props.offcanvas}
+    offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
 };
 const WorkspaceDisplay = ({
   log,
-  logs,
+  showToggle,
   selectedTab,
   tabs,
   tabTools,
@@ -20867,7 +21021,7 @@ const WorkspaceDisplay = ({
     
     <${Navbar}
       file=${log.name}
-      logs=${logs}
+      showToggle=${showToggle}
       log=${log.contents}
       offcanvas=${offcanvas}
     />    
@@ -21084,7 +21238,30 @@ function App({ api: api2, pollForLogs = true }) {
     webWorkers: true
   });
   const [showFind, setShowFind] = h(false);
+  const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
+  const [selectedSample, setSelectedSample] = h(void 0);
   const mainAppRef = A();
+  const [sampleStatus, setSampleStatus] = h(void 0);
+  const loadingSampleIndexRef = A(null);
+  y(() => {
+    if (!currentLog || selectedSampleIndex == -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+    if (selectedSampleIndex > -1 && selectedSampleIndex < currentLog.contents.sampleSummaries.length) {
+      loadingSampleIndexRef.current = selectedSampleIndex;
+      setSampleStatus("loading");
+      setSelectedSample(void 0);
+      const summary = currentLog.contents.sampleSummaries[selectedSampleIndex];
+      api2.get_log_sample(currentLog.name, summary.id, summary.epoch).then((sample) => {
+        console.log("loaded");
+        setSelectedSample(sample);
+        setSampleStatus("ok");
+        loadingSampleIndexRef.current = null;
+      }).catch(() => {
+        loadingSampleIndexRef.current = null;
+      });
+    }
+  }, [selectedSampleIndex, currentLog, setSelectedSample, setSampleStatus]);
   y(() => {
     const loadHeaders = async () => {
       setHeadersLoading(true);
@@ -21096,7 +21273,7 @@ function App({ api: api2, pollForLogs = true }) {
       }
       try {
         for (const fileList of fileLists) {
-          const headers = await api2.eval_log_headers(fileList);
+          const headers = await api2.get_log_headers(fileList);
           setLogHeaders((prev) => {
             const updatedHeaders = {};
             headers.forEach((header, index) => {
@@ -21125,12 +21302,14 @@ function App({ api: api2, pollForLogs = true }) {
           setStatus({ loading: true, error: void 0 });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
-            const log = logContents.parsed;
+            const log = logContents;
             setCurrentLog({
               contents: log,
               name: targetLog.name,
-              raw: logContents.raw
+              // TODO: need to do something async here
+              raw: JSON.stringify(logContents, void 0, 2)
             });
+            setSelectedSampleIndex(-1);
             setStatus({ loading: false, error: void 0 });
           }
         } catch (e2) {
@@ -21150,7 +21329,7 @@ function App({ api: api2, pollForLogs = true }) {
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
     try {
-      const result = await api2.eval_logs();
+      const result = await api2.get_log_paths();
       return result;
     } catch (e2) {
       console.log(e2);
@@ -21159,7 +21338,7 @@ function App({ api: api2, pollForLogs = true }) {
   };
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api2.eval_log(logFileName, 100, capabilities);
+      const logContents = await api2.get_log_summary(logFileName);
       return logContents;
     } catch (e2) {
       console.log(e2);
@@ -21172,7 +21351,7 @@ function App({ api: api2, pollForLogs = true }) {
       const targetLog = logs.files[selected];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
-        const log = logContents.parsed;
+        const log = logContents;
         if (log.status !== "started") {
           setLogHeaders((prev) => {
             const updatedState = { ...prev };
@@ -21191,7 +21370,8 @@ function App({ api: api2, pollForLogs = true }) {
         setCurrentLog({
           contents: log,
           name: targetLog.name,
-          raw: logContents.raw
+          // TODO: Need to deal with this and use async or something
+          raw: JSON.stringify(logContents, void 0, 2)
         });
         setStatus({ loading: false, error: void 0 });
       }
@@ -21345,19 +21525,30 @@ function App({ api: api2, pollForLogs = true }) {
         error=${status.error}
       />`;
     } else {
+      const showToggle = logs.files.length > 1 || logs.log_dir;
       return m$1` <${WorkSpace}
-        logs=${logs}
+        showToggle=${showToggle}
         log=${currentLog}
-        selected=${selected}
-        fullScreen=${fullScreen}
+        sample=${selectedSample}
+        sampleStatus=${sampleStatus}
+        refreshLog=${refreshLog}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
-        showFind=${showFind}
-        setShowFind=${setShowFind}
-        refreshLog=${refreshLog}
+        selected=${selected}
+        selectedSampleIndex=${selectedSampleIndex}
+        setSelectedSampleIndex=${setSelectedSampleIndex}
       />`;
     }
-  }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
+  }, [
+    logs,
+    currentLog,
+    selected,
+    selectedSample,
+    offcanvas,
+    status,
+    sampleStatus,
+    selectedSampleIndex
+  ]);
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
   const hideFind = q(() => {

@@ -34,24 +34,74 @@ const kInfoTabId = "plan-tab";
 const kPrismRenderMaxSize = 250000;
 const kJsonMaxSize = 10000000;
 
-export const WorkSpace = (props) => {
+/**
+ * Renders the Main Application
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
+ * @param {import("../types/log").Sample} [props.sample] - the current sample (if any)
+ * @param {string} props.sampleStatus - whether a sample is loading
+ * @param {boolean} props.showToggle - whether to show the toggler
+ * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
+ * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
+ * @param {number} props.selectedSampleIndex - the selected sample index
+ * @param { (index: number) => void } props.setSelectedSampleIndex - function to selected a sample
+ * @param {boolean} props.offcanvas - is this off canvas
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const WorkSpace = ({
+  log: currentLog,
+  sample,
+  showToggle,
+  refreshLog,
+  capabilities,
+  offcanvas,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  sampleStatus,
+}) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
   const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
-  // alias the log for the workspace
-  const workspaceLog = props.log;
-
   // State tracking for the view
   const [currentTaskId, setCurrentTaskId] = useState(
-    workspaceLog?.contents?.eval?.run_id,
+    currentLog?.contents?.eval?.run_id,
   );
   const [selectedTab, setSelectedTab] = useState();
+
+  /**
+   * @type {[import("../Types.mjs").ScoreLabel[], function(import("../Types.mjs").ScoreLabel[]): void]}
+   */
   const [scores, setScores] = useState([]);
+
+  /**
+   * @type {[import("../Types.mjs").ScoreLabel, function(import("../Types.mjs").ScoreLabel): void]}
+   */
   const [score, setScore] = useState(undefined);
+
+  /**
+   * @type {[import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
+   */
   const [samplesDesc, setSamplesDesc] = useState(undefined);
+
+  /**
+   * @type {[import("../Types.mjs").ScoreFilter, function(import("../Types.mjs").ScoreFilter): void]}
+   */
   const [filter, setFilter] = useState({});
+
+  /**
+   * @type {[string, function(string): void]}
+   */
   const [epoch, setEpoch] = useState("all");
+
+  /**
+   * @type {[string, function(string): void]}
+   */
   const [sort, setSort] = useState(kDefaultSort);
+
+  /**
+   * @type {[boolean, function(boolean): void]}
+   */
   const [renderedCode, setRenderedCode] = useState(false);
 
   // Context is shared with most/all components and
@@ -72,8 +122,8 @@ export const WorkSpace = (props) => {
   // Display the log
   useEffect(() => {
     if (
-      workspaceLog.contents &&
-      workspaceLog.contents.eval?.run_id !== currentTaskId
+      currentLog.contents &&
+      currentLog.contents.eval?.run_id !== currentTaskId
     ) {
       const defaultTab = Object.values(tabs)[0].id;
       setSelectedTab(defaultTab);
@@ -81,17 +131,17 @@ export const WorkSpace = (props) => {
         divRef.current.scrollTop = 0;
       }
     }
-  }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
+  }, [currentLog, divRef, currentTaskId, setSelectedTab]);
 
   useEffect(() => {
     // Select the default scorer to use
-    const scorer = workspaceLog?.contents?.results?.scores[0]
+    const scorer = currentLog?.contents?.results?.scores[0]
       ? {
-          name: workspaceLog.contents.results?.scores[0].name,
-          scorer: workspaceLog.contents.results?.scores[0].scorer,
+          name: currentLog.contents.results?.scores[0].name,
+          scorer: currentLog.contents.results?.scores[0].scorer,
         }
       : undefined;
-    const scorers = (workspaceLog.contents?.results?.scores || [])
+    const scorers = (currentLog.contents?.results?.scores || [])
       .map((score) => {
         return {
           name: score.name,
@@ -112,9 +162,10 @@ export const WorkSpace = (props) => {
     // Reset state
     setScores(scorers);
     setScore(scorer);
+
     clearSampleTools();
     setRenderedCode(false);
-  }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
+  }, [currentLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
 
   useEffect(() => {
     clearSampleTools();
@@ -122,18 +173,18 @@ export const WorkSpace = (props) => {
 
   useEffect(() => {
     const sampleDescriptor = samplesDescriptor(
-      score,
       scores,
-      workspaceLog.contents?.samples,
-      workspaceLog.contents?.eval?.config?.epochs || 1,
+      currentLog.contents?.sampleSummaries,
+      currentLog.contents?.eval?.config?.epochs || 1,
       context,
+      score,
     );
     setSamplesDesc(sampleDescriptor);
-  }, [workspaceLog, score, scores, setSamplesDesc]);
+  }, [currentLog, score, scores, setSamplesDesc]);
 
   useEffect(() => {
-    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
-  }, [workspaceLog]);
+    setCurrentTaskId(currentLog.contents?.eval?.run_id);
+  }, [currentLog]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -144,21 +195,25 @@ export const WorkSpace = (props) => {
     // The samples tab
     // Currently only appears when the result is successful
     if (
-      workspaceLog.contents?.status !== "error" &&
-      workspaceLog.contents?.samples
+      currentLog.contents?.status !== "error" &&
+      currentLog.contents?.sampleSummaries
     ) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: workspaceLog.contents?.samples?.length === 1,
+        scrollable: currentLog.contents?.sampleSummaries?.length === 1,
         label:
-          workspaceLog.contents?.samples?.length > 1 ? "Samples" : "Sample",
+          currentLog.contents?.sampleSummaries?.length > 1
+            ? "Samples"
+            : "Sample",
         content: () => {
           return html` <${SamplesTab}
-            task=${workspaceLog.contents?.eval?.task_id}
-            model=${workspaceLog.contents?.eval?.model}
+            task=${currentLog.contents?.eval?.task_id}
             selectedScore=${score}
-            setSelectedScore=${setScore}
-            samples=${workspaceLog.contents?.samples}
+            sample=${sample}
+            sampleLoading=${sampleStatus === "loading"}
+            samples=${currentLog.contents?.sampleSummaries}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
             sampleDescriptor=${samplesDesc}
             filter=${filter}
             sort=${sort}
@@ -167,21 +222,21 @@ export const WorkSpace = (props) => {
           />`;
         },
         tools: () => {
-          if (workspaceLog.contents?.status === "started") {
+          if (currentLog.contents?.status === "started") {
             return html`<${ToolButton}
               name=${html`Refresh`}
               icon="${ApplicationIcons.refresh}"
-              onclick="${props.refreshLog}"
+              onclick="${refreshLog}"
             />`;
           }
 
           // Don't show tools if there is a sample sample
-          if (workspaceLog.contents?.samples?.length <= 1) {
+          if (currentLog.contents?.sampleSummaries?.length <= 1) {
             return "";
           }
           return html`<${SampleTools}
             epoch=${epoch}
-            epochs=${workspaceLog.contents?.eval?.config?.epochs}
+            epochs=${currentLog.contents?.eval?.config?.epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -204,16 +259,13 @@ export const WorkSpace = (props) => {
       content: () => {
         const infoCards = [];
         infoCards.push([
-          html`<${PlanCard}
-            log="${workspaceLog.contents}"
-            context=${context}
-          />`,
+          html`<${PlanCard} log="${currentLog.contents}" context=${context} />`,
         ]);
 
-        if (workspaceLog.contents?.status !== "started") {
+        if (currentLog.contents?.status !== "started") {
           infoCards.push(
             html`<${UsageCard}
-              stats=${workspaceLog.contents?.stats}
+              stats=${currentLog.contents?.stats}
               context=${context}
             />`,
           );
@@ -221,19 +273,19 @@ export const WorkSpace = (props) => {
 
         // If there is error or progress, includes those within info
         if (
-          workspaceLog.contents?.status === "error" &&
-          workspaceLog.contents?.error
+          currentLog.contents?.status === "error" &&
+          currentLog.contents?.error
         ) {
           infoCards.unshift(
-            html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
+            html`<${TaskErrorCard} evalError=${currentLog.contents.error} />`,
           );
         }
 
         const warnings = [];
         if (
-          !workspaceLog.contents?.samples &&
-          workspaceLog.contents?.eval?.dataset?.samples > 0 &&
-          workspaceLog.contents?.status !== "error"
+          !currentLog.contents?.sampleSummaries &&
+          currentLog.contents?.eval?.dataset?.samples > 0 &&
+          currentLog.contents?.status !== "error"
         ) {
           warnings.push(
             html`<${WarningBand}
@@ -259,31 +311,31 @@ export const WorkSpace = (props) => {
       content: () => {
         const renderedContent = [];
         if (
-          workspaceLog.raw.length > kJsonMaxSize &&
-          props.capabilities.downloadFiles
+          currentLog.raw.length > kJsonMaxSize &&
+          capabilities.downloadFiles
         ) {
           // This JSON file is so large we can't really productively render it
           // we should instead just provide a DL link
-          const file = `${filename(workspaceLog.name)}.json`;
+          const file = `${filename(currentLog.name)}.json`;
           renderedContent.push(
             html`<${DownloadPanel}
               message="Log file raw JSON is too large to render."
               buttonLabel="Download JSON File"
-              logFile=${workspaceLog.name}
+              logFile=${currentLog.name}
               fileName=${file}
-              fileContents=${workspaceLog.raw}
+              fileContents=${currentLog.raw}
             />`,
           );
         } else {
           if (codeRef.current && !renderedCode) {
-            if (workspaceLog.raw.length < kPrismRenderMaxSize) {
+            if (currentLog.raw.length < kPrismRenderMaxSize) {
               codeRef.current.innerHTML = Prism.highlight(
-                workspaceLog.raw,
+                currentLog.raw,
                 Prism.languages.javascript,
                 "javacript",
               );
             } else {
-              const textNode = document.createTextNode(workspaceLog.raw);
+              const textNode = document.createTextNode(currentLog.raw);
               codeRef.current.innerText = "";
               codeRef.current.appendChild(textNode);
             }
@@ -314,7 +366,7 @@ export const WorkSpace = (props) => {
         </div>`;
       },
       tools: () => {
-        if (workspaceLog.raw.length > kJsonMaxSize) {
+        if (currentLog.raw.length > kJsonMaxSize) {
           return [];
         } else {
           return [
@@ -333,7 +385,8 @@ export const WorkSpace = (props) => {
     return resolvedTabs;
   }, [
     samplesDesc,
-    workspaceLog,
+    sample,
+    currentLog,
     filter,
     setFilter,
     epoch,
@@ -342,6 +395,8 @@ export const WorkSpace = (props) => {
     setSort,
     renderedCode,
     setRenderedCode,
+    selectedSampleIndex,
+    sampleStatus,
   ]);
 
   const copyFeedback = useCallback(
@@ -387,11 +442,10 @@ export const WorkSpace = (props) => {
     divRef=${divRef}
     tabs=${tabs}
     tabTools=${tabTools}
-    log=${workspaceLog}
-    logs=${props.logs}
+    log=${currentLog}
+    showToggle=${showToggle}
     selectedTab=${selectedTab}
-    fullScreen=${props.fullScreen}
-    offcanvas=${props.offcanvas}
+    offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
     afterBodyElements=${afterBodyElements}
   />`;
@@ -399,7 +453,7 @@ export const WorkSpace = (props) => {
 
 const WorkspaceDisplay = ({
   log,
-  logs,
+  showToggle,
   selectedTab,
   tabs,
   tabTools,
@@ -415,7 +469,7 @@ const WorkspaceDisplay = ({
     
     <${Navbar}
       file=${log.name}
-      logs=${logs}
+      showToggle=${showToggle}
       log=${log.contents}
       offcanvas=${offcanvas}
     />    

@@ -5,17 +5,18 @@ import vscodeApi from "./api-vscode.mjs";
 import simpleHttpApi from "./api-http.mjs";
 import { dirname } from "../utils/Path.mjs";
 import { getVscodeApi } from "../utils/vscode.mjs";
+import { clientApi } from "./client-api.mjs";
 
 //
 /**
  * Resolves the client API
  *
- * @returns { import("./Types.mjs").LogViewAPI } A Client API for the viewer
+ * @returns { import("./Types.mjs").ClientAPI } A Client API for the viewer
  */
 const resolveApi = () => {
   // @ts-ignore
   if (getVscodeApi()) {
-    return vscodeApi;
+    return clientApi(vscodeApi);
   } else {
     // See if there is an log_file, log_dir embedded in the
     // document or passed via URL
@@ -25,7 +26,8 @@ const resolveApi = () => {
       const data = JSON.parse(scriptEl.textContent);
       if (data.log_dir || data.log_file) {
         const log_dir = data.log_dir || dirname(data.log_file);
-        return simpleHttpApi(log_dir, data.log_file);
+        const api = simpleHttpApi(log_dir, data.log_file);
+        return clientApi(api);
       }
     }
 
@@ -34,12 +36,13 @@ const resolveApi = () => {
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
     if (log_file || log_dir) {
-      return simpleHttpApi(log_dir, log_file);
+      const api = simpleHttpApi(log_dir, log_file);
+      return clientApi(api);
     }
 
     // No signal information so use the standard
     // browser API
-    return browserApi;
+    return clientApi(browserApi);
   }
 };
 
