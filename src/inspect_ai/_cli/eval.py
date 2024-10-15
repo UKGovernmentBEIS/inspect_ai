@@ -315,6 +315,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_TOOL_OUTPUT",
     )
     @click.option(
+        "--anthropic-tool-reminder-injection/--no-anthropic-tool-reminder-injection",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Whether to inject the reminder 'Before answering, explain your reasoning step-by-step in tags.' at the end of the system prompt when calling Anthropic models with tools. Defaults to True.",
+        envvar="ANTHROPIC_TOOL_REMINDER_INJECTION",
+    )
+    @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
         help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',

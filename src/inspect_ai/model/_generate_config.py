@@ -69,6 +69,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     max_tool_output: int | None
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
+    anthropic_tool_reminder_injection: bool | None
+    """Whether to inject the reminder 'Before answering, explain your reasoning step-by-step in tags.' at the end of the system prompt when calling Anthropic models with tools. Defaults to True."""
+
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
@@ -135,6 +138,9 @@ class GenerateConfig(BaseModel):
 
     max_tool_output: int | None = Field(default=None)
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
+
+    anthropic_tool_reminder_injection: bool | None = Field(default=None)
+    """Whether to inject the reminder 'Before answering, explain your reasoning step-by-step in tags.' at the end of the system prompt when calling Anthropic models with tools. Defaults to True."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
