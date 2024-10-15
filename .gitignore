@@ -172,4 +172,7 @@ thumbs.db
 # JS
 node_modules/
 
+# Quarto
 /.luarc.json
+/.Rproj.user
+*.Rproj
