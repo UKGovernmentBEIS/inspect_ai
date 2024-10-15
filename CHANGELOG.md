@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - Google: compatibility with google-generativeai v0.8.3
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 - Bugfix: strip protocol prefix when resolving eval event content
