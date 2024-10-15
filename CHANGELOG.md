@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Google: compatibility with google-generativeai v0.8.3
+- Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Bugfix: strip protocol prefix when resolving eval event content
+
+## v0.3.41 (11 October 2024)
+
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
 - [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`

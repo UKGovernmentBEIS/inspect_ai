@@ -299,7 +299,7 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         )
         for tool in tools
     ]
-    return [Tool(declarations)]
+    return [Tool(function_declarations=declarations)]
 
 
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
