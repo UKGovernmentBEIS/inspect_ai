@@ -295,7 +295,7 @@
         {
           "command": "inspect.openInInspectView",
           "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.json$/"
+          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.(json|eval)$/"
         }
       ],
       "view/item/context": [
