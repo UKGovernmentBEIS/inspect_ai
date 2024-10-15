@@ -157,7 +157,7 @@ def convert_command(
     convert_eval_logs(path, to, output_dir, overwrite)
 
 
-@log_command.command("headers")
+@log_command.command("headers", hidden=True)
 @click.argument("files", nargs=-1)
 def headers_command(files: tuple[str]) -> None:
     """Print log file headers as JSON."""
@@ -180,7 +180,7 @@ def schema() -> None:
     print(view_resource("log-schema.json"))
 
 
-@log_command.command("types")
+@log_command.command("types", hidden=True)
 def types_command() -> None:
     """Print TS declarations for log files."""
     types()
