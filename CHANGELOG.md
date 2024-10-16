@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
 - Google: compatibility with google-generativeai v0.8.3
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 - Bugfix: strip protocol prefix when resolving eval event content

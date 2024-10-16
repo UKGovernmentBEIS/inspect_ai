@@ -265,16 +265,6 @@ async def resolve_chat_input(
     # extract system message
     system_messages, messages = split_system_messages(input, config)
 
-    # some special handling for tools
-    if len(tools) > 0:
-        # encourage claude to show its thinking, see
-        # https://docs.anthropic.com/claude/docs/tool-use#chain-of-thought-tool-use
-        system_messages.append(
-            ChatMessageSystem(
-                content="Before answering, explain your reasoning step-by-step in tags."
-            )
-        )
-
     # messages
     message_params = [(await message_param(message)) for message in messages]
 
