@@ -21503,7 +21503,7 @@ const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
 const WorkSpace = ({
   log: currentLog,
-  sample,
+  selectedSample,
   showToggle,
   refreshLog,
   capabilities,
@@ -21538,14 +21538,14 @@ const WorkSpace = ({
   y(() => {
     var _a3;
     const samples = ((_a3 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
-    const filtered = (samples || []).filter((sample2) => {
+    const filtered = (samples || []).filter((sample) => {
       if (epoch && epoch !== "all") {
-        if (epoch !== sample2.epoch + "") {
+        if (epoch !== sample.epoch + "") {
           return false;
         }
       }
       if (filter.filterFn && filter.value) {
-        return filter.filterFn(sample2, filter.value);
+        return filter.filterFn(sample, filter.value);
       } else {
         return true;
       }
@@ -21639,7 +21639,7 @@ const WorkSpace = ({
           return m$1` <${SamplesTab}
             task=${(_b4 = (_a4 = currentLog.contents) == null ? void 0 : _a4.eval) == null ? void 0 : _b4.task_id}
             selectedScore=${score}
-            sample=${sample}
+            sample=${selectedSample}
             sampleLoading=${sampleStatus === "loading"}
             samples=${filteredSamples}
             groupBy=${groupBy}
@@ -21792,7 +21792,7 @@ const WorkSpace = ({
     return resolvedTabs;
   }, [
     samplesDesc,
-    sample,
+    selectedSample,
     filteredSamples,
     groupBy,
     groupByOrder,
@@ -22069,40 +22069,40 @@ const FindBand = ({ hideBand }) => {
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
-  const [selected, setSelected] = h(-1);
   const [logs, setLogs] = h({ log_dir: "", files: [] });
+  const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
-  const [offcanvas, setOffcanvas] = h(false);
-  const [currentLog, setCurrentLog] = h({
+  const [headersLoading, setHeadersLoading] = h(false);
+  const [selectedLog, setSelectedLog] = h({
     contents: void 0,
     name: void 0,
     raw: void 0
   });
+  const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
+  const [selectedSample, setSelectedSample] = h(void 0);
+  const [sampleStatus, setSampleStatus] = h(void 0);
+  const loadingSampleIndexRef = A(null);
   const [status, setStatus] = h({
     loading: true,
     error: void 0
   });
-  const [headersLoading, setHeadersLoading] = h(false);
   const [capabilities, setCapabilities] = h({
     downloadFiles: true,
     webWorkers: true
   });
+  const [offcanvas, setOffcanvas] = h(false);
   const [showFind, setShowFind] = h(false);
-  const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
-  const [selectedSample, setSelectedSample] = h(void 0);
   const mainAppRef = A();
-  const [sampleStatus, setSampleStatus] = h(void 0);
-  const loadingSampleIndexRef = A(null);
   y(() => {
-    if (!currentLog || selectedSampleIndex == -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
+    if (!selectedLog || selectedSampleIndex == -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
-    if (selectedSampleIndex > -1 && selectedSampleIndex < currentLog.contents.sampleSummaries.length) {
+    if (selectedSampleIndex > -1 && selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSelectedSample(void 0);
-      const summary = currentLog.contents.sampleSummaries[selectedSampleIndex];
-      api2.get_log_sample(currentLog.name, summary.id, summary.epoch).then((sample) => {
+      const summary = selectedLog.contents.sampleSummaries[selectedSampleIndex];
+      api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
         setSelectedSample(sample);
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
@@ -22110,7 +22110,7 @@ function App({ api: api2, pollForLogs = true }) {
         loadingSampleIndexRef.current = null;
       });
     }
-  }, [selectedSampleIndex, currentLog, setSelectedSample, setSampleStatus]);
+  }, [selectedSampleIndex, selectedLog, setSelectedSample, setSampleStatus]);
   y(() => {
     const loadHeaders = async () => {
       setHeadersLoading(true);
@@ -22145,14 +22145,14 @@ function App({ api: api2, pollForLogs = true }) {
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
   y(() => {
     const loadSpecificLog = async () => {
-      const targetLog = logs.files[selected];
-      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+      const targetLog = logs.files[selectedLogIndex];
+      if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
         try {
           setStatus({ loading: true, error: void 0 });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
             const log = logContents;
-            setCurrentLog({
+            setSelectedLog({
               contents: log,
               name: targetLog.name,
               // TODO: need to do something async here
@@ -22175,7 +22175,7 @@ function App({ api: api2, pollForLogs = true }) {
       }
     };
     loadSpecificLog();
-  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+  }, [selectedLogIndex, logs, capabilities, selectedLog, setSelectedLog, setStatus]);
   const loadLogs = async () => {
     try {
       const result = await api2.get_log_paths();
@@ -22197,7 +22197,7 @@ function App({ api: api2, pollForLogs = true }) {
   const refreshLog = q(async () => {
     try {
       setStatus({ loading: true, error: void 0 });
-      const targetLog = logs.files[selected];
+      const targetLog = logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
         const log = logContents;
@@ -22216,7 +22216,7 @@ function App({ api: api2, pollForLogs = true }) {
             return updatedState;
           });
         }
-        setCurrentLog({
+        setSelectedLog({
           contents: log,
           name: targetLog.name,
           // TODO: Need to deal with this and use async or something
@@ -22228,34 +22228,34 @@ function App({ api: api2, pollForLogs = true }) {
       console.log(e2);
       setStatus({ loading: false, error: e2 });
     }
-  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
   const showLogFile = q(
     async (logUrl) => {
       const index = logs.files.findIndex((val) => {
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
-        setSelected(index);
+        setSelectedLogIndex(index);
       } else {
         const result = await loadLogs();
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
         setLogs(result);
-        setSelected(idx > -1 ? idx : 0);
+        setSelectedLogIndex(idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelected, setLogs]
+    [logs, setSelectedLogIndex, setLogs]
   );
   const refreshLogList = q(async () => {
-    const currentLog2 = logs.files[selected > -1 ? selected : 0];
+    const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
     const refreshedLogs = await loadLogs();
     const newIndex = refreshedLogs.files.findIndex((file) => {
-      return currentLog2.name.endsWith(file.name);
+      return currentLog.name.endsWith(file.name);
     });
     setLogs(refreshedLogs);
-    setSelected(newIndex);
-  }, [logs, selected, setSelected, setLogs]);
+    setSelectedLogIndex(newIndex);
+  }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -22325,10 +22325,10 @@ function App({ api: api2, pollForLogs = true }) {
             return log_file.endsWith(val.name);
           });
           if (index > -1) {
-            setSelected(index);
+            setSelectedLogIndex(index);
           }
-        } else if (selected === -1) {
-          setSelected(0);
+        } else if (selectedLogIndex === -1) {
+          setSelectedLogIndex(0);
         }
       }
       new ClipboardJS(".clipboard-button,.copy-button");
@@ -22341,7 +22341,7 @@ function App({ api: api2, pollForLogs = true }) {
             if (events.includes("refresh-evals")) {
               const logs2 = await load();
               setLogs(logs2);
-              setSelected(0);
+              setSelectedLogIndex(0);
             }
           });
         }, 1e3);
@@ -22350,15 +22350,15 @@ function App({ api: api2, pollForLogs = true }) {
     loadLogsAndState();
   }, []);
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
-  const sidebar = !fullScreen && currentLog.contents ? m$1`
+  const sidebar = !fullScreen && selectedLog.contents ? m$1`
           <${Sidebar}
             logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
-            selectedIndex=${selected}
+            selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-    setSelected(index);
+    setSelectedLogIndex(index);
     var myOffcanvas = document.getElementById("sidebarOffCanvas");
     var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
     if (bsOffcanvas) {
@@ -22375,23 +22375,23 @@ function App({ api: api2, pollForLogs = true }) {
       />`;
     } else {
       const showToggle = logs.files.length > 1 || logs.log_dir;
-      return m$1` <${WorkSpace}
+      return m$1`<${WorkSpace}
         showToggle=${showToggle}
-        log=${currentLog}
-        sample=${selectedSample}
+        log=${selectedLog}
         sampleStatus=${sampleStatus}
         refreshLog=${refreshLog}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
-        selected=${selected}
+        selected=${selectedLogIndex}
+        selectedSample=${selectedSample}
         selectedSampleIndex=${selectedSampleIndex}
         setSelectedSampleIndex=${setSelectedSampleIndex}
       />`;
     }
   }, [
     logs,
-    currentLog,
-    selected,
+    selectedLog,
+    selectedLogIndex,
     selectedSample,
     offcanvas,
     status,

@@ -39,39 +39,51 @@ import { getVscodeApi } from "./utils/vscode.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export function App({ api, pollForLogs = true }) {
-  const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
+
+  // List of Logs
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
+  const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
+
+  // Log Headers
   const [logHeaders, setLogHeaders] = useState({});
-  const [offcanvas, setOffcanvas] = useState(false);
-  const [currentLog, setCurrentLog] = useState({
+  const [headersLoading, setHeadersLoading] = useState(false);
+
+  // Selected Log
+  const [selectedLog, setSelectedLog] = useState({
     contents: undefined,
     name: undefined,
     raw: undefined,
   });
+
+  // Samples
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
+  const [selectedSample, setSelectedSample] = useState(undefined);
+  const [sampleStatus, setSampleStatus] = useState(undefined);
+  const loadingSampleIndexRef = useRef(null);
+
+  // App loading status
   const [status, setStatus] = useState({
     loading: true,
     error: undefined,
   });
-  const [headersLoading, setHeadersLoading] = useState(false);
+
+  // App host capabilities
   const [capabilities, setCapabilities] = useState({
     downloadFiles: true,
     webWorkers: true,
   });
+
+  // Other application state
+  const [offcanvas, setOffcanvas] = useState(false);
   const [showFind, setShowFind] = useState(false);
 
-  const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
-  const [selectedSample, setSelectedSample] = useState(undefined);
-
+  // The main application reference
   const mainAppRef = useRef();
 
-  // Load a sample
-  const [sampleStatus, setSampleStatus] = useState(undefined);
-  const loadingSampleIndexRef = useRef(null);
-  
-
+  // Loads a sample
   useEffect(() => {
     if (
-      !currentLog ||
+      !selectedLog ||
       selectedSampleIndex == -1 ||
       loadingSampleIndexRef.current === selectedSampleIndex
     ) {
@@ -81,15 +93,15 @@ export function App({ api, pollForLogs = true }) {
 
     if (
       selectedSampleIndex > -1 &&
-      selectedSampleIndex < currentLog.contents.sampleSummaries.length
+      selectedSampleIndex < selectedLog.contents.sampleSummaries.length
     ) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSelectedSample(undefined);
 
-      const summary = currentLog.contents.sampleSummaries[selectedSampleIndex];
+      const summary = selectedLog.contents.sampleSummaries[selectedSampleIndex];
       api
-        .get_log_sample(currentLog.name, summary.id, summary.epoch)
+        .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
           setSelectedSample(sample);
           setSampleStatus("ok");
@@ -99,7 +111,7 @@ export function App({ api, pollForLogs = true }) {
           loadingSampleIndexRef.current = null;
         });
     }
-  }, [selectedSampleIndex, currentLog, setSelectedSample, setSampleStatus]);
+  }, [selectedSampleIndex, selectedLog, setSelectedSample, setSampleStatus]);
 
   // Read header information for the logs
   // and then update
@@ -147,13 +159,13 @@ export function App({ api, pollForLogs = true }) {
   useEffect(() => {
     const loadSpecificLog = async () => {
       const targetLog = logs.files[selectedLogIndex];
-      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+      if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
         try {
           setStatus({ loading: true, error: undefined });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
             const log = logContents;
-            setCurrentLog({
+            setSelectedLog({
               contents: log,
               name: targetLog.name,
               // TODO: need to do something async here
@@ -180,7 +192,7 @@ export function App({ api, pollForLogs = true }) {
     };
 
     loadSpecificLog();
-  }, [selectedLogIndex, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+  }, [selectedLogIndex, logs, capabilities, selectedLog, setSelectedLog, setStatus]);
 
   // Load the list of logs
   const loadLogs = async () => {
@@ -229,7 +241,7 @@ export function App({ api, pollForLogs = true }) {
           });
         }
 
-        setCurrentLog({
+        setSelectedLog({
           contents: log,
           name: targetLog.name,
           // TODO: Need to deal with this and use async or something
@@ -242,7 +254,7 @@ export function App({ api, pollForLogs = true }) {
       console.log(e);
       setStatus({ loading: false, error: e });
     }
-  }, [logs, selectedLogIndex, setStatus, setCurrentLog, setLogHeaders]);
+  }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
 
   const showLogFile = useCallback(
     async (logUrl) => {
@@ -340,11 +352,11 @@ export function App({ api, pollForLogs = true }) {
       const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
       const load = resolvedLogPath
         ? async () => {
-            return {
-              log_dir: "",
-              files: [{ name: resolvedLogPath }],
-            };
-          }
+          return {
+            log_dir: "",
+            files: [{ name: resolvedLogPath }],
+          };
+        }
         : loadLogs;
 
       const embeddedState = document.getElementById("logview-state");
@@ -394,7 +406,7 @@ export function App({ api, pollForLogs = true }) {
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar =
-    !fullScreen && currentLog.contents
+    !fullScreen && selectedLog.contents
       ? html`
           <${Sidebar}
             logs=${logs}
@@ -403,15 +415,15 @@ export function App({ api, pollForLogs = true }) {
             offcanvas=${offcanvas}
             selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-              setSelectedLogIndex(index);
+          setSelectedLogIndex(index);
 
-              // hide the sidebar offcanvas
-              var myOffcanvas = document.getElementById("sidebarOffCanvas");
-              var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
-            }}
+          // hide the sidebar offcanvas
+          var myOffcanvas = document.getElementById("sidebarOffCanvas");
+          var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
+          if (bsOffcanvas) {
+            bsOffcanvas.hide();
+          }
+        }}
           />
         `
       : "";
@@ -426,7 +438,7 @@ export function App({ api, pollForLogs = true }) {
       const showToggle = logs.files.length > 1 || logs.log_dir;
       return html`<${WorkSpace}
         showToggle=${showToggle}
-        log=${currentLog}
+        log=${selectedLog}
         sampleStatus=${sampleStatus}
         refreshLog=${refreshLog}
         offcanvas=${offcanvas}
@@ -439,7 +451,7 @@ export function App({ api, pollForLogs = true }) {
     }
   }, [
     logs,
-    currentLog,
+    selectedLog,
     selectedLogIndex,
     selectedSample,
     offcanvas,
@@ -462,8 +474,8 @@ export function App({ api, pollForLogs = true }) {
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
-      e,
-    ) => {
+    e,
+  ) => {
       // regular browsers user their own find
       if (!getVscodeApi()) {
         return;
@@ -477,9 +489,9 @@ export function App({ api, pollForLogs = true }) {
     }}>
       ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
       <${ProgressBar} animating=${status.loading}  containerStyle=${{
-        background: "var(--bs-light)",
-        marginBottom: "-1px",
-      }}/>
+      background: "var(--bs-light)",
+      marginBottom: "-1px",
+    }}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>
