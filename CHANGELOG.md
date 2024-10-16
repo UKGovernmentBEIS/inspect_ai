@@ -8,6 +8,7 @@
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
 - Requirements: require semver>=3.0.0
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Correct directory handling for tasks that are imported as local (non-package) modules.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
 - Bugfix: ensure that log directories don't end in forward/back slash.

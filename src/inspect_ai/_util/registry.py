@@ -1,10 +1,11 @@
 import inspect
-from importlib import import_module
-from inspect import get_annotations, getmodule, isclass
+from inspect import get_annotations, isclass
 from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
+
+from inspect_ai._util.package import get_installed_package_name
 
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
@@ -116,7 +117,7 @@ def registry_name(o: object, name: str) -> str:
     This function checks whether the passed object is in a package,
     and if it is, prepends the package name as a namespace
     """
-    package = get_package_name(o)
+    package = get_installed_package_name(o)
     return f"{package}/{name}" if package else name
 
 
@@ -364,21 +365,6 @@ def registry_key(type: RegistryType, name: str) -> str:
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
-
-
-def get_package_name(o: object) -> str | None:
-    module = getmodule(o)
-    package = str(getattr(module, "__package__", ""))
-    if package:
-        package = package.split(".")[0]
-        if package != "None":
-            package_module = import_module(package)
-            if package_module:
-                package_path = getattr(package_module, "__path__", None)
-                if package_path:
-                    return package
-
-    return None
 
 
 class RegistryDict(TypedDict):
