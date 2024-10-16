@@ -22175,7 +22175,14 @@ function App({ api: api2, pollForLogs = true }) {
       }
     };
     loadSpecificLog();
-  }, [selectedLogIndex, logs, capabilities, selectedLog, setSelectedLog, setStatus]);
+  }, [
+    selectedLogIndex,
+    logs,
+    capabilities,
+    selectedLog,
+    setSelectedLog,
+    setStatus
+  ]);
   const loadLogs = async () => {
     try {
       const result = await api2.get_log_paths();
