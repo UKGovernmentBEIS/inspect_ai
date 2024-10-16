@@ -3553,14 +3553,14 @@ function order(modifiers) {
   modifiers.forEach(function(modifier) {
     map.set(modifier.name, modifier);
   });
-  function sort2(modifier) {
+  function sort(modifier) {
     visited.add(modifier.name);
     var requires = [].concat(modifier.requires || [], modifier.requiresIfExists || []);
     requires.forEach(function(dep) {
       if (!visited.has(dep)) {
         var depModifier = map.get(dep);
         if (depModifier) {
-          sort2(depModifier);
+          sort(depModifier);
         }
       }
     });
@@ -3568,7 +3568,7 @@ function order(modifiers) {
   }
   modifiers.forEach(function(modifier) {
     if (!visited.has(modifier.name)) {
-      sort2(modifier);
+      sort(modifier);
     }
   });
   return result;
@@ -12641,8 +12641,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ log, context }) => {
-  var _a2;
+const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -12652,9 +12651,9 @@ const PlanCard = ({ log, context }) => {
   }}>
       
         <${PlanDetailView}
-          evaluation=${log == null ? void 0 : log.eval}
-          plan=${log == null ? void 0 : log.plan}
-          scores=${(_a2 = log == null ? void 0 : log.results) == null ? void 0 : _a2.scores}
+          evaluation=${evalSpec}
+          plan=${evalPlan}
+          scores=${scores}
           context=${context}
         />
       </${CardBody}>
@@ -13007,535 +13006,6 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
-};
-const isNumeric = (n2) => {
-  return !isNaN(parseFloat(n2)) && isFinite(n2);
-};
-const toArray = (val) => {
-  if (Array.isArray(val)) {
-    return val;
-  } else {
-    return [val];
-  }
-};
-const kScoreTypePassFail = "passfail";
-const kScoreTypeCategorical = "categorical";
-const kScoreTypeNumeric = "numeric";
-const kScoreTypeOther = "other";
-const kScoreTypeObject = "object";
-const samplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
-  if (!samples) {
-    return void 0;
-  }
-  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
-    if (sample.scores[scorer]) {
-      return sample.scores[scorer];
-    } else {
-      return void 0;
-    }
-  };
-  const scoreValue = (sample) => {
-    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
-      return void 0;
-    }
-    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
-      return sample.scores[selectedScore.scorer].value[selectedScore.name];
-    } else if (sample.scores[selectedScore.name]) {
-      return sample.scores[selectedScore.name].value;
-    } else {
-      return void 0;
-    }
-  };
-  const scoreAnswer = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.answer) {
-        return sampleScore.answer;
-      }
-    } else {
-      return void 0;
-    }
-  };
-  const scoreExplanation = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.explanation) {
-        return sampleScore.explanation;
-      }
-    }
-    return void 0;
-  };
-  const uniqScoreValues = [
-    ...new Set(
-      samples.filter((sample) => !!sample.scores).filter((sample) => {
-        if (!selectedScore) {
-          return true;
-        }
-        if (selectedScore.scorer !== selectedScore.name) {
-          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
-            selectedScore.name
-          );
-        } else {
-          return Object.keys(sample.scores).includes(selectedScore.name);
-        }
-      }).map((sample) => {
-        return scoreValue(sample);
-      }).filter((value) => {
-        return value !== null;
-      })
-    )
-  ];
-  const uniqScoreTypes = [
-    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-  ];
-  let scoreDescriptor;
-  for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
-    if (scoreDescriptor) {
-      break;
-    }
-  }
-  const sizes = samples.reduce(
-    (previous, current) => {
-      var _a2;
-      const text = inputString(current.input).join(" ");
-      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
-      previous[1] = Math.min(
-        Math.max(previous[1], arrayToString(current.target).length),
-        300
-      );
-      previous[2] = Math.min(
-        Math.max(
-          previous[2],
-          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-        ),
-        300
-      );
-      return previous;
-    },
-    [0, 0, 0]
-  );
-  const base = sizes[0] + sizes[1] + sizes[2] || 1;
-  const messageShape = {
-    input: sizes[0] / base,
-    target: sizes[1] / base,
-    answer: sizes[2] / base
-  };
-  const scoreRendered = (sample) => {
-    const score2 = scoreValue(sample);
-    if (score2 === null || score2 === "undefined") {
-      return "null";
-    } else if (scoreDescriptor.render) {
-      return scoreDescriptor.render(score2);
-    } else {
-      return score2;
-    }
-  };
-  const scorerDescriptor = (sample, scorer) => {
-    return {
-      explanation: () => {
-        return scoreExplanation(sample, scorer);
-      },
-      answer: () => {
-        return scoreAnswer(sample, scorer);
-      },
-      scores: () => {
-        if (!sample || !sample.scores) {
-          return [];
-        }
-        const scoreNames = scorers.map((score2) => {
-          return score2.name;
-        });
-        const sampleScorer = sample.scores[scorer];
-        const scoreVal = sampleScorer.value;
-        if (typeof scoreVal === "object") {
-          const names = Object.keys(scoreVal);
-          if (names.find((name) => {
-            return !scoreNames.includes(name);
-          })) {
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                }
-              }
-            ];
-          } else {
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                }
-              };
-            });
-            return scores;
-          }
-        } else {
-          return [
-            {
-              name: scorer,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal);
-              }
-            }
-          ];
-        }
-      }
-    };
-  };
-  return {
-    scoreDescriptor,
-    epochs,
-    messageShape,
-    selectedScore: (sample) => {
-      return {
-        value: scoreValue(sample),
-        render: () => {
-          return scoreRendered(sample);
-        }
-      };
-    },
-    scorer: (sample, scorer) => {
-      return scorerDescriptor(sample, scorer);
-    },
-    selectedScorer: (sample) => {
-      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
-    }
-  };
-};
-const scoreCategorizers = [
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values) => {
-      if ((values.length === 1 || values.length === 2) && values.every((val) => {
-        return val === 1 || val === 0;
-      })) {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
-        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-      })) {
-        return passFailScoreCategorizer(values);
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (values.length < 10 && types.length === 1 && types[0] === "string") {
-        return {
-          scoreType: kScoreTypeCategorical,
-          categories: values,
-          compare: (a2, b2) => {
-            return String(a2).localeCompare(String(b2));
-          },
-          render: (score) => {
-            return score;
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "number") {
-        const onlyNumeric = values.filter((val) => {
-          return typeof val === "number";
-        });
-        return {
-          scoreType: kScoreTypeNumeric,
-          min: Math.min(...onlyNumeric),
-          max: Math.max(...onlyNumeric),
-          compare: (a2, b2) => {
-            if (typeof a2 === "number" && typeof b2 === "number") {
-              return a2 - b2;
-            } else {
-              console.warn(
-                "Comparing non-numerics using a nuermic score descriptor"
-              );
-              return 0;
-            }
-          },
-          render: (score) => {
-            return formatDecimalNoTrailingZeroes(Number(score));
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "object") {
-        const buckets = values.map((val) => {
-          return JSON.stringify(val);
-        });
-        const vals = new Set(buckets);
-        let categories = void 0;
-        if (vals.size < 10) {
-          categories = Array.from(vals).map((val) => {
-            return {
-              val,
-              text: val
-            };
-          });
-        }
-        return {
-          scoreType: kScoreTypeObject,
-          categories,
-          compare: () => {
-            return 0;
-          },
-          render: (score) => {
-            if (score === null || score === void 0) {
-              return "[null]";
-            }
-            const scores = [];
-            const keys = Object.keys(score);
-            keys.forEach((key2, index) => {
-              const value = score[key2];
-              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-              const style = {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                marginLeft: "0.5rem"
-              };
-              if (index + 1 < keys.length) {
-                style["paddingBottom"] = "1em";
-              }
-              scores.push(m$1`
-                <div style=${style}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-            });
-            return scores;
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").AppContext} [context] - the application context
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    // @ts-ignore
-    describe: (values, types, context) => {
-      return {
-        scoreType: kScoreTypeOther,
-        compare: () => {
-          return 0;
-        },
-        render: (score) => {
-          return m$1`<${RenderedContent}
-            id="other-score-value"
-            entry=${{ value: score }}
-            context=${context}
-          />`;
-        }
-      };
-    }
-  }
-];
-const filledCircleStyle = {
-  fontSize: FontSize.small,
-  fontFamily: "Consola Regular",
-  width: "20px",
-  height: "20px",
-  display: "inline-flex",
-  justifyContent: "center",
-  alignItems: "center",
-  borderRadius: "50%",
-  paddingTop: "1px"
-};
-const booleanScoreCategorizer = () => {
-  return {
-    scoreType: "boolean",
-    compare: (a2, b2) => {
-      return Number(a2.value) - Number(b2.value);
-    },
-    render: (score) => {
-      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-      return m$1`<span
-        style=${{
-        ...scoreColorStyle,
-        ...filledCircleStyle
-      }}
-        >${score}</span
-      >`;
-    }
-  };
-};
-const passFailScoreCategorizer = (values) => {
-  const categories = [];
-  if (values.includes("C")) {
-    categories.push({
-      val: "C",
-      text: "Correct"
-    });
-  }
-  if (values.includes("P")) {
-    categories.push({
-      val: "P",
-      text: "Partial"
-    });
-  }
-  if (values.includes("I")) {
-    categories.push({
-      val: "I",
-      text: "Incorrect"
-    });
-  }
-  if (values.includes("N")) {
-    categories.push({
-      val: "N",
-      text: "Refusal"
-    });
-  }
-  const order2 = ["C", "P", "I", "N"];
-  return {
-    scoreType: kScoreTypePassFail,
-    categories,
-    render: (score) => {
-      if (score === "C") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.green,
-          ...filledCircleStyle
-        }}
-          >C</span
-        >`;
-      } else if (score === "I") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >I</span
-        >`;
-      } else if (score === "P") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.orange,
-          ...filledCircleStyle
-        }}
-          >P</span
-        >`;
-      } else if (score === "N") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >N</span
-        >`;
-      } else {
-        return score;
-      }
-    },
-    compare: (a2, b2) => {
-      const sort2 = order2.indexOf(a2.value) - order2.indexOf(b2.value);
-      return sort2;
-    }
-  };
-};
 const LargeModal = (props) => {
   const {
     id,
@@ -13673,6 +13143,52 @@ const isVscode = () => {
   return !!bodyEl.getAttributeNames().find((attr) => {
     return attr.includes("data-vscode-");
   });
+};
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
@@ -14106,6 +13622,16 @@ const EventSection = ({ title, style, children }) => {
     </div>
     ${children}
   </div>`;
+};
+const isNumeric = (n2) => {
+  return !isNaN(parseFloat(n2)) && isFinite(n2);
+};
+const toArray = (val) => {
+  if (Array.isArray(val)) {
+    return val;
+  } else {
+    return [val];
+  }
 };
 const SampleInitEventView = ({ id, event, style }) => {
   const stateObj = event.state;
@@ -17492,16 +17018,16 @@ const SampleList = (props) => {
       }
     }
   }, [selectedIndex, rowMap, listRef]);
-  const renderRow = (item, index) => {
+  const renderRow = (item) => {
     if (item.type === "sample") {
       return m$1`
         <${SampleRow}
           id=${item.number}
-          index=${index}
+          index=${item.index}
           sample=${item.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === index}
+          selected=${selectedIndex === item.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
@@ -17777,11 +17303,8 @@ const SamplesTab = ({
       return results;
     });
     setItems(items2);
-    const firstSample = items2.findIndex((val) => {
-      return val.type === "sample";
-    });
     if (items2.length) {
-      setSelectedSampleIndex(firstSample);
+      setSelectedSampleIndex(0);
     }
   }, [samples, groupBy, groupByOrder, sampleDescriptor]);
   y(() => {
@@ -17890,7 +17413,19 @@ const noGrouping = (samples, order2) => {
 };
 const groupBySample = (samples, sampleDescriptor, order2) => {
   samples = samples.sort((a2, b2) => {
-    return String(a2.id).localeCompare(String(b2.id));
+    if (typeof a2.id === "string") {
+      if (order2 === "asc") {
+        return String(a2.id).localeCompare(String(b2.id));
+      } else {
+        return String(b2.id).localeCompare(String(a2.id));
+      }
+    } else {
+      if (order2 === "asc") {
+        return Number(a2.id) - Number(b2.id);
+      } else {
+        return Number(b2.id) - Number(b2.id);
+      }
+    }
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
@@ -18020,7 +17555,7 @@ const kEpochDescVal = "epoch-desc";
 const kScoreAscVal = "score-asc";
 const kScoreDescVal = "score-desc";
 const kDefaultSort = kSampleAscVal;
-const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
+const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   var _a2;
   const options = [
     { label: "sample asc", val: kSampleAscVal },
@@ -18064,7 +17599,7 @@ const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
         class="form-select form-select-sm"
         aria-label=".sort-filter-label"
         style=${{ fontSize: FontSize.smaller }}
-        value=${sort2}
+        value=${sort}
         onChange=${(e2) => {
     setSort(e2.target.value);
   }}
@@ -18076,24 +17611,24 @@ const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
     </div>
   `;
 };
-const byEpoch = (sort2) => {
-  return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
+const byEpoch = (sort) => {
+  return sort === kEpochAscVal || sort === kEpochDescVal;
 };
-const bySample = (sort2) => {
-  return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
+const bySample = (sort) => {
+  return sort === kSampleAscVal || sort === kSampleDescVal;
 };
-const sort = (sort2, samples, sampleDescriptor) => {
-  const sorted = samples.sort((a2, b2) => {
-    switch (sort2) {
+const sortSamples = (sort, samples, samplesDescriptor) => {
+  const sortedSamples = samples.sort((a2, b2) => {
+    switch (sort) {
       case kSampleAscVal:
         if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return a2.id - b2.id;
+          return Number(a2.id) - Number(b2.id);
         } else {
           return String(a2.id).localeCompare(String(b2.id));
         }
       case kSampleDescVal:
         if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return b2.id - a2.id;
+          return Number(b2.id) - Number(a2.id);
         } else {
           return String(b2.id).localeCompare(String(a2.id));
         }
@@ -18102,20 +17637,493 @@ const sort = (sort2, samples, sampleDescriptor) => {
       case kEpochDescVal:
         return b2.epoch - a2.epoch;
       case kScoreAscVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a2),
-          sampleDescriptor.selectedScore(b2)
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(a2).value,
+          samplesDescriptor.selectedScore(b2).value
         );
       case kScoreDescVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b2),
-          sampleDescriptor.selectedScore(a2)
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(b2).value,
+          samplesDescriptor.selectedScore(a2).value
         );
     }
   });
   return {
-    sorted,
-    order: sort2 === kSampleAscVal || sort2 === kEpochAscVal || sort2 === kScoreAscVal ? "asc" : "desc"
+    sorted: sortedSamples,
+    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+  };
+};
+const kScoreTypePassFail = "passfail";
+const kScoreTypeCategorical = "categorical";
+const kScoreTypeNumeric = "numeric";
+const kScoreTypeOther = "other";
+const kScoreTypeObject = "object";
+const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+  if (!samples) {
+    return void 0;
+  }
+  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
+    if (sample.scores[scorer]) {
+      return sample.scores[scorer];
+    } else {
+      return void 0;
+    }
+  };
+  const scoreValue = (sample) => {
+    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
+      return void 0;
+    }
+    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
+      return sample.scores[selectedScore.scorer].value[selectedScore.name];
+    } else if (sample.scores[selectedScore.name]) {
+      return sample.scores[selectedScore.name].value;
+    } else {
+      return void 0;
+    }
+  };
+  const scoreAnswer = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.answer) {
+        return sampleScore.answer;
+      }
+    } else {
+      return void 0;
+    }
+  };
+  const scoreExplanation = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.explanation) {
+        return sampleScore.explanation;
+      }
+    }
+    return void 0;
+  };
+  const uniqScoreValues = [
+    ...new Set(
+      samples.filter((sample) => !!sample.scores).filter((sample) => {
+        if (!selectedScore) {
+          return true;
+        }
+        if (selectedScore.scorer !== selectedScore.name) {
+          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
+            selectedScore.name
+          );
+        } else {
+          return Object.keys(sample.scores).includes(selectedScore.name);
+        }
+      }).map((sample) => {
+        return scoreValue(sample);
+      }).filter((value) => {
+        return value !== null;
+      })
+    )
+  ];
+  const uniqScoreTypes = [
+    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+  ];
+  let scoreDescriptor;
+  for (const categorizer of scoreCategorizers) {
+    scoreDescriptor = categorizer.describe(
+      uniqScoreValues,
+      uniqScoreTypes,
+      context
+    );
+    if (scoreDescriptor) {
+      break;
+    }
+  }
+  const sizes = samples.reduce(
+    (previous, current) => {
+      var _a2;
+      const text = inputString(current.input).join(" ");
+      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300
+      );
+      previous[2] = Math.min(
+        Math.max(
+          previous[2],
+          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+        ),
+        300
+      );
+      return previous;
+    },
+    [0, 0, 0]
+  );
+  const base = sizes[0] + sizes[1] + sizes[2] || 1;
+  const messageShape = {
+    input: sizes[0] / base,
+    target: sizes[1] / base,
+    answer: sizes[2] / base
+  };
+  const scoreRendered = (sample) => {
+    const score2 = scoreValue(sample);
+    if (score2 === null || score2 === "undefined") {
+      return "null";
+    } else if (scoreDescriptor.render) {
+      return scoreDescriptor.render(score2);
+    } else {
+      return score2;
+    }
+  };
+  const scorerDescriptor = (sample, scorer) => {
+    return {
+      explanation: () => {
+        return scoreExplanation(sample, scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+        const scoreNames = scorers.map((score2) => {
+          return score2.name;
+        });
+        const sampleScorer = sample.scores[scorer];
+        const scoreVal = sampleScorer.value;
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+          if (names.find((name) => {
+            return !scoreNames.includes(name);
+          })) {
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                }
+              }
+            ];
+          } else {
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal[name]);
+                }
+              };
+            });
+            return scores;
+          }
+        } else {
+          return [
+            {
+              name: scorer,
+              rendered: () => {
+                return scoreDescriptor.render(scoreVal);
+              }
+            }
+          ];
+        }
+      }
+    };
+  };
+  return {
+    scoreDescriptor,
+    epochs,
+    messageShape,
+    selectedScore: (sample) => {
+      return {
+        value: scoreValue(sample),
+        render: () => {
+          return scoreRendered(sample);
+        }
+      };
+    },
+    scorer: (sample, scorer) => {
+      return scorerDescriptor(sample, scorer);
+    },
+    selectedScorer: (sample) => {
+      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
+    }
+  };
+};
+const scoreCategorizers = [
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values) => {
+      if ((values.length === 1 || values.length === 2) && values.every((val) => {
+        return val === 1 || val === 0;
+      })) {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
+        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+      })) {
+        return passFailScoreCategorizer(values);
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length < 10 && types.length === 1 && types[0] === "string") {
+        return {
+          scoreType: kScoreTypeCategorical,
+          categories: values,
+          compare: (a2, b2) => {
+            return String(a2).localeCompare(String(b2));
+          },
+          render: (score) => {
+            return score;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "number") {
+        const onlyNumeric = values.filter((val) => {
+          return typeof val === "number";
+        });
+        return {
+          scoreType: kScoreTypeNumeric,
+          min: Math.min(...onlyNumeric),
+          max: Math.max(...onlyNumeric),
+          compare: (a2, b2) => {
+            if (typeof a2 === "number" && typeof b2 === "number") {
+              return a2 - b2;
+            } else {
+              console.warn(
+                "Comparing non-numerics using a nuermic score descriptor"
+              );
+              return 0;
+            }
+          },
+          render: (score) => {
+            return formatDecimalNoTrailingZeroes(Number(score));
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "object") {
+        const buckets = values.map((val) => {
+          return JSON.stringify(val);
+        });
+        const vals = new Set(buckets);
+        let categories = void 0;
+        if (vals.size < 10) {
+          categories = Array.from(vals).map((val) => {
+            return {
+              val,
+              text: val
+            };
+          });
+        }
+        return {
+          scoreType: kScoreTypeObject,
+          categories,
+          compare: () => {
+            return 0;
+          },
+          render: (score) => {
+            if (score === null || score === void 0) {
+              return "[null]";
+            }
+            const scores = [];
+            const keys = Object.keys(score);
+            keys.forEach((key2, index) => {
+              const value = score[key2];
+              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+              const style = {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginLeft: "0.5rem"
+              };
+              if (index + 1 < keys.length) {
+                style["paddingBottom"] = "1em";
+              }
+              scores.push(m$1`
+                <div style=${style}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+            });
+            return scores;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @param {import("../Types.mjs").RenderContext} [context] - the application context
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    // @ts-ignore
+    describe: (values, types, context) => {
+      return {
+        scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
+        render: (score) => {
+          return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score }}
+            context=${context}
+          />`;
+        }
+      };
+    }
+  }
+];
+const filledCircleStyle = {
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "20px",
+  height: "20px",
+  display: "inline-flex",
+  justifyContent: "center",
+  alignItems: "center",
+  borderRadius: "50%",
+  paddingTop: "1px"
+};
+const booleanScoreCategorizer = () => {
+  return {
+    scoreType: "boolean",
+    compare: (a2, b2) => {
+      return Number(a2.value) - Number(b2.value);
+    },
+    render: (score) => {
+      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+      return m$1`<span
+        style=${{
+        ...scoreColorStyle,
+        ...filledCircleStyle
+      }}
+        >${score}</span
+      >`;
+    }
+  };
+};
+const passFailScoreCategorizer = (values) => {
+  const categories = [];
+  if (values.includes("C")) {
+    categories.push({
+      val: "C",
+      text: "Correct"
+    });
+  }
+  if (values.includes("P")) {
+    categories.push({
+      val: "P",
+      text: "Partial"
+    });
+  }
+  if (values.includes("I")) {
+    categories.push({
+      val: "I",
+      text: "Incorrect"
+    });
+  }
+  if (values.includes("N")) {
+    categories.push({
+      val: "N",
+      text: "Refusal"
+    });
+  }
+  const order2 = ["C", "P", "I", "N"];
+  return {
+    scoreType: kScoreTypePassFail,
+    categories,
+    render: (score) => {
+      if (score === "C") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.green,
+          ...filledCircleStyle
+        }}
+          >C</span
+        >`;
+      } else if (score === "I") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >I</span
+        >`;
+      } else if (score === "P") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.orange,
+          ...filledCircleStyle
+        }}
+          >P</span
+        >`;
+      } else if (score === "N") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >N</span
+        >`;
+      } else {
+        return score;
+      }
+    },
+    compare: (a2, b2) => {
+      const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+      return sort;
+    }
   };
 };
 const SampleFilter = ({ descriptor, filter, filterChanged }) => {
@@ -18430,7 +18438,7 @@ const SampleTools = (props) => {
     setEpoch,
     filter,
     filterChanged,
-    sort: sort2,
+    sort,
     setSort,
     epochs,
     sampleDescriptor,
@@ -18468,7 +18476,7 @@ const SampleTools = (props) => {
   tools.push(
     m$1`<${SortFilter}
       sampleDescriptor=${sampleDescriptor}
-      sort=${sort2}
+      sort=${sort}
       setSort=${setSort}
       epochs=${hasEpochs}
     />`
@@ -18527,18 +18535,24 @@ const LabeledValue = ({
     <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
   </div>`;
 };
-const SecondaryBar = ({ log, status, style }) => {
-  var _a2, _b2, _c;
-  if (!log || status !== "success") {
+const SecondaryBar = ({
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
+  style
+}) => {
+  if (!evalSpec || status !== "success") {
     return "";
   }
   const staticColStyle = {
     flexShrink: "0"
   };
-  const epochs = log.eval.config.epochs || 1;
+  const epochs = evalSpec.config.epochs || 1;
   const hyperparameters = {
-    ...log.plan.config,
-    ...log.eval.task_args
+    ...evalPlan == null ? void 0 : evalPlan.config,
+    ...evalSpec.task_args
   };
   const hasConfig = Object.keys(hyperparameters).length > 0;
   const values = [];
@@ -18546,18 +18560,18 @@ const SecondaryBar = ({ log, status, style }) => {
     size: "minmax(12%, auto)",
     value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
     <${DatasetSummary}
-      dataset=${(_a2 = log.eval) == null ? void 0 : _a2.dataset}
-      samples=${log.samples}
+      dataset=${evalSpec.dataset}
+      samples=${samples}
       epochs=${epochs} />
   </${LabeledValue}>
 `
   });
-  const label = ((_b2 = log == null ? void 0 : log.results) == null ? void 0 : _b2.scores.length) > 1 ? "Scorers" : "Scorer";
+  const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
     value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
     <${ScorerSummary} 
-      scorers=${(_c = log == null ? void 0 : log.results) == null ? void 0 : _c.scores} />
+      scorers=${evalResults == null ? void 0 : evalResults.scores} />
   </${LabeledValue}>`
   });
   if (hasConfig) {
@@ -18623,16 +18637,22 @@ const ParamSummary = ({ params }) => {
     return "";
   }
 };
-const Navbar = ({ file, showToggle, log, offcanvas }) => {
-  var _a2, _b2, _c;
+const Navbar = ({
+  file,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  showToggle,
+  offcanvas,
+  status
+}) => {
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
-  const task = (_a2 = log == null ? void 0 : log.eval) == null ? void 0 : _a2.task;
-  const model = (_b2 = log == null ? void 0 : log.eval) == null ? void 0 : _b2.model;
-  const results = log == null ? void 0 : log.results;
-  const samples = log == null ? void 0 : log.samples;
-  const status = log == null ? void 0 : log.status;
-  const created = (_c = log == null ? void 0 : log.eval) == null ? void 0 : _c.created;
+  const task = evalSpec == null ? void 0 : evalSpec.task;
+  const model = evalSpec == null ? void 0 : evalSpec.model;
+  const results = evalResults;
+  const created = evalSpec == null ? void 0 : evalSpec.created;
   let statusPanel;
   if (status === "success") {
     statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
@@ -18756,7 +18776,10 @@ const Navbar = ({ file, showToggle, log, offcanvas }) => {
       >
         ${navbarContents}
         <${SecondaryBar}
-          log=${log}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          evalResults=${evalResults}
+          samples=${samples}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
         />
@@ -21502,17 +21525,39 @@ const kInfoTabId = "plan-tab";
 const kPrismRenderMaxSize = 25e4;
 const kJsonMaxSize = 1e7;
 const WorkSpace = ({
-  log: currentLog,
+  task_id,
+  taskStatus,
+  logFileName,
+  taskError,
+  evalSpec,
+  evalPlan,
+  evalStats,
+  evalResults,
+  samples,
   selectedSample,
+  groupBy,
+  groupByOrder,
   showToggle,
   refreshLog,
   capabilities,
   offcanvas,
+  samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
-  sampleStatus
+  sampleStatus,
+  sort,
+  setSort,
+  epochs,
+  epoch,
+  setEpoch,
+  filter,
+  setFilter,
+  score,
+  setScore,
+  scores,
+  renderContext,
+  renderJson
 }) => {
-  var _a2, _b2;
   const divRef = A(
     /** @type {HTMLElement|null} */
     null
@@ -21521,162 +21566,64 @@ const WorkSpace = ({
     /** @type {HTMLElement|null} */
     null
   );
-  const [currentTaskId, setCurrentTaskId] = h(
-    (_b2 = (_a2 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id
-  );
   const [selectedTab, setSelectedTab] = h();
-  const [scores, setScores] = h([]);
-  const [score, setScore] = h(void 0);
-  const [samplesDesc, setSamplesDesc] = h(void 0);
-  const [filter, setFilter] = h({});
-  const [epoch, setEpoch] = h("all");
-  const [sort$1, setSort] = h(kDefaultSort);
   const [renderedCode, setRenderedCode] = h(false);
-  const [filteredSamples, setFilteredSamples] = h([]);
-  const [groupBy, setGroupBy] = h("none");
-  const [groupByOrder, setGroupByOrder] = h("asc");
   y(() => {
-    var _a3;
-    const samples = ((_a3 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
-    const filtered = (samples || []).filter((sample) => {
-      if (epoch && epoch !== "all") {
-        if (epoch !== sample.epoch + "") {
-          return false;
-        }
-      }
-      if (filter.filterFn && filter.value) {
-        return filter.filterFn(sample, filter.value);
-      } else {
-        return true;
-      }
-    });
-    const { sorted, order: order2 } = sort(sort$1, filtered, samplesDesc);
-    setFilteredSamples(sorted);
-    let grouping = "none";
-    if ((samplesDesc == null ? void 0 : samplesDesc.epochs) > 1) {
-      if (byEpoch(sort$1) || epoch !== "all") {
-        grouping = "epoch";
-      } else if (bySample(sort$1)) {
-        grouping = "sample";
-      }
+    const defaultTab = Object.values(tabs)[0].id;
+    setSelectedTab(defaultTab);
+    if (divRef.current) {
+      divRef.current.scrollTop = 0;
     }
-    setGroupBy(grouping);
-    setGroupByOrder(order2);
-  }, [currentLog, filter, sort$1, epoch, samplesDesc]);
-  const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    }
-  };
-  const clearSampleTools = q(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
-  y(() => {
-    var _a3;
-    if (currentLog.contents && ((_a3 = currentLog.contents.eval) == null ? void 0 : _a3.run_id) !== currentTaskId) {
-      const defaultTab = Object.values(tabs)[0].id;
-      setSelectedTab(defaultTab);
-      if (divRef.current) {
-        divRef.current.scrollTop = 0;
-      }
-    }
-  }, [currentLog, divRef, currentTaskId, setSelectedTab]);
-  y(() => {
-    var _a3, _b3, _c, _d, _e, _f;
-    const scorer = ((_b3 = (_a3 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a3.results) == null ? void 0 : _b3.scores[0]) ? {
-      name: (_c = currentLog.contents.results) == null ? void 0 : _c.scores[0].name,
-      scorer: (_d = currentLog.contents.results) == null ? void 0 : _d.scores[0].scorer
-    } : void 0;
-    const scorers = (((_f = (_e = currentLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
-      return {
-        name: score2.name,
-        scorer: score2.scorer
-      };
-    }).reduce((accum, scorer2) => {
-      if (!accum.find((sc) => {
-        return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
-      })) {
-        accum.push(scorer2);
-      }
-      return accum;
-    }, []);
-    setScores(scorers);
-    setScore(scorer);
-    clearSampleTools();
     setRenderedCode(false);
-  }, [currentLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
-  y(() => {
-    clearSampleTools();
-  }, [score]);
-  y(() => {
-    var _a3, _b3, _c, _d;
-    const sampleDescriptor = samplesDescriptor(
-      scores,
-      (_a3 = currentLog.contents) == null ? void 0 : _a3.sampleSummaries,
-      ((_d = (_c = (_b3 = currentLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-      context,
-      score
-    );
-    setSamplesDesc(sampleDescriptor);
-  }, [currentLog, score, scores, setSamplesDesc]);
-  y(() => {
-    var _a3, _b3;
-    setCurrentTaskId((_b3 = (_a3 = currentLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.run_id);
-  }, [currentLog]);
+  }, [divRef, task_id, setSelectedTab]);
   const tabs = T(() => {
-    var _a3, _b3, _c, _d, _e, _f;
     const resolvedTabs = {};
-    if (((_a3 = currentLog.contents) == null ? void 0 : _a3.status) !== "error" && ((_b3 = currentLog.contents) == null ? void 0 : _b3.sampleSummaries)) {
+    if (taskStatus !== "error" && samples) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: ((_d = (_c = currentLog.contents) == null ? void 0 : _c.sampleSummaries) == null ? void 0 : _d.length) === 1,
-        label: ((_f = (_e = currentLog.contents) == null ? void 0 : _e.sampleSummaries) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
+        scrollable: samples.length === 1,
+        label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
         content: () => {
-          var _a4, _b4;
           return m$1` <${SamplesTab}
-            task=${(_b4 = (_a4 = currentLog.contents) == null ? void 0 : _a4.eval) == null ? void 0 : _b4.task_id}
+            task=${task_id}
             selectedScore=${score}
             sample=${selectedSample}
             sampleLoading=${sampleStatus === "loading"}
-            samples=${filteredSamples}
+            samples=${samples}
             groupBy=${groupBy}
             groupByOrder=${groupByOrder}
             selectedSampleIndex=${selectedSampleIndex}
             setSelectedSampleIndex=${setSelectedSampleIndex}
-            sampleDescriptor=${samplesDesc}
+            sampleDescriptor=${samplesDescriptor}
             filter=${filter}
-            sort=${sort$1}
+            sort=${sort}
             epoch=${epoch}
-            context=${context}
+            context=${renderContext}
           />`;
         },
         tools: () => {
-          var _a4, _b4, _c2, _d2, _e2, _f2;
-          if (((_a4 = currentLog.contents) == null ? void 0 : _a4.status) === "started") {
+          if (taskStatus === "started") {
             return m$1`<${ToolButton}
               name=${m$1`Refresh`}
               icon="${ApplicationIcons.refresh}"
               onclick="${refreshLog}"
             />`;
           }
-          if (((_c2 = (_b4 = currentLog.contents) == null ? void 0 : _b4.sampleSummaries) == null ? void 0 : _c2.length) <= 1) {
+          if ((samples == null ? void 0 : samples.length) <= 1) {
             return "";
           }
           return m$1`<${SampleTools}
             epoch=${epoch}
-            epochs=${(_f2 = (_e2 = (_d2 = currentLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
+            epochs=${epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
-            sort=${sort$1}
+            sort=${sort}
             setSort=${setSort}
             score=${score}
             setScore=${setScore}
             scores=${scores}
-            sampleDescriptor=${samplesDesc}
+            sampleDescriptor=${samplesDescriptor}
           />`;
         }
       };
@@ -21686,26 +21633,26 @@ const WorkSpace = ({
       label: "Info",
       scrollable: true,
       content: () => {
-        var _a4, _b4, _c2, _d2, _e2, _f2, _g, _h, _i;
+        var _a2;
         const infoCards = [];
         infoCards.push([
-          m$1`<${PlanCard} log="${currentLog.contents}" context=${context} />`
+          m$1`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults == null ? void 0 : evalResults.scores}
+            context=${renderContext}
+          />`
         ]);
-        if (((_a4 = currentLog.contents) == null ? void 0 : _a4.status) !== "started") {
+        if (taskStatus !== "started") {
           infoCards.push(
-            m$1`<${UsageCard}
-              stats=${(_b4 = currentLog.contents) == null ? void 0 : _b4.stats}
-              context=${context}
-            />`
+            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
           );
         }
-        if (((_c2 = currentLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = currentLog.contents) == null ? void 0 : _d2.error)) {
-          infoCards.unshift(
-            m$1`<${TaskErrorCard} evalError=${currentLog.contents.error} />`
-          );
+        if (taskStatus === "error" && taskError) {
+          infoCards.unshift(m$1`<${TaskErrorCard} evalError=${taskError} />`);
         }
         const warnings = [];
-        if (!((_e2 = currentLog.contents) == null ? void 0 : _e2.sampleSummaries) && ((_h = (_g = (_f2 = currentLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = currentLog.contents) == null ? void 0 : _i.status) !== "error") {
+        if ((!samples || samples.length) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && taskStatus !== "error") {
           warnings.push(
             m$1`<${WarningBand}
               message="Unable to display samples (this evaluation log may be too large)."
@@ -21726,27 +21673,28 @@ const WorkSpace = ({
       scrollable: true,
       content: () => {
         const renderedContent = [];
-        if (currentLog.raw.length > kJsonMaxSize && capabilities.downloadFiles) {
-          const file = `${filename(currentLog.name)}.json`;
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+          const file = `${filename(logFileName)}.json`;
           renderedContent.push(
             m$1`<${DownloadPanel}
               message="Log file raw JSON is too large to render."
               buttonLabel="Download JSON File"
-              logFile=${currentLog.name}
+              logFile=${logFileName}
               fileName=${file}
-              fileContents=${currentLog.raw}
+              fileContents=${jsonText}
             />`
           );
         } else {
           if (codeRef.current && !renderedCode) {
-            if (currentLog.raw.length < kPrismRenderMaxSize) {
+            if (jsonText.length < kPrismRenderMaxSize) {
               codeRef.current.innerHTML = Prism$1.highlight(
-                currentLog.raw,
+                jsonText,
                 Prism$1.languages.javascript,
                 "javacript"
               );
             } else {
-              const textNode = document.createTextNode(currentLog.raw);
+              const textNode = document.createTextNode(jsonText);
               codeRef.current.innerText = "";
               codeRef.current.appendChild(textNode);
             }
@@ -21774,7 +21722,8 @@ const WorkSpace = ({
         </div>`;
       },
       tools: () => {
-        if (currentLog.raw.length > kJsonMaxSize) {
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize) {
           return [];
         } else {
           return [
@@ -21791,17 +21740,26 @@ const WorkSpace = ({
     };
     return resolvedTabs;
   }, [
-    samplesDesc,
+    samplesDescriptor,
     selectedSample,
-    filteredSamples,
+    samples,
     groupBy,
     groupByOrder,
-    currentLog,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    taskStatus,
+    logFileName,
+    taskStatus,
+    taskError,
+    renderJson,
+    renderContext,
     filter,
     setFilter,
     epoch,
     setEpoch,
-    sort$1,
+    sort,
     setSort,
     renderedCode,
     setRenderedCode,
@@ -21842,37 +21800,50 @@ const WorkSpace = ({
     }
   });
   return m$1`<${WorkspaceDisplay}
+    logFileName=${logFileName}
     divRef=${divRef}
+    evalSpec=${evalSpec}
+    evalPlan=${evalPlan}
+    evalResults=${evalResults}
+    samples=${samples}
+    status=${taskStatus}
     tabs=${tabs}
-    tabTools=${tabTools}
-    log=${currentLog}
-    showToggle=${showToggle}
     selectedTab=${selectedTab}
+    tabTools=${tabTools}
+    showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    afterBodyElements=${afterBodyElements}
   />`;
 };
 const WorkspaceDisplay = ({
-  log,
+  logFileName,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
   showToggle,
   selectedTab,
   tabs,
   tabTools,
   setSelectedTab,
   divRef,
-  afterBodyElements,
   offcanvas
 }) => {
-  if (log.contents === void 0) {
+  if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
   } else {
     return m$1`
     
     <${Navbar}
-      file=${log.name}
+      evalSpec=${evalSpec}
+      evalPlan=${evalPlan}
+      evalResults=${evalResults}
+      samples=${samples}
+      status=${status}
+      file=${logFileName}
       showToggle=${showToggle}
-      log=${log.contents}
+      
       offcanvas=${offcanvas}
     />    
     <div ref=${divRef} class="workspace" style=${{
@@ -21923,8 +21894,7 @@ const WorkspaceDisplay = ({
     })}
             </${TabSet}>
             </div>
-          </div>
-          ${afterBodyElements}`;
+          </div>`;
   }
 };
 const FindBand = ({ hideBand }) => {
@@ -22069,6 +22039,7 @@ const FindBand = ({ hideBand }) => {
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
@@ -22092,6 +22063,91 @@ function App({ api: api2, pollForLogs = true }) {
   });
   const [offcanvas, setOffcanvas] = h(false);
   const [showFind, setShowFind] = h(false);
+  const [filter, setFilter] = h({});
+  const [epoch, setEpoch] = h("all");
+  const [sort, setSort] = h(kDefaultSort);
+  const [samplesDescriptor, setSamplesDescriptor] = h(void 0);
+  const [scores, setScores] = h([]);
+  const [score, setScore] = h(void 0);
+  const afterBodyElements = [];
+  const context = {
+    afterBody: (el) => {
+      afterBodyElements.push(el);
+    }
+  };
+  const [filteredSamples, setFilteredSamples] = h([]);
+  const [groupBy, setGroupBy] = h("none");
+  const [groupByOrder, setGroupByOrder] = h("asc");
+  y(() => {
+    var _a3;
+    const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
+    const filtered = (samples || []).filter((sample) => {
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample.epoch + "") {
+          return false;
+        }
+      }
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample, filter.value);
+      } else {
+        return true;
+      }
+    });
+    const { sorted, order: order2 } = sortSamples(sort, filtered, samplesDescriptor);
+    let grouping = "none";
+    if ((samplesDescriptor == null ? void 0 : samplesDescriptor.epochs) > 1) {
+      if (byEpoch(sort) || epoch !== "all") {
+        grouping = "epoch";
+      } else if (bySample(sort)) {
+        grouping = "sample";
+      }
+    }
+    setFilteredSamples(sorted);
+    setGroupBy(grouping);
+    setGroupByOrder(order2);
+  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+  y(() => {
+    resetFilteringState();
+  }, [score]);
+  y(() => {
+    var _a3, _b3, _c2, _d2, _e2, _f2;
+    const scorer = ((_b3 = (_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.results) == null ? void 0 : _b3.scores[0]) ? {
+      name: (_c2 = selectedLog.contents.results) == null ? void 0 : _c2.scores[0].name,
+      scorer: (_d2 = selectedLog.contents.results) == null ? void 0 : _d2.scores[0].scorer
+    } : void 0;
+    const scorers = (((_f2 = (_e2 = selectedLog.contents) == null ? void 0 : _e2.results) == null ? void 0 : _f2.scores) || []).map((score2) => {
+      return {
+        name: score2.name,
+        scorer: score2.scorer
+      };
+    }).reduce((accum, scorer2) => {
+      if (!accum.find((sc) => {
+        return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
+      })) {
+        accum.push(scorer2);
+      }
+      return accum;
+    }, []);
+    setScores(scorers);
+    setScore(scorer);
+    resetFilteringState();
+  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
+  y(() => {
+    var _a3, _b3, _c2, _d2;
+    const sampleDescriptor = createsSamplesDescriptor(
+      scores,
+      (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
+      context,
+      score
+    );
+    setSamplesDescriptor(sampleDescriptor);
+  }, [selectedLog, score, scores, setSamplesDescriptor]);
+  const resetFilteringState = q(() => {
+    setEpoch("all");
+    setFilter({});
+    setSort(kDefaultSort);
+  }, [setEpoch, setFilter, setSort]);
   const mainAppRef = A();
   y(() => {
     if (!selectedLog || selectedSampleIndex == -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
@@ -22101,7 +22157,7 @@ function App({ api: api2, pollForLogs = true }) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSelectedSample(void 0);
-      const summary = selectedLog.contents.sampleSummaries[selectedSampleIndex];
+      const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
         setSelectedSample(sample);
         setSampleStatus("ok");
@@ -22110,7 +22166,13 @@ function App({ api: api2, pollForLogs = true }) {
         loadingSampleIndexRef.current = null;
       });
     }
-  }, [selectedSampleIndex, selectedLog, setSelectedSample, setSampleStatus]);
+  }, [
+    selectedSampleIndex,
+    selectedLog,
+    filteredSamples,
+    setSelectedSample,
+    setSampleStatus
+  ]);
   y(() => {
     const loadHeaders = async () => {
       setHeadersLoading(true);
@@ -22374,37 +22436,6 @@ function App({ api: api2, pollForLogs = true }) {
   }}
           />
         ` : "";
-  const workspace = T(() => {
-    if (status.error) {
-      return m$1`<${ErrorPanel}
-        title="An error occurred while loading this task."
-        error=${status.error}
-      />`;
-    } else {
-      const showToggle = logs.files.length > 1 || logs.log_dir;
-      return m$1`<${WorkSpace}
-        showToggle=${showToggle}
-        log=${selectedLog}
-        sampleStatus=${sampleStatus}
-        refreshLog=${refreshLog}
-        offcanvas=${offcanvas}
-        capabilities=${capabilities}
-        selected=${selectedLogIndex}
-        selectedSample=${selectedSample}
-        selectedSampleIndex=${selectedSampleIndex}
-        setSelectedSampleIndex=${setSelectedSampleIndex}
-      />`;
-    }
-  }, [
-    logs,
-    selectedLog,
-    selectedLogIndex,
-    selectedSample,
-    offcanvas,
-    status,
-    sampleStatus,
-    selectedSampleIndex
-  ]);
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
   const hideFind = q(() => {
@@ -22413,6 +22444,7 @@ function App({ api: api2, pollForLogs = true }) {
       setShowFind(false);
     }
   }, [showFind, setShowFind]);
+  const showToggle = logs.files.length > 1 || logs.log_dir;
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -22431,8 +22463,49 @@ function App({ api: api2, pollForLogs = true }) {
     background: "var(--bs-light)",
     marginBottom: "-1px"
   }}/>
-      ${workspace}
+      ${status.error ? m$1`<${ErrorPanel}
+              title="An error occurred while loading this task."
+              error=${status.error}
+            />` : m$1`<${WorkSpace}
+              task_id=${(_b2 = (_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task_id}
+              taskStatus=${(_d = (_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.eval) == null ? void 0 : _d.status}
+              logFileName=${selectedLog == null ? void 0 : selectedLog.name}
+              taskError=${(_f = (_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.eval) == null ? void 0 : _f.error}
+              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
+              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
+              evalScores=${(_j = (_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results) == null ? void 0 : _j.scores}
+              evalStats=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.stats}
+              evalResults=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.results}
+              showToggle=${showToggle}
+              samples=${filteredSamples}
+              groupBy=${groupBy}
+              groupByOrder=${groupByOrder}
+              sampleStatus=${sampleStatus}
+              samplesDescriptor=${samplesDescriptor}
+              refreshLog=${refreshLog}
+              offcanvas=${offcanvas}
+              capabilities=${capabilities}
+              selected=${selectedLogIndex}
+              selectedSample=${selectedSample}
+              selectedSampleIndex=${selectedSampleIndex}
+              setSelectedSampleIndex=${setSelectedSampleIndex}
+              sort=${sort}
+              setSort=${setSort}
+              epochs=${(_o = (_n = (_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.eval) == null ? void 0 : _n.config) == null ? void 0 : _o.epochs}
+              epoch=${epoch}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              setFilter=${setFilter}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              renderContext=${context}
+              renderJson=${() => {
+    return "NOT IMPLEMENTED";
+  }}
+            />`}
     </div>
+    ${afterBodyElements}
     </${AppErrorBoundary}>
   `;
 }

@@ -33,7 +33,7 @@ import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
  * @param {boolean} props.loading - is the sample loading?
  * @param {import("../types/log").Sample} [props.sample] - the sample
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
- * @param {import("../Types.mjs").AppContext} props.context - the app context
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({

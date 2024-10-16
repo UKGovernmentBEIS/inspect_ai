@@ -14,10 +14,8 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
-import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
-import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 import { filename } from "../utils/Path.mjs";
 import { Navbar } from "../navbar/Navbar.mjs";
@@ -26,11 +24,6 @@ import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
-import {
-  byEpoch,
-  bySample,
-  sort as doSort,
-} from "../samples/tools/SortFilter.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -43,191 +36,95 @@ const kJsonMaxSize = 10000000;
  * Renders the Main Application
  *
  * @param {Object} props - The parameters for the component.
+ * @param {string} [props.task_id] - The task id
+ * @param {string} [props.taskStatus] - status
+ * @param {string} [props.logFileName] - The logFileName name
+ * @param {string} [props.taskError] - Error message for this eval
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec for this eval
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalPlan for this eval
+ * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
+ * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
+ * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {string} props.groupBy - what to group by
+ * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
  * @param {string} props.sampleStatus - whether a sample is loading
  * @param {boolean} props.showToggle - whether to show the toggler
  * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
  * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
  * @param {number} props.selectedSampleIndex - the selected sample index
- * @param { (index: number) => void } props.setSelectedSampleIndex - function to selected a sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
+ * @param {(index: number) => void} props.setSelectedSampleIndex - function to selected a sample
+ * @param {string} props.sort - the current sort
+ * @param {(sort: string) => void} props.setSort - set the current sort
+ * @param {number} [props.epochs] - the number of epochs
+ * @param {string} props.epoch - the current epoch
+ * @param {(epoch: string) => void} props.setEpoch - set the current epoch
+ * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
+ * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
+ * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
+ * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
+ * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
+ * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
+ * @param {() => string} props.renderJson - function to render json raw text
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const WorkSpace = ({
-  log: currentLog,
+  task_id,
+  taskStatus,
+  logFileName,
+  taskError,
+  evalSpec,
+  evalPlan,
+  evalStats,
+  evalResults,
+  samples,
   selectedSample,
+  groupBy,
+  groupByOrder,
   showToggle,
   refreshLog,
   capabilities,
   offcanvas,
+  samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
   sampleStatus,
+  sort,
+  setSort,
+  epochs,
+  epoch,
+  setEpoch,
+  filter,
+  setFilter,
+  score,
+  setScore,
+  scores,
+  renderContext,
+  renderJson,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
   const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // State tracking for the view
-  const [currentTaskId, setCurrentTaskId] = useState(
-    currentLog?.contents?.eval?.run_id,
-  );
   const [selectedTab, setSelectedTab] = useState();
-
-  /**
-   * @type {[import("../Types.mjs").ScoreLabel[], function(import("../Types.mjs").ScoreLabel[]): void]}
-   */
-  const [scores, setScores] = useState([]);
-
-  /**
-   * @type {[import("../Types.mjs").ScoreLabel, function(import("../Types.mjs").ScoreLabel): void]}
-   */
-  const [score, setScore] = useState(undefined);
-
-  /**
-   * @type {[import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
-   */
-  const [samplesDesc, setSamplesDesc] = useState(undefined);
-
-  /**
-   * @type {[import("../Types.mjs").ScoreFilter, function(import("../Types.mjs").ScoreFilter): void]}
-   */
-  const [filter, setFilter] = useState({});
-
-  /**
-   * @type {[string, function(string): void]}
-   */
-  const [epoch, setEpoch] = useState("all");
-
-  /**
-   * @type {[string, function(string): void]}
-   */
-  const [sort, setSort] = useState(kDefaultSort);
 
   /**
    * @type {[boolean, function(boolean): void]}
    */
   const [renderedCode, setRenderedCode] = useState(false);
 
-  // Re-filter the samples
-  const [filteredSamples, setFilteredSamples] = useState([]);
-  const [groupBy, setGroupBy] = useState("none");
-  const [groupByOrder, setGroupByOrder] = useState("asc");
-  useEffect(() => {
-    const samples = currentLog?.contents?.sampleSummaries || [];
-    const filtered = (samples || []).filter((sample) => {
-      // Filter by epoch if specified
-      if (epoch && epoch !== "all") {
-        if (epoch !== sample.epoch + "") {
-          return false;
-        }
-      }
-
-      if (filter.filterFn && filter.value) {
-        return filter.filterFn(sample, filter.value);
-      } else {
-        return true;
-      }
-    });
-
-    // Sort the samples
-    const { sorted, order } = doSort(sort, filtered, samplesDesc);
-    setFilteredSamples(sorted);
-
-    // Set the grouping
-    let grouping = "none";
-    if (samplesDesc?.epochs > 1) {
-      if (byEpoch(sort) || epoch !== "all") {
-        grouping = "epoch";
-      } else if (bySample(sort)) {
-        grouping = "sample";
-      }
-    }
-    setGroupBy(grouping);
-    setGroupByOrder(order);
-  }, [currentLog, filter, sort, epoch, samplesDesc]);
-
-  // Context is shared with most/all components and
-  // allows for global information to pass between components
-  const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    },
-  };
-
-  const clearSampleTools = useCallback(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
-
   // Display the log
   useEffect(() => {
-    if (
-      currentLog.contents &&
-      currentLog.contents.eval?.run_id !== currentTaskId
-    ) {
-      const defaultTab = Object.values(tabs)[0].id;
-      setSelectedTab(defaultTab);
-      if (divRef.current) {
-        divRef.current.scrollTop = 0;
-      }
+    const defaultTab = Object.values(tabs)[0].id;
+    setSelectedTab(defaultTab);
+    if (divRef.current) {
+      divRef.current.scrollTop = 0;
     }
-  }, [currentLog, divRef, currentTaskId, setSelectedTab]);
-
-  useEffect(() => {
-    // Select the default scorer to use
-    const scorer = currentLog?.contents?.results?.scores[0]
-      ? {
-          name: currentLog.contents.results?.scores[0].name,
-          scorer: currentLog.contents.results?.scores[0].scorer,
-        }
-      : undefined;
-    const scorers = (currentLog.contents?.results?.scores || [])
-      .map((score) => {
-        return {
-          name: score.name,
-          scorer: score.scorer,
-        };
-      })
-      .reduce((accum, scorer) => {
-        if (
-          !accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })
-        ) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, []);
-
-    // Reset state
-    setScores(scorers);
-    setScore(scorer);
-
-    clearSampleTools();
     setRenderedCode(false);
-  }, [currentLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
-
-  useEffect(() => {
-    clearSampleTools();
-  }, [score]);
-
-  useEffect(() => {
-    const sampleDescriptor = samplesDescriptor(
-      scores,
-      currentLog.contents?.sampleSummaries,
-      currentLog.contents?.eval?.config?.epochs || 1,
-      context,
-      score,
-    );
-    setSamplesDesc(sampleDescriptor);
-  }, [currentLog, score, scores, setSamplesDesc]);
-
-  useEffect(() => {
-    setCurrentTaskId(currentLog.contents?.eval?.run_id);
-  }, [currentLog]);
+  }, [divRef, task_id, setSelectedTab]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -237,37 +134,31 @@ export const WorkSpace = ({
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (
-      currentLog.contents?.status !== "error" &&
-      currentLog.contents?.sampleSummaries
-    ) {
+    if (taskStatus !== "error" && samples) {
       resolvedTabs.samples = {
         id: kEvalTabId,
-        scrollable: currentLog.contents?.sampleSummaries?.length === 1,
-        label:
-          currentLog.contents?.sampleSummaries?.length > 1
-            ? "Samples"
-            : "Sample",
+        scrollable: samples.length === 1,
+        label: samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
           return html` <${SamplesTab}
-            task=${currentLog.contents?.eval?.task_id}
+            task=${task_id}
             selectedScore=${score}
             sample=${selectedSample}
             sampleLoading=${sampleStatus === "loading"}
-            samples=${filteredSamples}
+            samples=${samples}
             groupBy=${groupBy}
             groupByOrder=${groupByOrder}
             selectedSampleIndex=${selectedSampleIndex}
             setSelectedSampleIndex=${setSelectedSampleIndex}
-            sampleDescriptor=${samplesDesc}
+            sampleDescriptor=${samplesDescriptor}
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${context}
+            context=${renderContext}
           />`;
         },
         tools: () => {
-          if (currentLog.contents?.status === "started") {
+          if (taskStatus === "started") {
             return html`<${ToolButton}
               name=${html`Refresh`}
               icon="${ApplicationIcons.refresh}"
@@ -276,12 +167,12 @@ export const WorkSpace = ({
           }
 
           // Don't show tools if there is a sample sample
-          if (currentLog.contents?.sampleSummaries?.length <= 1) {
+          if (samples?.length <= 1) {
             return "";
           }
           return html`<${SampleTools}
             epoch=${epoch}
-            epochs=${currentLog.contents?.eval?.config?.epochs}
+            epochs=${epochs}
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
@@ -290,7 +181,7 @@ export const WorkSpace = ({
             score=${score}
             setScore=${setScore}
             scores=${scores}
-            sampleDescriptor=${samplesDesc}
+            sampleDescriptor=${samplesDescriptor}
           />`;
         },
       };
@@ -304,33 +195,30 @@ export const WorkSpace = ({
       content: () => {
         const infoCards = [];
         infoCards.push([
-          html`<${PlanCard} log="${currentLog.contents}" context=${context} />`,
+          html`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults?.scores}
+            context=${renderContext}
+          />`,
         ]);
 
-        if (currentLog.contents?.status !== "started") {
+        if (taskStatus !== "started") {
           infoCards.push(
-            html`<${UsageCard}
-              stats=${currentLog.contents?.stats}
-              context=${context}
-            />`,
+            html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
           );
         }
 
         // If there is error or progress, includes those within info
-        if (
-          currentLog.contents?.status === "error" &&
-          currentLog.contents?.error
-        ) {
-          infoCards.unshift(
-            html`<${TaskErrorCard} evalError=${currentLog.contents.error} />`,
-          );
+        if (taskStatus === "error" && taskError) {
+          infoCards.unshift(html`<${TaskErrorCard} evalError=${taskError} />`);
         }
 
         const warnings = [];
         if (
-          !currentLog.contents?.sampleSummaries &&
-          currentLog.contents?.eval?.dataset?.samples > 0 &&
-          currentLog.contents?.status !== "error"
+          (!samples || samples.length) &&
+          evalSpec?.dataset?.samples > 0 &&
+          taskStatus !== "error"
         ) {
           warnings.push(
             html`<${WarningBand}
@@ -355,32 +243,30 @@ export const WorkSpace = ({
       scrollable: true,
       content: () => {
         const renderedContent = [];
-        if (
-          currentLog.raw.length > kJsonMaxSize &&
-          capabilities.downloadFiles
-        ) {
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
           // This JSON file is so large we can't really productively render it
           // we should instead just provide a DL link
-          const file = `${filename(currentLog.name)}.json`;
+          const file = `${filename(logFileName)}.json`;
           renderedContent.push(
             html`<${DownloadPanel}
               message="Log file raw JSON is too large to render."
               buttonLabel="Download JSON File"
-              logFile=${currentLog.name}
+              logFile=${logFileName}
               fileName=${file}
-              fileContents=${currentLog.raw}
+              fileContents=${jsonText}
             />`,
           );
         } else {
           if (codeRef.current && !renderedCode) {
-            if (currentLog.raw.length < kPrismRenderMaxSize) {
+            if (jsonText.length < kPrismRenderMaxSize) {
               codeRef.current.innerHTML = Prism.highlight(
-                currentLog.raw,
+                jsonText,
                 Prism.languages.javascript,
                 "javacript",
               );
             } else {
-              const textNode = document.createTextNode(currentLog.raw);
+              const textNode = document.createTextNode(jsonText);
               codeRef.current.innerText = "";
               codeRef.current.appendChild(textNode);
             }
@@ -411,7 +297,8 @@ export const WorkSpace = ({
         </div>`;
       },
       tools: () => {
-        if (currentLog.raw.length > kJsonMaxSize) {
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize) {
           return [];
         } else {
           return [
@@ -429,12 +316,21 @@ export const WorkSpace = ({
 
     return resolvedTabs;
   }, [
-    samplesDesc,
+    samplesDescriptor,
     selectedSample,
-    filteredSamples,
+    samples,
     groupBy,
     groupByOrder,
-    currentLog,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    taskStatus,
+    logFileName,
+    taskStatus,
+    taskError,
+    renderJson,
+    renderContext,
     filter,
     setFilter,
     epoch,
@@ -487,38 +383,51 @@ export const WorkSpace = ({
     });
 
   return html`<${WorkspaceDisplay}
+    logFileName=${logFileName}
     divRef=${divRef}
+    evalSpec=${evalSpec}
+    evalPlan=${evalPlan}
+    evalResults=${evalResults}
+    samples=${samples}
+    status=${taskStatus}
     tabs=${tabs}
-    tabTools=${tabTools}
-    log=${currentLog}
-    showToggle=${showToggle}
     selectedTab=${selectedTab}
+    tabTools=${tabTools}
+    showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    afterBodyElements=${afterBodyElements}
   />`;
 };
 
 const WorkspaceDisplay = ({
-  log,
+  logFileName,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
   showToggle,
   selectedTab,
   tabs,
   tabTools,
   setSelectedTab,
   divRef,
-  afterBodyElements,
   offcanvas,
 }) => {
-  if (log.contents === undefined) {
+  if (evalSpec === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
     return html`
     
     <${Navbar}
-      file=${log.name}
+      evalSpec=${evalSpec}
+      evalPlan=${evalPlan}
+      evalResults=${evalResults}
+      samples=${samples}
+      status=${status}
+      file=${logFileName}
       showToggle=${showToggle}
-      log=${log.contents}
+      
       offcanvas=${offcanvas}
     />    
     <div ref=${divRef} class="workspace" style=${{
@@ -569,7 +478,6 @@ const WorkspaceDisplay = ({
               })}
             </${TabSet}>
             </div>
-          </div>
-          ${afterBodyElements}`;
+          </div>`;
   }
 };

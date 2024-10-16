@@ -43,7 +43,7 @@ import { isNumeric } from "../utils/Type.mjs";
 /**
  * Represents the selected score for a sample, including its value and render function.
  * @typedef {Object} SelectedScore
- * @property {any} value - The value of the selected score.
+ * @property {import("../types/log").Value2} value - The value of the selected score.
  * @property {function(): any} render - Function to render the selected score.
  */
 
@@ -68,11 +68,11 @@ export const kScoreTypeBoolean = "boolean";
  * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
- * @param {import("..//Types.mjs").AppContext} context - The application context
+ * @param {import("..//Types.mjs").RenderContext} context - The application context
  * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
  * @returns {SamplesDescriptor} The SamplesDescriptor
  */
-export const samplesDescriptor = (
+export const createsSamplesDescriptor = (
   scorers,
   samples,
   epochs,
@@ -327,7 +327,7 @@ export const samplesDescriptor = (
 
 /**
  * @typedef {Object} ScoreCategorizer
- * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").AppContext) => ScoreDescriptor} describe
+ * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").RenderContext) => ScoreDescriptor} describe
  */
 const scoreCategorizers = [
   {
@@ -502,7 +502,7 @@ const scoreCategorizers = [
     /**
      * @param {import("../types/log").Value2[]} values - the currently selected score
      * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").AppContext} [context] - the application context
+     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore

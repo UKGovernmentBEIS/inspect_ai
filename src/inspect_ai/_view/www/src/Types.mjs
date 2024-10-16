@@ -30,6 +30,6 @@
  */
 
 /**
- * @typedef {Object} AppContext
+ * @typedef {Object} RenderContext
  * @property {(el: import("preact").JSX.Element) => void} afterBody:
  */

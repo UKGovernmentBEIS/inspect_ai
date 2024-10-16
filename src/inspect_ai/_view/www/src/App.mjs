@@ -29,6 +29,9 @@ import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
+import { kDefaultSort } from "./samples/tools/SortFilter.mjs";
+import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
+import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 
 /**
  * Renders the Main Application
@@ -76,6 +79,141 @@ export function App({ api, pollForLogs = true }) {
   const [offcanvas, setOffcanvas] = useState(false);
   const [showFind, setShowFind] = useState(false);
 
+  // Filtering and sorting
+  /**
+   * @type {[import("./Types.mjs").ScoreFilter, function(import("./Types.mjs").ScoreFilter): void]}
+   */
+  const [filter, setFilter] = useState({});
+
+  /**
+   * @type {[string, function(string): void]}
+   */
+  const [epoch, setEpoch] = useState("all");
+
+  /**
+   * @type {[string, function(string): void]}
+   */
+  const [sort, setSort] = useState(kDefaultSort);
+
+  /**
+   * @type {[import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
+   */
+  const [samplesDescriptor, setSamplesDescriptor] = useState(undefined);
+
+  /**
+   * @type {[import("./Types.mjs").ScoreLabel[], function(import("./Types.mjs").ScoreLabel[]): void]}
+   */
+  const [scores, setScores] = useState([]);
+
+  /**
+   * @type {[import("./Types.mjs").ScoreLabel, function(import("./Types.mjs").ScoreLabel): void]}
+   */
+  const [score, setScore] = useState(undefined);
+
+  const afterBodyElements = [];
+
+  /** @type {import("./Types.mjs").RenderContext} */
+  const context = {
+    afterBody: (el) => {
+      afterBodyElements.push(el);
+    },
+  };
+
+  // Re-filter the samples
+  const [filteredSamples, setFilteredSamples] = useState([]);
+  const [groupBy, setGroupBy] = useState("none");
+  const [groupByOrder, setGroupByOrder] = useState("asc");
+
+  useEffect(() => {
+    const samples = selectedLog?.contents?.sampleSummaries || [];
+    const filtered = (samples || []).filter((sample) => {
+      // Filter by epoch if specified
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample.epoch + "") {
+          return false;
+        }
+      }
+
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample, filter.value);
+      } else {
+        return true;
+      }
+    });
+
+    // Sort the samples
+    const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
+
+    // Set the grouping
+    let grouping = "none";
+    if (samplesDescriptor?.epochs > 1) {
+      if (byEpoch(sort) || epoch !== "all") {
+        grouping = "epoch";
+      } else if (bySample(sort)) {
+        grouping = "sample";
+      }
+    }
+
+    setFilteredSamples(sorted);
+    setGroupBy(grouping);
+    setGroupByOrder(order);
+  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+
+  // Anytime the selected score changes, reset filtering
+  useEffect(() => {
+    resetFilteringState();
+  }, [score]);
+
+  useEffect(() => {
+    // Select the default scorer to use
+    const scorer = selectedLog?.contents?.results?.scores[0]
+      ? {
+          name: selectedLog.contents.results?.scores[0].name,
+          scorer: selectedLog.contents.results?.scores[0].scorer,
+        }
+      : undefined;
+    const scorers = (selectedLog.contents?.results?.scores || [])
+      .map((score) => {
+        return {
+          name: score.name,
+          scorer: score.scorer,
+        };
+      })
+      .reduce((accum, scorer) => {
+        if (
+          !accum.find((sc) => {
+            return scorer.scorer === sc.scorer && scorer.name === sc.name;
+          })
+        ) {
+          accum.push(scorer);
+        }
+        return accum;
+      }, []);
+
+    // Reset state
+    setScores(scorers);
+    setScore(scorer);
+
+    resetFilteringState();
+  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
+
+  useEffect(() => {
+    const sampleDescriptor = createsSamplesDescriptor(
+      scores,
+      selectedLog.contents?.sampleSummaries,
+      selectedLog.contents?.eval?.config?.epochs || 1,
+      context,
+      score,
+    );
+    setSamplesDescriptor(sampleDescriptor);
+  }, [selectedLog, score, scores, setSamplesDescriptor]);
+
+  const resetFilteringState = useCallback(() => {
+    setEpoch("all");
+    setFilter({});
+    setSort(kDefaultSort);
+  }, [setEpoch, setFilter, setSort]);
+
   // The main application reference
   const mainAppRef = useRef();
 
@@ -94,11 +232,12 @@ export function App({ api, pollForLogs = true }) {
       selectedSampleIndex > -1 &&
       selectedSampleIndex < selectedLog.contents.sampleSummaries.length
     ) {
+      // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSelectedSample(undefined);
 
-      const summary = selectedLog.contents.sampleSummaries[selectedSampleIndex];
+      const summary = filteredSamples[selectedSampleIndex];
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
@@ -110,7 +249,13 @@ export function App({ api, pollForLogs = true }) {
           loadingSampleIndexRef.current = null;
         });
     }
-  }, [selectedSampleIndex, selectedLog, setSelectedSample, setSampleStatus]);
+  }, [
+    selectedSampleIndex,
+    selectedLog,
+    filteredSamples,
+    setSelectedSample,
+    setSampleStatus,
+  ]);
 
   // Read header information for the logs
   // and then update
@@ -434,38 +579,6 @@ export function App({ api, pollForLogs = true }) {
         `
       : "";
 
-  const workspace = useMemo(() => {
-    if (status.error) {
-      return html`<${ErrorPanel}
-        title="An error occurred while loading this task."
-        error=${status.error}
-      />`;
-    } else {
-      const showToggle = logs.files.length > 1 || logs.log_dir;
-      return html`<${WorkSpace}
-        showToggle=${showToggle}
-        log=${selectedLog}
-        sampleStatus=${sampleStatus}
-        refreshLog=${refreshLog}
-        offcanvas=${offcanvas}
-        capabilities=${capabilities}
-        selected=${selectedLogIndex}
-        selectedSample=${selectedSample}
-        selectedSampleIndex=${selectedSampleIndex}
-        setSelectedSampleIndex=${setSelectedSampleIndex}
-      />`;
-    }
-  }, [
-    logs,
-    selectedLog,
-    selectedLogIndex,
-    selectedSample,
-    offcanvas,
-    status,
-    sampleStatus,
-    selectedSampleIndex,
-  ]);
-
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
 
@@ -476,6 +589,7 @@ export function App({ api, pollForLogs = true }) {
     }
   }, [showFind, setShowFind]);
 
+  const showToggle = logs.files.length > 1 || logs.log_dir;
   return html`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -498,8 +612,53 @@ export function App({ api, pollForLogs = true }) {
         background: "var(--bs-light)",
         marginBottom: "-1px",
       }}/>
-      ${workspace}
+      ${
+        status.error
+          ? html`<${ErrorPanel}
+              title="An error occurred while loading this task."
+              error=${status.error}
+            />`
+          : html`<${WorkSpace}
+              task_id=${selectedLog?.contents?.eval?.task_id}
+              taskStatus=${selectedLog?.contents?.eval?.status}
+              logFileName=${selectedLog?.name}
+              taskError=${selectedLog?.contents?.eval?.error}
+              evalSpec=${selectedLog?.contents?.eval}
+              evalPlan=${selectedLog?.contents?.plan}
+              evalScores=${selectedLog?.contents?.results?.scores}
+              evalStats=${selectedLog?.contents?.stats}
+              evalResults=${selectedLog?.contents?.results}
+              showToggle=${showToggle}
+              samples=${filteredSamples}
+              groupBy=${groupBy}
+              groupByOrder=${groupByOrder}
+              sampleStatus=${sampleStatus}
+              samplesDescriptor=${samplesDescriptor}
+              refreshLog=${refreshLog}
+              offcanvas=${offcanvas}
+              capabilities=${capabilities}
+              selected=${selectedLogIndex}
+              selectedSample=${selectedSample}
+              selectedSampleIndex=${selectedSampleIndex}
+              setSelectedSampleIndex=${setSelectedSampleIndex}
+              sort=${sort}
+              setSort=${setSort}
+              epochs=${selectedLog?.contents?.eval?.config?.epochs}
+              epoch=${epoch}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              setFilter=${setFilter}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              renderContext=${context}
+              renderJson=${() => {
+                return "NOT IMPLEMENTED";
+              }}
+            />`
+      }
     </div>
+    ${afterBodyElements}
     </${AppErrorBoundary}>
   `;
 }

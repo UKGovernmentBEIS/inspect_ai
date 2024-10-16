@@ -9,9 +9,7 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
 /**
  * Renders Samples Tab
  *
-
-
-* @param {Object} props - The parameters for the component.
+ * @param {Object} props - The parameters for the component.
  * @param {import("../types/log").Sample} [props.sample] - The sample
  * @param {string} [props.task_id] - The task id
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
@@ -19,11 +17,11 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
  * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
- * @param {import("../Types.mjs").AppContext} props.context - the app context
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @param {boolean} props.sampleLoading - whether the sample is loading
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
- * 
+ *
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {any} props.sort - the selected sort
@@ -80,11 +78,8 @@ export const SamplesTab = ({
     });
 
     setItems(items);
-    const firstSample = items.findIndex((val) => {
-      return val.type === "sample";
-    });
     if (items.length) {
-      setSelectedSampleIndex(firstSample);
+      setSelectedSampleIndex(0);
     }
   }, [samples, groupBy, groupByOrder, sampleDescriptor]);
 
@@ -254,8 +249,19 @@ const noGrouping = (samples, order) => {
 const groupBySample = (samples, sampleDescriptor, order) => {
   // ensure that we are sorted by id
   samples = samples.sort((a, b) => {
-    // TODO: Are we sure this shouldn't be numeric for numbers?
-    return String(a.id).localeCompare(String(b.id));
+    if (typeof a.id === "string") {
+      if (order === "asc") {
+        return String(a.id).localeCompare(String(b.id));
+      } else {
+        return String(b.id).localeCompare(String(a.id));
+      }
+    } else {
+      if (order === "asc") {
+        return Number(a.id) - Number(b.id);
+      } else {
+        return Number(b.id) - Number(b.id);
+      }
+    }
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
