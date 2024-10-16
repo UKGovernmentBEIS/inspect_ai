@@ -177,7 +177,8 @@ async def eval_run(
                 with task_run_dir_switching():
                     return await run_multiple(task_run_options, parallel)
             else:
-                return await run_multiple(task_run_options, parallel)
+                with chdir(run_dir):
+                    return await run_multiple(task_run_options, parallel)
 
         # single mode is for a single task definitions (which
         # could in turn be executed for multiple models)
