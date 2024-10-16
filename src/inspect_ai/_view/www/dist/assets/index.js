@@ -13536,111 +13536,6 @@ const passFailScoreCategorizer = (values) => {
     }
   };
 };
-const kSampleAscVal = "sample-asc";
-const kSampleDescVal = "sample-desc";
-const kEpochAscVal = "epoch-asc";
-const kEpochDescVal = "epoch-desc";
-const kScoreAscVal = "score-asc";
-const kScoreDescVal = "score-desc";
-const kDefaultSort = kSampleAscVal;
-const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
-  var _a2;
-  const options = [
-    { label: "sample asc", val: kSampleAscVal },
-    { label: "sample desc", val: kSampleDescVal }
-  ];
-  if (epochs) {
-    options.push({
-      label: "epoch asc",
-      val: kEpochAscVal
-    });
-    options.push({
-      label: "epoch desc",
-      val: kEpochDescVal
-    });
-  }
-  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
-    options.push({
-      label: "score asc",
-      val: kScoreAscVal
-    });
-    options.push({
-      label: "score desc",
-      val: kScoreDescVal
-    });
-  }
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort2}
-        onChange=${(e2) => {
-    setSort(e2.target.value);
-  }}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option.val}">${option.label}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const byEpoch = (sort2) => {
-  return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
-};
-const bySample = (sort2) => {
-  return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
-};
-const sort = (sort2, samples, sampleDescriptor) => {
-  const sorted = samples.sort((a2, b2) => {
-    switch (sort2) {
-      case kSampleAscVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return a2.id - b2.id;
-        } else {
-          return String(a2.id).localeCompare(String(b2.id));
-        }
-      case kSampleDescVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return b2.id - a2.id;
-        } else {
-          return String(b2.id).localeCompare(String(a2.id));
-        }
-      case kEpochAscVal:
-        return a2.epoch - b2.epoch;
-      case kEpochDescVal:
-        return b2.epoch - a2.epoch;
-      case kScoreAscVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a2),
-          sampleDescriptor.selectedScore(b2)
-        );
-      case kScoreDescVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b2),
-          sampleDescriptor.selectedScore(a2)
-        );
-    }
-  });
-  return {
-    sorted,
-    order: sort2 === kSampleAscVal || sort2 === kEpochAscVal || sort2 === kScoreAscVal ? "asc" : "desc"
-  };
-};
 const LargeModal = (props) => {
   const {
     id,
@@ -17838,17 +17733,16 @@ const SamplesTab = ({
   task_id,
   sample,
   samples,
+  groupBy,
+  groupByOrder,
   sampleDescriptor,
-  filter,
-  sort: sort$1,
-  epoch,
-  context,
   selectedScore,
   sampleLoading,
+  // TODO: status
   selectedSampleIndex,
-  setSelectedSampleIndex
+  setSelectedSampleIndex,
+  context
 }) => {
-  const [filteredSamples, setFilteredSamples] = h([]);
   const [items, setItems] = h([]);
   const sampleListRef = A(
     /** @type {HTMLElement|null} */
@@ -17859,22 +17753,6 @@ const SamplesTab = ({
     null
   );
   const [sampleDialogVisible, setSampleDialogVisible] = h(false);
-  y(() => {
-    setFilteredSamples(
-      (samples || []).filter((sample2) => {
-        if (epoch && epoch !== "all") {
-          if (epoch !== sample2.epoch + "") {
-            return false;
-          }
-        }
-        if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample2, filter.value);
-        } else {
-          return true;
-        }
-      })
-    );
-  }, [samples, filter, sort$1, epoch]);
   const showSample = q(() => {
     setSampleDialogVisible(true);
     setTimeout(() => {
@@ -17885,17 +17763,15 @@ const SamplesTab = ({
     setSampleDialogVisible(false);
   }, [setSampleDialogVisible]);
   y(() => {
-    const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
     const sampleProcessor = getSampleProcessor(
-      filteredSamples,
-      sort$1,
-      epoch,
-      order2,
+      samples,
+      groupBy,
+      groupByOrder,
       sampleDescriptor
     );
-    const items2 = sorted.flatMap((sample2, index2) => {
+    const items2 = samples.flatMap((sample2, index2) => {
       const results = [];
-      const previousSample2 = index2 !== 0 ? sorted[index2 - 1] : void 0;
+      const previousSample2 = index2 !== 0 ? samples[index2 - 1] : void 0;
       const items3 = sampleProcessor(sample2, index2, previousSample2);
       results.push(...items3);
       return results;
@@ -17907,8 +17783,7 @@ const SamplesTab = ({
     if (items2.length) {
       setSelectedSampleIndex(firstSample);
     }
-    return items2;
-  }, [filteredSamples, sort$1, epoch, sampleDescriptor]);
+  }, [samples, groupBy, groupByOrder, sampleDescriptor]);
   y(() => {
     hideSample();
   }, [items]);
@@ -17933,13 +17808,13 @@ const SamplesTab = ({
     if (next > -1) {
       setSelectedSampleIndex(next);
     }
-  }, [selectedSampleIndex, filteredSamples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, nextSampleIndex]);
   const previousSample = q(() => {
     const prev = previousSampleIndex();
     if (prev > -1) {
       setSelectedSampleIndex(prev);
     }
-  }, [selectedSampleIndex, filteredSamples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, previousSampleIndex]);
   const elements = [];
   if ((samples == null ? void 0 : samples.length) === 1 && items.length === 1) {
     elements.push(
@@ -17988,15 +17863,14 @@ const SamplesTab = ({
   `);
   return elements;
 };
-const getSampleProcessor = (samples, sort2, epoch, order2, sampleDescriptor) => {
-  if ((sampleDescriptor == null ? void 0 : sampleDescriptor.epochs) > 1) {
-    if (byEpoch(sort2) || epoch !== "all") {
-      return groupByEpoch(samples, sampleDescriptor, order2);
-    } else if (bySample(sort2)) {
-      return groupBySample(samples, sampleDescriptor, order2);
-    }
+const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
+  if (groupBy == "epoch") {
+    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+  } else if (groupBy === "sample") {
+    return groupBySample(samples, sampleDescriptor, groupByOrder);
+  } else {
+    return noGrouping(samples, groupByOrder);
   }
-  return noGrouping(samples, order2);
 };
 const noGrouping = (samples, order2) => {
   const counter = getCounter(samples.length, 1, order2);
@@ -18138,6 +18012,111 @@ const EpochFilter = ({ epochs, epoch, setEpoch }) => {
       </select>
     </div>
   `;
+};
+const kSampleAscVal = "sample-asc";
+const kSampleDescVal = "sample-desc";
+const kEpochAscVal = "epoch-asc";
+const kEpochDescVal = "epoch-desc";
+const kScoreAscVal = "score-asc";
+const kScoreDescVal = "score-desc";
+const kDefaultSort = kSampleAscVal;
+const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
+  var _a2;
+  const options = [
+    { label: "sample asc", val: kSampleAscVal },
+    { label: "sample desc", val: kSampleDescVal }
+  ];
+  if (epochs) {
+    options.push({
+      label: "epoch asc",
+      val: kEpochAscVal
+    });
+    options.push({
+      label: "epoch desc",
+      val: kEpochDescVal
+    });
+  }
+  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
+    options.push({
+      label: "score asc",
+      val: kScoreAscVal
+    });
+    options.push({
+      label: "score desc",
+      val: kScoreDescVal
+    });
+  }
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sort-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Sort:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${sort2}
+        onChange=${(e2) => {
+    setSort(e2.target.value);
+  }}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option.val}">${option.label}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const byEpoch = (sort2) => {
+  return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
+};
+const bySample = (sort2) => {
+  return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
+};
+const sort = (sort2, samples, sampleDescriptor) => {
+  const sorted = samples.sort((a2, b2) => {
+    switch (sort2) {
+      case kSampleAscVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return a2.id - b2.id;
+        } else {
+          return String(a2.id).localeCompare(String(b2.id));
+        }
+      case kSampleDescVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return b2.id - a2.id;
+        } else {
+          return String(b2.id).localeCompare(String(a2.id));
+        }
+      case kEpochAscVal:
+        return a2.epoch - b2.epoch;
+      case kEpochDescVal:
+        return b2.epoch - a2.epoch;
+      case kScoreAscVal:
+        return sampleDescriptor.scoreDescriptor.compare(
+          sampleDescriptor.selectedScore(a2),
+          sampleDescriptor.selectedScore(b2)
+        );
+      case kScoreDescVal:
+        return sampleDescriptor.scoreDescriptor.compare(
+          sampleDescriptor.selectedScore(b2),
+          sampleDescriptor.selectedScore(a2)
+        );
+    }
+  });
+  return {
+    sorted,
+    order: sort2 === kSampleAscVal || sort2 === kEpochAscVal || sort2 === kScoreAscVal ? "asc" : "desc"
+  };
 };
 const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   var _a2;
@@ -21551,8 +21530,39 @@ const WorkSpace = ({
   const [samplesDesc, setSamplesDesc] = h(void 0);
   const [filter, setFilter] = h({});
   const [epoch, setEpoch] = h("all");
-  const [sort2, setSort] = h(kDefaultSort);
+  const [sort$1, setSort] = h(kDefaultSort);
   const [renderedCode, setRenderedCode] = h(false);
+  const [filteredSamples, setFilteredSamples] = h([]);
+  const [groupBy, setGroupBy] = h("none");
+  const [groupByOrder, setGroupByOrder] = h("asc");
+  y(() => {
+    var _a3;
+    const samples = ((_a3 = currentLog == null ? void 0 : currentLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
+    const filtered = (samples || []).filter((sample2) => {
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample2.epoch + "") {
+          return false;
+        }
+      }
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample2, filter.value);
+      } else {
+        return true;
+      }
+    });
+    const { sorted, order: order2 } = sort(sort$1, filtered, samplesDesc);
+    setFilteredSamples(sorted);
+    let grouping = "none";
+    if ((samplesDesc == null ? void 0 : samplesDesc.epochs) > 1) {
+      if (byEpoch(sort$1) || epoch !== "all") {
+        grouping = "epoch";
+      } else if (bySample(sort$1)) {
+        grouping = "sample";
+      }
+    }
+    setGroupBy(grouping);
+    setGroupByOrder(order2);
+  }, [currentLog, filter, sort$1, epoch, samplesDesc]);
   const afterBodyElements = [];
   const context = {
     afterBody: (el) => {
@@ -21625,18 +21635,20 @@ const WorkSpace = ({
         scrollable: ((_d = (_c = currentLog.contents) == null ? void 0 : _c.sampleSummaries) == null ? void 0 : _d.length) === 1,
         label: ((_f = (_e = currentLog.contents) == null ? void 0 : _e.sampleSummaries) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
         content: () => {
-          var _a4, _b4, _c2;
+          var _a4, _b4;
           return m$1` <${SamplesTab}
             task=${(_b4 = (_a4 = currentLog.contents) == null ? void 0 : _a4.eval) == null ? void 0 : _b4.task_id}
             selectedScore=${score}
             sample=${sample}
             sampleLoading=${sampleStatus === "loading"}
-            samples=${(_c2 = currentLog.contents) == null ? void 0 : _c2.sampleSummaries}
+            samples=${filteredSamples}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
             selectedSampleIndex=${selectedSampleIndex}
             setSelectedSampleIndex=${setSelectedSampleIndex}
             sampleDescriptor=${samplesDesc}
             filter=${filter}
-            sort=${sort2}
+            sort=${sort$1}
             epoch=${epoch}
             context=${context}
           />`;
@@ -21659,7 +21671,7 @@ const WorkSpace = ({
             setEpoch=${setEpoch}
             filter=${filter}
             filterChanged=${setFilter}
-            sort=${sort2}
+            sort=${sort$1}
             setSort=${setSort}
             score=${score}
             setScore=${setScore}
@@ -21781,12 +21793,15 @@ const WorkSpace = ({
   }, [
     samplesDesc,
     sample,
+    filteredSamples,
+    groupBy,
+    groupByOrder,
     currentLog,
     filter,
     setFilter,
     epoch,
     setEpoch,
-    sort2,
+    sort$1,
     setSort,
     renderedCode,
     setRenderedCode,

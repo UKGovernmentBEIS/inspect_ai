@@ -1,7 +1,7 @@
+//@ts-check
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
-import { byEpoch, bySample, sort as doSort } from "./tools/SortFilter.mjs";
 import { SampleDialog } from "./SampleDialog.mjs";
 import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
@@ -9,61 +9,46 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
 /**
  * Renders Samples Tab
  *
- * @param {Object} props - The parameters for the component.
+
+
+* @param {Object} props - The parameters for the component.
  * @param {import("../types/log").Sample} [props.sample] - The sample
  * @param {string} [props.task_id] - The task id
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {"epoch" | "sample" | "none" } props.groupBy - how to group items
+ * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
  * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
- * @param {string} props.epoch - the selected epoch
- * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
- * @param {any} props.sort - the selected sort
  * @param {import("../Types.mjs").AppContext} props.context - the app context
  * @param {boolean} props.sampleLoading - whether the sample is loading
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
+ * 
+ * @param {string} props.epoch - the selected epoch
+ * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
+ * @param {any} props.sort - the selected sort
+ *
  * @returns {import("preact").JSX.Element[]} The TranscriptView component.
  */
 export const SamplesTab = ({
   task_id,
   sample,
   samples,
+  groupBy,
+  groupByOrder,
   sampleDescriptor,
-  filter,
-  sort,
-  epoch,
-  context,
   selectedScore,
-  sampleLoading,
+  sampleLoading, // TODO: status
   selectedSampleIndex,
   setSelectedSampleIndex,
+  context,
 }) => {
-  const [filteredSamples, setFilteredSamples] = useState([]);
+  
   const [items, setItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
   const [sampleDialogVisible, setSampleDialogVisible] = useState(false);
-
-  // Re-filter the samples
-  useEffect(() => {
-    setFilteredSamples(
-      (samples || []).filter((sample) => {
-        // Filter by epoch if specified
-        if (epoch && epoch !== "all") {
-          if (epoch !== sample.epoch + "") {
-            return false;
-          }
-        }
-
-        if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample, filter.value);
-        } else {
-          return true;
-        }
-      }),
-    );
-  }, [samples, filter, sort, epoch]);
 
   // Shows the sample dialog
   const showSample = useCallback(() => {
@@ -77,23 +62,20 @@ export const SamplesTab = ({
   const hideSample = useCallback(() => {
     setSampleDialogVisible(false);
   }, [setSampleDialogVisible]);
-
+    
   useEffect(() => {
-    // Sort the samples
-    const { sorted, order } = doSort(sort, filteredSamples, sampleDescriptor);
 
     const sampleProcessor = getSampleProcessor(
-      filteredSamples,
-      sort,
-      epoch,
-      order,
+      samples,
+      groupBy,
+      groupByOrder,
       sampleDescriptor,
     );
 
     // Process the samples into the proper data structure
-    const items = sorted.flatMap((sample, index) => {
+    const items = samples.flatMap((sample, index) => {
       const results = [];
-      const previousSample = index !== 0 ? sorted[index - 1] : undefined;
+      const previousSample = index !== 0 ? samples[index - 1] : undefined;
       const items = sampleProcessor(sample, index, previousSample);
       results.push(...items);
       return results;
@@ -106,9 +88,7 @@ export const SamplesTab = ({
     if (items.length) {
       setSelectedSampleIndex(firstSample);
     }
-
-    return items;
-  }, [filteredSamples, sort, epoch, sampleDescriptor]);
+  }, [samples, groupBy, groupByOrder, sampleDescriptor]);
 
   // Focus the sample list
   useEffect(() => {
@@ -140,14 +120,14 @@ export const SamplesTab = ({
     if (next > -1) {
       setSelectedSampleIndex(next);
     }
-  }, [selectedSampleIndex, filteredSamples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, nextSampleIndex]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
     if (prev > -1) {
       setSelectedSampleIndex(prev);
     }
-  }, [selectedSampleIndex, filteredSamples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, previousSampleIndex]);
 
   const elements = [];
   if (samples?.length === 1 && items.length === 1) {
@@ -219,23 +199,21 @@ export const SamplesTab = ({
  * Perform any grouping of the samples
  *
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
- * @param {string} epoch - the selected epoch
- * @param {string} sort - the selected sort
- * @param {string} order - the selected order
+ * @param {"sample" | "epoch" | "none"} groupBy - how to group samples
+ * @param {"asc" | "desc"} groupByOrder - how to order grouped samples
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
  
  * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list items
  */
-const getSampleProcessor = (samples, sort, epoch, order, sampleDescriptor) => {
+const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
   // Perform grouping if there are epochs
-  if (sampleDescriptor?.epochs > 1) {
-    if (byEpoch(sort) || epoch !== "all") {
-      return groupByEpoch(samples, sampleDescriptor, order);
-    } else if (bySample(sort)) {
-      return groupBySample(samples, sampleDescriptor, order);
-    }
+  if (groupBy == "epoch") {
+    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+  } else if (groupBy === "sample") {
+    return groupBySample(samples, sampleDescriptor, groupByOrder);
+  } else {
+    return noGrouping(samples, groupByOrder)
   }
-  return noGrouping(samples, order);
 };
 
 /**
