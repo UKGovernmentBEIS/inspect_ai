@@ -102,6 +102,7 @@ def view_server(
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
+        files = [urllib.parse.unquote(file) for file in files]
         map(validate_log_file_request, files)
         return log_headers_response(files)
 
