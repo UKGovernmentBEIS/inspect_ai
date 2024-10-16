@@ -151,9 +151,15 @@ async def call_tools(
                 error=tool_error,
             ), event
 
-        # call tools in parallel
-        tasks = [call_tool_task(call) for call in message.tool_calls]
-        results = await asyncio.gather(*tasks)
+        # call tools in parallel unless disabled by one of the tools
+        if disable_parallel_tools(tools):
+            results: list[tuple[ChatMessageTool, ToolEvent]] = []
+            for call in message.tool_calls:
+                task = asyncio.create_task(call_tool_task(call))
+                results.append(await task)
+        else:
+            tasks = [call_tool_task(call) for call in message.tool_calls]
+            results = await asyncio.gather(*tasks)
 
         # trace and fire tool events for each result
         for tool_message, event in [result for result in results]:

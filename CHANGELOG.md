@@ -7,6 +7,7 @@
 - Google: compatibility with google-generativeai v0.8.3
 - Requirements: require semver>=3.0.0
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Call tools sequentially when they have opted out of parallel calling.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
 
