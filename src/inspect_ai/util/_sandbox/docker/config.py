@@ -14,8 +14,6 @@ CONFIG_FILES = [
     "docker-compose.yml",
 ]
 
-DOCKERFILE = "Dockerfile"
-
 
 async def resolve_compose_file(parent: str = "") -> str:
     # existing compose file provides all the config we need
