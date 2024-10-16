@@ -29,7 +29,7 @@ from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentType
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -45,7 +45,7 @@ def eval(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     trace: bool | None = None,
@@ -80,8 +80,8 @@ def eval(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironmentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
@@ -166,7 +166,7 @@ async def eval_async(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     trace: bool | None = None,
@@ -201,8 +201,8 @@ async def eval_async(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
@@ -676,7 +676,7 @@ def eval_init(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox: SandboxEnvironmentType | None = None,
     trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,

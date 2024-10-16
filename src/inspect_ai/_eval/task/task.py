@@ -14,6 +14,11 @@ from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
+    resolve_sandbox_environment,
+)
 
 from .epochs import Epochs
 
@@ -22,7 +27,7 @@ logger = getLogger(__name__)
 
 class TaskDeprecatedArgs(TypedDict, total=False):
     plan: Plan | Solver | list[Solver]
-    tool_environment: str | tuple[str, str] | None
+    tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
     max_messages: int | None
 
@@ -40,8 +45,8 @@ class Task:
         metrics (list[Metric] | dict[str, list[Metric]] | None):
           Alternative metrics (overrides the metrics provided by the specified scorer).
         config (GenerateConfig): Model generation config.
-        sandbox (str | tuple[str,str] | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -66,7 +71,7 @@ class Task:
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
-        sandbox: str | tuple[str, str] | None = None,
+        sandbox: SandboxEnvironmentType | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         message_limit: int | None = None,
@@ -81,7 +86,7 @@ class Task:
             newarg = ""
             if arg == "tool_environment":
                 newarg = "sandbox"
-                sandbox = cast(str | tuple[str, str] | None, value)
+                sandbox = cast(str | SandboxEnvironmentSpec | None, value)
             elif arg == "epochs_reducer":
                 newarg = "epochs"
                 if isinstance(epochs, int):
@@ -122,7 +127,7 @@ class Task:
         )
         self.metrics = metrics
         self.config = config
-        self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
+        self.sandbox = resolve_sandbox_environment(sandbox)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error

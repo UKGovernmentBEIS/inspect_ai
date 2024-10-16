@@ -14,30 +14,52 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai.model import ChatMessage
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
 
 class Sample(BaseModel):
-    r"""Sample to be used in an evaluation task.
+    def __init__(
+        self,
+        input: str | list[ChatMessage],
+        choices: list[str] | None = None,
+        target: str | list[str] = "",
+        id: int | str | None = None,
+        metadata: dict[str, Any] | None = None,
+        sandbox: SandboxEnvironmentType | None = None,
+        files: dict[str, str] | None = None,
+        setup: str | None = None,
+    ) -> None:
+        r"""Sample to be used in an evaluation task.
 
-    Args:
-        input (str | list[ChatMessage]): The input to be submitted to the model.
-        choices (list[str] | None): Optional. List of available answer choices
-           (used only for multiple-choice evals).
-        target (str | list[str]): Optional. Ideal target output. May be a literal value
-            or narrative text to be used by a model grader.
-        id (int | str | None): Optional. Unique identifier for sample.
-        metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
-        sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
-          type and optional config file.
-        files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
-          SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
-        setup (str | None): Optional. Setup script to run for sample (run
-          within default SandboxEnvironment).
-    """
+        Args:
+            input (str | list[ChatMessage]): The input to be submitted to the model.
+            choices (list[str] | None): Optional. List of available answer choices
+            (used only for multiple-choice evals).
+            target (str | list[str]): Optional. Ideal target output. May be a literal value
+                or narrative text to be used by a model grader.
+            id (int | str | None): Optional. Unique identifier for sample.
+            metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
+            sandbox (SandboxEnvironmentType | None): Sandbox environment type
+            (or optionally a str or tuple with a shorthand spec)
+            files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
+            SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+            setup (str | None): Optional. Setup script to run for sample (run
+            within default SandboxEnvironment).
+        """
+        super().__init__(
+            input=input,
+            choices=choices,
+            target=target,
+            id=id,
+            metadata=metadata,
+            sandbox=resolve_sandbox_environment(sandbox),
+            files=files,
+            setup=setup,
+        )
 
     input: str | list[ChatMessage]
     """The input to be submitted to the model."""
