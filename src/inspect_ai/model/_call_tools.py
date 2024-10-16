@@ -47,6 +47,7 @@ async def call_tools(
     message: ChatMessageAssistant,
     tools: list[Tool],
     max_output: int | None = None,
+    no_concurrent_tool_calls: bool = False,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
 
@@ -56,6 +57,7 @@ async def call_tools(
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           (16 * 1024 by default).
+       no_concurrent_tool_calls (bool): Enable this if your tools cannot handle concurrent execution. If True, multiple tool calls will be executed in sequence, instead of concurrently.
 
     Returns:
        List of tool calls
@@ -153,7 +155,11 @@ async def call_tools(
 
         # call tools in parallel
         tasks = [call_tool_task(call) for call in message.tool_calls]
-        results = await asyncio.gather(*tasks)
+
+        if no_concurrent_tool_calls:
+            results = [await call_tool_task(call) for call in message.tool_calls]
+        else:
+            results = await asyncio.gather(*tasks)
 
         # trace and fire tool events for each result
         for tool_message, event in [result for result in results]:
