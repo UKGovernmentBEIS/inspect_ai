@@ -7586,7 +7586,7 @@ const arrayToString = (val) => {
 };
 const inputString = (input) => {
   if (typeof input === "string") {
-    return input;
+    return [input];
   } else {
     return input.map((inp) => {
       if (typeof inp === "string") {
@@ -13147,10 +13147,8 @@ const samplesDescriptor = (scorers, samples, epochs, context, selectedScore) => 
   const sizes = samples.reduce(
     (previous, current) => {
       var _a2;
-      previous[0] = Math.min(
-        Math.max(previous[0], inputString(current.input).length),
-        300
-      );
+      const text = inputString(current.input).join(" ");
+      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
         300
@@ -13817,7 +13815,7 @@ const SampleScoreView = ({
   if (!sampleDescriptor) {
     return "";
   }
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
@@ -17262,7 +17260,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
@@ -17778,7 +17776,7 @@ const SampleRow = ({
     ...cellStyle
   }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"

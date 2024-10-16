@@ -288,7 +288,7 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"

@@ -333,7 +333,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
 
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
