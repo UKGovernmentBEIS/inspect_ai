@@ -181,7 +181,7 @@ def parse_object(cls: Type[Any]) -> ToolParam:
     if is_dataclass(cls):
         fields = cls.__dataclass_fields__  # type: ignore
         for name, field in fields.items():
-            properties[name] = parse_type(field.type)
+            properties[name] = parse_type(field.type)  # type: ignore
             if field.default == field.default_factory:
                 required.append(name)
     elif isinstance(cls, type) and issubclass(cls, BaseModel):

@@ -5,7 +5,6 @@ from typing import (
     Any,
     Callable,
     Iterator,
-    Optional,
     Sequence,
     Union,
     overload,
@@ -128,7 +127,7 @@ class Dataset(Sequence[Sample], abc.ABC):
     def sort(
         self,
         reverse: bool = False,
-        key: Optional[Callable[[Sample], "SupportsRichComparison"]] = sample_input_len,
+        key: Callable[[Sample], "SupportsRichComparison"] = sample_input_len,
     ) -> None:
         """Sort the dataset (in place) in ascending order and return None.
 
@@ -278,7 +277,7 @@ class MemoryDataset(Dataset):
     def sort(
         self,
         reverse: bool = False,
-        key: Optional[Callable[[Sample], "SupportsRichComparison"]] = sample_input_len,
+        key: Callable[[Sample], "SupportsRichComparison"] = sample_input_len,
     ) -> None:
         self.samples.sort(reverse=reverse, key=key)
 
