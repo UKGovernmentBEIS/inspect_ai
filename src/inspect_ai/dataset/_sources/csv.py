@@ -93,9 +93,9 @@ def csv_dataset(
 
 
 def csv_dataset_reader(
-    file: TextIOWrapper, 
-    dialect: str = "unix", 
-    fieldnames: list[str] | None = None, 
+    file: TextIOWrapper,
+    dialect: str = "unix",
+    fieldnames: list[str] | None = None,
     delimiter: str = ",",
 ) -> DatasetReader:
     return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter)
