@@ -81,7 +81,7 @@ $ inspect eval arc.py --model together/Qwen/Qwen1.5-72B-Chat
 ```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](#sec-models) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama or llama-cpp-python. See the documentation on [Models](#sec-models) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 

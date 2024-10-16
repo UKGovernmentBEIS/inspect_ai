@@ -56,7 +56,8 @@ const kInspectModels: Record<string, string> = {
   "bedrock": "0.3.8",
   "ollama": "0.3.9",
   "azureai": "0.3.8",
-  "cf": "0.3.8"
+  "cf": "0.3.8",
+  "llama-cpp-python": "0.3.39"
 };
 
 const inspectModels = () => {
