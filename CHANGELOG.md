@@ -11,6 +11,7 @@
 - Call tools sequentially when they have opted out of parallel calling.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
+- Bugfix: ensure that log directories don't end in forward/back slash.
 
 ## v0.3.41 (11 October 2024)
 
