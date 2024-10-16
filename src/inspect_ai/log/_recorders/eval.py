@@ -96,7 +96,7 @@ class EvalRecorder(FileRecorder):
     @override
     def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
-        self._write(eval, START_JSON, start.model_dump())
+        self._write(eval, START_JSON, start)
 
     @override
     def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
@@ -131,7 +131,7 @@ class EvalRecorder(FileRecorder):
         self._write_buffered_samples(eval)
 
         # write consolidated summaries
-        self._write(eval, SUMMARY_JSON, [item.model_dump() for item in log.summaries])
+        self._write(eval, SUMMARY_JSON, log.summaries)
 
         # write reductions
         if results is not None:
@@ -140,7 +140,7 @@ class EvalRecorder(FileRecorder):
                 self._write(
                     eval,
                     REDUCTIONS_JSON,
-                    [reduction.model_dump() for reduction in reductions],
+                    reductions,
                 )
 
                 # prune reductions out of the results to ensure
@@ -156,7 +156,7 @@ class EvalRecorder(FileRecorder):
         log_results = LogResults(
             status=status, stats=stats, results=results, error=error
         )
-        self._write(eval, RESULTS_JSON, log_results.model_dump())
+        self._write(eval, RESULTS_JSON, log_results)
 
         # close the file
         log.close()
@@ -217,9 +217,7 @@ class EvalRecorder(FileRecorder):
         recorder.log_finish(log.eval, log.status, log.stats, log.results, log.error)
 
     # write to the zip file
-    def _write(
-        self, eval: EvalSpec, filename: str, data: dict[str, Any] | list[Any]
-    ) -> None:
+    def _write(self, eval: EvalSpec, filename: str, data: Any) -> None:
         log = self.data[self._log_file_key(eval)]
         zip_write(log.zip, filename, data)
 
@@ -232,7 +230,7 @@ class EvalRecorder(FileRecorder):
         summaries: list[SampleSummary] = []
         for sample in log.samples:
             # Write the sample
-            self._write(eval, sample_filename(sample), sample.model_dump())
+            self._write(eval, sample_filename(sample), sample)
 
             # Capture the summary
             summaries.append(
@@ -254,7 +252,7 @@ class EvalRecorder(FileRecorder):
             log.summaries.extend(summaries)
 
 
-def zip_write(zip: ZipFile, filename: str, data: dict[str, Any] | list[Any]) -> None:
+def zip_write(zip: ZipFile, filename: str, data: Any) -> None:
     zip.writestr(
         filename,
         to_json(value=data, indent=2, exclude_none=True, fallback=lambda _x: None),
