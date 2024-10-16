@@ -20926,12 +20926,12 @@ const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes
   };
 };
 const fetchSize = async (url) => {
-  const response = await fetch(`/api/log-size/${url}`, { method: "HEAD" });
+  const response = await fetch(`${url}`, { method: "HEAD" });
   const contentLength = Number(response.headers.get("Content-Length"));
   return contentLength;
 };
 const fetchRange = async (url, start2, end2) => {
-  const response = await fetch(`/api/log-bytes/${url}`, {
+  const response = await fetch(`${url}`, {
     headers: { Range: `bytes=${start2}-${end2}` }
   });
   const arrayBuffer = await response.arrayBuffer();

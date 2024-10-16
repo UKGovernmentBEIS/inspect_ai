@@ -110,7 +110,7 @@ export const openRemoteZipFile = async (
 };
 
 export const fetchSize = async (url) => {
-  const response = await fetch(`/api/log-size/${url}`, { method: "HEAD" });
+  const response = await fetch(`${url}`, { method: "HEAD" });
   const contentLength = Number(response.headers.get("Content-Length"));
   return contentLength;
 };
@@ -125,7 +125,7 @@ export const fetchSize = async (url) => {
  * @throws {Error} If there is an issue with the network request.
  */
 export const fetchRange = async (url, start, end) => {
-  const response = await fetch(`/api/log-bytes/${url}`, {
+  const response = await fetch(`${url}`, {
     headers: { Range: `bytes=${start}-${end}` },
   });
   const arrayBuffer = await response.arrayBuffer();
