@@ -30,7 +30,7 @@ from .compose import (
     compose_services,
     compose_up,
 )
-from .config import CONFIG_FILES
+from .config import AUTO_COMPOSE_YAML, CONFIG_FILES, DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, sandbox_log, task_project_name
@@ -42,7 +42,7 @@ logger = getLogger(__name__)
 class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
-        return CONFIG_FILES
+        return CONFIG_FILES + [DOCKERFILE]
 
     @classmethod
     async def task_init(cls, task_name: str, config: str | None) -> None:
@@ -55,7 +55,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         try:
             # create project
             project = await ComposeProject.create(
-                name=task_project_name(task_name), config=config
+                name=task_project_name(task_name), config=resolve_config(config)
             )
 
             # build containers which are out of date
@@ -94,7 +94,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     async def sample_init(
         cls, task_name: str, config: str | None, metadata: dict[str, str]
     ) -> dict[str, SandboxEnvironment]:
-        sandbox_log("setup")
+        # Dockerfile as config becomes .compose.yaml
+        config = resolve_config(config)
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
@@ -406,3 +407,12 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
+
+
+# if the config is a Dockerfile then resolve to .compose.yaml
+def resolve_config(config: str | None) -> str | None:
+    if config:
+        if os.path.basename(config) == DOCKERFILE:
+            config = os.path.join(os.path.dirname(config), AUTO_COMPOSE_YAML)
+
+    return config
