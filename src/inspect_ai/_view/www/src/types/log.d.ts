@@ -19,7 +19,11 @@ export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
 export type Shuffled = boolean | null;
-export type Sandbox = [unknown, unknown] | null;
+/**
+ * @minItems 1
+ * @maxItems 2
+ */
+export type SandboxEnvironmentSpec = [unknown] | [unknown, unknown];
 export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
@@ -153,7 +157,6 @@ export type Type4 =
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
-export type Sandbox1 = [unknown, unknown] | null;
 export type Files = string[] | null;
 export type Setup = string | null;
 export type Messages = (
@@ -208,7 +211,6 @@ export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
 export type Metadata7 = {} | null;
-export type Sandbox2 = string | [unknown, unknown] | null;
 export type Files1 = {
   [k: string]: string;
 } | null;
@@ -380,7 +382,7 @@ export interface EvalSpec {
   solver: Solver;
   solver_args: SolverArgs;
   dataset: EvalDataset;
-  sandbox: Sandbox;
+  sandbox: SandboxEnvironmentSpec | null;
   model: Model;
   model_base_url: ModelBaseUrl;
   model_args: ModelArgs;
@@ -555,7 +557,7 @@ export interface EvalSample {
   input: Input;
   choices: Choices;
   target: Target;
-  sandbox: Sandbox1;
+  sandbox: SandboxEnvironmentSpec | null;
   files: Files;
   setup: Setup;
   messages: Messages;
@@ -675,31 +677,13 @@ export interface SampleInitEvent {
   sample: Sample;
   state: JsonValue;
 }
-/**
- * Sample to be used in an evaluation task.
- *
- * Args:
- *     input (str | list[ChatMessage]): The input to be submitted to the model.
- *     choices (list[str] | None): Optional. List of available answer choices
- *        (used only for multiple-choice evals).
- *     target (str | list[str]): Optional. Ideal target output. May be a literal value
- *         or narrative text to be used by a model grader.
- *     id (int | str | None): Optional. Unique identifier for sample.
- *     metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
- *     sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
- *       type and optional config file.
- *     files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
- *       SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
- *     setup (str | None): Optional. Setup script to run for sample (run
- *       within default SandboxEnvironment).
- */
 export interface Sample {
   input: Input1;
   choices: Choices2;
   target: Target1;
   id: Id2;
   metadata: Metadata7;
-  sandbox: Sandbox2;
+  sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
 }
