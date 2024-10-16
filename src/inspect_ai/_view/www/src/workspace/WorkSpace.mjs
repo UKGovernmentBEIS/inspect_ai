@@ -40,7 +40,7 @@ const kJsonMaxSize = 10000000;
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
- * @param {import("../types/log").Sample} [props.sample] - the current sample (if any)
+ * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
  * @param {string} props.sampleStatus - whether a sample is loading
  * @param {boolean} props.showToggle - whether to show the toggler
  * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
@@ -52,7 +52,7 @@ const kJsonMaxSize = 10000000;
  */
 export const WorkSpace = ({
   log: currentLog,
-  sample,
+  selectedSample,
   showToggle,
   refreshLog,
   capabilities,
@@ -252,7 +252,7 @@ export const WorkSpace = ({
           return html` <${SamplesTab}
             task=${currentLog.contents?.eval?.task_id}
             selectedScore=${score}
-            sample=${sample}
+            sample=${selectedSample}
             sampleLoading=${sampleStatus === "loading"}
             samples=${filteredSamples}
             groupBy=${groupBy}
@@ -430,7 +430,7 @@ export const WorkSpace = ({
     return resolvedTabs;
   }, [
     samplesDesc,
-    sample,
+    selectedSample,
     filteredSamples,
     groupBy,
     groupByOrder,

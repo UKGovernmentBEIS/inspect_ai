@@ -39,7 +39,7 @@ import { getVscodeApi } from "./utils/vscode.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export function App({ api, pollForLogs = true }) {
-  const [selected, setSelected] = useState(-1);
+  const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
   const [logHeaders, setLogHeaders] = useState({});
   const [offcanvas, setOffcanvas] = useState(false);
@@ -67,6 +67,7 @@ export function App({ api, pollForLogs = true }) {
   // Load a sample
   const [sampleStatus, setSampleStatus] = useState(undefined);
   const loadingSampleIndexRef = useRef(null);
+  
 
   useEffect(() => {
     if (
@@ -145,7 +146,7 @@ export function App({ api, pollForLogs = true }) {
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
-      const targetLog = logs.files[selected];
+      const targetLog = logs.files[selectedLogIndex];
       if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
         try {
           setStatus({ loading: true, error: undefined });
@@ -179,7 +180,7 @@ export function App({ api, pollForLogs = true }) {
     };
 
     loadSpecificLog();
-  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+  }, [selectedLogIndex, logs, capabilities, currentLog, setCurrentLog, setStatus]);
 
   // Load the list of logs
   const loadLogs = async () => {
@@ -208,7 +209,7 @@ export function App({ api, pollForLogs = true }) {
   const refreshLog = useCallback(async () => {
     try {
       setStatus({ loading: true, error: undefined });
-      const targetLog = logs.files[selected];
+      const targetLog = logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
         const log = logContents;
@@ -241,7 +242,7 @@ export function App({ api, pollForLogs = true }) {
       console.log(e);
       setStatus({ loading: false, error: e });
     }
-  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  }, [logs, selectedLogIndex, setStatus, setCurrentLog, setLogHeaders]);
 
   const showLogFile = useCallback(
     async (logUrl) => {
@@ -249,29 +250,29 @@ export function App({ api, pollForLogs = true }) {
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
-        setSelected(index);
+        setSelectedLogIndex(index);
       } else {
         const result = await loadLogs();
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
         setLogs(result);
-        setSelected(idx > -1 ? idx : 0);
+        setSelectedLogIndex(idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelected, setLogs],
+    [logs, setSelectedLogIndex, setLogs],
   );
 
   const refreshLogList = useCallback(async () => {
-    const currentLog = logs.files[selected > -1 ? selected : 0];
+    const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
 
     const refreshedLogs = await loadLogs();
     const newIndex = refreshedLogs.files.findIndex((file) => {
       return currentLog.name.endsWith(file.name);
     });
     setLogs(refreshedLogs);
-    setSelected(newIndex);
-  }, [logs, selected, setSelected, setLogs]);
+    setSelectedLogIndex(newIndex);
+  }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
 
   const onMessage = useMemo(() => {
     return async (e) => {
@@ -361,10 +362,10 @@ export function App({ api, pollForLogs = true }) {
             return log_file.endsWith(val.name);
           });
           if (index > -1) {
-            setSelected(index);
+            setSelectedLogIndex(index);
           }
-        } else if (selected === -1) {
-          setSelected(0);
+        } else if (selectedLogIndex === -1) {
+          setSelectedLogIndex(0);
         }
       }
 
@@ -379,7 +380,7 @@ export function App({ api, pollForLogs = true }) {
             if (events.includes("refresh-evals")) {
               const logs = await load();
               setLogs(logs);
-              setSelected(0);
+              setSelectedLogIndex(0);
             }
           });
         }, 1000);
@@ -400,9 +401,9 @@ export function App({ api, pollForLogs = true }) {
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
-            selectedIndex=${selected}
+            selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-              setSelected(index);
+              setSelectedLogIndex(index);
 
               // hide the sidebar offcanvas
               var myOffcanvas = document.getElementById("sidebarOffCanvas");
@@ -423,15 +424,15 @@ export function App({ api, pollForLogs = true }) {
       />`;
     } else {
       const showToggle = logs.files.length > 1 || logs.log_dir;
-      return html` <${WorkSpace}
+      return html`<${WorkSpace}
         showToggle=${showToggle}
         log=${currentLog}
-        sample=${selectedSample}
         sampleStatus=${sampleStatus}
         refreshLog=${refreshLog}
         offcanvas=${offcanvas}
         capabilities=${capabilities}
-        selected=${selected}
+        selected=${selectedLogIndex}
+        selectedSample=${selectedSample}
         selectedSampleIndex=${selectedSampleIndex}
         setSelectedSampleIndex=${setSelectedSampleIndex}
       />`;
@@ -439,7 +440,7 @@ export function App({ api, pollForLogs = true }) {
   }, [
     logs,
     currentLog,
-    selected,
+    selectedLogIndex,
     selectedSample,
     offcanvas,
     status,
