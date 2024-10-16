@@ -104,12 +104,16 @@ class Llama31Handler(ChatAPIHandler):
 
             # return the message
             return ChatMessageAssistant(
-                content=content, tool_calls=tool_calls, source="generate"
+                content=filter_assistant_header(content),
+                tool_calls=tool_calls,
+                source="generate",
             )
 
         # otherwise this is just an ordinary assistant message
         else:
-            return ChatMessageAssistant(content=response, source="generate")
+            return ChatMessageAssistant(
+                content=filter_assistant_header(response), source="generate"
+            )
 
     @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
@@ -183,3 +187,7 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
             type="function",
             parse_error=parse_error,
         )
+
+
+def filter_assistant_header(message: str) -> str:
+    return re.sub(r"<\|start_header_id\|>assistant<\|end_header_id\|>", "", message)
