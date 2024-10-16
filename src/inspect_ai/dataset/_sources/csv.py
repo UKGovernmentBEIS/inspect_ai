@@ -98,4 +98,6 @@ def csv_dataset_reader(
     fieldnames: list[str] | None = None,
     delimiter: str = ",",
 ) -> DatasetReader:
-    return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter)
+    return csv.DictReader(
+        file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
+    )
