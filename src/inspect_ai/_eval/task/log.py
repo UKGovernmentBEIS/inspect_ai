@@ -73,6 +73,12 @@ class TaskLogger:
         if "api_key" in model_args:
             del model_args["api_key"]
 
+        # cwd_relative_path for sandbox config
+        if sandbox and sandbox.config:
+            sandbox = SandboxEnvironmentSpec(
+                sandbox.type, cwd_relative_path(sandbox.config)
+            )
+
         # create eval spec
         self.eval = EvalSpec(
             run_id=run_id,
