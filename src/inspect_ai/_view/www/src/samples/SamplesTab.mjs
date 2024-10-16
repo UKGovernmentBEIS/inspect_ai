@@ -43,7 +43,6 @@ export const SamplesTab = ({
   setSelectedSampleIndex,
   context,
 }) => {
-  
   const [items, setItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -62,9 +61,8 @@ export const SamplesTab = ({
   const hideSample = useCallback(() => {
     setSampleDialogVisible(false);
   }, [setSampleDialogVisible]);
-    
-  useEffect(() => {
 
+  useEffect(() => {
     const sampleProcessor = getSampleProcessor(
       samples,
       groupBy,
@@ -205,14 +203,19 @@ export const SamplesTab = ({
  
  * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list items
  */
-const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
+const getSampleProcessor = (
+  samples,
+  groupBy,
+  groupByOrder,
+  sampleDescriptor,
+) => {
   // Perform grouping if there are epochs
   if (groupBy == "epoch") {
     return groupByEpoch(samples, sampleDescriptor, groupByOrder);
   } else if (groupBy === "sample") {
     return groupBySample(samples, sampleDescriptor, groupByOrder);
   } else {
-    return noGrouping(samples, groupByOrder)
+    return noGrouping(samples, groupByOrder);
   }
 };
 

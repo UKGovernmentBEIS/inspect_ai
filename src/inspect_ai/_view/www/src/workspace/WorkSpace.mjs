@@ -26,7 +26,11 @@ import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
-import { byEpoch, bySample, sort as doSort } from "../samples/tools/SortFilter.mjs";
+import {
+  byEpoch,
+  bySample,
+  sort as doSort,
+} from "../samples/tools/SortFilter.mjs";
 
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
@@ -105,30 +109,27 @@ export const WorkSpace = ({
    */
   const [renderedCode, setRenderedCode] = useState(false);
 
-
   // Re-filter the samples
   const [filteredSamples, setFilteredSamples] = useState([]);
   const [groupBy, setGroupBy] = useState("none");
   const [groupByOrder, setGroupByOrder] = useState("asc");
   useEffect(() => {
     const samples = currentLog?.contents?.sampleSummaries || [];
-    const filtered = 
-      (samples || []).filter((sample) => {
-        // Filter by epoch if specified
-        if (epoch && epoch !== "all") {
-          if (epoch !== sample.epoch + "") {
-            return false;
-          }
+    const filtered = (samples || []).filter((sample) => {
+      // Filter by epoch if specified
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample.epoch + "") {
+          return false;
         }
+      }
 
-        if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample, filter.value);
-        } else {
-          return true;
-        }
-      });
-    
-    
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample, filter.value);
+      } else {
+        return true;
+      }
+    });
+
     // Sort the samples
     const { sorted, order } = doSort(sort, filtered, samplesDesc);
     setFilteredSamples(sorted);
@@ -144,7 +145,6 @@ export const WorkSpace = ({
     }
     setGroupBy(grouping);
     setGroupByOrder(order);
-  
   }, [currentLog, filter, sort, epoch, samplesDesc]);
 
   // Context is shared with most/all components and

@@ -39,7 +39,6 @@ import { getVscodeApi } from "./utils/vscode.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export function App({ api, pollForLogs = true }) {
-
   // List of Logs
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
   const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
@@ -192,7 +191,14 @@ export function App({ api, pollForLogs = true }) {
     };
 
     loadSpecificLog();
-  }, [selectedLogIndex, logs, capabilities, selectedLog, setSelectedLog, setStatus]);
+  }, [
+    selectedLogIndex,
+    logs,
+    capabilities,
+    selectedLog,
+    setSelectedLog,
+    setStatus,
+  ]);
 
   // Load the list of logs
   const loadLogs = async () => {
@@ -352,11 +358,11 @@ export function App({ api, pollForLogs = true }) {
       const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
       const load = resolvedLogPath
         ? async () => {
-          return {
-            log_dir: "",
-            files: [{ name: resolvedLogPath }],
-          };
-        }
+            return {
+              log_dir: "",
+              files: [{ name: resolvedLogPath }],
+            };
+          }
         : loadLogs;
 
       const embeddedState = document.getElementById("logview-state");
@@ -415,15 +421,15 @@ export function App({ api, pollForLogs = true }) {
             offcanvas=${offcanvas}
             selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-          setSelectedLogIndex(index);
+              setSelectedLogIndex(index);
 
-          // hide the sidebar offcanvas
-          var myOffcanvas = document.getElementById("sidebarOffCanvas");
-          var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-          if (bsOffcanvas) {
-            bsOffcanvas.hide();
-          }
-        }}
+              // hide the sidebar offcanvas
+              var myOffcanvas = document.getElementById("sidebarOffCanvas");
+              var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
+              if (bsOffcanvas) {
+                bsOffcanvas.hide();
+              }
+            }}
           />
         `
       : "";
@@ -474,8 +480,8 @@ export function App({ api, pollForLogs = true }) {
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
-    e,
-  ) => {
+      e,
+    ) => {
       // regular browsers user their own find
       if (!getVscodeApi()) {
         return;
@@ -489,9 +495,9 @@ export function App({ api, pollForLogs = true }) {
     }}>
       ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
       <${ProgressBar} animating=${status.loading}  containerStyle=${{
-      background: "var(--bs-light)",
-      marginBottom: "-1px",
-    }}/>
+        background: "var(--bs-light)",
+        marginBottom: "-1px",
+      }}/>
       ${workspace}
     </div>
     </${AppErrorBoundary}>
