@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import contextlib
 from typing import AsyncGenerator
@@ -57,7 +58,7 @@ async def sandboxenv_context(
         # run sample
         yield
 
-    except BaseException as ex:
+    except asyncio.CancelledError as ex:
         interrupted = True
         raise ex
 
