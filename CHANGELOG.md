@@ -5,6 +5,7 @@
 - Cleanup Docker Containers immediately for samples with errors.
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
 - Google: compatibility with google-generativeai v0.8.3
+- Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
 - Requirements: require semver>=3.0.0
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 - Bugfix: strip protocol prefix when resolving eval event content
