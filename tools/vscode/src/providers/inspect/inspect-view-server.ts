@@ -174,7 +174,7 @@ export class InspectViewServer implements Disposable {
   }
 
   private async api_bytes(path: string): Promise<Uint8Array> {
-    return await this.api(path, false) as Uint8Array;
+    return await this.api(path, true) as Uint8Array;
   }
 
   private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
