@@ -1,18 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { Uri } from 'vscode';
+import { Uri, window } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
 import { HostWebviewPanel } from '../../hooks';
+import { InspectSettingsManager } from "../settings/inspect-settings";
+
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   static register(
     context: vscode.ExtensionContext,
+    settings: InspectSettingsManager,
     server: InspectViewServer
   ): vscode.Disposable {
-    const provider = new InspectLogReadonlyEditor(context, server);
+    const provider = new InspectLogReadonlyEditor(context, settings, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
       InspectLogReadonlyEditor.viewType,
       provider,
@@ -30,6 +33,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
+    private readonly settings_: InspectSettingsManager,
     private readonly server_: InspectViewServer
   ) { }
 
@@ -48,33 +52,37 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): Promise<void> {
+    if (this.settings_.getSettings().jsonLogView) {
+      // local resource roots
+      const localResourceRoots: Uri[] = [];
+      const viewDir = inspectViewPath();
+      if (viewDir) {
+        localResourceRoots.push(Uri.file(viewDir.path));
+      }
+      Uri.joinPath(this.context_.extensionUri, "assets", "www");
 
-    // local resource roots
-    const localResourceRoots: Uri[] = [];
-    const viewDir = inspectViewPath();
-    if (viewDir) {
-      localResourceRoots.push(Uri.file(viewDir.path));
+      // set webview options
+      webviewPanel.webview.options = {
+        enableScripts: true,
+        enableForms: true,
+        localResourceRoots
+      };
+
+      // editor panel implementation
+      this.logviewPanel_ = new LogviewPanel(
+        webviewPanel as HostWebviewPanel,
+        this.context_,
+        this.server_,
+        "file",
+        document.uri
+      );
+
+      // set html
+      webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
+    } else {
+      const viewColumn = webviewPanel.viewColumn;
+      await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', viewColumn);
     }
-    Uri.joinPath(this.context_.extensionUri, "assets", "www");
-
-    // set webview options
-    webviewPanel.webview.options = {
-      enableScripts: true,
-      enableForms: true,
-      localResourceRoots
-    };
-
-    // editor panel implementation
-    this.logviewPanel_ = new LogviewPanel(
-      webviewPanel as HostWebviewPanel,
-      this.context_,
-      this.server_,
-      "file",
-      document.uri
-    );
-
-    // set html
-    webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
   }
 
   dispose() {
@@ -87,6 +95,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
 export function activateLogviewEditor(
   context: vscode.ExtensionContext,
+  settings: InspectSettingsManager,
   server: InspectViewServer) {
-  context.subscriptions.push(InspectLogReadonlyEditor.register(context, server));
+  context.subscriptions.push(InspectLogReadonlyEditor.register(context, settings, server));
 }
