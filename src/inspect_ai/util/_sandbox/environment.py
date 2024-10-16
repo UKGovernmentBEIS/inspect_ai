@@ -201,7 +201,7 @@ class SandboxEnvironmentSpec(NamedTuple):
     config: str | None = None
 
 
-SandboxEnvironmentType = str | tuple[str, str] | SandboxEnvironmentSpec
+SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
 """SandboxEnvironmentSpec and str and tuple shorthands for it.
 
 A plain str, e.g. "docker", is equivalent to SandboxEnvironmentSpec("docker")
