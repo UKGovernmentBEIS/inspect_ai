@@ -8,6 +8,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.content import Content
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import dirname, file
 from inspect_ai.model._chat_message import ChatMessage
@@ -238,7 +239,7 @@ class EvalRecorder(FileRecorder):
                 SampleSummary(
                     id=sample.id,
                     epoch=sample.epoch,
-                    input=sample.input,
+                    input=text_inputs(sample.input),
                     target=sample.target,
                     scores=sample.scores,
                 )
@@ -262,6 +263,21 @@ def zip_write(zip: ZipFile, filename: str, data: dict[str, Any] | list[Any]) -> 
 
 def sample_filename(sample: EvalSample) -> str:
     return f"{SAMPLES_DIR}/{sample.id}_epoch_{sample.epoch}.json"
+
+
+def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
+    # Clean the input of any images
+    if isinstance(inputs, list):
+        input: list[ChatMessage] = []
+        for message in inputs:
+            message_contents: list[str | Content] = []
+            for content in message.content:
+                if isinstance(content, str) or content.type != "image":
+                    message_contents.append(content)
+            input.append(message)
+        return input
+    else:
+        return inputs
 
 
 class ZipLogFile:
