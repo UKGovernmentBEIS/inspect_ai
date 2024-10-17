@@ -219,7 +219,7 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
 
-## Dynamic Tools
+## Dynamic Tools {#sec-dynamic-tools}
 
 As described above, normally tools are defined using `@tool` decorators and documentation comments. It's also possible to create a tool dynamically from any function by creating a `ToolDef`. For example:
 
