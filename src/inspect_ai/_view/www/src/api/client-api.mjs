@@ -38,11 +38,33 @@ export const clientApi = (api) => {
    * @returns { Promise<import("./Types.mjs").LogContents> } A Log Viewer API
    */
   const get_log = async (log_file) => {
+    // If the requested log is different or no cached log exists, start fetching
     if (log_file !== current_path || !current_log) {
-      current_log = await api.eval_log(log_file, 100);
+      // If there's already a pending fetch, return the same promise
+      if (pending_log_promise) {
+        return pending_log_promise;
+      }
+
+      // Otherwise, create a new promise for fetching the log
+      pending_log_promise = api
+        .eval_log(log_file, 100)
+        .then((log) => {
+          current_log = log;
+          console.log({current_log});
+          current_path = log_file;
+          pending_log_promise = null; 
+          return log;
+        })
+        .catch((err) => {
+          pending_log_promise = null;
+          throw err;
+        });
+
+      return pending_log_promise;
     }
     return current_log;
   };
+  let pending_log_promise = null;
 
   /**
    * Gets a log summary
@@ -51,7 +73,6 @@ export const clientApi = (api) => {
    * @returns { Promise<import("./Types.mjs").EvalSummary> } A Log Viewer API
    */
   const get_log_summary = async (log_file) => {
-    current_path = log_file;
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       return await remoteLogFile.readLogSummary();
