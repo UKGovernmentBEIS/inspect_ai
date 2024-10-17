@@ -124,7 +124,7 @@ export const clientApi = (api) => {
    * @returns { Promise<string> } The JSON string
    */
   const get_log_json = async (log_file) => {
-    if (isEvalFile) {
+    if (isEvalFile(log_file)) {
       console.error("Unexpected request for JSON for an eval log file.");
     } else {
       const logcontents = await get_log(log_file);

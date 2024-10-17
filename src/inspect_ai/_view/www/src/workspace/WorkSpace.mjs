@@ -1,5 +1,4 @@
 /// <reference path="../types/prism.d.ts" />
-import Prism from "prismjs";
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
@@ -9,12 +8,11 @@ import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
+import { JsonTab } from "../json/JsonTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
-import { filename } from "../utils/Path.mjs";
 import { Navbar } from "../navbar/Navbar.mjs";
 
-import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
@@ -22,9 +20,6 @@ import { WarningBand } from "../components/WarningBand.mjs";
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
 const kInfoTabId = "plan-tab";
-
-const kPrismRenderMaxSize = 250000;
-const kJsonMaxSize = 10000000;
 
 /**
  * Renders the Main Application
@@ -102,7 +97,6 @@ export const WorkSpace = ({
   renderJson,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   if (!evalSpec) {
     return "";
@@ -242,75 +236,23 @@ export const WorkSpace = ({
       label: "JSON",
       scrollable: true,
       content: () => {
-        const renderedContent = [];
-        const jsonText = ""; //await renderJson();
-        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-          // This JSON file is so large we can't really productively render it
-          // we should instead just provide a DL link
-          const file = `${filename(logFileName)}.json`;
-          renderedContent.push(
-            html`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${logFileName}
-              fileName=${file}
-              fileContents=${jsonText}
-            />`,
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (jsonText.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism.highlight(
-                jsonText,
-                Prism.languages.javascript,
-                "javacript",
-              );
-            } else {
-              const textNode = document.createTextNode(jsonText);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            html`<pre>
-              <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere",
-            }}>
-              </code>
-            </pre>`,
-          );
-        }
-
-        // note that we'e rendered
-        return html` <div
-          style=${{
-            padding: "1rem",
-            fontSize: FontSize.small,
-            width: "100%",
-          }}
-        >
-          ${renderedContent}
-        </div>`;
+        return html`<${JsonTab}
+          logFileName=${logFileName}
+          renderJson=${renderJson}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonTabId}
+        />`;
       },
       tools: () => {
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            html`<${ToolButton}
-              name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`,
-          ];
-        }
+        return [
+          html`<${ToolButton}
+            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`,
+        ];
       },
     };
   }
@@ -336,24 +278,6 @@ export const WorkSpace = ({
     [renderedCode],
   );
 
-  // Compute the tools for this tab
-  const tabTools = Object.keys(resolvedTabs)
-    .map((key) => {
-      const tab = resolvedTabs[key];
-      return tab;
-    })
-    .filter((tab) => {
-      return tab.id === selectedTab;
-    })
-    .map((tab) => {
-      if (tab.tools) {
-        const tools = tab.tools();
-        return tools;
-      } else {
-        return "";
-      }
-    });
-
   return html`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
@@ -364,7 +288,6 @@ export const WorkSpace = ({
     status=${taskStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
-    tabTools=${tabTools}
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
@@ -381,7 +304,6 @@ const WorkspaceDisplay = ({
   showToggle,
   selectedTab,
   tabs,
-  tabTools,
   setSelectedTab,
   divRef,
   offcanvas,
@@ -389,6 +311,24 @@ const WorkspaceDisplay = ({
   if (evalSpec === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
+    // Compute the tools for this tab
+    const tabTools = Object.keys(tabs)
+      .map((key) => {
+        const tab = tabs[key];
+        return tab;
+      })
+      .filter((tab) => {
+        return tab.id === selectedTab;
+      })
+      .map((tab) => {
+        if (tab.tools) {
+          const tools = tab.tools();
+          return tools;
+        } else {
+          return "";
+        }
+      });
+
     return html`
     
     <${Navbar}

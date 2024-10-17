@@ -17521,1464 +17521,6 @@ const getCounter = (itemCount, groupCount, order2) => {
     }
   };
 };
-const EpochFilter = ({ epochs, epoch, setEpoch }) => {
-  const options = ["all"];
-  for (let i = 1; i <= epochs; i++) {
-    options.push(i + "");
-  }
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="epoch-filter-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Epochs:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".epoch-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${epoch}
-        onChange=${(e2) => {
-    setEpoch(e2.target.value);
-  }}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option}">${option}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const kSampleAscVal = "sample-asc";
-const kSampleDescVal = "sample-desc";
-const kEpochAscVal = "epoch-asc";
-const kEpochDescVal = "epoch-desc";
-const kScoreAscVal = "score-asc";
-const kScoreDescVal = "score-desc";
-const kDefaultSort = kSampleAscVal;
-const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
-  var _a2;
-  const options = [
-    { label: "sample asc", val: kSampleAscVal },
-    { label: "sample desc", val: kSampleDescVal }
-  ];
-  if (epochs) {
-    options.push({
-      label: "epoch asc",
-      val: kEpochAscVal
-    });
-    options.push({
-      label: "epoch desc",
-      val: kEpochDescVal
-    });
-  }
-  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
-    options.push({
-      label: "score asc",
-      val: kScoreAscVal
-    });
-    options.push({
-      label: "score desc",
-      val: kScoreDescVal
-    });
-  }
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort}
-        onChange=${(e2) => {
-    setSort(e2.target.value);
-  }}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option.val}">${option.label}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const byEpoch = (sort) => {
-  return sort === kEpochAscVal || sort === kEpochDescVal;
-};
-const bySample = (sort) => {
-  return sort === kSampleAscVal || sort === kSampleDescVal;
-};
-const sortSamples = (sort, samples, samplesDescriptor) => {
-  const sortedSamples = samples.sort((a2, b2) => {
-    switch (sort) {
-      case kSampleAscVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(a2.id) - Number(b2.id);
-        } else {
-          return String(a2.id).localeCompare(String(b2.id));
-        }
-      case kSampleDescVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(b2.id) - Number(a2.id);
-        } else {
-          return String(b2.id).localeCompare(String(a2.id));
-        }
-      case kEpochAscVal:
-        return a2.epoch - b2.epoch;
-      case kEpochDescVal:
-        return b2.epoch - a2.epoch;
-      case kScoreAscVal:
-        return samplesDescriptor.scoreDescriptor.compare(
-          samplesDescriptor.selectedScore(a2).value,
-          samplesDescriptor.selectedScore(b2).value
-        );
-      case kScoreDescVal:
-        return samplesDescriptor.scoreDescriptor.compare(
-          samplesDescriptor.selectedScore(b2).value,
-          samplesDescriptor.selectedScore(a2).value
-        );
-    }
-  });
-  return {
-    sorted: sortedSamples,
-    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
-  };
-};
-const kScoreTypePassFail = "passfail";
-const kScoreTypeCategorical = "categorical";
-const kScoreTypeNumeric = "numeric";
-const kScoreTypeOther = "other";
-const kScoreTypeObject = "object";
-const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
-  if (!samples) {
-    return void 0;
-  }
-  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
-    if (sample.scores[scorer]) {
-      return sample.scores[scorer];
-    } else {
-      return void 0;
-    }
-  };
-  const scoreValue = (sample) => {
-    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
-      return void 0;
-    }
-    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
-      return sample.scores[selectedScore.scorer].value[selectedScore.name];
-    } else if (sample.scores[selectedScore.name]) {
-      return sample.scores[selectedScore.name].value;
-    } else {
-      return void 0;
-    }
-  };
-  const scoreAnswer = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.answer) {
-        return sampleScore.answer;
-      }
-    } else {
-      return void 0;
-    }
-  };
-  const scoreExplanation = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.explanation) {
-        return sampleScore.explanation;
-      }
-    }
-    return void 0;
-  };
-  const uniqScoreValues = [
-    ...new Set(
-      samples.filter((sample) => !!sample.scores).filter((sample) => {
-        if (!selectedScore) {
-          return true;
-        }
-        if (selectedScore.scorer !== selectedScore.name) {
-          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
-            selectedScore.name
-          );
-        } else {
-          return Object.keys(sample.scores).includes(selectedScore.name);
-        }
-      }).map((sample) => {
-        return scoreValue(sample);
-      }).filter((value) => {
-        return value !== null;
-      })
-    )
-  ];
-  const uniqScoreTypes = [
-    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-  ];
-  let scoreDescriptor;
-  for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
-    if (scoreDescriptor) {
-      break;
-    }
-  }
-  const sizes = samples.reduce(
-    (previous, current) => {
-      var _a2;
-      const text = inputString(current.input).join(" ");
-      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
-      previous[1] = Math.min(
-        Math.max(previous[1], arrayToString(current.target).length),
-        300
-      );
-      previous[2] = Math.min(
-        Math.max(
-          previous[2],
-          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-        ),
-        300
-      );
-      return previous;
-    },
-    [0, 0, 0]
-  );
-  const base = sizes[0] + sizes[1] + sizes[2] || 1;
-  const messageShape = {
-    input: sizes[0] / base,
-    target: sizes[1] / base,
-    answer: sizes[2] / base
-  };
-  const scoreRendered = (sample) => {
-    const score2 = scoreValue(sample);
-    if (score2 === null || score2 === "undefined") {
-      return "null";
-    } else if (scoreDescriptor.render) {
-      return scoreDescriptor.render(score2);
-    } else {
-      return score2;
-    }
-  };
-  const scorerDescriptor = (sample, scorer) => {
-    return {
-      explanation: () => {
-        return scoreExplanation(sample, scorer);
-      },
-      answer: () => {
-        return scoreAnswer(sample, scorer);
-      },
-      scores: () => {
-        if (!sample || !sample.scores) {
-          return [];
-        }
-        const scoreNames = scorers.map((score2) => {
-          return score2.name;
-        });
-        const sampleScorer = sample.scores[scorer];
-        const scoreVal = sampleScorer.value;
-        if (typeof scoreVal === "object") {
-          const names = Object.keys(scoreVal);
-          if (names.find((name) => {
-            return !scoreNames.includes(name);
-          })) {
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                }
-              }
-            ];
-          } else {
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                }
-              };
-            });
-            return scores;
-          }
-        } else {
-          return [
-            {
-              name: scorer,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal);
-              }
-            }
-          ];
-        }
-      }
-    };
-  };
-  return {
-    scoreDescriptor,
-    epochs,
-    messageShape,
-    selectedScore: (sample) => {
-      return {
-        value: scoreValue(sample),
-        render: () => {
-          return scoreRendered(sample);
-        }
-      };
-    },
-    scorer: (sample, scorer) => {
-      return scorerDescriptor(sample, scorer);
-    },
-    selectedScorer: (sample) => {
-      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
-    }
-  };
-};
-const scoreCategorizers = [
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values) => {
-      if ((values.length === 1 || values.length === 2) && values.every((val) => {
-        return val === 1 || val === 0;
-      })) {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
-        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-      })) {
-        return passFailScoreCategorizer(values);
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (values.length < 10 && types.length === 1 && types[0] === "string") {
-        return {
-          scoreType: kScoreTypeCategorical,
-          categories: values,
-          compare: (a2, b2) => {
-            return String(a2).localeCompare(String(b2));
-          },
-          render: (score) => {
-            return score;
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "number") {
-        const onlyNumeric = values.filter((val) => {
-          return typeof val === "number";
-        });
-        return {
-          scoreType: kScoreTypeNumeric,
-          min: Math.min(...onlyNumeric),
-          max: Math.max(...onlyNumeric),
-          compare: (a2, b2) => {
-            if (typeof a2 === "number" && typeof b2 === "number") {
-              return a2 - b2;
-            } else {
-              console.warn(
-                "Comparing non-numerics using a nuermic score descriptor"
-              );
-              return 0;
-            }
-          },
-          render: (score) => {
-            return formatDecimalNoTrailingZeroes(Number(score));
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "object") {
-        const buckets = values.map((val) => {
-          return JSON.stringify(val);
-        });
-        const vals = new Set(buckets);
-        let categories = void 0;
-        if (vals.size < 10) {
-          categories = Array.from(vals).map((val) => {
-            return {
-              val,
-              text: val
-            };
-          });
-        }
-        return {
-          scoreType: kScoreTypeObject,
-          categories,
-          compare: () => {
-            return 0;
-          },
-          render: (score) => {
-            if (score === null || score === void 0) {
-              return "[null]";
-            }
-            const scores = [];
-            const keys = Object.keys(score);
-            keys.forEach((key2, index) => {
-              const value = score[key2];
-              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-              const style = {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                marginLeft: "0.5rem"
-              };
-              if (index + 1 < keys.length) {
-                style["paddingBottom"] = "1em";
-              }
-              scores.push(m$1`
-                <div style=${style}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-            });
-            return scores;
-          }
-        };
-      }
-    }
-  },
-  {
-    /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
-     * @returns {ScoreDescriptor} a ScoreDescriptor
-     */
-    // @ts-ignore
-    describe: (values, types, context) => {
-      return {
-        scoreType: kScoreTypeOther,
-        compare: () => {
-          return 0;
-        },
-        render: (score) => {
-          return m$1`<${RenderedContent}
-            id="other-score-value"
-            entry=${{ value: score }}
-            context=${context}
-          />`;
-        }
-      };
-    }
-  }
-];
-const filledCircleStyle = {
-  fontSize: FontSize.small,
-  fontFamily: "Consola Regular",
-  width: "20px",
-  height: "20px",
-  display: "inline-flex",
-  justifyContent: "center",
-  alignItems: "center",
-  borderRadius: "50%",
-  paddingTop: "1px"
-};
-const booleanScoreCategorizer = () => {
-  return {
-    scoreType: "boolean",
-    compare: (a2, b2) => {
-      return Number(a2.value) - Number(b2.value);
-    },
-    render: (score) => {
-      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-      return m$1`<span
-        style=${{
-        ...scoreColorStyle,
-        ...filledCircleStyle
-      }}
-        >${score}</span
-      >`;
-    }
-  };
-};
-const passFailScoreCategorizer = (values) => {
-  const categories = [];
-  if (values.includes("C")) {
-    categories.push({
-      val: "C",
-      text: "Correct"
-    });
-  }
-  if (values.includes("P")) {
-    categories.push({
-      val: "P",
-      text: "Partial"
-    });
-  }
-  if (values.includes("I")) {
-    categories.push({
-      val: "I",
-      text: "Incorrect"
-    });
-  }
-  if (values.includes("N")) {
-    categories.push({
-      val: "N",
-      text: "Refusal"
-    });
-  }
-  const order2 = ["C", "P", "I", "N"];
-  return {
-    scoreType: kScoreTypePassFail,
-    categories,
-    render: (score) => {
-      if (score === "C") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.green,
-          ...filledCircleStyle
-        }}
-          >C</span
-        >`;
-      } else if (score === "I") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >I</span
-        >`;
-      } else if (score === "P") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.orange,
-          ...filledCircleStyle
-        }}
-          >P</span
-        >`;
-      } else if (score === "N") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >N</span
-        >`;
-      } else {
-        return score;
-      }
-    },
-    compare: (a2, b2) => {
-      const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
-      return sort;
-    }
-  };
-};
-const SampleFilter = ({ descriptor, filter, filterChanged }) => {
-  var _a2;
-  const filterCategory = (e2) => {
-    const val = e2.currentTarget.value;
-    if (val === "all") {
-      filterChanged({
-        value: void 0,
-        filterFn: void 0
-      });
-    } else {
-      filterChanged({
-        value: val,
-        filterFn: (sample, value) => {
-          const score = descriptor.selectedScore(sample);
-          if (typeof score.value === "string") {
-            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-          } else if (typeof score.value === "object") {
-            return JSON.stringify(score.value) == value;
-          } else {
-            return score.value === value;
-          }
-        }
-      });
-    }
-  };
-  const filterInput = (e2) => {
-    filterChanged({
-      value: e2.currentTarget.value,
-      filterFn: filterText(descriptor)
-    });
-  };
-  switch ((_a2 = descriptor == null ? void 0 : descriptor.scoreDescriptor) == null ? void 0 : _a2.scoreType) {
-    case kScoreTypePassFail: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.val };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    case kScoreTypeCategorical: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat, value: cat };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    case kScoreTypeNumeric: {
-      return m$1`
-        <input
-          type="text"
-          class="form-control"
-          value=${filter.value}
-          placeholder="Filter Samples (score)"
-          style=${{ width: "150px" }}
-          onInput=${filterInput}
-        />
-      `;
-    }
-    case kScoreTypeObject: {
-      if (!descriptor.scoreDescriptor.categories) {
-        return "";
-      }
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.value };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    default: {
-      return void 0;
-    }
-  }
-};
-const SelectFilter = ({ value, options, filterFn }) => {
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sample-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Scores:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sample-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${value}
-        onChange=${filterFn}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option.value}">${option.text}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const filterText = (descriptor) => {
-  return (sample, value) => {
-    const score = descriptor.selectedScore(sample);
-    if (!value) {
-      return true;
-    } else {
-      if (isNumeric(value)) {
-        if (typeof score.value === "number") {
-          return score.value === Number(value);
-        } else {
-          return Number(score.value) === Number(value);
-        }
-      } else {
-        const filters = [
-          {
-            prefix: ">=",
-            fn: (score2, val) => {
-              return score2 >= val;
-            }
-          },
-          {
-            prefix: "<=",
-            fn: (score2, val) => {
-              return score2 <= val;
-            }
-          },
-          {
-            prefix: ">",
-            fn: (score2, val) => {
-              return score2 > val;
-            }
-          },
-          {
-            prefix: "<",
-            fn: (score2, val) => {
-              return score2 < val;
-            }
-          },
-          {
-            prefix: "=",
-            fn: (score2, val) => {
-              return score2 === val;
-            }
-          },
-          {
-            prefix: "!=",
-            fn: (score2, val) => {
-              return score2 !== val;
-            }
-          }
-        ];
-        for (const filter of filters) {
-          if (value == null ? void 0 : value.startsWith(filter.prefix)) {
-            const val = value.slice(filter.prefix.length).trim();
-            if (!val) {
-              return true;
-            }
-            const num = Number(val);
-            return filter.fn(score.value, num);
-          }
-        }
-        if (typeof score.value === "string") {
-          return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-        } else {
-          return score.value === value;
-        }
-      }
-    }
-  };
-};
-const SelectScorer = ({ scores, score, setScore }) => {
-  const scorers = scores.reduce((accum, scorer) => {
-    if (!accum.find((sc) => {
-      return scorer.scorer === sc.scorer;
-    })) {
-      accum.push(scorer);
-    }
-    return accum;
-  }, []);
-  if (scorers.length === 1) {
-    return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-      alignSelf: "center",
-      fontSize: FontSize.smaller,
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-          >Score:</span
-        >
-        <${ScoreSelector}
-          scores=${scores}
-          selectedIndex=${scoreIndex(score, scores)}
-          selectedIndexChanged=${(index) => {
-      setScore(scores[index]);
-    }}
-        />
-      </div>
-    `;
-  } else {
-    const scorerScores = scores.filter((sc) => {
-      return sc.scorer === score.scorer;
-    });
-    const selectors = [
-      m$1`<${ScorerSelector}
-        scorers=${scorers}
-        selectedIndex=${scorerIndex(score, scorers)}
-        selectedIndexChanged=${(index) => {
-        setScore(scorers[index]);
-      }}
-      />`
-    ];
-    if (scorerScores.length > 1) {
-      selectors.push(
-        m$1`<${ScoreSelector}
-          style=${{ marginLeft: "1em" }}
-          scores=${scorerScores}
-          selectedIndex=${scoreIndex(score, scorerScores)}
-          selectedIndexChanged=${(index) => {
-          setScore(scorerScores[index]);
-        }}
-        />`
-      );
-    }
-    return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-      alignSelf: "center",
-      fontSize: FontSize.smaller,
-      ...TextStyle.label,
-      ...TextStyle.secondary,
-      marginRight: "0.3em",
-      marginLeft: "0.2em"
-    }}
-          >Scorer:</span
-        >
-        ${selectors}
-      </div>
-    `;
-  }
-};
-const ScoreSelector = ({
-  scores,
-  selectedIndex,
-  selectedIndexChanged,
-  style
-}) => {
-  return m$1`<select
-    class="form-select form-select-sm"
-    aria-label=".select-scorer-label"
-    style=${{ fontSize: FontSize.smaller, ...style }}
-    value=${scores[selectedIndex].name}
-    onChange=${(e2) => {
-    selectedIndexChanged(e2.target.selectedIndex);
-  }}
-  >
-    ${scores.map((score) => {
-    return m$1`<option value="${score.name}">${score.name}</option>`;
-  })}
-  </select>`;
-};
-const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
-  return m$1`<select
-    class="form-select form-select-sm"
-    aria-label=".epoch-filter-label"
-    style=${{ fontSize: FontSize.smaller }}
-    value=${scorers[selectedIndex].scorer}
-    onChange=${(e2) => {
-    selectedIndexChanged(e2.target.selectedIndex);
-  }}
-  >
-    ${scorers.map((scorer) => {
-    return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
-  })}
-  </select>`;
-};
-const scoreIndex = (score, scores) => scores.findIndex((sc) => {
-  return sc.name === score.name && sc.scorer === score.scorer;
-});
-const scorerIndex = (score, scores) => scores.findIndex((sc) => {
-  return sc.scorer === score.scorer;
-});
-const SampleTools = (props) => {
-  const {
-    epoch,
-    setEpoch,
-    filter,
-    filterChanged,
-    sort,
-    setSort,
-    epochs,
-    sampleDescriptor,
-    score,
-    setScore,
-    scores
-  } = props;
-  const hasEpochs = epochs > 1;
-  const tools = [];
-  if (scores.length > 1) {
-    tools.push(
-      m$1`<${SelectScorer}
-        scores=${scores}
-        score=${score}
-        setScore=${setScore}
-      />`
-    );
-  }
-  if (hasEpochs) {
-    tools.push(
-      m$1`<${EpochFilter}
-        epoch=${epoch}
-        setEpoch="${setEpoch}"
-        epochs=${epochs}
-      />`
-    );
-  }
-  tools.push(
-    m$1`<${SampleFilter}
-      filter=${filter}
-      filterChanged=${filterChanged}
-      descriptor=${sampleDescriptor}
-    />`
-  );
-  tools.push(
-    m$1`<${SortFilter}
-      sampleDescriptor=${sampleDescriptor}
-      sort=${sort}
-      setSort=${setSort}
-      epochs=${hasEpochs}
-    />`
-  );
-  return tools;
-};
-const CopyButton = ({ value }) => {
-  return m$1`<button
-    class="copy-button"
-    style=${{
-    border: "none",
-    backgroundColor: "inherit",
-    opacity: "0.5",
-    paddingTop: "0px"
-  }}
-    data-clipboard-text=${value}
-    onclick=${(e2) => {
-    const iEl = e2.target;
-    if (iEl) {
-      iEl.className = `${ApplicationIcons.confirm} primary`;
-      setTimeout(() => {
-        iEl.className = ApplicationIcons.copy;
-      }, 1250);
-    }
-    return false;
-  }}
-  >
-    <i class=${ApplicationIcons.copy}></i>
-  </button>`;
-};
-const LabeledValue = ({
-  label,
-  style,
-  valueStyle,
-  layout = "column",
-  children
-}) => {
-  const flexDirection = layout === "column" ? "column" : "row";
-  return m$1` <div
-    style=${{
-    display: "flex",
-    flexDirection,
-    ...style
-  }}
-  >
-    <div
-      style=${{
-    fontSize: FontSize.smaller,
-    marginBottom: "-0.2rem",
-    ...TextStyle.secondary,
-    ...TextStyle.label
-  }}
-    >
-      ${label}
-    </div>
-    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
-  </div>`;
-};
-const SecondaryBar = ({
-  evalSpec,
-  evalPlan,
-  evalResults,
-  samples,
-  status,
-  style
-}) => {
-  if (!evalSpec || status !== "success") {
-    return "";
-  }
-  const staticColStyle = {
-    flexShrink: "0"
-  };
-  const epochs = evalSpec.config.epochs || 1;
-  const hyperparameters = {
-    ...evalPlan == null ? void 0 : evalPlan.config,
-    ...evalSpec.task_args
-  };
-  const hasConfig = Object.keys(hyperparameters).length > 0;
-  const values = [];
-  values.push({
-    size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
-    <${DatasetSummary}
-      dataset=${evalSpec.dataset}
-      samples=${samples}
-      epochs=${epochs} />
-  </${LabeledValue}>
-`
-  });
-  const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
-  values.push({
-    size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
-    <${ScorerSummary} 
-      scorers=${evalResults == null ? void 0 : evalResults.scores} />
-  </${LabeledValue}>`
-  });
-  if (hasConfig) {
-    values.push({
-      size: "minmax(12%, auto)",
-      value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
-      <${ParamSummary} params=${hyperparameters}/>
-    </${LabeledValue}>`
-    });
-  }
-  return m$1`
-    <div
-      style=${{
-    margin: "0",
-    padding: "0.2em 1em 0.2em 1em",
-    display: "grid",
-    gridColumnGap: "1em",
-    borderTop: "1px solid var(--bs-border-color)",
-    gridTemplateColumns: `${values.map((val) => {
-      return val.size;
-    }).join(" ")}`,
-    ...style
-  }}
-    >
-      ${values.map((val) => {
-    return val.value;
-  })}
-    </div>
-  `;
-};
-const DatasetSummary = ({ dataset, samples, epochs, style }) => {
-  if (!dataset) {
-    return "";
-  }
-  return m$1`
-    <div style=${style}>
-      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
-    </div>
-  `;
-};
-const ScorerSummary = ({ scorers }) => {
-  if (!scorers) {
-    return "";
-  }
-  const uniqScorers = /* @__PURE__ */ new Set();
-  scorers.forEach((scorer) => {
-    uniqScorers.add(scorer.name);
-  });
-  return Array.from(uniqScorers).join(", ");
-};
-const ParamSummary = ({ params }) => {
-  if (!params) {
-    return "";
-  }
-  const paraValues = Object.keys(params).map((key2) => {
-    return `${key2}: ${params[key2]}`;
-  });
-  if (paraValues.length > 0) {
-    return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
-      >${paraValues.join(", ")}</code
-    >`;
-  } else {
-    return "";
-  }
-};
-const Navbar = ({
-  file,
-  evalSpec,
-  evalPlan,
-  evalResults,
-  samples,
-  showToggle,
-  offcanvas,
-  status
-}) => {
-  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
-  const logFileName = file ? filename(file) : "";
-  const task = evalSpec == null ? void 0 : evalSpec.task;
-  const model = evalSpec == null ? void 0 : evalSpec.model;
-  const results = evalResults;
-  const created = evalSpec == null ? void 0 : evalSpec.created;
-  let statusPanel;
-  if (status === "success") {
-    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
-  } else if (status === "cancelled") {
-    statusPanel = m$1`<${CanceledPanel}
-      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
-    />`;
-  } else if (status === "started") {
-    statusPanel = m$1`<${RunningPanel} />`;
-  }
-  const navbarContents = logFileName ? m$1` <div
-          class="navbar-brand navbar-text mb-0"
-          style=${{
-    display: "flex",
-    paddingTop: 0,
-    marginLeft: "0.5rem",
-    minWidth: "250px"
-  }}
-        >
-          ${showToggle ? m$1`<button
-                id="sidebarToggle"
-                class="btn${toggleOffCanClass}"
-                type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
-                style=${{
-    padding: "0rem 0.1rem 0.1rem 0rem",
-    display: "flex"
-  }}
-              >
-                <i class=${ApplicationIcons.menu}></i>
-              </button> ` : ""}
-          <div
-            style=${{
-    display: "flex",
-    flexDirection: "column",
-    marginLeft: "0.2rem"
-  }}
-          >
-            <div
-              style=${{
-    marginTop: "0.1rem",
-    display: "grid",
-    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
-  }}
-            >
-              <div
-                id="task-title"
-                style=${{
-    fontWeight: 600,
-    marginRight: "0.3rem",
-    ...ApplicationStyles.wrapText()
-  }}
-                class="task-title"
-                title=${task}
-              >
-                ${task}
-              </div>
-              <div
-                id="task-model"
-                style=${{
-    fontSize: FontSize.base,
-    paddingTop: "0.4rem",
-    ...ApplicationStyles.wrapText()
-  }}
-                class="task-model"
-                title=${model}
-              >
-                ${model}
-              </div>
-            </div>
-            <div
-              style=${{
-    opacity: "0.7",
-    marginTop: "0.1rem",
-    paddingBottom: 0,
-    fontSize: FontSize.small,
-    display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content"
-  }}
-            >
-              <div
-                class="navbar-secondary-text"
-                style=${{
-    ...ApplicationStyles.wrapText()
-  }}
-              >
-                ${logFileName}
-              </div>
-              <${CopyButton} value=${file} />
-            </div>
-          </div>
-        </div>
-
-        <div id="task-created" style=${{ display: "none" }}>${created}</div>
-
-        <div
-          class="navbar-text"
-          style=${{
-    justifyContent: "end",
-    marginRight: "1em",
-    marginBottom: "0"
-  }}
-        >
-          ${statusPanel}
-        </div>` : "";
-  return m$1`
-    <nav
-      class="navbar sticky-top"
-      style=${{
-    flexWrap: "nowrap"
-  }}
-    >
-      <div
-        style=${{
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    width: "100%"
-  }}
-      >
-        ${navbarContents}
-        <${SecondaryBar}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          evalResults=${evalResults}
-          samples=${samples}
-          status=${status}
-          style=${{ gridColumn: "1/-1" }}
-        />
-      </div>
-    </nav>
-  `;
-};
-const CanceledPanel = ({ sampleCount }) => {
-  return m$1`<div
-    style=${{
-    padding: "1em",
-    marginTop: "0.5em",
-    textTransform: "uppercase",
-    fontSize: FontSize.smaller
-  }}
-  >
-    <i
-      class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large }}
-    />
-    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
-  </div>`;
-};
-const RunningPanel = () => {
-  return m$1`
-    <div
-      style=${{
-    marginTop: "0.5em",
-    display: "inline-grid",
-    gridTemplateColumns: "max-content max-content"
-  }}
-    >
-      <div>
-        <i class=${ApplicationIcons.running} />
-      </div>
-      <div
-        style=${{
-    marginLeft: "0.3em",
-    paddingTop: "0.2em",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        Running
-      </div>
-    </div>
-  `;
-};
-const ResultsPanel = ({ results }) => {
-  var _a2, _b2;
-  if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
-    const scorers = {};
-    results.scores.map((score) => {
-      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
-        return {
-          name: key2,
-          value: score.metrics[key2].value,
-          reducer: score.reducer
-        };
-      });
-    });
-    const metrics = Object.values(scorers)[0];
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center"
-    }}
-    >
-      ${metrics.map((metric, i) => {
-      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i === 0} />`;
-    })}
-    </div>`;
-  } else {
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center",
-      marginTop: "0.2rem",
-      paddingBottom: "0.4rem",
-      rowGap: "1em"
-    }}
-    >
-      ${(_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score, index) => {
-      return m$1`<${MultiScorerMetric}
-          scorer=${score}
-          isFirst=${index === 0}
-        />`;
-    })}
-    </div>`;
-  }
-};
-const VerticalMetric = ({ metric, isFirst }) => {
-  const reducer_component = metric.reducer ? m$1` <div
-        style=${{
-    fontSize: FontSize.smaller,
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.3rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        ${metric.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
-    <div
-      class="vertical-metric-label"
-      style=${{
-    fontSize: FontSize.smaller,
-    ...TextStyle.secondary,
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.2rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    borderBottom: "solid var(--bs-border-color) 1px"
-  }}
-    >
-      ${metric.name}
-    </div>
-    ${reducer_component}
-    <div
-      class="vertical-metric-value"
-      style=${{
-    fontSize: FontSize.larger,
-    fontWeight: "500",
-    textAlign: "center"
-  }}
-    >
-      ${formatPrettyDecimal(metric.value)}
-    </div>
-  </div>`;
-};
-const MultiScorerMetric = ({ scorer, isFirst }) => {
-  const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
-  const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
-  const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
-  const reducer_component = scorer.reducer ? m$1`<div
-        style=${{
-    fontSize: reducerFontSize,
-    textAlign: "center",
-    marginBottom: "-0.3rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        ${scorer.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
-    <div
-      style=${{
-    fontSize: titleFontSize,
-    textAlign: "center",
-    borderBottom: "solid var(--bs-border-color) 1px",
-    marginBottom: "-0.1rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      class="multi-score-label"
-    >
-      ${scorer.name}
-    </div>
-    ${reducer_component}
-    <div
-      style=${{
-    display: "grid",
-    gridTemplateColumns: "auto auto",
-    gridColumnGap: "0.3rem",
-    gridRowGap: "0",
-    fontSize: valueFontSize
-  }}
-    >
-      ${Object.keys(scorer.metrics).map((key2) => {
-    const metric = scorer.metrics[key2];
-    return m$1` <div>${metric.name}</div>
-          <div style=${{ fontWeight: "600" }}>
-            ${formatPrettyDecimal(metric.value)}
-          </div>`;
-  })}
-    </div>
-  </div>`;
-};
 const asyncJsonParse = async (text) => {
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
   const blobURL = URL.createObjectURL(blob);
@@ -21439,7 +19981,7 @@ const clientApi = (api2) => {
     return log_file && !isEvalFile(log_file);
   };
   const get_log_json = async (log_file) => {
-    if (isEvalFile) {
+    if (isEvalFile(log_file)) {
       console.error("Unexpected request for JSON for an eval log file.");
     } else {
       const logcontents = await get_log(log_file);
@@ -21542,6 +20084,1538 @@ const DownloadPanel = ({
     />
   </div>`;
 };
+const kPrismRenderMaxSize = 25e4;
+const kJsonMaxSize = 1e7;
+const JsonTab = ({
+  logFileName,
+  capabilities,
+  selected,
+  renderJson
+}) => {
+  const codeRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const logFileNameRef = A(null);
+  const [jsonText, setJsonText] = h("");
+  y(() => {
+    if (selected && logFileName && logFileNameRef.current !== logFileName) {
+      renderJson().then((json) => {
+        setJsonText(json);
+        logFileNameRef.current = logFileName;
+      });
+    }
+  }, [selected, logFileName, renderJson, setJsonText]);
+  y(() => {
+    if (logFileNameRef.current !== logFileName) {
+      setJsonText("");
+    }
+  }, [logFileName]);
+  const renderedContent = [];
+  if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+    const file = `${filename(logFileName)}.json`;
+    renderedContent.push(
+      m$1`<${DownloadPanel}
+        message="Log file raw JSON is too large to render."
+        buttonLabel="Download JSON File"
+        logFile=${logFileName}
+        fileName=${file}
+        fileContents=${jsonText}
+      />`
+    );
+  } else {
+    if (codeRef.current) {
+      if (jsonText.length < kPrismRenderMaxSize) {
+        codeRef.current.innerHTML = Prism$1.highlight(
+          jsonText,
+          Prism$1.languages.javascript,
+          "javacript"
+        );
+      } else {
+        const textNode = document.createTextNode(jsonText);
+        codeRef.current.innerText = "";
+        codeRef.current.appendChild(textNode);
+      }
+    }
+    renderedContent.push(
+      m$1`<pre>
+                <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+        fontSize: FontSize.small,
+        whiteSpace: "pre-wrap",
+        wordWrap: "anywhere"
+      }}>
+                </code>
+              </pre>`
+    );
+  }
+  return m$1` <div
+    style=${{
+    padding: "1rem",
+    fontSize: FontSize.small,
+    width: "100%"
+  }}
+  >
+    ${renderedContent}
+  </div>`;
+};
+const EpochFilter = ({ epochs, epoch, setEpoch }) => {
+  const options = ["all"];
+  for (let i = 1; i <= epochs; i++) {
+    options.push(i + "");
+  }
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="epoch-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Epochs:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".epoch-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${epoch}
+        onChange=${(e2) => {
+    setEpoch(e2.target.value);
+  }}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option}">${option}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const kSampleAscVal = "sample-asc";
+const kSampleDescVal = "sample-desc";
+const kEpochAscVal = "epoch-asc";
+const kEpochDescVal = "epoch-desc";
+const kScoreAscVal = "score-asc";
+const kScoreDescVal = "score-desc";
+const kDefaultSort = kSampleAscVal;
+const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
+  var _a2;
+  const options = [
+    { label: "sample asc", val: kSampleAscVal },
+    { label: "sample desc", val: kSampleDescVal }
+  ];
+  if (epochs) {
+    options.push({
+      label: "epoch asc",
+      val: kEpochAscVal
+    });
+    options.push({
+      label: "epoch desc",
+      val: kEpochDescVal
+    });
+  }
+  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
+    options.push({
+      label: "score asc",
+      val: kScoreAscVal
+    });
+    options.push({
+      label: "score desc",
+      val: kScoreDescVal
+    });
+  }
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sort-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Sort:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${sort}
+        onChange=${(e2) => {
+    setSort(e2.target.value);
+  }}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option.val}">${option.label}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const byEpoch = (sort) => {
+  return sort === kEpochAscVal || sort === kEpochDescVal;
+};
+const bySample = (sort) => {
+  return sort === kSampleAscVal || sort === kSampleDescVal;
+};
+const sortSamples = (sort, samples, samplesDescriptor) => {
+  const sortedSamples = samples.sort((a2, b2) => {
+    switch (sort) {
+      case kSampleAscVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return Number(a2.id) - Number(b2.id);
+        } else {
+          return String(a2.id).localeCompare(String(b2.id));
+        }
+      case kSampleDescVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return Number(b2.id) - Number(a2.id);
+        } else {
+          return String(b2.id).localeCompare(String(a2.id));
+        }
+      case kEpochAscVal:
+        return a2.epoch - b2.epoch;
+      case kEpochDescVal:
+        return b2.epoch - a2.epoch;
+      case kScoreAscVal:
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(a2).value,
+          samplesDescriptor.selectedScore(b2).value
+        );
+      case kScoreDescVal:
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(b2).value,
+          samplesDescriptor.selectedScore(a2).value
+        );
+    }
+  });
+  return {
+    sorted: sortedSamples,
+    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+  };
+};
+const kScoreTypePassFail = "passfail";
+const kScoreTypeCategorical = "categorical";
+const kScoreTypeNumeric = "numeric";
+const kScoreTypeOther = "other";
+const kScoreTypeObject = "object";
+const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+  if (!samples) {
+    return void 0;
+  }
+  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
+    if (sample.scores[scorer]) {
+      return sample.scores[scorer];
+    } else {
+      return void 0;
+    }
+  };
+  const scoreValue = (sample) => {
+    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
+      return void 0;
+    }
+    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
+      return sample.scores[selectedScore.scorer].value[selectedScore.name];
+    } else if (sample.scores[selectedScore.name]) {
+      return sample.scores[selectedScore.name].value;
+    } else {
+      return void 0;
+    }
+  };
+  const scoreAnswer = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.answer) {
+        return sampleScore.answer;
+      }
+    } else {
+      return void 0;
+    }
+  };
+  const scoreExplanation = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.explanation) {
+        return sampleScore.explanation;
+      }
+    }
+    return void 0;
+  };
+  const uniqScoreValues = [
+    ...new Set(
+      samples.filter((sample) => !!sample.scores).filter((sample) => {
+        if (!selectedScore) {
+          return true;
+        }
+        if (selectedScore.scorer !== selectedScore.name) {
+          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
+            selectedScore.name
+          );
+        } else {
+          return Object.keys(sample.scores).includes(selectedScore.name);
+        }
+      }).map((sample) => {
+        return scoreValue(sample);
+      }).filter((value) => {
+        return value !== null;
+      })
+    )
+  ];
+  const uniqScoreTypes = [
+    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+  ];
+  let scoreDescriptor;
+  for (const categorizer of scoreCategorizers) {
+    scoreDescriptor = categorizer.describe(
+      uniqScoreValues,
+      uniqScoreTypes,
+      context
+    );
+    if (scoreDescriptor) {
+      break;
+    }
+  }
+  const sizes = samples.reduce(
+    (previous, current) => {
+      var _a2;
+      const text = inputString(current.input).join(" ");
+      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300
+      );
+      previous[2] = Math.min(
+        Math.max(
+          previous[2],
+          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+        ),
+        300
+      );
+      return previous;
+    },
+    [0, 0, 0]
+  );
+  const base = sizes[0] + sizes[1] + sizes[2] || 1;
+  const messageShape = {
+    input: sizes[0] / base,
+    target: sizes[1] / base,
+    answer: sizes[2] / base
+  };
+  const scoreRendered = (sample) => {
+    const score2 = scoreValue(sample);
+    if (score2 === null || score2 === "undefined") {
+      return "null";
+    } else if (scoreDescriptor.render) {
+      return scoreDescriptor.render(score2);
+    } else {
+      return score2;
+    }
+  };
+  const scorerDescriptor = (sample, scorer) => {
+    return {
+      explanation: () => {
+        return scoreExplanation(sample, scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+        const scoreNames = scorers.map((score2) => {
+          return score2.name;
+        });
+        const sampleScorer = sample.scores[scorer];
+        const scoreVal = sampleScorer.value;
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+          if (names.find((name) => {
+            return !scoreNames.includes(name);
+          })) {
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                }
+              }
+            ];
+          } else {
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal[name]);
+                }
+              };
+            });
+            return scores;
+          }
+        } else {
+          return [
+            {
+              name: scorer,
+              rendered: () => {
+                return scoreDescriptor.render(scoreVal);
+              }
+            }
+          ];
+        }
+      }
+    };
+  };
+  return {
+    scoreDescriptor,
+    epochs,
+    messageShape,
+    selectedScore: (sample) => {
+      return {
+        value: scoreValue(sample),
+        render: () => {
+          return scoreRendered(sample);
+        }
+      };
+    },
+    scorer: (sample, scorer) => {
+      return scorerDescriptor(sample, scorer);
+    },
+    selectedScorer: (sample) => {
+      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
+    }
+  };
+};
+const scoreCategorizers = [
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values) => {
+      if ((values.length === 1 || values.length === 2) && values.every((val) => {
+        return val === 1 || val === 0;
+      })) {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
+        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+      })) {
+        return passFailScoreCategorizer(values);
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length < 10 && types.length === 1 && types[0] === "string") {
+        return {
+          scoreType: kScoreTypeCategorical,
+          categories: values,
+          compare: (a2, b2) => {
+            return String(a2).localeCompare(String(b2));
+          },
+          render: (score) => {
+            return score;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "number") {
+        const onlyNumeric = values.filter((val) => {
+          return typeof val === "number";
+        });
+        return {
+          scoreType: kScoreTypeNumeric,
+          min: Math.min(...onlyNumeric),
+          max: Math.max(...onlyNumeric),
+          compare: (a2, b2) => {
+            if (typeof a2 === "number" && typeof b2 === "number") {
+              return a2 - b2;
+            } else {
+              console.warn(
+                "Comparing non-numerics using a nuermic score descriptor"
+              );
+              return 0;
+            }
+          },
+          render: (score) => {
+            return formatDecimalNoTrailingZeroes(Number(score));
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "object") {
+        const buckets = values.map((val) => {
+          return JSON.stringify(val);
+        });
+        const vals = new Set(buckets);
+        let categories = void 0;
+        if (vals.size < 10) {
+          categories = Array.from(vals).map((val) => {
+            return {
+              val,
+              text: val
+            };
+          });
+        }
+        return {
+          scoreType: kScoreTypeObject,
+          categories,
+          compare: () => {
+            return 0;
+          },
+          render: (score) => {
+            if (score === null || score === void 0) {
+              return "[null]";
+            }
+            const scores = [];
+            const keys = Object.keys(score);
+            keys.forEach((key2, index) => {
+              const value = score[key2];
+              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+              const style = {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginLeft: "0.5rem"
+              };
+              if (index + 1 < keys.length) {
+                style["paddingBottom"] = "1em";
+              }
+              scores.push(m$1`
+                <div style=${style}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+            });
+            return scores;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @param {import("../Types.mjs").RenderContext} [context] - the application context
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    // @ts-ignore
+    describe: (values, types, context) => {
+      return {
+        scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
+        render: (score) => {
+          return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score }}
+            context=${context}
+          />`;
+        }
+      };
+    }
+  }
+];
+const filledCircleStyle = {
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "20px",
+  height: "20px",
+  display: "inline-flex",
+  justifyContent: "center",
+  alignItems: "center",
+  borderRadius: "50%",
+  paddingTop: "1px"
+};
+const booleanScoreCategorizer = () => {
+  return {
+    scoreType: "boolean",
+    compare: (a2, b2) => {
+      return Number(a2.value) - Number(b2.value);
+    },
+    render: (score) => {
+      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+      return m$1`<span
+        style=${{
+        ...scoreColorStyle,
+        ...filledCircleStyle
+      }}
+        >${score}</span
+      >`;
+    }
+  };
+};
+const passFailScoreCategorizer = (values) => {
+  const categories = [];
+  if (values.includes("C")) {
+    categories.push({
+      val: "C",
+      text: "Correct"
+    });
+  }
+  if (values.includes("P")) {
+    categories.push({
+      val: "P",
+      text: "Partial"
+    });
+  }
+  if (values.includes("I")) {
+    categories.push({
+      val: "I",
+      text: "Incorrect"
+    });
+  }
+  if (values.includes("N")) {
+    categories.push({
+      val: "N",
+      text: "Refusal"
+    });
+  }
+  const order2 = ["C", "P", "I", "N"];
+  return {
+    scoreType: kScoreTypePassFail,
+    categories,
+    render: (score) => {
+      if (score === "C") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.green,
+          ...filledCircleStyle
+        }}
+          >C</span
+        >`;
+      } else if (score === "I") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >I</span
+        >`;
+      } else if (score === "P") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.orange,
+          ...filledCircleStyle
+        }}
+          >P</span
+        >`;
+      } else if (score === "N") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >N</span
+        >`;
+      } else {
+        return score;
+      }
+    },
+    compare: (a2, b2) => {
+      const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+      return sort;
+    }
+  };
+};
+const SampleFilter = ({ descriptor, filter, filterChanged }) => {
+  var _a2;
+  const filterCategory = (e2) => {
+    const val = e2.currentTarget.value;
+    if (val === "all") {
+      filterChanged({
+        value: void 0,
+        filterFn: void 0
+      });
+    } else {
+      filterChanged({
+        value: val,
+        filterFn: (sample, value) => {
+          const score = descriptor.selectedScore(sample);
+          if (typeof score.value === "string") {
+            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+          } else if (typeof score.value === "object") {
+            return JSON.stringify(score.value) == value;
+          } else {
+            return score.value === value;
+          }
+        }
+      });
+    }
+  };
+  const filterInput = (e2) => {
+    filterChanged({
+      value: e2.currentTarget.value,
+      filterFn: filterText(descriptor)
+    });
+  };
+  switch ((_a2 = descriptor == null ? void 0 : descriptor.scoreDescriptor) == null ? void 0 : _a2.scoreType) {
+    case kScoreTypePassFail: {
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat.text, value: cat.val };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    case kScoreTypeCategorical: {
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat, value: cat };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    case kScoreTypeNumeric: {
+      return m$1`
+        <input
+          type="text"
+          class="form-control"
+          value=${filter.value}
+          placeholder="Filter Samples (score)"
+          style=${{ width: "150px" }}
+          onInput=${filterInput}
+        />
+      `;
+    }
+    case kScoreTypeObject: {
+      if (!descriptor.scoreDescriptor.categories) {
+        return "";
+      }
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat.text, value: cat.value };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    default: {
+      return void 0;
+    }
+  }
+};
+const SelectFilter = ({ value, options, filterFn }) => {
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sample-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Scores:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sample-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${value}
+        onChange=${filterFn}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option.value}">${option.text}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const filterText = (descriptor) => {
+  return (sample, value) => {
+    const score = descriptor.selectedScore(sample);
+    if (!value) {
+      return true;
+    } else {
+      if (isNumeric(value)) {
+        if (typeof score.value === "number") {
+          return score.value === Number(value);
+        } else {
+          return Number(score.value) === Number(value);
+        }
+      } else {
+        const filters = [
+          {
+            prefix: ">=",
+            fn: (score2, val) => {
+              return score2 >= val;
+            }
+          },
+          {
+            prefix: "<=",
+            fn: (score2, val) => {
+              return score2 <= val;
+            }
+          },
+          {
+            prefix: ">",
+            fn: (score2, val) => {
+              return score2 > val;
+            }
+          },
+          {
+            prefix: "<",
+            fn: (score2, val) => {
+              return score2 < val;
+            }
+          },
+          {
+            prefix: "=",
+            fn: (score2, val) => {
+              return score2 === val;
+            }
+          },
+          {
+            prefix: "!=",
+            fn: (score2, val) => {
+              return score2 !== val;
+            }
+          }
+        ];
+        for (const filter of filters) {
+          if (value == null ? void 0 : value.startsWith(filter.prefix)) {
+            const val = value.slice(filter.prefix.length).trim();
+            if (!val) {
+              return true;
+            }
+            const num = Number(val);
+            return filter.fn(score.value, num);
+          }
+        }
+        if (typeof score.value === "string") {
+          return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+        } else {
+          return score.value === value;
+        }
+      }
+    }
+  };
+};
+const SelectScorer = ({ scores, score, setScore }) => {
+  const scorers = scores.reduce((accum, scorer) => {
+    if (!accum.find((sc) => {
+      return scorer.scorer === sc.scorer;
+    })) {
+      accum.push(scorer);
+    }
+    return accum;
+  }, []);
+  if (scorers.length === 1) {
+    return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >Score:</span
+        >
+        <${ScoreSelector}
+          scores=${scores}
+          selectedIndex=${scoreIndex(score, scores)}
+          selectedIndexChanged=${(index) => {
+      setScore(scores[index]);
+    }}
+        />
+      </div>
+    `;
+  } else {
+    const scorerScores = scores.filter((sc) => {
+      return sc.scorer === score.scorer;
+    });
+    const selectors = [
+      m$1`<${ScorerSelector}
+        scorers=${scorers}
+        selectedIndex=${scorerIndex(score, scorers)}
+        selectedIndexChanged=${(index) => {
+        setScore(scorers[index]);
+      }}
+      />`
+    ];
+    if (scorerScores.length > 1) {
+      selectors.push(
+        m$1`<${ScoreSelector}
+          style=${{ marginLeft: "1em" }}
+          scores=${scorerScores}
+          selectedIndex=${scoreIndex(score, scorerScores)}
+          selectedIndexChanged=${(index) => {
+          setScore(scorerScores[index]);
+        }}
+        />`
+      );
+    }
+    return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+      marginRight: "0.3em",
+      marginLeft: "0.2em"
+    }}
+          >Scorer:</span
+        >
+        ${selectors}
+      </div>
+    `;
+  }
+};
+const ScoreSelector = ({
+  scores,
+  selectedIndex,
+  selectedIndexChanged,
+  style
+}) => {
+  return m$1`<select
+    class="form-select form-select-sm"
+    aria-label=".select-scorer-label"
+    style=${{ fontSize: FontSize.smaller, ...style }}
+    value=${scores[selectedIndex].name}
+    onChange=${(e2) => {
+    selectedIndexChanged(e2.target.selectedIndex);
+  }}
+  >
+    ${scores.map((score) => {
+    return m$1`<option value="${score.name}">${score.name}</option>`;
+  })}
+  </select>`;
+};
+const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
+  return m$1`<select
+    class="form-select form-select-sm"
+    aria-label=".epoch-filter-label"
+    style=${{ fontSize: FontSize.smaller }}
+    value=${scorers[selectedIndex].scorer}
+    onChange=${(e2) => {
+    selectedIndexChanged(e2.target.selectedIndex);
+  }}
+  >
+    ${scorers.map((scorer) => {
+    return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
+  })}
+  </select>`;
+};
+const scoreIndex = (score, scores) => scores.findIndex((sc) => {
+  return sc.name === score.name && sc.scorer === score.scorer;
+});
+const scorerIndex = (score, scores) => scores.findIndex((sc) => {
+  return sc.scorer === score.scorer;
+});
+const SampleTools = (props) => {
+  const {
+    epoch,
+    setEpoch,
+    filter,
+    filterChanged,
+    sort,
+    setSort,
+    epochs,
+    sampleDescriptor,
+    score,
+    setScore,
+    scores
+  } = props;
+  const hasEpochs = epochs > 1;
+  const tools = [];
+  if (scores.length > 1) {
+    tools.push(
+      m$1`<${SelectScorer}
+        scores=${scores}
+        score=${score}
+        setScore=${setScore}
+      />`
+    );
+  }
+  if (hasEpochs) {
+    tools.push(
+      m$1`<${EpochFilter}
+        epoch=${epoch}
+        setEpoch="${setEpoch}"
+        epochs=${epochs}
+      />`
+    );
+  }
+  tools.push(
+    m$1`<${SampleFilter}
+      filter=${filter}
+      filterChanged=${filterChanged}
+      descriptor=${sampleDescriptor}
+    />`
+  );
+  tools.push(
+    m$1`<${SortFilter}
+      sampleDescriptor=${sampleDescriptor}
+      sort=${sort}
+      setSort=${setSort}
+      epochs=${hasEpochs}
+    />`
+  );
+  return tools;
+};
+const CopyButton = ({ value }) => {
+  return m$1`<button
+    class="copy-button"
+    style=${{
+    border: "none",
+    backgroundColor: "inherit",
+    opacity: "0.5",
+    paddingTop: "0px"
+  }}
+    data-clipboard-text=${value}
+    onclick=${(e2) => {
+    const iEl = e2.target;
+    if (iEl) {
+      iEl.className = `${ApplicationIcons.confirm} primary`;
+      setTimeout(() => {
+        iEl.className = ApplicationIcons.copy;
+      }, 1250);
+    }
+    return false;
+  }}
+  >
+    <i class=${ApplicationIcons.copy}></i>
+  </button>`;
+};
+const LabeledValue = ({
+  label,
+  style,
+  valueStyle,
+  layout = "column",
+  children
+}) => {
+  const flexDirection = layout === "column" ? "column" : "row";
+  return m$1` <div
+    style=${{
+    display: "flex",
+    flexDirection,
+    ...style
+  }}
+  >
+    <div
+      style=${{
+    fontSize: FontSize.smaller,
+    marginBottom: "-0.2rem",
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+    >
+      ${label}
+    </div>
+    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
+  </div>`;
+};
+const SecondaryBar = ({
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
+  style
+}) => {
+  if (!evalSpec || status !== "success") {
+    return "";
+  }
+  const staticColStyle = {
+    flexShrink: "0"
+  };
+  const epochs = evalSpec.config.epochs || 1;
+  const hyperparameters = {
+    ...evalPlan == null ? void 0 : evalPlan.config,
+    ...evalSpec.task_args
+  };
+  const hasConfig = Object.keys(hyperparameters).length > 0;
+  const values = [];
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
+    <${DatasetSummary}
+      dataset=${evalSpec.dataset}
+      samples=${samples}
+      epochs=${epochs} />
+  </${LabeledValue}>
+`
+  });
+  const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
+    <${ScorerSummary} 
+      scorers=${evalResults == null ? void 0 : evalResults.scores} />
+  </${LabeledValue}>`
+  });
+  if (hasConfig) {
+    values.push({
+      size: "minmax(12%, auto)",
+      value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
+      <${ParamSummary} params=${hyperparameters}/>
+    </${LabeledValue}>`
+    });
+  }
+  return m$1`
+    <div
+      style=${{
+    margin: "0",
+    padding: "0.2em 1em 0.2em 1em",
+    display: "grid",
+    gridColumnGap: "1em",
+    borderTop: "1px solid var(--bs-border-color)",
+    gridTemplateColumns: `${values.map((val) => {
+      return val.size;
+    }).join(" ")}`,
+    ...style
+  }}
+    >
+      ${values.map((val) => {
+    return val.value;
+  })}
+    </div>
+  `;
+};
+const DatasetSummary = ({ dataset, samples, epochs, style }) => {
+  if (!dataset) {
+    return "";
+  }
+  return m$1`
+    <div style=${style}>
+      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
+    </div>
+  `;
+};
+const ScorerSummary = ({ scorers }) => {
+  if (!scorers) {
+    return "";
+  }
+  const uniqScorers = /* @__PURE__ */ new Set();
+  scorers.forEach((scorer) => {
+    uniqScorers.add(scorer.name);
+  });
+  return Array.from(uniqScorers).join(", ");
+};
+const ParamSummary = ({ params }) => {
+  if (!params) {
+    return "";
+  }
+  const paraValues = Object.keys(params).map((key2) => {
+    return `${key2}: ${params[key2]}`;
+  });
+  if (paraValues.length > 0) {
+    return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
+      >${paraValues.join(", ")}</code
+    >`;
+  } else {
+    return "";
+  }
+};
+const Navbar = ({
+  file,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  showToggle,
+  offcanvas,
+  status
+}) => {
+  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
+  const logFileName = file ? filename(file) : "";
+  const task = evalSpec == null ? void 0 : evalSpec.task;
+  const model = evalSpec == null ? void 0 : evalSpec.model;
+  const results = evalResults;
+  const created = evalSpec == null ? void 0 : evalSpec.created;
+  let statusPanel;
+  if (status === "success") {
+    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
+  } else if (status === "cancelled") {
+    statusPanel = m$1`<${CanceledPanel}
+      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
+    />`;
+  } else if (status === "started") {
+    statusPanel = m$1`<${RunningPanel} />`;
+  }
+  const navbarContents = logFileName ? m$1` <div
+          class="navbar-brand navbar-text mb-0"
+          style=${{
+    display: "flex",
+    paddingTop: 0,
+    marginLeft: "0.5rem",
+    minWidth: "250px"
+  }}
+        >
+          ${showToggle ? m$1`<button
+                id="sidebarToggle"
+                class="btn${toggleOffCanClass}"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sidebarOffCanvas"
+                aria-controls="sidebarOffCanvas"
+                style=${{
+    padding: "0rem 0.1rem 0.1rem 0rem",
+    display: "flex"
+  }}
+              >
+                <i class=${ApplicationIcons.menu}></i>
+              </button> ` : ""}
+          <div
+            style=${{
+    display: "flex",
+    flexDirection: "column",
+    marginLeft: "0.2rem"
+  }}
+          >
+            <div
+              style=${{
+    marginTop: "0.1rem",
+    display: "grid",
+    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
+  }}
+            >
+              <div
+                id="task-title"
+                style=${{
+    fontWeight: 600,
+    marginRight: "0.3rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-title"
+                title=${task}
+              >
+                ${task}
+              </div>
+              <div
+                id="task-model"
+                style=${{
+    fontSize: FontSize.base,
+    paddingTop: "0.4rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-model"
+                title=${model}
+              >
+                ${model}
+              </div>
+            </div>
+            <div
+              style=${{
+    opacity: "0.7",
+    marginTop: "0.1rem",
+    paddingBottom: 0,
+    fontSize: FontSize.small,
+    display: "grid",
+    gridTemplateColumns: "minmax(0,max-content) max-content"
+  }}
+            >
+              <div
+                class="navbar-secondary-text"
+                style=${{
+    ...ApplicationStyles.wrapText()
+  }}
+              >
+                ${logFileName}
+              </div>
+              <${CopyButton} value=${file} />
+            </div>
+          </div>
+        </div>
+
+        <div id="task-created" style=${{ display: "none" }}>${created}</div>
+
+        <div
+          class="navbar-text"
+          style=${{
+    justifyContent: "end",
+    marginRight: "1em",
+    marginBottom: "0"
+  }}
+        >
+          ${statusPanel}
+        </div>` : "";
+  return m$1`
+    <nav
+      class="navbar sticky-top"
+      style=${{
+    flexWrap: "nowrap"
+  }}
+    >
+      <div
+        style=${{
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    width: "100%"
+  }}
+      >
+        ${navbarContents}
+        <${SecondaryBar}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          evalResults=${evalResults}
+          samples=${samples}
+          status=${status}
+          style=${{ gridColumn: "1/-1" }}
+        />
+      </div>
+    </nav>
+  `;
+};
+const CanceledPanel = ({ sampleCount }) => {
+  return m$1`<div
+    style=${{
+    padding: "1em",
+    marginTop: "0.5em",
+    textTransform: "uppercase",
+    fontSize: FontSize.smaller
+  }}
+  >
+    <i
+      class="${ApplicationIcons.logging.info}"
+      style=${{ fontSize: FontSize.large }}
+    />
+    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+  </div>`;
+};
+const RunningPanel = () => {
+  return m$1`
+    <div
+      style=${{
+    marginTop: "0.5em",
+    display: "inline-grid",
+    gridTemplateColumns: "max-content max-content"
+  }}
+    >
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+    marginLeft: "0.3em",
+    paddingTop: "0.2em",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Running
+      </div>
+    </div>
+  `;
+};
+const ResultsPanel = ({ results }) => {
+  var _a2, _b2;
+  if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
+    const scorers = {};
+    results.scores.map((score) => {
+      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
+        return {
+          name: key2,
+          value: score.metrics[key2].value,
+          reducer: score.reducer
+        };
+      });
+    });
+    const metrics = Object.values(scorers)[0];
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center"
+    }}
+    >
+      ${metrics.map((metric, i) => {
+      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i === 0} />`;
+    })}
+    </div>`;
+  } else {
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center",
+      marginTop: "0.2rem",
+      paddingBottom: "0.4rem",
+      rowGap: "1em"
+    }}
+    >
+      ${(_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score, index) => {
+      return m$1`<${MultiScorerMetric}
+          scorer=${score}
+          isFirst=${index === 0}
+        />`;
+    })}
+    </div>`;
+  }
+};
+const VerticalMetric = ({ metric, isFirst }) => {
+  const reducer_component = metric.reducer ? m$1` <div
+        style=${{
+    fontSize: FontSize.smaller,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${metric.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
+    <div
+      class="vertical-metric-label"
+      style=${{
+    fontSize: FontSize.smaller,
+    ...TextStyle.secondary,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.2rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    borderBottom: "solid var(--bs-border-color) 1px"
+  }}
+    >
+      ${metric.name}
+    </div>
+    ${reducer_component}
+    <div
+      class="vertical-metric-value"
+      style=${{
+    fontSize: FontSize.larger,
+    fontWeight: "500",
+    textAlign: "center"
+  }}
+    >
+      ${formatPrettyDecimal(metric.value)}
+    </div>
+  </div>`;
+};
+const MultiScorerMetric = ({ scorer, isFirst }) => {
+  const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
+  const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
+  const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
+  const reducer_component = scorer.reducer ? m$1`<div
+        style=${{
+    fontSize: reducerFontSize,
+    textAlign: "center",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${scorer.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
+    <div
+      style=${{
+    fontSize: titleFontSize,
+    textAlign: "center",
+    borderBottom: "solid var(--bs-border-color) 1px",
+    marginBottom: "-0.1rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      class="multi-score-label"
+    >
+      ${scorer.name}
+    </div>
+    ${reducer_component}
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "auto auto",
+    gridColumnGap: "0.3rem",
+    gridRowGap: "0",
+    fontSize: valueFontSize
+  }}
+    >
+      ${Object.keys(scorer.metrics).map((key2) => {
+    const metric = scorer.metrics[key2];
+    return m$1` <div>${metric.name}</div>
+          <div style=${{ fontWeight: "600" }}>
+            ${formatPrettyDecimal(metric.value)}
+          </div>`;
+  })}
+    </div>
+  </div>`;
+};
 const TaskErrorCard = ({ evalError }) => {
   return m$1`
     <${Card}>
@@ -21555,8 +21629,6 @@ const TaskErrorCard = ({ evalError }) => {
 const kEvalTabId = "eval-tab";
 const kJsonTabId = "json-tab";
 const kInfoTabId = "plan-tab";
-const kPrismRenderMaxSize = 25e4;
-const kJsonMaxSize = 1e7;
 const WorkSpace = ({
   task_id,
   taskStatus,
@@ -21593,10 +21665,6 @@ const WorkSpace = ({
   renderJson
 }) => {
   const divRef = A(
-    /** @type {HTMLElement|null} */
-    null
-  );
-  const codeRef = A(
     /** @type {HTMLElement|null} */
     null
   );
@@ -21709,70 +21777,23 @@ const WorkSpace = ({
       label: "JSON",
       scrollable: true,
       content: () => {
-        const renderedContent = [];
-        const jsonText = "";
-        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-          const file = `${filename(logFileName)}.json`;
-          renderedContent.push(
-            m$1`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${logFileName}
-              fileName=${file}
-              fileContents=${jsonText}
-            />`
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (jsonText.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism$1.highlight(
-                jsonText,
-                Prism$1.languages.javascript,
-                "javacript"
-              );
-            } else {
-              const textNode = document.createTextNode(jsonText);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            m$1`<pre>
-              <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere"
-            }}>
-              </code>
-            </pre>`
-          );
-        }
-        return m$1` <div
-          style=${{
-          padding: "1rem",
-          fontSize: FontSize.small,
-          width: "100%"
-        }}
-        >
-          ${renderedContent}
-        </div>`;
+        return m$1`<${JsonTab}
+          logFileName=${logFileName}
+          renderJson=${renderJson}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonTabId}
+        />`;
       },
       tools: () => {
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            m$1`<${ToolButton}
-              name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`
-          ];
-        }
+        return [
+          m$1`<${ToolButton}
+            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`
+        ];
       }
     };
   }
@@ -21796,19 +21817,6 @@ const WorkSpace = ({
     },
     [renderedCode]
   );
-  const tabTools = Object.keys(resolvedTabs).map((key2) => {
-    const tab = resolvedTabs[key2];
-    return tab;
-  }).filter((tab) => {
-    return tab.id === selectedTab;
-  }).map((tab) => {
-    if (tab.tools) {
-      const tools = tab.tools();
-      return tools;
-    } else {
-      return "";
-    }
-  });
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
@@ -21819,7 +21827,6 @@ const WorkSpace = ({
     status=${taskStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
-    tabTools=${tabTools}
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
@@ -21835,7 +21842,6 @@ const WorkspaceDisplay = ({
   showToggle,
   selectedTab,
   tabs,
-  tabTools,
   setSelectedTab,
   divRef,
   offcanvas
@@ -21843,6 +21849,19 @@ const WorkspaceDisplay = ({
   if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
   } else {
+    const tabTools = Object.keys(tabs).map((key2) => {
+      const tab = tabs[key2];
+      return tab;
+    }).filter((tab) => {
+      return tab.id === selectedTab;
+    }).map((tab) => {
+      if (tab.tools) {
+        const tools = tab.tools();
+        return tools;
+      } else {
+        return "";
+      }
+    });
     return m$1`
     
     <${Navbar}
