@@ -17323,12 +17323,11 @@ const SamplesTab = ({
     hideSample();
   }, [items]);
   const nextSampleIndex = q(() => {
-    for (let i = selectedSampleIndex + 1; i < sampleItems.length; i++) {
-      if (items[i].type === "sample") {
-        return i;
-      }
+    if (selectedSampleIndex < sampleItems.length - 1) {
+      return selectedSampleIndex + 1;
+    } else {
+      return -1;
     }
-    return -1;
   }, [selectedSampleIndex, items]);
   const previousSampleIndex = q(() => {
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
