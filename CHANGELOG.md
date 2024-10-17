@@ -10,6 +10,7 @@
 - Requirements: require semver>=3.0.0
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
 - Correct directory handling for tasks that are imported as local (non-package) modules.
 - Call tools sequentially when they have opted out of parallel calling.
 - Bugfix: strip protocol prefix when resolving eval event content
