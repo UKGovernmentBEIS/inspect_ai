@@ -8,7 +8,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import Content
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import dirname, file
 from inspect_ai.model._chat_message import ChatMessage
@@ -278,11 +278,16 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
     if isinstance(inputs, list):
         input: list[ChatMessage] = []
         for message in inputs:
-            message_contents: list[str | Content] = []
-            for content in message.content:
-                if isinstance(content, str) or content.type != "image":
-                    message_contents.append(content)
-            input.append(message)
+            if not isinstance(message.content, str):
+                filtered_content: list[ContentText | ContentImage] = []
+                for content in message.content:
+                    if content.type != "image":
+                        filtered_content.append(content)
+                if len(filtered_content) == 0:
+                    filtered_content.append(ContentText(text="(Image)"))
+                message.content = filtered_content
+                input.append(message)
+
         return input
     else:
         return inputs
