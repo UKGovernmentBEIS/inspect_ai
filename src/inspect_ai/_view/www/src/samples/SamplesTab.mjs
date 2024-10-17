@@ -42,6 +42,7 @@ export const SamplesTab = ({
   context,
 }) => {
   const [items, setItems] = useState([]);
+  const [sampleItems, setSampleItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -78,6 +79,11 @@ export const SamplesTab = ({
     });
 
     setItems(items);
+    setSampleItems(
+      items.filter((item) => {
+        return item.type === "sample";
+      }),
+    );
     if (items.length) {
       setSelectedSampleIndex(0);
     }
@@ -123,7 +129,7 @@ export const SamplesTab = ({
   }, [selectedSampleIndex, samples, previousSampleIndex]);
 
   const elements = [];
-  if (samples?.length === 1 && items.length === 1) {
+  if (samples?.length === 1) {
     elements.push(
       html` <${InlineSampleDisplay}
         index="0"
@@ -152,12 +158,12 @@ export const SamplesTab = ({
   }
 
   const title =
-    selectedSampleIndex > -1 && items.length > selectedSampleIndex
-      ? items[selectedSampleIndex].label
+    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
+      ? sampleItems[selectedSampleIndex].label
       : "";
   const index =
-    selectedSampleIndex > -1 && items.length > selectedSampleIndex
-      ? items[selectedSampleIndex].number
+    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
+      ? sampleItems[selectedSampleIndex].index
       : -1;
   elements.push(html`
     <${SampleDialog}

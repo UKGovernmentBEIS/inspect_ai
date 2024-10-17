@@ -17270,6 +17270,7 @@ const SamplesTab = ({
   context
 }) => {
   const [items, setItems] = h([]);
+  const [sampleItems, setSampleItems] = h([]);
   const sampleListRef = A(
     /** @type {HTMLElement|null} */
     null
@@ -17303,6 +17304,11 @@ const SamplesTab = ({
       return results;
     });
     setItems(items2);
+    setSampleItems(
+      items2.filter((item) => {
+        return item.type === "sample";
+      })
+    );
     if (items2.length) {
       setSelectedSampleIndex(0);
     }
@@ -17339,7 +17345,7 @@ const SamplesTab = ({
     }
   }, [selectedSampleIndex, samples, previousSampleIndex]);
   const elements = [];
-  if ((samples == null ? void 0 : samples.length) === 1 && items.length === 1) {
+  if ((samples == null ? void 0 : samples.length) === 1) {
     elements.push(
       m$1` <${InlineSampleDisplay}
         index="0"
@@ -17366,8 +17372,8 @@ const SamplesTab = ({
       />`
     );
   }
-  const title = selectedSampleIndex > -1 && items.length > selectedSampleIndex ? items[selectedSampleIndex].label : "";
-  const index = selectedSampleIndex > -1 && items.length > selectedSampleIndex ? items[selectedSampleIndex].number : -1;
+  const title = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
+  const index = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].index : -1;
   elements.push(m$1`
     <${SampleDialog}
       ref=${sampleDialogRef}
@@ -21380,10 +21386,23 @@ const clientApi = (api2) => {
   };
   const get_log = async (log_file) => {
     if (log_file !== current_path || !current_log) {
-      current_log = await api2.eval_log(log_file, 100);
+      if (pending_log_promise) {
+        return pending_log_promise;
+      }
+      pending_log_promise = api2.eval_log(log_file, 100).then((log) => {
+        current_log = log;
+        current_path = log_file;
+        pending_log_promise = null;
+        return log;
+      }).catch((err2) => {
+        pending_log_promise = null;
+        throw err2;
+      });
+      return pending_log_promise;
     }
     return current_log;
   };
+  let pending_log_promise = null;
   const get_log_summary = async (log_file) => {
     var _a2;
     current_path = log_file;
@@ -21566,206 +21585,180 @@ const WorkSpace = ({
     /** @type {HTMLElement|null} */
     null
   );
-  const [selectedTab, setSelectedTab] = h();
+  if (!evalSpec) {
+    return "";
+  }
+  const [selectedTab, setSelectedTab] = h(kEvalTabId);
   const [renderedCode, setRenderedCode] = h(false);
   y(() => {
-    const defaultTab = Object.values(tabs)[0].id;
-    setSelectedTab(defaultTab);
+    const showSamples = taskStatus !== "error" && samples && samples.length > 0;
+    setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
     setRenderedCode(false);
-  }, [divRef, task_id, setSelectedTab]);
-  const tabs = T(() => {
-    const resolvedTabs = {};
-    if (taskStatus !== "error" && samples) {
-      resolvedTabs.samples = {
-        id: kEvalTabId,
-        scrollable: samples.length === 1,
-        label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
-        content: () => {
-          return m$1` <${SamplesTab}
-            task=${task_id}
-            selectedScore=${score}
-            sample=${selectedSample}
-            sampleLoading=${sampleStatus === "loading"}
-            samples=${samples}
-            groupBy=${groupBy}
-            groupByOrder=${groupByOrder}
-            selectedSampleIndex=${selectedSampleIndex}
-            setSelectedSampleIndex=${setSelectedSampleIndex}
-            sampleDescriptor=${samplesDescriptor}
-            filter=${filter}
-            sort=${sort}
-            epoch=${epoch}
-            context=${renderContext}
-          />`;
-        },
-        tools: () => {
-          if (taskStatus === "started") {
-            return m$1`<${ToolButton}
-              name=${m$1`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${refreshLog}"
-            />`;
-          }
-          if ((samples == null ? void 0 : samples.length) <= 1) {
-            return "";
-          }
-          return m$1`<${SampleTools}
-            epoch=${epoch}
-            epochs=${epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
-            sampleDescriptor=${samplesDescriptor}
-          />`;
-        }
-      };
-    }
-    resolvedTabs.config = {
-      id: kInfoTabId,
-      label: "Info",
-      scrollable: true,
+  }, [divRef, task_id, samples, taskStatus, setSelectedTab]);
+  const resolvedTabs = {};
+  if (taskStatus !== "error" && samples && samples.length > 0) {
+    resolvedTabs.samples = {
+      id: kEvalTabId,
+      scrollable: samples.length === 1,
+      label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
       content: () => {
-        var _a2;
-        const infoCards = [];
-        infoCards.push([
-          m$1`<${PlanCard}
-            evalSpec=${evalSpec}
-            evalPlan=${evalPlan}
-            scores=${evalResults == null ? void 0 : evalResults.scores}
-            context=${renderContext}
-          />`
-        ]);
-        if (taskStatus !== "started") {
-          infoCards.push(
-            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-          );
-        }
-        if (taskStatus === "error" && taskError) {
-          infoCards.unshift(m$1`<${TaskErrorCard} evalError=${taskError} />`);
-        }
-        const warnings = [];
-        if ((!samples || samples.length) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && taskStatus !== "error") {
-          warnings.push(
-            m$1`<${WarningBand}
-              message="Unable to display samples (this evaluation log may be too large)."
-            />`
-          );
-        }
-        return m$1` <div style=${{ width: "100%" }}>
-          ${warnings}
-          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-            ${infoCards}
-          </div>
-        </div>`;
-      }
-    };
-    resolvedTabs.json = {
-      id: kJsonTabId,
-      label: "JSON",
-      scrollable: true,
-      content: () => {
-        const renderedContent = [];
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-          const file = `${filename(logFileName)}.json`;
-          renderedContent.push(
-            m$1`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${logFileName}
-              fileName=${file}
-              fileContents=${jsonText}
-            />`
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (jsonText.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism$1.highlight(
-                jsonText,
-                Prism$1.languages.javascript,
-                "javacript"
-              );
-            } else {
-              const textNode = document.createTextNode(jsonText);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            m$1`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere"
-            }}>
-            </code>
-          </pre>`
-          );
-        }
-        return m$1` <div
-          style=${{
-          padding: "1rem",
-          fontSize: FontSize.small,
-          width: "100%"
-        }}
-        >
-          ${renderedContent}
-        </div>`;
+        return m$1` <${SamplesTab}
+          task_id=${task_id}
+          selectedScore=${score}
+          sample=${selectedSample}
+          sampleLoading=${sampleStatus === "loading"}
+          samples=${samples}
+          groupBy=${groupBy}
+          groupByOrder=${groupByOrder}
+          selectedSampleIndex=${selectedSampleIndex}
+          setSelectedSampleIndex=${setSelectedSampleIndex}
+          sampleDescriptor=${samplesDescriptor}
+          filter=${filter}
+          sort=${sort}
+          epoch=${epoch}
+          context=${renderContext}
+        />`;
       },
       tools: () => {
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            m$1`<${ToolButton}
-              name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`
-          ];
+        if (taskStatus === "started") {
+          return m$1`<${ToolButton}
+            name=${m$1`Refresh`}
+            icon="${ApplicationIcons.refresh}"
+            onclick="${refreshLog}"
+          />`;
         }
+        if ((samples == null ? void 0 : samples.length) <= 1) {
+          return "";
+        }
+        return m$1`<${SampleTools}
+          epoch=${epoch}
+          epochs=${epochs}
+          setEpoch=${setEpoch}
+          filter=${filter}
+          filterChanged=${setFilter}
+          sort=${sort}
+          setSort=${setSort}
+          score=${score}
+          setScore=${setScore}
+          scores=${scores}
+          sampleDescriptor=${samplesDescriptor}
+        />`;
       }
     };
-    return resolvedTabs;
-  }, [
-    samplesDescriptor,
-    selectedSample,
-    samples,
-    groupBy,
-    groupByOrder,
-    evalSpec,
-    evalPlan,
-    evalResults,
-    evalStats,
-    taskStatus,
-    logFileName,
-    taskStatus,
-    taskError,
-    renderJson,
-    renderContext,
-    filter,
-    setFilter,
-    epoch,
-    setEpoch,
-    sort,
-    setSort,
-    renderedCode,
-    setRenderedCode,
-    selectedSampleIndex,
-    sampleStatus
-  ]);
+  }
+  resolvedTabs.config = {
+    id: kInfoTabId,
+    label: "Info",
+    scrollable: true,
+    content: () => {
+      var _a2;
+      const infoCards = [];
+      infoCards.push([
+        m$1`<${PlanCard}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          scores=${evalResults == null ? void 0 : evalResults.scores}
+          context=${renderContext}
+        />`
+      ]);
+      if (taskStatus !== "started") {
+        infoCards.push(
+          m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
+        );
+      }
+      if (taskStatus === "error" && taskError) {
+        infoCards.unshift(m$1`<${TaskErrorCard} evalError=${taskError} />`);
+      }
+      const warnings = [];
+      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && taskStatus !== "error") {
+        warnings.push(
+          m$1`<${WarningBand}
+            message="Unable to display samples (this evaluation log may be too large)."
+          />`
+        );
+      }
+      return m$1` <div style=${{ width: "100%" }}>
+        ${warnings}
+        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+          ${infoCards}
+        </div>
+      </div>`;
+    }
+  };
+  resolvedTabs.json = {
+    id: kJsonTabId,
+    label: "JSON",
+    scrollable: true,
+    content: () => {
+      const renderedContent = [];
+      const jsonText = renderJson();
+      if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+        const file = `${filename(logFileName)}.json`;
+        renderedContent.push(
+          m$1`<${DownloadPanel}
+            message="Log file raw JSON is too large to render."
+            buttonLabel="Download JSON File"
+            logFile=${logFileName}
+            fileName=${file}
+            fileContents=${jsonText}
+          />`
+        );
+      } else {
+        if (codeRef.current && !renderedCode) {
+          if (jsonText.length < kPrismRenderMaxSize) {
+            codeRef.current.innerHTML = Prism$1.highlight(
+              jsonText,
+              Prism$1.languages.javascript,
+              "javacript"
+            );
+          } else {
+            const textNode = document.createTextNode(jsonText);
+            codeRef.current.innerText = "";
+            codeRef.current.appendChild(textNode);
+          }
+          setRenderedCode(true);
+        }
+        renderedContent.push(
+          m$1`<pre>
+            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+            fontSize: FontSize.small,
+            whiteSpace: "pre-wrap",
+            wordWrap: "anywhere"
+          }}>
+            </code>
+          </pre>`
+        );
+      }
+      return m$1` <div
+        style=${{
+        padding: "1rem",
+        fontSize: FontSize.small,
+        width: "100%"
+      }}
+      >
+        ${renderedContent}
+      </div>`;
+    },
+    tools: () => {
+      const jsonText = renderJson();
+      if (jsonText.length > kJsonMaxSize) {
+        return [];
+      } else {
+        return [
+          m$1`<${ToolButton}
+            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`
+        ];
+      }
+    }
+  };
   const copyFeedback = q(
     (e2) => {
       const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
@@ -21786,8 +21779,8 @@ const WorkSpace = ({
     },
     [renderedCode]
   );
-  const tabTools = Object.keys(tabs).map((key2) => {
-    const tab = tabs[key2];
+  const tabTools = Object.keys(resolvedTabs).map((key2) => {
+    const tab = resolvedTabs[key2];
     return tab;
   }).filter((tab) => {
     return tab.id === selectedTab;
@@ -21807,7 +21800,7 @@ const WorkSpace = ({
     evalResults=${evalResults}
     samples=${samples}
     status=${taskStatus}
-    tabs=${tabs}
+    tabs=${resolvedTabs}
     selectedTab=${selectedTab}
     tabTools=${tabTools}
     showToggle=${showToggle}
@@ -22150,7 +22143,7 @@ function App({ api: api2, pollForLogs = true }) {
   }, [setEpoch, setFilter, setSort]);
   const mainAppRef = A();
   y(() => {
-    if (!selectedLog || selectedSampleIndex == -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
+    if (!selectedLog || selectedSampleIndex === -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
     if (selectedSampleIndex > -1 && selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {

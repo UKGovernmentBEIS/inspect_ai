@@ -221,7 +221,7 @@ export function App({ api, pollForLogs = true }) {
   useEffect(() => {
     if (
       !selectedLog ||
-      selectedSampleIndex == -1 ||
+      selectedSampleIndex === -1 ||
       loadingSampleIndexRef.current === selectedSampleIndex
     ) {
       // If already loading the selected sample, do nothing
