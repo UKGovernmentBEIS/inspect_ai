@@ -4,11 +4,13 @@
 
 - Cleanup Docker Containers immediately for samples with errors.
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
+- Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
 - Requirements: require semver>=3.0.0
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Call tools sequentially when they have opted out of parallel calling.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
 - Bugfix: ensure that log directories don't end in forward/back slash.
