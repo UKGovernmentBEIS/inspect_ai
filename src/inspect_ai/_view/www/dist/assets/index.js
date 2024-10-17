@@ -21405,7 +21405,6 @@ const clientApi = (api2) => {
   let pending_log_promise = null;
   const get_log_summary = async (log_file) => {
     var _a2;
-    current_path = log_file;
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
       return await remoteLogFile.readLogSummary();
@@ -22143,10 +22142,14 @@ function App({ api: api2, pollForLogs = true }) {
   }, [setEpoch, setFilter, setSort]);
   const mainAppRef = A();
   y(() => {
-    if (!selectedLog || selectedSampleIndex === -1 || loadingSampleIndexRef.current === selectedSampleIndex) {
+    if (!selectedLog || selectedSampleIndex === -1) {
+      setSelectedSample(void 0);
       return;
     }
-    if (selectedSampleIndex > -1 && selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
+    if (loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSelectedSample(void 0);

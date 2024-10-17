@@ -50,9 +50,8 @@ export const clientApi = (api) => {
         .eval_log(log_file, 100)
         .then((log) => {
           current_log = log;
-          console.log({current_log});
           current_path = log_file;
-          pending_log_promise = null; 
+          pending_log_promise = null;
           return log;
         })
         .catch((err) => {

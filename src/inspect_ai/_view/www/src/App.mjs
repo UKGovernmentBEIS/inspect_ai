@@ -224,7 +224,7 @@ export function App({ api, pollForLogs = true }) {
       setSelectedSample(undefined);
       return;
     }
-    
+
     // If already loading the selected sample, do nothing
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
