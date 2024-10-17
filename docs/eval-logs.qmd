@@ -102,14 +102,14 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 
 | Field | Type | Description |
 |-------------------|--------------------|---------------------------------|
+| `version` | `int` | File format version (currently 2). |
 | `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
 | `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
 | `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
-| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
-| `logging` | `list[LoggingMessage]` | Logging messages (e.g. from `log.info()`, `log.debug()`, etc. |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
+| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
 
 Before analysing results from a log, you should always check their status to ensure they represent a successful run:
 
@@ -125,9 +125,10 @@ You can enumerate, read, and write `EvalLog` objects using the following helper 
 
 | Function | Description |
 |-------------------------------|-----------------------------------------|
-| `list_eval_logs()` | List all of the eval logs at a given location. |
-| `read_eval_log(log_file)` | Read an `EvalLog` from a log file path. |
-| `write_eval_log(log, log_file)` | Write an `EvalLog` to a log file path. |
+| `list_eval_logs` | List all of the eval logs at a given location. |
+| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
+| `read_eval_log_sample` | Read a single `EvalSample` from a log file (works only for `eval` file format). |
+| `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
 

@@ -6,6 +6,7 @@ from ._file import (
     EvalLogInfo,
     list_eval_logs,
     read_eval_log,
+    read_eval_log_sample,
     write_eval_log,
     write_log_dir_manifest,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "convert_eval_logs",
     "list_eval_logs",
     "read_eval_log",
+    "read_eval_log_sample",
     "write_eval_log",
     "write_log_dir_manifest",
     "retryable_eval_logs",

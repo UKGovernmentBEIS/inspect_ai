@@ -48,4 +48,10 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
+    def read_log_sample(
+        cls, location: str, id: str | int, epoch: int = 1
+    ) -> EvalSample: ...
+
+    @classmethod
+    @abc.abstractmethod
     def write_log(cls, location: str, log: EvalLog) -> None: ...

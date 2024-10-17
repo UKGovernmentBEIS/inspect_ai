@@ -11,7 +11,7 @@ from inspect_ai._util.file import (
     filesystem,
 )
 
-from ._log import EvalLog
+from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
 
 
@@ -169,6 +169,34 @@ def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+
+
+def read_eval_log_sample(
+    log_file: str | FileInfo,
+    id: int | str,
+    epoch: int = 1,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> EvalSample:
+    """Read a sample from an evaluation log.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       id (int | str): Sample id to read.
+       epoch (int): Epoch for sample id (defaults to 1)
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       EvalSample object read from file.
+    """
+    # resolve to file path
+    log_file = log_file if isinstance(log_file, str) else log_file.name
+
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    return recorder_type.read_log_sample(log_file, id, epoch)
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

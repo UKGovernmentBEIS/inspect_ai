@@ -1,5 +1,6 @@
 import math
 import os
+import tempfile
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -7,6 +8,7 @@ from pydantic_core import PydanticSerializationError
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
+from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
 from inspect_ai.solver import (
     Generate,
@@ -73,6 +75,19 @@ def test_valid_log_header():
 def test_migrate_length_stop_reason():
     log = read_log(log_path("log_length_stop_reason"))
     assert log.samples[0].output.stop_reason == "max_tokens"
+
+
+def test_read_sample():
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    with pytest.raises(Exception):
+        read_eval_log_sample(log_file, 1, 1)
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        log = read_eval_log(log_file)
+        eval_log_path = os.path.join(tmpdirname, "new_log.eval")
+        write_eval_log(log, eval_log_path)
+        sample = read_eval_log_sample(eval_log_path, 1, 1)
+        assert sample.target == " Yes"
 
 
 def check_log_raises(log_file):

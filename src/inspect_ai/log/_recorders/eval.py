@@ -205,6 +205,16 @@ class EvalRecorder(FileRecorder):
                 samples=samples,
             )
 
+    @override
+    @classmethod
+    def read_log_sample(
+        cls, location: str, id: str | int, epoch: int = 1
+    ) -> EvalSample:
+        with file(location, "rb") as z:
+            with ZipFile(z, mode="r") as zip:
+                with zip.open(sample_filename(id, epoch), "r") as f:
+                    return EvalSample(**json.load(f))
+
     @classmethod
     @override
     def write_log(cls, location: str, log: EvalLog) -> None:
@@ -230,7 +240,7 @@ class EvalRecorder(FileRecorder):
         summaries: list[SampleSummary] = []
         for sample in log.samples:
             # Write the sample
-            self._write(eval, sample_filename(sample), sample)
+            self._write(eval, sample_filename(sample.id, sample.epoch), sample)
 
             # Capture the summary
             summaries.append(
@@ -259,8 +269,8 @@ def zip_write(zip: ZipFile, filename: str, data: Any) -> None:
     )
 
 
-def sample_filename(sample: EvalSample) -> str:
-    return f"{SAMPLES_DIR}/{sample.id}_epoch_{sample.epoch}.json"
+def sample_filename(id: str | int, epoch: int) -> str:
+    return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
 
 
 def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
