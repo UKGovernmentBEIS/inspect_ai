@@ -27,7 +27,7 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.rundir import task_run_dir_switching
-from .task.sandbox import resolve_sandbox_for_task
+from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
 from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
@@ -310,7 +310,7 @@ async def startup_sandbox_environments(
     tasks: list[ResolvedTask], cleanup: bool
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
-    sandboxenvs: Set[tuple[str, str | None, str]] = set()
+    sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
         for sample in task.task.dataset:
@@ -322,16 +322,16 @@ async def startup_sandbox_environments(
     cleanups: list[tuple[TaskCleanup, str | None, str]] = []
     for sandboxenv in sandboxenvs:
         # find type
-        sandboxenv_type = registry_find_sandboxenv(sandboxenv[0])
+        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
         # run startup
         task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv[2]):
-            await task_init("startup", sandboxenv[1])
+        with chdir(sandboxenv.run_dir):
+            await task_init("startup", sandboxenv.sandbox.config)
 
         # append cleanup method
         task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-        cleanups.append((task_cleanup, sandboxenv[1], sandboxenv[2]))
+        cleanups.append((task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir))
 
     # return shutdown method
     async def shutdown() -> None:

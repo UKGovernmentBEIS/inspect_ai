@@ -37,6 +37,7 @@ from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
 from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 class TaskLogger:
@@ -50,7 +51,7 @@ class TaskLogger:
         solver: SolverSpec | None,
         model: Model,
         dataset: Dataset,
-        sandbox: tuple[str, str | None] | None,
+        sandbox: SandboxEnvironmentSpec | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
         model_args: dict[str, Any],
@@ -71,6 +72,12 @@ class TaskLogger:
         model_args = model_args.copy()
         if "api_key" in model_args:
             del model_args["api_key"]
+
+        # cwd_relative_path for sandbox config
+        if sandbox and sandbox.config:
+            sandbox = SandboxEnvironmentSpec(
+                sandbox.type, cwd_relative_path(sandbox.config)
+            )
 
         # create eval spec
         self.eval = EvalSpec(
@@ -155,11 +162,7 @@ class TaskLogger:
                 choices=sample.choices,
                 target=sample.target,
                 metadata=state.metadata if state.metadata else {},
-                sandbox=(
-                    (sample.sandbox, None)
-                    if isinstance(sample.sandbox, str)
-                    else sample.sandbox
-                ),
+                sandbox=sample.sandbox,
                 files=list(sample.files.keys()) if sample.files else None,
                 setup=sample.setup,
                 messages=state.messages,

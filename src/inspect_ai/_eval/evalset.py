@@ -33,7 +33,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentType
 
 from .eval import eval, eval_init
 from .loader import ResolvedTask, resolve_task_args
@@ -54,7 +54,7 @@ def eval_set(
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     trace: bool | None = None,
@@ -101,8 +101,8 @@ def eval_set(
             with the model API.
         model_args (dict[str,Any]): Model creation parameters
         task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironmentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for

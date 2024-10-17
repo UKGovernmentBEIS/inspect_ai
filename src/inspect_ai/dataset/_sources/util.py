@@ -3,6 +3,7 @@ from typing import Callable
 from inspect_ai._util.content import Content, ContentImage
 from inspect_ai._util.file import filesystem
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .._dataset import Dataset
 
@@ -33,8 +34,10 @@ def resolve_sample_files(dataset: Dataset) -> None:
     # for each sample
     for sample in dataset:
         # check for sandbox config file
-        if isinstance(sample.sandbox, tuple) and sample.sandbox[1] is not None:
-            sample.sandbox = (sample.sandbox[0], resolve_file(sample.sandbox[1]))
+        if sample.sandbox and sample.sandbox.config is not None:
+            sample.sandbox = SandboxEnvironmentSpec(
+                sample.sandbox.type, resolve_file(sample.sandbox.config)
+            )
 
         # check for files
         if sample.files is not None:
