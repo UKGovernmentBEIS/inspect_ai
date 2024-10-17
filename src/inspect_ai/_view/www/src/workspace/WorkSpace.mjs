@@ -1,13 +1,7 @@
 /// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
 import { html } from "htm/preact";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -69,7 +63,7 @@ const kJsonMaxSize = 10000000;
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @param {() => string} props.renderJson - function to render json raw text
- * @returns {import("preact").JSX.Element} The TranscriptView component.
+ * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
   task_id,
@@ -108,8 +102,12 @@ export const WorkSpace = ({
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
   const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
+  if (!evalSpec) {
+    return "";
+  }
+
   // State tracking for the view
-  const [selectedTab, setSelectedTab] = useState();
+  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
 
   /**
    * @type {[boolean, function(boolean): void]}
@@ -118,230 +116,200 @@ export const WorkSpace = ({
 
   // Display the log
   useEffect(() => {
-    const defaultTab = Object.values(tabs)[0].id;
-    setSelectedTab(defaultTab);
+    const showSamples = taskStatus !== "error" && samples && samples.length > 0;
+    setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
     setRenderedCode(false);
-  }, [divRef, task_id, setSelectedTab]);
+  }, [divRef, task_id, samples, taskStatus, setSelectedTab]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
   // when it is displayed
-  const tabs = useMemo(() => {
-    const resolvedTabs = {};
+  const resolvedTabs = {};
 
-    // The samples tab
-    // Currently only appears when the result is successful
-    if (taskStatus !== "error" && samples) {
-      resolvedTabs.samples = {
-        id: kEvalTabId,
-        scrollable: samples.length === 1,
-        label: samples?.length > 1 ? "Samples" : "Sample",
-        content: () => {
-          return html` <${SamplesTab}
-            task=${task_id}
-            selectedScore=${score}
-            sample=${selectedSample}
-            sampleLoading=${sampleStatus === "loading"}
-            samples=${samples}
-            groupBy=${groupBy}
-            groupByOrder=${groupByOrder}
-            selectedSampleIndex=${selectedSampleIndex}
-            setSelectedSampleIndex=${setSelectedSampleIndex}
-            sampleDescriptor=${samplesDescriptor}
-            filter=${filter}
-            sort=${sort}
-            epoch=${epoch}
-            context=${renderContext}
-          />`;
-        },
-        tools: () => {
-          if (taskStatus === "started") {
-            return html`<${ToolButton}
-              name=${html`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${refreshLog}"
-            />`;
-          }
-
-          // Don't show tools if there is a sample sample
-          if (samples?.length <= 1) {
-            return "";
-          }
-          return html`<${SampleTools}
-            epoch=${epoch}
-            epochs=${epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
-            sampleDescriptor=${samplesDescriptor}
-          />`;
-        },
-      };
-    }
-
-    // The info tab
-    resolvedTabs.config = {
-      id: kInfoTabId,
-      label: "Info",
-      scrollable: true,
+  // The samples tab
+  // Currently only appears when the result is successful
+  if (taskStatus !== "error" && samples && samples.length > 0) {
+    resolvedTabs.samples = {
+      id: kEvalTabId,
+      scrollable: samples.length === 1,
+      label: samples?.length > 1 ? "Samples" : "Sample",
       content: () => {
-        const infoCards = [];
-        infoCards.push([
-          html`<${PlanCard}
-            evalSpec=${evalSpec}
-            evalPlan=${evalPlan}
-            scores=${evalResults?.scores}
-            context=${renderContext}
-          />`,
-        ]);
-
-        if (taskStatus !== "started") {
-          infoCards.push(
-            html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
-          );
-        }
-
-        // If there is error or progress, includes those within info
-        if (taskStatus === "error" && taskError) {
-          infoCards.unshift(html`<${TaskErrorCard} evalError=${taskError} />`);
-        }
-
-        const warnings = [];
-        if (
-          (!samples || samples.length) &&
-          evalSpec?.dataset?.samples > 0 &&
-          taskStatus !== "error"
-        ) {
-          warnings.push(
-            html`<${WarningBand}
-              message="Unable to display samples (this evaluation log may be too large)."
-            />`,
-          );
-        }
-
-        return html` <div style=${{ width: "100%" }}>
-          ${warnings}
-          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-            ${infoCards}
-          </div>
-        </div>`;
-      },
-    };
-
-    // The JSON Tab
-    resolvedTabs.json = {
-      id: kJsonTabId,
-      label: "JSON",
-      scrollable: true,
-      content: () => {
-        const renderedContent = [];
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-          // This JSON file is so large we can't really productively render it
-          // we should instead just provide a DL link
-          const file = `${filename(logFileName)}.json`;
-          renderedContent.push(
-            html`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${logFileName}
-              fileName=${file}
-              fileContents=${jsonText}
-            />`,
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (jsonText.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism.highlight(
-                jsonText,
-                Prism.languages.javascript,
-                "javacript",
-              );
-            } else {
-              const textNode = document.createTextNode(jsonText);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            html`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere",
-            }}>
-            </code>
-          </pre>`,
-          );
-        }
-
-        // note that we'e rendered
-        return html` <div
-          style=${{
-            padding: "1rem",
-            fontSize: FontSize.small,
-            width: "100%",
-          }}
-        >
-          ${renderedContent}
-        </div>`;
+        return html` <${SamplesTab}
+          task_id=${task_id}
+          selectedScore=${score}
+          sample=${selectedSample}
+          sampleLoading=${sampleStatus === "loading"}
+          samples=${samples}
+          groupBy=${groupBy}
+          groupByOrder=${groupByOrder}
+          selectedSampleIndex=${selectedSampleIndex}
+          setSelectedSampleIndex=${setSelectedSampleIndex}
+          sampleDescriptor=${samplesDescriptor}
+          filter=${filter}
+          sort=${sort}
+          epoch=${epoch}
+          context=${renderContext}
+        />`;
       },
       tools: () => {
-        const jsonText = renderJson();
-        if (jsonText.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            html`<${ToolButton}
-              name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`,
-          ];
+        if (taskStatus === "started") {
+          return html`<${ToolButton}
+            name=${html`Refresh`}
+            icon="${ApplicationIcons.refresh}"
+            onclick="${refreshLog}"
+          />`;
         }
+
+        // Don't show tools if there is a single sample
+        if (samples?.length <= 1) {
+          return "";
+        }
+        return html`<${SampleTools}
+          epoch=${epoch}
+          epochs=${epochs}
+          setEpoch=${setEpoch}
+          filter=${filter}
+          filterChanged=${setFilter}
+          sort=${sort}
+          setSort=${setSort}
+          score=${score}
+          setScore=${setScore}
+          scores=${scores}
+          sampleDescriptor=${samplesDescriptor}
+        />`;
       },
     };
+  }
 
-    return resolvedTabs;
-  }, [
-    samplesDescriptor,
-    selectedSample,
-    samples,
-    groupBy,
-    groupByOrder,
-    evalSpec,
-    evalPlan,
-    evalResults,
-    evalStats,
-    taskStatus,
-    logFileName,
-    taskStatus,
-    taskError,
-    renderJson,
-    renderContext,
-    filter,
-    setFilter,
-    epoch,
-    setEpoch,
-    sort,
-    setSort,
-    renderedCode,
-    setRenderedCode,
-    selectedSampleIndex,
-    sampleStatus,
-  ]);
+  // The info tab
+  resolvedTabs.config = {
+    id: kInfoTabId,
+    label: "Info",
+    scrollable: true,
+    content: () => {
+      const infoCards = [];
+      infoCards.push([
+        html`<${PlanCard}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          scores=${evalResults?.scores}
+          context=${renderContext}
+        />`,
+      ]);
+
+      if (taskStatus !== "started") {
+        infoCards.push(
+          html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
+        );
+      }
+
+      // If there is error or progress, includes those within info
+      if (taskStatus === "error" && taskError) {
+        infoCards.unshift(html`<${TaskErrorCard} evalError=${taskError} />`);
+      }
+
+      const warnings = [];
+      if (
+        (!samples || samples.length === 0) &&
+        evalSpec?.dataset?.samples > 0 &&
+        taskStatus !== "error"
+      ) {
+        warnings.push(
+          html`<${WarningBand}
+            message="Unable to display samples (this evaluation log may be too large)."
+          />`,
+        );
+      }
+
+      return html` <div style=${{ width: "100%" }}>
+        ${warnings}
+        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+          ${infoCards}
+        </div>
+      </div>`;
+    },
+  };
+
+  // The JSON Tab
+  resolvedTabs.json = {
+    id: kJsonTabId,
+    label: "JSON",
+    scrollable: true,
+    content: () => {
+      const renderedContent = [];
+      const jsonText = renderJson();
+      if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+        // This JSON file is so large we can't really productively render it
+        // we should instead just provide a DL link
+        const file = `${filename(logFileName)}.json`;
+        renderedContent.push(
+          html`<${DownloadPanel}
+            message="Log file raw JSON is too large to render."
+            buttonLabel="Download JSON File"
+            logFile=${logFileName}
+            fileName=${file}
+            fileContents=${jsonText}
+          />`,
+        );
+      } else {
+        if (codeRef.current && !renderedCode) {
+          if (jsonText.length < kPrismRenderMaxSize) {
+            codeRef.current.innerHTML = Prism.highlight(
+              jsonText,
+              Prism.languages.javascript,
+              "javacript",
+            );
+          } else {
+            const textNode = document.createTextNode(jsonText);
+            codeRef.current.innerText = "";
+            codeRef.current.appendChild(textNode);
+          }
+
+          setRenderedCode(true);
+        }
+        renderedContent.push(
+          html`<pre>
+            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+            fontSize: FontSize.small,
+            whiteSpace: "pre-wrap",
+            wordWrap: "anywhere",
+          }}>
+            </code>
+          </pre>`,
+        );
+      }
+
+      // note that we'e rendered
+      return html` <div
+        style=${{
+          padding: "1rem",
+          fontSize: FontSize.small,
+          width: "100%",
+        }}
+      >
+        ${renderedContent}
+      </div>`;
+    },
+    tools: () => {
+      const jsonText = renderJson();
+      if (jsonText.length > kJsonMaxSize) {
+        return [];
+      } else {
+        return [
+          html`<${ToolButton}
+            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`,
+        ];
+      }
+    },
+  };
 
   const copyFeedback = useCallback(
     (e) => {
@@ -365,9 +333,9 @@ export const WorkSpace = ({
   );
 
   // Compute the tools for this tab
-  const tabTools = Object.keys(tabs)
+  const tabTools = Object.keys(resolvedTabs)
     .map((key) => {
-      const tab = tabs[key];
+      const tab = resolvedTabs[key];
       return tab;
     })
     .filter((tab) => {
@@ -390,7 +358,7 @@ export const WorkSpace = ({
     evalResults=${evalResults}
     samples=${samples}
     status=${taskStatus}
-    tabs=${tabs}
+    tabs=${resolvedTabs}
     selectedTab=${selectedTab}
     tabTools=${tabTools}
     showToggle=${showToggle}
