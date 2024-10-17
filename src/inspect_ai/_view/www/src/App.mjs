@@ -219,19 +219,18 @@ export function App({ api, pollForLogs = true }) {
 
   // Loads a sample
   useEffect(() => {
-    if (
-      !selectedLog ||
-      selectedSampleIndex === -1 ||
-      loadingSampleIndexRef.current === selectedSampleIndex
-    ) {
-      // If already loading the selected sample, do nothing
+    // Clear the selected sample
+    if (!selectedLog || selectedSampleIndex === -1) {
+      setSelectedSample(undefined);
+      return;
+    }
+    
+    // If already loading the selected sample, do nothing
+    if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
 
-    if (
-      selectedSampleIndex > -1 &&
-      selectedSampleIndex < selectedLog.contents.sampleSummaries.length
-    ) {
+    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
