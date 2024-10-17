@@ -392,6 +392,11 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
         return {"type": "auto"}
 
 
+# text we insert when there is no content passed
+# (as this will result in an Anthropic API error)
+NO_CONTENT = "(no content)"
+
+
 async def message_param(message: ChatMessage) -> MessageParam:
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
@@ -412,7 +417,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             if not content:
                 content = "error"
         elif isinstance(message.content, str):
-            content = [TextBlockParam(type="text", text=message.content)]
+            content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
                 await message_param_content(content) for content in message.content
@@ -465,7 +470,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # normal text content
     elif isinstance(message.content, str):
-        return MessageParam(role=message.role, content=message.content)
+        return MessageParam(role=message.role, content=message.content or NO_CONTENT)
 
     # mixed text/images
     else:
@@ -561,7 +566,7 @@ async def message_param_content(
     content: Content,
 ) -> TextBlockParam | ImageBlockParam:
     if isinstance(content, ContentText):
-        return TextBlockParam(type="text", text=content.text)
+        return TextBlockParam(type="text", text=content.text or NO_CONTENT)
     else:
         # resolve to url
         image = content.image

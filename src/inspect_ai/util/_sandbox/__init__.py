@@ -2,7 +2,12 @@
 
 from .context import sandbox, sandbox_with
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
-from .environment import SandboxEnvironment, SandboxEnvironments, SandboxEnvironmentSpec
+from .environment import (
+    SandboxEnvironment,
+    SandboxEnvironments,
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
+)
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
 
@@ -10,6 +15,7 @@ __all__ = [
     "SandboxEnvironment",
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
+    "SandboxEnvironmentType",
     "sandboxenv",
     "sandbox",
     "sandbox_with",
