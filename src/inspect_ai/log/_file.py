@@ -298,7 +298,7 @@ class FileRecorder(Recorder):
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
     ) -> None:
         super().__init__()
-        self.log_dir = log_dir
+        self.log_dir = log_dir.rstrip("/\\")
         self.fs = filesystem(log_dir, fs_options)
         self.fs.mkdir(self.log_dir, exist_ok=True)
         self.suffix = suffix

@@ -391,7 +391,7 @@ def eval_events(events: list[Event], log_images: bool) -> EvalEvents:
 def eval_events_with_content(events: EvalEvents) -> list[Event]:
     def content_fn(text: str) -> str:
         if text.startswith(CONTENT_PROTOCOL):
-            return events.content.get(text, text)
+            return events.content.get(text.replace(CONTENT_PROTOCOL, "", 1), text)
         else:
             return text
 
