@@ -16438,7 +16438,8 @@ const InlineSampleDisplay = ({
   index,
   id,
   sample,
-  loading,
+  sampleStatus,
+  sampleError,
   sampleDescriptor,
   context
 }) => {
@@ -16446,20 +16447,22 @@ const InlineSampleDisplay = ({
     style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
     <${ProgressBar}
-      animating=${loading}
+      animating=${sampleStatus === "loading"}
       containerStyle=${{
     background: "var(--bs-body-bg)"
   }}
     />
     <div style=${{ height: "1em" }} />
-    ${sample ? m$1` <${SampleDisplay}
+    ${sampleError ? m$1`<${ErrorPanel}
+          title="Unable to load sample"
+          error=${sampleError}
+        />` : m$1` <${SampleDisplay}
           index=${index}
           id=${id}
           sample=${sample}
-          loading=${loading}
           sampleDescriptor=${sampleDescriptor}
           context=${context}
-        />` : ""}
+        />`}
   </div>`;
 };
 const SampleDisplay = ({
@@ -16475,6 +16478,9 @@ const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
+  if (!sample) {
+    return m$1`<${EmptyPanel} />`;
+  }
   y(() => {
     if (!visible) {
       setSelectedTab(void 0);
@@ -16791,7 +16797,8 @@ const SampleDialog = (props) => {
     prevSample,
     sampleDialogVisible,
     hideSample,
-    loading,
+    sampleStatus,
+    sampleError,
     context
   } = props;
   const tools = T(() => {
@@ -16840,19 +16847,16 @@ const SampleDialog = (props) => {
       onkeyup=${handleKeyUp}   
       visible=${sampleDialogVisible}
       onHide=${hideSample}
-      showProgress=${loading}
+      showProgress=${sampleStatus === "loading"}
     >
-      ${sample ? m$1`<${SampleDisplay}
-              index=${index}
-              id=${id}
-              sample=${sample}
-              sampleDescriptor=${sampleDescriptor}
-              loading=${loading}
-              visible=${sampleDialogVisible}
-              context=${context}
-            />` : m$1`<${EmptyPanel}></${EmptyPanel}>`}
-      
-
+        ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
+                index=${index}
+                id=${id}
+                sample=${sample}
+                sampleDescriptor=${sampleDescriptor}
+                visible=${sampleDialogVisible}
+                context=${context}
+              />`}
     </${LargeModal}>`;
 };
 const STYLE_INNER = "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -17265,8 +17269,8 @@ const SamplesTab = ({
   groupByOrder,
   sampleDescriptor,
   selectedScore,
-  sampleLoading,
-  // TODO: status
+  sampleStatus,
+  sampleError,
   selectedSampleIndex,
   setSelectedSampleIndex,
   context
@@ -17349,7 +17353,8 @@ const SamplesTab = ({
         key=${`${task_id}-single-sample`}
         id="sample-display"
         sample=${sample}
-        loading=${sampleLoading}
+        sampleStatus=${sampleStatus}
+        sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
         context=${context}
       />`
@@ -17378,7 +17383,8 @@ const SamplesTab = ({
       title=${title}
       index=${index}
       sample=${sample}
-      loading=${sampleLoading}
+      sampleStatus=${sampleStatus}
+      sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
@@ -21645,6 +21651,7 @@ const WorkSpace = ({
   selectedSampleIndex,
   setSelectedSampleIndex,
   sampleStatus,
+  sampleError,
   sort,
   setSort,
   epochs,
@@ -21687,7 +21694,8 @@ const WorkSpace = ({
           task_id=${task_id}
           selectedScore=${score}
           sample=${selectedSample}
-          sampleLoading=${sampleStatus === "loading"}
+          sampleStatus=${sampleStatus}
+          sampleError=${sampleError}
           samples=${samples}
           groupBy=${groupBy}
           groupByOrder=${groupByOrder}
@@ -22075,6 +22083,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
   const [selectedSample, setSelectedSample] = h(void 0);
   const [sampleStatus, setSampleStatus] = h(void 0);
+  const [sampleError, setSampleError] = h(void 0);
   const loadingSampleIndexRef = A(null);
   const loadedSampleIndexRef = A(null);
   const [status, setStatus] = h({
@@ -22188,15 +22197,17 @@ function App({ api: api2, pollForLogs = true }) {
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
+      setSampleError(void 0);
       const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
         loadedSampleIndexRef.current = selectedSampleIndex;
         setSelectedSample(sample);
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
-      }).catch(() => {
+      }).catch((e2) => {
+        setSampleStatus("error");
+        setSampleError(e2);
         setSelectedSample(void 0);
-        loadedSampleIndexRef.current = null;
         loadingSampleIndexRef.current = null;
       });
     }
@@ -22205,7 +22216,8 @@ function App({ api: api2, pollForLogs = true }) {
     selectedLog,
     filteredSamples,
     setSelectedSample,
-    setSampleStatus
+    setSampleStatus,
+    setSampleError
   ]);
   y(() => {
     const loadHeaders = async () => {
@@ -22511,6 +22523,7 @@ function App({ api: api2, pollForLogs = true }) {
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
+              sampleError=${sampleError}
               samplesDescriptor=${samplesDescriptor}
               refreshLog=${refreshLog}
               offcanvas=${offcanvas}

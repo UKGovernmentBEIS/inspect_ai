@@ -18,7 +18,8 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
  * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
  * @param {import("../Types.mjs").RenderContext} props.context - the app context
- * @param {boolean} props.sampleLoading - whether the sample is loading
+ * @param {string} props.sampleStatus - whether the sample is loading
+ * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
  *
@@ -36,7 +37,8 @@ export const SamplesTab = ({
   groupByOrder,
   sampleDescriptor,
   selectedScore,
-  sampleLoading, // TODO: status
+  sampleStatus,
+  sampleError,
   selectedSampleIndex,
   setSelectedSampleIndex,
   context,
@@ -131,7 +133,8 @@ export const SamplesTab = ({
         key=${`${task_id}-single-sample`}
         id="sample-display"
         sample=${sample}
-        loading=${sampleLoading}
+        sampleStatus=${sampleStatus}
+        sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
         context=${context}
       />`,
@@ -167,7 +170,8 @@ export const SamplesTab = ({
       title=${title}
       index=${index}
       sample=${sample}
-      loading=${sampleLoading}
+      sampleStatus=${sampleStatus}
+      sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}

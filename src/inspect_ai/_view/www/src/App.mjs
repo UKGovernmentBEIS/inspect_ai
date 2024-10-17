@@ -60,6 +60,7 @@ export function App({ api, pollForLogs = true }) {
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
   const [selectedSample, setSelectedSample] = useState(undefined);
   const [sampleStatus, setSampleStatus] = useState(undefined);
+  const [sampleError, setSampleError] = useState(undefined);
   const loadingSampleIndexRef = useRef(null);
   const loadedSampleIndexRef = useRef(null);
 
@@ -240,6 +241,7 @@ export function App({ api, pollForLogs = true }) {
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
+      setSampleError(undefined);
 
       const summary = filteredSamples[selectedSampleIndex];
       api
@@ -250,9 +252,10 @@ export function App({ api, pollForLogs = true }) {
           setSampleStatus("ok");
           loadingSampleIndexRef.current = null;
         })
-        .catch(() => {
+        .catch((e) => {
+          setSampleStatus("error");
+          setSampleError(e);
           setSelectedSample(undefined);
-          loadedSampleIndexRef.current = null;
           loadingSampleIndexRef.current = null;
         });
     }
@@ -262,6 +265,7 @@ export function App({ api, pollForLogs = true }) {
     filteredSamples,
     setSelectedSample,
     setSampleStatus,
+    setSampleError,
   ]);
 
   // Read header information for the logs
@@ -636,6 +640,7 @@ export function App({ api, pollForLogs = true }) {
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
+              sampleError=${sampleError}
               samplesDescriptor=${samplesDescriptor}
               refreshLog=${refreshLog}
               offcanvas=${offcanvas}

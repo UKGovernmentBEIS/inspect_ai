@@ -5,7 +5,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
 
 import { SampleDisplay } from "./SampleDisplay.mjs";
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { ErrorPanel } from "../components/ErrorPanel.mjs";
 
 export const SampleDialog = (props) => {
   const {
@@ -18,7 +18,8 @@ export const SampleDialog = (props) => {
     prevSample,
     sampleDialogVisible,
     hideSample,
-    loading,
+    sampleStatus,
+    sampleError,
     context,
   } = props;
 
@@ -73,22 +74,19 @@ export const SampleDialog = (props) => {
       onkeyup=${handleKeyUp}   
       visible=${sampleDialogVisible}
       onHide=${hideSample}
-      showProgress=${loading}
+      showProgress=${sampleStatus === "loading"}
     >
-      ${
-        sample
-          ? html`<${SampleDisplay}
-              index=${index}
-              id=${id}
-              sample=${sample}
-              sampleDescriptor=${sampleDescriptor}
-              loading=${loading}
-              visible=${sampleDialogVisible}
-              context=${context}
-            />`
-          : html`<${EmptyPanel}></${EmptyPanel}>`
-      }
-      
-
+        ${
+          sampleError
+            ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
+            : html`<${SampleDisplay}
+                index=${index}
+                id=${id}
+                sample=${sample}
+                sampleDescriptor=${sampleDescriptor}
+                visible=${sampleDialogVisible}
+                context=${context}
+              />`
+        }
     </${LargeModal}>`;
 };

@@ -23,6 +23,8 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
 import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
+import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { EmptyPanel } from "../components/EmptyPanel.mjs";
 
 /**
  * Inline Sample Display
@@ -30,7 +32,8 @@ import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
  * @param {Object} props - The parameters for the component.
  * @param {number} props.index - The task index
  * @param {string} props.id - The task id
- * @param {boolean} props.loading - is the sample loading?
+ * @param {string} props.sampleStatus - the sample status
+ * @param {Error} [props.sampleError] - sample error
  * @param {import("../types/log").Sample} [props.sample] - the sample
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {import("../Types.mjs").RenderContext} props.context - the app context
@@ -40,7 +43,8 @@ export const InlineSampleDisplay = ({
   index,
   id,
   sample,
-  loading,
+  sampleStatus,
+  sampleError,
   sampleDescriptor,
   context,
 }) => {
@@ -48,22 +52,24 @@ export const InlineSampleDisplay = ({
     style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
     <${ProgressBar}
-      animating=${loading}
+      animating=${sampleStatus === "loading"}
       containerStyle=${{
         background: "var(--bs-body-bg)",
       }}
     />
     <div style=${{ height: "1em" }} />
-    ${sample
-      ? html` <${SampleDisplay}
+    ${sampleError
+      ? html`<${ErrorPanel}
+          title="Unable to load sample"
+          error=${sampleError}
+        />`
+      : html` <${SampleDisplay}
           index=${index}
           id=${id}
           sample=${sample}
-          loading=${loading}
           sampleDescriptor=${sampleDescriptor}
           context=${context}
-        />`
-      : ""}
+        />`}
   </div>`;
 };
 
@@ -81,6 +87,11 @@ export const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
+
+  if (!sample) {
+    // Placeholder
+    return html`<${EmptyPanel} />`;
+  }
 
   // Upon new dialog
   useEffect(() => {

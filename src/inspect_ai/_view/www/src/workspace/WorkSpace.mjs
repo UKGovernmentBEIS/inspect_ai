@@ -39,6 +39,7 @@ const kInfoTabId = "plan-tab";
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
  * @param {string} props.sampleStatus - whether a sample is loading
+ * @param {Error} [props.sampleError] - sample error
  * @param {boolean} props.showToggle - whether to show the toggler
  * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
  * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
@@ -82,6 +83,7 @@ export const WorkSpace = ({
   selectedSampleIndex,
   setSelectedSampleIndex,
   sampleStatus,
+  sampleError,
   sort,
   setSort,
   epochs,
@@ -137,7 +139,8 @@ export const WorkSpace = ({
           task_id=${task_id}
           selectedScore=${score}
           sample=${selectedSample}
-          sampleLoading=${sampleStatus === "loading"}
+          sampleStatus=${sampleStatus}
+          sampleError=${sampleError}
           samples=${samples}
           groupBy=${groupBy}
           groupByOrder=${groupByOrder}
