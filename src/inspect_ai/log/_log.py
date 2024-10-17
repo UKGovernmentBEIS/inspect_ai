@@ -150,11 +150,14 @@ class EvalSample(BaseModel):
     metadata: dict[str, Any]
     """Additional sample metadata."""
 
-    store: dict[str, Any] = Field(default={})
+    store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
     transcript: EvalEvents = Field(default_factory=EvalEvents)
     """Transcript of sample events."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
@@ -180,12 +183,15 @@ class EvalSample(BaseModel):
 
         return values
 
+    # allow field model_usage
+    model_config = ConfigDict(protected_namespaces=())
+
 
 class EvalPlanStep(BaseModel):
     solver: str
     """Name of solver."""
 
-    params: dict[str, Any] = Field(default={})
+    params: dict[str, Any] = Field(default_factory=dict)
     """Parameters used to instantiate solver."""
 
 
@@ -210,7 +216,7 @@ class EvalMetric(BaseModel):
     value: int | float
     """Metric value."""
 
-    options: dict[str, Any] = Field(default={})
+    options: dict[str, Any] = Field(default_factory=dict)
     """Options specified when creating metric."""
 
     metadata: dict[str, Any] | None = Field(default=None)
@@ -227,10 +233,10 @@ class EvalScore(BaseModel):
     reducer: str | None = Field(default=None)
     """Reducer name."""
 
-    params: dict[str, Any] = Field(default={})
+    params: dict[str, Any] = Field(default_factory=dict)
     """Parameters specified when creating scorer."""
 
-    metrics: dict[str, EvalMetric] = Field(default=[])
+    metrics: dict[str, EvalMetric] = Field(default_factory=dict)
     """Metrics computed for this scorer."""
 
     metadata: dict[str, Any] | None = Field(default=None)
@@ -340,7 +346,7 @@ class EvalRevision(BaseModel):
 
 
 class EvalSpec(BaseModel):
-    run_id: str = Field(default="")
+    run_id: str = Field(default_factory=str)
     """Unique run id"""
 
     created: str
@@ -349,7 +355,7 @@ class EvalSpec(BaseModel):
     task: str
     """Task name."""
 
-    task_id: str = Field(default="")
+    task_id: str = Field(default_factory=str)
     """Unique task id."""
 
     task_version: int = Field(default=0)
@@ -358,10 +364,10 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
-    task_attribs: dict[str, Any] = Field(default={})
+    task_attribs: dict[str, Any] = Field(default_factory=dict)
     """Attributes of the @task decorator."""
 
-    task_args: dict[str, Any] = Field(default={})
+    task_args: dict[str, Any] = Field(default_factory=dict)
     """Arguments used for invoking the task."""
 
     solver: str | None = Field(default=None)
@@ -382,7 +388,7 @@ class EvalSpec(BaseModel):
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
 
-    model_args: dict[str, Any] = Field(default={})
+    model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
     config: EvalConfig
@@ -391,7 +397,7 @@ class EvalSpec(BaseModel):
     revision: EvalRevision | None = Field(default=None)
     """Source revision of eval."""
 
-    packages: dict[str, str] = Field(default={})
+    packages: dict[str, str] = Field(default_factory=dict)
     """Package versions for eval."""
 
     metadata: dict[str, Any] | None = Field(default=None)
@@ -440,13 +446,13 @@ def rich_traceback(
 
 
 class EvalStats(BaseModel):
-    started_at: str = Field(default="")
+    started_at: str = Field(default_factory=str)
     """Evaluation start time."""
 
-    completed_at: str = Field(default="")
+    completed_at: str = Field(default_factory=str)
     """Evaluation completion time."""
 
-    model_usage: dict[str, ModelUsage] = Field(default={})
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
 
     # allow field model_usage

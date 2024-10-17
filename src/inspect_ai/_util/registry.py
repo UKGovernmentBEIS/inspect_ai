@@ -29,7 +29,7 @@ RegistryType = Literal[
 class RegistryInfo(BaseModel):
     type: RegistryType
     name: str
-    metadata: dict[str, Any] = Field(default={})
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:

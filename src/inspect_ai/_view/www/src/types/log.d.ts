@@ -566,6 +566,7 @@ export interface EvalSample {
   metadata: Metadata6;
   store: Store;
   transcript: EvalEvents;
+  model_usage: ModelUsage2;
   error: EvalError | null;
 }
 export interface ChatMessageSystem {
@@ -961,4 +962,7 @@ export interface Result1 {
 }
 export interface Content6 {
   [k: string]: string;
+}
+export interface ModelUsage2 {
+  [k: string]: ModelUsage1;
 }

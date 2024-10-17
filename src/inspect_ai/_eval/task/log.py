@@ -32,7 +32,7 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage
+from inspect_ai.model._model import model_usage, sample_model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
@@ -170,6 +170,7 @@ class TaskLogger:
                 scores=cast(dict[str, Score], scores),
                 store=dict(state.store.items()),
                 transcript=eval_events(transcript().events, log_images),
+                model_usage=sample_model_usage(),
                 error=error,
             ),
             True,
