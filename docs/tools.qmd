@@ -219,6 +219,34 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
 
+## Dynamic Tools
+
+As described above, normally tools are defined using `@tool` decorators and documentation comments. It's also possible to create a tool dynamically from any function by creating a `ToolDef`. For example:
+
+```python
+from inspect_ai.solver import use_tools
+from inspect_ai.tool import ToolDef
+
+async def addition(x: int, y: int):
+    return x + y
+
+add_tool = ToolDef(
+    tool=addition,
+    name="add",
+    description="A tool to add numbers", 
+    parameters={
+        "x": "the x argument",
+        "y": "the y argument"
+    })
+)
+
+use_tools([add_tool])
+```
+
+This is effectively what happens under the hood when you use the `@tool` decorator. There is one critical requirement for functions that are bound to tools using `ToolDef`: type annotations must be provided in the function signature (e.g. `x: int, y: int`).
+
+`ToolDef` can generally be used anywhere that `Tool` can be used (`use_tools()`, setting `state.tools`, etc.)
+
 ## Parallel Tool Calls
 
 Models will often provide multiple tool calls to evaluate. By default, Inspect executes these tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).
