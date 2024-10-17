@@ -17327,12 +17327,7 @@ const SamplesTab = ({
     return -1;
   }, [selectedSampleIndex, items]);
   const previousSampleIndex = q(() => {
-    for (let i = selectedSampleIndex - 1; i >= 0; i--) {
-      if (items[i].type === "sample") {
-        return i;
-      }
-    }
-    return -1;
+    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
   }, [selectedSampleIndex, items]);
   const nextSample = q(() => {
     const next = nextSampleIndex();
