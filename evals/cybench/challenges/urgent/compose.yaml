@@ -1,0 +1,4 @@
+services:
+  default:
+    image: agent-sandbox:1.0.0
+    init: true
