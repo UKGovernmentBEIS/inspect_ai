@@ -10,7 +10,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._util.file import file, filesystem, size_in_mb
+from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -138,7 +138,12 @@ def view_server(
     # run app
     display().print(f"Inspect View: {log_dir}")
     web.run_app(
-        app=app, host=host, port=port, print=display().print, shutdown_timeout=1
+        app=app,
+        host=host,
+        port=port,
+        print=display().print,
+        access_log_format='%a %t "%r" %s %b (%Tf)',
+        shutdown_timeout=1,
     )
 
 
@@ -193,17 +198,15 @@ def log_size_response(log_file: str) -> web.Response:
 
 
 def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
-    with file(log_file, "rb") as f:
-        # read the bytes
-        f.seek(start)
-        bytes = f.read(end - start + 1)
-
     # build headers
     content_length = end - start + 1
     headers = {
         "Content-Type": "application/octet-stream",
         "Content-Length": str(content_length),
     }
+
+    # fetch bytes
+    bytes = filesystem(log_file).read_bytes(log_file, start, end + 1)
 
     # return response
     return web.Response(status=200, body=bytes, headers=headers)

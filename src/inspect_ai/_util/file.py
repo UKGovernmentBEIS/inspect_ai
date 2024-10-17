@@ -202,6 +202,9 @@ class FileSystem:
     def get_file(self, rpath: str, lpath: str) -> None:
         self.fs.get_file(rpath, lpath)
 
+    def read_bytes(self, path: str, start: int, end: int) -> bytes:
+        return cast(bytes, self.fs.read_bytes(path, start, end))
+
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended
         file = info.copy()
