@@ -11936,19 +11936,19 @@ const ToolCallView = ({
   }}
         ></i>`;
   const codeIndent = mode === "compact" ? "" : "";
-  return m$1`<p>
-        ${icon}
-        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
-        <div>
-            <div style=${{ marginLeft: `${codeIndent}` }}>
-            <${ToolInput} type=${inputType} contents=${input}/>
-            ${output ? m$1`
+  return m$1`<div>
+    ${icon}
+    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    <div>
+      <div style=${{ marginLeft: `${codeIndent}` }}>
+        <${ToolInput} type=${inputType} contents=${input} />
+        ${output ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>` : ""}
-            </div>
-        </div>
-        </p>`;
+      </div>
+    </div>
+  </div>`;
 };
 const ToolInput = ({ type, contents }) => {
   if (!contents) {
@@ -13330,9 +13330,11 @@ const SampleScoreView = ({
                 </tr>
               </thead>
               <tbody>
+                <tr>
                 <td style=${{ paddingLeft: "0" }}>
                   <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
                 </td>
+                </tr>
               </tbody>
             </table
           ` : ""}
@@ -22045,6 +22047,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [selectedSample, setSelectedSample] = h(void 0);
   const [sampleStatus, setSampleStatus] = h(void 0);
   const loadingSampleIndexRef = A(null);
+  const loadedSampleIndexRef = A(null);
   const [status, setStatus] = h({
     loading: true,
     error: void 0
@@ -22144,9 +22147,13 @@ function App({ api: api2, pollForLogs = true }) {
   y(() => {
     if (!selectedLog || selectedSampleIndex === -1) {
       setSelectedSample(void 0);
+      loadedSampleIndexRef.current = null;
       return;
     }
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+    if (loadedSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
@@ -22155,10 +22162,12 @@ function App({ api: api2, pollForLogs = true }) {
       setSelectedSample(void 0);
       const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
+        loadedSampleIndexRef.current = selectedSampleIndex;
         setSelectedSample(sample);
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
       }).catch(() => {
+        loadedSampleIndexRef.current = null;
         loadingSampleIndexRef.current = null;
       });
     }

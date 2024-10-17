@@ -128,9 +128,11 @@ export const SampleScoreView = ({
                 </tr>
               </thead>
               <tbody>
+                <tr>
                 <td style=${{ paddingLeft: "0" }}>
                   <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
                 </td>
+                </tr>
               </tbody>
             </table
           `

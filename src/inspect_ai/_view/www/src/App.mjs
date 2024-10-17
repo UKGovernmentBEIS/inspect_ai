@@ -62,6 +62,7 @@ export function App({ api, pollForLogs = true }) {
   const [selectedSample, setSelectedSample] = useState(undefined);
   const [sampleStatus, setSampleStatus] = useState(undefined);
   const loadingSampleIndexRef = useRef(null);
+  const loadedSampleIndexRef = useRef(null);
 
   // App loading status
   const [status, setStatus] = useState({
@@ -222,11 +223,17 @@ export function App({ api, pollForLogs = true }) {
     // Clear the selected sample
     if (!selectedLog || selectedSampleIndex === -1) {
       setSelectedSample(undefined);
+      loadedSampleIndexRef.current = null;
       return;
     }
 
     // If already loading the selected sample, do nothing
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+
+    // If the current sample is already correct, no need load it
+    if (loadedSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
 
@@ -240,11 +247,13 @@ export function App({ api, pollForLogs = true }) {
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
+          loadedSampleIndexRef.current = selectedSampleIndex;
           setSelectedSample(sample);
           setSampleStatus("ok");
           loadingSampleIndexRef.current = null;
         })
         .catch(() => {
+          loadedSampleIndexRef.current = null;
           loadingSampleIndexRef.current = null;
         });
     }
