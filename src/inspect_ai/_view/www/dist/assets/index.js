@@ -17334,7 +17334,6 @@ const SamplesTab = ({
   }, [selectedSampleIndex, items]);
   const nextSample = q(() => {
     const next = nextSampleIndex();
-    console.log({ sampleStatus });
     if (sampleStatus !== "loading" && next > -1) {
       setSelectedSampleIndex(next);
     }

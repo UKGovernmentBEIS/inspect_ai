@@ -112,7 +112,6 @@ export const SamplesTab = ({
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
-    console.log({ sampleStatus });
     if (sampleStatus !== "loading" && next > -1) {
       setSelectedSampleIndex(next);
     }
