@@ -225,7 +225,7 @@ Models will often provide multiple tool calls to evaluate. By default, Inspect e
 
 You can opt-out of parallel tool calling by adding `parallel=False` to the `@tool` decorator. For example, the built in web browsing tools do this as follows:
 
-```python
+``` python
 @tool(parallel=False)
 def web_browser_go() -> Tool:
     ...
@@ -334,14 +334,13 @@ If you review the transcripts of a sample with access to the web browser tool, y
 
 : {tbl-colwidths=\[35,65\]}
 
-
 The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
 
 ### Disabling Interactions
 
 You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
 
-```python
+``` python
 use_tools(web_browser(interactive=False))
 ```
 
@@ -349,7 +348,7 @@ In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`
 
 ### Custom Images {#sec-custom-image}
 
-Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported. 
+Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported.
 
 To do this, reference the [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile) used in the built-in web browser container and ensure that the dependencies, application files, and server run command it uses are also in your container definition:
 
@@ -369,7 +368,7 @@ COPY *.py ./
 CMD ["python3", "/app/web_browser/web_server.py"]
 ```
 
-Note that all of the Python files in the [_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
+Note that all of the Python files in the [\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
 
 ## Web Search {#sec-web-search}
 
