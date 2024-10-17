@@ -241,7 +241,6 @@ export function App({ api, pollForLogs = true }) {
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
-      setSelectedSample(undefined);
 
       const summary = filteredSamples[selectedSampleIndex];
       api
@@ -253,6 +252,7 @@ export function App({ api, pollForLogs = true }) {
           loadingSampleIndexRef.current = null;
         })
         .catch(() => {
+          setSelectedSample(undefined);
           loadedSampleIndexRef.current = null;
           loadingSampleIndexRef.current = null;
         });

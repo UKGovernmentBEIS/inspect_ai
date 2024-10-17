@@ -22159,7 +22159,6 @@ function App({ api: api2, pollForLogs = true }) {
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
-      setSelectedSample(void 0);
       const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
         loadedSampleIndexRef.current = selectedSampleIndex;
@@ -22167,6 +22166,7 @@ function App({ api: api2, pollForLogs = true }) {
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
       }).catch(() => {
+        setSelectedSample(void 0);
         loadedSampleIndexRef.current = null;
         loadingSampleIndexRef.current = null;
       });
