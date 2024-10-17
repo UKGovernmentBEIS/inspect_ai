@@ -100,9 +100,31 @@ class ToolDef:
     viewer: ToolCallViewer | None
     """Custom viewer for tool call"""
 
+    def as_tool(self) -> Tool:
+        """Convert a ToolDef to a Tool."""
+        tool = self.tool
+        info = RegistryInfo(
+            type="tool",
+            name=self.name,
+            metadata={TOOL_PARALLEL: self.parallel, TOOL_VIEWER: self.viewer},
+        )
+        set_registry_info(tool, info)
+        set_registry_params(tool, {})
+        set_tool_description(
+            tool,
+            ToolDescription(
+                name=self.name,
+                description=self.description,
+                parameters=self.parameters,
+            ),
+        )
+        return tool
 
-def tool_defs(tools: list[Tool]) -> list[ToolDef]:
-    return [tool_def(tool) for tool in tools]
+
+def tool_defs(
+    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
+) -> list[ToolDef]:
+    return [tool_def(tool) if isinstance(tool, Tool) else tool for tool in tools]
 
 
 def tool_def(tool: Tool) -> ToolDef:
@@ -159,26 +181,6 @@ def tool_def(tool: Tool) -> ToolDef:
         parallel=parallel,
         viewer=viewer,
     )
-
-
-def tool_from_tool_def(tool_def: ToolDef) -> Tool:
-    tool = tool_def.tool
-    info = RegistryInfo(
-        type="tool",
-        name=tool_def.name,
-        metadata={TOOL_PARALLEL: tool_def.parallel, TOOL_VIEWER: tool_def.viewer},
-    )
-    set_registry_info(tool, info)
-    set_registry_params(tool, {})
-    set_tool_description(
-        tool,
-        ToolDescription(
-            name=tool_def.name,
-            description=tool_def.description,
-            parameters=tool_def.parameters,
-        ),
-    )
-    return tool
 
 
 def tool_registry_info(

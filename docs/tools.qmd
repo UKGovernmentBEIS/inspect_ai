@@ -237,7 +237,7 @@ from inspect_ai.tool import ToolDef
 async def addition(x: int, y: int):
     return x + y
 
-add_tool = ToolDef(
+add = ToolDef(
     tool=addition,
     name="add",
     description="A tool to add numbers", 
@@ -247,12 +247,18 @@ add_tool = ToolDef(
     })
 )
 
-use_tools([add_tool])
+use_tools([add])
 ```
 
 This is effectively what happens under the hood when you use the `@tool` decorator. There is one critical requirement for functions that are bound to tools using `ToolDef`: type annotations must be provided in the function signature (e.g. `x: int, y: int`).
 
-`ToolDef` can generally be used anywhere that `Tool` can be used (`use_tools()`, setting `state.tools`, etc.)
+For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool` can be used (`use_tools()`, setting `state.tools`, etc.). If you are using a 3rd party API that does not take `Tool` in its interface, use the `ToolDef.as_tool()` method to adapt it. For example:
+
+```python
+from inspect_agents import my_agent
+
+agent = my_agent(tools=[add.as_tool()])
+```
 
 ## Parallel Tool Calls
 

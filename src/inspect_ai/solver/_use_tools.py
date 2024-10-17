@@ -1,5 +1,5 @@
 from inspect_ai.tool import Tool, ToolChoice
-from inspect_ai.tool._tool_def import ToolDef, tool_from_tool_def
+from inspect_ai.tool._tool_def import ToolDef
 
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
@@ -32,7 +32,7 @@ def use_tools(
         # add tool function to take care of tool/tool_def
         def add_tool(tool: Tool | ToolDef) -> None:
             if isinstance(tool, ToolDef):
-                tool = tool_from_tool_def(tool)
+                tool = tool.as_tool()
             tools_update.append(tool)
 
         for tool in tools:

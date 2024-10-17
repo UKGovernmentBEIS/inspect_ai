@@ -27,7 +27,7 @@ from inspect_ai.tool._tool import (
     ToolParsingError,
 )
 from inspect_ai.tool._tool_call import ToolCallError
-from inspect_ai.tool._tool_def import ToolDef, tool_def, tool_defs, tool_registry_info
+from inspect_ai.tool._tool_def import ToolDef, tool_def, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 
@@ -37,7 +37,7 @@ from ._generate_config import active_generate_config
 
 async def call_tools(
     message: ChatMessageAssistant,
-    tools: list[Tool],
+    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
     max_output: int | None = None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
@@ -144,7 +144,7 @@ async def call_tools(
             ), event
 
         # call tools in parallel unless disabled by one of the tools
-        if disable_parallel_tools(tools):
+        if disable_parallel_tools(tdefs):
             results: list[tuple[ChatMessageTool, ToolEvent]] = []
             for call in message.tool_calls:
                 task = asyncio.create_task(call_tool_task(call))
@@ -222,13 +222,8 @@ def tools_info(
     return tools_info
 
 
-def disable_parallel_tools(tools: list[Tool]) -> bool:
-    for tool in tools:
-        if isinstance(tool, Tool):
-            _, _, parallel, _ = tool_registry_info(tool)
-            if not parallel:
-                return True
-    return False
+def disable_parallel_tools(tools: list[ToolDef]) -> bool:
+    return any([tool.parallel is False for tool in tools])
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:

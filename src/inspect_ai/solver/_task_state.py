@@ -17,7 +17,7 @@ from inspect_ai.model import (
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.tool import Tool, ToolChoice
-from inspect_ai.tool._tool_def import ToolDef, tool_from_tool_def
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
 
 
@@ -322,9 +322,7 @@ class TaskState:
     def tools(self, tools: list[Tool | ToolDef]) -> None:
         self._tools.clear()
         for tool in tools:
-            self._tools.append(
-                tool if isinstance(tool, Tool) else tool_from_tool_def(tool)
-            )
+            self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
 
 
 def sample_state() -> TaskState | None:
