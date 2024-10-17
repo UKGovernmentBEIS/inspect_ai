@@ -96,7 +96,7 @@ export const SamplesTab = ({
   }, [items]);
 
   const nextSampleIndex = useCallback(() => {
-    for (let i = selectedSampleIndex + 1; i < items.length; i++) {
+    for (let i = selectedSampleIndex + 1; i < sampleItems.length; i++) {
       if (items[i].type === "sample") {
         return i;
       }
