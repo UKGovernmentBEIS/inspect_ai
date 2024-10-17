@@ -256,9 +256,16 @@ For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool` can be us
 
 ```python
 from inspect_agents import my_agent
-
 agent = my_agent(tools=[add.as_tool()])
 ```
+
+If on the other hand you want to get the `ToolDef` for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the `Tool` to the `ToolDef` constructor (including whatever overrides for `name`, etc. you want):
+
+```python
+from inspect_ai.tool import ToolDef, bash
+bash_def = ToolDef(bash())
+```
+
 
 ## Parallel Tool Calls
 

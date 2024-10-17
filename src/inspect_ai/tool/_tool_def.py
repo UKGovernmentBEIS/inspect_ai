@@ -29,7 +29,7 @@ class ToolDef:
         name: str | None = None,
         description: str | None = None,
         parameters: dict[str, str] | ToolParams | None = None,
-        parallel: bool = True,
+        parallel: bool | None = None,
         viewer: ToolCallViewer | None = None,
     ) -> None:
         """Tool definition.
@@ -41,7 +41,8 @@ class ToolDef:
             by parsing doc comments if not specified.
           parameters (dict[str,str] | ToolParams | None): Tool parameter descriptions and types.
              Discovered automatically by parsing doc comments if not specified.
-          parallel (bool): Does the tool support parallel execution (defaults to True)
+          parallel (bool | None): Does the tool support parallel execution
+             (defaults to True if not specified)
           viewer (ToolCallViewer | None): Optional tool call viewer implementation.
 
         Returns:
@@ -49,6 +50,15 @@ class ToolDef:
         """
         # tool
         self.tool = tool
+
+        # if this is already a tool then initialise defaults from the tool
+        if isinstance(tool, Tool):
+            tdef = tool_def(tool)
+            name = name or tdef.name
+            description = description or tdef.description
+            parameters = parameters if parameters is not None else tdef.parameters
+            parallel = parallel if parallel is not None else tdef.parallel
+            viewer = viewer or tdef.viewer
 
         # tool info
         if (
@@ -79,7 +89,7 @@ class ToolDef:
             self.parameters = parameters
 
         # behavioral attributes
-        self.parallel = parallel
+        self.parallel = parallel is not False
         self.viewer = viewer
 
     tool: Callable[..., Any]
