@@ -4,12 +4,12 @@ from typing import Any, Dict, List, Optional, TypedDict, Union
 from pydantic import BaseModel, Field
 
 from inspect_ai.tool._tool_info import (
-    ToolParam,
     parse_docstring,
     parse_object,
     parse_tool_info,
     parse_type,
 )
+from inspect_ai.tool._tool_params import ToolParam
 
 
 # Test helper functions

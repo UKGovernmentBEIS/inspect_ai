@@ -5,7 +5,6 @@ from typing import (
     Callable,
     Dict,
     List,
-    Literal,
     Optional,
     Type,
     Union,
@@ -18,30 +17,8 @@ from typing import (
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
-JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
-"""Validate types within JSON schema."""
-
-
-class ToolParam(BaseModel):
-    """Description of tool parameter in JSON Schema format."""
-
-    type: JSONType = Field(default="null")
-    description: str | None = Field(default=None)
-    default: Any = Field(default=None)
-    items: Optional["ToolParam"] = Field(default=None)
-    properties: dict[str, "ToolParam"] | None = Field(default=None)
-    additionalProperties: Optional["ToolParam"] | bool | None = Field(default=None)
-    anyOf: list["ToolParam"] | None = Field(default=None)
-    required: list[str] | None = Field(default=None)
-
-
-class ToolParams(BaseModel):
-    """Description of tool parameters object in JSON Schema format."""
-
-    type: Literal["object"] = Field(default="object")
-    properties: dict[str, ToolParam] = Field(default_factory=dict)
-    required: list[str] = Field(default_factory=list)
-    additionalProperties: bool = Field(default=False)
+from ._tool_description import tool_description
+from ._tool_params import JSONType, ToolParam, ToolParams
 
 
 class ToolInfo(BaseModel):
@@ -80,6 +57,19 @@ class ToolInfo(BaseModel):
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
+    # tool may already have registry attributes w/ tool info
+    description = tool_description(func)
+    if (
+        description.name
+        and description.description
+        and description.parameters is not None
+    ):
+        return ToolInfo(
+            name=description.name,
+            description=description.description,
+            parameters=description.parameters,
+        )
+
     signature = inspect.signature(func)
     type_hints = get_type_hints(func)
     docstring = inspect.getdoc(func)

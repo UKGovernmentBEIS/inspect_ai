@@ -219,13 +219,61 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
 
+## Dynamic Tools {#sec-dynamic-tools}
+
+::: {.callout-note appearance="simple"}
+Note that the dynamic tools feature described below is available only in the development version of Inspect. You can install the development version with:
+``` bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+As described above, normally tools are defined using `@tool` decorators and documentation comments. It's also possible to create a tool dynamically from any function by creating a `ToolDef`. For example:
+
+```python
+from inspect_ai.solver import use_tools
+from inspect_ai.tool import ToolDef
+
+async def addition(x: int, y: int):
+    return x + y
+
+add = ToolDef(
+    tool=addition,
+    name="add",
+    description="A tool to add numbers", 
+    parameters={
+        "x": "the x argument",
+        "y": "the y argument"
+    })
+)
+
+use_tools([add])
+```
+
+This is effectively what happens under the hood when you use the `@tool` decorator. There is one critical requirement for functions that are bound to tools using `ToolDef`: type annotations must be provided in the function signature (e.g. `x: int, y: int`).
+
+For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool` can be used (`use_tools()`, setting `state.tools`, etc.). If you are using a 3rd party API that does not take `Tool` in its interface, use the `ToolDef.as_tool()` method to adapt it. For example:
+
+```python
+from inspect_agents import my_agent
+agent = my_agent(tools=[add.as_tool()])
+```
+
+If on the other hand you want to get the `ToolDef` for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the `Tool` to the `ToolDef` constructor (including whatever overrides for `name`, etc. you want):
+
+```python
+from inspect_ai.tool import ToolDef, bash
+bash_def = ToolDef(bash())
+```
+
+
 ## Parallel Tool Calls
 
 Models will often provide multiple tool calls to evaluate. By default, Inspect executes these tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).
 
 You can opt-out of parallel tool calling by adding `parallel=False` to the `@tool` decorator. For example, the built in web browsing tools do this as follows:
 
-```python
+``` python
 @tool(parallel=False)
 def web_browser_go() -> Tool:
     ...
@@ -334,14 +382,13 @@ If you review the transcripts of a sample with access to the web browser tool, y
 
 : {tbl-colwidths=\[35,65\]}
 
-
 The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
 
 ### Disabling Interactions
 
 You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
 
-```python
+``` python
 use_tools(web_browser(interactive=False))
 ```
 
@@ -349,7 +396,7 @@ In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`
 
 ### Custom Images {#sec-custom-image}
 
-Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported. 
+Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported.
 
 To do this, reference the [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile) used in the built-in web browser container and ensure that the dependencies, application files, and server run command it uses are also in your container definition:
 
@@ -369,7 +416,7 @@ COPY *.py ./
 CMD ["python3", "/app/web_browser/web_server.py"]
 ```
 
-Note that all of the Python files in the [_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
+Note that all of the Python files in the [\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
 
 ## Web Search {#sec-web-search}
 
