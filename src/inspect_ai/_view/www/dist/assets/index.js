@@ -17334,16 +17334,17 @@ const SamplesTab = ({
   }, [selectedSampleIndex, items]);
   const nextSample = q(() => {
     const next = nextSampleIndex();
-    if (next > -1) {
+    console.log({ sampleStatus });
+    if (sampleStatus !== "loading" && next > -1) {
       setSelectedSampleIndex(next);
     }
-  }, [selectedSampleIndex, samples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
   const previousSample = q(() => {
     const prev = previousSampleIndex();
-    if (prev > -1) {
+    if (sampleStatus !== "loading" && prev > -1) {
       setSelectedSampleIndex(prev);
     }
-  }, [selectedSampleIndex, samples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
   const elements = [];
   if ((samples == null ? void 0 : samples.length) === 1) {
     elements.push(

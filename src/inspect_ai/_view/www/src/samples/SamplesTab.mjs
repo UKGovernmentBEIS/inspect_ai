@@ -112,17 +112,18 @@ export const SamplesTab = ({
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
-    if (next > -1) {
+    console.log({ sampleStatus });
+    if (sampleStatus !== "loading" && next > -1) {
       setSelectedSampleIndex(next);
     }
-  }, [selectedSampleIndex, samples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (prev > -1) {
+    if (sampleStatus !== "loading" && prev > -1) {
       setSelectedSampleIndex(prev);
     }
-  }, [selectedSampleIndex, samples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
 
   const elements = [];
   if (samples?.length === 1) {
