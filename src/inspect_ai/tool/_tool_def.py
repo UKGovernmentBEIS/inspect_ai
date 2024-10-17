@@ -2,10 +2,12 @@ from copy import copy
 from typing import (
     Any,
     Callable,
+    NamedTuple,
 )
 
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_info,
     set_registry_info,
     set_registry_params,
@@ -52,45 +54,49 @@ class ToolDef:
         self.tool = tool
 
         # if this is already a tool then initialise defaults from the tool
-        if isinstance(tool, Tool):
-            tdef = tool_def(tool)
-            name = name or tdef.name
-            description = description or tdef.description
-            parameters = parameters if parameters is not None else tdef.parameters
-            parallel = parallel if parallel is not None else tdef.parallel
-            viewer = viewer or tdef.viewer
-
-        # tool info
-        if (
-            name is None
-            or description is None
-            or parameters is None
-            or not isinstance(parameters, ToolParams)
-        ):
-            tool_info = parse_tool_info(tool)
-            self.name = name or tool_info.name
-            self.description = description or tool_info.description
-            if parameters:
-                if not isinstance(parameters, ToolParams):
-                    self.parameters = copy(tool_info.parameters)
-                    for param, value in parameters.items():
-                        if param not in self.parameters.properties.keys():
-                            raise ValueError(
-                                f"'{param}' is not a parameter of {self.name}"
-                            )
-                        self.parameters.properties[param].description = value
-                else:
-                    self.parameters = parameters
+        if is_registry_object(tool) and registry_info(tool).type == "tool":
+            tdef = tool_def_fields(tool)
+            self.name = name or tdef.name
+            self.description = description or tdef.description
+            if isinstance(parameters, ToolParams):
+                self.parameters = parameters
             else:
-                self.parameters = tool_info.parameters
-        else:
-            self.name = name
-            self.description = description
-            self.parameters = parameters
+                self.parameters = tdef.parameters
+                if parameters is not None:
+                    apply_description_overrides(self.parameters, parameters)
 
-        # behavioral attributes
-        self.parallel = parallel is not False
-        self.viewer = viewer
+            parameters = parameters if parameters is not None else tdef.parameters
+            self.parallel = parallel if parallel is not None else tdef.parallel
+            self.viewer = viewer or tdef.viewer
+
+        # if its not a tool then extract tool_info if all fields have not
+        # been provided explicitly
+        else:
+            if (
+                name is None
+                or description is None
+                or parameters is None
+                or not isinstance(parameters, ToolParams)
+            ):
+                tool_info = parse_tool_info(tool)
+                self.name = name or tool_info.name
+                self.description = description or tool_info.description
+                if parameters:
+                    if not isinstance(parameters, ToolParams):
+                        self.parameters = copy(tool_info.parameters)
+                        apply_description_overrides(self.parameters, parameters)
+                    else:
+                        self.parameters = parameters
+                else:
+                    self.parameters = tool_info.parameters
+            else:
+                self.name = name
+                self.description = description
+                self.parameters = parameters
+
+            # behavioral attributes
+            self.parallel = parallel is not False
+            self.viewer = viewer
 
     tool: Callable[..., Any]
     """Callable to execute tool."""
@@ -131,13 +137,31 @@ class ToolDef:
         return tool
 
 
+# helper function to apply description overrides
+def apply_description_overrides(target: ToolParams, overrides: dict[str, str]) -> None:
+    for param, value in overrides.items():
+        if param not in target.properties.keys():
+            raise ValueError(
+                f"'{param}' is not a valid parameter for the target function."
+            )
+        target.properties[param].description = value
+
+
 def tool_defs(
     tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
 ) -> list[ToolDef]:
-    return [tool_def(tool) if isinstance(tool, Tool) else tool for tool in tools]
+    return [ToolDef(tool) if isinstance(tool, Tool) else tool for tool in tools]
 
 
-def tool_def(tool: Tool) -> ToolDef:
+class ToolDefFields(NamedTuple):
+    name: str
+    description: str
+    parameters: ToolParams
+    parallel: bool
+    viewer: ToolCallViewer | None
+
+
+def tool_def_fields(tool: Tool) -> ToolDefFields:
     # get tool_info
     name, prompt, parallel, viewer = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
@@ -183,8 +207,7 @@ def tool_def(tool: Tool) -> ToolDef:
                 tool_info.parameters.properties[key].description = param.description
 
     # build tool def
-    return ToolDef(
-        tool=tool,
+    return ToolDefFields(
         name=name,
         description=tool_info.description,
         parameters=tool_info.parameters,

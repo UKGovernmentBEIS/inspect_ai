@@ -27,7 +27,7 @@ from inspect_ai.tool._tool import (
     ToolParsingError,
 )
 from inspect_ai.tool._tool_call import ToolCallError
-from inspect_ai.tool._tool_def import ToolDef, tool_def, tool_defs
+from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 
@@ -211,7 +211,7 @@ def tools_info(
             tools_info.append(tool)
         else:
             if isinstance(tool, Tool):
-                tool = tool_def(tool)
+                tool = ToolDef(tool)
             tools_info.append(
                 ToolInfo(
                     name=tool.name,
