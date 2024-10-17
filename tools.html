@@ -607,7 +607,7 @@ Tools and Agents
 </section>
 <section id="parallel-tool-calls" class="level2">
 <h2 class="anchored" data-anchor-id="parallel-tool-calls">Parallel Tool Calls</h2>
-<p>Some model APIs including OpenAI and Gemini support executing multiple tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).</p>
+<p>Models will often provide multiple tool calls to evaluate. By default, Inspect executes these tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).</p>
 <p>You can opt-out of parallel tool calling by adding <code>parallel=False</code> to the <code>@tool</code> decorator. For example, the built in web browsing tools do this as follows:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(parallel<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_browser_go() <span class="op">-&gt;</span> Tool:</span>
