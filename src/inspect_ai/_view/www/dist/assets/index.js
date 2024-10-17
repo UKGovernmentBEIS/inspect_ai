@@ -21435,6 +21435,17 @@ const clientApi = (api2) => {
       };
     }
   };
+  const has_log_json = (log_file) => {
+    return log_file && !isEvalFile(log_file);
+  };
+  const get_log_json = async (log_file) => {
+    if (isEvalFile) {
+      console.error("Unexpected request for JSON for an eval log file.");
+    } else {
+      const logcontents = await get_log(log_file);
+      return logcontents.raw;
+    }
+  };
   const get_log_sample = async (log_file, id, epoch) => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
@@ -21467,7 +21478,9 @@ const clientApi = (api2) => {
     },
     download_log_file: (log_file, download_files, web_workers) => {
       return api2.download_file(log_file, download_files, web_workers);
-    }
+    },
+    has_log_json,
+    get_log_json
   };
 };
 const resolveApi = () => {
@@ -21576,6 +21589,7 @@ const WorkSpace = ({
   setScore,
   scores,
   renderContext,
+  hasJson,
   renderJson
 }) => {
   const divRef = A(
@@ -21689,77 +21703,79 @@ const WorkSpace = ({
       </div>`;
     }
   };
-  resolvedTabs.json = {
-    id: kJsonTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const renderedContent = [];
-      const jsonText = renderJson();
-      if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-        const file = `${filename(logFileName)}.json`;
-        renderedContent.push(
-          m$1`<${DownloadPanel}
-            message="Log file raw JSON is too large to render."
-            buttonLabel="Download JSON File"
-            logFile=${logFileName}
-            fileName=${file}
-            fileContents=${jsonText}
-          />`
-        );
-      } else {
-        if (codeRef.current && !renderedCode) {
-          if (jsonText.length < kPrismRenderMaxSize) {
-            codeRef.current.innerHTML = Prism$1.highlight(
-              jsonText,
-              Prism$1.languages.javascript,
-              "javacript"
-            );
-          } else {
-            const textNode = document.createTextNode(jsonText);
-            codeRef.current.innerText = "";
-            codeRef.current.appendChild(textNode);
+  if (hasJson) {
+    resolvedTabs.json = {
+      id: kJsonTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const renderedContent = [];
+        const jsonText = "";
+        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+          const file = `${filename(logFileName)}.json`;
+          renderedContent.push(
+            m$1`<${DownloadPanel}
+              message="Log file raw JSON is too large to render."
+              buttonLabel="Download JSON File"
+              logFile=${logFileName}
+              fileName=${file}
+              fileContents=${jsonText}
+            />`
+          );
+        } else {
+          if (codeRef.current && !renderedCode) {
+            if (jsonText.length < kPrismRenderMaxSize) {
+              codeRef.current.innerHTML = Prism$1.highlight(
+                jsonText,
+                Prism$1.languages.javascript,
+                "javacript"
+              );
+            } else {
+              const textNode = document.createTextNode(jsonText);
+              codeRef.current.innerText = "";
+              codeRef.current.appendChild(textNode);
+            }
+            setRenderedCode(true);
           }
-          setRenderedCode(true);
+          renderedContent.push(
+            m$1`<pre>
+              <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+              fontSize: FontSize.small,
+              whiteSpace: "pre-wrap",
+              wordWrap: "anywhere"
+            }}>
+              </code>
+            </pre>`
+          );
         }
-        renderedContent.push(
-          m$1`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-            fontSize: FontSize.small,
-            whiteSpace: "pre-wrap",
-            wordWrap: "anywhere"
-          }}>
-            </code>
-          </pre>`
-        );
+        return m$1` <div
+          style=${{
+          padding: "1rem",
+          fontSize: FontSize.small,
+          width: "100%"
+        }}
+        >
+          ${renderedContent}
+        </div>`;
+      },
+      tools: () => {
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize) {
+          return [];
+        } else {
+          return [
+            m$1`<${ToolButton}
+              name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+              icon="${ApplicationIcons.copy}"
+              classes="task-btn-json-copy clipboard-button"
+              data-clipboard-target="#task-json-contents"
+              onclick="${copyFeedback}"
+            />`
+          ];
+        }
       }
-      return m$1` <div
-        style=${{
-        padding: "1rem",
-        fontSize: FontSize.small,
-        width: "100%"
-      }}
-      >
-        ${renderedContent}
-      </div>`;
-    },
-    tools: () => {
-      const jsonText = renderJson();
-      if (jsonText.length > kJsonMaxSize) {
-        return [];
-      } else {
-        return [
-          m$1`<${ToolButton}
-            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-            icon="${ApplicationIcons.copy}"
-            classes="task-btn-json-copy clipboard-button"
-            data-clipboard-target="#task-json-contents"
-            onclick="${copyFeedback}"
-          />`
-        ];
-      }
-    }
-  };
+    };
+  }
   const copyFeedback = q(
     (e2) => {
       const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
@@ -22040,8 +22056,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [headersLoading, setHeadersLoading] = h(false);
   const [selectedLog, setSelectedLog] = h({
     contents: void 0,
-    name: void 0,
-    raw: void 0
+    name: void 0
   });
   const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
   const [selectedSample, setSelectedSample] = h(void 0);
@@ -22221,9 +22236,7 @@ function App({ api: api2, pollForLogs = true }) {
             const log = logContents;
             setSelectedLog({
               contents: log,
-              name: targetLog.name,
-              // TODO: need to do something async here
-              raw: JSON.stringify(logContents, void 0, 2)
+              name: targetLog.name
             });
             setSelectedSampleIndex(-1);
             setStatus({ loading: false, error: void 0 });
@@ -22292,9 +22305,7 @@ function App({ api: api2, pollForLogs = true }) {
         }
         setSelectedLog({
           contents: log,
-          name: targetLog.name,
-          // TODO: Need to deal with this and use async or something
-          raw: JSON.stringify(logContents, void 0, 2)
+          name: targetLog.name
         });
         setStatus({ loading: false, error: void 0 });
       }
@@ -22505,8 +22516,9 @@ function App({ api: api2, pollForLogs = true }) {
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              renderJson=${() => {
-    return "NOT IMPLEMENTED";
+              hasJson=${api2.has_log_json(selectedLog.name)}
+              renderJson=${async () => {
+    return api2.get_log_json(selectedLog.name);
   }}
             />`}
     </div>

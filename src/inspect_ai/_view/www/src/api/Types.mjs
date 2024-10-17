@@ -60,6 +60,8 @@
  * @property { (log_file: string, id: string | number, epoch: number) => Promise<import("../types/log").EvalSample | undefined>} get_log_sample - Get a sample
  * @property { (log_file: string, download_files?: boolean, web_workers?: boolean) => Promise<void> } download_log_file - Execute a file download
  * @property { (log_file: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open
+ * @property { (log_file: string) => boolean } has_log_json - Whether this log file can be visualized as JSON
+ * @property { (log_file: string) => Promise<string> } get_log_json - The json representation of this log file
  */
 
 /**

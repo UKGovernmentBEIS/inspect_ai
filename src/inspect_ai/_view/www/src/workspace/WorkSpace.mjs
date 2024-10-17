@@ -62,7 +62,8 @@ const kJsonMaxSize = 10000000;
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
- * @param {() => string} props.renderJson - function to render json raw text
+ * @param {boolean} props.hasJson - whether this log file can provide a JSON rendering
+ * @param {() => Promise<string>} props.renderJson - function to render json raw text
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
@@ -97,6 +98,7 @@ export const WorkSpace = ({
   setScore,
   scores,
   renderContext,
+  hasJson,
   renderJson,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -234,82 +236,84 @@ export const WorkSpace = ({
   };
 
   // The JSON Tab
-  resolvedTabs.json = {
-    id: kJsonTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const renderedContent = [];
-      const jsonText = renderJson();
-      if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
-        // This JSON file is so large we can't really productively render it
-        // we should instead just provide a DL link
-        const file = `${filename(logFileName)}.json`;
-        renderedContent.push(
-          html`<${DownloadPanel}
-            message="Log file raw JSON is too large to render."
-            buttonLabel="Download JSON File"
-            logFile=${logFileName}
-            fileName=${file}
-            fileContents=${jsonText}
-          />`,
-        );
-      } else {
-        if (codeRef.current && !renderedCode) {
-          if (jsonText.length < kPrismRenderMaxSize) {
-            codeRef.current.innerHTML = Prism.highlight(
-              jsonText,
-              Prism.languages.javascript,
-              "javacript",
-            );
-          } else {
-            const textNode = document.createTextNode(jsonText);
-            codeRef.current.innerText = "";
-            codeRef.current.appendChild(textNode);
+  if (hasJson) {
+    resolvedTabs.json = {
+      id: kJsonTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const renderedContent = [];
+        const jsonText = ""; //await renderJson();
+        if (jsonText.length > kJsonMaxSize && capabilities.downloadFiles) {
+          // This JSON file is so large we can't really productively render it
+          // we should instead just provide a DL link
+          const file = `${filename(logFileName)}.json`;
+          renderedContent.push(
+            html`<${DownloadPanel}
+              message="Log file raw JSON is too large to render."
+              buttonLabel="Download JSON File"
+              logFile=${logFileName}
+              fileName=${file}
+              fileContents=${jsonText}
+            />`,
+          );
+        } else {
+          if (codeRef.current && !renderedCode) {
+            if (jsonText.length < kPrismRenderMaxSize) {
+              codeRef.current.innerHTML = Prism.highlight(
+                jsonText,
+                Prism.languages.javascript,
+                "javacript",
+              );
+            } else {
+              const textNode = document.createTextNode(jsonText);
+              codeRef.current.innerText = "";
+              codeRef.current.appendChild(textNode);
+            }
+
+            setRenderedCode(true);
           }
-
-          setRenderedCode(true);
+          renderedContent.push(
+            html`<pre>
+              <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
+              fontSize: FontSize.small,
+              whiteSpace: "pre-wrap",
+              wordWrap: "anywhere",
+            }}>
+              </code>
+            </pre>`,
+          );
         }
-        renderedContent.push(
-          html`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-            fontSize: FontSize.small,
-            whiteSpace: "pre-wrap",
-            wordWrap: "anywhere",
-          }}>
-            </code>
-          </pre>`,
-        );
-      }
 
-      // note that we'e rendered
-      return html` <div
-        style=${{
-          padding: "1rem",
-          fontSize: FontSize.small,
-          width: "100%",
-        }}
-      >
-        ${renderedContent}
-      </div>`;
-    },
-    tools: () => {
-      const jsonText = renderJson();
-      if (jsonText.length > kJsonMaxSize) {
-        return [];
-      } else {
-        return [
-          html`<${ToolButton}
-            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-            icon="${ApplicationIcons.copy}"
-            classes="task-btn-json-copy clipboard-button"
-            data-clipboard-target="#task-json-contents"
-            onclick="${copyFeedback}"
-          />`,
-        ];
-      }
-    },
-  };
+        // note that we'e rendered
+        return html` <div
+          style=${{
+            padding: "1rem",
+            fontSize: FontSize.small,
+            width: "100%",
+          }}
+        >
+          ${renderedContent}
+        </div>`;
+      },
+      tools: () => {
+        const jsonText = renderJson();
+        if (jsonText.length > kJsonMaxSize) {
+          return [];
+        } else {
+          return [
+            html`<${ToolButton}
+              name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+              icon="${ApplicationIcons.copy}"
+              classes="task-btn-json-copy clipboard-button"
+              data-clipboard-target="#task-json-contents"
+              onclick="${copyFeedback}"
+            />`,
+          ];
+        }
+      },
+    };
+  }
 
   const copyFeedback = useCallback(
     (e) => {

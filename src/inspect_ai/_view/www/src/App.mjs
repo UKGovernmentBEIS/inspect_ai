@@ -54,7 +54,6 @@ export function App({ api, pollForLogs = true }) {
   const [selectedLog, setSelectedLog] = useState({
     contents: undefined,
     name: undefined,
-    raw: undefined,
   });
 
   // Samples
@@ -320,8 +319,6 @@ export function App({ api, pollForLogs = true }) {
             setSelectedLog({
               contents: log,
               name: targetLog.name,
-              // TODO: need to do something async here
-              raw: JSON.stringify(logContents, undefined, 2),
             });
 
             // Clear the sample index
@@ -403,8 +400,6 @@ export function App({ api, pollForLogs = true }) {
         setSelectedLog({
           contents: log,
           name: targetLog.name,
-          // TODO: Need to deal with this and use async or something
-          raw: JSON.stringify(logContents, undefined, 2),
         });
         setStatus({ loading: false, error: undefined });
       }
@@ -660,8 +655,9 @@ export function App({ api, pollForLogs = true }) {
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              renderJson=${() => {
-                return "NOT IMPLEMENTED";
+              hasJson=${api.has_log_json(selectedLog.name)}
+              renderJson=${async () => {
+                return api.get_log_json(selectedLog.name);
               }}
             />`
       }
