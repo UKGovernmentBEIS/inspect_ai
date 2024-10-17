@@ -16435,7 +16435,6 @@ const printHeadingHtml = () => {
   return headingHtml;
 };
 const InlineSampleDisplay = ({
-  index,
   id,
   sample,
   sampleStatus,
@@ -16457,7 +16456,6 @@ const InlineSampleDisplay = ({
           title="Unable to load sample"
           error=${sampleError}
         />` : m$1` <${SampleDisplay}
-          index=${index}
           id=${id}
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
@@ -16466,10 +16464,10 @@ const InlineSampleDisplay = ({
   </div>`;
 };
 const SampleDisplay = ({
+  id,
   sample,
   sampleDescriptor,
   visible,
-  index,
   context
 }) => {
   const baseId = `sample-dialog`;
@@ -16493,16 +16491,16 @@ const SampleDisplay = ({
   }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
-    const id = e2.currentTarget.id;
-    setSelectedTab(id);
+    const id2 = e2.currentTarget.id;
+    setSelectedTab(id2);
     return false;
   };
   const tabs = [
     m$1`
     <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} 
-        key=${`${baseId}-chat-${index}`} 
-        id=${`${baseId}-chat-${index}`} 
+        key=${`${baseId}-chat-${id}`} 
+        id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
@@ -16512,7 +16510,7 @@ const SampleDisplay = ({
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
@@ -16543,7 +16541,7 @@ const SampleDisplay = ({
     }
   }
   const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${index}`,
+    `${baseId}-${id}`,
     sample,
     context
   );
@@ -16577,7 +16575,7 @@ const SampleDisplay = ({
       </${TabPanel}>`
     );
   }
-  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
   const printSample = () => {
     const targetTabEl = document.querySelector(
@@ -16586,7 +16584,7 @@ const SampleDisplay = ({
     if (targetTabEl) {
       const targetEl = targetTabEl.firstElementChild;
       if (targetEl) {
-        const headingId = `sample-heading-${sample.id}`;
+        const headingId = `sample-heading-${id}`;
         const headingEl = document.getElementById(headingId);
         const headingHtml = printHeadingHtml();
         const css = `
@@ -16644,7 +16642,7 @@ const SampleDisplay = ({
     );
   }
   return m$1`<${SampleSummary}
-    id=${sample.id}
+    id=${id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
@@ -16789,7 +16787,6 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 const SampleDialog = (props) => {
   const {
     id,
-    index,
     title,
     sample,
     sampleDescriptor,
@@ -16850,7 +16847,6 @@ const SampleDialog = (props) => {
       showProgress=${sampleStatus === "loading"}
     >
         ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
-                index=${index}
                 id=${id}
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
@@ -17348,7 +17344,6 @@ const SamplesTab = ({
   if ((samples == null ? void 0 : samples.length) === 1) {
     elements.push(
       m$1` <${InlineSampleDisplay}
-        index="0"
         key=${`${task_id}-single-sample`}
         id="sample-display"
         sample=${sample}
@@ -17377,6 +17372,7 @@ const SamplesTab = ({
   const index = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].index : -1;
   elements.push(m$1`
     <${SampleDialog}
+      id=${(sample == null ? void 0 : sample.id) || ""}
       ref=${sampleDialogRef}
       task=${task_id}
       title=${title}

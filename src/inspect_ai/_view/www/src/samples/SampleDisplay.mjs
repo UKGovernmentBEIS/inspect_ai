@@ -30,7 +30,6 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * Inline Sample Display
  *
  * @param {Object} props - The parameters for the component.
- * @param {number} props.index - The task index
  * @param {string} props.id - The task id
  * @param {string} props.sampleStatus - the sample status
  * @param {Error} [props.sampleError] - sample error
@@ -40,7 +39,6 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({
-  index,
   id,
   sample,
   sampleStatus,
@@ -64,7 +62,6 @@ export const InlineSampleDisplay = ({
           error=${sampleError}
         />`
       : html` <${SampleDisplay}
-          index=${index}
           id=${id}
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
@@ -74,10 +71,10 @@ export const InlineSampleDisplay = ({
 };
 
 export const SampleDisplay = ({
+  id,
   sample,
   sampleDescriptor,
   visible,
-  index,
   context,
 }) => {
   // Tab ids
@@ -123,8 +120,8 @@ export const SampleDisplay = ({
       selectedTab === msgTabId
     }>
       <${ChatView} 
-        key=${`${baseId}-chat-${index}`} 
-        id=${`${baseId}-chat-${index}`} 
+        key=${`${baseId}-chat-${id}`} 
+        id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
@@ -137,7 +134,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
 
@@ -174,7 +171,7 @@ export const SampleDisplay = ({
   }
 
   const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${index}`,
+    `${baseId}-${id}`,
     sample,
     context,
   );
@@ -210,7 +207,7 @@ export const SampleDisplay = ({
     );
   }
 
-  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
   const printSample = () => {
     // The active tab
@@ -222,7 +219,7 @@ export const SampleDisplay = ({
       const targetEl = targetTabEl.firstElementChild;
       if (targetEl) {
         // Get the sample heading to include
-        const headingId = `sample-heading-${sample.id}`;
+        const headingId = `sample-heading-${id}`;
         const headingEl = document.getElementById(headingId);
 
         // Print the document
@@ -284,7 +281,7 @@ export const SampleDisplay = ({
   }
 
   return html`<${SampleSummary}
-    id=${sample.id}
+    id=${id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 

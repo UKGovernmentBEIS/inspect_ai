@@ -128,7 +128,6 @@ export const SamplesTab = ({
   if (samples?.length === 1) {
     elements.push(
       html` <${InlineSampleDisplay}
-        index="0"
         key=${`${task_id}-single-sample`}
         id="sample-display"
         sample=${sample}
@@ -164,6 +163,7 @@ export const SamplesTab = ({
       : -1;
   elements.push(html`
     <${SampleDialog}
+      id=${sample?.id || ""}
       ref=${sampleDialogRef}
       task=${task_id}
       title=${title}

@@ -10,7 +10,6 @@ import { ErrorPanel } from "../components/ErrorPanel.mjs";
 export const SampleDialog = (props) => {
   const {
     id,
-    index,
     title,
     sample,
     sampleDescriptor,
@@ -80,7 +79,6 @@ export const SampleDialog = (props) => {
           sampleError
             ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
             : html`<${SampleDisplay}
-                index=${index}
                 id=${id}
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
