@@ -4,6 +4,7 @@
 
 - Cleanup Docker Containers immediately for samples with errors.
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
+- Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
 - Requirements: require semver>=3.0.0
