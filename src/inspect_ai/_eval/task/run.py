@@ -65,6 +65,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
@@ -93,7 +94,7 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 class TaskRunOptions:
     task: Task
     model: Model
-    sandbox: tuple[str, str | None] | None
+    sandbox: SandboxEnvironmentSpec | None
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
@@ -348,7 +349,7 @@ async def task_run_sample(
     task_name: str,
     sample: Sample,
     state: TaskState,
-    sandbox: tuple[str, str | None] | None,
+    sandbox: SandboxEnvironmentSpec | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
@@ -509,11 +510,7 @@ def log_sample(
             choices=sample.choices,
             target=sample.target,
             metadata=state.metadata if state.metadata else {},
-            sandbox=(
-                (sample.sandbox, None)
-                if isinstance(sample.sandbox, str)
-                else sample.sandbox
-            ),
+            sandbox=sample.sandbox,
             files=list(sample.files.keys()) if sample.files else None,
             setup=sample.setup,
             messages=state.messages,

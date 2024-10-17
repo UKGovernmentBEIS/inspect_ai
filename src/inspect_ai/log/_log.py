@@ -24,6 +24,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._transcript import EvalEvents
 
@@ -117,7 +118,7 @@ class EvalSample(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
-    sandbox: tuple[str, str | None] | None = Field(default=None)
+    sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
     files: list[str] | None = Field(default=None)
@@ -371,7 +372,7 @@ class EvalSpec(BaseModel):
     dataset: EvalDataset
     """Dataset used for eval."""
 
-    sandbox: tuple[str, str | None] | None = Field(default=None)
+    sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
     model: str

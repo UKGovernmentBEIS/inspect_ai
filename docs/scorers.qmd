@@ -505,6 +505,7 @@ import numpy as np
 
 from inspect_ai.scorer import Metric, Score, metric
 
+@metric
 def var() -> Metric:
     """Compute variance over all scores."""
 

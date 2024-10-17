@@ -56,6 +56,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--log-dir",
         type=str,
         default="./logs",
+        callback=clean_log_dir,
         envvar="INSPECT_LOG_DIR",
         help="Directory for log files.",
     )
@@ -102,3 +103,9 @@ def process_common_options(options: CommonOptions) -> None:
         print("Waiting for debugger attach")
         debugpy.wait_for_client()
         print("Debugger attached")
+
+
+def clean_log_dir(ctx: click.Context, param: str, value: str | None) -> str:
+    if value is not None:
+        value = value.rstrip("/\\")
+    return value
