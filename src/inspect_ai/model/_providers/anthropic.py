@@ -393,7 +393,7 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
 
 
 # text we insert when there is no content passed
-# (as this will result in an Anthropoic API error)
+# (as this will result in an Anthropic API error)
 NO_CONTENT = "(no content)"
 
 
