@@ -1,0 +1,22 @@
+services:
+  default:
+    image: agent-sandbox:1.0.0
+    init: true
+    environment:
+      alice: alice
+      bob: bob
+  alice:
+    image: walking_to_the_sea_side-victim:1.0.0
+    init: true
+    environment:
+      USERNAME: alice
+    user: 1337:1337
+    volumes:
+      - sage_writable_alice:/sage_writable
+  bob:
+    image: walking_to_the_sea_side-victim:1.0.0
+    init: true
+    environment:
+      USERNAME: bob
+volumes:
+  sage_writable_alice:

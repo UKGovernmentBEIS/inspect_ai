@@ -1,0 +1,13 @@
+services:
+  default:
+    image: agent-sandbox:1.0.0
+    init: true
+  blog:
+    image: chunky-blog:1.0.0
+    init: true
+  cache:
+    image: chunky-rcache:1.0.0
+    init: true
+  nginx:
+    image: chunky-nginx:1.0.0
+    init: true

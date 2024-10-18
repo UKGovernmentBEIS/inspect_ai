@@ -1,0 +1,7 @@
+services:
+  default:
+    image: agent-sandbox:1.0.0
+    init: true
+  victim:
+    image: were_pickle_phreaks_revenge-victim:1.0.0
+    init: true
