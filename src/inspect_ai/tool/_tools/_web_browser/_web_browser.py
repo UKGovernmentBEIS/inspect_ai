@@ -3,7 +3,7 @@ from textwrap import dedent
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
-from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
+from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
 from inspect_ai.util._store import store
 
 from ..._tool import Tool, ToolError, tool
@@ -364,11 +364,11 @@ async def web_browser_sandbox() -> SandboxEnvironment:
         return sb
     else:
         msg = dedent(f"""
-                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE} image as its default sandbox:
+                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB} image as its default sandbox:
 
                 services:
                   default:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
 
                 Alternatively, this Docker compose file creates a dedicated image for the web browser service:
@@ -380,7 +380,7 @@ async def web_browser_sandbox() -> SandboxEnvironment:
                     command: "tail -f /dev/null"
 
                   web_browser:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
                 """).strip()
         raise PrerequisiteError(msg)

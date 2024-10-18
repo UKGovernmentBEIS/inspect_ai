@@ -7,6 +7,7 @@
 - Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
+- Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
 - Requirements: require semver>=3.0.0
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
