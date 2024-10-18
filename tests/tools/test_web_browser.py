@@ -10,7 +10,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
-from inspect_ai.util import SandboxEnvironmentSpec
 
 
 @skip_if_no_docker
@@ -146,7 +145,7 @@ def test_web_browser_input():
     assert type_call
 
 
-def web_browser_sandbox() -> SandboxEnvironmentSpec:
+def web_browser_sandbox() -> tuple[str, str]:
     return (
         "docker",
         (Path(__file__).parent / "test_web_browser_compose.yaml").as_posix(),

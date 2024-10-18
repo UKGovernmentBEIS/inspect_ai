@@ -24,7 +24,8 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model import Model, ModelName
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
@@ -42,7 +43,7 @@ class ResolvedTask:
     task_args: dict[str, Any]
     task_file: str | None
     model: Model
-    sandbox: tuple[str, str | None] | None
+    sandbox: SandboxEnvironmentSpec | None
     sequence: int
     id: str | None = field(default=None)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -61,7 +62,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
-    sandbox: SandboxEnvironmentSpec | None,
+    sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         return [
@@ -169,24 +170,18 @@ def resolve_task_args(task: Task) -> dict[str, Any]:
 
 
 def resolve_task_sandbox(
-    task: Task, sandbox: SandboxEnvironmentSpec | None
-) -> tuple[str, str | None] | None:
+    task: Task, sandbox: SandboxEnvironmentType | None
+) -> SandboxEnvironmentSpec | None:
     # do the resolution
-    resolved_sandbox = (
-        (sandbox, None)
-        if isinstance(sandbox, str)
-        else sandbox
-        if sandbox is not None
-        else task.sandbox
-    )
+    resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
 
     # if we have a sandbox with no config, see if there are implcit
     # config files available for the provider
     if resolved_sandbox is not None:
         # look for default
-        if resolved_sandbox[1] is None:
+        if resolved_sandbox.config is None:
             # get config files for this type
-            sandboxenv_type = registry_find_sandboxenv(resolved_sandbox[0])
+            sandboxenv_type = registry_find_sandboxenv(resolved_sandbox.type)
             config_files_fn = cast(
                 Callable[..., list[str]], getattr(sandboxenv_type, "config_files")
             )
@@ -197,15 +192,19 @@ def resolve_task_sandbox(
             for config_file in config_files:
                 config_file_path = os.path.join(src_dir, config_file)
                 if os.path.isfile(config_file_path):
-                    resolved_sandbox = (resolved_sandbox[0], config_file)
+                    resolved_sandbox = SandboxEnvironmentSpec(
+                        resolved_sandbox.type, config_file
+                    )
                     break
 
         # resolve relative paths
-        if resolved_sandbox[1] is not None:
-            file_path = Path(resolved_sandbox[1])
+        if resolved_sandbox.config is not None:
+            file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
                 file_path = Path(task_run_dir(task)) / file_path
-                resolved_sandbox = (resolved_sandbox[0], file_path.as_posix())
+                resolved_sandbox = SandboxEnvironmentSpec(
+                    resolved_sandbox.type, file_path.as_posix()
+                )
 
     # return resolved sandbox
     return resolved_sandbox

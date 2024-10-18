@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal, Union, overload
+from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
 
 from .._subprocess import ExecResult
 
@@ -194,5 +194,30 @@ class SandboxEnvironments:
     """
 
 
-SandboxEnvironmentSpec = str | tuple[str, str | None]
-"""Specification of a SandboxEnvironment (type or tuple with type and config file)."""
+class SandboxEnvironmentSpec(NamedTuple):
+    """Specification of a SandboxEnvironment."""
+
+    type: str
+    config: str | None = None
+
+
+SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
+"""SandboxEnvironmentSpec and str and tuple shorthands for it.
+
+A plain str, e.g. "docker", is equivalent to SandboxEnvironmentSpec("docker")
+A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpec("docker", "compose.yaml")
+"""
+
+
+def resolve_sandbox_environment(
+    sandbox: SandboxEnvironmentType | None,
+) -> SandboxEnvironmentSpec | None:
+    # do the resolution
+    if isinstance(sandbox, str):
+        return SandboxEnvironmentSpec(type=sandbox)
+    elif isinstance(sandbox, SandboxEnvironmentSpec):
+        return sandbox
+    elif isinstance(sandbox, tuple):
+        return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
+    else:
+        return None

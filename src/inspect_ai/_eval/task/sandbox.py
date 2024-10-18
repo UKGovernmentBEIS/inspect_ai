@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import contextlib
-from typing import AsyncGenerator
+from typing import AsyncGenerator, NamedTuple
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
@@ -12,13 +12,16 @@ from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironment,
+    SandboxEnvironmentSpec,
+)
 
 
 @contextlib.asynccontextmanager
 async def sandboxenv_context(
     task_name: str,
-    sandbox: tuple[str, str | None] | None,
+    sandbox: SandboxEnvironmentSpec | None,
     cleanup: bool,
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
@@ -47,9 +50,9 @@ async def sandboxenv_context(
     try:
         # initialize sandbox environment,
         environments = await init_sandbox_environments_sample(
-            type=sandbox[0],
+            type=sandbox.type,
             task_name=task_name,
-            config=sandbox[1],
+            config=sandbox.config,
             files=files,
             setup=setup,
             metadata=sample.metadata if sample.metadata else {},
@@ -66,9 +69,9 @@ async def sandboxenv_context(
         # cleanup sandbox environment
         if environments and cleanup:
             await cleanup_sandbox_environments_sample(
-                type=sandbox[0],
+                type=sandbox.type,
                 task_name=task_name,
-                config=sandbox[1],
+                config=sandbox.config,
                 environments=environments,
                 interrupted=interrupted,
             )
@@ -94,39 +97,40 @@ def read_sandboxenv_file(contents: str) -> bytes:
     return file_bytes
 
 
+class TaskSandboxEnvironment(NamedTuple):
+    sandbox: SandboxEnvironmentSpec
+    run_dir: str
+
+
 def resolve_sandbox_for_task(
     task: Task,
     sample: Sample,
-) -> tuple[str, str | None, str] | None:
+) -> TaskSandboxEnvironment | None:
     sandbox = resolve_sandbox(task.sandbox, sample)
     if sandbox is not None:
-        return sandbox + (task_run_dir(task),)
+        return TaskSandboxEnvironment(sandbox, task_run_dir(task))
     else:
         return None
 
 
 def resolve_sandbox(
-    sandbox: tuple[str, str | None] | None,
+    sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
-) -> tuple[str, str | None] | None:
+) -> SandboxEnvironmentSpec | None:
     # resolve sandbox (task type overrides sample type, but sample config
     # file overrides task config file if they have the same type)
-    sample_sandbox = (
-        (sample.sandbox, None) if isinstance(sample.sandbox, str) else sample.sandbox
-    )
     task_sandbox = sandbox
     if task_sandbox is not None:
-        sandbox_type = task_sandbox[0]
         if (
-            sample_sandbox
-            and sample_sandbox[0] == sandbox_type
-            and isinstance(sample_sandbox[1], str)
+            sample.sandbox
+            and sample.sandbox.type == task_sandbox.type
+            and sample.sandbox.config is not None
         ):
-            sandbox_config: str | None = sample_sandbox[1]
+            sandbox_config: str | None = sample.sandbox.config
         else:
-            sandbox_config = task_sandbox[1]
-        return (sandbox_type, sandbox_config)
-    elif sample_sandbox is not None:
-        return sample_sandbox
+            sandbox_config = task_sandbox.config
+        return SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
+    elif sample.sandbox is not None:
+        return sample.sandbox
     else:
         return None

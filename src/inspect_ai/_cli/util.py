@@ -2,6 +2,8 @@ from typing import Any
 
 import yaml
 
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
 
 def parse_cli_args(args: tuple[str] | list[str] | None) -> dict[str, Any]:
     params: dict[str, Any] = dict()
@@ -18,12 +20,12 @@ def parse_cli_args(args: tuple[str] | list[str] | None) -> dict[str, Any]:
     return params
 
 
-def parse_sandbox(sandbox: str | None) -> str | tuple[str, str] | None:
+def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
     if sandbox is not None:
         parts = sandbox.split(":", maxsplit=1)
         if len(parts) == 1:
-            return sandbox
+            return SandboxEnvironmentSpec(sandbox)
         else:
-            return (parts[0], parts[1])
+            return SandboxEnvironmentSpec(parts[0], parts[1])
     else:
         return None
