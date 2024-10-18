@@ -13,6 +13,7 @@
 - Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
 - Correct directory handling for tasks that are imported as local (non-package) modules.
 - Call tools sequentially when they have opted out of parallel calling.
+- Inspect view bundle: support for bundling directories with nested subdirectories.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
 - Bugfix: ensure that log directories don't end in forward/back slash.
