@@ -554,6 +554,17 @@
     ]
   },
   {
+    "objectID": "tools.html#sec-dynamic-tools",
+    "href": "tools.html#sec-dynamic-tools",
+    "title": "Tools",
+    "section": "Dynamic Tools",
+    "text": "Dynamic Tools\n\n\n\n\n\n\nNote that the dynamic tools feature described below is available only in the development version of Inspect. You can install the development version with:\npip install git+https://github.com/ukgovernmentbeis/inspect_ai\n\n\n\nAs described above, normally tools are defined using @tool decorators and documentation comments. It’s also possible to create a tool dynamically from any function by creating a ToolDef. For example:\nfrom inspect_ai.solver import use_tools\nfrom inspect_ai.tool import ToolDef\n\nasync def addition(x: int, y: int):\n    return x + y\n\nadd = ToolDef(\n    tool=addition,\n    name=\"add\",\n    description=\"A tool to add numbers\", \n    parameters={\n        \"x\": \"the x argument\",\n        \"y\": \"the y argument\"\n    })\n)\n\nuse_tools([add])\nThis is effectively what happens under the hood when you use the @tool decorator. There is one critical requirement for functions that are bound to tools using ToolDef: type annotations must be provided in the function signature (e.g. x: int, y: int).\nFor Inspect APIs, ToolDef can generally be used anywhere that Tool can be used (use_tools(), setting state.tools, etc.). If you are using a 3rd party API that does not take Tool in its interface, use the ToolDef.as_tool() method to adapt it. For example:\nfrom inspect_agents import my_agent\nagent = my_agent(tools=[add.as_tool()])\nIf on the other hand you want to get the ToolDef for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the Tool to the ToolDef constructor (including whatever overrides for name, etc. you want):\nfrom inspect_ai.tool import ToolDef, bash\nbash_def = ToolDef(bash())",
+    "crumbs": [
+      "Components",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>Tools</span>"
+    ]
+  },
+  {
     "objectID": "tools.html#parallel-tool-calls",
     "href": "tools.html#parallel-tool-calls",
     "title": "Tools",
