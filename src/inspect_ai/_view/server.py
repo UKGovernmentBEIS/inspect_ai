@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import logging
 import os
 import urllib.parse
@@ -7,6 +9,7 @@ from typing import Any, Awaitable, Callable
 
 from aiohttp import web
 from pydantic_core import to_jsonable_python
+from s3fs import S3FileSystem
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
@@ -35,8 +38,9 @@ def view_server(
     # route table
     routes = web.RouteTableDef()
 
-    # resolve log_dir to full path
-    log_dir = filesystem(log_dir).info(log_dir).name
+    # get filesystem and resolve log_dir to full path
+    fs = filesystem(log_dir)
+    log_dir = fs.info(log_dir).name
 
     # validate log file requests (must be in the log_dir
     # unless authorization has been provided)
@@ -62,7 +66,7 @@ def view_server(
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
 
-        return log_size_response(file)
+        return await log_size_response(file)
 
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
@@ -79,7 +83,7 @@ def view_server(
         if end is None:
             return web.HTTPBadRequest(reason="No 'end' query param")
 
-        return log_bytes_response(file, int(start), int(end))
+        return await log_bytes_response(file, int(start), int(end))
 
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
@@ -192,13 +196,16 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
         return web.Response(status=500, reason="File not found")
 
 
-def log_size_response(log_file: str) -> web.Response:
+async def log_size_response(log_file: str) -> web.Response:
     fs = filesystem(log_file)
-    info = fs.info(log_file)
+    if fs.is_s3():
+        info = fs._file_info(await s3_connection()._info(log_file))
+    else:
+        info = fs.info(log_file)
     return web.json_response(info.size)
 
 
-def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
+async def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
     # build headers
     content_length = end - start + 1
     headers = {
@@ -208,7 +215,10 @@ def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
 
     # fetch bytes
     fs = filesystem(log_file)
-    bytes = fs.read_bytes(log_file, start, end + 1)
+    if fs.is_s3():
+        bytes = await s3_connection()._cat_file(log_file, start=start, end=end + 1)
+    else:
+        bytes = fs.read_bytes(log_file, start, end + 1)
 
     # return response
     return web.Response(status=200, body=bytes, headers=headers)
@@ -281,3 +291,13 @@ def filter_aiohttp_log() -> None:
 
     # add the filter
     access_logger.addFilter(RequestFilter())
+
+
+_s3: S3FileSystem | None = None
+
+
+def s3_connection() -> S3FileSystem:
+    global _s3
+    if _s3 is None:
+        _s3 = S3FileSystem(asynchronous=True, loop=asyncio.get_event_loop())
+    return _s3

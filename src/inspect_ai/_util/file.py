@@ -4,6 +4,7 @@ import os
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from s3fs import S3FileSystem  # type: ignore
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
@@ -195,6 +196,12 @@ class FileSystem:
 
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
+
+    def is_async(self) -> bool:
+        return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
+
+    def is_s3(self) -> bool:
+        return isinstance(self.fs, S3FileSystem)
 
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
