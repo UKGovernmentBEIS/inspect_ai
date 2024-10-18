@@ -72,17 +72,11 @@ def registry_tag(
         *args (list[Any]): Creation arguments
         **kwargs (dict[str,Any]): Creation keyword arguments
     """
-    # determine arg names and add them to kwargs
+    # bind arguments to params
     named_params: dict[str, Any] = {}
-    if len(args) > 0:
-        params = list(inspect.signature(type).parameters.keys())
-        for i, arg in enumerate(args):
-            named_params[params[i]] = arg
-    named_params |= kwargs
-
-    # serialise registry objects with RegistryDict
-    for param in named_params.keys():
-        named_params[param] = registry_value(named_params[param])
+    bound_params = inspect.signature(type).bind(*args, **kwargs)
+    for param, value in bound_params.arguments.items():
+        named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -376,6 +370,11 @@ def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
 
 
 def registry_value(o: object) -> Any:
+    # treat tuple as list
+    if isinstance(o, tuple):
+        o = list(o)
+
+    # recurse through collection types
     if isinstance(o, list):
         return [registry_value(x) for x in o]
     elif isinstance(o, dict):
