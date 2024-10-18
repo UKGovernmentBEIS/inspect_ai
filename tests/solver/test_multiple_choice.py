@@ -4,6 +4,9 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelOutput
+from inspect_ai.scorer._choice import choice
+from inspect_ai.scorer._metric import CORRECT
+from inspect_ai.scorer._target import Target
 from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
 from inspect_ai.solver._task_state import Choice
 
@@ -285,3 +288,57 @@ async def test_multiple_shuffled_answers_more():
     assert new_state.choices[3] == Choice(
         value="choice 2", correct=True, original_position=1
     )
+
+
+cot_complex = """
+Let's approach this step-by-step:
+
+1. First, we need to understand that the question is about what happens after fertilization has occurred. The sperm has already been injected into the egg, so we're dealing with post-fertilization issues.
+
+2. Option B can be eliminated immediately because it talks about sperm binding to the egg, which has already happened in this scenario.
+
+3. Option C is not correct because chromosomal recombination typically occurs during meiosis, which happens when gametes (sperm and egg) are formed, not after fertilization.
+
+4. Now we're left with options A and D. Let's consider each:
+
+   A) Epistatic interactions refer to how genes interact with each other. While this could potentially cause issues, it's not likely to be the main cause of zygote mortality.
+
+   D) Chromosomal incompatibilities leading to failure of meiosis is more likely to be the main cause of zygote mortality.
+
+5. Here's why D is the most probable answer:
+   - Even though both species have the same number of chromosomes, the chromosomes themselves may be structurally different.
+   - These structural differences can lead to problems during cell division.
+   - The first cell division after fertilization is crucial for embryo development.
+   - If the chromosomes can't properly align or separate due to incompatibilities, it would lead to cell division failure and subsequent death of the zygote.
+
+6. While epistatic interactions (option A) could potentially cause issues later in development, chromosomal incompatibilities (option D) would cause problems immediately and be more likely to result in early zygote mortality.
+
+Therefore, the most likely main cause of zygote mortality in this scenario would be chromosomal incompatibilities.
+
+ANSWER: D"""
+
+
+@pytest.mark.asyncio
+async def test_cot_complex_text():
+    # Tests and end to end multiple choice generate and score
+    # with a real cot response that can trick our answer parsing
+
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["A", "B", "C", "D"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    async def generate_cot_text(state: TaskState) -> TaskState:
+        state.messages.append(ChatMessageAssistant(content=cot_complex))
+        state.output = ModelOutput.from_content(model="model", content=cot_complex)
+        return state
+
+    new_state = await solver(state=state, generate=generate_cot_text)
+
+    scorer = choice()
+    result = await scorer(new_state, Target("D"))
+    print(vars(result))
+
+    assert result.value == CORRECT
+    assert result.answer == "D"
