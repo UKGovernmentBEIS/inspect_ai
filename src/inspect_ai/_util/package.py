@@ -9,6 +9,27 @@ from typing import Any
 
 
 def get_installed_package_name(obj: Any) -> str | None:
+    # special handling for built-in functions
+    if inspect.isbuiltin(obj):
+        # try to get the module name
+        if getattr(obj, "__module__") is not None:
+            module_name = obj.__module__
+            if module_name:
+                return module_name.split(".")[0]
+
+        # try to get the class that defines this method
+        if hasattr(obj, "__objclass__"):
+            cls = obj.__objclass__
+        elif hasattr(obj, "__self__"):
+            cls = type(obj.__self__)
+        else:
+            return None
+
+        for base_cls in inspect.getmro(cls):
+            module = inspect.getmodule(base_cls)
+            if module:
+                return module.__name__.split(".")[0]
+
     # get the module of the object
     module = inspect.getmodule(obj)
     if module is None:
