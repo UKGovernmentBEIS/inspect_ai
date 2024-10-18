@@ -42,7 +42,7 @@ export class InspectViewServer implements Disposable {
     if (this.haveInspectEvalLogFormat()) {
       await this.ensureRunning();
     }
-    return JSON.stringify({ log_dir: "", files: [{ name: log_file.toString() }] });
+    return JSON.stringify({ log_dir: "", files: [{ name: log_file.toString(true) }] });
   }
 
   public async evalLog(
