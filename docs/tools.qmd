@@ -223,6 +223,7 @@ Note that the `tool_with()` function returns a copy of the passed tool with modi
 
 ::: {.callout-note appearance="simple"}
 Note that the dynamic tools feature described below is available only in the development version of Inspect. You can install the development version with:
+
 ``` bash
 pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
@@ -230,7 +231,7 @@ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 
 As described above, normally tools are defined using `@tool` decorators and documentation comments. It's also possible to create a tool dynamically from any function by creating a `ToolDef`. For example:
 
-```python
+``` python
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import ToolDef
 
@@ -254,18 +255,17 @@ This is effectively what happens under the hood when you use the `@tool` decorat
 
 For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool` can be used (`use_tools()`, setting `state.tools`, etc.). If you are using a 3rd party API that does not take `Tool` in its interface, use the `ToolDef.as_tool()` method to adapt it. For example:
 
-```python
+``` python
 from inspect_agents import my_agent
 agent = my_agent(tools=[add.as_tool()])
 ```
 
 If on the other hand you want to get the `ToolDef` for an existing tool (e.g. to discover its name, description, and parameters) you can just pass the `Tool` to the `ToolDef` constructor (including whatever overrides for `name`, etc. you want):
 
-```python
+``` python
 from inspect_ai.tool import ToolDef, bash
 bash_def = ToolDef(bash())
 ```
-
 
 ## Parallel Tool Calls
 
@@ -278,6 +278,12 @@ You can opt-out of parallel tool calling by adding `parallel=False` to the `@too
 def web_browser_go() -> Tool:
     ...
 ```
+
+Specifying `parallel=False` results in two behaviours:
+
+1.  Models that support turing off parallel tool calling (currently OpenAI and Grok) will have it disabled when tools with `parallel=False` are passed to `generate()`.
+
+2.  Inspect will execute tool calls serially (so that even for models that don't let you disable parallel tool calling, you can still be assured they will not ever run in parallel).
 
 ## Bash and Python {#sec-bash-and-python}
 

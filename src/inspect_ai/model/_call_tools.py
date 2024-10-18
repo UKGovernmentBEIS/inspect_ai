@@ -222,8 +222,18 @@ def tools_info(
     return tools_info
 
 
-def disable_parallel_tools(tools: list[ToolDef]) -> bool:
-    return any([tool.parallel is False for tool in tools])
+def disable_parallel_tools(
+    tools: list[Tool]
+    | list[ToolDef]
+    | list[ToolInfo]
+    | list[Tool | ToolDef | ToolInfo],
+) -> bool:
+    for tool in tools:
+        if isinstance(tool, Tool):
+            tool = ToolDef(tool)
+        if isinstance(tool, ToolDef) and not tool.parallel:
+            return True
+    return False
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
