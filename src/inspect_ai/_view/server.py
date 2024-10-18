@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import logging
 import os
 import urllib.parse
@@ -9,7 +8,7 @@ from typing import Any, Awaitable, Callable
 
 from aiohttp import web
 from pydantic_core import to_jsonable_python
-from s3fs import S3FileSystem
+from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
