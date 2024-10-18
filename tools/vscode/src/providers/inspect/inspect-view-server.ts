@@ -133,8 +133,10 @@ export class InspectViewServer implements Disposable {
           const onOutput = (output: string) => {
             this.outputChannel_.append(output);
             if (!resolved) {
-              resolved = true;
-              resolve(undefined);
+              if (output.includes("Running on ")) {
+                resolved = true;
+                resolve(undefined);
+              }
             }
           };
 
