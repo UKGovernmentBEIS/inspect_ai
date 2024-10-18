@@ -1,4 +1,5 @@
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
 
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
@@ -6,7 +7,8 @@ from ._task_state import TaskState
 
 @solver
 def use_tools(
-    *tools: Tool | list[Tool], tool_choice: ToolChoice | None = "auto"
+    *tools: Tool | ToolDef | list[Tool | ToolDef],
+    tool_choice: ToolChoice | None = "auto",
 ) -> Solver:
     """
     Inject tools into the task state to be used in generate().
@@ -26,11 +28,19 @@ def use_tools(
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # build up tools
         tools_update: list[Tool] = []
+
+        # add tool function to take care of tool/tool_def
+        def add_tool(tool: Tool | ToolDef) -> None:
+            if isinstance(tool, ToolDef):
+                tool = tool.as_tool()
+            tools_update.append(tool)
+
         for tool in tools:
             if isinstance(tool, list):
-                tools_update.extend(tool)
+                for t in tool:
+                    add_tool(t)
             else:
-                tools_update.append(tool)
+                add_tool(tool)
         if len(tools_update) > 0:
             state.tools = tools_update
 

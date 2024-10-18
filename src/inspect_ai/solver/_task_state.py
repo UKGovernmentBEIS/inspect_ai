@@ -17,6 +17,7 @@ from inspect_ai.model import (
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
 
 
@@ -135,8 +136,6 @@ class TaskState:
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
         choices: list[str] | None = [],
-        tools: list[Tool] = [],
-        tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
@@ -173,10 +172,10 @@ class TaskState:
         model performance or choose the next step.
         """
 
-        self.tools = tools
+        self._tools: list[Tool] = []
         """Tools available to the model."""
 
-        self.tool_choice = tool_choice
+        self.tool_choice: ToolChoice | None = None
         """Tool choice directive."""
 
         self.output = output if output else ModelOutput(model=str(model), choices=[])
@@ -320,8 +319,10 @@ class TaskState:
         return self._tools
 
     @tools.setter
-    def tools(self, tools: list[Tool]) -> None:
-        self._tools = tools
+    def tools(self, tools: list[Tool | ToolDef]) -> None:
+        self._tools.clear()
+        for tool in tools:
+            self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
 
 
 def sample_state() -> TaskState | None:
