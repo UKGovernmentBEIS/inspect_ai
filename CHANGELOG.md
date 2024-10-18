@@ -11,6 +11,7 @@
 - Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
 - Requirements: require semver>=3.0.0
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
+- Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 - Capture `list` and `dict` of registry objects when logging `plan`.
 - Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
