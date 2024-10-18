@@ -82,9 +82,7 @@ def registry_tag(
 
     # serialise registry objects with RegistryDict
     for param in named_params.keys():
-        value = named_params[param]
-        if has_registry_params(value):
-            named_params[param] = registry_dict(value)
+        named_params[param] = registry_value(named_params[param])
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -377,10 +375,19 @@ def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
     return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
 
 
-def registry_dict(o: object) -> RegistryDict:
-    return dict(
-        type=registry_info(o).type, name=registry_log_name(o), params=registry_params(o)
-    )
+def registry_value(o: object) -> Any:
+    if isinstance(o, list):
+        return [registry_value(x) for x in o]
+    elif isinstance(o, dict):
+        return {k: registry_value(v) for k, v in o.items()}
+    elif has_registry_params(o):
+        return dict(
+            type=registry_info(o).type,
+            name=registry_log_name(o),
+            params=registry_params(o),
+        )
+    else:
+        return o
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:
