@@ -1,9 +1,11 @@
 import inspect
 import logging
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Callable, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -16,6 +18,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.model import ModelName
 
 from .task import Task
+from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 
 MODEL_PARAM = "model"
 
@@ -138,6 +141,15 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 *w_args,
                 **w_kwargs,
             )
+
+            # if its not from an installed package then it is a "local"
+            # module import, so set its task file and run dir
+            if get_installed_package_name(task_type) is None:
+                module = inspect.getmodule(task_type)
+                if module and module.__file__:
+                    file = Path(module.__file__)
+                    setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
+                    setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
             # Return the task instance
             return task_instance

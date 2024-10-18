@@ -104,4 +104,5 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
         print("Debugger attached")
 
     # return resolved options
-    return (options["log_dir"], options["log_level"], options["log_level_transcript"])
+    log_dir = options["log_dir"].rstrip("/\\")
+    return (log_dir, options["log_level"], options["log_level_transcript"])

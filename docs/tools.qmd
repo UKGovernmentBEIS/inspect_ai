@@ -221,7 +221,7 @@ Note that the `tool_with()` function returns a copy of the passed tool with modi
 
 ## Parallel Tool Calls
 
-Some model APIs including OpenAI and Gemini support executing multiple tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).
+Models will often provide multiple tool calls to evaluate. By default, Inspect executes these tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).
 
 You can opt-out of parallel tool calling by adding `parallel=False` to the `@tool` decorator. For example, the built in web browsing tools do this as follows:
 

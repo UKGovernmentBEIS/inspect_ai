@@ -28,6 +28,7 @@ def csv_dataset(
     name: str | None = None,
     fs_options: dict[str, Any] = {},
     fieldnames: list[str] | None = None,
+    delimiter: str = ",",
 ) -> Dataset:
     r"""Read dataset from CSV file.
 
@@ -54,6 +55,7 @@ def csv_dataset(
         fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV.
             If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
+        delimiter (str): Optional. The delimiter to use when parsing the file. Defaults to ",".
 
     Returns:
         Dataset read from CSV file.
@@ -66,7 +68,7 @@ def csv_dataset(
         # filter out rows with empty values
         valid_data = [
             data
-            for data in csv_dataset_reader(f, dialect, fieldnames)
+            for data in csv_dataset_reader(f, dialect, fieldnames, delimiter)
             if data and any(value.strip() for value in data.values())
         ]
         name = name if name else Path(csv_file).stem
@@ -91,6 +93,11 @@ def csv_dataset(
 
 
 def csv_dataset_reader(
-    file: TextIOWrapper, dialect: str = "unix", fieldnames: list[str] | None = None
+    file: TextIOWrapper,
+    dialect: str = "unix",
+    fieldnames: list[str] | None = None,
+    delimiter: str = ",",
 ) -> DatasetReader:
-    return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames)
+    return csv.DictReader(
+        file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
+    )

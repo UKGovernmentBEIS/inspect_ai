@@ -945,7 +945,6 @@
           "title": "Value"
         },
         "options": {
-          "default": {},
           "title": "Options",
           "type": "object"
         },
@@ -1042,7 +1041,6 @@
           "type": "string"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         }
@@ -1218,31 +1216,13 @@
         "sandbox": {
           "anyOf": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
-              "type": "array"
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sandbox"
+          "default": null
         },
         "files": {
           "anyOf": [
@@ -1314,12 +1294,18 @@
           "type": "object"
         },
         "store": {
-          "default": {},
           "title": "Store",
           "type": "object"
         },
         "transcript": {
           "$ref": "#/$defs/EvalEvents"
+        },
+        "model_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Model Usage",
+          "type": "object"
         },
         "error": {
           "anyOf": [
@@ -1348,6 +1334,7 @@
         "metadata",
         "store",
         "transcript",
+        "model_usage",
         "error"
       ],
       "title": "EvalSample",
@@ -1412,7 +1399,6 @@
           "title": "Reducer"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         },
@@ -1420,7 +1406,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/EvalMetric"
           },
-          "default": [],
           "title": "Metrics",
           "type": "object"
         },
@@ -1452,7 +1437,6 @@
     "EvalSpec": {
       "properties": {
         "run_id": {
-          "default": "",
           "title": "Run Id",
           "type": "string"
         },
@@ -1465,7 +1449,6 @@
           "type": "string"
         },
         "task_id": {
-          "default": "",
           "title": "Task Id",
           "type": "string"
         },
@@ -1487,12 +1470,10 @@
           "title": "Task File"
         },
         "task_attribs": {
-          "default": {},
           "title": "Task Attribs",
           "type": "object"
         },
         "task_args": {
-          "default": {},
           "title": "Task Args",
           "type": "object"
         },
@@ -1526,31 +1507,13 @@
         "sandbox": {
           "anyOf": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
-              "type": "array"
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sandbox"
+          "default": null
         },
         "model": {
           "title": "Model",
@@ -1569,7 +1532,6 @@
           "title": "Model Base Url"
         },
         "model_args": {
-          "default": {},
           "title": "Model Args",
           "type": "object"
         },
@@ -1591,7 +1553,6 @@
           "additionalProperties": {
             "type": "string"
           },
-          "default": {},
           "title": "Packages",
           "type": "object"
         },
@@ -1636,12 +1597,10 @@
     "EvalStats": {
       "properties": {
         "started_at": {
-          "default": "",
           "title": "Started At",
           "type": "string"
         },
         "completed_at": {
-          "default": "",
           "title": "Completed At",
           "type": "string"
         },
@@ -1649,7 +1608,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/ModelUsage"
           },
-          "default": {},
           "title": "Model Usage",
           "type": "object"
         }
@@ -2384,7 +2342,6 @@
     "ModelOutput": {
       "properties": {
         "model": {
-          "default": "",
           "title": "Model",
           "type": "string"
         },
@@ -2484,7 +2441,6 @@
       "additionalProperties": false
     },
     "Sample": {
-      "description": "Sample to be used in an evaluation task.\n\nArgs:\n    input (str | list[ChatMessage]): The input to be submitted to the model.\n    choices (list[str] | None): Optional. List of available answer choices\n       (used only for multiple-choice evals).\n    target (str | list[str]): Optional. Ideal target output. May be a literal value\n        or narrative text to be used by a model grader.\n    id (int | str | None): Optional. Unique identifier for sample.\n    metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.\n    sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment\n      type and optional config file.\n    files (dict[str, str] | None): Optional. Files that go along with the sample (copied to\n      SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).\n    setup (str | None): Optional. Setup script to run for sample (run\n      within default SandboxEnvironment).",
       "properties": {
         "input": {
           "anyOf": [
@@ -2540,7 +2496,6 @@
               "type": "array"
             }
           ],
-          "default": "",
           "title": "Target"
         },
         "id": {
@@ -2573,34 +2528,13 @@
         "sandbox": {
           "anyOf": [
             {
-              "type": "string"
-            },
-            {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
-              "type": "array"
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sandbox"
+          "default": null
         },
         "files": {
           "anyOf": [
@@ -2801,6 +2735,29 @@
       "title": "SampleScore",
       "type": "object",
       "additionalProperties": false
+    },
+    "SandboxEnvironmentSpec": {
+      "maxItems": 2,
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "title": "Type",
+          "type": "string"
+        },
+        {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config"
+        }
+      ],
+      "type": "array"
     },
     "Score": {
       "description": "Score generated by a scorer.\n\nArgs:\n   value (Value): Score value.\n   answer (str | None): Answer extracted from model output (optional).\n   explanation (str | None): Explanation of score (optional).\n   metadata (dict[str,Any]): Additional metadata related to the score.",
