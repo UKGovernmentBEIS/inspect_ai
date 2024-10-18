@@ -39,7 +39,7 @@ def get_installed_package_name(obj: Any) -> str | None:
     module_name = module.__name__
     try:
         spec = importlib.util.find_spec(module_name)
-    except (ImportError, AttributeError):
+    except Exception:
         return None
     if spec is None or spec.origin is None:
         return None
