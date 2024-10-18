@@ -8,7 +8,6 @@ from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
 import fsspec  # type: ignore
-from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
@@ -174,10 +173,6 @@ class FileSystem:
     def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
         return self._file_info(self.fs.info(path, **kwargs))
 
-    async def info_async(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
-        info = await self.fs.ainfo(path, **kwargs)
-        return self._file_info(info)
-
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
     ) -> list[FileInfo]:
@@ -201,26 +196,14 @@ class FileSystem:
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
-    def is_async(self) -> bool:
-        return isinstance(self.fs, AsyncFileSystem)
-
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
-
-    async def put_file_async(self, lpath: str, rpath: str) -> None:
-        await self.fs.aput(lpath, rpath)
 
     def get_file(self, rpath: str, lpath: str) -> None:
         self.fs.get_file(rpath, lpath)
 
-    async def get_file_async(self, rpath: str, lpath: str) -> None:
-        await self.fs.aget(lpath, rpath)
-
     def read_bytes(self, path: str, start: int, end: int) -> bytes:
         return cast(bytes, self.fs.read_bytes(path, start, end))
-
-    async def read_bytes_async(self, path: str, start: int, end: int) -> bytes:
-        return cast(bytes, await self.fs.acat(path, start, end))
 
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended

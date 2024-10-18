@@ -59,12 +59,10 @@ def view_server(
     async def api_log_size(request: web.Request) -> web.Response:
         # log file requested
         file = request.match_info["log"]
-        logger.warning(file)
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
-        logger.warning(file)
 
-        return await log_size_response(file)
+        return log_size_response(file)
 
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
@@ -81,7 +79,7 @@ def view_server(
         if end is None:
             return web.HTTPBadRequest(reason="No 'end' query param")
 
-        return await log_bytes_response(file, int(start), int(end))
+        return log_bytes_response(file, int(start), int(end))
 
     @routes.get("/api/logs")
     async def api_logs(request: web.Request) -> web.Response:
@@ -194,16 +192,13 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
         return web.Response(status=500, reason="File not found")
 
 
-async def log_size_response(log_file: str) -> web.Response:
+def log_size_response(log_file: str) -> web.Response:
     fs = filesystem(log_file)
-    if fs.is_async():
-        info = await fs.info_async(log_file)
-    else:
-        info = fs.info(log_file)
+    info = fs.info(log_file)
     return web.json_response(info.size)
 
 
-async def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
+def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
     # build headers
     content_length = end - start + 1
     headers = {
@@ -213,10 +208,7 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
 
     # fetch bytes
     fs = filesystem(log_file)
-    if fs.is_async():
-        bytes = await fs.read_bytes_async(log_file, start, end + 1)
-    else:
-        bytes = fs.read_bytes(log_file, start, end + 1)
+    bytes = fs.read_bytes(log_file, start, end + 1)
 
     # return response
     return web.Response(status=200, body=bytes, headers=headers)

@@ -8,7 +8,7 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import dirname, file
 from inspect_ai.model._chat_message import ChatMessage

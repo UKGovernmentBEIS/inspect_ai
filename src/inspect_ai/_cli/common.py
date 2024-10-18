@@ -105,7 +105,7 @@ def process_common_options(options: CommonOptions) -> None:
         print("Debugger attached")
 
 
-def clean_log_dir(ctx: click.Context, param: str, value: str | None) -> str:
+def clean_log_dir(ctx: click.Context, param: str, value: str | None) -> str | None:
     if value is not None:
         value = value.rstrip("/\\")
     return value
