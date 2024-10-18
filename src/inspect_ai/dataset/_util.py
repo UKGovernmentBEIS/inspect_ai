@@ -169,11 +169,11 @@ def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
             if sandbox.strip().startswith("["):
                 sandbox = json.loads(sandbox)
             else:
-                return (sandbox, None)
+                return SandboxEnvironmentSpec(sandbox)
 
         if isinstance(sandbox, list):
             if len(sandbox) == 2:
-                return str(sandbox[0]), str(sandbox[1])
+                return SandboxEnvironmentSpec(str(sandbox[0]), str(sandbox[1]))
             else:
                 raise ValueError(
                     f"Invalid 'sandbox' value: '{str(sandbox)}'. Sandbox must be string or 2-item list"

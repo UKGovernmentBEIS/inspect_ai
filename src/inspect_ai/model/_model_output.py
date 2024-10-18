@@ -91,7 +91,7 @@ class ChatCompletionChoice(BaseModel):
 
 
 class ModelOutput(BaseModel):
-    model: str = Field(default="")
+    model: str = Field(default_factory=str)
     """Model used for generation."""
 
     choices: list[ChatCompletionChoice] = Field(default=[])
