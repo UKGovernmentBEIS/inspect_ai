@@ -18,9 +18,9 @@ from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
-    list_eval_logs_impl,
-    read_eval_log_headers_impl,
-    read_eval_log_impl,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_headers,
 )
 
 from .notify import view_last_eval_time
@@ -58,7 +58,7 @@ def view_server(
 
         # header_only is based on a size threshold
         header_only = request.query.get("header-only", None)
-        return await log_file_response(file, header_only)
+        return log_file_response(file, header_only)
 
     @routes.get("/api/log-size/{log}")
     async def api_log_size(request: web.Request) -> web.Response:
@@ -99,7 +99,7 @@ def view_server(
             request_log_dir = log_dir
 
         # list logs
-        logs = await list_eval_logs_impl(
+        logs = list_eval_logs(
             log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
         )
         return log_listing_response(logs, request_log_dir)
@@ -109,7 +109,7 @@ def view_server(
         files = request.query.getall("file", [])
         files = [urllib.parse.unquote(file) for file in files]
         map(validate_log_file_request, files)
-        return await log_headers_response(files)
+        return log_headers_response(files)
 
     @routes.get("/api/events")
     async def api_events(request: web.Request) -> web.Response:
@@ -169,7 +169,7 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
     return web.json_response(response)
 
 
-async def log_file_response(file: str, header_only_param: str | None) -> web.Response:
+def log_file_response(file: str, header_only_param: str | None) -> web.Response:
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None
     header_only = resolve_header_only(file, header_only_mb)
@@ -178,7 +178,7 @@ async def log_file_response(file: str, header_only_param: str | None) -> web.Res
         contents: bytes | None = None
         if header_only:
             try:
-                log = await read_eval_log_impl(file, header_only=True)
+                log = read_eval_log(file, header_only=True)
                 contents = eval_log_json(log).encode()
             except ValueError as ex:
                 logger.info(
@@ -187,7 +187,7 @@ async def log_file_response(file: str, header_only_param: str | None) -> web.Res
                 )
 
         if contents is None:  # normal read
-            log = await read_eval_log_impl(file, header_only=False)
+            log = read_eval_log(file, header_only=False)
             contents = eval_log_json(log).encode()
 
         return web.Response(body=contents, content_type="application/json")
@@ -227,8 +227,8 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
     return web.Response(status=200, body=bytes, headers=headers)
 
 
-async def log_headers_response(files: list[str]) -> web.Response:
-    headers = await read_eval_log_headers_impl(files)
+def log_headers_response(files: list[str]) -> web.Response:
+    headers = read_eval_log_headers(files)
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
 
 

@@ -1,15 +1,12 @@
-import asyncio
 import os
 import re
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal
 
 from pydantic_core import to_json
 
-from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS
 from inspect_ai._util.file import (
     FileInfo,
-    async_fileystem,
     file,
     filesystem,
 )
@@ -75,103 +72,12 @@ def list_eval_logs(
         return eval_logs
 
 
-async def list_eval_logs_impl(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
-    formats: list[Literal["eval", "json"]] | None = None,
-    filter: Callable[[EvalLog], bool] | None = None,
-    recursive: bool = True,
-    descending: bool = True,
-    fs_options: dict[str, Any] = {},
-) -> list[EvalLogInfo]:
-    """List all eval logs in a directory.
-
-    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
-
-    Args:
-      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
-      formats (Literal["eval", "json"]): Formats to list (default
-        to listing all formats)
-      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
-         Note that the EvalLog instance passed to the filter has only
-         the EvalLog header (i.e. does not have the samples or logging output).
-      recursive (bool): List log files recursively (defaults to True).
-      descending (bool): List in descending order.
-      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-          to the filesystem provider (e.g. `S3FileSystem`).
-
-    Returns:
-       List of EvalLog Info.
-
-    """
-    # async filesystem if we can
-    fs = filesystem(log_dir, fs_options)
-    if fs.is_async():
-        async_fs = async_fileystem(log_dir, fs_options=fs_options)
-        if await async_fs._exists(log_dir):
-            # prevent caching of listings
-            async_fs.invalidate_cache(log_dir)
-
-            # list logs
-            if recursive:
-                files: list[dict[str, Any]] = []
-                async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                    files.extend(filenames.values())
-            else:
-                files = cast(
-                    list[dict[str, Any]],
-                    async_fs._ls(log_dir, detail=True),
-                )
-            logs = [fs._file_info(file) for file in files]
-
-            # resolve to eval logs
-            eval_logs = log_files_from_ls(logs, formats, descending)
-        else:
-            return []
-
-        # apply filter if requested
-        if filter:
-            return [
-                log
-                for log in eval_logs
-                if filter(await read_eval_log_impl(log.name, header_only=True))
-            ]
-        else:
-            return eval_logs
-    else:
-        return list_eval_logs(
-            log_dir=log_dir,
-            formats=formats,
-            filter=filter,
-            recursive=recursive,
-            descending=descending,
-            fs_options=fs_options,
-        )
-
-
 def write_eval_log(
     log: EvalLog,
     log_file: str | FileInfo,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> None:
     """Write an evaluation log.
-
-    Args:
-       log (EvalLog): Evaluation log to write.
-       log_file (str | FileInfo): Location to write log to.
-       format (Literal["eval", "json", "auto"]): Write to format
-          (defaults to 'auto' based on `log_file` extension)
-    """
-    run_coroutine(write_eval_log_impl(log, log_file, format))
-
-
-async def write_eval_log_impl(
-    log: EvalLog,
-    log_file: str | FileInfo,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> None:
-    """Write an evaluation log.
-
-    Will only be async for filesystem providers that support async (e.g. s3, gcs, etc.). Further, for some recorders that don't have back ends that support asyncio (e.g. 'eval') sync will also be used even for async filesystems.
 
     Args:
        log (EvalLog): Evaluation log to write.
@@ -186,7 +92,7 @@ async def write_eval_log_impl(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(log_file, log)
+    recorder_type.write_log(log_file, log)
 
 
 def write_log_dir_manifest(
@@ -248,28 +154,6 @@ def read_eval_log(
     Returns:
        EvalLog object read from file.
     """
-    return run_coroutine(read_eval_log_impl(log_file, header_only, format))
-
-
-async def read_eval_log_impl(
-    log_file: str | FileInfo,
-    header_only: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> EvalLog:
-    """Read an evaluation log.
-
-    Will only be async for filesystem providers that support async (e.g. s3, gcs, etc.). Further, for some recorders that don't have back ends that support asyncio (e.g. 'eval') sync will also be used even for async filesystems. Note that we intend to eventually implement direct byte-level reading from 'eval' zip files so they can support async reading.
-
-    Args:
-       log_file (str | FileInfo): Log file to read.
-       header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
-       format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
-
-    Returns:
-       EvalLog object read from file.
-    """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
 
@@ -278,21 +162,13 @@ async def read_eval_log_impl(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return await recorder_type.read_log(log_file, header_only)
+    return recorder_type.read_log(log_file, header_only)
 
 
 def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return run_coroutine(read_eval_log_headers_impl(log_files))
-
-
-async def read_eval_log_headers_impl(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
-) -> list[EvalLog]:
-    return await asyncio.gather(
-        *[read_eval_log_impl(log_file, header_only=True) for log_file in log_files]
-    )
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
 def read_eval_log_sample(
@@ -313,29 +189,6 @@ def read_eval_log_sample(
     Returns:
        EvalSample object read from file.
     """
-    return run_coroutine(read_eval_log_sample_impl(log_file, id, epoch, format))
-
-
-async def read_eval_log_sample_impl(
-    log_file: str | FileInfo,
-    id: int | str,
-    epoch: int = 1,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> EvalSample:
-    """Read a sample from an evaluation log.
-
-    Will only be async for filesystem providers that support async (e.g. s3, gcs, etc.). Further, for some recorders that don't have back ends that support asyncio (e.g. 'eval') sync will also be used even for async filesystems. Note that we intend to eventually implement direct byte-level reading from 'eval' zip files so they can support async reading.
-
-    Args:
-       log_file (str | FileInfo): Log file to read.
-       id (int | str): Sample id to read.
-       epoch (int): Epoch for sample id (defaults to 1)
-       format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
-
-    Returns:
-       EvalSample object read from file.
-    """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
 
@@ -343,7 +196,7 @@ async def read_eval_log_sample_impl(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return await recorder_type.read_log_sample(log_file, id, epoch)
+    return recorder_type.read_log_sample(log_file, id, epoch)
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

@@ -208,7 +208,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         with display().task(profile) as td:
             try:
                 # start the log
-                await log_start(logger, plan, generate_config)
+                log_start(logger, plan, generate_config)
 
                 with td.progress() as p:
                     # forward progress
@@ -324,11 +324,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # log as appropriate
         if cancelled:
-            eval_log = await logger.log_finish("cancelled", stats, results)
+            eval_log = logger.log_finish("cancelled", stats, results)
         elif error:
-            eval_log = await logger.log_finish("error", stats, results, error)
+            eval_log = logger.log_finish("error", stats, results, error)
         else:
-            eval_log = await logger.log_finish("success", stats, results)
+            eval_log = logger.log_finish("success", stats, results)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
@@ -370,7 +370,7 @@ async def task_run_sample(
                 progress()
             # log if requested
             if logger:
-                await logger.log_sample(previous_sample, flush=False)
+                logger.log_sample(previous_sample, flush=False)
 
             # return score
             if previous_sample.scores:
@@ -470,7 +470,7 @@ async def task_run_sample(
                 state = state_without_base64_images(state)
 
             # log the sample
-            await log_sample(
+            log_sample(
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -486,7 +486,7 @@ async def task_run_sample(
             return None
 
 
-async def log_sample(
+def log_sample(
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -502,7 +502,7 @@ async def log_sample(
         )
 
     # construct sample for logging
-    await logger.log_sample(
+    logger.log_sample(
         EvalSample(
             id=id,
             epoch=state.epoch,

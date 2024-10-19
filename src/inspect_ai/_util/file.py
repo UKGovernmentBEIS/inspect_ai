@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import io
 import os
@@ -9,7 +8,6 @@ from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
 import fsspec  # type: ignore
-from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
@@ -304,14 +302,3 @@ DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
     s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False)
 )
-
-
-def async_fileystem(log_file: str, fs_options: dict[str, Any] = {}) -> AsyncFileSystem:
-    # determine protocol
-    protocol, _ = split_protocol(log_file)
-    protocol = protocol or "file"
-
-    # create filesystem
-    fs_options = fs_options.copy()
-    fs_options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
-    return fsspec.filesystem(protocol, **fs_options)
