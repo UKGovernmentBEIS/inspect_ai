@@ -1,5 +1,6 @@
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Literal
 
 from pydantic_core import to_json
@@ -168,7 +169,13 @@ def read_eval_log(
 def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(read_eval_log, log_file, header_only=True)
+            for log_file in log_files
+        ]
+        results = [future.result() for future in futures]
+    return results
 
 
 def read_eval_log_sample(
