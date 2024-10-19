@@ -6,6 +6,7 @@ import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
 import { HostWebviewPanel } from '../../hooks';
 import { InspectSettingsManager } from "../settings/inspect-settings";
+import { log } from '../../core/log';
 
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
@@ -52,7 +53,21 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): Promise<void> {
-    if (this.settings_.getSettings().jsonLogView) {
+
+    // check if we should use the log viewer (pref + never show files > 100mb)
+    let useLogViewer = this.settings_.getSettings().jsonLogView;
+    if (useLogViewer) {
+      const docUri = document.uri.toString();
+      if (docUri.endsWith(".json")) {
+        const fileSize = await this.server_.evalLogSize(docUri);
+        if (fileSize > (1024 * 1000 * 100)) {
+          log.info(`JSON log file ${document.uri.path} is to large for Inspect View, opening in text editor.`);
+          useLogViewer = false;
+        }
+      }
+    }
+
+    if (useLogViewer) {
       // local resource roots
       const localResourceRoots: Uri[] = [];
       const viewDir = inspectViewPath();
