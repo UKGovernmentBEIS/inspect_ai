@@ -6,9 +6,11 @@ from logging import LogRecord, getLogger
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+import fsspec  # type: ignore
 from aiohttp import web
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
-from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
@@ -197,8 +199,8 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
 
 async def log_size_response(log_file: str) -> web.Response:
     fs = filesystem(log_file)
-    if fs.is_s3():
-        info = fs._file_info(await s3_connection()._info(log_file))
+    if fs.is_async():
+        info = fs._file_info(await async_connection(log_file)._info(log_file))
     else:
         info = fs.info(log_file)
     return web.json_response(info.size)
@@ -214,8 +216,10 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
 
     # fetch bytes
     fs = filesystem(log_file)
-    if fs.is_s3():
-        bytes = await s3_connection()._cat_file(log_file, start=start, end=end + 1)
+    if fs.is_async():
+        bytes = await async_connection(log_file)._cat_file(
+            log_file, start=start, end=end + 1
+        )
     else:
         bytes = fs.read_bytes(log_file, start, end + 1)
 
@@ -292,11 +296,19 @@ def filter_aiohttp_log() -> None:
     access_logger.addFilter(RequestFilter())
 
 
-_s3: S3FileSystem | None = None
+_async_connections: dict[str, AsyncFileSystem] = {}
 
 
-def s3_connection() -> S3FileSystem:
-    global _s3
-    if _s3 is None:
-        _s3 = S3FileSystem(asynchronous=True, loop=asyncio.get_event_loop())
-    return _s3
+def async_connection(log_file: str) -> AsyncFileSystem:
+    # determine protocol
+    protocol, _ = split_protocol(log_file)
+    protocol = protocol or "file"
+
+    # create connection if required
+    if protocol not in _async_connections.keys():
+        _async_connections[protocol] = fsspec.filesystem(
+            protocol, asynchronous=True, loop=asyncio.get_event_loop()
+        )
+
+    # return async file-system
+    return _async_connections.get(protocol)
