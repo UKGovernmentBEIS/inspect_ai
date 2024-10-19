@@ -4,7 +4,6 @@ import os
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from s3fs import S3FileSystem  # type: ignore
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
@@ -12,6 +11,7 @@ import fsspec  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
+from s3fs import S3FileSystem  # type: ignore
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
