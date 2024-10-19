@@ -4,8 +4,8 @@ from logging import getLogger
 from typing import (
     Any,
     Callable,
+    ParamSpec,
     Protocol,
-    TypeVar,
     cast,
     overload,
     runtime_checkable,
@@ -62,16 +62,10 @@ class Tool(Protocol):
         ...
 
 
-ToolType = TypeVar("ToolType", Callable[..., Tool], type[Tool])
-r"""Tool type.
-
-Valid tool types include:
- - Functions that return a Tool
- - Classes derived from Tool
-"""
+P = ParamSpec("P")
 
 
-def tool_register(tool: ToolType, name: str) -> ToolType:
+def tool_register(tool: Callable[P, Tool], name: str) -> Callable[P, Tool]:
     r"""Register a function or class as a tool.
 
     Args:
@@ -91,11 +85,11 @@ def tool_register(tool: ToolType, name: str) -> ToolType:
 
 
 @overload
-def tool(func: ToolType) -> ToolType: ...
+def tool(func: Callable[P, Tool]) -> Callable[P, Tool]: ...
 
 
 @overload
-def tool() -> Callable[[ToolType], ToolType]: ...
+def tool() -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
 
 
 @overload
@@ -105,17 +99,17 @@ def tool(
     viewer: ToolCallViewer | None = None,
     parallel: bool = True,
     prompt: str | None = None,
-) -> Callable[[ToolType], ToolType]: ...
+) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
 
 
 def tool(
-    func: ToolType | None = None,
+    func: Callable[P, Tool] | None = None,
     *,
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
     parallel: bool = True,
     prompt: str | None = None,
-) -> ToolType | Callable[[ToolType], ToolType]:
+) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
     r"""Decorator for registering tools.
 
     Args:
@@ -147,7 +141,7 @@ def tool(
         )
         prompt = re.sub(r"\s+", " ", prompt)
 
-    def create_tool_wrapper(tool_type: ToolType) -> ToolType:
+    def create_tool_wrapper(tool_type: Callable[P, Tool]) -> Callable[P, Tool]:
         # determine the name (explicit or implicit from object)
         tool_name = registry_name(
             tool_type, name if name else getattr(tool_type, "__name__")
@@ -155,7 +149,7 @@ def tool(
 
         # wrap instantiations of scorer so they carry registry info and metrics
         @wraps(tool_type)
-        def tool_wrapper(*args: Any, **kwargs: Any) -> Tool:
+        def tool_wrapper(*args: P.args, **kwargs: P.kwargs) -> Tool:
             tool = tool_type(*args, **kwargs)
             registry_tag(
                 tool_type,
@@ -175,7 +169,7 @@ def tool(
             return tool
 
         # register
-        return tool_register(cast(ToolType, tool_wrapper), tool_name)
+        return tool_register(cast(Callable[P, Tool], tool_wrapper), tool_name)
 
     if func is not None:
         return create_tool_wrapper(func)
