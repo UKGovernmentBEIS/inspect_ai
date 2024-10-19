@@ -55,8 +55,8 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
-    *args: list[Any],
-    **kwargs: dict[str, Any],
+    *args: Any,
+    **kwargs: Any,
 ) -> None:
     r"""Tag an object w/ registry info.
 

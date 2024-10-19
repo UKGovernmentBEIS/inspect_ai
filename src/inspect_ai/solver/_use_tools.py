@@ -7,7 +7,7 @@ from ._task_state import TaskState
 
 @solver
 def use_tools(
-    *tools: Tool | ToolDef | list[Tool | ToolDef],
+    *tools: Tool | ToolDef | list[Tool] | list[ToolDef] | list[Tool | ToolDef],
     tool_choice: ToolChoice | None = "auto",
 ) -> Solver:
     """
