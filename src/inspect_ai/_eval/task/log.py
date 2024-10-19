@@ -106,9 +106,8 @@ class TaskLogger:
             metadata=metadata,
         )
 
-        # stack recorder and location
+        # save reference to recorder
         self.recorder = recorder
-        self._location = self.recorder.log_init(self.eval)
 
         # number of samples logged
         self._samples_completed = 0
@@ -125,35 +124,40 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
-    def log_start(self, plan: EvalPlan) -> None:
-        self.recorder.log_start(self.eval, plan)
+    async def log_init(self) -> None:
+        self._location = await self.recorder.log_init(self.eval)
 
-    def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
+    async def log_start(self, plan: EvalPlan) -> None:
+        await self.recorder.log_start(self.eval, plan)
+
+    async def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
-        self.recorder.log_sample(self.eval, sample)
+        await self.recorder.log_sample(self.eval, sample)
 
         # flush if requested
         if flush:
             self.flush_pending += 1
             if self.flush_pending >= self.flush_buffer:
-                self.recorder.flush(self.eval)
+                await self.recorder.flush(self.eval)
                 self.flush_pending = 0
 
         # track sucessful samples logged
         if sample.error is None:
             self._samples_completed += 1
 
-    def log_finish(
+    async def log_finish(
         self,
         status: Literal["success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        return self.recorder.log_finish(self.eval, status, stats, results, error)
+        return await self.recorder.log_finish(self.eval, status, stats, results, error)
+
+    _location: str = ""
 
 
-def log_start(
+async def log_start(
     logger: TaskLogger,
     plan: Plan,
     config: GenerateConfig,
@@ -172,7 +176,7 @@ def log_start(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log_start(eval_plan)
+    await logger.log_start(eval_plan)
 
 
 def collect_eval_data(stats: EvalStats) -> None:

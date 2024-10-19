@@ -19,7 +19,8 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
     config_from_approval_policies,
 )
-from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
+from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
+from inspect_ai.log._file import read_eval_log_impl
 from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.model import (
     GenerateConfig,
@@ -571,9 +572,9 @@ async def eval_retry_async(
             task
             if isinstance(task, EvalLog)
             else (
-                read_eval_log(task.name)
+                await read_eval_log_impl(task.name)
                 if isinstance(task, EvalLogInfo)
-                else read_eval_log(task)
+                else await read_eval_log_impl(task)
             )
         )
         for task in tasks

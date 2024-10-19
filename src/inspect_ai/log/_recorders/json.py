@@ -56,7 +56,7 @@ class JSONRecorder(FileRecorder):
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
@@ -74,19 +74,19 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
 
     @override
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
 
     @override
-    def log_finish(
+    async def log_finish(
         self,
         spec: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
@@ -100,7 +100,7 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         if error:
             log.data.error = error
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
 
         # stop tracking this data
         del self.data[self._log_file_key(spec)]
@@ -109,13 +109,13 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
-    def flush(self, eval: EvalSpec) -> None:
+    async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
 
     @override
     @classmethod
-    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         if header_only:
             try:
                 return _read_header_streaming(location)
@@ -159,7 +159,7 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    def read_log_sample(
+    async def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         raise NotImplementedError(
@@ -168,7 +168,7 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    def write_log(cls, location: str, log: EvalLog) -> None:
+    async def write_log(cls, location: str, log: EvalLog) -> None:
         from inspect_ai.log._file import eval_log_json
 
         # sort samples before writing as they can come in out of order
