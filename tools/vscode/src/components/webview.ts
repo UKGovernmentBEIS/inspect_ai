@@ -5,6 +5,7 @@ import {
   ExtensionContext,
   window,
   commands,
+  WebviewPanel,
 } from "vscode";
 
 import { Disposable } from "../core/dispose";
@@ -39,11 +40,15 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
 
     context_.subscriptions.push(
       window.registerWebviewPanelSerializer(this.viewType_, {
-        deserializeWebviewPanel: (panel) => {
-          //this.restoreWebview(panel as HostWebviewPanel, state);
-          setTimeout(() => {
-            panel.dispose();
-          }, 200);
+        deserializeWebviewPanel: (panel: WebviewPanel, state?: S) => {
+          state = state || this.getWorkspaceState();
+          if (state) {
+            this.restoreWebview(panel as HostWebviewPanel, state);
+          } else {
+            setTimeout(() => {
+              panel.dispose();
+            }, 200);
+          }
           return Promise.resolve();
         },
       })
@@ -99,6 +104,10 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   }
 
   protected onViewStateChanged() { }
+
+  protected getWorkspaceState(): S | undefined {
+    return undefined;
+  }
 
 
   private resolveOnShow() {

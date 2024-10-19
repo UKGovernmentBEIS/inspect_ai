@@ -126,6 +126,10 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     state: LogviewState,
     activation?: "open" | "activate"
   ) {
+
+    // update state for restoring the workspace
+    this.setWorkspaceState(state);
+
     switch (activation) {
       case "open":
         await this.displayLogFile(state, activation);
@@ -226,6 +230,29 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
       this.lastState_ = state;
     }
   }
+
+  protected override getWorkspaceState(): LogviewState | undefined {
+    const data: Record<string, string> = this.context_.workspaceState.get(this.kInspectViewState, {});
+    if (data) {
+      return {
+        log_dir: Uri.parse(data["log_dir"]),
+        log_file: data["log_file"] ? Uri.parse(data["log_file"]) : undefined,
+        background_refresh: !!data["background_refresh"]
+      };
+    } else {
+      return this.lastState_;
+    }
+  }
+
+  protected setWorkspaceState(state: LogviewState) {
+    void this.context_.workspaceState.update(this.kInspectViewState, {
+      log_dir: state.log_dir.toString(),
+      log_file: state.log_file?.toString(),
+      background_refresh: state.background_refresh
+    });
+  }
+
+  private kInspectViewState = 'inspectViewState';
 
   private lastState_?: LogviewState = undefined;
 }
