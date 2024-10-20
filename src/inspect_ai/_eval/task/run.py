@@ -55,7 +55,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
-from inspect_ai.model._model import init_sample_model_usage
+from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._score import init_scoring_context
@@ -518,6 +518,7 @@ def log_sample(
             scores=cast(dict[str, Score], scores),
             store=dict(state.store.items()),
             transcript=eval_events(transcript().events, log_images),
+            model_usage=sample_model_usage(),
             error=error,
         ),
         flush=True,
