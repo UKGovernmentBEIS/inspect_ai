@@ -111,7 +111,7 @@ def view_server(
         files = request.query.getall("file", [])
         files = [urllib.parse.unquote(file) for file in files]
         map(validate_log_file_request, files)
-        return log_headers_response(files)
+        return await log_headers_response(files)
 
     @routes.get("/api/events")
     async def api_events(request: web.Request) -> web.Response:
