@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -175,6 +176,18 @@ def read_eval_log_headers(
             for log_file in log_files
         ]
         results = [future.result() for future in futures]
+    return results
+
+
+async def read_eval_log_headers_async(
+    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+) -> list[EvalLog]:
+    results = await asyncio.gather(
+        *[
+            asyncio.to_thread(read_eval_log, log_file, header_only=True)
+            for log_file in log_files
+        ]
+    )
     return results
 
 
