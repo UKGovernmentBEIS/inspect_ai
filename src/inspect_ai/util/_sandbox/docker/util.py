@@ -7,7 +7,13 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX
 
-from .config import ensure_auto_compose_file, resolve_compose_file
+from .config import (
+    COMPOSE_DOCKERFILE_YAML,
+    auto_compose_file,
+    ensure_auto_compose_file,
+    is_dockerfile,
+    resolve_compose_file,
+)
 
 logger = getLogger(__name__)
 
@@ -22,12 +28,26 @@ class ComposeProject:
     async def create(
         cls, name: str, config: str | None, env: dict[str, str] = {}
     ) -> "ComposeProject":
-        # ensure we have an auto-compose file if we need one
-        config = (
-            Path(config).resolve().as_posix()
-            if config
-            else await resolve_compose_file()
-        )
+        # resolve config to full path if we have one
+        config_path = Path(config).resolve() if config else None
+
+        # if its a Dockerfile, then config is the auto-generated .compose.yaml
+        if config_path and is_dockerfile(config_path.name):
+            config = await auto_compose_file(
+                COMPOSE_DOCKERFILE_YAML, config_path.parent.as_posix()
+            )
+
+        # if its another config file, just take its path
+        elif config_path:
+            config = config_path.as_posix()
+
+        # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
+        else:
+            config = await resolve_compose_file()
+
+        # this could be a cleanup where docker has tracked a .compose.yaml file
+        # as part of its ConfigFiles and passed it back to us -- we in the
+        # meantime have cleaned it up so we re-create it here as required
         await ensure_auto_compose_file(config)
 
         # return project

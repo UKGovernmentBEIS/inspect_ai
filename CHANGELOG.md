@@ -5,13 +5,15 @@
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Cleanup Docker Containers immediately for samples with errors.
+- Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
 - Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
 - Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
 - Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
-- Requirements: require semver>=3.0.0
+- Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.
+- Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).

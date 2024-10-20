@@ -379,8 +379,6 @@ By default, any `Dockerfile` and/or `compose.yaml` file within the task director
 sandbox=("docker", "attacker-compose.yaml")
 ```
 
-The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically).
-
 ### Per Sample Setup
 
 The `Sample` class includes `sandbox`, `files` and `setup` fields that are used to specify per-sample sandbox config, file assets, and setup logic.

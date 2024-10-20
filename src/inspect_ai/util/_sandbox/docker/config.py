@@ -14,6 +14,8 @@ CONFIG_FILES = [
     "docker-compose.yml",
 ]
 
+DOCKERFILE = "Dockerfile"
+
 
 async def resolve_compose_file(parent: str = "") -> str:
     # existing compose file provides all the config we need
@@ -41,8 +43,12 @@ def find_compose_file(parent: str = "") -> str | None:
     return None
 
 
+def is_dockerfile(file: str) -> bool:
+    return os.path.basename(file) == DOCKERFILE
+
+
 def has_dockerfile(parent: str = "") -> bool:
-    return os.path.isfile(os.path.join(parent, "Dockerfile"))
+    return os.path.isfile(os.path.join(parent, DOCKERFILE))
 
 
 def has_auto_compose_file(parent: str = "") -> bool:
