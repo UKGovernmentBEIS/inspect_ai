@@ -22114,17 +22114,13 @@ function App({ api: api2, pollForLogs = true }) {
   const [groupByOrder, setGroupByOrder] = h("asc");
   y(() => {
     var _a3;
-    console.log({ selectedLog });
     const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
-    console.log({ samples });
     const filtered = samples.filter((sample) => {
-      console.log("HI");
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
           return false;
         }
       }
-      console.log("HI2");
       if (filter.filterFn && filter.value) {
         return filter.filterFn(sample, filter.value);
       } else {
