@@ -11,7 +11,6 @@ from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_with import tool_with
 
 from ._prompt import system_message
@@ -50,7 +49,7 @@ class BasicAgentDeprecatedArgs(TypedDict, total=False):
 def basic_agent(
     *,
     init: Solver | list[Solver] | None = None,
-    tools: list[Tool | ToolDef] | Solver | None = None,
+    tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
     message_limit: int | None = None,

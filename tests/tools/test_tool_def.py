@@ -31,7 +31,7 @@ def test_tool_def() -> None:
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=[use_tools(addition_tool), generate()],
+        solver=[use_tools(addition_tool.as_tool()), generate()],
         scorer=match(numeric=True),
     )
 
