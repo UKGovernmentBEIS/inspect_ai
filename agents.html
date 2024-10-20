@@ -916,7 +916,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>By default, any <code>Dockerfile</code> and/or <code>compose.yaml</code> file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"attacker-compose.yaml"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The configuration file added to the <code>sandbox</code> spec should always be a compose file (rather than a <code>Dockerfile</code>, which is always discovered automatically).</p>
 </section>
 <section id="per-sample-setup" class="level3">
 <h3 class="anchored" data-anchor-id="per-sample-setup">Per Sample Setup</h3>

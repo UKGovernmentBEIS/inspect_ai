@@ -652,6 +652,11 @@ Tools and Agents
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(parallel<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_browser_go() <span class="op">-&gt;</span> Tool:</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Specifying <code>parallel=False</code> results in two behaviours:</p>
+<ol type="1">
+<li><p>Models that support turing off parallel tool calling (currently OpenAI and Grok) will have it disabled when tools with <code>parallel=False</code> are passed to <code>generate()</code>.</p></li>
+<li><p>Inspect will execute tool calls serially (so that even for models that don’t let you disable parallel tool calling, you can still be assured they will not ever run in parallel).</p></li>
+</ol>
 </section>
 <section id="sec-bash-and-python" class="level2">
 <h2 class="anchored" data-anchor-id="sec-bash-and-python">Bash and Python</h2>
@@ -684,14 +689,14 @@ Tools and Agents
 <p>The web browser tools provids models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
 <section id="configuration" class="level3">
 <h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
-<p>Under the hood, the web browser is an instance of <a href="https://www.chromium.org/chromium-projects/">Chromium</a> orchestrated by <a href="https://playwright.dev/">Playwright</a>, and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the <code>inspect_web_browser</code> Docker image provided with Inspect in your <code>compose.yaml</code>. For example, here we use it as our default image:</p>
+<p>Under the hood, the web browser is an instance of <a href="https://www.chromium.org/chromium-projects/">Chromium</a> orchestrated by <a href="https://playwright.dev/">Playwright</a>, and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the <code>aisiuk/inspect-web-browser-tool</code> Docker image in your <code>compose.yaml</code>. For example, here we use it as our default image:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>compose.yaml</strong></pre>
 </div>
 <div class="sourceCode" id="cb18" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> inspect_web_browser</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> aisiuk/inspect-web-browser-tool</span></span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Here, we add a dedicated <code>web_browser</code> service:</p>
@@ -705,10 +710,10 @@ Tools and Agents
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> </span><span class="st">"tail -f /dev/null"</span></span>
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">web_browser</span><span class="kw">:</span></span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> inspect_web_browser</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> aisiuk/inspect-web-browser-tool</span></span>
 <span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Rather than using the <code>inspect_web_browser</code> image, you can also just include the web browser service components in a custom image (see <a href="#sec-custom-images">Custom Images</a> below for details).</p>
+<p>Rather than using the <code>aisiuk/inspect-web-browser-tool</code> image, you can also just include the web browser service components in a custom image (see <a href="#sec-custom-images">Custom Images</a> below for details).</p>
 </section>
 <section id="task-setup" class="level3">
 <h3 class="anchored" data-anchor-id="task-setup">Task Setup</h3>
