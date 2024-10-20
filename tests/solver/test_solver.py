@@ -1,5 +1,4 @@
 import pytest
-from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -15,7 +14,6 @@ from inspect_ai.solver import (
 from inspect_ai.solver._plan import Plan
 
 
-@skip_if_no_openai
 def test_solvers_termination():
     @solver
     def user_input(input: str):
@@ -37,13 +35,13 @@ def test_solvers_termination():
     def finish():
         async def solve(state: TaskState, generate: Generate):
             state.output = ModelOutput.from_content(
-                model="openai/gpt-4", content="finished"
+                model="mockllm/model", content="finished"
             )
             return state
 
         return solve
 
-    model = get_model("openai/gpt-4")
+    model = get_model("mockllm/model")
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=Plan(
