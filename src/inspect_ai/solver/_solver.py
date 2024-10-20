@@ -5,8 +5,8 @@ from typing import (
     Any,
     Callable,
     Literal,
+    ParamSpec,
     Protocol,
-    TypeVar,
     cast,
     overload,
     runtime_checkable,
@@ -98,20 +98,14 @@ class Solver(Protocol):
     ) -> TaskState: ...
 
 
-SolverType = TypeVar("SolverType", Callable[..., Solver], type[Solver])
-r"""Solver type.
-
-Valid solver types include:
- - Functions that return a Solver
- - Classes derived from Solver
-"""
+P = ParamSpec("P")
 
 
-def solver_register(solver: SolverType, name: str = "") -> SolverType:
+def solver_register(solver: Callable[P, Solver], name: str = "") -> Callable[P, Solver]:
     r"""Register a function or class as a solver.
 
     Args:
-        solver (SolverType):
+        solver (Callable[P, Solver]):
             Function that returns a Solver or class derived Solver.
         name (str): Name of solver (Optional, defaults to object name)
 
@@ -137,25 +131,22 @@ def solver_create(name: str, **kwargs: Any) -> Solver:
 
 
 @overload
-def solver(name: str) -> Callable[..., SolverType]: ...
+def solver(name: str) -> Callable[[Callable[P, Solver]], Callable[P, Solver]]: ...
 
 
 @overload
-# type: ignore
-def solver(name: Callable[..., Solver]) -> Callable[..., Solver]: ...
+def solver(name: Callable[P, Solver]) -> Callable[P, Solver]: ...
 
 
-@overload
-def solver(name: type[Solver]) -> type[Solver]: ...
-
-
-def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
+def solver(
+    name: str | Callable[P, Solver],
+) -> Callable[[Callable[P, Solver]], Callable[P, Solver]] | Callable[P, Solver]:
     r"""Decorator for registering solvers.
 
     Args:
-        name: (str | SolverType):
+        name: (str | Callable[P, Solver]):
             Optional name for solver. If the decorator has no name
-            argument then the name of the underlying SolverType
+            argument then the name of the underlying Callable[P, Solver]
             object will be used to automatically assign a name.
 
     Returns:
@@ -183,13 +174,13 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
     #  (b) Ensure that instances of Solver created by SolverType also
     #      carry registry info.
     def create_solver_wrapper(
-        solver_type: SolverType, name: str | None = None
-    ) -> SolverType:
+        solver_type: Callable[P, Solver], name: str | None = None
+    ) -> Callable[P, Solver]:
         solver_name = registry_name(
             solver_type, name if name else getattr(solver_type, "__name__")
         )
 
-        def solver_wrapper(*args: Any, **kwargs: dict[str, Any]) -> Solver:
+        def solver_wrapper(*args: P.args, **kwargs: P.kwargs) -> Solver:
             solver = solver_type(*args, **kwargs)
 
             if not is_callable_coroutine(solver):
@@ -234,12 +225,12 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
 
             return registered_solver
 
-        return solver_register(cast(SolverType, solver_wrapper), solver_name)
+        return solver_register(cast(Callable[P, Solver], solver_wrapper), solver_name)
 
     # for decorators with an explicit name, one more wrapper for the name
     if isinstance(name, str):
 
-        def wrapper(solver_type: SolverType) -> SolverType:
+        def wrapper(solver_type: Callable[..., Solver]) -> Callable[..., Solver]:
             return create_solver_wrapper(solver_type, name)
 
         return wrapper

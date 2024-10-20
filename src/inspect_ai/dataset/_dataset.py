@@ -67,7 +67,7 @@ class Sample(BaseModel):
     choices: list[str] | None = Field(default=None)
     """List of available answer choices (used only for multiple-choice evals)."""
 
-    target: str | list[str] = Field(default="")
+    target: str | list[str] = Field(default_factory=str)
     """Ideal target output. May be a literal value or narrative text to be used by a model grader."""
 
     id: int | str | None = Field(default=None)

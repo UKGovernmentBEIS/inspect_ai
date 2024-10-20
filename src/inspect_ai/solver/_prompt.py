@@ -10,7 +10,7 @@ from ._util import append_system_message
 
 
 @solver
-def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
+def prompt_template(template: str, **params: Any) -> Solver:
     """Parameterized prompt template.
 
     Prompt template containing a `{prompt}` placeholder and any
@@ -37,7 +37,7 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
 
 
 @solver
-def system_message(template: str, **params: dict[str, Any]) -> Solver:
+def system_message(template: str, **params: Any) -> Solver:
     """Solver which inserts a system message into the conversation.
 
     System message template containing any number of optional `params`.

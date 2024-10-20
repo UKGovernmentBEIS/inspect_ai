@@ -29,10 +29,11 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import tools_info
+from ._call_tools import disable_parallel_tools, tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -189,7 +190,10 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool] | list[ToolInfo] = [],
+        tools: list[Tool]
+        | list[ToolDef]
+        | list[ToolInfo]
+        | list[Tool | ToolDef | ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -200,7 +204,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[Tool] | list[ToolInfo]): Tools available for the
+          tools (list[Tool] | list[ToolDef] | list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -225,6 +229,10 @@ class Model:
         config.max_tokens = (
             config.max_tokens if config.max_tokens else self.api.max_tokens()
         )
+
+        # disable parallel tool calls if requested by any of our tools
+        if disable_parallel_tools(tools):
+            config.parallel_tool_calls = False
 
         # normalize input to chat
         if isinstance(input, str):

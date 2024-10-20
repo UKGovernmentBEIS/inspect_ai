@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
@@ -17,7 +17,7 @@ from inspect_ai.scorer import (
     scorer,
     std,
 )
-from inspect_ai.scorer._metric import MetricType, metric_create
+from inspect_ai.scorer._metric import metric_create
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -211,7 +211,7 @@ def test_complex_metrics() -> None:
     check_log(log)
 
 
-def registry_assert(metric: Metric | MetricType, name: str) -> None:
+def registry_assert(metric: Metric | Callable[..., Metric], name: str) -> None:
     info = registry_info(metric)
     assert info.name == name
 

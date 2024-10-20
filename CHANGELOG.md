@@ -3,16 +3,23 @@
 ## Unreleased
 
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
+- [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Cleanup Docker Containers immediately for samples with errors.
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
 - Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
+- Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
+- Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
 - Requirements: require semver>=3.0.0
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
+- Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Capture `list` and `dict` of registry objects when logging `plan`.
+- Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
 - Correct directory handling for tasks that are imported as local (non-package) modules.
 - Call tools sequentially when they have opted out of parallel calling.
+- Inspect view bundle: support for bundling directories with nested subdirectories.
 - Bugfix: strip protocol prefix when resolving eval event content
 - Bugfix: switch to run directory when running multiple tasks with the same run directory.
 - Bugfix: ensure that log directories don't end in forward/back slash.

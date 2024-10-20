@@ -77,7 +77,7 @@ def basic_agent(
     Args:
        init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
-       tools (list[Tool] | Solver | None): Tools available for the agent. Either a
+       tools (list[Tool | ToolDef] | Solver | None): Tools available for the agent. Either a
          list of tools or a Solver that can yield dynamic tools per-sample.
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
