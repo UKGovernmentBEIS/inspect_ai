@@ -89,7 +89,12 @@ class EvalRecorder(FileRecorder):
         # Initialize the summary counter and existing summaries
         summary_counter = _read_summary_counter(zip_log_file.zip)
         summaries = _read_all_summaries(zip_log_file.zip, summary_counter)
-        zip_log_file.init(summary_counter, summaries)
+
+        # Initialize the eval header (without results)
+        log_start = _read_start(zip_log_file.zip)
+
+        # The zip log file
+        zip_log_file.init(log_start, summary_counter, summaries)
 
         # track zip
         self.data[self._log_file_key(eval)] = zip_log_file
@@ -101,6 +106,9 @@ class EvalRecorder(FileRecorder):
     def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
         self._write(eval, _journal_path(START_JSON), start)
+
+        log = self.data[self._log_file_key(eval)]  # noqa: F841
+        log.log_start = start
 
     @override
     def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
@@ -162,11 +170,19 @@ class EvalRecorder(FileRecorder):
         )
 
         # add the results to the original eval log from start.json
-        eval_header = _read_json(log.zip, _journal_path(START_JSON))
-        eval_header["results"] = log_results.results
-        eval_header["stats"] = log_results.stats
-        eval_header["status"] = log_results.status
-        eval_header["error"] = log_results.error
+        log_start = log.log_start
+        if log_start is None:
+            raise RuntimeError("Unexpectedly issing the log start value")
+
+        eval_header = EvalLog(
+            version=log_start.version,
+            eval=log_start.eval,
+            plan=log_start.plan,
+            results=log_results.results,
+            stats=log_results.stats,
+            status=log_results.status,
+            error=log_results.error,
+        )
 
         # write the results
         self._write(eval, HEADER_JSON, eval_header)
@@ -309,10 +325,14 @@ class ZipLogFile:
         self.samples: list[EvalSample] = []
         self.summary_counter = 0
         self.summaries: list[SampleSummary] = []
+        self.log_start: LogStart | None = None
 
-    def init(self, summary_counter: int, summaries: list[SampleSummary]) -> None:
+    def init(
+        self, log_start: LogStart, summary_counter: int, summaries: list[SampleSummary]
+    ) -> None:
         self.summary_counter = summary_counter
         self.summaries = summaries
+        self.log_start = log_start
 
     def flush(self) -> None:
         self.zip.close()
@@ -332,6 +352,14 @@ class ZipLogFile:
             compression=ZIP_DEFLATED,
             compresslevel=5,
         )
+
+
+def _read_start(zip: ZipFile) -> LogStart | None:
+    start_path = _journal_path(START_JSON)
+    if start_path in zip.namelist():
+        return cast(LogStart, _read_json(zip, start_path))
+    else:
+        return None
 
 
 def _read_summary_counter(zip: ZipFile) -> int:
