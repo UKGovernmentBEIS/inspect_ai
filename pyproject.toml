@@ -131,7 +131,6 @@ dev = [
     "ruff==0.7.0", # match version specified in .pre-commit-config.yaml
     "types-PyYAML",
     "types-aiofiles",
-    "types-beautifulsoup4",
     "types-aioboto3",
     "types-boto3",
     "types-botocore",
