@@ -322,12 +322,12 @@ The web browser tools provids models with the ability to browse the web using a 
 
 ### Configuration
 
-Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the `inspect_web_browser` Docker image provided with Inspect in your `compose.yaml`. For example, here we use it as our default image:
+Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the `aisiuk/inspect-web-browser-tool` Docker image in your `compose.yaml`. For example, here we use it as our default image:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: inspect_web_browser
+    image: aisiuk/inspect-web-browser-tool
     init: true
 ```
 
@@ -340,11 +340,11 @@ services:
     init: true
     command: "tail -f /dev/null"
   web_browser:
-    image: inspect_web_browser
+    image: aisiuk/inspect-web-browser-tool
     init: true
 ```
 
-Rather than using the `inspect_web_browser` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-images) below for details).
+Rather than using the `aisiuk/inspect-web-browser-tool` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-images) below for details).
 
 ### Task Setup
 
