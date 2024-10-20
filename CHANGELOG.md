@@ -12,7 +12,7 @@
 - Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
 - Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
 - Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.
-- Requirements: require semver>=3.0.0
+- Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
