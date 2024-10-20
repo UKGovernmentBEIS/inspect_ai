@@ -127,7 +127,7 @@ export function App({ api, pollForLogs = true }) {
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
-    const filtered = (samples || []).filter((sample) => {
+    const filtered = samples.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
@@ -627,9 +627,9 @@ export function App({ api, pollForLogs = true }) {
             />`
           : html`<${WorkSpace}
               task_id=${selectedLog?.contents?.eval?.task_id}
-              taskStatus=${selectedLog?.contents?.eval?.status}
+              taskStatus=${selectedLog?.contents?.status}
               logFileName=${selectedLog?.name}
-              taskError=${selectedLog?.contents?.eval?.error}
+              taskError=${selectedLog?.contents?.error}
               evalSpec=${selectedLog?.contents?.eval}
               evalPlan=${selectedLog?.contents?.plan}
               evalScores=${selectedLog?.contents?.results?.scores}

@@ -19822,23 +19822,33 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
       };
     });
   };
-  const readStart = () => readJSONFile("start.json");
   const readSample = (sampleId, epoch) => readJSONFile(`samples/${sampleId}_epoch_${epoch}.json`);
-  const readResults = () => readJSONFile("results.json");
+  const readHeader = async () => {
+    if (remoteZipFile.centralDirectory.has("header.json")) {
+      return readJSONFile("header.json");
+    } else {
+      const evalSpec = await readJSONFile("_journal/start.json");
+      return {
+        status: "started",
+        eval: evalSpec.eval,
+        plan: evalSpec.plan
+      };
+    }
+  };
   const readFallbackSummaries = async () => {
     const summaryFiles = Array.from(
       remoteZipFile.centralDirectory.keys()
     ).filter(
-      (filename2) => filename2.startsWith("summaries/") && filename2.endsWith(".json")
+      (filename2) => filename2.startsWith("_journal/summaries/") && filename2.endsWith(".json")
     );
-    const summaries = {};
+    const summaries = [];
     const errors = [];
     await Promise.all(
       summaryFiles.map(
         (filename2) => queue.enqueue(async () => {
           try {
             const partialSummary = await readJSONFile(filename2);
-            Object.assign(summaries, partialSummary);
+            summaries.push(...partialSummary);
           } catch (error) {
             errors.push(error);
           }
@@ -19854,31 +19864,28 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
     return summaries;
   };
   const readSampleSummaries = async () => {
-    try {
-      return await readJSONFile("summary.json");
-    } catch {
-      console.warn(
-        "summary.json not found, falling back to individual summary files"
-      );
+    if (remoteZipFile.centralDirectory.has("summaries.json")) {
+      return await readJSONFile("summaries.json");
+    } else {
       return readFallbackSummaries();
     }
   };
   return {
     readLogSummary: async () => {
-      const [evalResult, startData, sampleSummaries] = await Promise.all([
-        readResults(),
-        readStart(),
+      const [header, sampleSummaries] = await Promise.all([
+        readHeader(),
         readSampleSummaries()
       ]);
-      return {
-        status: evalResult.status,
-        eval: startData.eval,
-        plan: startData.plan,
-        results: evalResult.results,
-        stats: evalResult.stats,
-        error: evalResult.error,
+      const result = {
+        status: header.status,
+        eval: header.eval,
+        plan: header.plan,
+        results: header.results,
+        stats: header.stats,
+        error: header.error,
         sampleSummaries
       };
+      return result;
     },
     readSample,
     /**
@@ -19886,9 +19893,8 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
      * @returns {Promise<import("../types/log").EvalLog>} The complete log data.
      */
     readCompleteLog: async () => {
-      const [evalResult, startData, samples] = await Promise.all([
-        readResults(),
-        readStart(),
+      const [evalLog, samples] = await Promise.all([
+        readHeader(),
         listSamples().then(
           (sampleIds) => Promise.all(
             sampleIds.map(({ sampleId, epoch }) => readSample(sampleId, epoch))
@@ -19896,12 +19902,12 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
         )
       ]);
       return {
-        status: evalResult.status,
-        eval: startData.eval,
-        plan: startData.plan,
-        results: evalResult.results,
-        stats: evalResult.stats,
-        error: evalResult.error,
+        status: evalLog.status,
+        eval: evalLog.eval,
+        plan: evalLog.plan,
+        results: evalLog.results,
+        stats: evalLog.stats,
+        error: evalLog.error,
         samples
       };
     }
@@ -22066,7 +22072,7 @@ const FindBand = ({ hideBand }) => {
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
@@ -22108,13 +22114,17 @@ function App({ api: api2, pollForLogs = true }) {
   const [groupByOrder, setGroupByOrder] = h("asc");
   y(() => {
     var _a3;
+    console.log({ selectedLog });
     const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
-    const filtered = (samples || []).filter((sample) => {
+    console.log({ samples });
+    const filtered = samples.filter((sample) => {
+      console.log("HI");
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
           return false;
         }
       }
+      console.log("HI2");
       if (filter.filterFn && filter.value) {
         return filter.filterFn(sample, filter.value);
       } else {
@@ -22505,14 +22515,14 @@ function App({ api: api2, pollForLogs = true }) {
               error=${status.error}
             />` : m$1`<${WorkSpace}
               task_id=${(_b2 = (_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task_id}
-              taskStatus=${(_d = (_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.eval) == null ? void 0 : _d.status}
+              taskStatus=${(_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.status}
               logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-              taskError=${(_f = (_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.eval) == null ? void 0 : _f.error}
-              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
-              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
-              evalScores=${(_j = (_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results) == null ? void 0 : _j.scores}
-              evalStats=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.stats}
-              evalResults=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.results}
+              taskError=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.error}
+              evalSpec=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.eval}
+              evalPlan=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.plan}
+              evalScores=${(_h = (_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.results) == null ? void 0 : _h.scores}
+              evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
+              evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
               groupBy=${groupBy}
@@ -22529,7 +22539,7 @@ function App({ api: api2, pollForLogs = true }) {
               setSelectedSampleIndex=${setSelectedSampleIndex}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_o = (_n = (_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.eval) == null ? void 0 : _n.config) == null ? void 0 : _o.epochs}
+              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}

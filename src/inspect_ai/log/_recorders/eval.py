@@ -48,11 +48,15 @@ class LogResults(BaseModel):
     error: EvalError | None = Field(default=None)
 
 
+JOURNAL_DIR = "_journal"
+SUMMARY_DIR = "summaries"
+SAMPLES_DIR = "samples"
+
 START_JSON = "start.json"
 RESULTS_JSON = "results.json"
-SUMMARY_JSON = "summary.json"
 REDUCTIONS_JSON = "reductions.json"
-SAMPLES_DIR = "samples"
+SUMMARIES_JSON = "summaries.json"
+HEADER_JSON = "header.json"
 
 
 class EvalRecorder(FileRecorder):
@@ -96,7 +100,7 @@ class EvalRecorder(FileRecorder):
     @override
     def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
-        self._write(eval, START_JSON, start)
+        self._write(eval, _journal_path(START_JSON), start)
 
     @override
     def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
@@ -131,7 +135,7 @@ class EvalRecorder(FileRecorder):
         self._write_buffered_samples(eval)
 
         # write consolidated summaries
-        self._write(eval, SUMMARY_JSON, log.summaries)
+        self._write(eval, SUMMARIES_JSON, log.summaries)
 
         # write reductions
         if results is not None:
@@ -152,11 +156,20 @@ class EvalRecorder(FileRecorder):
                     metadata=results.metadata,
                 )
 
-        # write the results
+        # Get the results
         log_results = LogResults(
             status=status, stats=stats, results=results, error=error
         )
-        self._write(eval, RESULTS_JSON, log_results)
+
+        # add the results to the original eval log from start.json
+        eval_header = _read_json(log.zip, _journal_path(START_JSON))
+        eval_header["results"] = log_results.results
+        eval_header["stats"] = log_results.stats
+        eval_header["status"] = log_results.status
+        eval_header["error"] = log_results.error
+
+        # write the results
+        self._write(eval, HEADER_JSON, eval_header)
 
         # close the file
         log.close()
@@ -172,16 +185,15 @@ class EvalRecorder(FileRecorder):
     def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
-                with zip.open(START_JSON, "r") as f:
-                    start = LogStart(**json.load(f))
-                with zip.open(RESULTS_JSON, "r") as f:
-                    results = LogResults(**json.load(f))
-                with zip.open(REDUCTIONS_JSON, "r") as f:
-                    reductions = [
-                        EvalSampleReductions(**reduction) for reduction in json.load(f)
-                    ]
-                    if results.results is not None:
-                        results.results.sample_reductions = reductions
+                evalLog = _read_header(zip)
+                if REDUCTIONS_JSON in zip.namelist():
+                    with zip.open(REDUCTIONS_JSON, "r") as f:
+                        reductions = [
+                            EvalSampleReductions(**reduction)
+                            for reduction in json.load(f)
+                        ]
+                        if evalLog.results is not None:
+                            evalLog.results.sample_reductions = reductions
 
                 samples: list[EvalSample] | None = None
                 if not header_only:
@@ -193,17 +205,8 @@ class EvalRecorder(FileRecorder):
                             with zip.open(name, "r") as f:
                                 samples.append(EvalSample(**json.load(f)))
                     sort_samples(samples)
-
-            return EvalLog(
-                version=start.version,
-                status=results.status,
-                eval=start.eval,
-                plan=start.plan,
-                results=results.results,
-                stats=results.stats,
-                error=results.error,
-                samples=samples,
-            )
+                    evalLog.samples = samples
+                return evalLog
 
     @override
     @classmethod
@@ -212,7 +215,7 @@ class EvalRecorder(FileRecorder):
     ) -> EvalSample:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
-                with zip.open(sample_filename(id, epoch), "r") as f:
+                with zip.open(_sample_filename(id, epoch), "r") as f:
                     return EvalSample(**json.load(f))
 
     @classmethod
@@ -240,7 +243,7 @@ class EvalRecorder(FileRecorder):
         summaries: list[SampleSummary] = []
         for sample in log.samples:
             # Write the sample
-            self._write(eval, sample_filename(sample.id, sample.epoch), sample)
+            self._write(eval, _sample_filename(sample.id, sample.epoch), sample)
 
             # Capture the summary
             summaries.append(
@@ -257,8 +260,9 @@ class EvalRecorder(FileRecorder):
         # write intermediary summaries and add to master list
         if len(summaries) > 0:
             log.summary_counter += 1
-            summary_filename = f"summaries/{log.summary_counter}.json"
-            self._write(eval, summary_filename, summaries)
+            summary_file = _journal_summary_file(log.summary_counter)
+            summary_path = _journal_summary_path(summary_file)
+            self._write(eval, summary_path, summaries)
             log.summaries.extend(summaries)
 
 
@@ -267,10 +271,6 @@ def zip_write(zip: ZipFile, filename: str, data: Any) -> None:
         filename,
         to_json(value=data, indent=2, exclude_none=True, fallback=lambda _x: None),
     )
-
-
-def sample_filename(id: str | int, epoch: int) -> str:
-    return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
 
 
 def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
@@ -337,24 +337,27 @@ class ZipLogFile:
 def _read_summary_counter(zip: ZipFile) -> int:
     current_count = 0
     for name in zip.namelist():
-        if name.startswith("summaries/") and name.endswith(".json"):
+        if name.startswith(_journal_summary_path()) and name.endswith(".json"):
             this_count = int(name.split("/")[-1].split(".")[0])
             current_count = max(this_count, current_count)
     return current_count
 
 
 def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
-    if "summary.json" in zip.namelist():
-        summaries_raw = _read_json(zip, SUMMARY_JSON)
+    if SUMMARIES_JSON in zip.namelist():
+        summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
             return [SampleSummary(**value) for value in summaries_raw]
         else:
-            raise ValueError("Expected a list of summaries when reading summary.json")
+            raise ValueError(
+                f"Expected a list of summaries when reading {SUMMARIES_JSON}"
+            )
     else:
         summaries: list[SampleSummary] = []
         for i in range(1, count):
-            summary_file = f"summaries/{i}.json"
-            summary = _read_json(zip, summary_file)
+            summary_file = _journal_summary_file(i)
+            summary_path = _journal_summary_path(summary_file)
+            summary = _read_json(zip, summary_path)
             if isinstance(summary, list):
                 summaries.extend([SampleSummary(**value) for value in summary])
             else:
@@ -364,6 +367,40 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
         return summaries
 
 
+def _read_header(zip: ZipFile) -> EvalLog:
+    # first see if the header is here
+    if HEADER_JSON in zip.namelist():
+        with zip.open(HEADER_JSON, "r") as f:
+            return EvalLog(**json.load(f))
+    else:
+        with zip.open(_journal_path(START_JSON), "r") as f:
+            start = LogStart(**json.load(f))
+        return EvalLog(
+            version=start.version,
+            eval=start.eval,
+            plan=start.plan,
+        )
+
+
+def _sample_filename(id: str | int, epoch: int) -> str:
+    return f"{SAMPLES_DIR}/{id}_epoch_{epoch}.json"
+
+
 def _read_json(zip: ZipFile, filename: str) -> Any:
     with zip.open(filename) as f:
         return json.load(f)
+
+
+def _journal_path(file: str) -> str:
+    return JOURNAL_DIR + "/" + file
+
+
+def _journal_summary_path(file: str | None = None) -> str:
+    if file is None:
+        return _journal_path(SUMMARY_DIR)
+    else:
+        return f"{_journal_path(SUMMARY_DIR)}/{file}"
+
+
+def _journal_summary_file(index: int) -> str:
+    return f"{index}.json"
