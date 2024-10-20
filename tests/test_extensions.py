@@ -1,6 +1,6 @@
 import pytest
 from test_helpers.tools import list_files
-from test_helpers.utils import ensure_test_package_installed, skip_if_no_openai
+from test_helpers.utils import ensure_test_package_installed
 
 from inspect_ai import Task, eval_async
 from inspect_ai.dataset import Sample
@@ -20,7 +20,6 @@ async def test_extension_model():
     assert result.completion == "Hello from gpt7"
 
 
-@skip_if_no_openai
 @pytest.mark.asyncio
 async def test_extension_sandboxenv():
     # ensure the package is installed
@@ -38,6 +37,6 @@ async def test_extension_sandboxenv():
             scorer=includes(),
             sandbox="podman",
         )
-        await eval_async(task, model="openai/gpt-4")
+        await eval_async(task, model="mockllm/model")
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")
