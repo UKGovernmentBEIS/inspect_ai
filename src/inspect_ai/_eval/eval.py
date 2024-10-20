@@ -7,6 +7,7 @@ from typing import Any
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
@@ -686,6 +687,13 @@ def eval_init(
 ) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
     init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
+
+    # resolve model args from environment if not specified
+    if len(model_args) == 0:
+        env_model_args = os.environ.get("INSPECT_EVAL_MODEL_ARGS", None)
+        if env_model_args:
+            args = [arg.strip() for arg in env_model_args.split(" ")]
+            model_args = parse_cli_args(args)
 
     # resolve models
     generate_config = GenerateConfig(**kwargs)
