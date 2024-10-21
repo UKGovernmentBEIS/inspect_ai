@@ -64,8 +64,15 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
    * @param {number} epoch - The epoch of the sample.
    * @returns {Promise<Object>} The content of the sample file.
    */
-  const readSample = (sampleId, epoch) =>
-    readJSONFile(`samples/${sampleId}_epoch_${epoch}.json`);
+  const readSample = (sampleId, epoch) => {
+    const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
+    if (remoteZipFile.centralDirectory.has(sampleFile)) {
+     return readJSONFile(sampleFile);
+    } else {
+      console.log({dir: remoteZipFile.centralDirectory});
+      throw new Error(`Unable to read sample file ${sampleFile} - it is not present in the manifest.`);
+    }
+  };
 
   /**
    * Reads the results.json file.
