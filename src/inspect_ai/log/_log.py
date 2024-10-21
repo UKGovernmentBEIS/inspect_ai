@@ -376,6 +376,9 @@ class EvalSpec(BaseModel):
     solver_args: dict[str, Any] | None = Field(default=None)
     """Arguments used for invoking the solver."""
 
+    tags: list[str] | None = Field(default=None)
+    """Tags associated with evaluation run."""
+
     dataset: EvalDataset
     """Dataset used for eval."""
 
