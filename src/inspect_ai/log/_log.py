@@ -526,8 +526,10 @@ class EvalLog(BaseModel):
         cls: Type["EvalLog"], values: dict[str, Any]
     ) -> dict[str, Any]:
         has_reductions = "reductions" in values
-        has_results = "results" in values
-        has_sample_reductions = has_results and "sample_reductions" in values["results"]
+        has_results = values.get("results", None) is not None
+        has_sample_reductions = has_results and (
+            "sample_reductions" in values["results"]
+        )
 
         if has_sample_reductions and not has_reductions:
             values["reductions"] = values["results"]["sample_reductions"]
