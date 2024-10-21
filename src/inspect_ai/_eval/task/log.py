@@ -26,7 +26,7 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSampleReductions
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import (
     GenerateConfig,
@@ -150,9 +150,12 @@ class TaskLogger:
         status: Literal["success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None = None,
+        reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        return self.recorder.log_finish(self.eval, status, stats, results, error)
+        return self.recorder.log_finish(
+            self.eval, status, stats, results, reductions, error
+        )
 
 
 def log_start(

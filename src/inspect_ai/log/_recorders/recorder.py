@@ -7,6 +7,7 @@ from inspect_ai.log._log import (
     EvalPlan,
     EvalResults,
     EvalSample,
+    EvalSampleReductions,
     EvalSpec,
     EvalStats,
 )
@@ -32,6 +33,7 @@ class Recorder(abc.ABC):
         status: Literal["success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
+        reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
     ) -> EvalLog: ...
 

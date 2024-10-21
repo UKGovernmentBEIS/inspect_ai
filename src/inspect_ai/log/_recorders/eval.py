@@ -133,6 +133,7 @@ class EvalRecorder(FileRecorder):
         status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
+        reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
     ) -> EvalLog:
         # get the key and log
@@ -146,23 +147,12 @@ class EvalRecorder(FileRecorder):
         self._write(eval, SUMMARIES_JSON, log.summaries)
 
         # write reductions
-        if results is not None:
-            reductions = results.sample_reductions
-            if reductions is not None:
-                self._write(
-                    eval,
-                    REDUCTIONS_JSON,
-                    reductions,
-                )
-
-                # prune reductions out of the results to ensure
-                #  that the results remain concise
-                results = EvalResults(
-                    total_samples=results.total_samples,
-                    completed_samples=results.completed_samples,
-                    scores=results.scores,
-                    metadata=results.metadata,
-                )
+        if reductions is not None:
+            self._write(
+                eval,
+                REDUCTIONS_JSON,
+                reductions,
+            )
 
         # Get the results
         log_results = LogResults(
@@ -209,7 +199,7 @@ class EvalRecorder(FileRecorder):
                             for reduction in json.load(f)
                         ]
                         if evalLog.results is not None:
-                            evalLog.results.sample_reductions = reductions
+                            evalLog.reductions = reductions
 
                 samples: list[EvalSample] | None = None
                 if not header_only:
@@ -243,7 +233,9 @@ class EvalRecorder(FileRecorder):
         recorder.log_start(log.eval, log.plan)
         for sample in log.samples or []:
             recorder.log_sample(log.eval, sample)
-        recorder.log_finish(log.eval, log.status, log.stats, log.results, log.error)
+        recorder.log_finish(
+            log.eval, log.status, log.stats, log.results, log.reductions, log.error
+        )
 
     # write to the zip file
     def _write(self, eval: EvalSpec, filename: str, data: Any) -> None:
@@ -328,7 +320,10 @@ class ZipLogFile:
         self.log_start: LogStart | None = None
 
     def init(
-        self, log_start: LogStart, summary_counter: int, summaries: list[SampleSummary]
+        self,
+        log_start: LogStart | None,
+        summary_counter: int,
+        summaries: list[SampleSummary],
     ) -> None:
         self.summary_counter = summary_counter
         self.summaries = summaries

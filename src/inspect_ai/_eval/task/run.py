@@ -39,7 +39,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._file import eval_log_json
-from inspect_ai.log._log import eval_error
+from inspect_ai.log._log import EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -132,6 +132,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     with set_task_run_dir(task_run_dir(task)):
         # track stats and error
         results: EvalResults | None = None
+        reductions: list[EvalSampleReductions] | None = None
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
         cancelled = False
@@ -275,7 +276,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 ]
 
                 if len(completed_scores) > 0:
-                    results = eval_results(
+                    results, reductions = eval_results(
                         samples=profile.samples,
                         scores=completed_scores,
                         reducers=task.epochs_reducer,
@@ -327,11 +328,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # log as appropriate
         if cancelled:
-            eval_log = logger.log_finish("cancelled", stats, results)
+            eval_log = logger.log_finish("cancelled", stats, results, reductions)
         elif error:
-            eval_log = logger.log_finish("error", stats, results, error)
+            eval_log = logger.log_finish("error", stats, results, reductions, error)
         else:
-            eval_log = logger.log_finish("success", stats, results)
+            eval_log = logger.log_finish("success", stats, results, reductions)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)

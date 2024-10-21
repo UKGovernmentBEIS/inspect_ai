@@ -8,7 +8,7 @@ from typing import Any, Literal, Type
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -287,8 +287,22 @@ class EvalResults(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
 
-    sample_reductions: list[EvalSampleReductions] | None = Field(default=None)
-    """List of per sample scores reduced across epochs"""
+    _sample_reductions: list[EvalSampleReductions] | None = PrivateAttr(default=None)
+    """Private member to hold sample reductions"""
+
+    @property
+    def sample_reductions(self) -> list[EvalSampleReductions] | None:
+        """List of per sample scores reduced across epochs"""
+        warn_once(
+            logger,
+            "The 'sample_reductions' field is deprecated. Access reductions through the 'reductions' field on EvalLog instead.",
+        )
+        return self._sample_reductions
+
+    @sample_reductions.setter
+    def sample_reductions(self, value: list[EvalSampleReductions] | None) -> None:
+        """Set list of per sample scores reduced across epochs"""
+        self._sample_reductions = value
 
     @model_validator(mode="before")
     @classmethod
@@ -492,6 +506,9 @@ class EvalLog(BaseModel):
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
+    reductions: list[EvalSampleReductions] | None = Field(default=None)
+    """Reduced sample values"""
+
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
@@ -502,6 +519,21 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_sample_reductions(
+        cls: Type["EvalLog"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        has_reductions = "reductions" in values
+        has_results = "results" in values
+        has_sample_reductions = has_results and "sample_reductions" in values["results"]
+
+        if has_sample_reductions and not has_reductions:
+            values["reductions"] = values["results"]["sample_reductions"]
+        elif has_reductions and (has_results and not has_sample_reductions):
+            values["results"]["sample_reductions"] = values["reductions"]
+        return values
 
 
 def sort_samples(samples: list[EvalSample]) -> None:

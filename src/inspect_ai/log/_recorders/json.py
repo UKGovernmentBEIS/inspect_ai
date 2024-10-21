@@ -18,6 +18,7 @@ from .._log import (
     EvalPlan,
     EvalResults,
     EvalSample,
+    EvalSampleReductions,
     EvalSpec,
     EvalStats,
     sort_samples,
@@ -92,6 +93,7 @@ class JSONRecorder(FileRecorder):
         status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
+        reductions: list[EvalSampleReductions] | None,
         error: EvalError | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(spec)]
@@ -100,6 +102,8 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         if error:
             log.data.error = error
+        if reductions:
+            log.data.reductions = reductions
         self.write_log(log.file, log.data)
 
         # stop tracking this data
@@ -153,6 +157,7 @@ class JSONRecorder(FileRecorder):
                 # prune sample reductions
                 if log.results is not None:
                     log.results.sample_reductions = None
+                    log.reductions = None
 
             # return log
             return log
