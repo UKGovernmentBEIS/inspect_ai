@@ -171,6 +171,10 @@ def basic_agent(
                 )
                 state.messages.append(state.output.message)
 
+                # check for context window overflow
+                if state.output.stop_reason == "model_length":
+                    break
+
                 # resolve tools calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
@@ -198,9 +202,8 @@ def basic_agent(
                                 ChatMessageUser(content=incorrect_message)
                             )
 
-                # no tool calls: model gave up without submitting, urge the
-                # model to continue unless it exceeded its context window
-                elif state.output.stop_reason != "model_length":
+                # no tool calls, urge the model to continue
+                else:
                     state.messages.append(ChatMessageUser(content=continue_message))
 
             return state
