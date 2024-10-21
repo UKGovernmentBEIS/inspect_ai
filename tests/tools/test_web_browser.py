@@ -146,6 +146,40 @@ def test_web_browser_input():
     assert type_call
 
 
+@skip_if_no_docker
+@pytest.mark.slow
+def test_web_browser_large_text():
+    task = Task(
+        dataset=[Sample(input="Please use the web_browser tool")],
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
+    )
+
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="web_browser_go",
+                    tool_arguments={
+                        "url": "https://www.gutenberg.org/cache/epub/100/pg100.txt"
+                    },
+                ),
+                ModelOutput.from_content(
+                    model="mockllm/model", content="We are all done here."
+                ),
+            ],
+        ),
+    )[0]
+
+    assert log.samples
+
+    go_call = get_tool_call(log.samples[0].messages, "web_browser_go")
+    assert go_call
+
+
 def web_browser_sandbox() -> SandboxEnvironmentSpec:
     return (
         "docker",
