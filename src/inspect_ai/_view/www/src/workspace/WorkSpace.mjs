@@ -35,6 +35,7 @@ const kInfoTabId = "plan-tab";
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {boolean} props.hasSamples - Whether this log has samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
@@ -72,6 +73,7 @@ export const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
+  hasSamples,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -114,7 +116,7 @@ export const WorkSpace = ({
 
   // Display the log
   useEffect(() => {
-    const showSamples = taskStatus !== "error" && samples && samples.length > 0;
+    const showSamples = taskStatus !== "error" && hasSamples;
     setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;

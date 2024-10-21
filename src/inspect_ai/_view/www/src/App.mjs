@@ -637,6 +637,7 @@ export function App({ api, pollForLogs = true }) {
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
+              hasSamples=${selectedLog?.contents?.sampleSummaries && selectedLog?.contents?.sampleSummaries.length > 0}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
