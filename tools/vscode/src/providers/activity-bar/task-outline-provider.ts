@@ -38,7 +38,7 @@ import {
 import { throttle } from "lodash";
 import { inspectVersion } from "../../inspect";
 import { InspectManager } from "../inspect/inspect-manager";
-import { InspectLogviewManager } from "../logview/logview-manager";
+import { InspectViewManager } from "../logview/logview-view";
 import { DocumentTaskInfo } from "../../components/task";
 
 // Activation function for the task outline
@@ -48,7 +48,7 @@ export async function activateTaskOutline(
   workspaceTaskMgr: WorkspaceTaskManager,
   activeTaskManager: ActiveTaskManager,
   inspectManager: InspectManager,
-  inspectLogviewManager: InspectLogviewManager
+  inspectLogviewManager: InspectViewManager
 ): Promise<[Command[], Disposable]> {
   // Command when item is clicked
   const treeDataProvider = new TaskOutLineTreeDataProvider(workspaceTaskMgr, {

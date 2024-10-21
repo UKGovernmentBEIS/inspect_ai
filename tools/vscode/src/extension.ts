@@ -5,7 +5,7 @@ import { activateCodeLens } from "./providers/codelens/codelens-provider";
 import { activateLogview } from "./providers/logview/logview";
 import { LogViewFileWatcher } from "./providers/logview/logview-file-watcher";
 import { logviewTerminalLinkProvider } from "./providers/logview/logview-link-provider";
-import { InspectLogviewManager } from "./providers/logview/logview-manager";
+import { InspectViewManager } from "./providers/logview/logview-view";
 import { InspectSettingsManager } from "./providers/settings/inspect-settings";
 import { initializeGlobalSettings } from "./providers/settings/user-settings";
 import { activateEvalManager } from "./providers/inspect/inspect-eval";
@@ -24,6 +24,7 @@ import { activateInspectManager } from "./providers/inspect/inspect-manager";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
+import { activateStatusBar } from "./providers/statusbar";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -129,6 +130,9 @@ export async function activate(context: ExtensionContext) {
   // Activate Code Lens
   activateCodeLens(context);
 
+  // Activate Status Bar
+  activateStatusBar(context, inspectManager);
+
   // Activate commands
   [
     ...logViewCommands,
@@ -153,7 +157,7 @@ export function deactivate() {
 let logFileWatcher: LogViewFileWatcher | undefined;
 
 const startLogWatcher = (
-  logviewWebviewManager: InspectLogviewManager,
+  logviewWebviewManager: InspectViewManager,
   workspaceStateManager: WorkspaceStateManager,
   settingsMgr: InspectSettingsManager
 ) => {

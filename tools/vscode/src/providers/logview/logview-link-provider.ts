@@ -1,6 +1,6 @@
 import { MessageItem, Uri, window, workspace } from "vscode";
 
-import { InspectLogviewManager } from "./logview-manager";
+import { InspectViewManager } from "./logview-view";
 import { workspacePath } from "../../core/path";
 import { showError } from "../../components/error";
 import { TerminalLink, TerminalLinkContext } from "vscode";
@@ -13,7 +13,7 @@ interface LogViewTerminalLink extends TerminalLink {
   data: string;
 }
 
-export const logviewTerminalLinkProvider = (manager: InspectLogviewManager) => {
+export const logviewTerminalLinkProvider = (manager: InspectViewManager) => {
   return {
     provideTerminalLinks: (
       context: TerminalLinkContext,

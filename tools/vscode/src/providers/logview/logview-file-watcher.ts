@@ -1,5 +1,5 @@
 import { Uri, Disposable } from "vscode";
-import { InspectLogviewManager } from "./logview-manager";
+import { InspectViewManager } from "./logview-view";
 
 import { showError } from "../../components/error";
 import { inspectLastEvalPath } from "../../inspect/props";
@@ -13,7 +13,7 @@ import { InspectSettingsManager } from "../settings/inspect-settings";
 
 export class LogViewFileWatcher implements Disposable {
   constructor(
-    private readonly logviewManager_: InspectLogviewManager,
+    private readonly logviewManager_: InspectViewManager,
     private readonly workspaceStateManager_: WorkspaceStateManager,
     private readonly settingsMgr_: InspectSettingsManager
   ) {

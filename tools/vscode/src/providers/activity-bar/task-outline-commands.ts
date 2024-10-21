@@ -31,7 +31,7 @@ import {
   taskRangeForNotebook,
 } from "../../components/notebook";
 import { scheduleReturnFocus } from "../../components/focus";
-import { InspectLogviewManager } from "../logview/logview-manager";
+import { InspectViewManager } from "../logview/logview-view";
 import { ActiveTaskManager } from "../active-task/active-task-provider";
 
 export class ShowTaskTree implements Command {
@@ -93,7 +93,7 @@ export class DebugSelectedEvalCommand implements Command {
 export class EditSelectedTaskCommand implements Command {
   constructor(
     private readonly tree_: TreeView<TaskTreeItem>,
-    private inspectLogviewManager_: InspectLogviewManager,
+    private inspectLogviewManager_: InspectViewManager,
     private activeTaskManager_: ActiveTaskManager
   ) { }
   async execute() {

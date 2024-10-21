@@ -13,6 +13,7 @@ import { existsSync } from "fs";
 const kPythonPackageName = "inspect_ai";
 
 export interface VersionDescriptor {
+  raw: string;
   version: SemVer,
   isDeveloperBuild: boolean
 }
@@ -96,6 +97,7 @@ export function inspectVersionDescriptor(): VersionDescriptor | null {
         if (parsedVersion) {
           const isDeveloperVersion = version.version.indexOf('.dev') > -1;
           const inspectVersion = {
+            raw: version.version,
             version: parsedVersion,
             isDeveloperBuild: isDeveloperVersion
           };
