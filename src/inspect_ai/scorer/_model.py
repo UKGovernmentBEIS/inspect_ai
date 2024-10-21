@@ -1,5 +1,6 @@
 import re
 from functools import partial
+from typing import Callable
 
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
@@ -27,7 +28,7 @@ def model_graded_fact(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
-    include_history: bool = False,
+    include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
@@ -48,9 +49,11 @@ def model_graded_fact(
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, or I.
-      include_history (bool): Whether to include the full chat
-        history in the presented question. Defaults to `False`,
-        which presents only the original sample input.
+      include_history (bool | Callable[[TaskState], str]):
+        Whether to include the full chat history in the presented
+        question. Defaults to `False`, which presents only the
+        original sample input. Optionally provide a function to
+        customise how the chat history is presented.
       partial_credit (bool): Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
          to `False`. Note that this parameter is only used
@@ -73,7 +76,7 @@ def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
-    include_history: bool = False,
+    include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
@@ -95,9 +98,11 @@ def model_graded_qa(
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, I.
-      include_history (bool): Whether to include the full chat
-        history in the presented question. Defaults to `False`,
-        which presents only the original sample input.
+      include_history (bool | Callable[[TaskState], str]):
+        Whether to include the full chat history in the presented
+        question. Defaults to `False`, which presents only the
+        original sample input. Optionally provide a function to
+        customise how the chat history is presented.
       partial_credit (bool): Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
         to `False`. Note that this parameter is only used
@@ -129,7 +134,7 @@ def _model_graded_qa_single(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
-    include_history: bool = False,
+    include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
 ) -> Scorer:
@@ -152,9 +157,17 @@ def _model_graded_qa_single(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
 
+        # present the question
+        if include_history is True:
+            question = chat_history(state)
+        elif callable(include_history):
+            question = include_history(state)
+        else:
+            question = state.input_text
+
         # format the scoring template
         score_prompt = grading_template.format(
-            question=chat_history(state) if include_history else state.input_text,
+            question=question,
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
