@@ -3,6 +3,7 @@
 ## Unreleased
 
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- Added `--tags` option to eval for tagging evaluation runs.
 - Cleanup Docker Containers immediately for samples with errors.
 - Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
