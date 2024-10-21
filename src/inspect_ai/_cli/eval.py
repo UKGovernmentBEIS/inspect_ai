@@ -87,6 +87,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="One or more solver arguments (e.g. -S arg=value)",
     )
     @click.option(
+        "--tags",
+        type=str,
+        help="Tags to associate with this evaluation run.",
+        envvar="INSPECT_EVAL_TAGS",
+    )
+    @click.option(
         "--trace",
         type=bool,
         is_flag=True,
@@ -339,6 +345,7 @@ def eval_command(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    tags: str | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -399,6 +406,7 @@ def eval_command(
         m=m,
         t=t,
         s=s,
+        tags=tags,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -481,6 +489,7 @@ def eval_set_command(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    tags: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -541,6 +550,7 @@ def eval_set_command(
         m=m,
         t=t,
         s=s,
+        tags=tags,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -585,6 +595,7 @@ def eval_exec(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    tags: str | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -618,6 +629,9 @@ def eval_exec(
     solver_args = parse_cli_args(s)
     model_args = parse_cli_args(m)
 
+    # parse tags
+    eval_tags = parse_comma_separated(tags)
+
     # resolve epochs
     eval_epochs = (
         Epochs(epochs, create_reducers(parse_comma_separated(epochs_reducer)))
@@ -650,6 +664,7 @@ def eval_exec(
             model_args=model_args,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
+            tags=eval_tags,
             trace=trace,
             approval=approval,
             sandbox=parse_sandbox(sandbox),

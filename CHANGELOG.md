@@ -3,6 +3,7 @@
 ## Unreleased
 
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- Added `--tags` option to eval for tagging evaluation runs.
 - Cleanup Docker Containers immediately for samples with errors.
 - Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
@@ -20,6 +21,7 @@
 - Capture `list` and `dict` of registry objects when logging `plan`.
 - Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
 - Correct directory handling for tasks that are imported as local (non-package) modules.
+- Basic agent: terminate agent loop when the context window is exceeded.
 - Call tools sequentially when they have opted out of parallel calling.
 - Inspect view bundle: support for bundling directories with nested subdirectories.
 - Bugfix: strip protocol prefix when resolving eval event content

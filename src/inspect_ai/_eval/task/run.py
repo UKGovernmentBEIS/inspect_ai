@@ -98,6 +98,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    tags: list[str] | None = field(default=None)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -114,6 +115,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    tags = options.tags
     score = options.score
     sample_source = options.sample_source
     sample_semaphore = options.sample_semaphore
@@ -200,6 +202,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             eval_config=config,
             task_args=logger.eval.task_args,
             generate_config=generate_config,
+            tags=tags,
             log_location=log_location,
         )
 
