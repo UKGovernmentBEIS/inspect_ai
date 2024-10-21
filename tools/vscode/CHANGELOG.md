@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.34
+## 0.3.36
 
 - Show Inspect version in status bar
 - Release with internal changes to support future log viewing features.
