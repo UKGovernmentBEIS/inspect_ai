@@ -9,11 +9,20 @@ import { openRemoteZipFile } from "../utils/remoteZipFile.mjs";
  */
 
 /**
+ * @typedef {Object} RemoteLogFile
+ * @property {() => Promise<Object>} readHeader - Reads the header of the log file.
+ * @property {() => Promise<Object>} readLogSummary - Reads the log summary including header and sample summaries.
+ * @property {(sampleId: string, epoch: number) => Promise<Object>} readSample - Reads a specific sample file.
+ * @property {() => Promise<import("../types/log").EvalLog>} readCompleteLog - Reads the complete log file including all samples.
+ */
+
+
+/**
  * Opens a remote log file and provides methods to read its contents.
  * @param {import("../api/Types.mjs").LogViewAPI} api - The api
  * @param {string} url - The URL of the remote zip file.
  * @param {number} concurrency - The number of concurrent operations allowed.
- * @returns {Promise<Object>} An object with methods to read the log file.
+ * @returns {Promise<RemoteLogFile>} An object with methods to read the log file.
  */
 export const openRemoteLogFile = async (api, url, concurrency) => {
   const queue = new AsyncQueue(concurrency);
@@ -143,6 +152,7 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
   };
 
   return {
+    readHeader,
     readLogSummary: async () => {
       const [header, sampleSummaries] = await Promise.all([
         readHeader(),

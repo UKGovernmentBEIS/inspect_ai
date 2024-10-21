@@ -19822,7 +19822,15 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
       };
     });
   };
-  const readSample = (sampleId, epoch) => readJSONFile(`samples/${sampleId}_epoch_${epoch}.json`);
+  const readSample = (sampleId, epoch) => {
+    const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
+    if (remoteZipFile.centralDirectory.has(sampleFile)) {
+      return readJSONFile(sampleFile);
+    } else {
+      console.log({ dir: remoteZipFile.centralDirectory });
+      throw new Error(`Unable to read sample file ${sampleFile} - it is not present in the manifest.`);
+    }
+  };
   const readHeader = async () => {
     if (remoteZipFile.centralDirectory.has("header.json")) {
       return readJSONFile("header.json");
@@ -19871,6 +19879,7 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
     }
   };
   return {
+    readHeader,
     readLogSummary: async () => {
       const [header, sampleSummaries] = await Promise.all([
         readHeader(),
@@ -20005,6 +20014,43 @@ const clientApi = (api2) => {
     }
     return void 0;
   };
+  const get_eval_log_header = async (log_file) => {
+    const remoteLogFile = await openRemoteLogFile(api2, log_file, 5);
+    return remoteLogFile.readHeader();
+  };
+  const get_log_headers = async (log_files) => {
+    const eval_files = {};
+    const json_files = {};
+    let index = 0;
+    for (const file of log_files) {
+      if (isEvalFile(file)) {
+        eval_files[file] = index;
+      } else {
+        json_files[file] = index;
+      }
+      index++;
+    }
+    const evalLogHeadersPromises = Object.keys(eval_files).map(
+      (file) => get_eval_log_header(file).then((header) => ({
+        index: eval_files[file],
+        // Store original index
+        header
+      }))
+    );
+    const jsonLogHeadersPromise = api2.eval_log_headers(Object.keys(json_files)).then(
+      (headers2) => headers2.map((header, i) => ({
+        index: json_files[Object.keys(json_files)[i]],
+        // Store original index
+        header
+      }))
+    );
+    const headers = await Promise.all([
+      ...evalLogHeadersPromises,
+      jsonLogHeadersPromise
+    ]);
+    const orderedHeaders = headers.flat().sort((a2, b2) => a2.index - b2.index);
+    return orderedHeaders.map(({ header }) => header);
+  };
   return {
     client_events: () => {
       return api2.client_events();
@@ -20013,7 +20059,7 @@ const clientApi = (api2) => {
       return api2.eval_logs();
     },
     get_log_headers: (log_files) => {
-      return api2.eval_log_headers(log_files);
+      return get_log_headers(log_files);
     },
     get_log_summary,
     get_log_sample,
@@ -21641,6 +21687,7 @@ const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
+  hasSamples,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -21677,7 +21724,7 @@ const WorkSpace = ({
   const [selectedTab, setSelectedTab] = h(kEvalTabId);
   const [renderedCode, setRenderedCode] = h(false);
   y(() => {
-    const showSamples = taskStatus !== "error" && samples && samples.length > 0;
+    const showSamples = taskStatus !== "error" && hasSamples;
     setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
@@ -22072,7 +22119,7 @@ const FindBand = ({ hideBand }) => {
   </div>`;
 };
 function App({ api: api2, pollForLogs = true }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
@@ -22521,6 +22568,7 @@ function App({ api: api2, pollForLogs = true }) {
               evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
+              hasSamples=${((_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.sampleSummaries) && ((_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.sampleSummaries.length) > 0}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
@@ -22535,7 +22583,7 @@ function App({ api: api2, pollForLogs = true }) {
               setSelectedSampleIndex=${setSelectedSampleIndex}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
+              epochs=${(_o = (_n = (_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.eval) == null ? void 0 : _n.config) == null ? void 0 : _o.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
