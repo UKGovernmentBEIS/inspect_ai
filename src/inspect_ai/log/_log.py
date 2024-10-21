@@ -26,7 +26,7 @@ from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
-from ._transcript import EvalEvents
+from ._transcript import Event
 
 logger = getLogger(__name__)
 
@@ -133,6 +133,29 @@ class EvalSample(BaseModel):
     output: ModelOutput
     """Model output from sample."""
 
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample."""
+
+    metadata: dict[str, Any]
+    """Additional sample metadata."""
+
+    store: dict[str, Any] = Field(default_factory=dict)
+    """State at end of sample execution."""
+
+    events: list[Event] = Field(default_factory=list)
+    """Events that occurred during sample execution."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
+
+    error: EvalError | None = Field(default=None)
+    """Error that halted sample."""
+
+    attachments: dict[str, str] = Field(default_factory=dict)
+    """Attachments referenced from messages and events."""
+
+    # deprecated properties
+
     @property
     def score(self) -> Score | None:
         """Score for sample (deprecated)."""
@@ -143,27 +166,18 @@ class EvalSample(BaseModel):
 
         return list(self.scores.values())[0] if self.scores else None
 
-    scores: dict[str, Score] | None = Field(default=None)
-    """Scores for sample."""
-
-    metadata: dict[str, Any]
-    """Additional sample metadata."""
-
-    store: dict[str, Any] = Field(default_factory=dict)
-    """State at end of sample execution."""
-
-    transcript: EvalEvents = Field(default_factory=EvalEvents)
-    """Transcript of sample events."""
-
-    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
-    """Model token usage for sample."""
-
-    error: EvalError | None = Field(default=None)
-    """Error that halted sample."""
+    @property
+    def transcript(self) -> "EvalEvents":
+        """Transcript of sample events (deprecated)."""
+        warn_once(
+            logger,
+            "EvalSample 'transcript' field is deprecated. Please use 'events' and 'attachments' fields instead.",
+        )
+        return EvalEvents(events=self.events, content=self.attachments)
 
     @model_validator(mode="before")
     @classmethod
-    def convert_score_to_scores(
+    def migrate_deprecated(
         cls: Type["EvalSample"], values: dict[str, Any]
     ) -> dict[str, Any]:
         if "score" in values:
@@ -180,10 +194,28 @@ class EvalSample(BaseModel):
             # Get rid of the 'scorer' property
             del values["score"]
 
+        if "transcript" in values:
+            # promote 'transcript' up to 'events' and 'attachments'
+            eval_events = EvalEvents(**values["transcript"])
+            values["events"] = eval_events.events
+            values["attachments"] = eval_events.content
+
+            # get rid of transcript (property accessor w/ deprecation
+            # warning will handle this)
+            del values["transcript"]
+
         return values
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalEvents(BaseModel):
+    events: list[Event] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
 
 
 class EvalPlanStep(BaseModel):

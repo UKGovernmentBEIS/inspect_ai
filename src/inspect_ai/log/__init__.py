@@ -1,5 +1,6 @@
 from inspect_ai._util.error import EvalError
 
+from ._attach import resolve_sample_attachments
 from ._bundle import bundle_log_dir
 from ._convert import convert_eval_logs
 from ._file import (
@@ -53,6 +54,7 @@ __all__ = [
     "list_eval_logs",
     "read_eval_log",
     "read_eval_log_sample",
+    "resolve_sample_attachments",
     "write_eval_log",
     "write_log_dir_manifest",
     "retryable_eval_logs",

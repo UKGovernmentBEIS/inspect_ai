@@ -38,13 +38,13 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
+from inspect_ai.log._attach import condense_eval_sample
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
     ScoreEvent,
-    eval_events,
     transcript,
 )
 from inspect_ai.model import (
@@ -506,27 +506,26 @@ def log_sample(
         )
 
     # construct sample for logging
-    logger.log_sample(
-        EvalSample(
-            id=id,
-            epoch=state.epoch,
-            input=sample.input,
-            choices=sample.choices,
-            target=sample.target,
-            metadata=state.metadata if state.metadata else {},
-            sandbox=sample.sandbox,
-            files=list(sample.files.keys()) if sample.files else None,
-            setup=sample.setup,
-            messages=state.messages,
-            output=state.output,
-            scores=cast(dict[str, Score], scores),
-            store=dict(state.store.items()),
-            transcript=eval_events(transcript().events, log_images),
-            model_usage=sample_model_usage(),
-            error=error,
-        ),
-        flush=True,
+    eval_sample = EvalSample(
+        id=id,
+        epoch=state.epoch,
+        input=sample.input,
+        choices=sample.choices,
+        target=sample.target,
+        metadata=state.metadata if state.metadata else {},
+        sandbox=sample.sandbox,
+        files=list(sample.files.keys()) if sample.files else None,
+        setup=sample.setup,
+        messages=state.messages,
+        output=state.output,
+        scores=cast(dict[str, Score], scores),
+        store=dict(state.store.items()),
+        events=transcript().events,
+        model_usage=sample_model_usage(),
+        error=error,
     )
+
+    logger.log_sample(condense_eval_sample(eval_sample, log_images), flush=True)
 
 
 async def resolve_dataset(
