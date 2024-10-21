@@ -2,7 +2,16 @@ import re
 from functools import partial
 
 from inspect_ai._util.dict import omit
-from inspect_ai.model import ChatMessageUser, Model, get_model
+from inspect_ai._util.format import format_function_call
+from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
@@ -18,6 +27,7 @@ def model_graded_fact(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
+    include_history: bool = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
@@ -38,6 +48,9 @@ def model_graded_fact(
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, or I.
+      include_history (bool): Whether to include the full chat
+        history in the presented question. Defaults to `False`,
+        which presents only the original sample input.
       partial_credit (bool): Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
          to `False`. Note that this parameter is only used
@@ -49,6 +62,7 @@ def model_graded_fact(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
         instructions=instructions,
         grade_pattern=grade_pattern,
+        include_history=include_history,
         partial_credit=partial_credit,
         model=model,
     )
@@ -59,14 +73,16 @@ def model_graded_qa(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
+    include_history: bool = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     """Score a question/answer task using a model.
 
     Args:
-      template (str): Template for grading prompt. This template uses
-        four variables: `question`, `criterion`, `answer`, and
+      template (str): Template for grading prompt. This template has
+        four variables:
+           - `question`, `criterion`, `answer`, and
         `instructions` (which is fed from the `instructions` parameter).
         Variables from sample `metadata` are also available in the template.
       instructions (str): Grading instructions. This should
@@ -79,6 +95,9 @@ def model_graded_qa(
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, I.
+      include_history (bool): Whether to include the full chat
+        history in the presented question. Defaults to `False`,
+        which presents only the original sample input.
       partial_credit (bool): Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
         to `False`. Note that this parameter is only used
@@ -88,7 +107,12 @@ def model_graded_qa(
     """
     # bind variables
     get_scorer = partial(
-        _model_graded_qa_single, template, instructions, grade_pattern, partial_credit
+        _model_graded_qa_single,
+        template,
+        instructions,
+        grade_pattern,
+        include_history,
+        partial_credit,
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
@@ -105,6 +129,7 @@ def _model_graded_qa_single(
     template: str | None = None,
     instructions: str | None = None,
     grade_pattern: str | None = None,
+    include_history: bool = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
 ) -> Scorer:
@@ -126,9 +151,10 @@ def _model_graded_qa_single(
         metadata = omit(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
+
         # format the scoring template
         score_prompt = grading_template.format(
-            question=state.input_text,
+            question=chat_history(state) if include_history else state.input_text,
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
@@ -217,3 +243,43 @@ First, write out in a step by step manner your reasoning about the criterion to 
 
 DEFAULT_GRADE_PATTERN = r"(?i)GRADE\s*:\s*([CPI])(.*)$"
 """Regex to extract the grade from the COT above."""
+
+
+def chat_history(state: TaskState) -> str:
+    # filter out system messages
+    messages: list[ChatMessage] = [
+        message
+        for message in state.messages
+        if not isinstance(message, ChatMessageSystem)
+    ]
+
+    # present message history (removing the final assistant message
+    # and after as it will be contained in the 'Answer:'):
+    messages = remove_last_match_and_after(
+        messages, lambda message: isinstance(message, ChatMessageAssistant)
+    )
+
+    # begin history with text of first message (it will come right after
+    # 'Task' or 'Question' in the template)
+    history: list[str] = [messages[0].text]
+
+    # for subsequent messages present with e.g. Assistant: {message.text}
+    for message in messages[1:]:
+        if isinstance(message, ChatMessageUser):
+            history.append(f"User: {message.text}")
+        elif isinstance(message, ChatMessageAssistant):
+            assistant_message = [message.text] if message.text else []
+            if message.tool_calls:
+                assistant_message.extend(
+                    [
+                        format_function_call(tool_call.function, tool_call.arguments)
+                        for tool_call in message.tool_calls
+                    ]
+                )
+            history.append("Assistant: " + "\n\n".join(assistant_message))
+        elif isinstance(message, ChatMessageTool):
+            history.append(
+                f"Tool ({message.function}): {message.tool_error or ''}{message.text}"
+            )
+
+    return "\n\n".join(history)

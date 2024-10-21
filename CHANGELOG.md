@@ -14,6 +14,7 @@
 - Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
 - Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.
 - Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.
+- Added `include_history` option to model graded scorers to optionally include the full chat history in the presented question.
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
