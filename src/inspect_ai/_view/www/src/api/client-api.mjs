@@ -160,7 +160,7 @@ export const clientApi = (api) => {
     // Don't re-use the eval log file since we know these are all different log files
     const remoteLogFile = await openRemoteLogFile(api, log_file, 5);
     return remoteLogFile.readHeader();
-  }
+  };
 
   /**
    * Gets log headers
@@ -172,7 +172,7 @@ export const clientApi = (api) => {
     const eval_files = {};
     const json_files = {};
     let index = 0;
-  
+
     // Separate files into eval_files and json_files
     for (const file of log_files) {
       if (isEvalFile(file)) {
@@ -182,15 +182,15 @@ export const clientApi = (api) => {
       }
       index++;
     }
-  
+
     // Get the promises for eval log headers
     const evalLogHeadersPromises = Object.keys(eval_files).map((file) =>
       get_eval_log_header(file).then((header) => ({
         index: eval_files[file], // Store original index
         header,
-      }))
+      })),
     );
-  
+
     // Get the promise for json log headers
     const jsonLogHeadersPromise = api
       .eval_log_headers(Object.keys(json_files))
@@ -198,18 +198,18 @@ export const clientApi = (api) => {
         headers.map((header, i) => ({
           index: json_files[Object.keys(json_files)[i]], // Store original index
           header,
-        }))
+        })),
       );
-  
+
     // Wait for all promises to resolve
     const headers = await Promise.all([
       ...evalLogHeadersPromises,
       jsonLogHeadersPromise,
     ]);
-  
+
     // Flatten the nested array and sort headers by their original index
     const orderedHeaders = headers.flat().sort((a, b) => a.index - b.index);
-  
+
     // Return only the header values in the correct order
     return orderedHeaders.map(({ header }) => header);
   };

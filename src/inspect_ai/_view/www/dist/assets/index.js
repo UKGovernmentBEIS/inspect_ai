@@ -16311,34 +16311,8 @@ function treeifyEvents(events, depth) {
   });
   return rootNodes;
 }
-const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const denormalizedEvents = resolveEventContent(evalEvents);
-  return m$1`<${TranscriptView} id=${id} events=${denormalizedEvents} />`;
-};
-const resolveEventContent = (evalEvents) => {
-  return (
-    /** @type {import("../types/log").Events} */
-    evalEvents.events.map((e2) => {
-      return resolveValue(e2, evalEvents);
-    })
-  );
-};
-const resolveValue = (value, evalEvents) => {
-  if (Array.isArray(value)) {
-    return value.map((v2) => resolveValue(v2, evalEvents));
-  } else if (value && typeof value === "object") {
-    const resolvedObject = {};
-    for (const key2 of Object.keys(value)) {
-      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
-    }
-    return resolvedObject;
-  } else if (typeof value === "string") {
-    if (value.startsWith(kContentProtocol)) {
-      return evalEvents.content[value.replace(kContentProtocol, "")];
-    }
-  }
-  return value;
+  return m$1`<${TranscriptView} id=${id} events=${evalEvents} />`;
 };
 const SampleError = ({ message, align, style }) => {
   align = align || "center";
@@ -16484,7 +16458,7 @@ const SampleDisplay = ({
       setSelectedTab(void 0);
     } else {
       if (selectedTab === void 0) {
-        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        const defaultTab = sample.events && sample.events.length > 0 ? transcriptTabId : msgTabId;
         setSelectedTab(defaultTab);
       }
     }
@@ -16507,10 +16481,10 @@ const SampleDisplay = ({
       />
     </${TabPanel}>`
   ];
-  if (sample.transcript && sample.transcript.events.length > 0) {
+  if (sample.events && sample.events.length > 0) {
     tabs.unshift(m$1`
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
@@ -19828,7 +19802,9 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
       return readJSONFile(sampleFile);
     } else {
       console.log({ dir: remoteZipFile.centralDirectory });
-      throw new Error(`Unable to read sample file ${sampleFile} - it is not present in the manifest.`);
+      throw new Error(
+        `Unable to read sample file ${sampleFile} - it is not present in the manifest.`
+      );
     }
   };
   const readHeader = async () => {
@@ -22118,6 +22094,27 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
+const resolveAttachments = (value, attachments) => {
+  const kContentProtocol = "tc://";
+  const kAttachmentProtocol = "attachment://";
+  if (Array.isArray(value)) {
+    return value.map((v2) => resolveAttachments(v2, attachments));
+  } else if (value && typeof value === "object") {
+    const resolvedObject = {};
+    for (const key2 of Object.keys(value)) {
+      resolvedObject[key2] = resolveAttachments(value[key2], attachments);
+    }
+    return resolvedObject;
+  } else if (typeof value === "string") {
+    if (value.startsWith(kContentProtocol)) {
+      value = value.replace(kContentProtocol, kAttachmentProtocol);
+    }
+    if (value.startsWith(kAttachmentProtocol)) {
+      return attachments[value.replace(kAttachmentProtocol, "")];
+    }
+  }
+  return value;
+};
 function App({ api: api2, pollForLogs = true }) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
@@ -22248,6 +22245,15 @@ function App({ api: api2, pollForLogs = true }) {
       setSampleError(void 0);
       const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
+        if (sample.transcript) {
+          sample.events = sample.transcript.events;
+          sample.attachments = sample.transcript.content;
+        }
+        sample.attachments = sample.attachments || {};
+        sample.input = resolveAttachments(sample.input, sample.attachments);
+        sample.messages = resolveAttachments(sample.messages, sample.attachments);
+        sample.events = resolveAttachments(sample.events, sample.attachments);
+        sample.attachments = {};
         loadedSampleIndexRef.current = selectedSampleIndex;
         setSelectedSample(sample);
         setSampleStatus("ok");

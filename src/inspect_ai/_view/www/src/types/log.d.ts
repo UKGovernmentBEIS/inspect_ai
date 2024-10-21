@@ -15,6 +15,7 @@ export type TaskVersion = number;
 export type TaskFile = string | null;
 export type Solver = string | null;
 export type SolverArgs = {} | null;
+export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
@@ -84,22 +85,6 @@ export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
 export type Metadata3 = {} | null;
-export type SampleReductions = EvalSampleReductions[] | null;
-export type Scorer1 = string;
-export type Reducer1 = string | null;
-export type Value1 =
-  | string
-  | number
-  | boolean
-  | (string | number | boolean)[]
-  | {
-      [k: string]: string | number | boolean | null;
-    };
-export type Answer = string | null;
-export type Explanation = string | null;
-export type Metadata4 = {} | null;
-export type SampleId = string | number | null;
-export type Samples1 = SampleScore[];
 export type StartedAt = string;
 export type CompletedAt = string;
 export type InputTokens = number;
@@ -110,7 +95,7 @@ export type InputTokensCacheRead = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
-export type Samples2 = EvalSample[] | null;
+export type Samples1 = EvalSample[] | null;
 export type Id = number | string;
 export type Epoch = number;
 export type Input =
@@ -186,7 +171,7 @@ export type Error = string | null;
 export type Scores1 = {
   [k: string]: Score;
 } | null;
-export type Value2 =
+export type Value1 =
   | string
   | number
   | boolean
@@ -194,9 +179,9 @@ export type Value2 =
   | {
       [k: string]: string | number | boolean | null;
     };
-export type Answer1 = string | null;
-export type Explanation1 = string | null;
-export type Metadata5 = {} | null;
+export type Answer = string | null;
+export type Explanation = string | null;
+export type Metadata4 = {} | null;
 export type Timestamp = string;
 export type Event = "sample_init";
 export type Input1 =
@@ -210,7 +195,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata7 = {} | null;
+export type Metadata6 = {} | null;
 export type Files1 = {
   [k: string]: string;
 } | null;
@@ -277,7 +262,7 @@ export type Decision =
   | "reject"
   | "escalate"
   | "terminate";
-export type Explanation2 = string | null;
+export type Explanation1 = string | null;
 export type Timestamp6 = string;
 export type Event6 = "input";
 export type Input3 = string;
@@ -359,6 +344,22 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
+export type Reductions = EvalSampleReductions[] | null;
+export type Scorer1 = string;
+export type Reducer1 = string | null;
+export type Value2 =
+  | string
+  | number
+  | boolean
+  | (string | number | boolean)[]
+  | {
+      [k: string]: string | number | boolean | null;
+    };
+export type Answer1 = string | null;
+export type Explanation2 = string | null;
+export type Metadata7 = {} | null;
+export type SampleId = string | number | null;
+export type Samples2 = SampleScore[];
 
 export interface EvalLog {
   version?: Version;
@@ -368,7 +369,8 @@ export interface EvalLog {
   results?: EvalResults | null;
   stats?: EvalStats;
   error?: EvalError | null;
-  samples?: Samples2;
+  samples?: Samples1;
+  reductions?: Reductions;
 }
 export interface EvalSpec {
   run_id: RunId;
@@ -381,6 +383,7 @@ export interface EvalSpec {
   task_args: TaskArgs;
   solver: Solver;
   solver_args: SolverArgs;
+  tags: Tags;
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;
   model: Model;
@@ -492,7 +495,6 @@ export interface EvalResults {
   completed_samples: CompletedSamples;
   scores: Scores;
   metadata: Metadata3;
-  sample_reductions: SampleReductions;
 }
 export interface EvalScore {
   name: Name3;
@@ -513,24 +515,6 @@ export interface EvalMetric {
   metadata: Metadata1;
 }
 export interface Options {}
-export interface EvalSampleReductions {
-  scorer: Scorer1;
-  reducer: Reducer1;
-  samples: Samples1;
-}
-/**
- * Score for a Sample
- *
- * Args:
- *    sample_id: (str | int | None) Unique id of a sample
- */
-export interface SampleScore {
-  value: Value1;
-  answer: Answer;
-  explanation: Explanation;
-  metadata: Metadata4;
-  sample_id: SampleId;
-}
 export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
@@ -563,11 +547,12 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata6;
+  metadata: Metadata5;
   store: Store;
-  transcript: EvalEvents;
+  events: Events;
   model_usage: ModelUsage2;
   error: EvalError | null;
+  attachments: Attachments;
 }
 export interface ChatMessageSystem {
   content: Content;
@@ -658,17 +643,13 @@ export interface TopLogprob {
  *    metadata (dict[str,Any]): Additional metadata related to the score.
  */
 export interface Score {
-  value: Value2;
-  answer: Answer1;
-  explanation: Explanation1;
-  metadata: Metadata5;
+  value: Value1;
+  answer: Answer;
+  explanation: Explanation;
+  metadata: Metadata4;
 }
-export interface Metadata6 {}
+export interface Metadata5 {}
 export interface Store {}
-export interface EvalEvents {
-  events: Events;
-  content: Content6;
-}
 /**
  * Beginning of processing a Sample.
  */
@@ -683,7 +664,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id2;
-  metadata: Metadata7;
+  metadata: Metadata6;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
@@ -864,7 +845,7 @@ export interface ApprovalEvent {
   approver: Approver;
   decision: Decision;
   modified: ToolCall | null;
-  explanation: Explanation2;
+  explanation: Explanation1;
 }
 /**
  * Custom view of a tool call.
@@ -960,9 +941,27 @@ export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }
-export interface Content6 {
-  [k: string]: string;
-}
 export interface ModelUsage2 {
   [k: string]: ModelUsage1;
+}
+export interface Attachments {
+  [k: string]: string;
+}
+export interface EvalSampleReductions {
+  scorer: Scorer1;
+  reducer: Reducer1;
+  samples: Samples2;
+}
+/**
+ * Score for a Sample
+ *
+ * Args:
+ *    sample_id: (str | int | None) Unique id of a sample
+ */
+export interface SampleScore {
+  value: Value2;
+  answer: Answer1;
+  explanation: Explanation2;
+  metadata: Metadata7;
+  sample_id: SampleId;
 }

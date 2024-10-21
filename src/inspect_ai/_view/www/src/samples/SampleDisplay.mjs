@@ -97,7 +97,7 @@ export const SampleDisplay = ({
     } else {
       if (selectedTab === undefined) {
         const defaultTab =
-          sample.transcript && sample.transcript.events.length > 0
+          sample.events && sample.events.length > 0
             ? transcriptTabId
             : msgTabId;
         setSelectedTab(defaultTab);
@@ -129,12 +129,12 @@ export const SampleDisplay = ({
     </${TabPanel}>`,
   ];
 
-  if (sample.transcript && sample.transcript.events.length > 0) {
+  if (sample.events && sample.events.length > 0) {
     tabs.unshift(html`
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
   }
 

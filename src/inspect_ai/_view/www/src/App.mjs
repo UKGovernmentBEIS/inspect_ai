@@ -5,6 +5,7 @@ import "prismjs";
 import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
+// @ts-ignore
 import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
@@ -32,6 +33,7 @@ import { getVscodeApi } from "./utils/vscode.mjs";
 import { kDefaultSort } from "./samples/tools/SortFilter.mjs";
 import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
+import { resolveAttachments } from './utils/attachments.mjs'
 
 /**
  * Renders the Main Application
@@ -247,6 +249,21 @@ export function App({ api, pollForLogs = true }) {
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
+
+          // migrate transcript to new structure
+          // @ts-ignore
+          if (sample.transcript) {
+            // @ts-ignore
+            sample.events = sample.transcript.events;
+            // @ts-ignore
+            sample.attachments = sample.transcript.content
+          }
+          sample.attachments = sample.attachments || {}
+          sample.input = resolveAttachments(sample.input, sample.attachments)
+          sample.messages = resolveAttachments(sample.messages, sample.attachments)
+          sample.events = resolveAttachments(sample.events, sample.attachments)
+          sample.attachments = {}
+
           loadedSampleIndexRef.current = selectedSampleIndex;
           setSelectedSample(sample);
           setSampleStatus("ok");
@@ -637,7 +654,8 @@ export function App({ api, pollForLogs = true }) {
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
-              hasSamples=${selectedLog?.contents?.sampleSummaries && selectedLog?.contents?.sampleSummaries.length > 0}
+              hasSamples=${selectedLog?.contents?.sampleSummaries &&
+              selectedLog?.contents?.sampleSummaries.length > 0}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}

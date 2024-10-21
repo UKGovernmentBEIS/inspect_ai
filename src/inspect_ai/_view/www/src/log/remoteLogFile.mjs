@@ -16,7 +16,6 @@ import { openRemoteZipFile } from "../utils/remoteZipFile.mjs";
  * @property {() => Promise<import("../types/log").EvalLog>} readCompleteLog - Reads the complete log file including all samples.
  */
 
-
 /**
  * Opens a remote log file and provides methods to read its contents.
  * @param {import("../api/Types.mjs").LogViewAPI} api - The api
@@ -76,10 +75,12 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
   const readSample = (sampleId, epoch) => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
-     return readJSONFile(sampleFile);
+      return readJSONFile(sampleFile);
     } else {
-      console.log({dir: remoteZipFile.centralDirectory});
-      throw new Error(`Unable to read sample file ${sampleFile} - it is not present in the manifest.`);
+      console.log({ dir: remoteZipFile.centralDirectory });
+      throw new Error(
+        `Unable to read sample file ${sampleFile} - it is not present in the manifest.`,
+      );
     }
   };
 
