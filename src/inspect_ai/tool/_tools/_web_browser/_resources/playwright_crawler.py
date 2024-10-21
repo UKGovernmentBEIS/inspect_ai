@@ -33,27 +33,15 @@ class CrawlerOutputFormat(enum.Enum):
     PIXELS = 3
 
 
-class PlaywrightCrawler:
-    """Stores the accessibility tree."""
-
-    _playwright_api = None
+class PlaywrightBrowser:
+    """Stores the browser and creates new contexts."""
 
     WIDTH = 1280
     HEIGHT = 1080
 
     def __init__(self):
-        """Initialize the craweler."""
-        # Initialized in _initialize_context.
-        self._page = None
-        self._context = None
-        self._client = None
-        self._root = None
-        self._nodes = {}
-        self._dom_tree = None
-
-        if PlaywrightCrawler._playwright_api is None:
-            # Start api only once.
-            PlaywrightCrawler._playwright_api = sync_playwright().start()
+        """Creates the browser."""
+        self._playwright_api = sync_playwright().start()
 
         logging.info("Starting chromium in headless mode.")
 
@@ -64,21 +52,40 @@ class PlaywrightCrawler:
             args=["--disable-blink-features=AutomationControlled"],
         )
 
-        self._initialize_context()
-
-    def _initialize_context(self):
-        """Creates playwright context, page, and client."""
-        if self._page:
-            # Close the previous page if it was open.
-            self._page.close()
-
-        self._context = self._browser.new_context(
+    def get_new_context(self):
+        return self._browser.new_context(
             geolocation={"longitude": -0.12, "latitude": 51},
             locale="en-GB",
             permissions=["geolocation"],
             timezone_id="Europe/London",
             viewport={"width": self.WIDTH, "height": self.HEIGHT},
         )
+
+    def close(self):
+        self._browser.close()
+
+
+class PlaywrightCrawler:
+    """Stores the accessibility tree."""
+
+    def __init__(self):
+        """Initialize the craweler."""
+        self._browser = PlaywrightBrowser()
+        self._context = self._browser.get_new_context()
+
+        self._page = None
+        self._client = None
+        self._root = None
+        self._nodes = {}
+        self._dom_tree = None
+
+        self._initialize_context()
+
+    def _initialize_context(self):
+        """Creates playwright page, and client."""
+        if self._page:
+            # Close the previous page if it was open.
+            self._page.close()
 
         self._page = self._context.new_page()
 
@@ -362,8 +369,6 @@ class PlaywrightCrawler:
     def url(self) -> str:
         return self._page.url
 
-    def close(self) -> None:
-        """Closes the crawler."""
-        self._browser.close()
-        self._browser = None
-        self._pag
+    def reset(self) -> None:
+        """Resets the browser context by clearing the cookies."""
+        self._context.clearCookies()
