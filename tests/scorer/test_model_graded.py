@@ -1,11 +1,14 @@
+from typing import Callable
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver._task_state import TaskState
 
 
-def test_model_graded_include_history():
-    task = Task(
+def include_history_task(include_history: bool | Callable[[TaskState], str]) -> Task:
+    return Task(
         dataset=[
             Sample(
                 input=[
@@ -18,9 +21,19 @@ def test_model_graded_include_history():
                 target="Alfred Hitchcock",
             )
         ],
-        scorer=model_graded_fact(include_history=True, model="mockllm/model"),
+        scorer=model_graded_fact(
+            include_history=include_history, model="mockllm/model"
+        ),
     )
 
-    log = eval(task, model="mockllm/model")[0]
-    assert log.samples
-    assert "Do you mean the movie" in log.samples[0].model_dump_json()
+
+def test_model_graded_include_history():
+    def check_include_history(include_history: bool | Callable[[TaskState], str]):
+        log = eval(include_history_task(include_history), model="mockllm/model")[0]
+        assert log.samples
+        assert "Do you mean the movie" in log.samples[0].model_dump_json()
+
+    check_include_history(True)
+    check_include_history(
+        lambda state: "\n".join([message.text for message in state.messages])
+    )
