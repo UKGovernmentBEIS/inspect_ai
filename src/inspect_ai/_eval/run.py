@@ -163,6 +163,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
+                        tags=tags,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

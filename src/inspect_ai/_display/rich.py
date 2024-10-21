@@ -532,6 +532,8 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
     if generate_config:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
+    if profile.tags:
+        config["tags"] = ",".join(profile.tags)
     config_print: list[str] = []
     for name, value in config.items():
         if name == "approval":
