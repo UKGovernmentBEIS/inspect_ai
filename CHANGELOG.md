@@ -10,6 +10,7 @@
 - Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
+- OpenAI: Remove tool call id in user message reporting tool calls to o1- models.
 - Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
 - Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
 - Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.

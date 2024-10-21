@@ -267,7 +267,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
         results = f"Error: {message.error.message}" if message.error else message.text
 
         # try to clearly spell out that this 'user' message is the response to a function call
-        content = f"The '{message.tool_call_id}' function was called. The results are:\n\n{results}"
+        content = f"The '{message.function}' function was called. The results are:\n\n{results}"
 
         # return user message
         return {"role": "user", "content": content}
