@@ -21467,7 +21467,7 @@ const CanceledPanel = ({ sampleCount }) => {
   >
     <i
       class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large }}
+      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;
@@ -22251,7 +22251,10 @@ function App({ api: api2, pollForLogs = true }) {
         }
         sample.attachments = sample.attachments || {};
         sample.input = resolveAttachments(sample.input, sample.attachments);
-        sample.messages = resolveAttachments(sample.messages, sample.attachments);
+        sample.messages = resolveAttachments(
+          sample.messages,
+          sample.attachments
+        );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
         loadedSampleIndexRef.current = selectedSampleIndex;
