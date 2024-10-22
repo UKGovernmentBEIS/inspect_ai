@@ -65,8 +65,10 @@ export const SamplesTab = ({
       }, 0);
     } else {
       setTimeout(() => {
-        // @ts-ignore
-        sampleListRef.current.base.focus();
+        if (sampleListRef.current) {
+          // @ts-ignore
+          sampleListRef.current.base.focus();
+        }
       }, 0);
     }
   }, [showingSampleDialog]);

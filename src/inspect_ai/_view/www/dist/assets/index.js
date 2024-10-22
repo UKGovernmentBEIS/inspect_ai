@@ -12517,6 +12517,18 @@ const contentRenderers = {
       };
     }
   },
+  web_browser: {
+    bucket: Buckets.intermediate,
+    canRender: (entry) => {
+      var _a2;
+      return typeof entry.value === "string" && ((_a2 = entry.name) == null ? void 0 : _a2.startsWith("web_browser"));
+    },
+    render: (_id, entry) => {
+      return {
+        rendered: m$1`<pre>${entry.value}</pre>`
+      };
+    }
+  },
   Html: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
@@ -17328,7 +17340,9 @@ const SamplesTab = ({
       }, 0);
     } else {
       setTimeout(() => {
-        sampleListRef.current.base.focus();
+        if (sampleListRef.current) {
+          sampleListRef.current.base.focus();
+        }
       }, 0);
     }
   }, [showingSampleDialog]);
