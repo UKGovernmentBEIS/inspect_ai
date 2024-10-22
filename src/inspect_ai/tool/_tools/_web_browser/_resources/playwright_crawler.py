@@ -38,14 +38,16 @@ class PlaywrightBrowser:
 
     WIDTH = 1280
     HEIGHT = 1080
+    _playwright_api = None
 
     def __init__(self):
         """Creates the browser."""
-        self._playwright_api = sync_playwright().start()
+        if PlaywrightBrowser._playwright_api is None:
+            PlaywrightBrowser._playwright_api = sync_playwright().start()
 
         logging.info("Starting chromium in headless mode.")
 
-        self._browser = self._playwright_api.chromium.launch(
+        self._browser = PlaywrightBrowser._playwright_api.chromium.launch(
             headless=True,
             # Required for Gmail signup see
             # https://stackoverflow.com/questions/65139098/how-to-login-to-google-account-with-playwright
@@ -63,15 +65,17 @@ class PlaywrightBrowser:
 
     def close(self):
         self._browser.close()
+        if PlaywrightBrowser._playwright_api is not None:
+            PlaywrightBrowser._playwright_api.stop()
+            PlaywrightBrowser._playwright_api = None
 
 
 class PlaywrightCrawler:
     """Stores the accessibility tree."""
 
-    def __init__(self):
+    def __init__(self, browser_context):
         """Initialize the craweler."""
-        self._browser = PlaywrightBrowser()
-        self._context = self._browser.get_new_context()
+        self._context = browser_context
 
         self._page = None
         self._client = None
@@ -368,7 +372,3 @@ class PlaywrightCrawler:
     @property
     def url(self) -> str:
         return self._page.url
-
-    def reset(self) -> None:
-        """Resets the browser context by clearing the cookies."""
-        self._context.clearCookies()

@@ -60,7 +60,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         self._env_type = env_type
         self._envs: dict[str, dm_env.Environment] = {}
         self._specs: dict[str, EnvironmentSpec] = {}
-        self._joined_worlds: set[str] = {}
+        self._joined_worlds: set[str] = set()
         self._browser: playwright_crawler.PlaywrightBrowser = None
         self._lock = threading.Lock()
         self._num_worlds = 0
@@ -106,10 +106,6 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
                         response = self._handle_step_request(internal_request, cur_world)
                     case _:
                         raise ValueError(f"Unsupported request type: {type(internal_request)}")
-
-
-
-                response = self._handlers[type(internal_request)](internal_request)
                 getattr(environment_response, message_type).CopyFrom(response)
             except Exception as e:  # pylint: disable=broad-except
                 environment_response.error.CopyFrom(
@@ -156,8 +152,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
 
             new_context = self._browser.get_new_context()
             env = self._env_type(new_context)
-            spec = EnvironmentSpec(self._env)
-            self._num_of_joined_clients += 1
+            spec = EnvironmentSpec(env)
             self._envs[world_name] = env
             self._specs[world_name] = spec
 
@@ -199,8 +194,8 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         self, request: dm_env_rpc_pb2.DestroyWorldRequest
     ) -> dm_env_rpc_pb2.DestroyWorldResponse:
         """Handles destroy_world requests."""
-        del request
         world_name = request.world_name
+        del request
         with self._lock:
             if not self._envs.get(world_name):
                 raise ValueError("Can not destroy uncreated environment.")
@@ -210,6 +205,10 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             env.close()
             env = None
             self._specs.pop(world_name, None)
+
+            if not self._envs:
+                self._browser.close()
+                self._browser = None
         response = dm_env_rpc_pb2.DestroyWorldResponse()
         return response
 
