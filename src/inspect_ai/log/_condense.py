@@ -32,7 +32,7 @@ logger = getLogger(__name__)
 ATTACHMENT_PROTOCOL = "attachment://"
 
 
-def condense_sample(sample: EvalSample, log_images: bool) -> EvalSample:
+def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     """Reduce the storage size of the eval sample.
 
     Reduce size by:
@@ -46,7 +46,7 @@ def condense_sample(sample: EvalSample, log_images: bool) -> EvalSample:
 
     Args:
        sample (EvalSample): Eval sample to condense.
-       log_images (bool): Should full base64 images be logged for this sample.
+       log_images (bool): Should base64 images be logged for this sample.
 
     Returns:
        EvalSample: Eval sample in condensed form.
