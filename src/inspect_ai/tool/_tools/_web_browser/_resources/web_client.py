@@ -10,13 +10,13 @@ _DM_ENV_BASE_PORT = 9443
 _WORLD_NAME = "WebBrowser"
 _SESSION_FLAG = "--session_name="
 
-def parse_args(cli_args: list[str]) -> (str, str):
 
+def parse_args(cli_args: list[str]) -> (str, str):
     if not cli_args:
         return _WORLD_NAME, ""
 
     if cli_args[0].startswith(_SESSION_FLAG):
-        world_name = cli_args[0][len(_SESSION_FLAG):]
+        world_name = cli_args[0][len(_SESSION_FLAG) :]
 
         if len(cli_args) == 1:
             return world_name, ""

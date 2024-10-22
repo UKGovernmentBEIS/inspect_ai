@@ -5,7 +5,6 @@ from typing import Any, Iterable, Type
 
 import dm_env
 import grpc
-import immutabledict
 import playwright_crawler
 from dm_env import specs
 from dm_env_rpc.v1 import (
@@ -97,15 +96,23 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
                     case dm_env_rpc_pb2.CreateWorldRequest:
                         response = self._handle_create_world_request(internal_request)
                     case dm_env_rpc_pb2.JoinWorldRequest:
-                        response, cur_world = self._handle_join_world_request(internal_request)
+                        response, cur_world = self._handle_join_world_request(
+                            internal_request
+                        )
                     case dm_env_rpc_pb2.LeaveWorldRequest:
-                        response = self._handle_leave_world_request(internal_request, cur_world)
+                        response = self._handle_leave_world_request(
+                            internal_request, cur_world
+                        )
                     case dm_env_rpc_pb2.DestroyWorldRequest:
                         response = self._handle_destroy_world_request(internal_request)
                     case dm_env_rpc_pb2.StepRequest:
-                        response = self._handle_step_request(internal_request, cur_world)
+                        response = self._handle_step_request(
+                            internal_request, cur_world
+                        )
                     case _:
-                        raise ValueError(f"Unsupported request type: {type(internal_request)}")
+                        raise ValueError(
+                            f"Unsupported request type: {type(internal_request)}"
+                        )
                 getattr(environment_response, message_type).CopyFrom(response)
             except Exception as e:  # pylint: disable=broad-except
                 environment_response.error.CopyFrom(
@@ -125,7 +132,9 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
                 f" {unrecognized_settings}"
             )
 
-    def _add_spec_to_response(self, world_name: str, response: dm_env_rpc_pb2.EnvironmentResponse):
+    def _add_spec_to_response(
+        self, world_name: str, response: dm_env_rpc_pb2.EnvironmentResponse
+    ):
         """Modifies given respose to include action/observation specifications."""
         if not self._specs.get(world_name):
             raise ValueError(f"Not found a spec for {world_name} world")
@@ -142,12 +151,12 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         """Handles create_world requests."""
         self._validate_settings(request.settings, [])
         del request
-        world_name=_DEFAULT_WORLD_NAME
+        world_name = _DEFAULT_WORLD_NAME
         with self._lock:
             if self._browser is None:
                 self._browser = playwright_crawler.PlaywrightBrowser()
             else:
-                world_name += f'_{self._num_worlds}'
+                world_name += f"_{self._num_worlds}"
             self._num_worlds += 1
 
             new_context = self._browser.get_new_context()
@@ -167,13 +176,9 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         world_name = request.world_name
         with self._lock:
             if not self._envs.get(world_name):
-                raise ValueError(
-                    f"Joining with the wrong world_name {world_name}"
-                )
+                raise ValueError(f"Joining with the wrong world_name {world_name}")
             if world_name in self._joined_worlds:
-                raise ValueError(
-                    f"Only one client can joint the world {world_name}"
-                )
+                raise ValueError(f"Only one client can joint the world {world_name}")
             self._joined_worlds.add(world_name)
             self._add_spec_to_response(world_name, response)
 
@@ -219,6 +224,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
 
         Args:
           request: The request, which should contain a 'command' entry.
+          cur_world: The name of the world in which we're making a step.
 
         Returns:
           Response including requested observations.
@@ -228,8 +234,12 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             observations.
         """
         with self._lock:
-            assert cur_world in self._envs, "Current world does not have an assosiated environment"
-            assert cur_world in self._joined_worlds, "Please join world before calling step."
+            assert (
+                cur_world in self._envs
+            ), "Current world does not have an assosiated environment"
+            assert (
+                cur_world in self._joined_worlds
+            ), "Please join world before calling step."
             env = self._envs[cur_world]
             spec = self._specs[cur_world]
 
@@ -243,9 +253,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
 
             timestep: dm_env.TimeStep = env.step(command)
 
-            packed_observations = spec.observation_manager.pack(
-                timestep.observation
-            )
+            packed_observations = spec.observation_manager.pack(timestep.observation)
 
             match timestep.step_type:
                 case dm_env.StepType.MID:
@@ -258,9 +266,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             response = dm_env_rpc_pb2.StepResponse(state=step_state)
             for requested_observation in request.requested_observations:
                 if requested_observation not in packed_observations:
-                    name = spec.observation_manager.uid_to_name(
-                        requested_observation
-                    )
+                    name = spec.observation_manager.uid_to_name(requested_observation)
                     raise KeyError(f"Requested observation not found: {name}")
                 response.observations[requested_observation].CopyFrom(
                     packed_observations[requested_observation]

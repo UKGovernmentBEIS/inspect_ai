@@ -5,7 +5,9 @@ from absl.testing import parameterized
 class TestPlaywrightCrawler(parameterized.TestCase):
     def setUp(self):
         self._browser = playwright_crawler.PlaywrightBrowser()
-        self._crawler = playwright_crawler.PlaywrightCrawler(self._browser.get_new_context())
+        self._crawler = playwright_crawler.PlaywrightCrawler(
+            self._browser.get_new_context()
+        )
 
     def test_go_to_page_changes_url(self):
         self.assertEqual(self._crawler.url, "about:blank")

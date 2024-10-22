@@ -1,12 +1,8 @@
 """Simple script to run and test the RPC server."""
 
-from concurrent import futures
-
-import dm_env_servicer
 import grpc
-import web_environment
 from dm_env_rpc.v1 import connection as dm_env_connection
-from dm_env_rpc.v1 import dm_env_rpc_pb2, dm_env_rpc_pb2_grpc
+from dm_env_rpc.v1 import dm_env_rpc_pb2
 
 _DM_ENV_BASE_PORT = 9443
 
