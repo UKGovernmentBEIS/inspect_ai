@@ -2,7 +2,6 @@
 import { html } from "htm/preact";
 import { TranscriptView } from "./transcript/TranscriptView.mjs";
 
-
 /**
  * Renders the SampleTranscript component.
  *

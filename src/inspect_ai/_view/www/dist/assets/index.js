@@ -19908,15 +19908,15 @@ const clientApi = (api2) => {
     file: void 0,
     remoteLog: void 0
   };
-  const remoteEvalFile = async (log_file) => {
-    if (loadedEvalFile.file !== log_file) {
+  const remoteEvalFile = async (log_file, cached = false) => {
+    if (!cached || loadedEvalFile.file !== log_file) {
       loadedEvalFile.file = log_file;
       loadedEvalFile.remoteLog = await openRemoteLogFile(api2, log_file, 5);
     }
     return loadedEvalFile.remoteLog;
   };
-  const get_log = async (log_file) => {
-    if (log_file !== current_path || !current_log) {
+  const get_log = async (log_file, cached = false) => {
+    if (!cached || log_file !== current_path || !current_log) {
       if (pending_log_promise) {
         return pending_log_promise;
       }
@@ -19971,17 +19971,17 @@ const clientApi = (api2) => {
     if (isEvalFile(log_file)) {
       console.error("Unexpected request for JSON for an eval log file.");
     } else {
-      const logcontents = await get_log(log_file);
+      const logcontents = await get_log(log_file, true);
       return logcontents.raw;
     }
   };
   const get_log_sample = async (log_file, id, epoch) => {
     if (isEvalFile(log_file)) {
-      const remoteLogFile = await remoteEvalFile(log_file);
+      const remoteLogFile = await remoteEvalFile(log_file, true);
       const sample = await remoteLogFile.readSample(id, epoch);
       return sample;
     } else {
-      const logContents = await get_log(log_file);
+      const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
         return logContents.parsed.samples.find((sample) => {
           return sample.id === id && sample.epoch === epoch;
