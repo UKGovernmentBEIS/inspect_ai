@@ -24794,9 +24794,6 @@ const TaskErrorCard = ({ evalError }) => {
     </${Card}>
   `;
 };
-const kEvalTabId = "eval-tab";
-const kJsonTabId = "json-tab";
-const kInfoTabId = "plan-tab";
 const WorkSpace = ({
   task_id,
   evalStatus,
@@ -24808,7 +24805,6 @@ const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
-  hasSamples,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -24833,6 +24829,8 @@ const WorkSpace = ({
   score,
   setScore,
   scores,
+  selectedTab,
+  setSelectedTab,
   renderContext
 }) => {
   const divRef = A(
@@ -24842,18 +24840,15 @@ const WorkSpace = ({
   if (!evalSpec) {
     return "";
   }
-  const [selectedTab, setSelectedTab] = h(kEvalTabId);
   y(() => {
-    const showSamples = evalStatus !== "error" && hasSamples;
-    setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-  }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
+  }, [divRef, task_id]);
   const resolvedTabs = {};
   if (evalStatus !== "error" && samples && samples.length > 0) {
     resolvedTabs.samples = {
-      id: kEvalTabId,
+      id: kEvalWorkspaceTabId,
       scrollable: samples.length === 1,
       label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
       content: () => {
@@ -24905,7 +24900,7 @@ const WorkSpace = ({
     };
   }
   resolvedTabs.config = {
-    id: kInfoTabId,
+    id: kInfoWorkspaceTabId,
     label: "Info",
     scrollable: true,
     content: () => {
@@ -24944,7 +24939,7 @@ const WorkSpace = ({
     }
   };
   resolvedTabs.json = {
-    id: kJsonTabId,
+    id: kJsonWorkspaceTabId,
     label: "JSON",
     scrollable: true,
     content: () => {
@@ -24962,7 +24957,7 @@ const WorkSpace = ({
         logFileName=${logFileName}
         json=${json}
         capabilities=${capabilities}
-        selected=${selectedTab === kJsonTabId}
+        selected=${selectedTab === kJsonWorkspaceTabId}
       />`;
     },
     tools: () => {
@@ -25265,8 +25260,11 @@ const resolveAttachments = (value, attachments) => {
   }
   return value;
 };
+const kEvalWorkspaceTabId = "eval-tab";
+const kJsonWorkspaceTabId = "json-tab";
+const kInfoWorkspaceTabId = "plan-tab";
 function App({ api: api2, pollForLogs = true }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
   const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
@@ -25275,6 +25273,7 @@ function App({ api: api2, pollForLogs = true }) {
     contents: void 0,
     name: void 0
   });
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = h(kEvalWorkspaceTabId);
   const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
   const [selectedSample, setSelectedSample] = h(void 0);
   const [sampleStatus, setSampleStatus] = h(void 0);
@@ -25462,6 +25461,16 @@ function App({ api: api2, pollForLogs = true }) {
     };
     loadHeaders();
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  const resetWorkspaceTab = q(
+    (log) => {
+      const hasSamples = !!(log == null ? void 0 : log.sampleSummaries) && (log == null ? void 0 : log.sampleSummaries.length) > 0;
+      const showSamples = (log == null ? void 0 : log.status) !== "error" && hasSamples;
+      setSelectedWorkspaceTab(
+        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
+      );
+    },
+    [setSelectedWorkspaceTab]
+  );
   y(() => {
     const loadSpecificLog = async () => {
       const targetLog = logs.files[selectedLogIndex];
@@ -25476,6 +25485,7 @@ function App({ api: api2, pollForLogs = true }) {
               name: targetLog.name
             });
             setSelectedSampleIndex(-1);
+            resetWorkspaceTab(log);
             setStatus({ loading: false, error: void 0 });
           }
         } catch (e2) {
@@ -25544,6 +25554,7 @@ function App({ api: api2, pollForLogs = true }) {
           contents: log,
           name: targetLog.name
         });
+        resetWorkspaceTab(log);
         setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
@@ -25731,7 +25742,6 @@ function App({ api: api2, pollForLogs = true }) {
               evalResults=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
-              hasSamples=${((_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.sampleSummaries) && ((_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.sampleSummaries.length) > 0}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
@@ -25746,9 +25756,11 @@ function App({ api: api2, pollForLogs = true }) {
               setSelectedSampleIndex=${setSelectedSampleIndex}
               showingSampleDialog=${showingSampleDialog}
               setShowingSampleDialog=${setShowingSampleDialog}
+              selectedTab=${selectedWorkspaceTab}
+              setSelectedTab=${setSelectedWorkspaceTab}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_n = (_m = (_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.eval) == null ? void 0 : _m.config) == null ? void 0 : _n.epochs}
+              epochs=${(_l = (_k = (_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval) == null ? void 0 : _k.config) == null ? void 0 : _l.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}

@@ -1,6 +1,6 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -16,10 +16,11 @@ import { Navbar } from "../navbar/Navbar.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
-
-const kEvalTabId = "eval-tab";
-const kJsonTabId = "json-tab";
-const kInfoTabId = "plan-tab";
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kJsonWorkspaceTabId,
+} from "../App.mjs";
 
 /**
  * Renders the Main Application
@@ -61,6 +62,8 @@ const kInfoTabId = "plan-tab";
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
+ * @param {string} props.selectedTab - The selected tab id
+ * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
@@ -75,7 +78,6 @@ export const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
-  hasSamples,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -100,6 +102,8 @@ export const WorkSpace = ({
   score,
   setScore,
   scores,
+  selectedTab,
+  setSelectedTab,
   renderContext,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -108,17 +112,12 @@ export const WorkSpace = ({
     return "";
   }
 
-  // State tracking for the view
-  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
-
   // Display the log
   useEffect(() => {
-    const showSamples = evalStatus !== "error" && hasSamples;
-    setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-  }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
+  }, [divRef, task_id]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -129,7 +128,7 @@ export const WorkSpace = ({
   // Currently only appears when the result is successful
   if (evalStatus !== "error" && samples && samples.length > 0) {
     resolvedTabs.samples = {
-      id: kEvalTabId,
+      id: kEvalWorkspaceTabId,
       scrollable: samples.length === 1,
       label: samples?.length > 1 ? "Samples" : "Sample",
       content: () => {
@@ -185,7 +184,7 @@ export const WorkSpace = ({
 
   // The info tab
   resolvedTabs.config = {
-    id: kInfoTabId,
+    id: kInfoWorkspaceTabId,
     label: "Info",
     scrollable: true,
     content: () => {
@@ -234,7 +233,7 @@ export const WorkSpace = ({
 
   // The JSON Tab
   resolvedTabs.json = {
-    id: kJsonTabId,
+    id: kJsonWorkspaceTabId,
     label: "JSON",
     scrollable: true,
     content: () => {
@@ -252,7 +251,7 @@ export const WorkSpace = ({
         logFileName=${logFileName}
         json=${json}
         capabilities=${capabilities}
-        selected=${selectedTab === kJsonTabId}
+        selected=${selectedTab === kJsonWorkspaceTabId}
       />`;
     },
     tools: () => {
