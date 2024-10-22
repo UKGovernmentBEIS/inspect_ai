@@ -15560,9 +15560,9 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
-const ModelTokenTable = ({ model_usage }) => {
+const ModelTokenTable = ({ model_usage, style }) => {
   return m$1`
-  <${TokenTable}>
+  <${TokenTable} style=${style}>
     <${TokenHeader}/>
     <tbody>
     ${Object.keys(model_usage).map((key2) => {
@@ -15572,10 +15572,15 @@ const ModelTokenTable = ({ model_usage }) => {
   </${TokenTable}>
   `;
 };
-const TokenTable = ({ children }) => {
+const TokenTable = ({ style, children }) => {
   return m$1`<table
     class="table table-sm"
-    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
+    style=${{
+    width: "100%",
+    fontSize: FontSize.smaller,
+    marginTop: "0.7rem",
+    ...style
+  }}
   >
     ${children}
   </table>`;
@@ -16452,6 +16457,7 @@ const SampleDisplay = ({
   visible,
   context
 }) => {
+  var _a2, _b2, _c;
   const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
@@ -16520,6 +16526,22 @@ const SampleDisplay = ({
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
+          ${((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0 ? m$1` <div
+                    style=${{
+        fontSize: FontSize.small,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+                  >
+                    Scorer Metadata
+                  </div>
+                  <${MetaDataView}
+                    id="task-sample-metadata-${id}"
+                    classes="tab-pane"
+                    entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
+                    style=${{ marginTop: "1em" }}
+                    context=${context}
+                  />` : ""}
         </${TabPanel}>`);
     }
   }
@@ -16537,8 +16559,8 @@ const SampleDisplay = ({
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-        ${sampleMetadatas}
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+          ${sampleMetadatas}
         </div>
       </${TabPanel}>`
     );
@@ -16650,28 +16672,46 @@ const SampleDisplay = ({
   </${TabSet}>`;
 };
 const metadataViewsForSample = (id, sample, context) => {
-  var _a2, _b2, _c;
   const sampleMetadatas = [];
+  sampleMetadatas.push(m$1`
+    <${Card}>
+      <${CardHeader} label="Usage"/>
+      <${CardBody}>
+        <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+      </${CardBody}>
+    </${Card}>`);
   if (Object.keys(sample == null ? void 0 : sample.metadata).length > 0) {
     sampleMetadatas.push(
-      m$1` <${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample == null ? void 0 : sample.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`
+      m$1`
+      <${Card}>
+        <${CardHeader} label="Metadata"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-metadata-${id}"
+            classes="tab-pane"
+            entries="${sample == null ? void 0 : sample.metadata}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+        </${Card}>`
     );
   }
-  if (((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0) {
+  if (Object.keys(sample == null ? void 0 : sample.store).length > 0) {
     sampleMetadatas.push(
-      m$1`<${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`
+      m$1`
+      <${Card}>
+        <${CardHeader} label="Store"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-store-${id}"
+            classes="tab-pane"
+            entries="${sample == null ? void 0 : sample.store}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+      </${Card}>`
     );
   }
   return sampleMetadatas;
