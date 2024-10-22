@@ -13,9 +13,11 @@ export function activateLogs(envManager: WorkspaceEnvManager): [Command[], vscod
   const treeDataProvider = new LogTreeDataProvider();
   disposables.push(treeDataProvider);
 
+
+
   const tree = vscode.window.createTreeView(LogTreeDataProvider.viewType, {
     treeDataProvider,
-    showCollapseAll: true,
+    showCollapseAll: false,
     canSelectMany: false,
   });
 
