@@ -204,7 +204,9 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: html`<pre>${entry.value}</pre>`,
+        rendered: html`<pre style=${{ whiteSpace: "pre-wrap" }}>
+${entry.value}</pre
+        >`,
       };
     },
   },

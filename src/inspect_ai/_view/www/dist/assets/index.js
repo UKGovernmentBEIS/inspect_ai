@@ -12525,7 +12525,9 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: m$1`<pre>${entry.value}</pre>`
+        rendered: m$1`<pre style=${{ whiteSpace: "pre-wrap" }}>
+${entry.value}</pre
+        >`
       };
     }
   },
@@ -22271,7 +22273,7 @@ function App({ api: api2, pollForLogs = true }) {
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
-    if (!showingSampleDialog) {
+    if (!showingSampleDialog && selectedLog.contents.sampleSummaries.length > 1) {
       return;
     }
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
