@@ -17261,10 +17261,14 @@ const SamplesTab = ({
   );
   const showSample = q(() => {
     setShowingSampleDialog(true);
-    setTimeout(() => {
-      sampleDialogRef.current.base.focus();
-    }, 0);
   }, [sampleDialogRef]);
+  y(() => {
+    if (showingSampleDialog) {
+      setTimeout(() => {
+        sampleDialogRef.current.base.focus();
+      }, 0);
+    }
+  }, [showingSampleDialog]);
   y(() => {
     const sampleProcessor = getSampleProcessor(
       samples,
@@ -22161,7 +22165,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [groupBy, setGroupBy] = h("none");
   const [groupByOrder, setGroupByOrder] = h("asc");
   y(() => {
-    if (!showingSampleDialog) {
+    if (showingSampleDialog) {
       setSelectedSample(void 0);
     }
   }, [showingSampleDialog]);
@@ -22244,6 +22248,9 @@ function App({ api: api2, pollForLogs = true }) {
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
+    if (!showingSampleDialog) {
+      return;
+    }
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
@@ -22274,6 +22281,7 @@ function App({ api: api2, pollForLogs = true }) {
     }
   }, [
     selectedSampleIndex,
+    showingSampleDialog,
     selectedLog,
     filteredSamples,
     setSelectedSample,

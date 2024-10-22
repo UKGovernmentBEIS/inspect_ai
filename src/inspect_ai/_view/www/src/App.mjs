@@ -129,7 +129,7 @@ export function App({ api, pollForLogs = true }) {
   const [groupByOrder, setGroupByOrder] = useState("asc");
 
   useEffect(() => {
-    if (!showingSampleDialog) {
+    if (showingSampleDialog) {
       setSelectedSample(undefined);
     }
   }, [showingSampleDialog]);
@@ -240,6 +240,10 @@ export function App({ api, pollForLogs = true }) {
       return;
     }
 
+    if (!showingSampleDialog) {
+      return;
+    }
+
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
@@ -280,6 +284,7 @@ export function App({ api, pollForLogs = true }) {
     }
   }, [
     selectedSampleIndex,
+    showingSampleDialog,
     selectedLog,
     filteredSamples,
     setSelectedSample,

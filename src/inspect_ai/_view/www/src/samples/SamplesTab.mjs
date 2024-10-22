@@ -22,7 +22,7 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
- * @param {boolean} props.showingSampleDialog - whether the dialog is showing 
+ * @param {boolean} props.showingSampleDialog - whether the dialog is showing
  * @param {(showing: boolean) => void } props.setShowingSampleDialog - update whether the dialog is showing
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
@@ -55,11 +55,16 @@ export const SamplesTab = ({
   // Shows the sample dialog
   const showSample = useCallback(() => {
     setShowingSampleDialog(true);
-    setTimeout(() => {
-      // @ts-ignore
-      sampleDialogRef.current.base.focus();
-    }, 0);
-  },  [sampleDialogRef]);
+  }, [sampleDialogRef]);
+
+  useEffect(() => {
+    if (showingSampleDialog) {
+      setTimeout(() => {
+        // @ts-ignore
+        sampleDialogRef.current.base.focus();
+      }, 0);
+    }
+  }, [showingSampleDialog]);
 
   useEffect(() => {
     const sampleProcessor = getSampleProcessor(
