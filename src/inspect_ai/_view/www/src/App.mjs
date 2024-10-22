@@ -651,12 +651,12 @@ export function App({ api, pollForLogs = true }) {
             />`
           : html`<${WorkSpace}
               task_id=${selectedLog?.contents?.eval?.task_id}
-              taskStatus=${selectedLog?.contents?.status}
               logFileName=${selectedLog?.name}
-              taskError=${selectedLog?.contents?.error}
+              evalStatus=${selectedLog?.contents?.status}
+              evalError=${selectedLog?.contents?.error}
+              evalVersion=${selectedLog?.contents?.version}
               evalSpec=${selectedLog?.contents?.eval}
               evalPlan=${selectedLog?.contents?.plan}
-              evalScores=${selectedLog?.contents?.results?.scores}
               evalStats=${selectedLog?.contents?.stats}
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
@@ -688,10 +688,6 @@ export function App({ api, pollForLogs = true }) {
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              hasJson=${api.has_log_json(selectedLog.name)}
-              renderJson=${async () => {
-                return api.get_log_json(selectedLog.name);
-              }}
             />`
       }
     </div>

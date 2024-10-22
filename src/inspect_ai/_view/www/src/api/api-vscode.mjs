@@ -73,8 +73,8 @@ async function eval_log_headers(files) {
   }
 }
 
-async function download_file(logFile) {
-  getVscodeApi().postMessage({ type: "openWorkspaceFile", url: logFile });
+async function download_file() {
+  throw Error("Downloading files is not supported in VS Code");
 }
 
 async function open_log_file(url, log_dir) {

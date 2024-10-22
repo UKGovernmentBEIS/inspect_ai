@@ -26,9 +26,10 @@ const kInfoTabId = "plan-tab";
  *
  * @param {Object} props - The parameters for the component.
  * @param {string} [props.task_id] - The task id
- * @param {string} [props.taskStatus] - status
  * @param {string} [props.logFileName] - The logFileName name
- * @param {string} [props.taskError] - Error message for this eval
+ * @param {string} [props.evalError] - Error message for this eval
+ * @param {string} [props.evalStatus] - status
+ * @param {number} [props.evalVersion] - the eval version
  * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec for this eval
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalPlan for this eval
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
@@ -61,16 +62,15 @@ const kInfoTabId = "plan-tab";
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
- * @param {boolean} props.hasJson - whether this log file can provide a JSON rendering
- * @param {() => Promise<string>} props.renderJson - function to render json raw text
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
   task_id,
-  taskStatus,
+  evalStatus,
   logFileName,
-  taskError,
+  evalError,
   evalSpec,
+  evalVersion,
   evalPlan,
   evalStats,
   evalResults,
@@ -101,8 +101,6 @@ export const WorkSpace = ({
   setScore,
   scores,
   renderContext,
-  hasJson,
-  renderJson,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
 
@@ -120,13 +118,13 @@ export const WorkSpace = ({
 
   // Display the log
   useEffect(() => {
-    const showSamples = taskStatus !== "error" && hasSamples;
+    const showSamples = evalStatus !== "error" && hasSamples;
     setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
     setRenderedCode(false);
-  }, [divRef, task_id, samples, taskStatus, setSelectedTab]);
+  }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -135,7 +133,7 @@ export const WorkSpace = ({
 
   // The samples tab
   // Currently only appears when the result is successful
-  if (taskStatus !== "error" && samples && samples.length > 0) {
+  if (evalStatus !== "error" && samples && samples.length > 0) {
     resolvedTabs.samples = {
       id: kEvalTabId,
       scrollable: samples.length === 1,
@@ -162,7 +160,7 @@ export const WorkSpace = ({
         />`;
       },
       tools: () => {
-        if (taskStatus === "started") {
+        if (evalStatus === "started") {
           return html`<${ToolButton}
             name=${html`Refresh`}
             icon="${ApplicationIcons.refresh}"
@@ -207,22 +205,22 @@ export const WorkSpace = ({
         />`,
       ]);
 
-      if (taskStatus !== "started") {
+      if (evalStatus !== "started") {
         infoCards.push(
           html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
         );
       }
 
       // If there is error or progress, includes those within info
-      if (taskStatus === "error" && taskError) {
-        infoCards.unshift(html`<${TaskErrorCard} evalError=${taskError} />`);
+      if (evalStatus === "error" && evalError) {
+        infoCards.unshift(html`<${TaskErrorCard} evalError=${evalError} />`);
       }
 
       const warnings = [];
       if (
         (!samples || samples.length === 0) &&
         evalSpec?.dataset?.samples > 0 &&
-        taskStatus !== "error"
+        evalStatus !== "error"
       ) {
         warnings.push(
           html`<${WarningBand}
@@ -241,32 +239,40 @@ export const WorkSpace = ({
   };
 
   // The JSON Tab
-  if (hasJson) {
-    resolvedTabs.json = {
-      id: kJsonTabId,
-      label: "JSON",
-      scrollable: true,
-      content: () => {
-        return html`<${JsonTab}
-          logFileName=${logFileName}
-          renderJson=${renderJson}
-          capabilities=${capabilities}
-          selected=${selectedTab === kJsonTabId}
-        />`;
-      },
-      tools: () => {
-        return [
-          html`<${ToolButton}
-            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-            icon="${ApplicationIcons.copy}"
-            classes="task-btn-json-copy clipboard-button"
-            data-clipboard-target="#task-json-contents"
-            onclick="${copyFeedback}"
-          />`,
-        ];
-      },
-    };
-  }
+  resolvedTabs.json = {
+    id: kJsonTabId,
+    label: "JSON",
+    scrollable: true,
+    content: () => {
+      const evalHeader = {
+        version: evalVersion,
+        status: evalStatus,
+        eval: evalSpec,
+        plan: evalPlan,
+        error: evalError,
+        results: evalResults,
+        stats: evalStats,
+      };
+      const json = JSON.stringify(evalHeader, null, 2);
+      return html`<${JsonTab}
+        logFileName=${logFileName}
+        json=${json}
+        capabilities=${capabilities}
+        selected=${selectedTab === kJsonTabId}
+      />`;
+    },
+    tools: () => {
+      return [
+        html`<${ToolButton}
+          name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+          icon="${ApplicationIcons.copy}"
+          classes="task-btn-json-copy clipboard-button"
+          data-clipboard-target="#task-json-contents"
+          onclick="${copyFeedback}"
+        />`,
+      ];
+    },
+  };
 
   const copyFeedback = useCallback(
     (e) => {
@@ -296,7 +302,7 @@ export const WorkSpace = ({
     evalPlan=${evalPlan}
     evalResults=${evalResults}
     samples=${samples}
-    status=${taskStatus}
+    status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
     showToggle=${showToggle}
