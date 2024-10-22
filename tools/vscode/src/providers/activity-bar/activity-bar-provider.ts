@@ -10,7 +10,7 @@ import { TaskConfigurationProvider } from "./task-config-provider";
 import { InspectManager } from "../inspect/inspect-manager";
 import { DebugConfigTaskCommand, RunConfigTaskCommand } from "./task-config-commands";
 import { InspectViewManager } from "../logview/logview-view";
-import { activateLogs } from "./logs-provider";
+import { activateLogs } from "./logs/logs-provider";
 
 export async function activateActivityBar(
   inspectManager: InspectManager,
