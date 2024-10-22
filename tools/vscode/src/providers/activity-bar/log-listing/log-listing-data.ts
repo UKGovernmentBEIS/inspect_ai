@@ -1,44 +1,47 @@
 import * as vscode from 'vscode';
+import { LogNode, LogListing } from './log-listing';
 
 
 
-class Log {
-  constructor(public readonly name: string) { }
-}
 
-export class LogTreeDataProvider implements vscode.TreeDataProvider<Log>, vscode.Disposable {
+export class LogTreeDataProvider implements vscode.TreeDataProvider<LogNode>, vscode.Disposable {
 
   public static readonly viewType = "inspect_ai.logs-view";
 
   dispose() {
-    throw new Error('Method not implemented.');
+
   }
-  private _onDidChangeTreeData: vscode.EventEmitter<Log | undefined | null | void> = new vscode.EventEmitter<Log | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<Log | undefined | null | void> = this._onDidChangeTreeData.event;
 
-  private logs: Log[] = [
-    new Log('log1.json'),
-    new Log('log2.json'),
-    new Log('log3.json')
-  ];
+  public setLogListing(logListing: LogListing) {
+    this.logListing_ = logListing;
+    this._onDidChangeTreeData.fire();
+  }
 
-  getTreeItem(element: Log): vscode.TreeItem {
-    return {
+
+  async getTreeItem(element: LogNode): Promise<vscode.TreeItem> {
+    return Promise.resolve({
       label: element.name,
       collapsibleState: vscode.TreeItemCollapsibleState.Collapsed
-    };
+    });
   }
 
-  getChildren(element?: Log): Thenable<Log[]> {
-    if (element) {
-      return Promise.resolve([]);
+  async getChildren(element?: LogNode): Promise<LogNode[]> {
+    if (!element || element.type === "dir") {
+      return await this.logListing_?.ls(element) || [];
     } else {
-      return Promise.resolve(this.logs);
+      return [];
     }
   }
 
   refresh(): void {
+    this.logListing_?.invalidate();
     this._onDidChangeTreeData.fire();
   }
+
+  private _onDidChangeTreeData: vscode.EventEmitter<LogNode | undefined | null | void> = new vscode.EventEmitter<LogNode | undefined | null | void>();
+  readonly onDidChangeTreeData: vscode.Event<LogNode | undefined | null | void> = this._onDidChangeTreeData.event;
+
+
+  private logListing_?: LogListing;
 }
 
