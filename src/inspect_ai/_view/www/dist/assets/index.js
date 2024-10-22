@@ -17267,6 +17267,10 @@ const SamplesTab = ({
       setTimeout(() => {
         sampleDialogRef.current.base.focus();
       }, 0);
+    } else {
+      setTimeout(() => {
+        sampleListRef.current.base.focus();
+      }, 0);
     }
   }, [showingSampleDialog]);
   y(() => {
