@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { Uri, window } from 'vscode';
+import { commands, Uri } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
@@ -8,6 +8,11 @@ import { HostWebviewPanel } from '../../hooks';
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { log } from '../../core/log';
 
+const kInspectLogViewType = 'inspect-ai.log-editor';
+
+export const showInspectLogEditor = async (uri: Uri) => {
+  await commands.executeCommand('vscode.openWith', uri, kInspectLogViewType);
+};
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
@@ -18,7 +23,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
   ): vscode.Disposable {
     const provider = new InspectLogReadonlyEditor(context, settings, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
-      InspectLogReadonlyEditor.viewType,
+      kInspectLogViewType,
       provider,
       {
         webviewOptions: {
@@ -30,7 +35,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     return providerRegistration;
   }
 
-  private static readonly viewType = 'inspect-ai.log-editor';
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
