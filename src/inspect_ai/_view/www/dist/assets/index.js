@@ -25462,6 +25462,9 @@ function App({ api: api2, pollForLogs = true }) {
     loadHeaders();
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
   const resetWorkspaceTab = q(
+    /**
+     * @param {import("./api/Types.mjs").EvalSummary} log
+     */
     (log) => {
       const hasSamples = !!(log == null ? void 0 : log.sampleSummaries) && (log == null ? void 0 : log.sampleSummaries.length) > 0;
       const showSamples = (log == null ? void 0 : log.status) !== "error" && hasSamples;

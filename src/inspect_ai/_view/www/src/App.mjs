@@ -345,7 +345,19 @@ export function App({ api, pollForLogs = true }) {
     loadHeaders();
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
 
+  /**
+   * Resets the workspace tab based on the provided log's state.
+   *
+   * Determines whether the workspace tab should display samples or info,
+   * depending on the presence of samples and the log status.
+   *
+   * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+   * @returns {void}
+   */
   const resetWorkspaceTab = useCallback(
+    /**
+     * @param {import("./api/Types.mjs").EvalSummary} log
+     */
     (log) => {
       // Reset the workspace tab
       const hasSamples =

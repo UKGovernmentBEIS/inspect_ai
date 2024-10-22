@@ -37,7 +37,6 @@ import {
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
- * @param {boolean} props.hasSamples - Whether this log has samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
