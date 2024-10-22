@@ -18,7 +18,12 @@ from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
-from .common import CommonOptions, common_options, process_common_options
+from .common import (
+    CommonOptions,
+    common_options,
+    log_images_flag,
+    process_common_options,
+)
 from .util import parse_cli_args, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
@@ -204,6 +209,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=bool,
         default=False,
         is_flag=True,
+        callback=log_images_flag,
         help=LOG_IMAGES_HELP,
     )
     @click.option(
@@ -810,6 +816,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     type=bool,
     default=False,
     is_flag=True,
+    callback=log_images_flag,
     help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
 )
