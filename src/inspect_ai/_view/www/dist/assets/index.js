@@ -15874,6 +15874,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
       }).join("<br/>\n")}`
     };
   }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
+  }
   if (evaluation == null ? void 0 : evaluation.model) {
     config2["model"] = evaluation.model;
   }
@@ -16326,8 +16329,10 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer
+  scorer,
+  context
 }) => {
+  var _a2, _b2, _c;
   if (!sampleDescriptor) {
     return "";
   }
@@ -16422,27 +16427,68 @@ const SampleScoreView = ({
         </tbody>
       </table>
 
-      ${explanation && explanation !== answer ? m$1`
-        <table class="table" style=${{ width: "100%", marginBottom: "0" }}>
-              <thead>
-                <tr>
-                  <th style=${{
+      ${explanation && explanation !== answer ? m$1` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
     paddingBottom: "0",
     paddingLeft: "0",
     ...labelStyle,
     fontWeight: "400"
-  }}>Explanation</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
+  }}
+                >
+                  Explanation
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
                 <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
+                  <${MarkdownDiv}
+                    markdown=${arrayToString(explanation)}
+                    style=${{ paddingLeft: "0" }}
+                    class="no-last-para-padding"
+                  />
                 </td>
-                </tr>
-              </tbody>
-            </table
-          ` : ""}
+              </tr>
+            </tbody>
+          </table>` : ""}
+      ${((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0 ? m$1` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
+    paddingBottom: "0",
+    paddingLeft: "0",
+    ...labelStyle,
+    fontWeight: "400"
+  }}
+                >
+                  Metadata
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style=${{ paddingLeft: "0" }}>
+                  <${MetaDataView}
+                    id="task-sample-score-metadata"
+                    classes="tab-pane"
+                    entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
+                    style=${{ marginTop: "1em" }}
+                    context=${context}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>` : ""}
     </div>
   `;
 };
@@ -19562,7 +19608,6 @@ const SampleDisplay = ({
   visible,
   context
 }) => {
-  var _a2, _b2, _c;
   const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
@@ -19631,22 +19676,6 @@ const SampleDisplay = ({
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
-          ${((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0 ? m$1` <div
-                    style=${{
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-                  >
-                    Scorer Metadata
-                  </div>
-                  <${MetaDataView}
-                    id="task-sample-metadata-${id}"
-                    classes="tab-pane"
-                    entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
-                    style=${{ marginTop: "1em" }}
-                    context=${context}
-                  />` : ""}
         </${TabPanel}>`);
     }
   }

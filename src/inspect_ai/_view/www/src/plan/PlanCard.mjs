@@ -169,6 +169,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         .join("<br/>\n")}`,
     };
   }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
+  }
 
   if (evaluation?.model) {
     config["model"] = evaluation.model;

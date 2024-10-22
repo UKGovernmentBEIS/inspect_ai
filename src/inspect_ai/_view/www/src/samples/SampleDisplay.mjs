@@ -170,27 +170,6 @@ export const SampleDisplay = ({
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
-          ${
-            sample?.score?.metadata &&
-            Object.keys(sample?.score?.metadata).length > 0
-              ? html` <div
-                    style=${{
-                      fontSize: FontSize.small,
-                      ...TextStyle.label,
-                      ...TextStyle.secondary,
-                    }}
-                  >
-                    Scorer Metadata
-                  </div>
-                  <${MetaDataView}
-                    id="task-sample-metadata-${id}"
-                    classes="tab-pane"
-                    entries="${sample?.score?.metadata}"
-                    style=${{ marginTop: "1em" }}
-                    context=${context}
-                  />`
-              : ""
-          }
         </${TabPanel}>`);
     }
   }
