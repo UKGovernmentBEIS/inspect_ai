@@ -334,7 +334,7 @@ def log_files_from_ls(
     ]
 
 
-log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}\_.*$"
+log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -350,7 +350,11 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
     # (deal with previous logs had the model in their name)
     basename = os.path.splitext(info.name)[0]
     parts = basename.split("/").pop().split("_")
-    if len(parts) == 2:
+    if len(parts) == 1:
+        task = ""
+        task_id = ""
+        suffix = None
+    elif len(parts) == 2:
         task = parts[1]
         task_id = ""
         suffix = None
