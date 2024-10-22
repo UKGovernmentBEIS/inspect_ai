@@ -152,7 +152,11 @@ class EvalSample(BaseModel):
     """Error that halted sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
-    """Attachments referenced from messages and events."""
+    """Attachments referenced from messages and events.
+
+    Resolve attachments for a sample (replacing attachment://* references with
+    attachment content) with the resolve_sample_attachments() function.
+    """
 
     # deprecated properties
 
