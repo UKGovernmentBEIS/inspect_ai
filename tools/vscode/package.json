@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.33",
+  "version": "0.3.36",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -32,12 +32,44 @@
     "onWebviewPanel:inspect.logview",
     "onWebviewPanel:inspect_ai.task-configuration",
     "onWebviewPanel:inspect_ai.env-configuration-view",
+    "onLanguage:eval",
+    "workspaceContains:**/*.eval",
     "onLanguage:python",
-    "workspaceContains:*.py",
-    "workspaceContains:*.ipynb"
+    "workspaceContains:**/*.py",
+    "workspaceContains:**/*.ipynb"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "eval-log",
+        "aliases": [
+          "Eval Log"
+        ],
+        "extensions": [
+          ".eval"
+        ],
+        "icon": {
+          "light": "./assets/icon/eval.svg",
+          "dark": "./assets/icon/eval.svg"
+        }
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "inspect-ai.log-editor",
+        "displayName": "Inspect Log Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.eval"
+          },
+          {
+            "filenamePattern": "{[0-9][0-9][0-9][0-9]}-{[0-9][0-9]}-{[0-9][0-9]}T{[0-9][0-9]}[:-]{[0-9][0-9]}[:-]{[0-9][0-9]}*{[A-Za-z0-9]{21}}*.json"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "inspect.showLogview",
@@ -163,7 +195,8 @@
         "inspect_ai.openLogView": {
           "type": "boolean",
           "default": true,
-          "description": "Open the Inspect log view when evaluations in the workspace complete."
+          "description": "Open the Inspect Log View when evaluations in the workspace complete.",
+          "order": 1
         },
         "inspect_ai.logViewType": {
           "type": "string",
@@ -175,7 +208,14 @@
           "markdownEnumDescriptions": [
             "Use `inspect view` to display evaluation log files.",
             "Use a text editor to display evaluation log files."
-          ]
+          ],
+          "order": 2
+        },
+        "inspect_ai.jsonLogView": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Use Inspect Log View as the default viewer for JSON log files.",
+          "order": 3
         },
         "inspect_ai.taskListView": {
           "type": "string",
@@ -184,12 +224,14 @@
             "tree",
             "list"
           ],
-          "description": "Display task outline as a tree or list."
+          "description": "Display task outline as a tree or list.",
+          "order": 4
         },
         "inspect_ai.debugSingleSample": {
           "type": "boolean",
           "default": true,
-          "description": "Limit evaluation to one sample when debugging."
+          "description": "Limit evaluation to one sample when debugging.",
+          "order": 5
         }
       }
     },
@@ -265,7 +307,7 @@
         {
           "command": "inspect.openInInspectView",
           "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.json$/"
+          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.(json|eval)$/"
         }
       ],
       "view/item/context": [
@@ -340,6 +382,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/async-lock": "^1.4.2",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
@@ -362,6 +405,7 @@
     "@microsoft/fast-components": "^2.30.6",
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",
+    "async-lock": "^1.4.1",
     "lodash": "^4.17.21",
     "semver": "^7.6.0"
   }

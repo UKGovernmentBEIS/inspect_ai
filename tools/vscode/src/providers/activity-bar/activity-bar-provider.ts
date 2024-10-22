@@ -9,12 +9,12 @@ import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { TaskConfigurationProvider } from "./task-config-provider";
 import { InspectManager } from "../inspect/inspect-manager";
 import { DebugConfigTaskCommand, RunConfigTaskCommand } from "./task-config-commands";
-import { InspectLogviewManager } from "../logview/logview-manager";
+import { InspectViewManager } from "../logview/logview-view";
 
 export async function activateActivityBar(
   inspectManager: InspectManager,
   inspectEvalMgr: InspectEvalManager,
-  inspectLogviewManager: InspectLogviewManager,
+  inspectLogviewManager: InspectViewManager,
   activeTaskManager: ActiveTaskManager,
   workspaceTaskMgr: WorkspaceTaskManager,
   workspaceStateMgr: WorkspaceStateManager,

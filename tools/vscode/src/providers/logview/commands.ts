@@ -1,24 +1,20 @@
 import { Command } from "../../core/command";
-import { InspectLogviewManager } from "./logview-manager";
+import { InspectViewManager } from "./logview-view";
 import { showError } from "../../components/error";
 import { MessageItem, Uri, commands, window } from "vscode";
 import { withMinimumInspectVersion } from "../../inspect/version";
 import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import { inspectLogInfo } from "../../inspect/logs";
-
-export interface LogviewState {
-  log_file?: Uri;
-  log_dir: Uri;
-  background_refresh?: boolean;
-}
+import { LogviewState } from "./logview-state";
 
 export interface LogviewOptions {
   state?: LogviewState;
   activate?: boolean;
 }
 
+
 export async function logviewCommands(
-  manager: InspectLogviewManager,
+  manager: InspectViewManager,
 ): Promise<Command[]> {
 
   // Check whether the open in inspect view command should be enabled
@@ -35,7 +31,7 @@ export async function logviewCommands(
 }
 
 class ShowLogviewCommand implements Command {
-  constructor(private readonly manager_: InspectLogviewManager) { }
+  constructor(private readonly manager_: InspectViewManager) { }
   async execute(): Promise<void> {
     // ensure logview is visible
     try {
@@ -54,7 +50,7 @@ class ShowLogviewCommand implements Command {
 
 
 class OpenInInspectViewCommand implements Command {
-  constructor(private readonly manager_: InspectLogviewManager) { }
+  constructor(private readonly manager_: InspectViewManager) { }
   async execute(fileUri: Uri): Promise<void> {
     // ensure logview is visible
     try {
