@@ -64,7 +64,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
-|--------------------------|----------------------------------------------|
+|--------------------------|---------------------------------------------|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
 | `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
@@ -93,6 +93,32 @@ The variability in underlying file format makes it especially important that you
 
 If you do need to interact with the underlying JSON (e.g., when reading logs from another language) see the [Log Commands](#sec-log-commands) section below which describes how to get the plain text JSON representation for any log file.
 :::
+
+## Image Logging
+
+If you are doing a multi-modal evaluation with images, there are some special considerations regarding whether full copies of the images are included in the log:
+
+1.  When using the higher-performance `eval` log format described above, base64 encoded versions of images are *included* in logs by default.
+
+2.  When using the `json` log format, base64 encoded versions of images are *excluded* by default. This is because very large (\>100MB) `json` log files can easily overwhelm Inspect View, and evaluations with images often exceed this threshold.
+
+You can customise this behaviour using the `--log-images/--no-log-images` flag. For example:
+
+``` bash
+# does not log images (default behavior for 'json')
+inspect eval images.py
+
+# logs images (override default for 'json')
+inspect eval images.py --log-images
+
+# logs images (default behavior for 'eval')
+inspect eval images.py --log-format eval   
+
+# does not log images (override default) 
+inspect eval images.py --log-format eval --no-log-images
+```
+
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
 ## Log File API {#sec-log-file-api}
 
