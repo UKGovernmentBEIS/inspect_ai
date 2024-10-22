@@ -16458,6 +16458,7 @@ const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
+  const jsonTabId = `${baseId}-json`;
   if (!sample) {
     return m$1`<${EmptyPanel} />`;
   }
@@ -16557,6 +16558,16 @@ const SampleDisplay = ({
       </${TabPanel}>`
     );
   }
+  tabs.push(m$1`<${TabPanel} 
+          id=${jsonTabId} 
+          classes="sample-tab"
+          title="JSON" 
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === jsonTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${JSONPanel} data=${sample} simple=${true}/>
+        </div>
+      </${TabPanel}>`);
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
   const printSample = () => {

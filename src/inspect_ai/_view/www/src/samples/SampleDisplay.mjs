@@ -25,6 +25,7 @@ import { ProgressBar } from "../components/ProgressBar.mjs";
 import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel.mjs";
 
 /**
  * Inline Sample Display
@@ -84,6 +85,7 @@ export const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
+  const jsonTabId = `${baseId}-json`;
 
   if (!sample) {
     // Placeholder
@@ -206,6 +208,17 @@ export const SampleDisplay = ({
       </${TabPanel}>`,
     );
   }
+
+  tabs.push(html`<${TabPanel} 
+          id=${jsonTabId} 
+          classes="sample-tab"
+          title="JSON" 
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === jsonTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${JSONPanel} data=${sample} simple=${true}/>
+        </div>
+      </${TabPanel}>`);
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
