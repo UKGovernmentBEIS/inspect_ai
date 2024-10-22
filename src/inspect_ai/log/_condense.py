@@ -32,49 +32,17 @@ logger = getLogger(__name__)
 ATTACHMENT_PROTOCOL = "attachment://"
 
 
-def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
-    """Resolve content attachments (typically images) in sample.
-
-    Take 'attachment://*` references and resolve them to their
-    underlying content, then remove the 'attachments' field.
-
-    Args:
-       sample (EvalSample): Eval sample with attachments.
-
-    Returns:
-       EvalSample: Sample with attachment content resolved.
-    """
-
-    def content_fn(text: str) -> str:
-        # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
-        if text.startswith(CONTENT_PROTOCOL):
-            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
-        # resovle attachment
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            return sample.attachments.get(
-                text.replace(ATTACHMENT_PROTOCOL, "", 1), text
-            )
-        else:
-            return text
-
-    return sample.model_copy(
-        update={
-            "input": walk_input(sample.input, content_fn),
-            "messages": walk_chat_messages(sample.messages, content_fn),
-            "events": walk_events(sample.events, content_fn),
-            "attachments": {},
-        }
-    )
-
-
-def condense_eval_sample(sample: EvalSample, log_images: bool) -> EvalSample:
-    """Reduce the size of the eval sample.
+def condense_sample(sample: EvalSample, log_images: bool) -> EvalSample:
+    """Reduce the storage size of the eval sample.
 
     Reduce size by:
     1. De-duplciating larger content fields (especially important for images
        but also for message repeated over and over in the event stream)
     2. Removing base64 encoded images if log_images is True
+
+    The de-duplication of content fields can be reversed by calling
+    `resolve_attachments()`. Removal of base64 encoded images is a
+    one-way operation.
 
     Args:
        sample (EvalSample): Eval sample to condense.
@@ -118,6 +86,42 @@ def condense_eval_sample(sample: EvalSample, log_images: bool) -> EvalSample:
             "messages": walk_chat_messages(sample.messages, messages_fn),
             "events": walk_events(sample.events, events_fn),
             "attachments": attachments,
+        }
+    )
+
+
+def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
+    """Resolve content attachments (typically images) in sample.
+
+    Take 'attachment://*` references and resolve them to their
+    underlying content, then remove the 'attachments' field.
+
+    Args:
+       sample (EvalSample): Eval sample with attachments.
+
+    Returns:
+       EvalSample: Sample with attachment content resolved.
+    """
+
+    def content_fn(text: str) -> str:
+        # migrate previous flavor of content reference
+        CONTENT_PROTOCOL = "tc://"
+        if text.startswith(CONTENT_PROTOCOL):
+            text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
+        # resovle attachment
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return sample.attachments.get(
+                text.replace(ATTACHMENT_PROTOCOL, "", 1), text
+            )
+        else:
+            return text
+
+    return sample.model_copy(
+        update={
+            "input": walk_input(sample.input, content_fn),
+            "messages": walk_chat_messages(sample.messages, content_fn),
+            "events": walk_events(sample.events, content_fn),
+            "attachments": {},
         }
     )
 

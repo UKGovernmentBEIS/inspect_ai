@@ -38,7 +38,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
-from inspect_ai.log._attach import condense_eval_sample
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
@@ -525,7 +525,7 @@ def log_sample(
         error=error,
     )
 
-    logger.log_sample(condense_eval_sample(eval_sample, log_images), flush=True)
+    logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
 
 
 async def resolve_dataset(
