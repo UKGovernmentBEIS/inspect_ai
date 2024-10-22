@@ -1,6 +1,6 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -111,11 +111,6 @@ export const WorkSpace = ({
   // State tracking for the view
   const [selectedTab, setSelectedTab] = useState(kEvalTabId);
 
-  /**
-   * @type {[boolean, function(boolean): void]}
-   */
-  const [renderedCode, setRenderedCode] = useState(false);
-
   // Display the log
   useEffect(() => {
     const showSamples = evalStatus !== "error" && hasSamples;
@@ -123,7 +118,6 @@ export const WorkSpace = ({
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-    setRenderedCode(false);
   }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
 
   // Tabs that are available within the app
@@ -274,26 +268,23 @@ export const WorkSpace = ({
     },
   };
 
-  const copyFeedback = useCallback(
-    (e) => {
-      const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
-      const iconEl = e.currentTarget.querySelector("i.bi");
-      if (textEl) {
-        const oldText = textEl.innerText;
-        const oldIconClz = iconEl.className;
-        textEl.innerText = "Copied!";
-        iconEl.className = `${ApplicationIcons.confirm}`;
-        setTimeout(() => {
-          window.getSelection().removeAllRanges();
-        }, 50);
-        setTimeout(() => {
-          textEl.innerText = oldText;
-          iconEl.className = oldIconClz;
-        }, 1250);
-      }
-    },
-    [renderedCode],
-  );
+  const copyFeedback = (e) => {
+    const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
+    const iconEl = e.currentTarget.querySelector("i.bi");
+    if (textEl) {
+      const oldText = textEl.innerText;
+      const oldIconClz = iconEl.className;
+      textEl.innerText = "Copied!";
+      iconEl.className = `${ApplicationIcons.confirm}`;
+      setTimeout(() => {
+        window.getSelection().removeAllRanges();
+      }, 50);
+      setTimeout(() => {
+        textEl.innerText = oldText;
+        iconEl.className = oldIconClz;
+      }, 1250);
+    }
+  };
 
   return html`<${WorkspaceDisplay}
     logFileName=${logFileName}

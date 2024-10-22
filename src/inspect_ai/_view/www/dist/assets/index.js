@@ -24843,14 +24843,12 @@ const WorkSpace = ({
     return "";
   }
   const [selectedTab, setSelectedTab] = h(kEvalTabId);
-  const [renderedCode, setRenderedCode] = h(false);
   y(() => {
     const showSamples = evalStatus !== "error" && hasSamples;
     setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-    setRenderedCode(false);
   }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
   const resolvedTabs = {};
   if (evalStatus !== "error" && samples && samples.length > 0) {
@@ -24979,26 +24977,23 @@ const WorkSpace = ({
       ];
     }
   };
-  const copyFeedback = q(
-    (e2) => {
-      const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
-      const iconEl = e2.currentTarget.querySelector("i.bi");
-      if (textEl) {
-        const oldText = textEl.innerText;
-        const oldIconClz = iconEl.className;
-        textEl.innerText = "Copied!";
-        iconEl.className = `${ApplicationIcons.confirm}`;
-        setTimeout(() => {
-          window.getSelection().removeAllRanges();
-        }, 50);
-        setTimeout(() => {
-          textEl.innerText = oldText;
-          iconEl.className = oldIconClz;
-        }, 1250);
-      }
-    },
-    [renderedCode]
-  );
+  const copyFeedback = (e2) => {
+    const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
+    const iconEl = e2.currentTarget.querySelector("i.bi");
+    if (textEl) {
+      const oldText = textEl.innerText;
+      const oldIconClz = iconEl.className;
+      textEl.innerText = "Copied!";
+      iconEl.className = `${ApplicationIcons.confirm}`;
+      setTimeout(() => {
+        window.getSelection().removeAllRanges();
+      }, 50);
+      setTimeout(() => {
+        textEl.innerText = oldText;
+        iconEl.className = oldIconClz;
+      }, 1250);
+    }
+  };
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
