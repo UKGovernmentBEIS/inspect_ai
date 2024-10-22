@@ -8,11 +8,15 @@ export function activateLogs(): [Command[], vscode.Disposable] {
 
   const treeDataProvider = new LogProvider();
 
-  vscode.window.createTreeView(LogProvider.viewType, {
+  const tree = vscode.window.createTreeView(LogProvider.viewType, {
     treeDataProvider,
     showCollapseAll: true,
     canSelectMany: false,
   });
+  tree.description = "./logs";
+  tree.message = "custom message";
+  tree.title = "Logs";
+
 
 
   return [[], treeDataProvider];
