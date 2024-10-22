@@ -2,8 +2,11 @@ import asyncio
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, cast
 
+import fsspec  # type: ignore
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_json
 
 from inspect_ai._util.constants import ALL_LOG_FORMATS
@@ -73,6 +76,75 @@ def list_eval_logs(
         ]
     else:
         return eval_logs
+
+
+async def list_eval_logs_async(
+    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    formats: list[Literal["eval", "json"]] | None = None,
+    filter: Callable[[EvalLog], bool] | None = None,
+    recursive: bool = True,
+    descending: bool = True,
+    fs_options: dict[str, Any] = {},
+) -> list[EvalLogInfo]:
+    """List all eval logs in a directory.
+
+    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
+    otherwise will fallback to sync implementation.
+
+    Args:
+      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
+      formats (Literal["eval", "json"]): Formats to list (default
+        to listing all formats)
+      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
+         Note that the EvalLog instance passed to the filter has only
+         the EvalLog header (i.e. does not have the samples or logging output).
+      recursive (bool): List log files recursively (defaults to True).
+      descending (bool): List in descending order.
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+          to the filesystem provider (e.g. `S3FileSystem`).
+
+    Returns:
+       List of EvalLog Info.
+    """
+    # async filesystem if we can
+    fs = filesystem(log_dir, fs_options)
+    if fs.is_async():
+        async_fs = async_fileystem(log_dir, fs_options=fs_options)
+        if await async_fs._exists(log_dir):
+            # prevent caching of listings
+            async_fs.invalidate_cache(log_dir)
+            # list logs
+            if recursive:
+                files: list[dict[str, Any]] = []
+                async for _, _, filenames in async_fs._walk(log_dir, detail=True):
+                    files.extend(filenames.values())
+            else:
+                files = cast(
+                    list[dict[str, Any]],
+                    async_fs._ls(log_dir, detail=True),
+                )
+            logs = [fs._file_info(file) for file in files]
+            # resolve to eval logs
+            eval_logs = log_files_from_ls(logs, formats, descending)
+        else:
+            return []
+        # apply filter if requested
+        if filter:
+            log_headers = await read_eval_log_headers_async(eval_logs)
+            return [
+                log for header, log in zip(log_headers, eval_logs) if filter(header)
+            ]
+        else:
+            return eval_logs
+    else:
+        return list_eval_logs(
+            log_dir=log_dir,
+            formats=formats,
+            filter=filter,
+            recursive=recursive,
+            descending=descending,
+            fs_options=fs_options,
+        )
 
 
 def write_eval_log(
@@ -302,3 +374,13 @@ def eval_log_json(log: EvalLog) -> str:
     return to_json(
         value=log, indent=2, exclude_none=True, fallback=lambda _x: None
     ).decode()
+
+
+def async_fileystem(log_file: str, fs_options: dict[str, Any] = {}) -> AsyncFileSystem:
+    # determine protocol
+    protocol, _ = split_protocol(log_file)
+    protocol = protocol or "file"
+    # create filesystem
+    fs_options = fs_options.copy()
+    fs_options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+    return fsspec.filesystem(protocol, **fs_options)

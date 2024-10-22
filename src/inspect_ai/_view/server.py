@@ -18,7 +18,7 @@ from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
-    list_eval_logs,
+    list_eval_logs_async,
     read_eval_log,
     read_eval_log_headers_async,
 )
@@ -101,7 +101,7 @@ def view_server(
             request_log_dir = log_dir
 
         # list logs
-        logs = list_eval_logs(
+        logs = await list_eval_logs_async(
             log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
         )
         return log_listing_response(logs, request_log_dir)
