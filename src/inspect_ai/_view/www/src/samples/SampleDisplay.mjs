@@ -334,13 +334,15 @@ export const SampleDisplay = ({
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
-  sampleMetadatas.push(html`
-    <${Card}>
-      <${CardHeader} label="Usage"/>
-      <${CardBody}>
-        <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
-      </${CardBody}>
-    </${Card}>`);
+  if (sample.model_usage) {
+    sampleMetadatas.push(html`
+      <${Card}>
+        <${CardHeader} label="Usage"/>
+        <${CardBody}>
+          <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+        </${CardBody}>
+      </${Card}>`);
+  }
 
   if (Object.keys(sample?.metadata).length > 0) {
     sampleMetadatas.push(

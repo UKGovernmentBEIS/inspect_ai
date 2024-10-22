@@ -1,4 +1,5 @@
 //@ts-check
+import { asyncJsonParse } from "../utils/Json.mjs";
 import { AsyncQueue } from "../utils/queue.mjs";
 import { openRemoteZipFile } from "../utils/remoteZipFile.mjs";
 
@@ -41,7 +42,7 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
       const data = await remoteZipFile.readFile(file);
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
-      return JSON.parse(jsonString);
+      return asyncJsonParse(jsonString);
     } catch (error) {
       throw new Error(`Failed to read or parse file ${file}: ${error.message}`);
     }
