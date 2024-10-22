@@ -334,7 +334,7 @@ export const SampleDisplay = ({
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
-  if (sample.model_usage) {
+  if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(html`
       <${Card}>
         <${CardHeader} label="Usage"/>
