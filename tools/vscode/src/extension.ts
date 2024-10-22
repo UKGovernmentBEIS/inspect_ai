@@ -25,6 +25,7 @@ import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
 import { activateStatusBar } from "./providers/statusbar";
+import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -97,10 +98,15 @@ export async function activate(context: ExtensionContext) {
     }
   });
 
+  // initialiaze view server
+  const server = new InspectViewServer(context, inspectManager);
+
+
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
     settingsMgr,
+    server,
     workspaceEnvManager,
     context,
     host
@@ -116,6 +122,7 @@ export async function activate(context: ExtensionContext) {
     workspaceTaskMgr,
     stateManager,
     workspaceEnvManager,
+    server,
     context
   );
 

@@ -14,13 +14,11 @@ import { activateLogviewEditor } from "./logview-editor";
 export async function activateLogview(
   inspectManager: InspectManager,
   settingsMgr: InspectSettingsManager,
+  server: InspectViewServer,
   envMgr: WorkspaceEnvManager,
   context: ExtensionContext,
   host: ExtensionHost
 ): Promise<[Command[], InspectViewManager]> {
-
-  // initialiaze view server
-  const server = new InspectViewServer(context, inspectManager);
 
   // activate the log viewer editor
   activateLogviewEditor(context, settingsMgr, server);
