@@ -109,31 +109,6 @@ export const clientApi = (api) => {
   };
 
   /**
-   * Whether this log file has a json representation
-   *
-   * @param { string } log_file - The log file
-   * @returns { boolean } true if there is a json representation, otherwise false
-   */
-  const has_log_json = (log_file) => {
-    return log_file && !isEvalFile(log_file);
-  };
-
-  /**
-   * Retrieve a json representation of the log file
-   *
-   * @param { string } log_file - The log file
-   * @returns { Promise<string> } The JSON string
-   */
-  const get_log_json = async (log_file) => {
-    if (isEvalFile(log_file)) {
-      console.error("Unexpected request for JSON for an eval log file.");
-    } else {
-      const logcontents = await get_log(log_file, true);
-      return logcontents.raw;
-    }
-  };
-
-  /**
    * Gets a sample
    *
    * @param { string } log_file - The api to use when loading logs
@@ -230,10 +205,8 @@ export const clientApi = (api) => {
     open_log_file: (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
     },
-    download_log_file: (log_file, download_files, web_workers) => {
-      return api.download_file(log_file, download_files, web_workers);
+    download_file: (download_file, file_contents) => {
+      return api.download_file(download_file, file_contents);
     },
-    has_log_json,
-    get_log_json,
   };
 };

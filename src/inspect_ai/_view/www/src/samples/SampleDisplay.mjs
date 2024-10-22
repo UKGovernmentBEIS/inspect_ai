@@ -25,6 +25,9 @@ import { ProgressBar } from "../components/ProgressBar.mjs";
 import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel.mjs";
+import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 
 /**
  * Inline Sample Display
@@ -84,6 +87,7 @@ export const SampleDisplay = ({
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
+  const jsonTabId = `${baseId}-json`;
 
   if (!sample) {
     // Placeholder
@@ -166,6 +170,27 @@ export const SampleDisplay = ({
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
+          ${
+            sample?.score?.metadata &&
+            Object.keys(sample?.score?.metadata).length > 0
+              ? html` <div
+                    style=${{
+                      fontSize: FontSize.small,
+                      ...TextStyle.label,
+                      ...TextStyle.secondary,
+                    }}
+                  >
+                    Scorer Metadata
+                  </div>
+                  <${MetaDataView}
+                    id="task-sample-metadata-${id}"
+                    classes="tab-pane"
+                    entries="${sample?.score?.metadata}"
+                    style=${{ marginTop: "1em" }}
+                    context=${context}
+                  />`
+              : ""
+          }
         </${TabPanel}>`);
     }
   }
@@ -184,8 +209,8 @@ export const SampleDisplay = ({
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-        ${sampleMetadatas}
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+          ${sampleMetadatas}
         </div>
       </${TabPanel}>`,
     );
@@ -206,6 +231,17 @@ export const SampleDisplay = ({
       </${TabPanel}>`,
     );
   }
+
+  tabs.push(html`<${TabPanel} 
+          id=${jsonTabId} 
+          classes="sample-tab"
+          title="JSON" 
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === jsonTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${JSONPanel} data=${sample} simple=${true}/>
+        </div>
+      </${TabPanel}>`);
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
@@ -298,32 +334,50 @@ export const SampleDisplay = ({
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
+  sampleMetadatas.push(html`
+    <${Card}>
+      <${CardHeader} label="Usage"/>
+      <${CardBody}>
+        <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+      </${CardBody}>
+    </${Card}>`);
+
   if (Object.keys(sample?.metadata).length > 0) {
     sampleMetadatas.push(
-      html` <${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample?.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`,
+      html`
+      <${Card}>
+        <${CardHeader} label="Metadata"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-metadata-${id}"
+            classes="tab-pane"
+            entries="${sample?.metadata}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+        </${Card}>`,
     );
   }
 
-  if (
-    sample?.score?.metadata &&
-    Object.keys(sample?.score?.metadata).length > 0
-  ) {
+  if (Object.keys(sample?.store).length > 0) {
     sampleMetadatas.push(
-      html`<${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample?.score?.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`,
+      html`
+      <${Card}>
+        <${CardHeader} label="Store"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-store-${id}"
+            classes="tab-pane"
+            entries="${sample?.store}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+      </${Card}>`,
     );
   }
+
   return sampleMetadatas;
 };
 
