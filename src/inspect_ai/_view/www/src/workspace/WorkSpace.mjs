@@ -51,6 +51,8 @@ const kInfoTabId = "plan-tab";
  * @param {(sort: string) => void} props.setSort - set the current sort
  * @param {number} [props.epochs] - the number of epochs
  * @param {string} props.epoch - the current epoch
+ * @param {boolean} props.showingSampleDialog - Whether the sample dialog is showing
+ * @param {(showing: boolean) => void} props.setShowingSampleDialog - Call to show the sample dialog
  * @param {(epoch: string) => void} props.setEpoch - set the current epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
  * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
@@ -84,6 +86,8 @@ export const WorkSpace = ({
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
   sampleStatus,
   sampleError,
   sort,
@@ -143,6 +147,8 @@ export const WorkSpace = ({
           sample=${selectedSample}
           sampleStatus=${sampleStatus}
           sampleError=${sampleError}
+          showingSampleDialog=${showingSampleDialog}
+          setShowingSampleDialog=${setShowingSampleDialog}
           samples=${samples}
           groupBy=${groupBy}
           groupByOrder=${groupByOrder}

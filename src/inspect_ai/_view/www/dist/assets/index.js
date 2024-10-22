@@ -16766,10 +16766,10 @@ const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
-    sampleDialogVisible,
-    hideSample,
     sampleStatus,
     sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
     context
   } = props;
   const tools = T(() => {
@@ -16804,7 +16804,7 @@ const SampleDialog = (props) => {
           }
           break;
         case "Escape":
-          hideSample();
+          setShowingSampleDialog(false);
           break;
       }
     },
@@ -16816,15 +16816,17 @@ const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
-      visible=${sampleDialogVisible}
-      onHide=${hideSample}
+      visible=${showingSampleDialog}
+      onHide=${() => {
+    setShowingSampleDialog(false);
+  }}
       showProgress=${sampleStatus === "loading"}
     >
         ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
                 id=${id}
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
-                visible=${sampleDialogVisible}
+                visible=${showingSampleDialog}
                 context=${context}
               />`}
     </${LargeModal}>`;
@@ -17243,6 +17245,8 @@ const SamplesTab = ({
   sampleError,
   selectedSampleIndex,
   setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
   context
 }) => {
   const [items, setItems] = h([]);
@@ -17255,16 +17259,12 @@ const SamplesTab = ({
     /** @type {HTMLElement|null} */
     null
   );
-  const [sampleDialogVisible, setSampleDialogVisible] = h(false);
   const showSample = q(() => {
-    setSampleDialogVisible(true);
+    setShowingSampleDialog(true);
     setTimeout(() => {
       sampleDialogRef.current.base.focus();
     }, 0);
-  }, [setSampleDialogVisible, sampleDialogRef]);
-  const hideSample = q(() => {
-    setSampleDialogVisible(false);
-  }, [setSampleDialogVisible]);
+  }, [sampleDialogRef]);
   y(() => {
     const sampleProcessor = getSampleProcessor(
       samples,
@@ -17290,7 +17290,7 @@ const SamplesTab = ({
     }
   }, [samples, groupBy, groupByOrder, sampleDescriptor]);
   y(() => {
-    hideSample();
+    setShowingSampleDialog(false);
   }, [items]);
   const nextSampleIndex = q(() => {
     if (selectedSampleIndex < sampleItems.length - 1) {
@@ -17355,10 +17355,10 @@ const SamplesTab = ({
       sampleStatus=${sampleStatus}
       sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
+      showingSampleDialog=${showingSampleDialog}
+      setShowingSampleDialog=${setShowingSampleDialog}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      sampleDialogVisible=${sampleDialogVisible}
-      hideSample=${hideSample}
       context=${context}
     />
   `);
@@ -21674,6 +21674,8 @@ const WorkSpace = ({
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
   sampleStatus,
   sampleError,
   sort,
@@ -21720,6 +21722,8 @@ const WorkSpace = ({
           sample=${selectedSample}
           sampleStatus=${sampleStatus}
           sampleError=${sampleError}
+          showingSampleDialog=${showingSampleDialog}
+          setShowingSampleDialog=${setShowingSampleDialog}
           samples=${samples}
           groupBy=${groupBy}
           groupByOrder=${groupByOrder}
@@ -22130,7 +22134,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [sampleStatus, setSampleStatus] = h(void 0);
   const [sampleError, setSampleError] = h(void 0);
   const loadingSampleIndexRef = A(null);
-  const loadedSampleIndexRef = A(null);
+  const [showingSampleDialog, setShowingSampleDialog] = h(false);
   const [status, setStatus] = h({
     loading: true,
     error: void 0
@@ -22156,6 +22160,11 @@ function App({ api: api2, pollForLogs = true }) {
   const [filteredSamples, setFilteredSamples] = h([]);
   const [groupBy, setGroupBy] = h("none");
   const [groupByOrder, setGroupByOrder] = h("asc");
+  y(() => {
+    if (!showingSampleDialog) {
+      setSelectedSample(void 0);
+    }
+  }, [showingSampleDialog]);
   y(() => {
     var _a3;
     const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
@@ -22230,13 +22239,9 @@ function App({ api: api2, pollForLogs = true }) {
   y(() => {
     if (!selectedLog || selectedSampleIndex === -1) {
       setSelectedSample(void 0);
-      loadedSampleIndexRef.current = null;
       return;
     }
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
-      return;
-    }
-    if (loadedSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
     if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
@@ -22257,7 +22262,6 @@ function App({ api: api2, pollForLogs = true }) {
         );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
-        loadedSampleIndexRef.current = selectedSampleIndex;
         setSelectedSample(sample);
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
@@ -22590,6 +22594,8 @@ function App({ api: api2, pollForLogs = true }) {
               selectedSample=${selectedSample}
               selectedSampleIndex=${selectedSampleIndex}
               setSelectedSampleIndex=${setSelectedSampleIndex}
+              showingSampleDialog=${showingSampleDialog}
+              setShowingSampleDialog=${setShowingSampleDialog}
               sort=${sort}
               setSort=${setSort}
               epochs=${(_o = (_n = (_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.eval) == null ? void 0 : _n.config) == null ? void 0 : _o.epochs}

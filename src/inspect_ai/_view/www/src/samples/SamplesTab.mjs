@@ -22,7 +22,8 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
- *
+ * @param {boolean} props.showingSampleDialog - whether the dialog is showing 
+ * @param {(showing: boolean) => void } props.setShowingSampleDialog - update whether the dialog is showing
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {any} props.sort - the selected sort
@@ -41,6 +42,8 @@ export const SamplesTab = ({
   sampleError,
   selectedSampleIndex,
   setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
   context,
 }) => {
   const [items, setItems] = useState([]);
@@ -48,20 +51,15 @@ export const SamplesTab = ({
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const [sampleDialogVisible, setSampleDialogVisible] = useState(false);
 
   // Shows the sample dialog
   const showSample = useCallback(() => {
-    setSampleDialogVisible(true);
+    setShowingSampleDialog(true);
     setTimeout(() => {
       // @ts-ignore
       sampleDialogRef.current.base.focus();
     }, 0);
-  }, [setSampleDialogVisible, sampleDialogRef]);
-
-  const hideSample = useCallback(() => {
-    setSampleDialogVisible(false);
-  }, [setSampleDialogVisible]);
+  },  [sampleDialogRef]);
 
   useEffect(() => {
     const sampleProcessor = getSampleProcessor(
@@ -94,7 +92,7 @@ export const SamplesTab = ({
   // Focus the sample list
   useEffect(() => {
     // Hide a dialog, if it is displaying
-    hideSample();
+    setShowingSampleDialog(false);
   }, [items]);
 
   const nextSampleIndex = useCallback(() => {
@@ -172,10 +170,10 @@ export const SamplesTab = ({
       sampleStatus=${sampleStatus}
       sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
+      showingSampleDialog=${showingSampleDialog}
+      setShowingSampleDialog=${setShowingSampleDialog}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      sampleDialogVisible=${sampleDialogVisible}
-      hideSample=${hideSample}
       context=${context}
     />
   `);

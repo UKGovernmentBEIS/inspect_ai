@@ -15,10 +15,10 @@ export const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
-    sampleDialogVisible,
-    hideSample,
     sampleStatus,
     sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
     context,
   } = props;
 
@@ -57,7 +57,7 @@ export const SampleDialog = (props) => {
           }
           break;
         case "Escape":
-          hideSample();
+          setShowingSampleDialog(false);
           break;
       }
     },
@@ -71,8 +71,10 @@ export const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
-      visible=${sampleDialogVisible}
-      onHide=${hideSample}
+      visible=${showingSampleDialog}
+      onHide=${() => {
+        setShowingSampleDialog(false);
+      }}
       showProgress=${sampleStatus === "loading"}
     >
         ${
@@ -82,7 +84,7 @@ export const SampleDialog = (props) => {
                 id=${id}
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
-                visible=${sampleDialogVisible}
+                visible=${showingSampleDialog}
                 context=${context}
               />`
         }

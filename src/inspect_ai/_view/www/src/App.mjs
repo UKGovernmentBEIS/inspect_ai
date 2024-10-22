@@ -64,7 +64,8 @@ export function App({ api, pollForLogs = true }) {
   const [sampleStatus, setSampleStatus] = useState(undefined);
   const [sampleError, setSampleError] = useState(undefined);
   const loadingSampleIndexRef = useRef(null);
-  const loadedSampleIndexRef = useRef(null);
+
+  const [showingSampleDialog, setShowingSampleDialog] = useState(false);
 
   // App loading status
   const [status, setStatus] = useState({
@@ -126,6 +127,12 @@ export function App({ api, pollForLogs = true }) {
   const [filteredSamples, setFilteredSamples] = useState([]);
   const [groupBy, setGroupBy] = useState("none");
   const [groupByOrder, setGroupByOrder] = useState("asc");
+
+  useEffect(() => {
+    if (!showingSampleDialog) {
+      setSelectedSample(undefined);
+    }
+  }, [showingSampleDialog]);
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
@@ -225,17 +232,11 @@ export function App({ api, pollForLogs = true }) {
     // Clear the selected sample
     if (!selectedLog || selectedSampleIndex === -1) {
       setSelectedSample(undefined);
-      loadedSampleIndexRef.current = null;
       return;
     }
 
     // If already loading the selected sample, do nothing
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
-      return;
-    }
-
-    // If the current sample is already correct, no need load it
-    if (loadedSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
 
@@ -266,7 +267,6 @@ export function App({ api, pollForLogs = true }) {
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
 
-          loadedSampleIndexRef.current = selectedSampleIndex;
           setSelectedSample(sample);
           setSampleStatus("ok");
           loadingSampleIndexRef.current = null;
@@ -670,6 +670,8 @@ export function App({ api, pollForLogs = true }) {
               selectedSample=${selectedSample}
               selectedSampleIndex=${selectedSampleIndex}
               setSelectedSampleIndex=${setSelectedSampleIndex}
+              showingSampleDialog=${showingSampleDialog}
+              setShowingSampleDialog=${setShowingSampleDialog}
               sort=${sort}
               setSort=${setSort}
               epochs=${selectedLog?.contents?.eval?.config?.epochs}
