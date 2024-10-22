@@ -12,6 +12,7 @@ from inspect_ai._util.file import (
     file,
     filesystem,
 )
+from inspect_ai.log._condense import resolve_sample_attachments
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
@@ -142,6 +143,7 @@ def write_log_dir_manifest(
 def read_eval_log(
     log_file: str | FileInfo,
     header_only: bool = False,
+    resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
@@ -150,6 +152,8 @@ def read_eval_log(
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
          the "samples" and "logging" fields). Defaults to False.
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
 
@@ -164,7 +168,11 @@ def read_eval_log(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return recorder_type.read_log(log_file, header_only)
+    log = recorder_type.read_log(log_file, header_only)
+
+    if resolve_attachments and log.samples:
+        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+    return log
 
 
 def read_eval_log_headers(
@@ -195,6 +203,7 @@ def read_eval_log_sample(
     log_file: str | FileInfo,
     id: int | str,
     epoch: int = 1,
+    resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
@@ -203,6 +212,8 @@ def read_eval_log_sample(
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read.
        epoch (int): Epoch for sample id (defaults to 1)
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
 
@@ -216,7 +227,12 @@ def read_eval_log_sample(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    return recorder_type.read_log_sample(log_file, id, epoch)
+    sample = recorder_type.read_log_sample(log_file, id, epoch)
+
+    if resolve_attachments:
+        sample = resolve_sample_attachments(sample)
+
+    return sample
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
