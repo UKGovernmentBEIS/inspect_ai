@@ -167,7 +167,7 @@
       {
         "command": "inspect.openInInspectView",
         "title": "Open with Inspect View",
-        "enablement": "workspaceFolderCount != 0"
+        "enablement": "inspect_ai.enableOpenInView && workspaceFolderCount != 0"
       }
     ],
     "keybindings": [
