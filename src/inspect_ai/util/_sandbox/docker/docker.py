@@ -309,10 +309,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         parent = Path(file).parent.as_posix()
 
-        # We do these steps in a bash script for efficiency to avoid round-trips to docker.
+        # We do these steps in a shell script for efficiency to avoid round-trips to docker.
         res_cp = await self.exec(
             [
-                "bash",
+                "sh",
                 "-e",
                 "-c",
                 "mkdir -p -- $1; cp -T -- $2 $3; rm -- $2",
@@ -326,7 +326,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
                 ls_result = await self.exec(["ls", "-la", "."])
-                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+                error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
             elif (
                 "cannot overwrite directory" in res_cp.stderr
@@ -337,7 +337,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 )
             else:
                 raise RuntimeError(
-                    f"failed to copy temporary file during write_file: {res_cp}"
+                    f"failed to copy during write_file: {res_cp}"
                 )
 
     @overload
