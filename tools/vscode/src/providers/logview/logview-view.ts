@@ -40,6 +40,11 @@ export class InspectViewManager {
 
     context.subscriptions.push(logsWatcher.onInspectLogCreated((e) => {
 
+      // don't show the log if this was an external workspace
+      if (e.externalWorkspace) {
+        return;
+      }
+
       const openAction = settingsMgr_.getSettings().openLogView
         ? "open"
         : undefined;

@@ -10,6 +10,7 @@ import { resolveToUri } from "../../core/uri";
 
 export interface InspectLogCreatedEvent {
   log: Uri
+  externalWorkspace: boolean;
 }
 
 export class InspectLogsWatcher implements Disposable {
@@ -50,21 +51,20 @@ export class InspectLogsWatcher implements Disposable {
           );
 
           if (evalLogPath !== undefined) {
-            if (
-              !workspaceId ||
-              workspaceId === this.workspaceStateManager_.getWorkspaceInstance()
-            ) {
-              // log
-              log.appendLine(`New log: ${evalLogPath}`);
+            // see if this is another instance of vscode
+            const externalWorkspace = !!workspaceId && workspaceId !== this.workspaceStateManager_.getWorkspaceInstance();
 
-              // fire event
-              try {
-                const logUri = resolveToUri(evalLogPath);
-                this.onInspectLogCreated_.fire({ log: logUri });
-              } catch (error) {
-                log.appendLine(`Unexpected error parsing URI ${evalLogPath}`);
-              }
+            // log
+            log.appendLine(`New log: ${evalLogPath}`);
+
+            // fire event
+            try {
+              const logUri = resolveToUri(evalLogPath);
+              this.onInspectLogCreated_.fire({ log: logUri, externalWorkspace });
+            } catch (error) {
+              log.appendLine(`Unexpected error parsing URI ${evalLogPath}`);
             }
+
           }
         }
       }

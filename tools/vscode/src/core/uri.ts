@@ -46,27 +46,26 @@ export function prettyUriPath(uri: Uri): string {
   }
 }
 
-export function isPathContained(parentUri: Uri, childUri: Uri): boolean {
-  if (parentUri.scheme !== childUri.scheme) {
-    return false;
-  }
-
-  return childUri.fsPath === parentUri.fsPath ||
-    childUri.fsPath.startsWith(parentUri.fsPath + path.sep);
-}
-
 /**
  * Gets the relative path from a parent Uri to a child Uri
  * Returns null if child is not contained within parent
  */
-export function getRelativePath(parentUri: Uri, childUri: Uri): string | null {
-  if (!isPathContained(parentUri, childUri)) {
+export function getRelativeUri(parentUri: Uri, childUri: Uri): string | null {
+
+  if (parentUri.scheme !== childUri.scheme) {
     return null;
   }
 
-  if (childUri.fsPath === parentUri.fsPath) {
-    return '';
+  const childStr = childUri.toString(true);
+  let parentStr = parentUri.toString(true);
+  if (childStr === parentStr) {
+    return null;
+  } else if (!childStr.startsWith(parentStr)) {
+    return null;
+  } else {
+    if (!parentStr.endsWith("/")) {
+      parentStr = `${parentStr}/`;
+    }
+    return childStr.slice(parentStr.length);
   }
-
-  return childUri.fsPath.slice(parentUri.fsPath.length + 1);
 }

@@ -7,7 +7,7 @@ import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
 import { LogListing } from './log-listing';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
-import { getRelativePath, isPathContained, prettyUriPath } from '../../../core/uri';
+import { getRelativeUri, prettyUriPath } from '../../../core/uri';
 import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
 import { selectLogListingLocation } from './log-listing-selector';
 
@@ -52,7 +52,7 @@ export function activateLogListing(
 
     // show a workspace relative path if this is in the workspace,
     // otherwise show the protocol then the last two bits of the path
-    const relativePath = getRelativePath(activeWorkspaceFolder().uri, logDir);
+    const relativePath = getRelativeUri(activeWorkspaceFolder().uri, logDir);
     if (relativePath) {
       tree.description = `./${relativePath}`;
     } else {
@@ -65,7 +65,7 @@ export function activateLogListing(
   // refresh when a log in our directory changes
   disposables.push(logsWatcher.onInspectLogCreated((e) => {
     const treeLogDir = treeDataProvider.getLogListing()?.logDir();
-    if (treeLogDir && isPathContained(treeLogDir, e.log)) {
+    if (treeLogDir && getRelativeUri(treeLogDir, e.log)) {
       treeDataProvider.refresh();
     }
   }));
