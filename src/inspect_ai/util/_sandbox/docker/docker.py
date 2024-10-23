@@ -336,9 +336,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     f"Failed to write file: {file} because it is a directory already"
                 )
             else:
-                raise RuntimeError(
-                    f"failed to copy during write_file: {res_cp}"
-                )
+                raise RuntimeError(f"failed to copy during write_file: {res_cp}")
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
