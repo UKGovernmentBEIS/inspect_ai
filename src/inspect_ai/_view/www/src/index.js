@@ -3,5 +3,16 @@ import { html } from "htm/preact";
 
 import { App } from "./App.mjs";
 import api from "./api/index.mjs";
+import { getVscodeApi } from "./utils/vscode.mjs";
 
-render(html`<${App} api=${api} />`, document.getElementById("app"));
+// Read any state from the page itself
+const vscode = getVscodeApi();
+let initialState = undefined;
+if (vscode) {
+  initialState = vscode.getState();
+}
+
+render(
+  html`<${App} api=${api} initialState=${initialState} />`,
+  document.getElementById("app"),
+);

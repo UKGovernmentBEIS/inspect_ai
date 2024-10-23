@@ -21946,10 +21946,10 @@ var kMethodEvalLog = "eval_log";
 var kMethodEvalLogSize = "eval_log_size";
 var kMethodEvalLogBytes = "eval_log_bytes";
 var kMethodEvalLogHeaders = "eval_log_headers";
-function webViewJsonRpcClient(vscode) {
+function webViewJsonRpcClient(vscode2) {
   var target = {
     postMessage: function(data) {
-      vscode.postMessage(data);
+      vscode2.postMessage(data);
     },
     onMessage: function(handler) {
       var onMessage = function(ev) {
@@ -25282,49 +25282,132 @@ const resolveAttachments = (value, attachments) => {
   }
   return value;
 };
-function App({ api: api2, pollForLogs = true }) {
+function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
-  const [logs, setLogs] = h({ log_dir: "", files: [] });
-  const [selectedLogIndex, setSelectedLogIndex] = h(-1);
-  const [logHeaders, setLogHeaders] = h({});
-  const [headersLoading, setHeadersLoading] = h(false);
-  const [selectedLog, setSelectedLog] = h({
-    contents: void 0,
-    name: void 0
-  });
-  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = h(kEvalWorkspaceTabId);
-  const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
-  const [selectedSample, setSelectedSample] = h(void 0);
-  const [sampleStatus, setSampleStatus] = h(void 0);
-  const [sampleError, setSampleError] = h(void 0);
-  const [selectedSampleTab, setSelectedSampleTab] = h(void 0);
+  const [logs, setLogs] = h(
+    (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
+  );
+  const [selectedLogIndex, setSelectedLogIndex] = h(
+    (initialState2 == null ? void 0 : initialState2.selectedLogIndex) !== void 0 ? initialState2.selectedLogIndex : -1
+  );
+  const [logHeaders, setLogHeaders] = h((initialState2 == null ? void 0 : initialState2.logHeaders) || {});
+  const [headersLoading, setHeadersLoading] = h(
+    (initialState2 == null ? void 0 : initialState2.headersLoading) || false
+  );
+  const [selectedLog, setSelectedLog] = h(
+    (initialState2 == null ? void 0 : initialState2.selectedLog) || {
+      contents: void 0,
+      name: void 0
+    }
+  );
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = h(
+    (initialState2 == null ? void 0 : initialState2.selectedWorkspaceTab) || kEvalWorkspaceTabId
+  );
+  const [selectedSampleIndex, setSelectedSampleIndex] = h(
+    (initialState2 == null ? void 0 : initialState2.selectedSampleIndex) !== void 0 ? initialState2.selectedSampleIndex : -1
+  );
+  const [selectedSample, setSelectedSample] = h(
+    initialState2 == null ? void 0 : initialState2.selectedSample
+  );
+  const [sampleStatus, setSampleStatus] = h(initialState2 == null ? void 0 : initialState2.sampleStatus);
+  const [sampleError, setSampleError] = h(initialState2 == null ? void 0 : initialState2.sampleError);
+  const [selectedSampleTab, setSelectedSampleTab] = h(
+    initialState2 == null ? void 0 : initialState2.selectedSampleTab
+  );
   const loadingSampleIndexRef = A(null);
-  const [showingSampleDialog, setShowingSampleDialog] = h(false);
-  const [status, setStatus] = h({
-    loading: true,
-    error: void 0
-  });
-  const [capabilities, setCapabilities] = h({
-    downloadFiles: true,
-    webWorkers: true
-  });
-  const [offcanvas, setOffcanvas] = h(false);
-  const [showFind, setShowFind] = h(false);
-  const [filter, setFilter] = h({});
-  const [epoch, setEpoch] = h("all");
-  const [sort, setSort] = h(kDefaultSort);
+  const [showingSampleDialog, setShowingSampleDialog] = h(
+    initialState2 == null ? void 0 : initialState2.showingSampleDialog
+  );
+  const [status, setStatus] = h(
+    (initialState2 == null ? void 0 : initialState2.status) || {
+      loading: true,
+      error: void 0
+    }
+  );
+  const [capabilities, setCapabilities] = h(
+    (initialState2 == null ? void 0 : initialState2.capabilities) || {
+      downloadFiles: true,
+      webWorkers: true
+    }
+  );
+  const [offcanvas, setOffcanvas] = h((initialState2 == null ? void 0 : initialState2.offcanvas) || false);
+  const [showFind, setShowFind] = h((initialState2 == null ? void 0 : initialState2.showFind) || false);
+  const [filter, setFilter] = h((initialState2 == null ? void 0 : initialState2.filter) || {});
+  const [epoch, setEpoch] = h((initialState2 == null ? void 0 : initialState2.epoch) || "all");
+  const [sort, setSort] = h((initialState2 == null ? void 0 : initialState2.sort) || kDefaultSort);
   const [samplesDescriptor, setSamplesDescriptor] = h(void 0);
-  const [scores, setScores] = h([]);
-  const [score, setScore] = h(void 0);
+  const [scores, setScores] = h((initialState2 == null ? void 0 : initialState2.scores) || []);
+  const [score, setScore] = h(initialState2 == null ? void 0 : initialState2.score);
+  const [filteredSamples, setFilteredSamples] = h(
+    (initialState2 == null ? void 0 : initialState2.filteredSamples) || []
+  );
+  const [groupBy, setGroupBy] = h((initialState2 == null ? void 0 : initialState2.groupBy) || "none");
+  const [groupByOrder, setGroupByOrder] = h(
+    (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
+  );
   const afterBodyElements = [];
   const context = {
     afterBody: (el) => {
       afterBodyElements.push(el);
     }
   };
-  const [filteredSamples, setFilteredSamples] = h([]);
-  const [groupBy, setGroupBy] = h("none");
-  const [groupByOrder, setGroupByOrder] = h("asc");
+  y(() => {
+    const state = {
+      logs,
+      selectedLogIndex,
+      logHeaders,
+      headersLoading,
+      selectedLog,
+      selectedSampleIndex,
+      selectedWorkspaceTab,
+      selectedSample,
+      sampleStatus,
+      sampleError,
+      selectedSampleTab,
+      showingSampleDialog,
+      status,
+      capabilities,
+      offcanvas,
+      showFind,
+      filter,
+      epoch,
+      sort,
+      scores,
+      score,
+      filteredSamples,
+      groupBy,
+      groupByOrder
+    };
+    const vscode2 = getVscodeApi();
+    if (vscode2) {
+      vscode2.setState(state);
+    }
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder
+  ]);
   y(() => {
     if (showingSampleDialog) {
       setSelectedSample(void 0);
@@ -25812,5 +25895,10 @@ function App({ api: api2, pollForLogs = true }) {
     </${AppErrorBoundary}>
   `;
 }
-B$1(m$1`<${App} api=${api} />`, document.getElementById("app"));
+const vscode = getVscodeApi();
+let initialState = void 0;
+if (vscode) {
+  initialState = vscode.getState();
+}
+B$1(m$1`<${App} api=${api} initialState=${initialState} />`, document.getElementById("app"));
 //# sourceMappingURL=index.js.map
