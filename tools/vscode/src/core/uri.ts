@@ -2,6 +2,28 @@ import path from "path";
 import * as os from "os";
 import { Uri } from "vscode";
 
+
+export function resolveToUri(pathOrUri: string): Uri {
+  const uriPattern = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+  if (uriPattern.test(pathOrUri)) {
+    try {
+      return Uri.parse(pathOrUri);
+    } catch (error) {
+      throw new Error(`Invalid URI format: ${pathOrUri}`);
+    }
+  } else {
+    try {
+      const absolutePath = path.isAbsolute(pathOrUri)
+        ? pathOrUri
+        : path.resolve(pathOrUri);
+      return Uri.file(absolutePath);
+    } catch (error) {
+      throw new Error(`Invalid file path: ${pathOrUri}`);
+    }
+  }
+}
+
+
 export function dirname(uri: Uri): Uri {
   if (uri.scheme === 'file') {
     // Handle file URIs
