@@ -1,4 +1,5 @@
 import path from "path";
+import * as os from "os";
 import { Uri } from "vscode";
 
 export function dirname(uri: Uri): Uri {
@@ -11,6 +12,15 @@ export function dirname(uri: Uri): Uri {
     const parsedUrl = new URL(uri.toString());
     parsedUrl.pathname = path.dirname(parsedUrl.pathname);
     return Uri.parse(parsedUrl.toString());
+  }
+}
+
+export function prettyUriPath(uri: Uri): string {
+  if (uri.scheme === 'file') {
+    const path = uri.fsPath;
+    return path.replace(os.homedir(), "~");
+  } else {
+    return uri.toString(true);
   }
 }
 

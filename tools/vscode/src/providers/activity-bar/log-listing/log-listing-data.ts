@@ -5,10 +5,11 @@ import * as path from 'path';
 import { format, isToday, isThisYear } from 'date-fns';
 
 
-import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { CancellationToken, Event, EventEmitter, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
+import { prettyUriPath } from '../../../core/uri';
 
 
 
@@ -73,6 +74,17 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     } else {
       return [];
     }
+  }
+
+  async resolveTreeItem?(
+    item: TreeItem,
+    element: LogNode
+  ): Promise<TreeItem> {
+    const nodeUri = this.logListing_?.uriForNode(element);
+    if (nodeUri) {
+      item.tooltip = prettyUriPath(nodeUri);
+    }
+    return Promise.resolve(item);
   }
 
   refresh(): void {
