@@ -1,4 +1,9 @@
+
+
 import * as path from 'path';
+
+import { format, isToday, isThisYear } from 'date-fns';
+
 
 import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
@@ -27,6 +32,8 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 
 
   getTreeItem(element: LogNode): TreeItem {
+
+    // base tree item
     const treeItem: TreeItem = {
       id: element.name,
       iconPath: element.type === "file"
@@ -40,14 +47,20 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
         : TreeItemCollapsibleState.None,
     };
 
+    // make file display nicer
+    if (element.type === "file") {
+      treeItem.label = element.task || "task";
+      const date = parseLogDate(element.name.split("/").pop()!);
+      treeItem.description = `${formatPrettyDateTime(date)}`;
+
+    }
+
+    // open files in the editor
     if (element.type === "file") {
       treeItem.command = {
         command: 'vscode.openWith',
-        title: 'Open Custom File',
-        arguments: [
-          this.logListing_?.uriForNode(element),
-          'inspect-ai.log-editor'
-        ]
+        title: 'View Inspect Log',
+        arguments: [this.logListing_?.uriForNode(element), 'inspect-ai.log-editor']
       };
     }
 
@@ -74,3 +87,41 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   private logListing_?: LogListing;
 }
 
+
+function parseLogDate(logName: string) {
+
+  // Take only first bit
+  const logDate = logName.split("_")[0]
+
+  // Input validation
+  if (!logDate.match(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[+-]\d{2}-\d{2}$/)) {
+    throw new Error(`Unexpcted date format. Expected format: YYYY-MM-DDThh-mm-ss+hh-mm or YYYY-MM-DDThh-mm-ss-hh-mm, got ${logDate}`);
+  }
+
+  // Convert hyphens to colons only in the time portion (after T) and timezone
+  // Leave the date portion (before T) unchanged
+  const normalized = logDate.replace(/T(\d{2})-(\d{2})-(\d{2})([+-])(\d{2})-(\d{2})/, 'T$1:$2:$3$4$5:$6');
+  const result = new Date(normalized);
+  if (isNaN(result.getTime())) {
+    throw new Error(`Failed to parse date string: ${normalized}`);
+  }
+
+  return result;
+}
+
+
+function formatPrettyDateTime(date: Date) {
+
+  // For today, just show time
+  if (isToday(date)) {
+    return `Today, ${format(date, 'h:mmaaa')}`
+  }
+
+  // For this year, show month and day
+  if (isThisYear(date)) {
+    return format(date, 'MMM d, h:mmaaa');
+  }
+
+  // For other years, include the year
+  return format(date, 'MMM d yyyy, h:mmaaa');
+}

@@ -187,7 +187,7 @@ function sortLogTree(nodes: LogNode[]): LogNode[] {
     if (a.type === "dir" && b.type === "dir") {
       return a.name.split("/").pop()?.localeCompare(b.name.split("/").pop() || "") || 0;
     } else if (a.type === "file" && b.type === "file") {
-      return a.mtime - b.mtime;
+      return b.mtime - a.mtime;
     } else if (a.type === "dir") {
       return -1;
     } else {

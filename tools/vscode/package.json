@@ -426,6 +426,7 @@
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",
     "async-lock": "^1.4.1",
+    "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "semver": "^7.6.0"
   }
