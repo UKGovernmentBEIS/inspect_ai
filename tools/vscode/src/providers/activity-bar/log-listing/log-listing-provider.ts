@@ -30,15 +30,6 @@ export function activateLogListing(context: vscode.ExtensionContext, envManager:
     canSelectMany: false,
   });
 
-  // refresh when a log in our directory changes
-  disposables.push(logsWatcher.onInspectLogCreated((e) => {
-    const treeLogDir = treeDataProvider.getLogListing()?.logDir();
-    if (treeLogDir && isPathContained(treeLogDir, e.log)) {
-      treeDataProvider.refresh();
-    }
-  }));
-
-
   // sync to updates to the .env
   const updateTree = () => {
     const logDir = envManager.getDefaultLogDir();
@@ -56,6 +47,20 @@ export function activateLogListing(context: vscode.ExtensionContext, envManager:
   updateTree();
   disposables.push(envManager.onEnvironmentChanged(updateTree));
 
+  // refresh when a log in our directory changes
+  disposables.push(logsWatcher.onInspectLogCreated((e) => {
+    const treeLogDir = treeDataProvider.getLogListing()?.logDir();
+    if (treeLogDir && isPathContained(treeLogDir, e.log)) {
+      treeDataProvider.refresh();
+    }
+  }));
+
+  // refresh on change visiblity
+  disposables.push(tree.onDidChangeVisibility(e => {
+    if (e.visible) {
+      treeDataProvider.refresh();
+    }
+  }));
 
 
   return [[], disposables];
