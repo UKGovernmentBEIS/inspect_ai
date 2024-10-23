@@ -7,7 +7,7 @@ import {
   kScoreTypeNumeric,
   kScoreTypeObject,
   kScoreTypePassFail,
-} from "../SamplesDescriptor.mjs";
+} from "../../constants.mjs";
 
 /**
  * Renders the Sample Filter Control
@@ -36,6 +36,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
           } else if (typeof score.value === "object") {
             return JSON.stringify(score.value) == value;
           } else {
+            // @ts-ignore
             return score.value === value;
           }
         },

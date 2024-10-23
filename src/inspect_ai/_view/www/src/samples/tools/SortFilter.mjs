@@ -1,15 +1,14 @@
 import { html } from "htm/preact";
 import { isNumeric } from "../../utils/Type.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-
-const kSampleAscVal = "sample-asc";
-const kSampleDescVal = "sample-desc";
-const kEpochAscVal = "epoch-asc";
-const kEpochDescVal = "epoch-desc";
-const kScoreAscVal = "score-asc";
-const kScoreDescVal = "score-desc";
-
-export const kDefaultSort = kSampleAscVal;
+import {
+  kEpochAscVal,
+  kEpochDescVal,
+  kSampleAscVal,
+  kSampleDescVal,
+  kScoreAscVal,
+  kScoreDescVal,
+} from "../../constants.mjs";
 
 export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   const options = [

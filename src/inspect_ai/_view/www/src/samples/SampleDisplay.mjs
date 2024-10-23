@@ -35,7 +35,7 @@ import {
   kSampleMetdataTabId,
   kSampleScoringTabId,
   kSampleTranscriptTabId,
-} from "../App.mjs";
+} from "../constants.mjs";
 
 /**
  * Inline Sample Display

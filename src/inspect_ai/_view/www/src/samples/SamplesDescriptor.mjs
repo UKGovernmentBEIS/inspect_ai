@@ -9,6 +9,13 @@ import {
 } from "../utils/Format.mjs";
 import { RenderedContent } from "../components/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
+import {
+  kScoreTypeCategorical,
+  kScoreTypeNumeric,
+  kScoreTypeObject,
+  kScoreTypeOther,
+  kScoreTypePassFail,
+} from "../constants.mjs";
 
 /**
  * Represents a utility summary of the samples.
@@ -54,13 +61,6 @@ import { isNumeric } from "../utils/Type.mjs";
  * @property {number} target - Normalized size of the target message.
  * @property {number} answer - Normalized size of the answer message.
  */
-
-export const kScoreTypePassFail = "passfail";
-export const kScoreTypeCategorical = "categorical";
-export const kScoreTypeNumeric = "numeric";
-export const kScoreTypeOther = "other";
-export const kScoreTypeObject = "object";
-export const kScoreTypeBoolean = "boolean";
 
 /**
  * Provides a utility summary of the samples

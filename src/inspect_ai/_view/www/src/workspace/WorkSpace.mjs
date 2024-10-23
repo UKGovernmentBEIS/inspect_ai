@@ -20,7 +20,7 @@ import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
-} from "../App.mjs";
+} from "../constants.mjs";
 
 /**
  * Renders the Main Application

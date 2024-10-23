@@ -30,21 +30,17 @@ import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
-import { kDefaultSort } from "./samples/tools/SortFilter.mjs";
+import { kDefaultSort } from "./constants.mjs";
 import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
 
-export const kEvalWorkspaceTabId = "eval-tab";
-export const kJsonWorkspaceTabId = "json-tab";
-export const kInfoWorkspaceTabId = "plan-tab";
-
-export const kSampleMessagesTabId = `$sample-display-messages`;
-export const kSampleTranscriptTabId = `sample-display-transcript`;
-export const kSampleScoringTabId = `sample-display-scoring`;
-export const kSampleMetdataTabId = `sample-display-metadata`;
-export const kSampleErrorTabId = `sample-display-error`;
-export const kSampleJsonTabId = `sample-display-json`;
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kSampleMessagesTabId,
+  kSampleTranscriptTabId,
+} from "./constants.mjs";
 
 /**
  * Renders the Main Application
