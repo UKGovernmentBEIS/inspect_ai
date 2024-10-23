@@ -122,6 +122,13 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListingSelectLogDir",
+        "title": "Select Log Directory",
+        "icon": "$(root-folder-opened)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
         "command": "inspect.runSelectedTask",
         "title": "Run",
         "icon": "$(play)",
@@ -304,6 +311,11 @@
         },
         {
           "command": "inspect.logListingRefresh",
+          "when": "view == inspect_ai.logs-view",
+          "group": "navigation"
+        },
+        {
+          "command": "inspect.logListingSelectLogDir",
           "when": "view == inspect_ai.logs-view",
           "group": "navigation"
         },

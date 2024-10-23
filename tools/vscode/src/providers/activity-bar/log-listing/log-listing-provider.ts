@@ -9,6 +9,7 @@ import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
 import { getRelativePath, isPathContained, prettyUriPath } from '../../../core/uri';
 import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
+import { selectLogListingLocation } from './log-listing-selector';
 
 
 export function activateLogListing(
@@ -24,6 +25,16 @@ export function activateLogListing(
   disposables.push(vscode.commands.registerCommand('inspect.logListingRefresh', () => {
     treeDataProvider.refresh();
   }));
+
+  // Register select log dir command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingSelectLogDir', async () => {
+    const logLocation = await selectLogListingLocation(envManager.getDefaultLogDir());
+    if (logLocation) {
+      //
+    }
+  }));
+
+
 
   // create tree data provider and tree
   const treeDataProvider = new LogTreeDataProvider(context);
