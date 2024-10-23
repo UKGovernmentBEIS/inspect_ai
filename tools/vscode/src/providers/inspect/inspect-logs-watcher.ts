@@ -1,21 +1,21 @@
-import { Uri, Disposable } from "vscode";
-import { InspectViewManager } from "./logview-view";
+import { Disposable, Event, EventEmitter, Uri } from "vscode";
 
-import { showError } from "../../components/error";
 import { inspectLastEvalPath } from "../../inspect/props";
 import { existsSync, readFileSync, statSync } from "fs";
 import { log } from "../../core/log";
-import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
 import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { withMinimumInspectVersion } from "../../inspect/version";
-import { kInspectChangeEvalSignalVersion } from "../inspect/inspect-constants";
-import { InspectSettingsManager } from "../settings/inspect-settings";
+import { kInspectChangeEvalSignalVersion } from "./inspect-constants";
+import { resolveToUri } from "../../core/uri";
 
-export class LogViewFileWatcher implements Disposable {
+export interface InspectLogCreatedEvent {
+  log: Uri
+  externalWorkspace: boolean;
+}
+
+export class InspectLogsWatcher implements Disposable {
   constructor(
-    private readonly logviewManager_: InspectViewManager,
     private readonly workspaceStateManager_: WorkspaceStateManager,
-    private readonly settingsMgr_: InspectSettingsManager
   ) {
     log.appendLine("Watching for evaluation logs");
     this.lastEval_ = Date.now();
@@ -28,7 +28,7 @@ export class LogViewFileWatcher implements Disposable {
         if (updated > this.lastEval_) {
           this.lastEval_ = updated;
 
-          let evalLogPath;
+          let evalLogPath: string | undefined;
           let workspaceId;
           const contents = readFileSync(evalSignalFile, { encoding: "utf-8" });
 
@@ -50,27 +50,21 @@ export class LogViewFileWatcher implements Disposable {
             }
           );
 
-          if (evalLogPath) {
-            if (
-              !workspaceId ||
-              workspaceId === this.workspaceStateManager_.getWorkspaceInstance()
-            ) {
-              log.appendLine(
-                `New log: ${workspaceRelativePath(toAbsolutePath(evalLogPath))}`
-              );
-              // Show the log file
-              const openAction = settingsMgr_.getSettings().openLogView
-                ? "open"
-                : undefined;
-              this.logviewManager_
-                .showLogFile(Uri.parse(evalLogPath), openAction)
-                .catch(async (err: Error) => {
-                  await showError(
-                    "Unable to preview log file - failed to start Inspect View",
-                    err
-                  );
-                });
+          if (evalLogPath !== undefined) {
+            // see if this is another instance of vscode
+            const externalWorkspace = !!workspaceId && workspaceId !== this.workspaceStateManager_.getWorkspaceInstance();
+
+            // log
+            log.appendLine(`New log: ${evalLogPath}`);
+
+            // fire event
+            try {
+              const logUri = resolveToUri(evalLogPath);
+              this.onInspectLogCreated_.fire({ log: logUri, externalWorkspace });
+            } catch (error) {
+              log.appendLine(`Unexpected error parsing URI ${evalLogPath}`);
             }
+
           }
         }
       }
@@ -78,6 +72,11 @@ export class LogViewFileWatcher implements Disposable {
   }
   private lastEval_: number;
   private watchInterval_: NodeJS.Timeout;
+
+  private readonly onInspectLogCreated_ =
+    new EventEmitter<InspectLogCreatedEvent>();
+  public readonly onInspectLogCreated: Event<InspectLogCreatedEvent> =
+    this.onInspectLogCreated_.event;
 
   dispose() {
     if (this.watchInterval_) {

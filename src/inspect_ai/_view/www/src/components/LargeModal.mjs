@@ -1,6 +1,7 @@
 import { html } from "htm/preact";
 
 import { FontSize } from "../appearance/Fonts.mjs";
+import { ProgressBar } from "./ProgressBar.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -12,6 +13,7 @@ export const LargeModal = (props) => {
     onkeyup,
     visible,
     onHide,
+    showProgress,
     children,
   } = props;
 
@@ -115,6 +117,13 @@ export const LargeModal = (props) => {
         >
           ${headerEls}
         </div>
+        <${ProgressBar}
+          animating=${showProgress}
+          containerStyle=${{
+            marginBottom: "-2px",
+            backgroundColor: "var(--bs-body-bg)",
+          }}
+        />
         <div class="modal-body">${children}</div>
         ${modalFooter}
       </div>

@@ -3,9 +3,7 @@ import { ExtensionContext, MessageItem, window } from "vscode";
 import { CommandManager } from "./core/command";
 import { activateCodeLens } from "./providers/codelens/codelens-provider";
 import { activateLogview } from "./providers/logview/logview";
-import { LogViewFileWatcher } from "./providers/logview/logview-file-watcher";
 import { logviewTerminalLinkProvider } from "./providers/logview/logview-link-provider";
-import { InspectViewManager } from "./providers/logview/logview-view";
 import { InspectSettingsManager } from "./providers/settings/inspect-settings";
 import { initializeGlobalSettings } from "./providers/settings/user-settings";
 import { activateEvalManager } from "./providers/inspect/inspect-eval";
@@ -13,7 +11,6 @@ import { activateActivityBar } from "./providers/activity-bar/activity-bar-provi
 import { activateActiveTaskProvider } from "./providers/active-task/active-task-provider";
 import { activateWorkspaceTaskProvider } from "./providers/workspace/workspace-task-provider";
 import {
-  WorkspaceStateManager,
   activateWorkspaceState,
 } from "./providers/workspace/workspace-state-provider";
 import { initializeWorkspace } from "./providers/workspace/workspace-init";
@@ -25,6 +22,8 @@ import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
 import { activateStatusBar } from "./providers/statusbar";
+import { InspectViewServer } from "./providers/inspect/inspect-view-server";
+import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -88,19 +87,20 @@ export async function activate(context: ExtensionContext) {
   );
 
   // Read the extension configuration
-  const settingsMgr = new InspectSettingsManager(() => {
-    if (
-      !logFileWatcher &&
-      inspectLogviewManager
-    ) {
-      startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
-    }
-  });
+  const settingsMgr = new InspectSettingsManager(() => { });
+
+  // initialiaze view server
+  const server = new InspectViewServer(context, inspectManager);
+
+  // initialise logs watcher
+  const logsWatcher = new InspectLogsWatcher(stateManager);
 
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
     settingsMgr,
+    server,
+    logsWatcher,
     workspaceEnvManager,
     context,
     host
@@ -116,6 +116,8 @@ export async function activate(context: ExtensionContext) {
     workspaceTaskMgr,
     stateManager,
     workspaceEnvManager,
+    server,
+    logsWatcher,
     context
   );
 
@@ -123,9 +125,6 @@ export async function activate(context: ExtensionContext) {
   window.registerTerminalLinkProvider(
     logviewTerminalLinkProvider(logviewWebviewManager)
   );
-
-  // Activate the file watcher for this workspace
-  startLogWatcher(logviewWebviewManager, stateManager, settingsMgr);
 
   // Activate Code Lens
   activateCodeLens(context);
@@ -148,32 +147,6 @@ export async function activate(context: ExtensionContext) {
   await activeTaskManager.refresh();
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {
-  stopLogWatcher();
-}
-
-// Log file watching
-let logFileWatcher: LogViewFileWatcher | undefined;
-
-const startLogWatcher = (
-  logviewWebviewManager: InspectViewManager,
-  workspaceStateManager: WorkspaceStateManager,
-  settingsMgr: InspectSettingsManager
-) => {
-  logFileWatcher = new LogViewFileWatcher(
-    logviewWebviewManager,
-    workspaceStateManager,
-    settingsMgr
-  );
-};
-
-const stopLogWatcher = () => {
-  if (logFileWatcher) {
-    logFileWatcher.dispose();
-    logFileWatcher = undefined;
-  }
-};
 
 const checkInspectVersion = async () => {
   if (inspectBinPath()) {

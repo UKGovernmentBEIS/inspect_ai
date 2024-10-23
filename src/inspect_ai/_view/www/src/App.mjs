@@ -5,6 +5,7 @@ import "prismjs";
 import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
+// @ts-ignore
 import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
@@ -28,105 +29,423 @@ import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
+import { getVscodeApi } from "./utils/vscode.mjs";
+import { kDefaultSort } from "./constants.mjs";
+import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
+import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
+import { resolveAttachments } from "./utils/attachments.mjs";
 
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kSampleMessagesTabId,
+  kSampleTranscriptTabId,
+} from "./constants.mjs";
+
+/**
+ * Renders the Main Application
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
+ * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export function App({ api, pollForLogs = true }) {
-  const [selected, setSelected] = useState(-1);
+  // List of Logs
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
+  const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
+
+  // Log Headers
   const [logHeaders, setLogHeaders] = useState({});
-  const [offcanvas, setOffcanvas] = useState(false);
-  const [currentLog, setCurrentLog] = useState({
+  const [headersLoading, setHeadersLoading] = useState(false);
+
+  // Selected Log
+  const [selectedLog, setSelectedLog] = useState({
     contents: undefined,
     name: undefined,
-    raw: undefined,
   });
+
+  // Workspace (the selected tab)
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] =
+    useState(kEvalWorkspaceTabId);
+
+  // Samples
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
+  const [selectedSample, setSelectedSample] = useState(undefined);
+  const [sampleStatus, setSampleStatus] = useState(undefined);
+  const [sampleError, setSampleError] = useState(undefined);
+  const [selectedSampleTab, setSelectedSampleTab] = useState(undefined);
+
+  const loadingSampleIndexRef = useRef(null);
+
+  const [showingSampleDialog, setShowingSampleDialog] = useState(false);
+
+  // App loading status
   const [status, setStatus] = useState({
     loading: true,
     error: undefined,
   });
-  const [headersLoading, setHeadersLoading] = useState(false);
+
+  // App host capabilities
   const [capabilities, setCapabilities] = useState({
     downloadFiles: true,
     webWorkers: true,
   });
+
+  // Other application state
+  const [offcanvas, setOffcanvas] = useState(false);
   const [showFind, setShowFind] = useState(false);
+
+  // Filtering and sorting
+  /**
+   * @type {[import("./Types.mjs").ScoreFilter, function(import("./Types.mjs").ScoreFilter): void]}
+   */
+  const [filter, setFilter] = useState({});
+
+  /**
+   * @type {[string, function(string): void]}
+   */
+  const [epoch, setEpoch] = useState("all");
+
+  /**
+   * @type {[string, function(string): void]}
+   */
+  const [sort, setSort] = useState(kDefaultSort);
+
+  /**
+   * @type {[import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
+   */
+  const [samplesDescriptor, setSamplesDescriptor] = useState(undefined);
+
+  /**
+   * @type {[import("./Types.mjs").ScoreLabel[], function(import("./Types.mjs").ScoreLabel[]): void]}
+   */
+  const [scores, setScores] = useState([]);
+
+  /**
+   * @type {[import("./Types.mjs").ScoreLabel, function(import("./Types.mjs").ScoreLabel): void]}
+   */
+  const [score, setScore] = useState(undefined);
+
+  const afterBodyElements = [];
+
+  /** @type {import("./Types.mjs").RenderContext} */
+  const context = {
+    afterBody: (el) => {
+      afterBodyElements.push(el);
+    },
+  };
+
+  // Re-filter the samples
+  const [filteredSamples, setFilteredSamples] = useState([]);
+  const [groupBy, setGroupBy] = useState("none");
+  const [groupByOrder, setGroupByOrder] = useState("asc");
+
+  useEffect(() => {
+    if (showingSampleDialog) {
+      setSelectedSample(undefined);
+      setSelectedSampleTab(undefined);
+    }
+  }, [showingSampleDialog]);
+
+  useEffect(() => {
+    const samples = selectedLog?.contents?.sampleSummaries || [];
+    const filtered = samples.filter((sample) => {
+      // Filter by epoch if specified
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample.epoch + "") {
+          return false;
+        }
+      }
+
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample, filter.value);
+      } else {
+        return true;
+      }
+    });
+
+    // Sort the samples
+    const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
+
+    // Set the grouping
+    let grouping = "none";
+    if (samplesDescriptor?.epochs > 1) {
+      if (byEpoch(sort) || epoch !== "all") {
+        grouping = "epoch";
+      } else if (bySample(sort)) {
+        grouping = "sample";
+      }
+    }
+
+    setFilteredSamples(sorted);
+    setGroupBy(grouping);
+    setGroupByOrder(order);
+  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+
+  // Anytime the selected score changes, reset filtering
+  useEffect(() => {
+    resetFilteringState();
+  }, [score]);
+
+  useEffect(() => {
+    // Select the default scorer to use
+    const scorer = selectedLog?.contents?.results?.scores[0]
+      ? {
+          name: selectedLog.contents.results?.scores[0].name,
+          scorer: selectedLog.contents.results?.scores[0].scorer,
+        }
+      : undefined;
+    const scorers = (selectedLog.contents?.results?.scores || [])
+      .map((score) => {
+        return {
+          name: score.name,
+          scorer: score.scorer,
+        };
+      })
+      .reduce((accum, scorer) => {
+        if (
+          !accum.find((sc) => {
+            return scorer.scorer === sc.scorer && scorer.name === sc.name;
+          })
+        ) {
+          accum.push(scorer);
+        }
+        return accum;
+      }, []);
+
+    // Reset state
+    setScores(scorers);
+    setScore(scorer);
+
+    resetFilteringState();
+  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
+
+  useEffect(() => {
+    const sampleDescriptor = createsSamplesDescriptor(
+      scores,
+      selectedLog.contents?.sampleSummaries,
+      selectedLog.contents?.eval?.config?.epochs || 1,
+      context,
+      score,
+    );
+    setSamplesDescriptor(sampleDescriptor);
+  }, [selectedLog, score, scores, setSamplesDescriptor]);
+
+  const refreshSampleTab = useCallback(
+    (sample) => {
+      if (selectedSampleTab === undefined) {
+        const defaultTab =
+          sample.events && sample.events.length > 0
+            ? kSampleTranscriptTabId
+            : kSampleMessagesTabId;
+        setSelectedSampleTab(defaultTab);
+      }
+    },
+    [selectedSampleTab, showingSampleDialog],
+  );
+
+  const resetFilteringState = useCallback(() => {
+    setEpoch("all");
+    setFilter({});
+    setSort(kDefaultSort);
+  }, [setEpoch, setFilter, setSort]);
+
+  // The main application reference
   const mainAppRef = useRef();
+
+  // Loads a sample
+  useEffect(() => {
+    // Clear the selected sample
+    if (!selectedLog || selectedSampleIndex === -1) {
+      setSelectedSample(undefined);
+      return;
+    }
+
+    // If already loading the selected sample, do nothing
+    if (loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+
+    if (
+      !showingSampleDialog &&
+      selectedLog.contents.sampleSummaries.length > 1
+    ) {
+      return;
+    }
+
+    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
+      // Load the selected sample (if not already loaded)
+      loadingSampleIndexRef.current = selectedSampleIndex;
+      setSampleStatus("loading");
+      setSampleError(undefined);
+
+      const summary = filteredSamples[selectedSampleIndex];
+      api
+        .get_log_sample(selectedLog.name, summary.id, summary.epoch)
+        .then((sample) => {
+          // migrate transcript to new structure
+          // @ts-ignore
+          if (sample.transcript) {
+            // @ts-ignore
+            sample.events = sample.transcript.events;
+            // @ts-ignore
+            sample.attachments = sample.transcript.content;
+          }
+          sample.attachments = sample.attachments || {};
+          sample.input = resolveAttachments(sample.input, sample.attachments);
+          sample.messages = resolveAttachments(
+            sample.messages,
+            sample.attachments,
+          );
+          sample.events = resolveAttachments(sample.events, sample.attachments);
+          sample.attachments = {};
+
+          setSelectedSample(sample);
+
+          refreshSampleTab(sample);
+
+          setSampleStatus("ok");
+          loadingSampleIndexRef.current = null;
+        })
+        .catch((e) => {
+          setSampleStatus("error");
+          setSampleError(e);
+          setSelectedSample(undefined);
+          loadingSampleIndexRef.current = null;
+        });
+    }
+  }, [
+    selectedSampleIndex,
+    showingSampleDialog,
+    selectedLog,
+    filteredSamples,
+    setSelectedSample,
+    setSampleStatus,
+    setSampleError,
+  ]);
 
   // Read header information for the logs
   // and then update
-  useEffect(async () => {
-    // Loading headers
-    setHeadersLoading(true);
+  useEffect(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
 
-    // Group into chunks
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i = 0; i < logs.files.length; i += chunkSize) {
-      let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
-    }
-
-    // Chunk by chunk, read the header information
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
-        });
-        if (headers.length === chunkSize) {
-          await sleep(5000);
-        }
+      // Group into chunks
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i = 0; i < logs.files.length; i += chunkSize) {
+        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
+        fileLists.push(chunk);
       }
-    } catch (e) {
-      // Show an error
-      console.log(e);
-      setStatus({ loading: false, error: e });
-    }
 
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-
-  // Load a specific log
-  useEffect(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+      // Chunk by chunk, read the header information
       try {
-        setStatus({ loading: true, error: undefined });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw,
+        for (const fileList of fileLists) {
+          const headers = await api.get_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: undefined });
+
+          if (headers.length === chunkSize) {
+            await sleep(5000); // Pause between chunks
+          }
         }
       } catch (e) {
-        // Show an error
         console.log(e);
         setStatus({ loading: false, error: e });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
-        ),
-      });
-    }
-  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+
+      setHeadersLoading(false);
+    };
+
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+
+  /**
+   * Resets the workspace tab based on the provided log's state.
+   *
+   * Determines whether the workspace tab should display samples or info,
+   * depending on the presence of samples and the log status.
+   *
+   * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+   * @returns {void}
+   */
+  const resetWorkspace = useCallback(
+    /**
+     * @param {import("./api/Types.mjs").EvalSummary} log
+     */
+    (log) => {
+      // Reset the workspace tab
+      const hasSamples =
+        !!log?.sampleSummaries && log?.sampleSummaries.length > 0;
+      const showSamples = log?.status !== "error" && hasSamples;
+      setSelectedWorkspaceTab(
+        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
+      );
+
+      // Reset the sample tab
+      setSelectedSampleTab(undefined);
+    },
+    [setSelectedWorkspaceTab],
+  );
+
+  // Load a specific log
+  useEffect(() => {
+    const loadSpecificLog = async () => {
+      const targetLog = logs.files[selectedLogIndex];
+      if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: undefined });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents;
+            setSelectedLog({
+              contents: log,
+              name: targetLog.name,
+            });
+
+            // Clear the sample index
+            setSelectedSampleIndex(-1);
+
+            // Reset the workspace tab
+            resetWorkspace(log);
+
+            setStatus({ loading: false, error: undefined });
+          }
+        } catch (e) {
+          console.log(e);
+          setStatus({ loading: false, error: e });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+          ),
+        });
+      }
+    };
+
+    loadSpecificLog();
+  }, [
+    selectedLogIndex,
+    logs,
+    capabilities,
+    selectedLog,
+    setSelectedLog,
+    setStatus,
+  ]);
 
   // Load the list of logs
   const loadLogs = async () => {
     try {
-      const result = await api.eval_logs();
+      const result = await api.get_log_paths();
       return result;
     } catch (e) {
       // Show an error
@@ -138,7 +457,7 @@ export function App({ api, pollForLogs = true }) {
   // Load a specific log file
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api.eval_log(logFileName, 100, capabilities);
+      const logContents = await api.get_log_summary(logFileName);
       return logContents;
     } catch (e) {
       // Show an error
@@ -150,10 +469,10 @@ export function App({ api, pollForLogs = true }) {
   const refreshLog = useCallback(async () => {
     try {
       setStatus({ loading: true, error: undefined });
-      const targetLog = logs.files[selected];
+      const targetLog = logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
-        const log = logContents.parsed;
+        const log = logContents;
         if (log.status !== "started") {
           setLogHeaders((prev) => {
             const updatedState = { ...prev };
@@ -170,11 +489,14 @@ export function App({ api, pollForLogs = true }) {
           });
         }
 
-        setCurrentLog({
+        setSelectedLog({
           contents: log,
           name: targetLog.name,
-          raw: logContents.raw,
         });
+
+        // Reset the workspace tab
+        resetWorkspace(log);
+
         setStatus({ loading: false, error: undefined });
       }
     } catch (e) {
@@ -182,7 +504,7 @@ export function App({ api, pollForLogs = true }) {
       console.log(e);
       setStatus({ loading: false, error: e });
     }
-  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
 
   const showLogFile = useCallback(
     async (logUrl) => {
@@ -190,29 +512,29 @@ export function App({ api, pollForLogs = true }) {
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
-        setSelected(index);
+        setSelectedLogIndex(index);
       } else {
         const result = await loadLogs();
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
         setLogs(result);
-        setSelected(idx > -1 ? idx : 0);
+        setSelectedLogIndex(idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelected, setLogs],
+    [logs, setSelectedLogIndex, setLogs],
   );
 
   const refreshLogList = useCallback(async () => {
-    const currentLog = logs.files[selected > -1 ? selected : 0];
+    const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
 
     const refreshedLogs = await loadLogs();
     const newIndex = refreshedLogs.files.findIndex((file) => {
       return currentLog.name.endsWith(file.name);
     });
     setLogs(refreshedLogs);
-    setSelected(newIndex);
-  }, [logs, selected, setSelected, setLogs]);
+    setSelectedLogIndex(newIndex);
+  }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
 
   const onMessage = useMemo(() => {
     return async (e) => {
@@ -252,104 +574,98 @@ export function App({ api, pollForLogs = true }) {
     };
   }, [onMessage]);
 
-  useEffect(async () => {
-    // See whether a specific task_file has been passed.
-    const urlParams = new URLSearchParams(window.location.search);
+  useEffect(() => {
+    const loadLogsAndState = async () => {
+      // See whether a specific task_file has been passed.
+      const urlParams = new URLSearchParams(window.location.search);
 
-    // Determine the capabilities
-    // If this is vscode, check for the version meta
-    // so we know it supports downloads
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]',
-    );
-    const extensionVersion = extensionVersionEl
-      ? extensionVersionEl.getAttribute("content")
-      : undefined;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        // VSCode hosts before the extension version was communicated don't support
-        // downloading or web workers.
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
+      // Determine the capabilities
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]',
+      );
+      const extensionVersion = extensionVersionEl
+        ? extensionVersionEl.getAttribute("content")
+        : undefined;
 
-    // Note whether we should default off canvas the sidebar
-    setOffcanvas(true);
-
-    // If the URL provides a task file, load that
-    const logPath = urlParams.get("task_file");
-
-    // Replace any spaces in the path with a '+' sign:
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath
-      ? async () => {
-          return {
-            log_dir: "",
-            files: [{ name: resolvedLogPath }],
-          };
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      : loadLogs;
-
-    // See whether there is state encoding in the document itself
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      // Sending this message will result in loading occuring
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      // initial fetch of logs
-      const result = await load();
-      setLogs(result);
-
-      // If a log file was passed, select it
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
-        }
-      } else if (selected === -1) {
-        // Select the first log if there wasn't some
-        // message embedded within the view html itself
-        setSelected(0);
       }
-    }
 
-    new ClipboardJS(".clipboard-button,.copy-button");
+      setOffcanvas(true);
 
-    // poll every 1s for events
-    if (pollForLogs) {
-      setInterval(() => {
-        api.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      // If the URL provides a task file, load that
+      const logPath = urlParams.get("task_file");
+
+      // Replace spaces with a '+' sign:
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath
+        ? async () => {
+            return {
+              log_dir: "",
+              files: [{ name: resolvedLogPath }],
+            };
           }
-          if (events.includes("refresh-evals")) {
-            const logs = await load();
-            setLogs(logs);
-            setSelected(0);
+        : loadLogs;
+
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+
+        // If a log file was passed, select it
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelectedLogIndex(index);
           }
-        });
-      }, 1000);
-    }
+        } else if (selectedLogIndex === -1) {
+          setSelectedLogIndex(0);
+        }
+      }
+
+      new ClipboardJS(".clipboard-button,.copy-button");
+
+      if (pollForLogs) {
+        setInterval(() => {
+          api.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs = await load();
+              setLogs(logs);
+              setSelectedLogIndex(0);
+            }
+          });
+        }, 1000);
+      }
+    };
+
+    loadLogsAndState();
   }, []);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar =
-    !fullScreen && currentLog.contents
+    !fullScreen && selectedLog.contents
       ? html`
           <${Sidebar}
             logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
-            selectedIndex=${selected}
+            selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-              setSelected(index);
+              setSelectedLogIndex(index);
 
               // hide the sidebar offcanvas
               var myOffcanvas = document.getElementById("sidebarOffCanvas");
@@ -362,27 +678,6 @@ export function App({ api, pollForLogs = true }) {
         `
       : "";
 
-  const workspace = useMemo(() => {
-    if (status.error) {
-      return html`<${ErrorPanel}
-        title="An error occurred while loading this task."
-        error=${status.error}
-      />`;
-    } else {
-      return html` <${WorkSpace}
-        logs=${logs}
-        log=${currentLog}
-        selected=${selected}
-        fullScreen=${fullScreen}
-        offcanvas=${offcanvas}
-        capabilities=${capabilities}
-        showFind=${showFind}
-        setShowFind=${setShowFind}
-        refreshLog=${refreshLog}
-      />`;
-    }
-  }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
-
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
 
@@ -393,6 +688,7 @@ export function App({ api, pollForLogs = true }) {
     }
   }, [showFind, setShowFind]);
 
+  const showToggle = logs.files.length > 1 || logs.log_dir;
   return html`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -400,7 +696,7 @@ export function App({ api, pollForLogs = true }) {
       e,
     ) => {
       // regular browsers user their own find
-      if (!window.acquireVsCodeApi) {
+      if (!getVscodeApi()) {
         return;
       }
 
@@ -415,8 +711,57 @@ export function App({ api, pollForLogs = true }) {
         background: "var(--bs-light)",
         marginBottom: "-1px",
       }}/>
-      ${workspace}
+      ${
+        status.error
+          ? html`<${ErrorPanel}
+              title="An error occurred while loading this task."
+              error=${status.error}
+            />`
+          : html`<${WorkSpace}
+              task_id=${selectedLog?.contents?.eval?.task_id}
+              logFileName=${selectedLog?.name}
+              evalStatus=${selectedLog?.contents?.status}
+              evalError=${selectedLog?.contents?.error}
+              evalVersion=${selectedLog?.contents?.version}
+              evalSpec=${selectedLog?.contents?.eval}
+              evalPlan=${selectedLog?.contents?.plan}
+              evalStats=${selectedLog?.contents?.stats}
+              evalResults=${selectedLog?.contents?.results}
+              showToggle=${showToggle}
+              samples=${filteredSamples}
+              groupBy=${groupBy}
+              groupByOrder=${groupByOrder}
+              sampleStatus=${sampleStatus}
+              sampleError=${sampleError}
+              samplesDescriptor=${samplesDescriptor}
+              refreshLog=${refreshLog}
+              offcanvas=${offcanvas}
+              capabilities=${capabilities}
+              selected=${selectedLogIndex}
+              selectedSample=${selectedSample}
+              selectedSampleIndex=${selectedSampleIndex}
+              setSelectedSampleIndex=${setSelectedSampleIndex}
+              showingSampleDialog=${showingSampleDialog}
+              setShowingSampleDialog=${setShowingSampleDialog}
+              selectedTab=${selectedWorkspaceTab}
+              setSelectedTab=${setSelectedWorkspaceTab}
+              selectedSampleTab=${selectedSampleTab}
+              setSelectedSampleTab=${setSelectedSampleTab}
+              sort=${sort}
+              setSort=${setSort}
+              epochs=${selectedLog?.contents?.eval?.config?.epochs}
+              epoch=${epoch}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              setFilter=${setFilter}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              renderContext=${context}
+            />`
+      }
     </div>
+    ${afterBodyElements}
     </${AppErrorBoundary}>
   `;
 }

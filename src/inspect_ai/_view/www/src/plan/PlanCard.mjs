@@ -10,7 +10,18 @@ import { CardHeader } from "../components/Card.mjs";
 
 const kPlanCardBodyId = "task-plan-card-body";
 
-export const PlanCard = ({ log, context }) => {
+/**
+ * Renders the plan card
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The sample
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The task id
+ * @param {import("../types/log").EvalScore[]} [props.scores] - the samples
+ * @param {import("../Types.mjs").RenderContext} props.context - is this off canvas
+ *
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -20,9 +31,9 @@ export const PlanCard = ({ log, context }) => {
       }}>
       
         <${PlanDetailView}
-          evaluation=${log?.eval}
-          plan=${log?.plan}
-          scores=${log?.results?.scores}
+          evaluation=${evalSpec}
+          plan=${evalPlan}
+          scores=${scores}
           context=${context}
         />
       </${CardBody}>
@@ -157,6 +168,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         })
         .join("<br/>\n")}`,
     };
+  }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
   }
 
   if (evaluation?.model) {

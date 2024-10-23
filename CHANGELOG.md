@@ -2,8 +2,10 @@
 
 ## v0.3.42 (23 October 2024)
 
+- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Added `--tags` option to eval for tagging evaluation runs.
+- Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
 - Cleanup Docker Containers immediately for samples with errors.
 - Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).

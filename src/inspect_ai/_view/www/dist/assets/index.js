@@ -38,7 +38,7 @@ var __publicField = (obj, key2, value) => __defNormalProp(obj, typeof key2 !== "
     fetch(link2.href, fetchOpts);
   }
 })();
-var n$2, l$1, u$1, i$1, o$1, r$2, f$1, e$3, c$2, s$1, h$1 = {}, v$1 = [], p$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, y$1 = Array.isArray;
+var n$2, l$1, u$1, i$2, o$1, r$2, f$1, e$3, c$2, s$1, h$1 = {}, v$1 = [], p$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, y$1 = Array.isArray;
 function d$1(n2, l2) {
   for (var u2 in l2) n2[u2] = l2[u2];
   return n2;
@@ -47,13 +47,13 @@ function w$1(n2) {
   n2 && n2.parentNode && n2.parentNode.removeChild(n2);
 }
 function _(l2, u2, t2) {
-  var i2, o2, r2, f2 = {};
-  for (r2 in u2) "key" == r2 ? i2 = u2[r2] : "ref" == r2 ? o2 = u2[r2] : f2[r2] = u2[r2];
+  var i, o2, r2, f2 = {};
+  for (r2 in u2) "key" == r2 ? i = u2[r2] : "ref" == r2 ? o2 = u2[r2] : f2[r2] = u2[r2];
   if (arguments.length > 2 && (f2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (r2 in l2.defaultProps) void 0 === f2[r2] && (f2[r2] = l2.defaultProps[r2]);
-  return g(l2, f2, i2, o2, null);
+  return g(l2, f2, i, o2, null);
 }
-function g(n2, t2, i2, o2, r2) {
-  var f2 = { type: n2, props: t2, key: i2, ref: o2, __k: null, __: null, __b: 0, __e: null, __d: void 0, __c: null, constructor: void 0, __v: null == r2 ? ++u$1 : r2, __i: -1, __u: 0 };
+function g(n2, t2, i, o2, r2) {
+  var f2 = { type: n2, props: t2, key: i, ref: o2, __k: null, __: null, __b: 0, __e: null, __d: void 0, __c: null, constructor: void 0, __v: null == r2 ? ++u$1 : r2, __i: -1, __u: 0 };
   return null == r2 && null != l$1.vnode && l$1.vnode(f2), f2;
 }
 function m$2() {
@@ -65,10 +65,10 @@ function b(n2) {
 function k$1(n2, l2) {
   this.props = n2, this.context = l2;
 }
-function x(n2, l2) {
-  if (null == l2) return n2.__ ? x(n2.__, n2.__i + 1) : null;
+function x$1(n2, l2) {
+  if (null == l2) return n2.__ ? x$1(n2.__, n2.__i + 1) : null;
   for (var u2; l2 < n2.__k.length; l2++) if (null != (u2 = n2.__k[l2]) && null != u2.__e) return u2.__e;
-  return "function" == typeof n2.type ? x(n2) : null;
+  return "function" == typeof n2.type ? x$1(n2) : null;
 }
 function C$1(n2) {
   var l2, u2;
@@ -81,45 +81,45 @@ function C$1(n2) {
   }
 }
 function M(n2) {
-  (!n2.__d && (n2.__d = true) && i$1.push(n2) && !P.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(P);
+  (!n2.__d && (n2.__d = true) && i$2.push(n2) && !P$1.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(P$1);
 }
-function P() {
+function P$1() {
   var n2, u2, t2, o2, r2, e2, c2, s2;
-  for (i$1.sort(f$1); n2 = i$1.shift(); ) n2.__d && (u2 = i$1.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$1.length > u2 && i$1.sort(f$1));
-  P.__r = 0;
+  for (i$2.sort(f$1); n2 = i$2.shift(); ) n2.__d && (u2 = i$2.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x$1(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$2.length > u2 && i$2.sort(f$1));
+  P$1.__r = 0;
 }
-function S(n2, l2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
+function S(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   var a2, p2, y2, d2, w2, _2 = t2 && t2.__k || v$1, g2 = l2.length;
-  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i2, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
+  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
 }
 function $(n2, l2, u2) {
-  var t2, i2, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
-  for (n2.__k = [], t2 = 0; t2 < e2; t2++) null != (i2 = l2[t2]) && "boolean" != typeof i2 && "function" != typeof i2 ? (r2 = t2 + a2, (i2 = n2.__k[t2] = "string" == typeof i2 || "number" == typeof i2 || "bigint" == typeof i2 || i2.constructor == String ? g(null, i2, null, null, null) : y$1(i2) ? g(b, { children: i2 }, null, null, null) : void 0 === i2.constructor && i2.__b > 0 ? g(i2.type, i2.props, i2.key, i2.ref ? i2.ref : null, i2.__v) : i2).__ = n2, i2.__b = n2.__b + 1, o2 = null, -1 !== (f2 = i2.__i = L(i2, u2, r2, s2)) && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i2.type && (i2.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : (f2 > r2 ? a2-- : a2++, i2.__u |= 65536))) : i2 = n2.__k[t2] = null;
-  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2));
+  var t2, i, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
+  for (n2.__k = [], t2 = 0; t2 < e2; t2++) null != (i = l2[t2]) && "boolean" != typeof i && "function" != typeof i ? (r2 = t2 + a2, (i = n2.__k[t2] = "string" == typeof i || "number" == typeof i || "bigint" == typeof i || i.constructor == String ? g(null, i, null, null, null) : y$1(i) ? g(b, { children: i }, null, null, null) : void 0 === i.constructor && i.__b > 0 ? g(i.type, i.props, i.key, i.ref ? i.ref : null, i.__v) : i).__ = n2, i.__b = n2.__b + 1, o2 = null, -1 !== (f2 = i.__i = L(i, u2, r2, s2)) && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i.type && (i.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : (f2 > r2 ? a2-- : a2++, i.__u |= 65536))) : i = n2.__k[t2] = null;
+  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2));
 }
 function I(n2, l2, u2) {
-  var t2, i2;
+  var t2, i;
   if ("function" == typeof n2.type) {
-    for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = I(t2[i2], l2, u2));
+    for (t2 = n2.__k, i = 0; t2 && i < t2.length; i++) t2[i] && (t2[i].__ = n2, l2 = I(t2[i], l2, u2));
     return l2;
   }
-  n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = x(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
+  n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = x$1(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
   do {
     l2 = l2 && l2.nextSibling;
   } while (null != l2 && 8 === l2.nodeType);
   return l2;
 }
 function L(n2, l2, u2, t2) {
-  var i2 = n2.key, o2 = n2.type, r2 = u2 - 1, f2 = u2 + 1, e2 = l2[u2];
-  if (null === e2 || e2 && i2 == e2.key && o2 === e2.type && 0 == (131072 & e2.__u)) return u2;
+  var i = n2.key, o2 = n2.type, r2 = u2 - 1, f2 = u2 + 1, e2 = l2[u2];
+  if (null === e2 || e2 && i == e2.key && o2 === e2.type && 0 == (131072 & e2.__u)) return u2;
   if (t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
     if (r2 >= 0) {
-      if ((e2 = l2[r2]) && 0 == (131072 & e2.__u) && i2 == e2.key && o2 === e2.type) return r2;
+      if ((e2 = l2[r2]) && 0 == (131072 & e2.__u) && i == e2.key && o2 === e2.type) return r2;
       r2--;
     }
     if (f2 < l2.length) {
-      if ((e2 = l2[f2]) && 0 == (131072 & e2.__u) && i2 == e2.key && o2 === e2.type) return f2;
+      if ((e2 = l2[f2]) && 0 == (131072 & e2.__u) && i == e2.key && o2 === e2.type) return f2;
       f2++;
     }
   }
@@ -128,7 +128,7 @@ function L(n2, l2, u2, t2) {
 function T$1(n2, l2, u2) {
   "-" === l2[0] ? n2.setProperty(l2, null == u2 ? "" : u2) : n2[l2] = null == u2 ? "" : "number" != typeof u2 || p$1.test(l2) ? u2 : u2 + "px";
 }
-function A$1(n2, l2, u2, t2, i2) {
+function A$1(n2, l2, u2, t2, i) {
   var o2;
   n: if ("style" === l2) if ("string" == typeof u2) n2.style.cssText = u2;
   else {
@@ -137,7 +137,7 @@ function A$1(n2, l2, u2, t2, i2) {
   }
   else if ("o" === l2[0] && "n" === l2[1]) o2 = l2 !== (l2 = l2.replace(/(PointerCapture)$|Capture$/i, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + o2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = e$3, n2.addEventListener(l2, o2 ? s$1 : c$2, o2)) : n2.removeEventListener(l2, o2 ? s$1 : c$2, o2);
   else {
-    if ("http://www.w3.org/2000/svg" == i2) l2 = l2.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
+    if ("http://www.w3.org/2000/svg" == i) l2 = l2.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
     else if ("width" != l2 && "height" != l2 && "href" != l2 && "list" != l2 && "form" != l2 && "tabIndex" != l2 && "download" != l2 && "rowSpan" != l2 && "colSpan" != l2 && "role" != l2 && "popover" != l2 && l2 in n2) try {
       n2[l2] = null == u2 ? "" : u2;
       break n;
@@ -156,31 +156,31 @@ function F(n2) {
     }
   };
 }
-function O(n2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
-  var a2, h2, v2, p2, w2, _2, g2, m2, x2, C2, M2, P2, $2, I2, H, L2, T2 = u2.type;
+function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
+  var a2, h2, v2, p2, w2, _2, g2, m2, x, C2, M2, P2, $2, I2, H, L2, T2 = u2.type;
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
   n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x2 = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i2[a2.__c], M2 = a2 ? C2 ? C2.props.value : a2.__ : i2, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x2 ? u2.__c = h2 = new T2(m2, M2) : (u2.__c = h2 = new k$1(m2, M2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x2 && null == h2.__s && (h2.__s = h2.state), x2 && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x2 && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], M2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, M2) : (u2.__c = h2 = new k$1(m2, M2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
-      if (x2 && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, M2) || u2.__v === t2.__v)) {
+      if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, M2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
           n3 && (n3.__ = u2);
         }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
         h2._sb = [], h2.__h.length && f2.push(h2);
         break n;
       }
-      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, M2), x2 && null != h2.componentDidUpdate && h2.__h.push(function() {
+      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, M2), x && null != h2.componentDidUpdate && h2.__h.push(function() {
         h2.componentDidUpdate(p2, w2, _2);
       });
     }
-    if (h2.context = M2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x2) {
+    if (h2.context = M2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x) {
       for (h2.state = h2.__s, h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), H = 0; H < h2._sb.length; H++) h2.__h.push(h2._sb[H]);
       h2._sb = [];
     } else do {
       h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
     } while (h2.__d && ++I2 < 25);
-    h2.state = h2.__s, null != h2.getChildContext && (i2 = d$1(d$1({}, i2), h2.getChildContext())), x2 && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), S(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i2, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
+    h2.state = h2.__s, null != h2.getChildContext && (i = d$1(d$1({}, i), h2.getChildContext())), x && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), S(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
   } catch (n3) {
     if (u2.__v = null, c2 || null != r2) {
       for (u2.__u |= c2 ? 160 : 32; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
@@ -188,12 +188,12 @@ function O(n2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
     } else u2.__e = t2.__e, u2.__k = t2.__k;
     l$1.__e(n3, u2, t2);
   }
-  else null == r2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : u2.__e = z$1(t2.__e, u2, t2, i2, o2, r2, f2, c2, s2);
+  else null == r2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : u2.__e = z$1(t2.__e, u2, t2, i, o2, r2, f2, c2, s2);
   (a2 = l$1.diffed) && a2(u2);
 }
 function j$1(n2, u2, t2) {
   u2.__d = void 0;
-  for (var i2 = 0; i2 < t2.length; i2++) N(t2[i2], t2[++i2], t2[++i2]);
+  for (var i = 0; i < t2.length; i++) N(t2[i], t2[++i], t2[++i]);
   l$1.__c && l$1.__c(u2, n2), n2.some(function(u3) {
     try {
       n2 = u3.__h, u3.__h = [], n2.some(function(n3) {
@@ -204,8 +204,8 @@ function j$1(n2, u2, t2) {
     }
   });
 }
-function z$1(u2, t2, i2, o2, r2, f2, e2, c2, s2) {
-  var a2, v2, p2, d2, _2, g2, m2, b2 = i2.props, k2 = t2.props, C2 = t2.type;
+function z$1(u2, t2, i, o2, r2, f2, e2, c2, s2) {
+  var a2, v2, p2, d2, _2, g2, m2, b2 = i.props, k2 = t2.props, C2 = t2.type;
   if ("svg" === C2 ? r2 = "http://www.w3.org/2000/svg" : "math" === C2 ? r2 = "http://www.w3.org/1998/Math/MathML" : r2 || (r2 = "http://www.w3.org/1999/xhtml"), null != f2) {
     for (a2 = 0; a2 < f2.length; a2++) if ((_2 = f2[a2]) && "setAttribute" in _2 == !!C2 && (C2 ? _2.localName === C2 : 3 === _2.nodeType)) {
       u2 = _2, f2[a2] = null;
@@ -218,7 +218,7 @@ function z$1(u2, t2, i2, o2, r2, f2, e2, c2, s2) {
   }
   if (null === C2) b2 === k2 || c2 && u2.data === k2 || (u2.data = k2);
   else {
-    if (f2 = f2 && n$2.call(u2.childNodes), b2 = i2.props || h$1, !c2 && null != f2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(_2 = u2.attributes[a2]).name] = _2.value;
+    if (f2 = f2 && n$2.call(u2.childNodes), b2 = i.props || h$1, !c2 && null != f2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(_2 = u2.attributes[a2]).name] = _2.value;
     for (a2 in b2) if (_2 = b2[a2], "children" == a2) ;
     else if ("dangerouslySetInnerHTML" == a2) p2 = _2;
     else if (!(a2 in k2)) {
@@ -227,7 +227,7 @@ function z$1(u2, t2, i2, o2, r2, f2, e2, c2, s2) {
     }
     for (a2 in k2) _2 = k2[a2], "children" == a2 ? d2 = _2 : "dangerouslySetInnerHTML" == a2 ? v2 = _2 : "value" == a2 ? g2 = _2 : "checked" == a2 ? m2 = _2 : c2 && "function" != typeof _2 || b2[a2] === _2 || A$1(u2, a2, _2, b2[a2], r2);
     if (v2) c2 || p2 && (v2.__html === p2.__html || v2.__html === u2.innerHTML) || (u2.innerHTML = v2.__html), t2.__k = [];
-    else if (p2 && (u2.innerHTML = ""), S(u2, y$1(d2) ? d2 : [d2], t2, i2, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i2.__k && x(i2, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
+    else if (p2 && (u2.innerHTML = ""), S(u2, y$1(d2) ? d2 : [d2], t2, i, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i.__k && x$1(i, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
     c2 || (a2 = "value", "progress" === C2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === C2 && !g2 || "option" === C2 && g2 !== b2[a2]) && A$1(u2, a2, g2, b2[a2], r2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && A$1(u2, a2, m2, b2[a2], r2));
   }
   return u2;
@@ -235,36 +235,36 @@ function z$1(u2, t2, i2, o2, r2, f2, e2, c2, s2) {
 function N(n2, u2, t2) {
   try {
     if ("function" == typeof n2) {
-      var i2 = "function" == typeof n2.__u;
-      i2 && n2.__u(), i2 && null == u2 || (n2.__u = n2(u2));
+      var i = "function" == typeof n2.__u;
+      i && n2.__u(), i && null == u2 || (n2.__u = n2(u2));
     } else n2.current = u2;
   } catch (n3) {
     l$1.__e(n3, t2);
   }
 }
 function V(n2, u2, t2) {
-  var i2, o2;
-  if (l$1.unmount && l$1.unmount(n2), (i2 = n2.ref) && (i2.current && i2.current !== n2.__e || N(i2, null, u2)), null != (i2 = n2.__c)) {
-    if (i2.componentWillUnmount) try {
-      i2.componentWillUnmount();
+  var i, o2;
+  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || N(i, null, u2)), null != (i = n2.__c)) {
+    if (i.componentWillUnmount) try {
+      i.componentWillUnmount();
     } catch (n3) {
       l$1.__e(n3, u2);
     }
-    i2.base = i2.__P = null;
+    i.base = i.__P = null;
   }
-  if (i2 = n2.__k) for (o2 = 0; o2 < i2.length; o2++) i2[o2] && V(i2[o2], u2, t2 || "function" != typeof n2.type);
+  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && V(i[o2], u2, t2 || "function" != typeof n2.type);
   t2 || w$1(n2.__e), n2.__c = n2.__ = n2.__e = n2.__d = void 0;
 }
 function q$1(n2, l2, u2) {
   return this.constructor(n2, u2);
 }
-function B$1(u2, t2, i2) {
+function B$1(u2, t2, i) {
   var o2, r2, f2, e2;
-  l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i2) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i2 || t2).__k = _(b, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i2 ? [i2] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i2 ? i2 : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
+  l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i || t2).__k = _(b, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i ? [i] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i ? i : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
 }
 n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
-  for (var i2, o2, r2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
-    if ((o2 = i2.constructor) && null != o2.getDerivedStateFromError && (i2.setState(o2.getDerivedStateFromError(n2)), r2 = i2.__d), null != i2.componentDidCatch && (i2.componentDidCatch(n2, t2 || {}), r2 = i2.__d), r2) return i2.__E = i2;
+  for (var i, o2, r2; l2 = l2.__; ) if ((i = l2.__c) && !i.__) try {
+    if ((o2 = i.constructor) && null != o2.getDerivedStateFromError && (i.setState(o2.getDerivedStateFromError(n2)), r2 = i.__d), null != i.componentDidCatch && (i.componentDidCatch(n2, t2 || {}), r2 = i.__d), r2) return i.__E = i;
   } catch (l3) {
     n2 = l3;
   }
@@ -274,9 +274,9 @@ n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
   u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = d$1({}, this.state), "function" == typeof n2 && (n2 = n2(d$1({}, u2), this.props)), n2 && d$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M(this));
 }, k$1.prototype.forceUpdate = function(n2) {
   this.__v && (this.__e = true, n2 && this.__h.push(n2), M(this));
-}, k$1.prototype.render = b, i$1 = [], r$2 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, f$1 = function(n2, l2) {
+}, k$1.prototype.render = b, i$2 = [], r$2 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, f$1 = function(n2, l2) {
   return n2.__v.__b - l2.__v.__b;
-}, P.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
+}, P$1.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
 var n$1 = function(t2, s2, r2, e2) {
   var u2;
   s2[0] = 0;
@@ -300,8 +300,8 @@ function e$2(s2) {
 }
 var m$1 = e$2.bind(_);
 var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
-function getDefaultExportFromCjs(x2) {
-  return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
+function getDefaultExportFromCjs(x) {
+  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
 var prism = { exports: {} };
 (function(module) {
@@ -373,11 +373,11 @@ var prism = { exports: {} };
        * @memberof Prism
        */
       util: {
-        encode: function encode(tokens) {
-          if (tokens instanceof Token) {
-            return new Token(tokens.type, encode(tokens.content), tokens.alias);
+        encode: function encode2(tokens) {
+          if (tokens instanceof Token2) {
+            return new Token2(tokens.type, encode2(tokens.content), tokens.alias);
           } else if (Array.isArray(tokens)) {
-            return tokens.map(encode);
+            return tokens.map(encode2);
           } else {
             return tokens.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\u00a0/g, " ");
           }
@@ -454,8 +454,8 @@ var prism = { exports: {} };
               visited[id] = clone2;
               /** @type {Array} */
               /** @type {any} */
-              o2.forEach(function(v2, i2) {
-                clone2[i2] = deepClone(v2, visited);
+              o2.forEach(function(v2, i) {
+                clone2[i] = deepClone(v2, visited);
               });
               return (
                 /** @type {any} */
@@ -513,13 +513,13 @@ var prism = { exports: {} };
           }
           try {
             throw new Error();
-          } catch (err) {
-            var src = (/at [^(\r\n]*\((.*):[^:]+:[^:]+\)$/i.exec(err.stack) || [])[1];
+          } catch (err2) {
+            var src = (/at [^(\r\n]*\((.*):[^:]+:[^:]+\)$/i.exec(err2.stack) || [])[1];
             if (src) {
               var scripts = document.getElementsByTagName("script");
-              for (var i2 in scripts) {
-                if (scripts[i2].src == src) {
-                  return scripts[i2];
+              for (var i in scripts) {
+                if (scripts[i].src == src) {
+                  return scripts[i];
                 }
               }
             }
@@ -717,17 +717,17 @@ var prism = { exports: {} };
         DFS: function DFS(o2, callback, type, visited) {
           visited = visited || {};
           var objId = _2.util.objId;
-          for (var i2 in o2) {
-            if (o2.hasOwnProperty(i2)) {
-              callback.call(o2, i2, o2[i2], type || i2);
-              var property = o2[i2];
+          for (var i in o2) {
+            if (o2.hasOwnProperty(i)) {
+              callback.call(o2, i, o2[i], type || i);
+              var property = o2[i];
               var propertyType = _2.util.type(property);
               if (propertyType === "Object" && !visited[objId(property)]) {
                 visited[objId(property)] = true;
                 DFS(property, callback, null, visited);
               } else if (propertyType === "Array" && !visited[objId(property)]) {
                 visited[objId(property)] = true;
-                DFS(property, callback, i2, visited);
+                DFS(property, callback, i, visited);
               }
             }
           }
@@ -773,7 +773,7 @@ var prism = { exports: {} };
         _2.hooks.run("before-highlightall", env);
         env.elements = Array.prototype.slice.apply(env.container.querySelectorAll(env.selector));
         _2.hooks.run("before-all-elements-highlight", env);
-        for (var i2 = 0, element; element = env.elements[i2++]; ) {
+        for (var i = 0, element; element = env.elements[i++]; ) {
           _2.highlightElement(element, async === true, env.callback);
         }
       },
@@ -813,12 +813,12 @@ var prism = { exports: {} };
         if (parent && parent.nodeName.toLowerCase() === "pre") {
           _2.util.setLanguage(parent, language);
         }
-        var code = element.textContent;
+        var code2 = element.textContent;
         var env = {
           element,
           language,
           grammar,
-          code
+          code: code2
         };
         function insertHighlightedCode(highlightedCode) {
           env.highlightedCode = highlightedCode;
@@ -877,9 +877,9 @@ var prism = { exports: {} };
        * @example
        * Prism.highlight('var foo = true;', Prism.languages.javascript, 'javascript');
        */
-      highlight: function(text, grammar, language) {
+      highlight: function(text2, grammar, language) {
         var env = {
-          code: text,
+          code: text2,
           grammar,
           language
         };
@@ -889,7 +889,7 @@ var prism = { exports: {} };
         }
         env.tokens = _2.tokenize(env.code, env.grammar);
         _2.hooks.run("after-tokenize", env);
-        return Token.stringify(_2.util.encode(env.tokens), env.language);
+        return Token2.stringify(_2.util.encode(env.tokens), env.language);
       },
       /**
        * This is the heart of Prism, and the most low-level function you can use. It accepts a string of text as input
@@ -915,7 +915,7 @@ var prism = { exports: {} };
        *     }
        * });
        */
-      tokenize: function(text, grammar) {
+      tokenize: function(text2, grammar) {
         var rest = grammar.rest;
         if (rest) {
           for (var token2 in rest) {
@@ -924,8 +924,8 @@ var prism = { exports: {} };
           delete grammar.rest;
         }
         var tokenList = new LinkedList();
-        addAfter(tokenList, tokenList.head, text);
-        matchGrammar(text, tokenList, grammar, tokenList.head, 0);
+        addAfter(tokenList, tokenList.head, text2);
+        matchGrammar(text2, tokenList, grammar, tokenList.head, 0);
         return toArray2(tokenList);
       },
       /**
@@ -966,21 +966,21 @@ var prism = { exports: {} };
           if (!callbacks || !callbacks.length) {
             return;
           }
-          for (var i2 = 0, callback; callback = callbacks[i2++]; ) {
+          for (var i = 0, callback; callback = callbacks[i++]; ) {
             callback(env);
           }
         }
       },
-      Token
+      Token: Token2
     };
     _self2.Prism = _2;
-    function Token(type, content, alias, matchedStr) {
+    function Token2(type, content, alias, matchedStr) {
       this.type = type;
       this.content = content;
       this.alias = alias;
       this.length = (matchedStr || "").length | 0;
     }
-    Token.stringify = function stringify3(o2, language) {
+    Token2.stringify = function stringify3(o2, language) {
       if (typeof o2 == "string") {
         return o2;
       }
@@ -1014,17 +1014,17 @@ var prism = { exports: {} };
       }
       return "<" + env.tag + ' class="' + env.classes.join(" ") + '"' + attributes + ">" + env.content + "</" + env.tag + ">";
     };
-    function matchPattern(pattern, pos2, text, lookbehind) {
+    function matchPattern(pattern, pos2, text2, lookbehind) {
       pattern.lastIndex = pos2;
-      var match = pattern.exec(text);
-      if (match && lookbehind && match[1]) {
-        var lookbehindLength = match[1].length;
-        match.index += lookbehindLength;
-        match[0] = match[0].slice(lookbehindLength);
+      var match2 = pattern.exec(text2);
+      if (match2 && lookbehind && match2[1]) {
+        var lookbehindLength = match2[1].length;
+        match2.index += lookbehindLength;
+        match2[0] = match2[0].slice(lookbehindLength);
       }
-      return match;
+      return match2;
     }
-    function matchGrammar(text, tokenList, grammar, startNode, startPos, rematch) {
+    function matchGrammar(text2, tokenList, grammar, startNode, startPos, rematch) {
       for (var token2 in grammar) {
         if (!grammar.hasOwnProperty(token2) || !grammar[token2]) {
           continue;
@@ -1050,21 +1050,21 @@ var prism = { exports: {} };
               break;
             }
             var str = currentNode.value;
-            if (tokenList.length > text.length) {
+            if (tokenList.length > text2.length) {
               return;
             }
-            if (str instanceof Token) {
+            if (str instanceof Token2) {
               continue;
             }
             var removeCount = 1;
-            var match;
+            var match2;
             if (greedy) {
-              match = matchPattern(pattern, pos2, text, lookbehind);
-              if (!match || match.index >= text.length) {
+              match2 = matchPattern(pattern, pos2, text2, lookbehind);
+              if (!match2 || match2.index >= text2.length) {
                 break;
               }
-              var from = match.index;
-              var to = match.index + match[0].length;
+              var from = match2.index;
+              var to = match2.index + match2[0].length;
               var p2 = pos2;
               p2 += currentNode.value.length;
               while (from >= p2) {
@@ -1073,7 +1073,7 @@ var prism = { exports: {} };
               }
               p2 -= currentNode.value.length;
               pos2 = p2;
-              if (currentNode.value instanceof Token) {
+              if (currentNode.value instanceof Token2) {
                 continue;
               }
               for (var k2 = currentNode; k2 !== tokenList.tail && (p2 < to || typeof k2.value === "string"); k2 = k2.next) {
@@ -1081,16 +1081,16 @@ var prism = { exports: {} };
                 p2 += k2.value.length;
               }
               removeCount--;
-              str = text.slice(pos2, p2);
-              match.index -= pos2;
+              str = text2.slice(pos2, p2);
+              match2.index -= pos2;
             } else {
-              match = matchPattern(pattern, 0, str, lookbehind);
-              if (!match) {
+              match2 = matchPattern(pattern, 0, str, lookbehind);
+              if (!match2) {
                 continue;
               }
             }
-            var from = match.index;
-            var matchStr = match[0];
+            var from = match2.index;
+            var matchStr = match2[0];
             var before = str.slice(0, from);
             var after = str.slice(from + matchStr.length);
             var reach = pos2 + str.length;
@@ -1103,7 +1103,7 @@ var prism = { exports: {} };
               pos2 += before.length;
             }
             removeRange(tokenList, removeFrom, removeCount);
-            var wrapped = new Token(token2, inside ? _2.tokenize(matchStr, inside) : matchStr, alias, matchStr);
+            var wrapped = new Token2(token2, inside ? _2.tokenize(matchStr, inside) : matchStr, alias, matchStr);
             currentNode = addAfter(tokenList, removeFrom, wrapped);
             if (after) {
               addAfter(tokenList, currentNode, after);
@@ -1113,7 +1113,7 @@ var prism = { exports: {} };
                 cause: token2 + "," + j2,
                 reach
               };
-              matchGrammar(text, tokenList, grammar, currentNode.prev, pos2, nestedRematch);
+              matchGrammar(text2, tokenList, grammar, currentNode.prev, pos2, nestedRematch);
               if (rematch && nestedRematch.reach > rematch.reach) {
                 rematch.reach = nestedRematch.reach;
               }
@@ -1140,12 +1140,12 @@ var prism = { exports: {} };
     }
     function removeRange(list2, node, count) {
       var next = node.next;
-      for (var i2 = 0; i2 < count && next !== list2.tail; i2++) {
+      for (var i = 0; i < count && next !== list2.tail; i++) {
         next = next.next;
       }
       node.next = next;
       next.prev = node;
-      list2.length -= i2;
+      list2.length -= i;
     }
     function toArray2(list2) {
       var array = [];
@@ -1164,9 +1164,9 @@ var prism = { exports: {} };
         _self2.addEventListener("message", function(evt) {
           var message = JSON.parse(evt.data);
           var lang2 = message.language;
-          var code = message.code;
+          var code2 = message.code;
           var immediateClose = message.immediateClose;
-          _self2.postMessage(_2.highlight(code, _2.languages[lang2], lang2));
+          _self2.postMessage(_2.highlight(code2, _2.languages[lang2], lang2));
           if (immediateClose) {
             _self2.close();
           }
@@ -1321,8 +1321,8 @@ var prism = { exports: {} };
         pattern: /[\s\S]+/,
         inside: Prism2.languages[lang]
       };
-      var def2 = {};
-      def2[tagName] = {
+      var def = {};
+      def[tagName] = {
         pattern: RegExp(/(<__[^>]*>)(?:<!\[CDATA\[(?:[^\]]|\](?!\]>))*\]\]>|(?!<!\[CDATA\[)[\s\S])*?(?=<\/__>)/.source.replace(/__/g, function() {
           return tagName;
         }), "i"),
@@ -1330,7 +1330,7 @@ var prism = { exports: {} };
         greedy: true,
         inside
       };
-      Prism2.languages.insertBefore("markup", "cdata", def2);
+      Prism2.languages.insertBefore("markup", "cdata", def);
     }
   });
   Object.defineProperty(Prism2.languages.markup.tag, "addAttribute", {
@@ -1641,7 +1641,7 @@ var prism = { exports: {} };
     var STATUS_LOADED = "loaded";
     var STATUS_FAILED = "failed";
     var SELECTOR = "pre[data-src]:not([" + STATUS_ATTR + '="' + STATUS_LOADED + '"]):not([' + STATUS_ATTR + '="' + STATUS_LOADING + '"])';
-    function loadFile(src, success, error) {
+    function loadFile(src, success, error2) {
       var xhr = new XMLHttpRequest();
       xhr.open("GET", src, true);
       xhr.onreadystatechange = function() {
@@ -1650,9 +1650,9 @@ var prism = { exports: {} };
             success(xhr.responseText);
           } else {
             if (xhr.status >= 400) {
-              error(FAILURE_MESSAGE(xhr.status, xhr.statusText));
+              error2(FAILURE_MESSAGE(xhr.status, xhr.statusText));
             } else {
-              error(FAILURE_EMPTY_MESSAGE);
+              error2(FAILURE_EMPTY_MESSAGE);
             }
           }
         }
@@ -1686,15 +1686,15 @@ var prism = { exports: {} };
       if (pre.matches(SELECTOR)) {
         env.code = "";
         pre.setAttribute(STATUS_ATTR, STATUS_LOADING);
-        var code = pre.appendChild(document.createElement("CODE"));
-        code.textContent = LOADING_MESSAGE;
+        var code2 = pre.appendChild(document.createElement("CODE"));
+        code2.textContent = LOADING_MESSAGE;
         var src = pre.getAttribute("data-src");
         var language = env.language;
         if (language === "none") {
           var extension = (/\.(\w+)$/.exec(src) || [, "none"])[1];
           language = EXTENSIONS[extension] || extension;
         }
-        Prism2.util.setLanguage(code, language);
+        Prism2.util.setLanguage(code2, language);
         Prism2.util.setLanguage(pre, language);
         var autoloader = Prism2.plugins.autoloader;
         if (autoloader) {
@@ -1702,11 +1702,11 @@ var prism = { exports: {} };
         }
         loadFile(
           src,
-          function(text) {
+          function(text2) {
             pre.setAttribute(STATUS_ATTR, STATUS_LOADED);
             var range = parseRange(pre.getAttribute("data-range"));
             if (range) {
-              var lines = text.split(/\r\n?|\n/g);
+              var lines = text2.split(/\r\n?|\n/g);
               var start2 = range[0];
               var end2 = range[1] == null ? lines.length : range[1];
               if (start2 < 0) {
@@ -1717,17 +1717,17 @@ var prism = { exports: {} };
                 end2 += lines.length;
               }
               end2 = Math.max(0, Math.min(end2, lines.length));
-              text = lines.slice(start2, end2).join("\n");
+              text2 = lines.slice(start2, end2).join("\n");
               if (!pre.hasAttribute("data-start")) {
                 pre.setAttribute("data-start", String(start2 + 1));
               }
             }
-            code.textContent = text;
-            Prism2.highlightElement(code);
+            code2.textContent = text2;
+            Prism2.highlightElement(code2);
           },
-          function(error) {
+          function(error2) {
             pre.setAttribute(STATUS_ATTR, STATUS_FAILED);
-            code.textContent = error;
+            code2.textContent = error2;
           }
         );
       }
@@ -1742,7 +1742,7 @@ var prism = { exports: {} };
        */
       highlight: function highlight(container) {
         var elements = (container || document).querySelectorAll(SELECTOR);
-        for (var i2 = 0, element; element = elements[i2++]; ) {
+        for (var i = 0, element; element = elements[i++]; ) {
           Prism2.highlightElement(element);
         }
       }
@@ -1795,7 +1795,7 @@ var clipboard = { exports: {} };
               function command(type) {
                 try {
                   return document.execCommand(type);
-                } catch (err) {
+                } catch (err2) {
                   return false;
                 }
               }
@@ -1859,7 +1859,7 @@ var clipboard = { exports: {} };
               }
               var ClipboardActionDefault = function ClipboardActionDefault2() {
                 var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-                var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container = options.container, target = options.target, text = options.text;
+                var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container = options.container, target = options.target, text2 = options.text;
                 if (action !== "copy" && action !== "cut") {
                   throw new Error('Invalid "action" value, use either "copy" or "cut"');
                 }
@@ -1875,8 +1875,8 @@ var clipboard = { exports: {} };
                     throw new Error('Invalid "target" value, use a valid Element');
                   }
                 }
-                if (text) {
-                  return actions_copy(text, {
+                if (text2) {
+                  return actions_copy(text2, {
                     container
                   });
                 }
@@ -1906,8 +1906,8 @@ var clipboard = { exports: {} };
                 }
               }
               function _defineProperties(target, props) {
-                for (var i2 = 0; i2 < props.length; i2++) {
-                  var descriptor = props[i2];
+                for (var i = 0; i < props.length; i++) {
+                  var descriptor = props[i];
                   descriptor.enumerable = descriptor.enumerable || false;
                   descriptor.configurable = true;
                   if ("value" in descriptor) descriptor.writable = true;
@@ -1977,11 +1977,11 @@ var clipboard = { exports: {} };
                 return _getPrototypeOf(o2);
               }
               function getAttributeValue(suffix, element) {
-                var attribute = "data-clipboard-".concat(suffix);
-                if (!element.hasAttribute(attribute)) {
+                var attribute2 = "data-clipboard-".concat(suffix);
+                if (!element.hasAttribute(attribute2)) {
                   return;
                 }
-                return element.getAttribute(attribute);
+                return element.getAttribute(attribute2);
               }
               var Clipboard = /* @__PURE__ */ function(_Emitter) {
                 _inherits(Clipboard2, _Emitter);
@@ -2024,15 +2024,15 @@ var clipboard = { exports: {} };
                   value: function onClick(e2) {
                     var trigger = e2.delegateTarget || e2.currentTarget;
                     var action = this.action(trigger) || "copy";
-                    var text = actions_default({
+                    var text2 = actions_default({
                       action,
                       container: this.container,
                       target: this.target(trigger),
                       text: this.text(trigger)
                     });
-                    this.emit(text ? "success" : "error", {
+                    this.emit(text2 ? "success" : "error", {
                       action,
-                      text,
+                      text: text2,
                       trigger,
                       clearSelection: function clearSelection() {
                         if (trigger) {
@@ -2320,10 +2320,10 @@ var clipboard = { exports: {} };
                 emit: function(name) {
                   var data = [].slice.call(arguments, 1);
                   var evtArr = ((this.e || (this.e = {}))[name] || []).slice();
-                  var i2 = 0;
+                  var i = 0;
                   var len = evtArr.length;
-                  for (i2; i2 < len; i2++) {
-                    evtArr[i2].fn.apply(evtArr[i2].ctx, data);
+                  for (i; i < len; i++) {
+                    evtArr[i].fn.apply(evtArr[i].ctx, data);
                   }
                   return this;
                 },
@@ -2332,9 +2332,9 @@ var clipboard = { exports: {} };
                   var evts = e2[name];
                   var liveEvents = [];
                   if (evts && callback) {
-                    for (var i2 = 0, len = evts.length; i2 < len; i2++) {
-                      if (evts[i2].fn !== callback && evts[i2].fn._ !== callback)
-                        liveEvents.push(evts[i2]);
+                    for (var i = 0, len = evts.length; i < len; i++) {
+                      if (evts[i].fn !== callback && evts[i].fn._ !== callback)
+                        liveEvents.push(evts[i]);
                     }
                   }
                   liveEvents.length ? e2[name] = liveEvents : delete e2[name];
@@ -2413,7 +2413,7 @@ var end = "end";
 var clippingParents = "clippingParents";
 var viewport = "viewport";
 var popper = "popper";
-var reference = "reference";
+var reference$1 = "reference";
 var variationPlacements = /* @__PURE__ */ basePlacements.reduce(function(acc, placement) {
   return acc.concat([placement + "-" + start, placement + "-" + end]);
 }, []);
@@ -2510,8 +2510,8 @@ function effect$2(_ref2) {
         return;
       }
       Object.assign(element.style, style);
-      Object.keys(attributes).forEach(function(attribute) {
-        element.removeAttribute(attribute);
+      Object.keys(attributes).forEach(function(attribute2) {
+        element.removeAttribute(attribute2);
       });
     });
   };
@@ -2527,7 +2527,7 @@ const applyStyles$1 = {
 function getBasePlacement(placement) {
   return placement.split("-")[0];
 }
-var max = Math.max;
+var max$1 = Math.max;
 var min = Math.min;
 var round = Math.round;
 function getUAString() {
@@ -2558,7 +2558,7 @@ function getBoundingClientRect(element, includeScale, isFixedStrategy) {
   }
   var _ref = isElement$1(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
   var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
-  var x2 = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
+  var x = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
   var y2 = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
   var width = clientRect.width / scaleX;
   var height = clientRect.height / scaleY;
@@ -2566,10 +2566,10 @@ function getBoundingClientRect(element, includeScale, isFixedStrategy) {
     width,
     height,
     top: y2,
-    right: x2 + width,
+    right: x + width,
     bottom: y2 + height,
-    left: x2,
-    x: x2,
+    left: x,
+    x,
     y: y2
   };
 }
@@ -2676,8 +2676,8 @@ function getOffsetParent(element) {
 function getMainAxisFromPlacement(placement) {
   return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
 }
-function within(min$1, value, max$1) {
-  return max(min$1, min(value, max$1));
+function within(min$1, value, max2) {
+  return max$1(min$1, min(value, max2));
 }
 function withinMaxClamp(min2, value, max2) {
   var v2 = within(min2, value, max2);
@@ -2770,25 +2770,25 @@ var unsetSides = {
   left: "auto"
 };
 function roundOffsetsByDPR(_ref, win) {
-  var x2 = _ref.x, y2 = _ref.y;
+  var x = _ref.x, y2 = _ref.y;
   var dpr = win.devicePixelRatio || 1;
   return {
-    x: round(x2 * dpr) / dpr || 0,
+    x: round(x * dpr) / dpr || 0,
     y: round(y2 * dpr) / dpr || 0
   };
 }
 function mapToStyles(_ref2) {
   var _Object$assign2;
   var popper2 = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
-  var _offsets$x = offsets.x, x2 = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
+  var _offsets$x = offsets.x, x = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
   var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
-    x: x2,
+    x,
     y: y2
   }) : {
-    x: x2,
+    x,
     y: y2
   };
-  x2 = _ref3.x;
+  x = _ref3.x;
   y2 = _ref3.y;
   var hasX = offsets.hasOwnProperty("x");
   var hasY = offsets.hasOwnProperty("y");
@@ -2822,27 +2822,27 @@ function mapToStyles(_ref2) {
         // $FlowFixMe[prop-missing]
         offsetParent[widthProp]
       );
-      x2 -= offsetX - popperRect.width;
-      x2 *= gpuAcceleration ? 1 : -1;
+      x -= offsetX - popperRect.width;
+      x *= gpuAcceleration ? 1 : -1;
     }
   }
   var commonStyles = Object.assign({
     position
   }, adaptive && unsetSides);
   var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
-    x: x2,
+    x,
     y: y2
   }, getWindow(popper2)) : {
-    x: x2,
+    x,
     y: y2
   };
-  x2 = _ref4.x;
+  x = _ref4.x;
   y2 = _ref4.y;
   if (gpuAcceleration) {
     var _Object$assign;
-    return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x2 + "px, " + y2 + "px)" : "translate3d(" + x2 + "px, " + y2 + "px, 0)", _Object$assign));
+    return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x + "px, " + y2 + "px)" : "translate3d(" + x + "px, " + y2 + "px, 0)", _Object$assign));
   }
-  return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
+  return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x + "px" : "", _Object$assign2.transform = "", _Object$assign2));
 }
 function computeStyles(_ref5) {
   var state = _ref5.state, options = _ref5.options;
@@ -2952,44 +2952,44 @@ function getWindowScrollBarX(element) {
 }
 function getViewportRect(element, strategy) {
   var win = getWindow(element);
-  var html2 = getDocumentElement(element);
+  var html = getDocumentElement(element);
   var visualViewport = win.visualViewport;
-  var width = html2.clientWidth;
-  var height = html2.clientHeight;
-  var x2 = 0;
+  var width = html.clientWidth;
+  var height = html.clientHeight;
+  var x = 0;
   var y2 = 0;
   if (visualViewport) {
     width = visualViewport.width;
     height = visualViewport.height;
     var layoutViewport = isLayoutViewport();
     if (layoutViewport || !layoutViewport && strategy === "fixed") {
-      x2 = visualViewport.offsetLeft;
+      x = visualViewport.offsetLeft;
       y2 = visualViewport.offsetTop;
     }
   }
   return {
     width,
     height,
-    x: x2 + getWindowScrollBarX(element),
+    x: x + getWindowScrollBarX(element),
     y: y2
   };
 }
 function getDocumentRect(element) {
   var _element$ownerDocumen;
-  var html2 = getDocumentElement(element);
+  var html = getDocumentElement(element);
   var winScroll = getWindowScroll(element);
   var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-  var width = max(html2.scrollWidth, html2.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-  var height = max(html2.scrollHeight, html2.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
-  var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
+  var width = max$1(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
+  var height = max$1(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
+  var x = -winScroll.scrollLeft + getWindowScrollBarX(element);
   var y2 = -winScroll.scrollTop;
-  if (getComputedStyle$1(body || html2).direction === "rtl") {
-    x2 += max(html2.clientWidth, body ? body.clientWidth : 0) - width;
+  if (getComputedStyle$1(body || html).direction === "rtl") {
+    x += max$1(html.clientWidth, body ? body.clientWidth : 0) - width;
   }
   return {
     width,
     height,
-    x: x2,
+    x,
     y: y2
   };
 }
@@ -3061,10 +3061,10 @@ function getClippingRect(element, boundary, rootBoundary, strategy) {
   var firstClippingParent = clippingParents2[0];
   var clippingRect = clippingParents2.reduce(function(accRect, clippingParent) {
     var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-    accRect.top = max(rect.top, accRect.top);
+    accRect.top = max$1(rect.top, accRect.top);
     accRect.right = min(rect.right, accRect.right);
     accRect.bottom = min(rect.bottom, accRect.bottom);
-    accRect.left = max(rect.left, accRect.left);
+    accRect.left = max$1(rect.left, accRect.left);
     return accRect;
   }, getClientRectFromMixedType(element, firstClippingParent, strategy));
   clippingRect.width = clippingRect.right - clippingRect.left;
@@ -3131,7 +3131,7 @@ function detectOverflow(state, options) {
   }
   var _options = options, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
   var paddingObject = mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-  var altContext = elementContext === popper ? reference : popper;
+  var altContext = elementContext === popper ? reference$1 : popper;
   var popperRect = state.rects.popper;
   var element = state.elements[altBoundary ? altContext : elementContext];
   var clippingClientRect = getClippingRect(isElement$1(element) ? element : element.contextElement || getDocumentElement(state.elements.popper), boundary, rootBoundary, strategy);
@@ -3221,8 +3221,8 @@ function flip(_ref) {
   var checksMap = /* @__PURE__ */ new Map();
   var makeFallbackChecks = true;
   var firstFittingPlacement = placements2[0];
-  for (var i2 = 0; i2 < placements2.length; i2++) {
-    var placement = placements2[i2];
+  for (var i = 0; i < placements2.length; i++) {
+    var placement = placements2[i];
     var _basePlacement = getBasePlacement(placement);
     var isStartVariation = getVariation(placement) === start;
     var isVertical = [top, bottom].indexOf(_basePlacement) >= 0;
@@ -3367,9 +3367,9 @@ function offset(_ref2) {
     acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
     return acc;
   }, {});
-  var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y2 = _data$state$placement.y;
+  var _data$state$placement = data[state.placement], x = _data$state$placement.x, y2 = _data$state$placement.y;
   if (state.modifiersData.popperOffsets != null) {
-    state.modifiersData.popperOffsets.x += x2;
+    state.modifiersData.popperOffsets.x += x;
     state.modifiersData.popperOffsets.y += y2;
   }
   state.modifiersData[name] = data;
@@ -3442,7 +3442,7 @@ function preventOverflow(_ref) {
     var len = mainAxis === "y" ? "height" : "width";
     var offset2 = popperOffsets2[mainAxis];
     var min$1 = offset2 + overflow[mainSide];
-    var max$1 = offset2 - overflow[altSide];
+    var max2 = offset2 - overflow[altSide];
     var additive = tether ? -popperRect[len] / 2 : 0;
     var minLen = variation === start ? referenceRect[len] : popperRect[len];
     var maxLen = variation === start ? -popperRect[len] : -referenceRect[len];
@@ -3462,7 +3462,7 @@ function preventOverflow(_ref) {
     var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
     var tetherMin = offset2 + minOffset - offsetModifierValue - clientOffset;
     var tetherMax = offset2 + maxOffset - offsetModifierValue;
-    var preventedOffset = within(tether ? min(min$1, tetherMin) : min$1, offset2, tether ? max(max$1, tetherMax) : max$1);
+    var preventedOffset = within(tether ? min(min$1, tetherMin) : min$1, offset2, tether ? max$1(max2, tetherMax) : max2);
     popperOffsets2[mainAxis] = preventedOffset;
     data[mainAxis] = preventedOffset - offset2;
   }
@@ -3547,20 +3547,20 @@ function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
   };
 }
 function order(modifiers) {
-  var map = /* @__PURE__ */ new Map();
+  var map2 = /* @__PURE__ */ new Map();
   var visited = /* @__PURE__ */ new Set();
   var result = [];
   modifiers.forEach(function(modifier) {
-    map.set(modifier.name, modifier);
+    map2.set(modifier.name, modifier);
   });
-  function sort2(modifier) {
+  function sort(modifier) {
     visited.add(modifier.name);
     var requires = [].concat(modifier.requires || [], modifier.requiresIfExists || []);
     requires.forEach(function(dep) {
       if (!visited.has(dep)) {
-        var depModifier = map.get(dep);
+        var depModifier = map2.get(dep);
         if (depModifier) {
-          sort2(depModifier);
+          sort(depModifier);
         }
       }
     });
@@ -3568,7 +3568,7 @@ function order(modifiers) {
   }
   modifiers.forEach(function(modifier) {
     if (!visited.has(modifier.name)) {
-      sort2(modifier);
+      sort(modifier);
     }
   });
   return result;
@@ -3625,15 +3625,15 @@ function popperGenerator(generatorOptions) {
   if (generatorOptions === void 0) {
     generatorOptions = {};
   }
-  var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers2 = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
+  var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers2 = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions2 = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
   return function createPopper2(reference2, popper2, options) {
     if (options === void 0) {
-      options = defaultOptions;
+      options = defaultOptions2;
     }
     var state = {
       placement: "bottom",
       orderedModifiers: [],
-      options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions),
+      options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions2),
       modifiersData: {},
       elements: {
         reference: reference2,
@@ -3649,7 +3649,7 @@ function popperGenerator(generatorOptions) {
       setOptions: function setOptions(setOptionsAction) {
         var options2 = typeof setOptionsAction === "function" ? setOptionsAction(state.options) : setOptionsAction;
         cleanupModifierEffects();
-        state.options = Object.assign({}, defaultOptions, state.options, options2);
+        state.options = Object.assign({}, defaultOptions2, state.options, options2);
         state.scrollParents = {
           reference: isElement$1(reference2) ? listScrollParents(reference2) : reference2.contextElement ? listScrollParents(reference2.contextElement) : [],
           popper: listScrollParents(popper2)
@@ -3788,7 +3788,7 @@ const Popper = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
   popperOffsets: popperOffsets$1,
   preventOverflow: preventOverflow$1,
   read: read$1,
-  reference,
+  reference: reference$1,
   right,
   start,
   top,
@@ -3836,7 +3836,7 @@ const MILLISECONDS_MULTIPLIER = 1e3;
 const TRANSITION_END = "transitionend";
 const parseSelector = (selector) => {
   if (selector && window.CSS && window.CSS.escape) {
-    selector = selector.replace(/#([^\s"#']+)/g, (match, id) => `#${CSS.escape(id)}`);
+    selector = selector.replace(/#([^\s"#']+)/g, (match2, id) => `#${CSS.escape(id)}`);
   }
   return selector;
 };
@@ -4278,27 +4278,27 @@ class Config {
   static get NAME() {
     throw new Error('You have to implement the static method "NAME", for each component!');
   }
-  _getConfig(config) {
-    config = this._mergeConfigObj(config);
-    config = this._configAfterMerge(config);
-    this._typeCheckConfig(config);
-    return config;
+  _getConfig(config2) {
+    config2 = this._mergeConfigObj(config2);
+    config2 = this._configAfterMerge(config2);
+    this._typeCheckConfig(config2);
+    return config2;
   }
-  _configAfterMerge(config) {
-    return config;
+  _configAfterMerge(config2) {
+    return config2;
   }
-  _mergeConfigObj(config, element) {
+  _mergeConfigObj(config2, element) {
     const jsonConfig = isElement(element) ? Manipulator.getDataAttribute(element, "config") : {};
     return {
       ...this.constructor.Default,
       ...typeof jsonConfig === "object" ? jsonConfig : {},
       ...isElement(element) ? Manipulator.getDataAttributes(element) : {},
-      ...typeof config === "object" ? config : {}
+      ...typeof config2 === "object" ? config2 : {}
     };
   }
-  _typeCheckConfig(config, configTypes = this.constructor.DefaultType) {
+  _typeCheckConfig(config2, configTypes = this.constructor.DefaultType) {
     for (const [property, expectedTypes] of Object.entries(configTypes)) {
-      const value = config[property];
+      const value = config2[property];
       const valueType = isElement(value) ? "element" : toType(value);
       if (!new RegExp(expectedTypes).test(valueType)) {
         throw new TypeError(`${this.constructor.NAME.toUpperCase()}: Option "${property}" provided type "${valueType}" but expected type "${expectedTypes}".`);
@@ -4308,14 +4308,14 @@ class Config {
 }
 const VERSION = "5.3.3";
 class BaseComponent extends Config {
-  constructor(element, config) {
+  constructor(element, config2) {
     super();
     element = getElement(element);
     if (!element) {
       return;
     }
     this._element = element;
-    this._config = this._getConfig(config);
+    this._config = this._getConfig(config2);
     Data.set(this._element, this.constructor.DATA_KEY, this);
   }
   // Public
@@ -4329,18 +4329,18 @@ class BaseComponent extends Config {
   _queueCallback(callback, element, isAnimated = true) {
     executeAfterTransition(callback, element, isAnimated);
   }
-  _getConfig(config) {
-    config = this._mergeConfigObj(config, this._element);
-    config = this._configAfterMerge(config);
-    this._typeCheckConfig(config);
-    return config;
+  _getConfig(config2) {
+    config2 = this._mergeConfigObj(config2, this._element);
+    config2 = this._configAfterMerge(config2);
+    this._typeCheckConfig(config2);
+    return config2;
   }
   // Static
   static getInstance(element) {
     return Data.get(getElement(element), this.DATA_KEY);
   }
-  static getOrCreateInstance(element, config = {}) {
-    return this.getInstance(element) || new this(element, typeof config === "object" ? config : null);
+  static getOrCreateInstance(element, config2 = {}) {
+    return this.getInstance(element) || new this(element, typeof config2 === "object" ? config2 : null);
   }
   static get VERSION() {
     return VERSION;
@@ -4473,16 +4473,16 @@ class Alert extends BaseComponent {
     this.dispose();
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
       const data = Alert.getOrCreateInstance(this);
-      if (typeof config !== "string") {
+      if (typeof config2 !== "string") {
         return;
       }
-      if (data[config] === void 0 || config.startsWith("_") || config === "constructor") {
-        throw new TypeError(`No method named "${config}"`);
+      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config](this);
+      data[config2](this);
     });
   }
 }
@@ -4505,11 +4505,11 @@ class Button extends BaseComponent {
     this._element.setAttribute("aria-pressed", this._element.classList.toggle(CLASS_NAME_ACTIVE$3));
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
       const data = Button.getOrCreateInstance(this);
-      if (config === "toggle") {
-        data[config]();
+      if (config2 === "toggle") {
+        data[config2]();
       }
     });
   }
@@ -4543,13 +4543,13 @@ const DefaultType$c = {
   rightCallback: "(function|null)"
 };
 class Swipe extends Config {
-  constructor(element, config) {
+  constructor(element, config2) {
     super();
     this._element = element;
     if (!element || !Swipe.isSupported()) {
       return;
     }
-    this._config = this._getConfig(config);
+    this._config = this._getConfig(config2);
     this._deltaX = 0;
     this._supportPointerEvents = Boolean(window.PointerEvent);
     this._initEvents();
@@ -4674,8 +4674,8 @@ const DefaultType$b = {
   wrap: "boolean"
 };
 class Carousel extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._interval = null;
     this._activeElement = null;
     this._isSliding = false;
@@ -4753,9 +4753,9 @@ class Carousel extends BaseComponent {
     super.dispose();
   }
   // Private
-  _configAfterMerge(config) {
-    config.defaultInterval = config.interval;
-    return config;
+  _configAfterMerge(config2) {
+    config2.defaultInterval = config2.interval;
+    return config2;
   }
   _addEventListeners() {
     if (this._config.keyboard) {
@@ -4901,18 +4901,18 @@ class Carousel extends BaseComponent {
     return order2 === ORDER_PREV ? DIRECTION_RIGHT : DIRECTION_LEFT;
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Carousel.getOrCreateInstance(this, config);
-      if (typeof config === "number") {
-        data.to(config);
+      const data = Carousel.getOrCreateInstance(this, config2);
+      if (typeof config2 === "number") {
+        data.to(config2);
         return;
       }
-      if (typeof config === "string") {
-        if (data[config] === void 0 || config.startsWith("_") || config === "constructor") {
-          throw new TypeError(`No method named "${config}"`);
+      if (typeof config2 === "string") {
+        if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
+          throw new TypeError(`No method named "${config2}"`);
         }
-        data[config]();
+        data[config2]();
       }
     });
   }
@@ -4973,8 +4973,8 @@ const DefaultType$a = {
   toggle: "boolean"
 };
 class Collapse extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._isTransitioning = false;
     this._triggerArray = [];
     const toggleList = SelectorEngine.find(SELECTOR_DATA_TOGGLE$4);
@@ -5082,10 +5082,10 @@ class Collapse extends BaseComponent {
     return element.classList.contains(CLASS_NAME_SHOW$7);
   }
   // Private
-  _configAfterMerge(config) {
-    config.toggle = Boolean(config.toggle);
-    config.parent = getElement(config.parent);
-    return config;
+  _configAfterMerge(config2) {
+    config2.toggle = Boolean(config2.toggle);
+    config2.parent = getElement(config2.parent);
+    return config2;
   }
   _getDimension() {
     return this._element.classList.contains(CLASS_NAME_HORIZONTAL) ? WIDTH : HEIGHT;
@@ -5116,18 +5116,18 @@ class Collapse extends BaseComponent {
     }
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     const _config = {};
-    if (typeof config === "string" && /show|hide/.test(config)) {
+    if (typeof config2 === "string" && /show|hide/.test(config2)) {
       _config.toggle = false;
     }
     return this.each(function() {
       const data = Collapse.getOrCreateInstance(this, _config);
-      if (typeof config === "string") {
-        if (typeof data[config] === "undefined") {
-          throw new TypeError(`No method named "${config}"`);
+      if (typeof config2 === "string") {
+        if (typeof data[config2] === "undefined") {
+          throw new TypeError(`No method named "${config2}"`);
         }
-        data[config]();
+        data[config2]();
       }
     });
   }
@@ -5196,8 +5196,8 @@ const DefaultType$9 = {
   reference: "(string|element|object)"
 };
 class Dropdown extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._popper = null;
     this._parent = this._element.parentNode;
     this._menu = SelectorEngine.next(this._element, SELECTOR_MENU)[0] || SelectorEngine.prev(this._element, SELECTOR_MENU)[0] || SelectorEngine.findOne(SELECTOR_MENU, this._parent);
@@ -5281,12 +5281,12 @@ class Dropdown extends BaseComponent {
     Manipulator.removeDataAttribute(this._menu, "popper");
     EventHandler.trigger(this._element, EVENT_HIDDEN$5, relatedTarget);
   }
-  _getConfig(config) {
-    config = super._getConfig(config);
-    if (typeof config.reference === "object" && !isElement(config.reference) && typeof config.reference.getBoundingClientRect !== "function") {
+  _getConfig(config2) {
+    config2 = super._getConfig(config2);
+    if (typeof config2.reference === "object" && !isElement(config2.reference) && typeof config2.reference.getBoundingClientRect !== "function") {
       throw new TypeError(`${NAME$a.toUpperCase()}: Option "reference" provided type "object" without a required "getBoundingClientRect" method.`);
     }
-    return config;
+    return config2;
   }
   _createPopper() {
     if (typeof Popper === "undefined") {
@@ -5379,16 +5379,16 @@ class Dropdown extends BaseComponent {
     getNextActiveElement(items, target, key2 === ARROW_DOWN_KEY$1, !items.includes(target)).focus();
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Dropdown.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = Dropdown.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (typeof data[config] === "undefined") {
-        throw new TypeError(`No method named "${config}"`);
+      if (typeof data[config2] === "undefined") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config]();
+      data[config2]();
     });
   }
   static clearMenus(event) {
@@ -5474,9 +5474,9 @@ const DefaultType$8 = {
   rootElement: "(element|string)"
 };
 class Backdrop extends Config {
-  constructor(config) {
+  constructor(config2) {
     super();
-    this._config = this._getConfig(config);
+    this._config = this._getConfig(config2);
     this._isAppended = false;
     this._element = null;
   }
@@ -5537,9 +5537,9 @@ class Backdrop extends Config {
     }
     return this._element;
   }
-  _configAfterMerge(config) {
-    config.rootElement = getElement(config.rootElement);
-    return config;
+  _configAfterMerge(config2) {
+    config2.rootElement = getElement(config2.rootElement);
+    return config2;
   }
   _append() {
     if (this._isAppended) {
@@ -5574,9 +5574,9 @@ const DefaultType$7 = {
   trapElement: "element"
 };
 class FocusTrap extends Config {
-  constructor(config) {
+  constructor(config2) {
     super();
-    this._config = this._getConfig(config);
+    this._config = this._getConfig(config2);
     this._isActive = false;
     this._lastTabNavDirection = null;
   }
@@ -5742,8 +5742,8 @@ const DefaultType$6 = {
   keyboard: "boolean"
 };
 class Modal extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._dialog = SelectorEngine.findOne(SELECTOR_DIALOG, this._element);
     this._backdrop = this._initializeBackDrop();
     this._focustrap = this._initializeFocusTrap();
@@ -5936,16 +5936,16 @@ class Modal extends BaseComponent {
     this._element.style.paddingRight = "";
   }
   // Static
-  static jQueryInterface(config, relatedTarget) {
+  static jQueryInterface(config2, relatedTarget) {
     return this.each(function() {
-      const data = Modal.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = Modal.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (typeof data[config] === "undefined") {
-        throw new TypeError(`No method named "${config}"`);
+      if (typeof data[config2] === "undefined") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config](relatedTarget);
+      data[config2](relatedTarget);
     });
   }
 }
@@ -6004,8 +6004,8 @@ const DefaultType$5 = {
   scroll: "boolean"
 };
 class Offcanvas extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._isShown = false;
     this._backdrop = this._initializeBackDrop();
     this._focustrap = this._initializeFocusTrap();
@@ -6120,16 +6120,16 @@ class Offcanvas extends BaseComponent {
     });
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Offcanvas.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = Offcanvas.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (data[config] === void 0 || config.startsWith("_") || config === "constructor") {
-        throw new TypeError(`No method named "${config}"`);
+      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config](this);
+      data[config2](this);
     });
   }
 }
@@ -6206,15 +6206,15 @@ const DefaultAllowlist = {
 };
 const uriAttributes = /* @__PURE__ */ new Set(["background", "cite", "href", "itemtype", "longdesc", "poster", "src", "xlink:href"]);
 const SAFE_URL_PATTERN = /^(?!javascript:)(?:[a-z0-9+.-]+:|[^&:/?#]*(?:[/?#]|$))/i;
-const allowedAttribute = (attribute, allowedAttributeList) => {
-  const attributeName = attribute.nodeName.toLowerCase();
+const allowedAttribute = (attribute2, allowedAttributeList) => {
+  const attributeName = attribute2.nodeName.toLowerCase();
   if (allowedAttributeList.includes(attributeName)) {
     if (uriAttributes.has(attributeName)) {
-      return Boolean(SAFE_URL_PATTERN.test(attribute.nodeValue));
+      return Boolean(SAFE_URL_PATTERN.test(attribute2.nodeValue));
     }
     return true;
   }
-  return allowedAttributeList.filter((attributeRegex) => attributeRegex instanceof RegExp).some((regex) => regex.test(attributeName));
+  return allowedAttributeList.filter((attributeRegex) => attributeRegex instanceof RegExp).some((regex2) => regex2.test(attributeName));
 };
 function sanitizeHtml(unsafeHtml, allowList, sanitizeFunction) {
   if (!unsafeHtml.length) {
@@ -6234,9 +6234,9 @@ function sanitizeHtml(unsafeHtml, allowList, sanitizeFunction) {
     }
     const attributeList = [].concat(...element.attributes);
     const allowedAttributes = [].concat(allowList["*"] || [], allowList[elementName] || []);
-    for (const attribute of attributeList) {
-      if (!allowedAttribute(attribute, allowedAttributes)) {
-        element.removeAttribute(attribute.nodeName);
+    for (const attribute2 of attributeList) {
+      if (!allowedAttribute(attribute2, allowedAttributes)) {
+        element.removeAttribute(attribute2.nodeName);
       }
     }
   }
@@ -6267,9 +6267,9 @@ const DefaultContentType = {
   selector: "(string|element)"
 };
 class TemplateFactory extends Config {
-  constructor(config) {
+  constructor(config2) {
     super();
-    this._config = this._getConfig(config);
+    this._config = this._getConfig(config2);
   }
   // Getters
   static get Default() {
@@ -6283,7 +6283,7 @@ class TemplateFactory extends Config {
   }
   // Public
   getContent() {
-    return Object.values(this._config.content).map((config) => this._resolvePossibleFunction(config)).filter(Boolean);
+    return Object.values(this._config.content).map((config2) => this._resolvePossibleFunction(config2)).filter(Boolean);
   }
   hasContent() {
     return this.getContent().length > 0;
@@ -6299,8 +6299,8 @@ class TemplateFactory extends Config {
   toHtml() {
     const templateWrapper = document.createElement("div");
     templateWrapper.innerHTML = this._maybeSanitize(this._config.template);
-    for (const [selector, text] of Object.entries(this._config.content)) {
-      this._setContent(templateWrapper, text, selector);
+    for (const [selector, text2] of Object.entries(this._config.content)) {
+      this._setContent(templateWrapper, text2, selector);
     }
     const template = templateWrapper.children[0];
     const extraClass = this._resolvePossibleFunction(this._config.extraClass);
@@ -6310,9 +6310,9 @@ class TemplateFactory extends Config {
     return template;
   }
   // Private
-  _typeCheckConfig(config) {
-    super._typeCheckConfig(config);
-    this._checkContent(config.content);
+  _typeCheckConfig(config2) {
+    super._typeCheckConfig(config2);
+    this._checkContent(config2.content);
   }
   _checkContent(arg) {
     for (const [selector, content] of Object.entries(arg)) {
@@ -6425,11 +6425,11 @@ const DefaultType$3 = {
   trigger: "string"
 };
 class Tooltip extends BaseComponent {
-  constructor(element, config) {
+  constructor(element, config2) {
     if (typeof Popper === "undefined") {
       throw new TypeError("Bootstrap's tooltips require Popper (https://popper.js.org)");
     }
-    super(element, config);
+    super(element, config2);
     this._isEnabled = true;
     this._timeout = 0;
     this._isHovered = null;
@@ -6749,48 +6749,48 @@ class Tooltip extends BaseComponent {
   _isWithActiveTrigger() {
     return Object.values(this._activeTrigger).includes(true);
   }
-  _getConfig(config) {
+  _getConfig(config2) {
     const dataAttributes = Manipulator.getDataAttributes(this._element);
     for (const dataAttribute of Object.keys(dataAttributes)) {
       if (DISALLOWED_ATTRIBUTES.has(dataAttribute)) {
         delete dataAttributes[dataAttribute];
       }
     }
-    config = {
+    config2 = {
       ...dataAttributes,
-      ...typeof config === "object" && config ? config : {}
+      ...typeof config2 === "object" && config2 ? config2 : {}
     };
-    config = this._mergeConfigObj(config);
-    config = this._configAfterMerge(config);
-    this._typeCheckConfig(config);
-    return config;
+    config2 = this._mergeConfigObj(config2);
+    config2 = this._configAfterMerge(config2);
+    this._typeCheckConfig(config2);
+    return config2;
   }
-  _configAfterMerge(config) {
-    config.container = config.container === false ? document.body : getElement(config.container);
-    if (typeof config.delay === "number") {
-      config.delay = {
-        show: config.delay,
-        hide: config.delay
+  _configAfterMerge(config2) {
+    config2.container = config2.container === false ? document.body : getElement(config2.container);
+    if (typeof config2.delay === "number") {
+      config2.delay = {
+        show: config2.delay,
+        hide: config2.delay
       };
     }
-    if (typeof config.title === "number") {
-      config.title = config.title.toString();
+    if (typeof config2.title === "number") {
+      config2.title = config2.title.toString();
     }
-    if (typeof config.content === "number") {
-      config.content = config.content.toString();
+    if (typeof config2.content === "number") {
+      config2.content = config2.content.toString();
     }
-    return config;
+    return config2;
   }
   _getDelegateConfig() {
-    const config = {};
+    const config2 = {};
     for (const [key2, value] of Object.entries(this._config)) {
       if (this.constructor.Default[key2] !== value) {
-        config[key2] = value;
+        config2[key2] = value;
       }
     }
-    config.selector = false;
-    config.trigger = "manual";
-    return config;
+    config2.selector = false;
+    config2.trigger = "manual";
+    return config2;
   }
   _disposePopper() {
     if (this._popper) {
@@ -6803,16 +6803,16 @@ class Tooltip extends BaseComponent {
     }
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Tooltip.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = Tooltip.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (typeof data[config] === "undefined") {
-        throw new TypeError(`No method named "${config}"`);
+      if (typeof data[config2] === "undefined") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config]();
+      data[config2]();
     });
   }
 }
@@ -6858,16 +6858,16 @@ class Popover extends Tooltip {
     return this._resolvePossibleFunction(this._config.content);
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Popover.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = Popover.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (typeof data[config] === "undefined") {
-        throw new TypeError(`No method named "${config}"`);
+      if (typeof data[config2] === "undefined") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config]();
+      data[config2]();
     });
   }
 }
@@ -6907,8 +6907,8 @@ const DefaultType$1 = {
   threshold: "array"
 };
 class ScrollSpy extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._targetLinks = /* @__PURE__ */ new Map();
     this._observableSections = /* @__PURE__ */ new Map();
     this._rootElement = getComputedStyle(this._element).overflowY === "visible" ? null : this._element;
@@ -6948,13 +6948,13 @@ class ScrollSpy extends BaseComponent {
     super.dispose();
   }
   // Private
-  _configAfterMerge(config) {
-    config.target = getElement(config.target) || document.body;
-    config.rootMargin = config.offset ? `${config.offset}px 0px -30%` : config.rootMargin;
-    if (typeof config.threshold === "string") {
-      config.threshold = config.threshold.split(",").map((value) => Number.parseFloat(value));
+  _configAfterMerge(config2) {
+    config2.target = getElement(config2.target) || document.body;
+    config2.rootMargin = config2.offset ? `${config2.offset}px 0px -30%` : config2.rootMargin;
+    if (typeof config2.threshold === "string") {
+      config2.threshold = config2.threshold.split(",").map((value) => Number.parseFloat(value));
     }
-    return config;
+    return config2;
   }
   _maybeEnableSmoothScroll() {
     if (!this._config.smoothScroll) {
@@ -7061,16 +7061,16 @@ class ScrollSpy extends BaseComponent {
     }
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = ScrollSpy.getOrCreateInstance(this, config);
-      if (typeof config !== "string") {
+      const data = ScrollSpy.getOrCreateInstance(this, config2);
+      if (typeof config2 !== "string") {
         return;
       }
-      if (data[config] === void 0 || config.startsWith("_") || config === "constructor") {
-        throw new TypeError(`No method named "${config}"`);
+      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config]();
+      data[config2]();
     });
   }
 }
@@ -7256,9 +7256,9 @@ let Tab$1 = class Tab extends BaseComponent {
     toggle(SELECTOR_DROPDOWN_MENU, CLASS_NAME_SHOW$1);
     outerElem.setAttribute("aria-expanded", open);
   }
-  _setAttributeIfNotExists(element, attribute, value) {
-    if (!element.hasAttribute(attribute)) {
-      element.setAttribute(attribute, value);
+  _setAttributeIfNotExists(element, attribute2, value) {
+    if (!element.hasAttribute(attribute2)) {
+      element.setAttribute(attribute2, value);
     }
   }
   _elemIsActive(elem) {
@@ -7273,16 +7273,16 @@ let Tab$1 = class Tab extends BaseComponent {
     return elem.closest(SELECTOR_OUTER) || elem;
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
       const data = Tab.getOrCreateInstance(this);
-      if (typeof config !== "string") {
+      if (typeof config2 !== "string") {
         return;
       }
-      if (data[config] === void 0 || config.startsWith("_") || config === "constructor") {
-        throw new TypeError(`No method named "${config}"`);
+      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
+        throw new TypeError(`No method named "${config2}"`);
       }
-      data[config]();
+      data[config2]();
     });
   }
 };
@@ -7327,8 +7327,8 @@ const Default = {
   delay: 5e3
 };
 class Toast extends BaseComponent {
-  constructor(element, config) {
-    super(element, config);
+  constructor(element, config2) {
+    super(element, config2);
     this._timeout = null;
     this._hasMouseInteraction = false;
     this._hasKeyboardInteraction = false;
@@ -7436,21 +7436,21 @@ class Toast extends BaseComponent {
     this._timeout = null;
   }
   // Static
-  static jQueryInterface(config) {
+  static jQueryInterface(config2) {
     return this.each(function() {
-      const data = Toast.getOrCreateInstance(this, config);
-      if (typeof config === "string") {
-        if (typeof data[config] === "undefined") {
-          throw new TypeError(`No method named "${config}"`);
+      const data = Toast.getOrCreateInstance(this, config2);
+      if (typeof config2 === "string") {
+        if (typeof data[config2] === "undefined") {
+          throw new TypeError(`No method named "${config2}"`);
         }
-        data[config](this);
+        data[config2](this);
       }
     });
   }
 }
 enableDismissTrigger(Toast);
 defineJQueryPlugin(Toast);
-var t$1, r$1, u, i, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
+var t$1, r$1, u, i$1, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
 function d(n2, t2) {
   c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
   var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
@@ -7459,7 +7459,7 @@ function d(n2, t2) {
 function h(n2) {
   return o = 1, p(D, n2);
 }
-function p(n2, u2, i2) {
+function p(n2, u2, i) {
   var o2 = d(t$1++, 2);
   if (o2.t = n2, !o2.__c && (o2.__ = [D(void 0, u2), function(n3) {
     var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
@@ -7473,13 +7473,13 @@ function p(n2, u2, i2) {
       if (u3.every(function(n4) {
         return !n4.__N;
       })) return !c2 || c2.call(this, n3, t2, r2);
-      var i3 = false;
+      var i2 = false;
       return u3.forEach(function(n4) {
         if (n4.__N) {
           var t3 = n4.__[0];
-          n4.__ = n4.__N, n4.__N = void 0, t3 !== n4.__[0] && (i3 = true);
+          n4.__ = n4.__N, n4.__N = void 0, t3 !== n4.__[0] && (i2 = true);
         }
-      }), !(!i3 && o2.__c.props === n3) && (!c2 || c2.call(this, n3, t2, r2));
+      }), !(!i2 && o2.__c.props === n3) && (!c2 || c2.call(this, n3, t2, r2));
     };
     r$1.u = true;
     var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
@@ -7494,8 +7494,8 @@ function p(n2, u2, i2) {
   return o2.__N || o2.__;
 }
 function y(n2, u2) {
-  var i2 = d(t$1++, 3);
-  !c$1.__s && C(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
+  var i = d(t$1++, 3);
+  !c$1.__s && C(i.__H, u2) && (i.__ = n2, i.i = u2, r$1.__H.__h.push(i));
 }
 function A(n2) {
   return o = 5, T(function() {
@@ -7524,14 +7524,14 @@ c$1.__b = function(n2) {
   n2 && t2.__k && t2.__k.__m && (n2.__m = t2.__k.__m), s && s(n2, t2);
 }, c$1.__r = function(n2) {
   a && a(n2), t$1 = 0;
-  var i2 = (r$1 = n2.__c).__H;
-  i2 && (u === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
+  var i = (r$1 = n2.__c).__H;
+  i && (u === r$1 ? (i.__h = [], r$1.__h = [], i.__.forEach(function(n3) {
     n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
-  })) : (i2.__h.forEach(z), i2.__h.forEach(B), i2.__h = [], t$1 = 0)), u = r$1;
+  })) : (i.__h.forEach(z), i.__h.forEach(B), i.__h = [], t$1 = 0)), u = r$1;
 }, c$1.diffed = function(n2) {
   v && v(n2);
   var t2 = n2.__c;
-  t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i === c$1.requestAnimationFrame || ((i = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
+  t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i$1 === c$1.requestAnimationFrame || ((i$1 = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
     n3.i && (n3.__H = n3.i), n3.i = void 0;
   })), u = r$1 = null;
 }, c$1.__c = function(n2, t2) {
@@ -7586,7 +7586,7 @@ const arrayToString = (val) => {
 };
 const inputString = (input) => {
   if (typeof input === "string") {
-    return input;
+    return [input];
   } else {
     return input.map((inp) => {
       if (typeof inp === "string") {
@@ -7665,9 +7665,9 @@ function formatNumber(num) {
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
-  const match = basename.match(/(.*)\.\S+$/);
-  if (match) {
-    return match[1];
+  const match2 = basename.match(/(.*)\.\S+$/);
+  if (match2) {
+    return match2[1];
   } else {
     return path;
   }
@@ -7834,15 +7834,15 @@ const TextStyle = {
     color: "var(--bs-secondary)"
   }
 };
-const ErrorPanel = ({ id, classes, title, error }) => {
+const ErrorPanel = ({ id, classes, title, error: error2 }) => {
   const emptyStyle = {
     display: "flex",
     flex: "0 0 content",
     alignItems: "center",
     justifyContent: "center"
   };
-  const message = error.message;
-  const stack2 = error.stack;
+  const message = error2.message;
+  const stack2 = error2.stack;
   return m$1`
     <div style=${{ overflowY: "auto", height: "100vh" }}>
       <div
@@ -7899,11 +7899,11 @@ class AppErrorBoundary extends k$1 {
     super(props);
     this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+  static getDerivedStateFromError(error2) {
+    return { hasError: true, error: error2 };
   }
-  componentDidCatch(error, errorInfo) {
-    console.log({ error, errorInfo });
+  componentDidCatch(error2, errorInfo) {
+    console.log({ error: error2, errorInfo });
   }
   render() {
     if (this.state.hasError) {
@@ -8018,12 +8018,12 @@ const Sidebar = ({
         style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
       >
         ${logs.files.map((file, index) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
     const active = index === selectedIndex ? " active" : "";
     const logHeader = logHeaders[file.name];
     const hyperparameters = logHeader ? {
-      ...(_a = logHeader.plan) == null ? void 0 : _a.config,
-      ...(_b = logHeader.eval) == null ? void 0 : _b.task_args
+      ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
+      ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
     } : void 0;
     const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
     const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
@@ -8115,7 +8115,7 @@ const prettyDir = (path) => {
   }
 };
 const EvalStatus = ({ logHeader }) => {
-  var _a, _b;
+  var _a2, _b2;
   switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
@@ -8124,7 +8124,7 @@ const EvalStatus = ({ logHeader }) => {
     case "started":
       return m$1`<${StatusRunning} message="Running" />`;
     default:
-      if (((_a = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a.scores) && ((_b = logHeader.results) == null ? void 0 : _b.scores.length) > 0) {
+      if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
         if (logHeader.results.scores.length === 1) {
           return m$1`<${SidebarScore}
             scorer=${logHeader.results.scores[0]}
@@ -8558,12 +8558,12 @@ e = r, t = function(e2, t2) {
   }), t2.ANSIOutput = t2.ANSIColor = t2.ANSIFont = t2.ANSIStyle = void 0;
   let r2 = 0;
   const n2 = () => ("" + ++r2).padStart(16, "0");
-  var o2, i2, s2, a2, u2, l2, g2;
+  var o2, i, s2, a2, u2, l2, g2;
   (function(e3) {
     e3.Bold = "ansiBold", e3.Dim = "ansiDim", e3.Italic = "ansiItalic", e3.Underlined = "ansiUnderlined", e3.SlowBlink = "ansiSlowBlink", e3.RapidBlink = "ansiRapidBlink", e3.Hidden = "ansiHidden", e3.CrossedOut = "ansiCrossedOut", e3.Fraktur = "ansiFraktur", e3.DoubleUnderlined = "ansiDoubleUnderlined", e3.Framed = "ansiFramed", e3.Encircled = "ansiEncircled", e3.Overlined = "ansiOverlined", e3.Superscript = "ansiSuperscript", e3.Subscript = "ansiSubscript";
   })(o2 || (t2.ANSIStyle = o2 = {})), function(e3) {
     e3.AlternativeFont1 = "ansiAlternativeFont1", e3.AlternativeFont2 = "ansiAlternativeFont2", e3.AlternativeFont3 = "ansiAlternativeFont3", e3.AlternativeFont4 = "ansiAlternativeFont4", e3.AlternativeFont5 = "ansiAlternativeFont5", e3.AlternativeFont6 = "ansiAlternativeFont6", e3.AlternativeFont7 = "ansiAlternativeFont7", e3.AlternativeFont8 = "ansiAlternativeFont8", e3.AlternativeFont9 = "ansiAlternativeFont9";
-  }(i2 || (t2.ANSIFont = i2 = {})), function(e3) {
+  }(i || (t2.ANSIFont = i = {})), function(e3) {
     e3.Black = "ansiBlack", e3.Red = "ansiRed", e3.Green = "ansiGreen", e3.Yellow = "ansiYellow", e3.Blue = "ansiBlue", e3.Magenta = "ansiMagenta", e3.Cyan = "ansiCyan", e3.White = "ansiWhite", e3.BrightBlack = "ansiBrightBlack", e3.BrightRed = "ansiBrightRed", e3.BrightGreen = "ansiBrightGreen", e3.BrightYellow = "ansiBrightYellow", e3.BrightBlue = "ansiBrightBlue", e3.BrightMagenta = "ansiBrightMagenta", e3.BrightCyan = "ansiBrightCyan", e3.BrightWhite = "ansiBrightWhite";
   }(s2 || (t2.ANSIColor = s2 = {}));
   class h2 {
@@ -8787,31 +8787,31 @@ e = r, t = function(e2, t2) {
             e3.setFont();
             break;
           case a2.AlternativeFont1:
-            e3.setFont(i2.AlternativeFont1);
+            e3.setFont(i.AlternativeFont1);
             break;
           case a2.AlternativeFont2:
-            e3.setFont(i2.AlternativeFont2);
+            e3.setFont(i.AlternativeFont2);
             break;
           case a2.AlternativeFont3:
-            e3.setFont(i2.AlternativeFont3);
+            e3.setFont(i.AlternativeFont3);
             break;
           case a2.AlternativeFont4:
-            e3.setFont(i2.AlternativeFont4);
+            e3.setFont(i.AlternativeFont4);
             break;
           case a2.AlternativeFont5:
-            e3.setFont(i2.AlternativeFont5);
+            e3.setFont(i.AlternativeFont5);
             break;
           case a2.AlternativeFont6:
-            e3.setFont(i2.AlternativeFont6);
+            e3.setFont(i.AlternativeFont6);
             break;
           case a2.AlternativeFont7:
-            e3.setFont(i2.AlternativeFont7);
+            e3.setFont(i.AlternativeFont7);
             break;
           case a2.AlternativeFont8:
-            e3.setFont(i2.AlternativeFont8);
+            e3.setFont(i.AlternativeFont8);
             break;
           case a2.AlternativeFont9:
-            e3.setFont(i2.AlternativeFont9);
+            e3.setFont(i.AlternativeFont9);
             break;
           case a2.Fraktur:
             e3.setStyle(o2.Fraktur);
@@ -9068,19 +9068,19 @@ e = r, t = function(e2, t2) {
       if (0 === e3) return void this.clearEntireLine();
       let t3, r3, n3 = 0;
       for (let o4 = 0; o4 < this._outputRuns.length; o4++) {
-        const i4 = this._outputRuns[o4];
-        if (e3 < n3 + i4.text.length) {
-          t3 = i4, r3 = o4;
+        const i3 = this._outputRuns[o4];
+        if (e3 < n3 + i3.text.length) {
+          t3 = i3, r3 = o4;
           break;
         }
-        n3 += i4.text.length;
+        n3 += i3.text.length;
       }
       if (void 0 === t3 || void 0 === r3) return;
-      const o3 = e3 - n3, i3 = " ".repeat(this._totalLength - e3), s3 = [];
+      const o3 = e3 - n3, i2 = " ".repeat(this._totalLength - e3), s3 = [];
       if (o3) {
         const e4 = t3.text.slice(0, o3);
-        s3.push(new B2(e4, t3.sgrState)), s3.push(new B2(i3));
-      } else s3.push(new B2(i3));
+        s3.push(new B2(e4, t3.sgrState)), s3.push(new B2(i2));
+      } else s3.push(new B2(i2));
       this.outputRuns.splice(r3, this._outputRuns.length - r3, ...s3);
     }
     clearToBeginningOfLine(e3) {
@@ -9088,15 +9088,15 @@ e = r, t = function(e2, t2) {
       if (e3 >= this._totalLength) return void this.clearEntireLine();
       let t3, r3, n3 = 0;
       for (let o4 = this._outputRuns.length - 1; o4 >= 0; o4--) {
-        const i4 = this._outputRuns[o4];
-        if (e3 >= n3 - i4.text.length) {
-          t3 = i4, r3 = o4;
+        const i3 = this._outputRuns[o4];
+        if (e3 >= n3 - i3.text.length) {
+          t3 = i3, r3 = o4;
           break;
         }
-        n3 -= i4.text.length;
+        n3 -= i3.text.length;
       }
       if (void 0 === t3 || void 0 === r3) return;
-      const o3 = n3 - e3, i3 = " ".repeat(e3), s3 = [new B2(i3)];
+      const o3 = n3 - e3, i2 = " ".repeat(e3), s3 = [new B2(i2)];
       if (o3) {
         const e4 = t3.text.slice(-o3);
         s3.push(new B2(e4, t3.sgrState));
@@ -9131,23 +9131,23 @@ e = r, t = function(e2, t2) {
       }
       if (void 0 === n3) return void this._outputRuns.push(new B2(e3, r3));
       if (t3 + e3.length >= this._totalLength) {
-        const i4 = t3 - o3, s4 = [];
-        if (i4) {
-          const t4 = this._outputRuns[n3], o4 = t4.text.slice(0, i4);
+        const i3 = t3 - o3, s4 = [];
+        if (i3) {
+          const t4 = this._outputRuns[n3], o4 = t4.text.slice(0, i3);
           c2.equivalent(t4.sgrState, r3) ? s4.push(new B2(o4 + e3, r3)) : (s4.push(new B2(o4, t4.sgrState)), s4.push(new B2(e3, r3)));
         } else s4.push(new B2(e3, r3));
-        return this.outputRuns.splice(n3, 1, ...s4), void (this._totalLength = o3 + i4 + e3.length);
+        return this.outputRuns.splice(n3, 1, ...s4), void (this._totalLength = o3 + i3 + e3.length);
       }
-      let i3, s3 = this._totalLength;
+      let i2, s3 = this._totalLength;
       for (let r4 = this._outputRuns.length - 1; r4 >= 0; r4--) {
         const n4 = this._outputRuns[r4];
         if (t3 + e3.length > s3 - n4.text.length) {
-          i3 = r4;
+          i2 = r4;
           break;
         }
         s3 -= n4.text.length;
       }
-      if (void 0 === i3) return void this._outputRuns.push(new B2(e3, r3));
+      if (void 0 === i2) return void this._outputRuns.push(new B2(e3, r3));
       const a3 = [], u3 = t3 - o3;
       if (u3) {
         const e4 = this._outputRuns[n3], t4 = e4.text.slice(0, u3);
@@ -9156,10 +9156,10 @@ e = r, t = function(e2, t2) {
       a3.push(new B2(e3, r3));
       const l3 = s3 - (t3 + e3.length);
       if (l3) {
-        const e4 = this._outputRuns[i3], t4 = e4.text.slice(-l3);
+        const e4 = this._outputRuns[i2], t4 = e4.text.slice(-l3);
         a3.push(new B2(t4, e4.sgrState));
       }
-      this._outputRuns.splice(n3, i3 - n3 + 1, ...a3), this._outputRuns.length > 1 && (this._outputRuns = B2.optimizeOutputRuns(this._outputRuns)), this._totalLength = this._outputRuns.reduce((e4, t4) => e4 + t4.text.length, 0);
+      this._outputRuns.splice(n3, i2 - n3 + 1, ...a3), this._outputRuns.length > 1 && (this._outputRuns = B2.optimizeOutputRuns(this._outputRuns)), this._totalLength = this._outputRuns.reduce((e4, t4) => e4 + t4.text.length, 0);
     }
     get id() {
       return this._id;
@@ -9343,2082 +9343,5170 @@ const OutputRun = ({ outputRun }) => {
     >${outputRun.text}</span
   >`;
 };
-function _getDefaults() {
-  return {
-    async: false,
-    breaks: false,
-    extensions: null,
-    gfm: true,
-    hooks: null,
-    pedantic: false,
-    renderer: null,
-    silent: false,
-    tokenizer: null,
-    walkTokens: null
-  };
+const decodeCache = {};
+function getDecodeCache(exclude) {
+  let cache = decodeCache[exclude];
+  if (cache) {
+    return cache;
+  }
+  cache = decodeCache[exclude] = [];
+  for (let i = 0; i < 128; i++) {
+    const ch3 = String.fromCharCode(i);
+    cache.push(ch3);
+  }
+  for (let i = 0; i < exclude.length; i++) {
+    const ch3 = exclude.charCodeAt(i);
+    cache[ch3] = "%" + ("0" + ch3.toString(16).toUpperCase()).slice(-2);
+  }
+  return cache;
 }
-let _defaults = _getDefaults();
-function changeDefaults(newDefaults) {
-  _defaults = newDefaults;
-}
-const escapeTest = /[&<>"']/;
-const escapeReplace = new RegExp(escapeTest.source, "g");
-const escapeTestNoEncode = /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/;
-const escapeReplaceNoEncode = new RegExp(escapeTestNoEncode.source, "g");
-const escapeReplacements = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;"
-};
-const getEscapeReplacement = (ch) => escapeReplacements[ch];
-function escape$1$1(html2, encode) {
-  if (encode) {
-    if (escapeTest.test(html2)) {
-      return html2.replace(escapeReplace, getEscapeReplacement);
+function decode$1(string, exclude) {
+  if (typeof exclude !== "string") {
+    exclude = decode$1.defaultChars;
+  }
+  const cache = getDecodeCache(exclude);
+  return string.replace(/(%[a-f0-9]{2})+/gi, function(seq) {
+    let result = "";
+    for (let i = 0, l2 = seq.length; i < l2; i += 3) {
+      const b1 = parseInt(seq.slice(i + 1, i + 3), 16);
+      if (b1 < 128) {
+        result += cache[b1];
+        continue;
+      }
+      if ((b1 & 224) === 192 && i + 3 < l2) {
+        const b2 = parseInt(seq.slice(i + 4, i + 6), 16);
+        if ((b2 & 192) === 128) {
+          const chr = b1 << 6 & 1984 | b2 & 63;
+          if (chr < 128) {
+            result += "��";
+          } else {
+            result += String.fromCharCode(chr);
+          }
+          i += 3;
+          continue;
+        }
+      }
+      if ((b1 & 240) === 224 && i + 6 < l2) {
+        const b2 = parseInt(seq.slice(i + 4, i + 6), 16);
+        const b3 = parseInt(seq.slice(i + 7, i + 9), 16);
+        if ((b2 & 192) === 128 && (b3 & 192) === 128) {
+          const chr = b1 << 12 & 61440 | b2 << 6 & 4032 | b3 & 63;
+          if (chr < 2048 || chr >= 55296 && chr <= 57343) {
+            result += "���";
+          } else {
+            result += String.fromCharCode(chr);
+          }
+          i += 6;
+          continue;
+        }
+      }
+      if ((b1 & 248) === 240 && i + 9 < l2) {
+        const b2 = parseInt(seq.slice(i + 4, i + 6), 16);
+        const b3 = parseInt(seq.slice(i + 7, i + 9), 16);
+        const b4 = parseInt(seq.slice(i + 10, i + 12), 16);
+        if ((b2 & 192) === 128 && (b3 & 192) === 128 && (b4 & 192) === 128) {
+          let chr = b1 << 18 & 1835008 | b2 << 12 & 258048 | b3 << 6 & 4032 | b4 & 63;
+          if (chr < 65536 || chr > 1114111) {
+            result += "����";
+          } else {
+            chr -= 65536;
+            result += String.fromCharCode(55296 + (chr >> 10), 56320 + (chr & 1023));
+          }
+          i += 9;
+          continue;
+        }
+      }
+      result += "�";
     }
+    return result;
+  });
+}
+decode$1.defaultChars = ";/?:@&=+$,#";
+decode$1.componentChars = "";
+const encodeCache = {};
+function getEncodeCache(exclude) {
+  let cache = encodeCache[exclude];
+  if (cache) {
+    return cache;
+  }
+  cache = encodeCache[exclude] = [];
+  for (let i = 0; i < 128; i++) {
+    const ch3 = String.fromCharCode(i);
+    if (/^[0-9a-z]$/i.test(ch3)) {
+      cache.push(ch3);
+    } else {
+      cache.push("%" + ("0" + i.toString(16).toUpperCase()).slice(-2));
+    }
+  }
+  for (let i = 0; i < exclude.length; i++) {
+    cache[exclude.charCodeAt(i)] = exclude[i];
+  }
+  return cache;
+}
+function encode$1(string, exclude, keepEscaped) {
+  if (typeof exclude !== "string") {
+    keepEscaped = exclude;
+    exclude = encode$1.defaultChars;
+  }
+  if (typeof keepEscaped === "undefined") {
+    keepEscaped = true;
+  }
+  const cache = getEncodeCache(exclude);
+  let result = "";
+  for (let i = 0, l2 = string.length; i < l2; i++) {
+    const code2 = string.charCodeAt(i);
+    if (keepEscaped && code2 === 37 && i + 2 < l2) {
+      if (/^[0-9a-f]{2}$/i.test(string.slice(i + 1, i + 3))) {
+        result += string.slice(i, i + 3);
+        i += 2;
+        continue;
+      }
+    }
+    if (code2 < 128) {
+      result += cache[code2];
+      continue;
+    }
+    if (code2 >= 55296 && code2 <= 57343) {
+      if (code2 >= 55296 && code2 <= 56319 && i + 1 < l2) {
+        const nextCode = string.charCodeAt(i + 1);
+        if (nextCode >= 56320 && nextCode <= 57343) {
+          result += encodeURIComponent(string[i] + string[i + 1]);
+          i++;
+          continue;
+        }
+      }
+      result += "%EF%BF%BD";
+      continue;
+    }
+    result += encodeURIComponent(string[i]);
+  }
+  return result;
+}
+encode$1.defaultChars = ";/?:@&=+$,-_.!~*'()#";
+encode$1.componentChars = "-_.!~*'()";
+function format$1(url) {
+  let result = "";
+  result += url.protocol || "";
+  result += url.slashes ? "//" : "";
+  result += url.auth ? url.auth + "@" : "";
+  if (url.hostname && url.hostname.indexOf(":") !== -1) {
+    result += "[" + url.hostname + "]";
   } else {
-    if (escapeTestNoEncode.test(html2)) {
-      return html2.replace(escapeReplaceNoEncode, getEscapeReplacement);
+    result += url.hostname || "";
+  }
+  result += url.port ? ":" + url.port : "";
+  result += url.pathname || "";
+  result += url.search || "";
+  result += url.hash || "";
+  return result;
+}
+function Url() {
+  this.protocol = null;
+  this.slashes = null;
+  this.auth = null;
+  this.port = null;
+  this.hostname = null;
+  this.hash = null;
+  this.search = null;
+  this.pathname = null;
+}
+const protocolPattern = /^([a-z0-9.+-]+:)/i;
+const portPattern = /:[0-9]*$/;
+const simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/;
+const delims = ["<", ">", '"', "`", " ", "\r", "\n", "	"];
+const unwise = ["{", "}", "|", "\\", "^", "`"].concat(delims);
+const autoEscape = ["'"].concat(unwise);
+const nonHostChars = ["%", "/", "?", ";", "#"].concat(autoEscape);
+const hostEndingChars = ["/", "?", "#"];
+const hostnameMaxLen = 255;
+const hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/;
+const hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/;
+const hostlessProtocol = {
+  javascript: true,
+  "javascript:": true
+};
+const slashedProtocol = {
+  http: true,
+  https: true,
+  ftp: true,
+  gopher: true,
+  file: true,
+  "http:": true,
+  "https:": true,
+  "ftp:": true,
+  "gopher:": true,
+  "file:": true
+};
+function urlParse(url, slashesDenoteHost) {
+  if (url && url instanceof Url) return url;
+  const u2 = new Url();
+  u2.parse(url, slashesDenoteHost);
+  return u2;
+}
+Url.prototype.parse = function(url, slashesDenoteHost) {
+  let lowerProto, hec, slashes;
+  let rest = url;
+  rest = rest.trim();
+  if (!slashesDenoteHost && url.split("#").length === 1) {
+    const simplePath = simplePathPattern.exec(rest);
+    if (simplePath) {
+      this.pathname = simplePath[1];
+      if (simplePath[2]) {
+        this.search = simplePath[2];
+      }
+      return this;
     }
   }
-  return html2;
-}
-const caret = /(^|[^\[])\^/g;
-function edit(regex, opt) {
-  let source2 = typeof regex === "string" ? regex : regex.source;
-  opt = opt || "";
-  const obj = {
-    replace: (name, val) => {
-      let valSource = typeof val === "string" ? val : val.source;
-      valSource = valSource.replace(caret, "$1");
-      source2 = source2.replace(name, valSource);
-      return obj;
-    },
-    getRegex: () => {
-      return new RegExp(source2, opt);
-    }
-  };
-  return obj;
-}
-function cleanUrl(href) {
-  try {
-    href = encodeURI(href).replace(/%25/g, "%");
-  } catch {
-    return null;
+  let proto = protocolPattern.exec(rest);
+  if (proto) {
+    proto = proto[0];
+    lowerProto = proto.toLowerCase();
+    this.protocol = proto;
+    rest = rest.substr(proto.length);
   }
-  return href;
-}
-const noopTest = { exec: () => null };
-function splitCells(tableRow, count) {
-  const row = tableRow.replace(/\|/g, (match, offset2, str) => {
-    let escaped = false;
-    let curr = offset2;
-    while (--curr >= 0 && str[curr] === "\\")
-      escaped = !escaped;
-    if (escaped) {
-      return "|";
+  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+    slashes = rest.substr(0, 2) === "//";
+    if (slashes && !(proto && hostlessProtocol[proto])) {
+      rest = rest.substr(2);
+      this.slashes = true;
+    }
+  }
+  if (!hostlessProtocol[proto] && (slashes || proto && !slashedProtocol[proto])) {
+    let hostEnd = -1;
+    for (let i = 0; i < hostEndingChars.length; i++) {
+      hec = rest.indexOf(hostEndingChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
+        hostEnd = hec;
+      }
+    }
+    let auth, atSign;
+    if (hostEnd === -1) {
+      atSign = rest.lastIndexOf("@");
     } else {
-      return " |";
+      atSign = rest.lastIndexOf("@", hostEnd);
     }
-  }), cells = row.split(/ \|/);
-  let i2 = 0;
-  if (!cells[0].trim()) {
-    cells.shift();
-  }
-  if (cells.length > 0 && !cells[cells.length - 1].trim()) {
-    cells.pop();
-  }
-  if (count) {
-    if (cells.length > count) {
-      cells.splice(count);
-    } else {
-      while (cells.length < count)
-        cells.push("");
+    if (atSign !== -1) {
+      auth = rest.slice(0, atSign);
+      rest = rest.slice(atSign + 1);
+      this.auth = auth;
+    }
+    hostEnd = -1;
+    for (let i = 0; i < nonHostChars.length; i++) {
+      hec = rest.indexOf(nonHostChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
+        hostEnd = hec;
+      }
+    }
+    if (hostEnd === -1) {
+      hostEnd = rest.length;
+    }
+    if (rest[hostEnd - 1] === ":") {
+      hostEnd--;
+    }
+    const host = rest.slice(0, hostEnd);
+    rest = rest.slice(hostEnd);
+    this.parseHost(host);
+    this.hostname = this.hostname || "";
+    const ipv6Hostname = this.hostname[0] === "[" && this.hostname[this.hostname.length - 1] === "]";
+    if (!ipv6Hostname) {
+      const hostparts = this.hostname.split(/\./);
+      for (let i = 0, l2 = hostparts.length; i < l2; i++) {
+        const part = hostparts[i];
+        if (!part) {
+          continue;
+        }
+        if (!part.match(hostnamePartPattern)) {
+          let newpart = "";
+          for (let j2 = 0, k2 = part.length; j2 < k2; j2++) {
+            if (part.charCodeAt(j2) > 127) {
+              newpart += "x";
+            } else {
+              newpart += part[j2];
+            }
+          }
+          if (!newpart.match(hostnamePartPattern)) {
+            const validParts = hostparts.slice(0, i);
+            const notHost = hostparts.slice(i + 1);
+            const bit = part.match(hostnamePartStart);
+            if (bit) {
+              validParts.push(bit[1]);
+              notHost.unshift(bit[2]);
+            }
+            if (notHost.length) {
+              rest = notHost.join(".") + rest;
+            }
+            this.hostname = validParts.join(".");
+            break;
+          }
+        }
+      }
+    }
+    if (this.hostname.length > hostnameMaxLen) {
+      this.hostname = "";
+    }
+    if (ipv6Hostname) {
+      this.hostname = this.hostname.substr(1, this.hostname.length - 2);
     }
   }
-  for (; i2 < cells.length; i2++) {
-    cells[i2] = cells[i2].trim().replace(/\\\|/g, "|");
+  const hash2 = rest.indexOf("#");
+  if (hash2 !== -1) {
+    this.hash = rest.substr(hash2);
+    rest = rest.slice(0, hash2);
   }
-  return cells;
+  const qm = rest.indexOf("?");
+  if (qm !== -1) {
+    this.search = rest.substr(qm);
+    rest = rest.slice(0, qm);
+  }
+  if (rest) {
+    this.pathname = rest;
+  }
+  if (slashedProtocol[lowerProto] && this.hostname && !this.pathname) {
+    this.pathname = "";
+  }
+  return this;
+};
+Url.prototype.parseHost = function(host) {
+  let port = portPattern.exec(host);
+  if (port) {
+    port = port[0];
+    if (port !== ":") {
+      this.port = port.substr(1);
+    }
+    host = host.substr(0, host.length - port.length);
+  }
+  if (host) {
+    this.hostname = host;
+  }
+};
+const mdurl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  decode: decode$1,
+  encode: encode$1,
+  format: format$1,
+  parse: urlParse
+}, Symbol.toStringTag, { value: "Module" }));
+const Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+const Cc = /[\0-\x1F\x7F-\x9F]/;
+const regex$1 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
+const P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
+const regex = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
+const Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
+const ucmicro = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  Any,
+  Cc,
+  Cf: regex$1,
+  P,
+  S: regex,
+  Z
+}, Symbol.toStringTag, { value: "Module" }));
+const htmlDecodeTree = new Uint16Array(
+  // prettier-ignore
+  'ᵁ<Õıʊҝջאٵ۞ޢߖࠏ੊ઑඡ๭༉༦჊ረዡᐕᒝᓃᓟᔥ\0\0\0\0\0\0ᕫᛍᦍᰒᷝ὾⁠↰⊍⏀⏻⑂⠤⤒ⴈ⹈⿎〖㊺㘹㞬㣾㨨㩱㫠㬮ࠀEMabcfglmnoprstu\\bfms¦³¹ÈÏlig耻Æ䃆P耻&䀦cute耻Á䃁reve;䄂Āiyx}rc耻Â䃂;䐐r;쀀𝔄rave耻À䃀pha;䎑acr;䄀d;橓Āgp¡on;䄄f;쀀𝔸plyFunction;恡ing耻Å䃅Ācs¾Ãr;쀀𝒜ign;扔ilde耻Ã䃃ml耻Ä䃄ЀaceforsuåûþėĜĢħĪĀcrêòkslash;或Ŷöø;櫧ed;挆y;䐑ƀcrtąċĔause;戵noullis;愬a;䎒r;쀀𝔅pf;쀀𝔹eve;䋘còēmpeq;扎܀HOacdefhilorsuōőŖƀƞƢƵƷƺǜȕɳɸɾcy;䐧PY耻©䂩ƀcpyŝŢźute;䄆Ā;iŧŨ拒talDifferentialD;慅leys;愭ȀaeioƉƎƔƘron;䄌dil耻Ç䃇rc;䄈nint;戰ot;䄊ĀdnƧƭilla;䂸terDot;䂷òſi;䎧rcleȀDMPTǇǋǑǖot;抙inus;抖lus;投imes;抗oĀcsǢǸkwiseContourIntegral;戲eCurlyĀDQȃȏoubleQuote;思uote;怙ȀlnpuȞȨɇɕonĀ;eȥȦ户;橴ƀgitȯȶȺruent;扡nt;戯ourIntegral;戮ĀfrɌɎ;愂oduct;成nterClockwiseContourIntegral;戳oss;樯cr;쀀𝒞pĀ;Cʄʅ拓ap;才րDJSZacefiosʠʬʰʴʸˋ˗ˡ˦̳ҍĀ;oŹʥtrahd;椑cy;䐂cy;䐅cy;䐏ƀgrsʿ˄ˇger;怡r;憡hv;櫤Āayː˕ron;䄎;䐔lĀ;t˝˞戇a;䎔r;쀀𝔇Āaf˫̧Ācm˰̢riticalȀADGT̖̜̀̆cute;䂴oŴ̋̍;䋙bleAcute;䋝rave;䁠ilde;䋜ond;拄ferentialD;慆Ѱ̽\0\0\0͔͂\0Ѕf;쀀𝔻ƀ;DE͈͉͍䂨ot;惜qual;扐blèCDLRUVͣͲ΂ϏϢϸontourIntegraìȹoɴ͹\0\0ͻ»͉nArrow;懓Āeo·ΤftƀARTΐΖΡrrow;懐ightArrow;懔eåˊngĀLRΫτeftĀARγιrrow;柸ightArrow;柺ightArrow;柹ightĀATϘϞrrow;懒ee;抨pɁϩ\0\0ϯrrow;懑ownArrow;懕erticalBar;戥ǹABLRTaВЪаўѿͼrrowƀ;BUНОТ憓ar;椓pArrow;懵reve;䌑eft˒к\0ц\0ѐightVector;楐eeVector;楞ectorĀ;Bљњ憽ar;楖ightǔѧ\0ѱeeVector;楟ectorĀ;BѺѻ懁ar;楗eeĀ;A҆҇护rrow;憧ĀctҒҗr;쀀𝒟rok;䄐ࠀNTacdfglmopqstuxҽӀӄӋӞӢӧӮӵԡԯԶՒ՝ՠեG;䅊H耻Ð䃐cute耻É䃉ƀaiyӒӗӜron;䄚rc耻Ê䃊;䐭ot;䄖r;쀀𝔈rave耻È䃈ement;戈ĀapӺӾcr;䄒tyɓԆ\0\0ԒmallSquare;旻erySmallSquare;斫ĀgpԦԪon;䄘f;쀀𝔼silon;䎕uĀaiԼՉlĀ;TՂՃ橵ilde;扂librium;懌Āci՗՚r;愰m;橳a;䎗ml耻Ë䃋Āipժկsts;戃onentialE;慇ʀcfiosօֈ֍ֲ׌y;䐤r;쀀𝔉lledɓ֗\0\0֣mallSquare;旼erySmallSquare;斪Ͱֺ\0ֿ\0\0ׄf;쀀𝔽All;戀riertrf;愱cò׋؀JTabcdfgorstר׬ׯ׺؀ؒؖ؛؝أ٬ٲcy;䐃耻>䀾mmaĀ;d׷׸䎓;䏜reve;䄞ƀeiy؇،ؐdil;䄢rc;䄜;䐓ot;䄠r;쀀𝔊;拙pf;쀀𝔾eater̀EFGLSTصلَٖٛ٦qualĀ;Lؾؿ扥ess;招ullEqual;执reater;檢ess;扷lantEqual;橾ilde;扳cr;쀀𝒢;扫ЀAacfiosuڅڋږڛڞڪھۊRDcy;䐪Āctڐڔek;䋇;䁞irc;䄤r;愌lbertSpace;愋ǰگ\0ڲf;愍izontalLine;攀Āctۃۅòکrok;䄦mpńېۘownHumðįqual;扏܀EJOacdfgmnostuۺ۾܃܇܎ܚܞܡܨ݄ݸދޏޕcy;䐕lig;䄲cy;䐁cute耻Í䃍Āiyܓܘrc耻Î䃎;䐘ot;䄰r;愑rave耻Ì䃌ƀ;apܠܯܿĀcgܴܷr;䄪inaryI;慈lieóϝǴ݉\0ݢĀ;eݍݎ戬Āgrݓݘral;戫section;拂isibleĀCTݬݲomma;恣imes;恢ƀgptݿރވon;䄮f;쀀𝕀a;䎙cr;愐ilde;䄨ǫޚ\0ޞcy;䐆l耻Ï䃏ʀcfosuެ޷޼߂ߐĀiyޱ޵rc;䄴;䐙r;쀀𝔍pf;쀀𝕁ǣ߇\0ߌr;쀀𝒥rcy;䐈kcy;䐄΀HJacfosߤߨ߽߬߱ࠂࠈcy;䐥cy;䐌ppa;䎚Āey߶߻dil;䄶;䐚r;쀀𝔎pf;쀀𝕂cr;쀀𝒦րJTaceflmostࠥࠩࠬࡐࡣ঳সে্਷ੇcy;䐉耻<䀼ʀcmnpr࠷࠼ࡁࡄࡍute;䄹bda;䎛g;柪lacetrf;愒r;憞ƀaeyࡗ࡜ࡡron;䄽dil;䄻;䐛Āfsࡨ॰tԀACDFRTUVarࡾࢩࢱࣦ࣠ࣼयज़ΐ४Ānrࢃ࢏gleBracket;柨rowƀ;BR࢙࢚࢞憐ar;懤ightArrow;懆eiling;挈oǵࢷ\0ࣃbleBracket;柦nǔࣈ\0࣒eeVector;楡ectorĀ;Bࣛࣜ懃ar;楙loor;挊ightĀAV࣯ࣵrrow;憔ector;楎Āerँगeƀ;AVउऊऐ抣rrow;憤ector;楚iangleƀ;BEतथऩ抲ar;槏qual;抴pƀDTVषूौownVector;楑eeVector;楠ectorĀ;Bॖॗ憿ar;楘ectorĀ;B॥०憼ar;楒ightáΜs̀EFGLSTॾঋকঝঢভqualGreater;拚ullEqual;扦reater;扶ess;檡lantEqual;橽ilde;扲r;쀀𝔏Ā;eঽা拘ftarrow;懚idot;䄿ƀnpw৔ਖਛgȀLRlr৞৷ਂਐeftĀAR০৬rrow;柵ightArrow;柷ightArrow;柶eftĀarγਊightáοightáϊf;쀀𝕃erĀLRਢਬeftArrow;憙ightArrow;憘ƀchtਾੀੂòࡌ;憰rok;䅁;扪Ѐacefiosuਗ਼੝੠੷੼અઋ઎p;椅y;䐜Ādl੥੯iumSpace;恟lintrf;愳r;쀀𝔐nusPlus;戓pf;쀀𝕄cò੶;䎜ҀJacefostuણધભીଔଙඑ඗ඞcy;䐊cute;䅃ƀaey઴હાron;䅇dil;䅅;䐝ƀgswે૰଎ativeƀMTV૓૟૨ediumSpace;怋hiĀcn૦૘ë૙eryThiî૙tedĀGL૸ଆreaterGreateòٳessLesóੈLine;䀊r;쀀𝔑ȀBnptଢନଷ଺reak;恠BreakingSpace;䂠f;愕ڀ;CDEGHLNPRSTV୕ୖ୪୼஡௫ఄ౞಄ದ೘ൡඅ櫬Āou୛୤ngruent;扢pCap;扭oubleVerticalBar;戦ƀlqxஃஊ஛ement;戉ualĀ;Tஒஓ扠ilde;쀀≂̸ists;戄reater΀;EFGLSTஶஷ஽௉௓௘௥扯qual;扱ullEqual;쀀≧̸reater;쀀≫̸ess;批lantEqual;쀀⩾̸ilde;扵umpń௲௽ownHump;쀀≎̸qual;쀀≏̸eĀfsఊధtTriangleƀ;BEచఛడ拪ar;쀀⧏̸qual;括s̀;EGLSTవశ఼ౄోౘ扮qual;扰reater;扸ess;쀀≪̸lantEqual;쀀⩽̸ilde;扴estedĀGL౨౹reaterGreater;쀀⪢̸essLess;쀀⪡̸recedesƀ;ESಒಓಛ技qual;쀀⪯̸lantEqual;拠ĀeiಫಹverseElement;戌ghtTriangleƀ;BEೋೌ೒拫ar;쀀⧐̸qual;拭ĀquೝഌuareSuĀbp೨೹setĀ;E೰ೳ쀀⊏̸qual;拢ersetĀ;Eഃആ쀀⊐̸qual;拣ƀbcpഓതൎsetĀ;Eഛഞ쀀⊂⃒qual;抈ceedsȀ;ESTലള഻െ抁qual;쀀⪰̸lantEqual;拡ilde;쀀≿̸ersetĀ;E൘൛쀀⊃⃒qual;抉ildeȀ;EFT൮൯൵ൿ扁qual;扄ullEqual;扇ilde;扉erticalBar;戤cr;쀀𝒩ilde耻Ñ䃑;䎝܀Eacdfgmoprstuvලෂ෉෕ෛ෠෧෼ขภยา฿ไlig;䅒cute耻Ó䃓Āiy෎ීrc耻Ô䃔;䐞blac;䅐r;쀀𝔒rave耻Ò䃒ƀaei෮ෲ෶cr;䅌ga;䎩cron;䎟pf;쀀𝕆enCurlyĀDQฎบoubleQuote;怜uote;怘;橔Āclวฬr;쀀𝒪ash耻Ø䃘iŬื฼de耻Õ䃕es;樷ml耻Ö䃖erĀBP๋๠Āar๐๓r;怾acĀek๚๜;揞et;掴arenthesis;揜Ҁacfhilors๿ງຊຏຒດຝະ໼rtialD;戂y;䐟r;쀀𝔓i;䎦;䎠usMinus;䂱Āipຢອncareplanåڝf;愙Ȁ;eio຺ູ໠໤檻cedesȀ;EST່້໏໚扺qual;檯lantEqual;扼ilde;找me;怳Ādp໩໮uct;戏ortionĀ;aȥ໹l;戝Āci༁༆r;쀀𝒫;䎨ȀUfos༑༖༛༟OT耻"䀢r;쀀𝔔pf;愚cr;쀀𝒬؀BEacefhiorsu༾གྷཇའཱིྦྷྪྭ႖ႩႴႾarr;椐G耻®䂮ƀcnrཎནབute;䅔g;柫rĀ;tཛྷཝ憠l;椖ƀaeyཧཬཱron;䅘dil;䅖;䐠Ā;vླྀཹ愜erseĀEUྂྙĀlq྇ྎement;戋uilibrium;懋pEquilibrium;楯r»ཹo;䎡ghtЀACDFTUVa࿁࿫࿳ဢဨၛႇϘĀnr࿆࿒gleBracket;柩rowƀ;BL࿜࿝࿡憒ar;懥eftArrow;懄eiling;按oǵ࿹\0စbleBracket;柧nǔည\0နeeVector;楝ectorĀ;Bဝသ懂ar;楕loor;挋Āerိ၃eƀ;AVဵံြ抢rrow;憦ector;楛iangleƀ;BEၐၑၕ抳ar;槐qual;抵pƀDTVၣၮၸownVector;楏eeVector;楜ectorĀ;Bႂႃ憾ar;楔ectorĀ;B႑႒懀ar;楓Āpuႛ႞f;愝ndImplies;楰ightarrow;懛ĀchႹႼr;愛;憱leDelayed;槴ڀHOacfhimoqstuფჱჷჽᄙᄞᅑᅖᅡᅧᆵᆻᆿĀCcჩხHcy;䐩y;䐨FTcy;䐬cute;䅚ʀ;aeiyᄈᄉᄎᄓᄗ檼ron;䅠dil;䅞rc;䅜;䐡r;쀀𝔖ortȀDLRUᄪᄴᄾᅉownArrow»ОeftArrow»࢚ightArrow»࿝pArrow;憑gma;䎣allCircle;战pf;쀀𝕊ɲᅭ\0\0ᅰt;戚areȀ;ISUᅻᅼᆉᆯ斡ntersection;抓uĀbpᆏᆞsetĀ;Eᆗᆘ抏qual;抑ersetĀ;Eᆨᆩ抐qual;抒nion;抔cr;쀀𝒮ar;拆ȀbcmpᇈᇛሉላĀ;sᇍᇎ拐etĀ;Eᇍᇕqual;抆ĀchᇠህeedsȀ;ESTᇭᇮᇴᇿ扻qual;檰lantEqual;扽ilde;承Tháྌ;我ƀ;esሒሓሣ拑rsetĀ;Eሜም抃qual;抇et»ሓրHRSacfhiorsሾቄ቉ቕ቞ቱቶኟዂወዑORN耻Þ䃞ADE;愢ĀHc቎ቒcy;䐋y;䐦Ābuቚቜ;䀉;䎤ƀaeyብቪቯron;䅤dil;䅢;䐢r;쀀𝔗Āeiቻ኉ǲኀ\0ኇefore;戴a;䎘Ācn኎ኘkSpace;쀀  Space;怉ldeȀ;EFTካኬኲኼ戼qual;扃ullEqual;扅ilde;扈pf;쀀𝕋ipleDot;惛Āctዖዛr;쀀𝒯rok;䅦ૡዷጎጚጦ\0ጬጱ\0\0\0\0\0ጸጽ፷ᎅ\0᏿ᐄᐊᐐĀcrዻጁute耻Ú䃚rĀ;oጇገ憟cir;楉rǣጓ\0጖y;䐎ve;䅬Āiyጞጣrc耻Û䃛;䐣blac;䅰r;쀀𝔘rave耻Ù䃙acr;䅪Ādiፁ፩erĀBPፈ፝Āarፍፐr;䁟acĀekፗፙ;揟et;掵arenthesis;揝onĀ;P፰፱拃lus;抎Āgp፻፿on;䅲f;쀀𝕌ЀADETadps᎕ᎮᎸᏄϨᏒᏗᏳrrowƀ;BDᅐᎠᎤar;椒ownArrow;懅ownArrow;憕quilibrium;楮eeĀ;AᏋᏌ报rrow;憥ownáϳerĀLRᏞᏨeftArrow;憖ightArrow;憗iĀ;lᏹᏺ䏒on;䎥ing;䅮cr;쀀𝒰ilde;䅨ml耻Ü䃜ҀDbcdefosvᐧᐬᐰᐳᐾᒅᒊᒐᒖash;披ar;櫫y;䐒ashĀ;lᐻᐼ抩;櫦Āerᑃᑅ;拁ƀbtyᑌᑐᑺar;怖Ā;iᑏᑕcalȀBLSTᑡᑥᑪᑴar;戣ine;䁼eparator;杘ilde;所ThinSpace;怊r;쀀𝔙pf;쀀𝕍cr;쀀𝒱dash;抪ʀcefosᒧᒬᒱᒶᒼirc;䅴dge;拀r;쀀𝔚pf;쀀𝕎cr;쀀𝒲Ȁfiosᓋᓐᓒᓘr;쀀𝔛;䎞pf;쀀𝕏cr;쀀𝒳ҀAIUacfosuᓱᓵᓹᓽᔄᔏᔔᔚᔠcy;䐯cy;䐇cy;䐮cute耻Ý䃝Āiyᔉᔍrc;䅶;䐫r;쀀𝔜pf;쀀𝕐cr;쀀𝒴ml;䅸ЀHacdefosᔵᔹᔿᕋᕏᕝᕠᕤcy;䐖cute;䅹Āayᕄᕉron;䅽;䐗ot;䅻ǲᕔ\0ᕛoWidtè૙a;䎖r;愨pf;愤cr;쀀𝒵௡ᖃᖊᖐ\0ᖰᖶᖿ\0\0\0\0ᗆᗛᗫᙟ᙭\0ᚕ᚛ᚲᚹ\0ᚾcute耻á䃡reve;䄃̀;Ediuyᖜᖝᖡᖣᖨᖭ戾;쀀∾̳;房rc耻â䃢te肻´̆;䐰lig耻æ䃦Ā;r²ᖺ;쀀𝔞rave耻à䃠ĀepᗊᗖĀfpᗏᗔsym;愵èᗓha;䎱ĀapᗟcĀclᗤᗧr;䄁g;樿ɤᗰ\0\0ᘊʀ;adsvᗺᗻᗿᘁᘇ戧nd;橕;橜lope;橘;橚΀;elmrszᘘᘙᘛᘞᘿᙏᙙ戠;榤e»ᘙsdĀ;aᘥᘦ戡ѡᘰᘲᘴᘶᘸᘺᘼᘾ;榨;榩;榪;榫;榬;榭;榮;榯tĀ;vᙅᙆ戟bĀ;dᙌᙍ抾;榝Āptᙔᙗh;戢»¹arr;捼Āgpᙣᙧon;䄅f;쀀𝕒΀;Eaeiop዁ᙻᙽᚂᚄᚇᚊ;橰cir;橯;扊d;手s;䀧roxĀ;e዁ᚒñᚃing耻å䃥ƀctyᚡᚦᚨr;쀀𝒶;䀪mpĀ;e዁ᚯñʈilde耻ã䃣ml耻ä䃤Āciᛂᛈoninôɲnt;樑ࠀNabcdefiklnoprsu᛭ᛱᜰ᜼ᝃᝈ᝸᝽០៦ᠹᡐᜍ᤽᥈ᥰot;櫭Ācrᛶ᜞kȀcepsᜀᜅᜍᜓong;扌psilon;䏶rime;怵imĀ;e᜚᜛戽q;拍Ŷᜢᜦee;抽edĀ;gᜬᜭ挅e»ᜭrkĀ;t፜᜷brk;掶Āoyᜁᝁ;䐱quo;怞ʀcmprtᝓ᝛ᝡᝤᝨausĀ;eĊĉptyv;榰séᜌnoõēƀahwᝯ᝱ᝳ;䎲;愶een;扬r;쀀𝔟g΀costuvwឍឝឳេ៕៛៞ƀaiuបពរðݠrc;旯p»፱ƀdptឤឨឭot;樀lus;樁imes;樂ɱឹ\0\0ើcup;樆ar;昅riangleĀdu៍្own;施p;斳plus;樄eåᑄåᒭarow;植ƀako៭ᠦᠵĀcn៲ᠣkƀlst៺֫᠂ozenge;槫riangleȀ;dlr᠒᠓᠘᠝斴own;斾eft;旂ight;斸k;搣Ʊᠫ\0ᠳƲᠯ\0ᠱ;斒;斑4;斓ck;斈ĀeoᠾᡍĀ;qᡃᡆ쀀=⃥uiv;쀀≡⃥t;挐Ȁptwxᡙᡞᡧᡬf;쀀𝕓Ā;tᏋᡣom»Ꮜtie;拈؀DHUVbdhmptuvᢅᢖᢪᢻᣗᣛᣬ᣿ᤅᤊᤐᤡȀLRlrᢎᢐᢒᢔ;敗;敔;敖;敓ʀ;DUduᢡᢢᢤᢦᢨ敐;敦;敩;敤;敧ȀLRlrᢳᢵᢷᢹ;敝;敚;敜;教΀;HLRhlrᣊᣋᣍᣏᣑᣓᣕ救;敬;散;敠;敫;敢;敟ox;槉ȀLRlrᣤᣦᣨᣪ;敕;敒;攐;攌ʀ;DUduڽ᣷᣹᣻᣽;敥;敨;攬;攴inus;抟lus;択imes;抠ȀLRlrᤙᤛᤝ᤟;敛;敘;攘;攔΀;HLRhlrᤰᤱᤳᤵᤷ᤻᤹攂;敪;敡;敞;攼;攤;攜Āevģ᥂bar耻¦䂦Ȁceioᥑᥖᥚᥠr;쀀𝒷mi;恏mĀ;e᜚᜜lƀ;bhᥨᥩᥫ䁜;槅sub;柈Ŭᥴ᥾lĀ;e᥹᥺怢t»᥺pƀ;Eeįᦅᦇ;檮Ā;qۜۛೡᦧ\0᧨ᨑᨕᨲ\0ᨷᩐ\0\0᪴\0\0᫁\0\0ᬡᬮ᭍᭒\0᯽\0ᰌƀcpr᦭ᦲ᧝ute;䄇̀;abcdsᦿᧀᧄ᧊᧕᧙戩nd;橄rcup;橉Āau᧏᧒p;橋p;橇ot;橀;쀀∩︀Āeo᧢᧥t;恁îړȀaeiu᧰᧻ᨁᨅǰ᧵\0᧸s;橍on;䄍dil耻ç䃧rc;䄉psĀ;sᨌᨍ橌m;橐ot;䄋ƀdmnᨛᨠᨦil肻¸ƭptyv;榲t脀¢;eᨭᨮ䂢räƲr;쀀𝔠ƀceiᨽᩀᩍy;䑇ckĀ;mᩇᩈ朓ark»ᩈ;䏇r΀;Ecefms᩟᩠ᩢᩫ᪤᪪᪮旋;槃ƀ;elᩩᩪᩭ䋆q;扗eɡᩴ\0\0᪈rrowĀlr᩼᪁eft;憺ight;憻ʀRSacd᪒᪔᪖᪚᪟»ཇ;擈st;抛irc;抚ash;抝nint;樐id;櫯cir;槂ubsĀ;u᪻᪼晣it»᪼ˬ᫇᫔᫺\0ᬊonĀ;eᫍᫎ䀺Ā;qÇÆɭ᫙\0\0᫢aĀ;t᫞᫟䀬;䁀ƀ;fl᫨᫩᫫戁îᅠeĀmx᫱᫶ent»᫩eóɍǧ᫾\0ᬇĀ;dኻᬂot;橭nôɆƀfryᬐᬔᬗ;쀀𝕔oäɔ脀©;sŕᬝr;愗Āaoᬥᬩrr;憵ss;朗Ācuᬲᬷr;쀀𝒸Ābpᬼ᭄Ā;eᭁᭂ櫏;櫑Ā;eᭉᭊ櫐;櫒dot;拯΀delprvw᭠᭬᭷ᮂᮬᯔ᯹arrĀlr᭨᭪;椸;椵ɰ᭲\0\0᭵r;拞c;拟arrĀ;p᭿ᮀ憶;椽̀;bcdosᮏᮐᮖᮡᮥᮨ截rcap;橈Āauᮛᮞp;橆p;橊ot;抍r;橅;쀀∪︀Ȁalrv᮵ᮿᯞᯣrrĀ;mᮼᮽ憷;椼yƀevwᯇᯔᯘqɰᯎ\0\0ᯒreã᭳uã᭵ee;拎edge;拏en耻¤䂤earrowĀlrᯮ᯳eft»ᮀight»ᮽeäᯝĀciᰁᰇoninôǷnt;戱lcty;挭ঀAHabcdefhijlorstuwz᰸᰻᰿ᱝᱩᱵᲊᲞᲬᲷ᳻᳿ᴍᵻᶑᶫᶻ᷆᷍rò΁ar;楥Ȁglrs᱈ᱍ᱒᱔ger;怠eth;愸òᄳhĀ;vᱚᱛ怐»ऊūᱡᱧarow;椏aã̕Āayᱮᱳron;䄏;䐴ƀ;ao̲ᱼᲄĀgrʿᲁr;懊tseq;橷ƀglmᲑᲔᲘ耻°䂰ta;䎴ptyv;榱ĀirᲣᲨsht;楿;쀀𝔡arĀlrᲳᲵ»ࣜ»သʀaegsv᳂͸᳖᳜᳠mƀ;oș᳊᳔ndĀ;ș᳑uit;晦amma;䏝in;拲ƀ;io᳧᳨᳸䃷de脀÷;o᳧ᳰntimes;拇nø᳷cy;䑒cɯᴆ\0\0ᴊrn;挞op;挍ʀlptuwᴘᴝᴢᵉᵕlar;䀤f;쀀𝕕ʀ;emps̋ᴭᴷᴽᵂqĀ;d͒ᴳot;扑inus;戸lus;戔quare;抡blebarwedgåúnƀadhᄮᵝᵧownarrowóᲃarpoonĀlrᵲᵶefôᲴighôᲶŢᵿᶅkaro÷གɯᶊ\0\0ᶎrn;挟op;挌ƀcotᶘᶣᶦĀryᶝᶡ;쀀𝒹;䑕l;槶rok;䄑Ādrᶰᶴot;拱iĀ;fᶺ᠖斿Āah᷀᷃ròЩaòྦangle;榦Āci᷒ᷕy;䑟grarr;柿ऀDacdefglmnopqrstuxḁḉḙḸոḼṉṡṾấắẽỡἪἷὄ὎὚ĀDoḆᴴoôᲉĀcsḎḔute耻é䃩ter;橮ȀaioyḢḧḱḶron;䄛rĀ;cḭḮ扖耻ê䃪lon;払;䑍ot;䄗ĀDrṁṅot;扒;쀀𝔢ƀ;rsṐṑṗ檚ave耻è䃨Ā;dṜṝ檖ot;檘Ȁ;ilsṪṫṲṴ檙nters;揧;愓Ā;dṹṺ檕ot;檗ƀapsẅẉẗcr;䄓tyƀ;svẒẓẕ戅et»ẓpĀ1;ẝẤĳạả;怄;怅怃ĀgsẪẬ;䅋p;怂ĀgpẴẸon;䄙f;쀀𝕖ƀalsỄỎỒrĀ;sỊị拕l;槣us;橱iƀ;lvỚớở䎵on»ớ;䏵ȀcsuvỪỳἋἣĀioữḱrc»Ḯɩỹ\0\0ỻíՈantĀglἂἆtr»ṝess»Ṻƀaeiἒ἖Ἒls;䀽st;扟vĀ;DȵἠD;橸parsl;槥ĀDaἯἳot;打rr;楱ƀcdiἾὁỸr;愯oô͒ĀahὉὋ;䎷耻ð䃰Āmrὓὗl耻ë䃫o;悬ƀcipὡὤὧl;䀡sôծĀeoὬὴctatioîՙnentialåչৡᾒ\0ᾞ\0ᾡᾧ\0\0ῆῌ\0ΐ\0ῦῪ \0 ⁚llingdotseñṄy;䑄male;晀ƀilrᾭᾳ῁lig;耀ﬃɩᾹ\0\0᾽g;耀ﬀig;耀ﬄ;쀀𝔣lig;耀ﬁlig;쀀fjƀaltῙ῜ῡt;晭ig;耀ﬂns;斱of;䆒ǰ΅\0ῳf;쀀𝕗ĀakֿῷĀ;vῼ´拔;櫙artint;樍Āao‌⁕Ācs‑⁒α‚‰‸⁅⁈\0⁐β•‥‧‪‬\0‮耻½䂽;慓耻¼䂼;慕;慙;慛Ƴ‴\0‶;慔;慖ʴ‾⁁\0\0⁃耻¾䂾;慗;慜5;慘ƶ⁌\0⁎;慚;慝8;慞l;恄wn;挢cr;쀀𝒻ࢀEabcdefgijlnorstv₂₉₟₥₰₴⃰⃵⃺⃿℃ℒℸ̗ℾ⅒↞Ā;lٍ₇;檌ƀcmpₐₕ₝ute;䇵maĀ;dₜ᳚䎳;檆reve;䄟Āiy₪₮rc;䄝;䐳ot;䄡Ȁ;lqsؾق₽⃉ƀ;qsؾٌ⃄lanô٥Ȁ;cdl٥⃒⃥⃕c;檩otĀ;o⃜⃝檀Ā;l⃢⃣檂;檄Ā;e⃪⃭쀀⋛︀s;檔r;쀀𝔤Ā;gٳ؛mel;愷cy;䑓Ȁ;Eajٚℌℎℐ;檒;檥;檤ȀEaesℛℝ℩ℴ;扩pĀ;p℣ℤ檊rox»ℤĀ;q℮ℯ檈Ā;q℮ℛim;拧pf;쀀𝕘Āci⅃ⅆr;愊mƀ;el٫ⅎ⅐;檎;檐茀>;cdlqr׮ⅠⅪⅮⅳⅹĀciⅥⅧ;檧r;橺ot;拗Par;榕uest;橼ʀadelsↄⅪ←ٖ↛ǰ↉\0↎proø₞r;楸qĀlqؿ↖lesó₈ií٫Āen↣↭rtneqq;쀀≩︀Å↪ԀAabcefkosy⇄⇇⇱⇵⇺∘∝∯≨≽ròΠȀilmr⇐⇔⇗⇛rsðᒄf»․ilôکĀdr⇠⇤cy;䑊ƀ;cwࣴ⇫⇯ir;楈;憭ar;意irc;䄥ƀalr∁∎∓rtsĀ;u∉∊晥it»∊lip;怦con;抹r;쀀𝔥sĀew∣∩arow;椥arow;椦ʀamopr∺∾≃≞≣rr;懿tht;戻kĀlr≉≓eftarrow;憩ightarrow;憪f;쀀𝕙bar;怕ƀclt≯≴≸r;쀀𝒽asè⇴rok;䄧Ābp⊂⊇ull;恃hen»ᱛૡ⊣\0⊪\0⊸⋅⋎\0⋕⋳\0\0⋸⌢⍧⍢⍿\0⎆⎪⎴cute耻í䃭ƀ;iyݱ⊰⊵rc耻î䃮;䐸Ācx⊼⊿y;䐵cl耻¡䂡ĀfrΟ⋉;쀀𝔦rave耻ì䃬Ȁ;inoܾ⋝⋩⋮Āin⋢⋦nt;樌t;戭fin;槜ta;愩lig;䄳ƀaop⋾⌚⌝ƀcgt⌅⌈⌗r;䄫ƀelpܟ⌏⌓inåގarôܠh;䄱f;抷ed;䆵ʀ;cfotӴ⌬⌱⌽⍁are;愅inĀ;t⌸⌹戞ie;槝doô⌙ʀ;celpݗ⍌⍐⍛⍡al;抺Āgr⍕⍙eróᕣã⍍arhk;樗rod;樼Ȁcgpt⍯⍲⍶⍻y;䑑on;䄯f;쀀𝕚a;䎹uest耻¿䂿Āci⎊⎏r;쀀𝒾nʀ;EdsvӴ⎛⎝⎡ӳ;拹ot;拵Ā;v⎦⎧拴;拳Ā;iݷ⎮lde;䄩ǫ⎸\0⎼cy;䑖l耻ï䃯̀cfmosu⏌⏗⏜⏡⏧⏵Āiy⏑⏕rc;䄵;䐹r;쀀𝔧ath;䈷pf;쀀𝕛ǣ⏬\0⏱r;쀀𝒿rcy;䑘kcy;䑔Ѐacfghjos␋␖␢␧␭␱␵␻ppaĀ;v␓␔䎺;䏰Āey␛␠dil;䄷;䐺r;쀀𝔨reen;䄸cy;䑅cy;䑜pf;쀀𝕜cr;쀀𝓀஀ABEHabcdefghjlmnoprstuv⑰⒁⒆⒍⒑┎┽╚▀♎♞♥♹♽⚚⚲⛘❝❨➋⟀⠁⠒ƀart⑷⑺⑼rò৆òΕail;椛arr;椎Ā;gঔ⒋;檋ar;楢ॣ⒥\0⒪\0⒱\0\0\0\0\0⒵Ⓔ\0ⓆⓈⓍ\0⓹ute;䄺mptyv;榴raîࡌbda;䎻gƀ;dlࢎⓁⓃ;榑åࢎ;檅uo耻«䂫rЀ;bfhlpst࢙ⓞⓦⓩ⓫⓮⓱⓵Ā;f࢝ⓣs;椟s;椝ë≒p;憫l;椹im;楳l;憢ƀ;ae⓿─┄檫il;椙Ā;s┉┊檭;쀀⪭︀ƀabr┕┙┝rr;椌rk;杲Āak┢┬cĀek┨┪;䁻;䁛Āes┱┳;榋lĀdu┹┻;榏;榍Ȁaeuy╆╋╖╘ron;䄾Ādi═╔il;䄼ìࢰâ┩;䐻Ȁcqrs╣╦╭╽a;椶uoĀ;rนᝆĀdu╲╷har;楧shar;楋h;憲ʀ;fgqs▋▌উ◳◿扤tʀahlrt▘▤▷◂◨rrowĀ;t࢙□aé⓶arpoonĀdu▯▴own»њp»०eftarrows;懇ightƀahs◍◖◞rrowĀ;sࣴࢧarpoonó྘quigarro÷⇰hreetimes;拋ƀ;qs▋ও◺lanôবʀ;cdgsব☊☍☝☨c;檨otĀ;o☔☕橿Ā;r☚☛檁;檃Ā;e☢☥쀀⋚︀s;檓ʀadegs☳☹☽♉♋pproøⓆot;拖qĀgq♃♅ôউgtò⒌ôছiíলƀilr♕࣡♚sht;楼;쀀𝔩Ā;Eজ♣;檑š♩♶rĀdu▲♮Ā;l॥♳;楪lk;斄cy;䑙ʀ;achtੈ⚈⚋⚑⚖rò◁orneòᴈard;楫ri;旺Āio⚟⚤dot;䅀ustĀ;a⚬⚭掰che»⚭ȀEaes⚻⚽⛉⛔;扨pĀ;p⛃⛄檉rox»⛄Ā;q⛎⛏檇Ā;q⛎⚻im;拦Ѐabnoptwz⛩⛴⛷✚✯❁❇❐Ānr⛮⛱g;柬r;懽rëࣁgƀlmr⛿✍✔eftĀar০✇ightá৲apsto;柼ightá৽parrowĀlr✥✩efô⓭ight;憬ƀafl✶✹✽r;榅;쀀𝕝us;樭imes;樴š❋❏st;戗áፎƀ;ef❗❘᠀旊nge»❘arĀ;l❤❥䀨t;榓ʀachmt❳❶❼➅➇ròࢨorneòᶌarĀ;d྘➃;業;怎ri;抿̀achiqt➘➝ੀ➢➮➻quo;怹r;쀀𝓁mƀ;egল➪➬;檍;檏Ābu┪➳oĀ;rฟ➹;怚rok;䅂萀<;cdhilqrࠫ⟒☹⟜⟠⟥⟪⟰Āci⟗⟙;檦r;橹reå◲mes;拉arr;楶uest;橻ĀPi⟵⟹ar;榖ƀ;ef⠀भ᠛旃rĀdu⠇⠍shar;楊har;楦Āen⠗⠡rtneqq;쀀≨︀Å⠞܀Dacdefhilnopsu⡀⡅⢂⢎⢓⢠⢥⢨⣚⣢⣤ઃ⣳⤂Dot;戺Ȁclpr⡎⡒⡣⡽r耻¯䂯Āet⡗⡙;時Ā;e⡞⡟朠se»⡟Ā;sျ⡨toȀ;dluျ⡳⡷⡻owîҌefôएðᏑker;斮Āoy⢇⢌mma;権;䐼ash;怔asuredangle»ᘦr;쀀𝔪o;愧ƀcdn⢯⢴⣉ro耻µ䂵Ȁ;acdᑤ⢽⣀⣄sôᚧir;櫰ot肻·Ƶusƀ;bd⣒ᤃ⣓戒Ā;uᴼ⣘;横ţ⣞⣡p;櫛ò−ðઁĀdp⣩⣮els;抧f;쀀𝕞Āct⣸⣽r;쀀𝓂pos»ᖝƀ;lm⤉⤊⤍䎼timap;抸ఀGLRVabcdefghijlmoprstuvw⥂⥓⥾⦉⦘⧚⧩⨕⨚⩘⩝⪃⪕⪤⪨⬄⬇⭄⭿⮮ⰴⱧⱼ⳩Āgt⥇⥋;쀀⋙̸Ā;v⥐௏쀀≫⃒ƀelt⥚⥲⥶ftĀar⥡⥧rrow;懍ightarrow;懎;쀀⋘̸Ā;v⥻ే쀀≪⃒ightarrow;懏ĀDd⦎⦓ash;抯ash;抮ʀbcnpt⦣⦧⦬⦱⧌la»˞ute;䅄g;쀀∠⃒ʀ;Eiop඄⦼⧀⧅⧈;쀀⩰̸d;쀀≋̸s;䅉roø඄urĀ;a⧓⧔普lĀ;s⧓ସǳ⧟\0⧣p肻 ଷmpĀ;e௹ఀʀaeouy⧴⧾⨃⨐⨓ǰ⧹\0⧻;橃on;䅈dil;䅆ngĀ;dൾ⨊ot;쀀⩭̸p;橂;䐽ash;怓΀;Aadqsxஒ⨩⨭⨻⩁⩅⩐rr;懗rĀhr⨳⨶k;椤Ā;oᏲᏰot;쀀≐̸uiöୣĀei⩊⩎ar;椨í஘istĀ;s஠டr;쀀𝔫ȀEest௅⩦⩹⩼ƀ;qs஼⩭௡ƀ;qs஼௅⩴lanô௢ií௪Ā;rஶ⪁»ஷƀAap⪊⪍⪑rò⥱rr;憮ar;櫲ƀ;svྍ⪜ྌĀ;d⪡⪢拼;拺cy;䑚΀AEadest⪷⪺⪾⫂⫅⫶⫹rò⥦;쀀≦̸rr;憚r;急Ȁ;fqs఻⫎⫣⫯tĀar⫔⫙rro÷⫁ightarro÷⪐ƀ;qs఻⪺⫪lanôౕĀ;sౕ⫴»శiíౝĀ;rవ⫾iĀ;eచథiäඐĀpt⬌⬑f;쀀𝕟膀¬;in⬙⬚⬶䂬nȀ;Edvஉ⬤⬨⬮;쀀⋹̸ot;쀀⋵̸ǡஉ⬳⬵;拷;拶iĀ;vಸ⬼ǡಸ⭁⭃;拾;拽ƀaor⭋⭣⭩rȀ;ast୻⭕⭚⭟lleì୻l;쀀⫽⃥;쀀∂̸lint;樔ƀ;ceಒ⭰⭳uåಥĀ;cಘ⭸Ā;eಒ⭽ñಘȀAait⮈⮋⮝⮧rò⦈rrƀ;cw⮔⮕⮙憛;쀀⤳̸;쀀↝̸ghtarrow»⮕riĀ;eೋೖ΀chimpqu⮽⯍⯙⬄୸⯤⯯Ȁ;cerല⯆ഷ⯉uå൅;쀀𝓃ortɭ⬅\0\0⯖ará⭖mĀ;e൮⯟Ā;q൴൳suĀbp⯫⯭å೸åഋƀbcp⯶ⰑⰙȀ;Ees⯿ⰀഢⰄ抄;쀀⫅̸etĀ;eഛⰋqĀ;qണⰀcĀ;eലⰗñസȀ;EesⰢⰣൟⰧ抅;쀀⫆̸etĀ;e൘ⰮqĀ;qൠⰣȀgilrⰽⰿⱅⱇìௗlde耻ñ䃱çృiangleĀlrⱒⱜeftĀ;eచⱚñదightĀ;eೋⱥñ೗Ā;mⱬⱭ䎽ƀ;esⱴⱵⱹ䀣ro;愖p;怇ҀDHadgilrsⲏⲔⲙⲞⲣⲰⲶⳓⳣash;抭arr;椄p;쀀≍⃒ash;抬ĀetⲨⲬ;쀀≥⃒;쀀>⃒nfin;槞ƀAetⲽⳁⳅrr;椂;쀀≤⃒Ā;rⳊⳍ쀀<⃒ie;쀀⊴⃒ĀAtⳘⳜrr;椃rie;쀀⊵⃒im;쀀∼⃒ƀAan⳰⳴ⴂrr;懖rĀhr⳺⳽k;椣Ā;oᏧᏥear;椧ቓ᪕\0\0\0\0\0\0\0\0\0\0\0\0\0ⴭ\0ⴸⵈⵠⵥ⵲ⶄᬇ\0\0ⶍⶫ\0ⷈⷎ\0ⷜ⸙⸫⸾⹃Ācsⴱ᪗ute耻ó䃳ĀiyⴼⵅrĀ;c᪞ⵂ耻ô䃴;䐾ʀabios᪠ⵒⵗǈⵚlac;䅑v;樸old;榼lig;䅓Ācr⵩⵭ir;榿;쀀𝔬ͯ⵹\0\0⵼\0ⶂn;䋛ave耻ò䃲;槁Ābmⶈ෴ar;榵Ȁacitⶕ⶘ⶥⶨrò᪀Āir⶝ⶠr;榾oss;榻nå๒;槀ƀaeiⶱⶵⶹcr;䅍ga;䏉ƀcdnⷀⷅǍron;䎿;榶pf;쀀𝕠ƀaelⷔ⷗ǒr;榷rp;榹΀;adiosvⷪⷫⷮ⸈⸍⸐⸖戨rò᪆Ȁ;efmⷷⷸ⸂⸅橝rĀ;oⷾⷿ愴f»ⷿ耻ª䂪耻º䂺gof;抶r;橖lope;橗;橛ƀclo⸟⸡⸧ò⸁ash耻ø䃸l;折iŬⸯ⸴de耻õ䃵esĀ;aǛ⸺s;樶ml耻ö䃶bar;挽ૡ⹞\0⹽\0⺀⺝\0⺢⺹\0\0⻋ຜ\0⼓\0\0⼫⾼\0⿈rȀ;astЃ⹧⹲຅脀¶;l⹭⹮䂶leìЃɩ⹸\0\0⹻m;櫳;櫽y;䐿rʀcimpt⺋⺏⺓ᡥ⺗nt;䀥od;䀮il;怰enk;怱r;쀀𝔭ƀimo⺨⺰⺴Ā;v⺭⺮䏆;䏕maô੶ne;明ƀ;tv⺿⻀⻈䏀chfork»´;䏖Āau⻏⻟nĀck⻕⻝kĀ;h⇴⻛;愎ö⇴sҀ;abcdemst⻳⻴ᤈ⻹⻽⼄⼆⼊⼎䀫cir;樣ir;樢Āouᵀ⼂;樥;橲n肻±ຝim;樦wo;樧ƀipu⼙⼠⼥ntint;樕f;쀀𝕡nd耻£䂣Ԁ;Eaceinosu່⼿⽁⽄⽇⾁⾉⾒⽾⾶;檳p;檷uå໙Ā;c໎⽌̀;acens່⽙⽟⽦⽨⽾pproø⽃urlyeñ໙ñ໎ƀaes⽯⽶⽺pprox;檹qq;檵im;拨iíໟmeĀ;s⾈ຮ怲ƀEas⽸⾐⽺ð⽵ƀdfp໬⾙⾯ƀals⾠⾥⾪lar;挮ine;挒urf;挓Ā;t໻⾴ï໻rel;抰Āci⿀⿅r;쀀𝓅;䏈ncsp;怈̀fiopsu⿚⋢⿟⿥⿫⿱r;쀀𝔮pf;쀀𝕢rime;恗cr;쀀𝓆ƀaeo⿸〉〓tĀei⿾々rnionóڰnt;樖stĀ;e【】䀿ñἙô༔઀ABHabcdefhilmnoprstux぀けさすムㄎㄫㅇㅢㅲㆎ㈆㈕㈤㈩㉘㉮㉲㊐㊰㊷ƀartぇおがròႳòϝail;検aròᱥar;楤΀cdenqrtとふへみわゔヌĀeuねぱ;쀀∽̱te;䅕iãᅮmptyv;榳gȀ;del࿑らるろ;榒;榥å࿑uo耻»䂻rր;abcfhlpstw࿜ガクシスゼゾダッデナp;極Ā;f࿠ゴs;椠;椳s;椞ë≝ð✮l;楅im;楴l;憣;憝Āaiパフil;椚oĀ;nホボ戶aló༞ƀabrョリヮrò៥rk;杳ĀakンヽcĀekヹ・;䁽;䁝Āes㄂㄄;榌lĀduㄊㄌ;榎;榐Ȁaeuyㄗㄜㄧㄩron;䅙Ādiㄡㄥil;䅗ì࿲âヺ;䑀Ȁclqsㄴㄷㄽㅄa;椷dhar;楩uoĀ;rȎȍh;憳ƀacgㅎㅟངlȀ;ipsླྀㅘㅛႜnåႻarôྩt;断ƀilrㅩဣㅮsht;楽;쀀𝔯ĀaoㅷㆆrĀduㅽㅿ»ѻĀ;l႑ㆄ;楬Ā;vㆋㆌ䏁;䏱ƀgns㆕ㇹㇼht̀ahlrstㆤㆰ㇂㇘㇤㇮rrowĀ;t࿜ㆭaéトarpoonĀduㆻㆿowîㅾp»႒eftĀah㇊㇐rrowó࿪arpoonóՑightarrows;應quigarro÷ニhreetimes;拌g;䋚ingdotseñἲƀahm㈍㈐㈓rò࿪aòՑ;怏oustĀ;a㈞㈟掱che»㈟mid;櫮Ȁabpt㈲㈽㉀㉒Ānr㈷㈺g;柭r;懾rëဃƀafl㉇㉊㉎r;榆;쀀𝕣us;樮imes;樵Āap㉝㉧rĀ;g㉣㉤䀩t;榔olint;樒arò㇣Ȁachq㉻㊀Ⴜ㊅quo;怺r;쀀𝓇Ābu・㊊oĀ;rȔȓƀhir㊗㊛㊠reåㇸmes;拊iȀ;efl㊪ၙᠡ㊫方tri;槎luhar;楨;愞ൡ㋕㋛㋟㌬㌸㍱\0㍺㎤\0\0㏬㏰\0㐨㑈㑚㒭㒱㓊㓱\0㘖\0\0㘳cute;䅛quï➺Ԁ;Eaceinpsyᇭ㋳㋵㋿㌂㌋㌏㌟㌦㌩;檴ǰ㋺\0㋼;檸on;䅡uåᇾĀ;dᇳ㌇il;䅟rc;䅝ƀEas㌖㌘㌛;檶p;檺im;择olint;樓iíሄ;䑁otƀ;be㌴ᵇ㌵担;橦΀Aacmstx㍆㍊㍗㍛㍞㍣㍭rr;懘rĀhr㍐㍒ë∨Ā;oਸ਼਴t耻§䂧i;䀻war;椩mĀin㍩ðnuóñt;朶rĀ;o㍶⁕쀀𝔰Ȁacoy㎂㎆㎑㎠rp;景Āhy㎋㎏cy;䑉;䑈rtɭ㎙\0\0㎜iäᑤaraì⹯耻­䂭Āgm㎨㎴maƀ;fv㎱㎲㎲䏃;䏂Ѐ;deglnprካ㏅㏉㏎㏖㏞㏡㏦ot;橪Ā;q኱ኰĀ;E㏓㏔檞;檠Ā;E㏛㏜檝;檟e;扆lus;樤arr;楲aròᄽȀaeit㏸㐈㐏㐗Āls㏽㐄lsetmé㍪hp;樳parsl;槤Ādlᑣ㐔e;挣Ā;e㐜㐝檪Ā;s㐢㐣檬;쀀⪬︀ƀflp㐮㐳㑂tcy;䑌Ā;b㐸㐹䀯Ā;a㐾㐿槄r;挿f;쀀𝕤aĀdr㑍ЂesĀ;u㑔㑕晠it»㑕ƀcsu㑠㑹㒟Āau㑥㑯pĀ;sᆈ㑫;쀀⊓︀pĀ;sᆴ㑵;쀀⊔︀uĀbp㑿㒏ƀ;esᆗᆜ㒆etĀ;eᆗ㒍ñᆝƀ;esᆨᆭ㒖etĀ;eᆨ㒝ñᆮƀ;afᅻ㒦ְrť㒫ֱ»ᅼaròᅈȀcemt㒹㒾㓂㓅r;쀀𝓈tmîñiì㐕aræᆾĀar㓎㓕rĀ;f㓔ឿ昆Āan㓚㓭ightĀep㓣㓪psiloîỠhé⺯s»⡒ʀbcmnp㓻㕞ሉ㖋㖎Ҁ;Edemnprs㔎㔏㔑㔕㔞㔣㔬㔱㔶抂;櫅ot;檽Ā;dᇚ㔚ot;櫃ult;櫁ĀEe㔨㔪;櫋;把lus;檿arr;楹ƀeiu㔽㕒㕕tƀ;en㔎㕅㕋qĀ;qᇚ㔏eqĀ;q㔫㔨m;櫇Ābp㕚㕜;櫕;櫓c̀;acensᇭ㕬㕲㕹㕻㌦pproø㋺urlyeñᇾñᇳƀaes㖂㖈㌛pproø㌚qñ㌗g;晪ڀ123;Edehlmnps㖩㖬㖯ሜ㖲㖴㗀㗉㗕㗚㗟㗨㗭耻¹䂹耻²䂲耻³䂳;櫆Āos㖹㖼t;檾ub;櫘Ā;dሢ㗅ot;櫄sĀou㗏㗒l;柉b;櫗arr;楻ult;櫂ĀEe㗤㗦;櫌;抋lus;櫀ƀeiu㗴㘉㘌tƀ;enሜ㗼㘂qĀ;qሢ㖲eqĀ;q㗧㗤m;櫈Ābp㘑㘓;櫔;櫖ƀAan㘜㘠㘭rr;懙rĀhr㘦㘨ë∮Ā;oਫ਩war;椪lig耻ß䃟௡㙑㙝㙠ዎ㙳㙹\0㙾㛂\0\0\0\0\0㛛㜃\0㜉㝬\0\0\0㞇ɲ㙖\0\0㙛get;挖;䏄rë๟ƀaey㙦㙫㙰ron;䅥dil;䅣;䑂lrec;挕r;쀀𝔱Ȁeiko㚆㚝㚵㚼ǲ㚋\0㚑eĀ4fኄኁaƀ;sv㚘㚙㚛䎸ym;䏑Ācn㚢㚲kĀas㚨㚮pproø዁im»ኬsðኞĀas㚺㚮ð዁rn耻þ䃾Ǭ̟㛆⋧es膀×;bd㛏㛐㛘䃗Ā;aᤏ㛕r;樱;樰ƀeps㛡㛣㜀á⩍Ȁ;bcf҆㛬㛰㛴ot;挶ir;櫱Ā;o㛹㛼쀀𝕥rk;櫚á㍢rime;怴ƀaip㜏㜒㝤dåቈ΀adempst㜡㝍㝀㝑㝗㝜㝟ngleʀ;dlqr㜰㜱㜶㝀㝂斵own»ᶻeftĀ;e⠀㜾ñम;扜ightĀ;e㊪㝋ñၚot;旬inus;樺lus;樹b;槍ime;樻ezium;揢ƀcht㝲㝽㞁Āry㝷㝻;쀀𝓉;䑆cy;䑛rok;䅧Āio㞋㞎xô᝷headĀlr㞗㞠eftarro÷ࡏightarrow»ཝऀAHabcdfghlmoprstuw㟐㟓㟗㟤㟰㟼㠎㠜㠣㠴㡑㡝㡫㢩㣌㣒㣪㣶ròϭar;楣Ācr㟜㟢ute耻ú䃺òᅐrǣ㟪\0㟭y;䑞ve;䅭Āiy㟵㟺rc耻û䃻;䑃ƀabh㠃㠆㠋ròᎭlac;䅱aòᏃĀir㠓㠘sht;楾;쀀𝔲rave耻ù䃹š㠧㠱rĀlr㠬㠮»ॗ»ႃlk;斀Āct㠹㡍ɯ㠿\0\0㡊rnĀ;e㡅㡆挜r»㡆op;挏ri;旸Āal㡖㡚cr;䅫肻¨͉Āgp㡢㡦on;䅳f;쀀𝕦̀adhlsuᅋ㡸㡽፲㢑㢠ownáᎳarpoonĀlr㢈㢌efô㠭ighô㠯iƀ;hl㢙㢚㢜䏅»ᏺon»㢚parrows;懈ƀcit㢰㣄㣈ɯ㢶\0\0㣁rnĀ;e㢼㢽挝r»㢽op;挎ng;䅯ri;旹cr;쀀𝓊ƀdir㣙㣝㣢ot;拰lde;䅩iĀ;f㜰㣨»᠓Āam㣯㣲rò㢨l耻ü䃼angle;榧ހABDacdeflnoprsz㤜㤟㤩㤭㦵㦸㦽㧟㧤㧨㧳㧹㧽㨁㨠ròϷarĀ;v㤦㤧櫨;櫩asèϡĀnr㤲㤷grt;榜΀eknprst㓣㥆㥋㥒㥝㥤㦖appá␕othinçẖƀhir㓫⻈㥙opô⾵Ā;hᎷ㥢ïㆍĀiu㥩㥭gmá㎳Ābp㥲㦄setneqĀ;q㥽㦀쀀⊊︀;쀀⫋︀setneqĀ;q㦏㦒쀀⊋︀;쀀⫌︀Āhr㦛㦟etá㚜iangleĀlr㦪㦯eft»थight»ၑy;䐲ash»ံƀelr㧄㧒㧗ƀ;beⷪ㧋㧏ar;抻q;扚lip;拮Ābt㧜ᑨaòᑩr;쀀𝔳tré㦮suĀbp㧯㧱»ജ»൙pf;쀀𝕧roð໻tré㦴Ācu㨆㨋r;쀀𝓋Ābp㨐㨘nĀEe㦀㨖»㥾nĀEe㦒㨞»㦐igzag;榚΀cefoprs㨶㨻㩖㩛㩔㩡㩪irc;䅵Ādi㩀㩑Ābg㩅㩉ar;機eĀ;qᗺ㩏;扙erp;愘r;쀀𝔴pf;쀀𝕨Ā;eᑹ㩦atèᑹcr;쀀𝓌ૣណ㪇\0㪋\0㪐㪛\0\0㪝㪨㪫㪯\0\0㫃㫎\0㫘ៜ៟tré៑r;쀀𝔵ĀAa㪔㪗ròσrò৶;䎾ĀAa㪡㪤ròθrò৫að✓is;拻ƀdptឤ㪵㪾Āfl㪺ឩ;쀀𝕩imåឲĀAa㫇㫊ròώròਁĀcq㫒ីr;쀀𝓍Āpt៖㫜ré។Ѐacefiosu㫰㫽㬈㬌㬑㬕㬛㬡cĀuy㫶㫻te耻ý䃽;䑏Āiy㬂㬆rc;䅷;䑋n耻¥䂥r;쀀𝔶cy;䑗pf;쀀𝕪cr;쀀𝓎Ācm㬦㬩y;䑎l耻ÿ䃿Ԁacdefhiosw㭂㭈㭔㭘㭤㭩㭭㭴㭺㮀cute;䅺Āay㭍㭒ron;䅾;䐷ot;䅼Āet㭝㭡træᕟa;䎶r;쀀𝔷cy;䐶grarr;懝pf;쀀𝕫cr;쀀𝓏Ājn㮅㮇;怍j;怌'.split("").map((c2) => c2.charCodeAt(0))
+);
+const xmlDecodeTree = new Uint16Array(
+  // prettier-ignore
+  "Ȁaglq	\x1Bɭ\0\0p;䀦os;䀧t;䀾t;䀼uot;䀢".split("").map((c2) => c2.charCodeAt(0))
+);
+var _a$1;
+const decodeMap = /* @__PURE__ */ new Map([
+  [0, 65533],
+  // C1 Unicode control character reference replacements
+  [128, 8364],
+  [130, 8218],
+  [131, 402],
+  [132, 8222],
+  [133, 8230],
+  [134, 8224],
+  [135, 8225],
+  [136, 710],
+  [137, 8240],
+  [138, 352],
+  [139, 8249],
+  [140, 338],
+  [142, 381],
+  [145, 8216],
+  [146, 8217],
+  [147, 8220],
+  [148, 8221],
+  [149, 8226],
+  [150, 8211],
+  [151, 8212],
+  [152, 732],
+  [153, 8482],
+  [154, 353],
+  [155, 8250],
+  [156, 339],
+  [158, 382],
+  [159, 376]
+]);
+const fromCodePoint$1 = (
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
+  (_a$1 = String.fromCodePoint) !== null && _a$1 !== void 0 ? _a$1 : function(codePoint) {
+    let output = "";
+    if (codePoint > 65535) {
+      codePoint -= 65536;
+      output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+      codePoint = 56320 | codePoint & 1023;
+    }
+    output += String.fromCharCode(codePoint);
+    return output;
+  }
+);
+function replaceCodePoint(codePoint) {
+  var _a2;
+  if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) {
+    return 65533;
+  }
+  return (_a2 = decodeMap.get(codePoint)) !== null && _a2 !== void 0 ? _a2 : codePoint;
 }
-function rtrim(str, c2, invert) {
-  const l2 = str.length;
-  if (l2 === 0) {
-    return "";
+var CharCodes;
+(function(CharCodes2) {
+  CharCodes2[CharCodes2["NUM"] = 35] = "NUM";
+  CharCodes2[CharCodes2["SEMI"] = 59] = "SEMI";
+  CharCodes2[CharCodes2["EQUALS"] = 61] = "EQUALS";
+  CharCodes2[CharCodes2["ZERO"] = 48] = "ZERO";
+  CharCodes2[CharCodes2["NINE"] = 57] = "NINE";
+  CharCodes2[CharCodes2["LOWER_A"] = 97] = "LOWER_A";
+  CharCodes2[CharCodes2["LOWER_F"] = 102] = "LOWER_F";
+  CharCodes2[CharCodes2["LOWER_X"] = 120] = "LOWER_X";
+  CharCodes2[CharCodes2["LOWER_Z"] = 122] = "LOWER_Z";
+  CharCodes2[CharCodes2["UPPER_A"] = 65] = "UPPER_A";
+  CharCodes2[CharCodes2["UPPER_F"] = 70] = "UPPER_F";
+  CharCodes2[CharCodes2["UPPER_Z"] = 90] = "UPPER_Z";
+})(CharCodes || (CharCodes = {}));
+const TO_LOWER_BIT = 32;
+var BinTrieFlags;
+(function(BinTrieFlags2) {
+  BinTrieFlags2[BinTrieFlags2["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
+  BinTrieFlags2[BinTrieFlags2["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
+  BinTrieFlags2[BinTrieFlags2["JUMP_TABLE"] = 127] = "JUMP_TABLE";
+})(BinTrieFlags || (BinTrieFlags = {}));
+function isNumber(code2) {
+  return code2 >= CharCodes.ZERO && code2 <= CharCodes.NINE;
+}
+function isHexadecimalCharacter(code2) {
+  return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_F || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_F;
+}
+function isAsciiAlphaNumeric(code2) {
+  return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_Z || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_Z || isNumber(code2);
+}
+function isEntityInAttributeInvalidEnd(code2) {
+  return code2 === CharCodes.EQUALS || isAsciiAlphaNumeric(code2);
+}
+var EntityDecoderState;
+(function(EntityDecoderState2) {
+  EntityDecoderState2[EntityDecoderState2["EntityStart"] = 0] = "EntityStart";
+  EntityDecoderState2[EntityDecoderState2["NumericStart"] = 1] = "NumericStart";
+  EntityDecoderState2[EntityDecoderState2["NumericDecimal"] = 2] = "NumericDecimal";
+  EntityDecoderState2[EntityDecoderState2["NumericHex"] = 3] = "NumericHex";
+  EntityDecoderState2[EntityDecoderState2["NamedEntity"] = 4] = "NamedEntity";
+})(EntityDecoderState || (EntityDecoderState = {}));
+var DecodingMode;
+(function(DecodingMode2) {
+  DecodingMode2[DecodingMode2["Legacy"] = 0] = "Legacy";
+  DecodingMode2[DecodingMode2["Strict"] = 1] = "Strict";
+  DecodingMode2[DecodingMode2["Attribute"] = 2] = "Attribute";
+})(DecodingMode || (DecodingMode = {}));
+class EntityDecoder {
+  constructor(decodeTree, emitCodePoint, errors2) {
+    this.decodeTree = decodeTree;
+    this.emitCodePoint = emitCodePoint;
+    this.errors = errors2;
+    this.state = EntityDecoderState.EntityStart;
+    this.consumed = 1;
+    this.result = 0;
+    this.treeIndex = 0;
+    this.excess = 1;
+    this.decodeMode = DecodingMode.Strict;
   }
-  let suffLen = 0;
-  while (suffLen < l2) {
-    const currChar = str.charAt(l2 - suffLen - 1);
-    if (currChar === c2 && !invert) {
-      suffLen++;
-    } else if (currChar !== c2 && invert) {
-      suffLen++;
-    } else {
-      break;
+  /** Resets the instance to make it reusable. */
+  startEntity(decodeMode) {
+    this.decodeMode = decodeMode;
+    this.state = EntityDecoderState.EntityStart;
+    this.result = 0;
+    this.treeIndex = 0;
+    this.excess = 1;
+    this.consumed = 1;
+  }
+  /**
+   * Write an entity to the decoder. This can be called multiple times with partial entities.
+   * If the entity is incomplete, the decoder will return -1.
+   *
+   * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+   * entity is incomplete, and resume when the next string is written.
+   *
+   * @param string The string containing the entity (or a continuation of the entity).
+   * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  write(str, offset2) {
+    switch (this.state) {
+      case EntityDecoderState.EntityStart: {
+        if (str.charCodeAt(offset2) === CharCodes.NUM) {
+          this.state = EntityDecoderState.NumericStart;
+          this.consumed += 1;
+          return this.stateNumericStart(str, offset2 + 1);
+        }
+        this.state = EntityDecoderState.NamedEntity;
+        return this.stateNamedEntity(str, offset2);
+      }
+      case EntityDecoderState.NumericStart: {
+        return this.stateNumericStart(str, offset2);
+      }
+      case EntityDecoderState.NumericDecimal: {
+        return this.stateNumericDecimal(str, offset2);
+      }
+      case EntityDecoderState.NumericHex: {
+        return this.stateNumericHex(str, offset2);
+      }
+      case EntityDecoderState.NamedEntity: {
+        return this.stateNamedEntity(str, offset2);
+      }
     }
   }
-  return str.slice(0, l2 - suffLen);
-}
-function findClosingBracket(str, b2) {
-  if (str.indexOf(b2[1]) === -1) {
+  /**
+   * Switches between the numeric decimal and hexadecimal states.
+   *
+   * Equivalent to the `Numeric character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericStart(str, offset2) {
+    if (offset2 >= str.length) {
+      return -1;
+    }
+    if ((str.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+      this.state = EntityDecoderState.NumericHex;
+      this.consumed += 1;
+      return this.stateNumericHex(str, offset2 + 1);
+    }
+    this.state = EntityDecoderState.NumericDecimal;
+    return this.stateNumericDecimal(str, offset2);
+  }
+  addToNumericResult(str, start2, end2, base2) {
+    if (start2 !== end2) {
+      const digitCount = end2 - start2;
+      this.result = this.result * Math.pow(base2, digitCount) + parseInt(str.substr(start2, digitCount), base2);
+      this.consumed += digitCount;
+    }
+  }
+  /**
+   * Parses a hexadecimal numeric entity.
+   *
+   * Equivalent to the `Hexademical character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericHex(str, offset2) {
+    const startIdx = offset2;
+    while (offset2 < str.length) {
+      const char = str.charCodeAt(offset2);
+      if (isNumber(char) || isHexadecimalCharacter(char)) {
+        offset2 += 1;
+      } else {
+        this.addToNumericResult(str, startIdx, offset2, 16);
+        return this.emitNumericEntity(char, 3);
+      }
+    }
+    this.addToNumericResult(str, startIdx, offset2, 16);
     return -1;
   }
-  let level = 0;
-  for (let i2 = 0; i2 < str.length; i2++) {
-    if (str[i2] === "\\") {
-      i2++;
-    } else if (str[i2] === b2[0]) {
-      level++;
-    } else if (str[i2] === b2[1]) {
-      level--;
-      if (level < 0) {
-        return i2;
+  /**
+   * Parses a decimal numeric entity.
+   *
+   * Equivalent to the `Decimal character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNumericDecimal(str, offset2) {
+    const startIdx = offset2;
+    while (offset2 < str.length) {
+      const char = str.charCodeAt(offset2);
+      if (isNumber(char)) {
+        offset2 += 1;
+      } else {
+        this.addToNumericResult(str, startIdx, offset2, 10);
+        return this.emitNumericEntity(char, 2);
       }
+    }
+    this.addToNumericResult(str, startIdx, offset2, 10);
+    return -1;
+  }
+  /**
+   * Validate and emit a numeric entity.
+   *
+   * Implements the logic from the `Hexademical character reference start
+   * state` and `Numeric character reference end state` in the HTML spec.
+   *
+   * @param lastCp The last code point of the entity. Used to see if the
+   *               entity was terminated with a semicolon.
+   * @param expectedLength The minimum number of characters that should be
+   *                       consumed. Used to validate that at least one digit
+   *                       was consumed.
+   * @returns The number of characters that were consumed.
+   */
+  emitNumericEntity(lastCp, expectedLength) {
+    var _a2;
+    if (this.consumed <= expectedLength) {
+      (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
+      return 0;
+    }
+    if (lastCp === CharCodes.SEMI) {
+      this.consumed += 1;
+    } else if (this.decodeMode === DecodingMode.Strict) {
+      return 0;
+    }
+    this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
+    if (this.errors) {
+      if (lastCp !== CharCodes.SEMI) {
+        this.errors.missingSemicolonAfterCharacterReference();
+      }
+      this.errors.validateNumericCharacterReference(this.result);
+    }
+    return this.consumed;
+  }
+  /**
+   * Parses a named entity.
+   *
+   * Equivalent to the `Named character reference state` in the HTML spec.
+   *
+   * @param str The string containing the entity (or a continuation of the entity).
+   * @param offset The current offset.
+   * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+   */
+  stateNamedEntity(str, offset2) {
+    const { decodeTree } = this;
+    let current = decodeTree[this.treeIndex];
+    let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+    for (; offset2 < str.length; offset2++, this.excess++) {
+      const char = str.charCodeAt(offset2);
+      this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
+      if (this.treeIndex < 0) {
+        return this.result === 0 || // If we are parsing an attribute
+        this.decodeMode === DecodingMode.Attribute && // We shouldn't have consumed any characters after the entity,
+        (valueLength === 0 || // And there should be no invalid characters.
+        isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
+      }
+      current = decodeTree[this.treeIndex];
+      valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+      if (valueLength !== 0) {
+        if (char === CharCodes.SEMI) {
+          return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
+        }
+        if (this.decodeMode !== DecodingMode.Strict) {
+          this.result = this.treeIndex;
+          this.consumed += this.excess;
+          this.excess = 0;
+        }
+      }
+    }
+    return -1;
+  }
+  /**
+   * Emit a named entity that was not terminated with a semicolon.
+   *
+   * @returns The number of characters consumed.
+   */
+  emitNotTerminatedNamedEntity() {
+    var _a2;
+    const { result, decodeTree } = this;
+    const valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
+    this.emitNamedEntityData(result, valueLength, this.consumed);
+    (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.missingSemicolonAfterCharacterReference();
+    return this.consumed;
+  }
+  /**
+   * Emit a named entity.
+   *
+   * @param result The index of the entity in the decode tree.
+   * @param valueLength The number of bytes in the entity.
+   * @param consumed The number of characters consumed.
+   *
+   * @returns The number of characters consumed.
+   */
+  emitNamedEntityData(result, valueLength, consumed) {
+    const { decodeTree } = this;
+    this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
+    if (valueLength === 3) {
+      this.emitCodePoint(decodeTree[result + 2], consumed);
+    }
+    return consumed;
+  }
+  /**
+   * Signal to the parser that the end of the input was reached.
+   *
+   * Remaining data will be emitted and relevant errors will be produced.
+   *
+   * @returns The number of characters consumed.
+   */
+  end() {
+    var _a2;
+    switch (this.state) {
+      case EntityDecoderState.NamedEntity: {
+        return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
+      }
+      case EntityDecoderState.NumericDecimal: {
+        return this.emitNumericEntity(0, 2);
+      }
+      case EntityDecoderState.NumericHex: {
+        return this.emitNumericEntity(0, 3);
+      }
+      case EntityDecoderState.NumericStart: {
+        (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
+        return 0;
+      }
+      case EntityDecoderState.EntityStart: {
+        return 0;
+      }
+    }
+  }
+}
+function getDecoder(decodeTree) {
+  let ret = "";
+  const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint$1(str));
+  return function decodeWithTrie(str, decodeMode) {
+    let lastIndex = 0;
+    let offset2 = 0;
+    while ((offset2 = str.indexOf("&", offset2)) >= 0) {
+      ret += str.slice(lastIndex, offset2);
+      decoder.startEntity(decodeMode);
+      const len = decoder.write(
+        str,
+        // Skip the "&"
+        offset2 + 1
+      );
+      if (len < 0) {
+        lastIndex = offset2 + decoder.end();
+        break;
+      }
+      lastIndex = offset2 + len;
+      offset2 = len === 0 ? lastIndex + 1 : lastIndex;
+    }
+    const result = ret + str.slice(lastIndex);
+    ret = "";
+    return result;
+  };
+}
+function determineBranch(decodeTree, current, nodeIdx, char) {
+  const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+  const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
+  if (branchCount === 0) {
+    return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
+  }
+  if (jumpOffset) {
+    const value = char - jumpOffset;
+    return value < 0 || value >= branchCount ? -1 : decodeTree[nodeIdx + value] - 1;
+  }
+  let lo = nodeIdx;
+  let hi = lo + branchCount - 1;
+  while (lo <= hi) {
+    const mid = lo + hi >>> 1;
+    const midVal = decodeTree[mid];
+    if (midVal < char) {
+      lo = mid + 1;
+    } else if (midVal > char) {
+      hi = mid - 1;
+    } else {
+      return decodeTree[mid + branchCount];
     }
   }
   return -1;
 }
-function outputLink(cap, link2, raw, lexer) {
-  const href = link2.href;
-  const title = link2.title ? escape$1$1(link2.title) : null;
-  const text = cap[1].replace(/\\([\[\]])/g, "$1");
-  if (cap[0].charAt(0) !== "!") {
-    lexer.state.inLink = true;
-    const token2 = {
-      type: "link",
-      raw,
-      href,
-      title,
-      text,
-      tokens: lexer.inlineTokens(text)
-    };
-    lexer.state.inLink = false;
-    return token2;
+const htmlDecoder = getDecoder(htmlDecodeTree);
+getDecoder(xmlDecodeTree);
+function decodeHTML(str, mode = DecodingMode.Legacy) {
+  return htmlDecoder(str, mode);
+}
+function _class$1(obj) {
+  return Object.prototype.toString.call(obj);
+}
+function isString$1(obj) {
+  return _class$1(obj) === "[object String]";
+}
+const _hasOwnProperty = Object.prototype.hasOwnProperty;
+function has(object, key2) {
+  return _hasOwnProperty.call(object, key2);
+}
+function assign$1(obj) {
+  const sources = Array.prototype.slice.call(arguments, 1);
+  sources.forEach(function(source2) {
+    if (!source2) {
+      return;
+    }
+    if (typeof source2 !== "object") {
+      throw new TypeError(source2 + "must be object");
+    }
+    Object.keys(source2).forEach(function(key2) {
+      obj[key2] = source2[key2];
+    });
+  });
+  return obj;
+}
+function arrayReplaceAt(src, pos2, newElements) {
+  return [].concat(src.slice(0, pos2), newElements, src.slice(pos2 + 1));
+}
+function isValidEntityCode(c2) {
+  if (c2 >= 55296 && c2 <= 57343) {
+    return false;
   }
-  return {
-    type: "image",
-    raw,
-    href,
-    title,
-    text: escape$1$1(text)
+  if (c2 >= 64976 && c2 <= 65007) {
+    return false;
+  }
+  if ((c2 & 65535) === 65535 || (c2 & 65535) === 65534) {
+    return false;
+  }
+  if (c2 >= 0 && c2 <= 8) {
+    return false;
+  }
+  if (c2 === 11) {
+    return false;
+  }
+  if (c2 >= 14 && c2 <= 31) {
+    return false;
+  }
+  if (c2 >= 127 && c2 <= 159) {
+    return false;
+  }
+  if (c2 > 1114111) {
+    return false;
+  }
+  return true;
+}
+function fromCodePoint(c2) {
+  if (c2 > 65535) {
+    c2 -= 65536;
+    const surrogate1 = 55296 + (c2 >> 10);
+    const surrogate2 = 56320 + (c2 & 1023);
+    return String.fromCharCode(surrogate1, surrogate2);
+  }
+  return String.fromCharCode(c2);
+}
+const UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+const ENTITY_RE = /&([a-z#][a-z0-9]{1,31});/gi;
+const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + ENTITY_RE.source, "gi");
+const DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
+function replaceEntityPattern(match2, name) {
+  if (name.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name)) {
+    const code2 = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+    if (isValidEntityCode(code2)) {
+      return fromCodePoint(code2);
+    }
+    return match2;
+  }
+  const decoded = decodeHTML(match2);
+  if (decoded !== match2) {
+    return decoded;
+  }
+  return match2;
+}
+function unescapeMd(str) {
+  if (str.indexOf("\\") < 0) {
+    return str;
+  }
+  return str.replace(UNESCAPE_MD_RE, "$1");
+}
+function unescapeAll(str) {
+  if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) {
+    return str;
+  }
+  return str.replace(UNESCAPE_ALL_RE, function(match2, escaped, entity2) {
+    if (escaped) {
+      return escaped;
+    }
+    return replaceEntityPattern(match2, entity2);
+  });
+}
+const HTML_ESCAPE_TEST_RE = /[&<>"]/;
+const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
+const HTML_REPLACEMENTS = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;"
+};
+function replaceUnsafeChar(ch3) {
+  return HTML_REPLACEMENTS[ch3];
+}
+function escapeHtml(str) {
+  if (HTML_ESCAPE_TEST_RE.test(str)) {
+    return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+  }
+  return str;
+}
+const REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
+function escapeRE$1(str) {
+  return str.replace(REGEXP_ESCAPE_RE, "\\$&");
+}
+function isSpace(code2) {
+  switch (code2) {
+    case 9:
+    case 32:
+      return true;
+  }
+  return false;
+}
+function isWhiteSpace(code2) {
+  if (code2 >= 8192 && code2 <= 8202) {
+    return true;
+  }
+  switch (code2) {
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 32:
+    case 160:
+    case 5760:
+    case 8239:
+    case 8287:
+    case 12288:
+      return true;
+  }
+  return false;
+}
+function isPunctChar(ch3) {
+  return P.test(ch3) || regex.test(ch3);
+}
+function isMdAsciiPunct(ch3) {
+  switch (ch3) {
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 39:
+    case 40:
+    case 41:
+    case 42:
+    case 43:
+    case 44:
+    case 45:
+    case 46:
+    case 47:
+    case 58:
+    case 59:
+    case 60:
+    case 61:
+    case 62:
+    case 63:
+    case 64:
+    case 91:
+    case 92:
+    case 93:
+    case 94:
+    case 95:
+    case 96:
+    case 123:
+    case 124:
+    case 125:
+    case 126:
+      return true;
+    default:
+      return false;
+  }
+}
+function normalizeReference(str) {
+  str = str.trim().replace(/\s+/g, " ");
+  if ("ẞ".toLowerCase() === "Ṿ") {
+    str = str.replace(/ẞ/g, "ß");
+  }
+  return str.toLowerCase().toUpperCase();
+}
+const lib$1 = { mdurl, ucmicro };
+const utils = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  arrayReplaceAt,
+  assign: assign$1,
+  escapeHtml,
+  escapeRE: escapeRE$1,
+  fromCodePoint,
+  has,
+  isMdAsciiPunct,
+  isPunctChar,
+  isSpace,
+  isString: isString$1,
+  isValidEntityCode,
+  isWhiteSpace,
+  lib: lib$1,
+  normalizeReference,
+  unescapeAll,
+  unescapeMd
+}, Symbol.toStringTag, { value: "Module" }));
+function parseLinkLabel(state, start2, disableNested) {
+  let level, found, marker, prevPos;
+  const max2 = state.posMax;
+  const oldPos = state.pos;
+  state.pos = start2 + 1;
+  level = 1;
+  while (state.pos < max2) {
+    marker = state.src.charCodeAt(state.pos);
+    if (marker === 93) {
+      level--;
+      if (level === 0) {
+        found = true;
+        break;
+      }
+    }
+    prevPos = state.pos;
+    state.md.inline.skipToken(state);
+    if (marker === 91) {
+      if (prevPos === state.pos - 1) {
+        level++;
+      } else if (disableNested) {
+        state.pos = oldPos;
+        return -1;
+      }
+    }
+  }
+  let labelEnd = -1;
+  if (found) {
+    labelEnd = state.pos;
+  }
+  state.pos = oldPos;
+  return labelEnd;
+}
+function parseLinkDestination(str, start2, max2) {
+  let code2;
+  let pos2 = start2;
+  const result = {
+    ok: false,
+    pos: 0,
+    str: ""
   };
+  if (str.charCodeAt(pos2) === 60) {
+    pos2++;
+    while (pos2 < max2) {
+      code2 = str.charCodeAt(pos2);
+      if (code2 === 10) {
+        return result;
+      }
+      if (code2 === 60) {
+        return result;
+      }
+      if (code2 === 62) {
+        result.pos = pos2 + 1;
+        result.str = unescapeAll(str.slice(start2 + 1, pos2));
+        result.ok = true;
+        return result;
+      }
+      if (code2 === 92 && pos2 + 1 < max2) {
+        pos2 += 2;
+        continue;
+      }
+      pos2++;
+    }
+    return result;
+  }
+  let level = 0;
+  while (pos2 < max2) {
+    code2 = str.charCodeAt(pos2);
+    if (code2 === 32) {
+      break;
+    }
+    if (code2 < 32 || code2 === 127) {
+      break;
+    }
+    if (code2 === 92 && pos2 + 1 < max2) {
+      if (str.charCodeAt(pos2 + 1) === 32) {
+        break;
+      }
+      pos2 += 2;
+      continue;
+    }
+    if (code2 === 40) {
+      level++;
+      if (level > 32) {
+        return result;
+      }
+    }
+    if (code2 === 41) {
+      if (level === 0) {
+        break;
+      }
+      level--;
+    }
+    pos2++;
+  }
+  if (start2 === pos2) {
+    return result;
+  }
+  if (level !== 0) {
+    return result;
+  }
+  result.str = unescapeAll(str.slice(start2, pos2));
+  result.pos = pos2;
+  result.ok = true;
+  return result;
 }
-function indentCodeCompensation(raw, text) {
-  const matchIndentToCode = raw.match(/^(\s+)(?:```)/);
-  if (matchIndentToCode === null) {
-    return text;
+function parseLinkTitle(str, start2, max2, prev_state) {
+  let code2;
+  let pos2 = start2;
+  const state = {
+    // if `true`, this is a valid link title
+    ok: false,
+    // if `true`, this link can be continued on the next line
+    can_continue: false,
+    // if `ok`, it's the position of the first character after the closing marker
+    pos: 0,
+    // if `ok`, it's the unescaped title
+    str: "",
+    // expected closing marker character code
+    marker: 0
+  };
+  if (prev_state) {
+    state.str = prev_state.str;
+    state.marker = prev_state.marker;
+  } else {
+    if (pos2 >= max2) {
+      return state;
+    }
+    let marker = str.charCodeAt(pos2);
+    if (marker !== 34 && marker !== 39 && marker !== 40) {
+      return state;
+    }
+    start2++;
+    pos2++;
+    if (marker === 40) {
+      marker = 41;
+    }
+    state.marker = marker;
   }
-  const indentToCode = matchIndentToCode[1];
-  return text.split("\n").map((node) => {
-    const matchIndentInNode = node.match(/^\s+/);
-    if (matchIndentInNode === null) {
-      return node;
+  while (pos2 < max2) {
+    code2 = str.charCodeAt(pos2);
+    if (code2 === state.marker) {
+      state.pos = pos2 + 1;
+      state.str += unescapeAll(str.slice(start2, pos2));
+      state.ok = true;
+      return state;
+    } else if (code2 === 40 && state.marker === 41) {
+      return state;
+    } else if (code2 === 92 && pos2 + 1 < max2) {
+      pos2++;
     }
-    const [indentInNode] = matchIndentInNode;
-    if (indentInNode.length >= indentToCode.length) {
-      return node.slice(indentToCode.length);
-    }
-    return node;
-  }).join("\n");
+    pos2++;
+  }
+  state.can_continue = true;
+  state.str += unescapeAll(str.slice(start2, pos2));
+  return state;
 }
-class _Tokenizer {
-  // set by the lexer
-  constructor(options) {
-    __publicField(this, "options");
-    __publicField(this, "rules");
-    // set by the lexer
-    __publicField(this, "lexer");
-    this.options = options || _defaults;
+const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  parseLinkDestination,
+  parseLinkLabel,
+  parseLinkTitle
+}, Symbol.toStringTag, { value: "Module" }));
+const default_rules = {};
+default_rules.code_inline = function(tokens, idx, options, env, slf) {
+  const token2 = tokens[idx];
+  return "<code" + slf.renderAttrs(token2) + ">" + escapeHtml(token2.content) + "</code>";
+};
+default_rules.code_block = function(tokens, idx, options, env, slf) {
+  const token2 = tokens[idx];
+  return "<pre" + slf.renderAttrs(token2) + "><code>" + escapeHtml(tokens[idx].content) + "</code></pre>\n";
+};
+default_rules.fence = function(tokens, idx, options, env, slf) {
+  const token2 = tokens[idx];
+  const info = token2.info ? unescapeAll(token2.info).trim() : "";
+  let langName = "";
+  let langAttrs = "";
+  if (info) {
+    const arr = info.split(/(\s+)/g);
+    langName = arr[0];
+    langAttrs = arr.slice(2).join("");
   }
-  space(src) {
-    const cap = this.rules.block.newline.exec(src);
-    if (cap && cap[0].length > 0) {
-      return {
-        type: "space",
-        raw: cap[0]
-      };
+  let highlighted;
+  if (options.highlight) {
+    highlighted = options.highlight(token2.content, langName, langAttrs) || escapeHtml(token2.content);
+  } else {
+    highlighted = escapeHtml(token2.content);
+  }
+  if (highlighted.indexOf("<pre") === 0) {
+    return highlighted + "\n";
+  }
+  if (info) {
+    const i = token2.attrIndex("class");
+    const tmpAttrs = token2.attrs ? token2.attrs.slice() : [];
+    if (i < 0) {
+      tmpAttrs.push(["class", options.langPrefix + langName]);
+    } else {
+      tmpAttrs[i] = tmpAttrs[i].slice();
+      tmpAttrs[i][1] += " " + options.langPrefix + langName;
     }
+    const tmpToken = {
+      attrs: tmpAttrs
+    };
+    return `<pre><code${slf.renderAttrs(tmpToken)}>${highlighted}</code></pre>
+`;
   }
-  code(src) {
-    const cap = this.rules.block.code.exec(src);
-    if (cap) {
-      const text = cap[0].replace(/^(?: {1,4}| {0,3}\t)/gm, "");
-      return {
-        type: "code",
-        raw: cap[0],
-        codeBlockStyle: "indented",
-        text: !this.options.pedantic ? rtrim(text, "\n") : text
-      };
-    }
+  return `<pre><code${slf.renderAttrs(token2)}>${highlighted}</code></pre>
+`;
+};
+default_rules.image = function(tokens, idx, options, env, slf) {
+  const token2 = tokens[idx];
+  token2.attrs[token2.attrIndex("alt")][1] = slf.renderInlineAsText(token2.children, options, env);
+  return slf.renderToken(tokens, idx, options);
+};
+default_rules.hardbreak = function(tokens, idx, options) {
+  return options.xhtmlOut ? "<br />\n" : "<br>\n";
+};
+default_rules.softbreak = function(tokens, idx, options) {
+  return options.breaks ? options.xhtmlOut ? "<br />\n" : "<br>\n" : "\n";
+};
+default_rules.text = function(tokens, idx) {
+  return escapeHtml(tokens[idx].content);
+};
+default_rules.html_block = function(tokens, idx) {
+  return tokens[idx].content;
+};
+default_rules.html_inline = function(tokens, idx) {
+  return tokens[idx].content;
+};
+function Renderer() {
+  this.rules = assign$1({}, default_rules);
+}
+Renderer.prototype.renderAttrs = function renderAttrs(token2) {
+  let i, l2, result;
+  if (!token2.attrs) {
+    return "";
   }
-  fences(src) {
-    const cap = this.rules.block.fences.exec(src);
-    if (cap) {
-      const raw = cap[0];
-      const text = indentCodeCompensation(raw, cap[3] || "");
-      return {
-        type: "code",
-        raw,
-        lang: cap[2] ? cap[2].trim().replace(this.rules.inline.anyPunctuation, "$1") : cap[2],
-        text
-      };
-    }
+  result = "";
+  for (i = 0, l2 = token2.attrs.length; i < l2; i++) {
+    result += " " + escapeHtml(token2.attrs[i][0]) + '="' + escapeHtml(token2.attrs[i][1]) + '"';
   }
-  heading(src) {
-    const cap = this.rules.block.heading.exec(src);
-    if (cap) {
-      let text = cap[2].trim();
-      if (/#$/.test(text)) {
-        const trimmed = rtrim(text, "#");
-        if (this.options.pedantic) {
-          text = trimmed.trim();
-        } else if (!trimmed || / $/.test(trimmed)) {
-          text = trimmed.trim();
+  return result;
+};
+Renderer.prototype.renderToken = function renderToken(tokens, idx, options) {
+  const token2 = tokens[idx];
+  let result = "";
+  if (token2.hidden) {
+    return "";
+  }
+  if (token2.block && token2.nesting !== -1 && idx && tokens[idx - 1].hidden) {
+    result += "\n";
+  }
+  result += (token2.nesting === -1 ? "</" : "<") + token2.tag;
+  result += this.renderAttrs(token2);
+  if (token2.nesting === 0 && options.xhtmlOut) {
+    result += " /";
+  }
+  let needLf = false;
+  if (token2.block) {
+    needLf = true;
+    if (token2.nesting === 1) {
+      if (idx + 1 < tokens.length) {
+        const nextToken = tokens[idx + 1];
+        if (nextToken.type === "inline" || nextToken.hidden) {
+          needLf = false;
+        } else if (nextToken.nesting === -1 && nextToken.tag === token2.tag) {
+          needLf = false;
         }
       }
-      return {
-        type: "heading",
-        raw: cap[0],
-        depth: cap[1].length,
-        text,
-        tokens: this.lexer.inline(text)
-      };
     }
   }
-  hr(src) {
-    const cap = this.rules.block.hr.exec(src);
-    if (cap) {
-      return {
-        type: "hr",
-        raw: rtrim(cap[0], "\n")
-      };
+  result += needLf ? ">\n" : ">";
+  return result;
+};
+Renderer.prototype.renderInline = function(tokens, options, env) {
+  let result = "";
+  const rules = this.rules;
+  for (let i = 0, len = tokens.length; i < len; i++) {
+    const type = tokens[i].type;
+    if (typeof rules[type] !== "undefined") {
+      result += rules[type](tokens, i, options, env, this);
+    } else {
+      result += this.renderToken(tokens, i, options);
     }
   }
-  blockquote(src) {
-    const cap = this.rules.block.blockquote.exec(src);
-    if (cap) {
-      let lines = rtrim(cap[0], "\n").split("\n");
-      let raw = "";
-      let text = "";
-      const tokens = [];
-      while (lines.length > 0) {
-        let inBlockquote = false;
-        const currentLines = [];
-        let i2;
-        for (i2 = 0; i2 < lines.length; i2++) {
-          if (/^ {0,3}>/.test(lines[i2])) {
-            currentLines.push(lines[i2]);
-            inBlockquote = true;
-          } else if (!inBlockquote) {
-            currentLines.push(lines[i2]);
+  return result;
+};
+Renderer.prototype.renderInlineAsText = function(tokens, options, env) {
+  let result = "";
+  for (let i = 0, len = tokens.length; i < len; i++) {
+    switch (tokens[i].type) {
+      case "text":
+        result += tokens[i].content;
+        break;
+      case "image":
+        result += this.renderInlineAsText(tokens[i].children, options, env);
+        break;
+      case "html_inline":
+      case "html_block":
+        result += tokens[i].content;
+        break;
+      case "softbreak":
+      case "hardbreak":
+        result += "\n";
+        break;
+    }
+  }
+  return result;
+};
+Renderer.prototype.render = function(tokens, options, env) {
+  let result = "";
+  const rules = this.rules;
+  for (let i = 0, len = tokens.length; i < len; i++) {
+    const type = tokens[i].type;
+    if (type === "inline") {
+      result += this.renderInline(tokens[i].children, options, env);
+    } else if (typeof rules[type] !== "undefined") {
+      result += rules[type](tokens, i, options, env, this);
+    } else {
+      result += this.renderToken(tokens, i, options, env);
+    }
+  }
+  return result;
+};
+function Ruler() {
+  this.__rules__ = [];
+  this.__cache__ = null;
+}
+Ruler.prototype.__find__ = function(name) {
+  for (let i = 0; i < this.__rules__.length; i++) {
+    if (this.__rules__[i].name === name) {
+      return i;
+    }
+  }
+  return -1;
+};
+Ruler.prototype.__compile__ = function() {
+  const self2 = this;
+  const chains = [""];
+  self2.__rules__.forEach(function(rule) {
+    if (!rule.enabled) {
+      return;
+    }
+    rule.alt.forEach(function(altName) {
+      if (chains.indexOf(altName) < 0) {
+        chains.push(altName);
+      }
+    });
+  });
+  self2.__cache__ = {};
+  chains.forEach(function(chain) {
+    self2.__cache__[chain] = [];
+    self2.__rules__.forEach(function(rule) {
+      if (!rule.enabled) {
+        return;
+      }
+      if (chain && rule.alt.indexOf(chain) < 0) {
+        return;
+      }
+      self2.__cache__[chain].push(rule.fn);
+    });
+  });
+};
+Ruler.prototype.at = function(name, fn2, options) {
+  const index = this.__find__(name);
+  const opt = options || {};
+  if (index === -1) {
+    throw new Error("Parser rule not found: " + name);
+  }
+  this.__rules__[index].fn = fn2;
+  this.__rules__[index].alt = opt.alt || [];
+  this.__cache__ = null;
+};
+Ruler.prototype.before = function(beforeName, ruleName, fn2, options) {
+  const index = this.__find__(beforeName);
+  const opt = options || {};
+  if (index === -1) {
+    throw new Error("Parser rule not found: " + beforeName);
+  }
+  this.__rules__.splice(index, 0, {
+    name: ruleName,
+    enabled: true,
+    fn: fn2,
+    alt: opt.alt || []
+  });
+  this.__cache__ = null;
+};
+Ruler.prototype.after = function(afterName, ruleName, fn2, options) {
+  const index = this.__find__(afterName);
+  const opt = options || {};
+  if (index === -1) {
+    throw new Error("Parser rule not found: " + afterName);
+  }
+  this.__rules__.splice(index + 1, 0, {
+    name: ruleName,
+    enabled: true,
+    fn: fn2,
+    alt: opt.alt || []
+  });
+  this.__cache__ = null;
+};
+Ruler.prototype.push = function(ruleName, fn2, options) {
+  const opt = options || {};
+  this.__rules__.push({
+    name: ruleName,
+    enabled: true,
+    fn: fn2,
+    alt: opt.alt || []
+  });
+  this.__cache__ = null;
+};
+Ruler.prototype.enable = function(list2, ignoreInvalid) {
+  if (!Array.isArray(list2)) {
+    list2 = [list2];
+  }
+  const result = [];
+  list2.forEach(function(name) {
+    const idx = this.__find__(name);
+    if (idx < 0) {
+      if (ignoreInvalid) {
+        return;
+      }
+      throw new Error("Rules manager: invalid rule name " + name);
+    }
+    this.__rules__[idx].enabled = true;
+    result.push(name);
+  }, this);
+  this.__cache__ = null;
+  return result;
+};
+Ruler.prototype.enableOnly = function(list2, ignoreInvalid) {
+  if (!Array.isArray(list2)) {
+    list2 = [list2];
+  }
+  this.__rules__.forEach(function(rule) {
+    rule.enabled = false;
+  });
+  this.enable(list2, ignoreInvalid);
+};
+Ruler.prototype.disable = function(list2, ignoreInvalid) {
+  if (!Array.isArray(list2)) {
+    list2 = [list2];
+  }
+  const result = [];
+  list2.forEach(function(name) {
+    const idx = this.__find__(name);
+    if (idx < 0) {
+      if (ignoreInvalid) {
+        return;
+      }
+      throw new Error("Rules manager: invalid rule name " + name);
+    }
+    this.__rules__[idx].enabled = false;
+    result.push(name);
+  }, this);
+  this.__cache__ = null;
+  return result;
+};
+Ruler.prototype.getRules = function(chainName) {
+  if (this.__cache__ === null) {
+    this.__compile__();
+  }
+  return this.__cache__[chainName] || [];
+};
+function Token(type, tag, nesting) {
+  this.type = type;
+  this.tag = tag;
+  this.attrs = null;
+  this.map = null;
+  this.nesting = nesting;
+  this.level = 0;
+  this.children = null;
+  this.content = "";
+  this.markup = "";
+  this.info = "";
+  this.meta = null;
+  this.block = false;
+  this.hidden = false;
+}
+Token.prototype.attrIndex = function attrIndex(name) {
+  if (!this.attrs) {
+    return -1;
+  }
+  const attrs = this.attrs;
+  for (let i = 0, len = attrs.length; i < len; i++) {
+    if (attrs[i][0] === name) {
+      return i;
+    }
+  }
+  return -1;
+};
+Token.prototype.attrPush = function attrPush(attrData) {
+  if (this.attrs) {
+    this.attrs.push(attrData);
+  } else {
+    this.attrs = [attrData];
+  }
+};
+Token.prototype.attrSet = function attrSet(name, value) {
+  const idx = this.attrIndex(name);
+  const attrData = [name, value];
+  if (idx < 0) {
+    this.attrPush(attrData);
+  } else {
+    this.attrs[idx] = attrData;
+  }
+};
+Token.prototype.attrGet = function attrGet(name) {
+  const idx = this.attrIndex(name);
+  let value = null;
+  if (idx >= 0) {
+    value = this.attrs[idx][1];
+  }
+  return value;
+};
+Token.prototype.attrJoin = function attrJoin(name, value) {
+  const idx = this.attrIndex(name);
+  if (idx < 0) {
+    this.attrPush([name, value]);
+  } else {
+    this.attrs[idx][1] = this.attrs[idx][1] + " " + value;
+  }
+};
+function StateCore(src, md, env) {
+  this.src = src;
+  this.env = env;
+  this.tokens = [];
+  this.inlineMode = false;
+  this.md = md;
+}
+StateCore.prototype.Token = Token;
+const NEWLINES_RE = /\r\n?|\n/g;
+const NULL_RE = /\0/g;
+function normalize(state) {
+  let str;
+  str = state.src.replace(NEWLINES_RE, "\n");
+  str = str.replace(NULL_RE, "�");
+  state.src = str;
+}
+function block(state) {
+  let token2;
+  if (state.inlineMode) {
+    token2 = new state.Token("inline", "", 0);
+    token2.content = state.src;
+    token2.map = [0, 1];
+    token2.children = [];
+    state.tokens.push(token2);
+  } else {
+    state.md.block.parse(state.src, state.md, state.env, state.tokens);
+  }
+}
+function inline(state) {
+  const tokens = state.tokens;
+  for (let i = 0, l2 = tokens.length; i < l2; i++) {
+    const tok = tokens[i];
+    if (tok.type === "inline") {
+      state.md.inline.parse(tok.content, state.md, state.env, tok.children);
+    }
+  }
+}
+function isLinkOpen$1(str) {
+  return /^<a[>\s]/i.test(str);
+}
+function isLinkClose$1(str) {
+  return /^<\/a\s*>/i.test(str);
+}
+function linkify$1(state) {
+  const blockTokens = state.tokens;
+  if (!state.md.options.linkify) {
+    return;
+  }
+  for (let j2 = 0, l2 = blockTokens.length; j2 < l2; j2++) {
+    if (blockTokens[j2].type !== "inline" || !state.md.linkify.pretest(blockTokens[j2].content)) {
+      continue;
+    }
+    let tokens = blockTokens[j2].children;
+    let htmlLinkLevel = 0;
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const currentToken = tokens[i];
+      if (currentToken.type === "link_close") {
+        i--;
+        while (tokens[i].level !== currentToken.level && tokens[i].type !== "link_open") {
+          i--;
+        }
+        continue;
+      }
+      if (currentToken.type === "html_inline") {
+        if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) {
+          htmlLinkLevel--;
+        }
+        if (isLinkClose$1(currentToken.content)) {
+          htmlLinkLevel++;
+        }
+      }
+      if (htmlLinkLevel > 0) {
+        continue;
+      }
+      if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
+        const text2 = currentToken.content;
+        let links = state.md.linkify.match(text2);
+        const nodes = [];
+        let level = currentToken.level;
+        let lastPos = 0;
+        if (links.length > 0 && links[0].index === 0 && i > 0 && tokens[i - 1].type === "text_special") {
+          links = links.slice(1);
+        }
+        for (let ln = 0; ln < links.length; ln++) {
+          const url = links[ln].url;
+          const fullUrl = state.md.normalizeLink(url);
+          if (!state.md.validateLink(fullUrl)) {
+            continue;
+          }
+          let urlText = links[ln].text;
+          if (!links[ln].schema) {
+            urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
+          } else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
+            urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
           } else {
+            urlText = state.md.normalizeLinkText(urlText);
+          }
+          const pos2 = links[ln].index;
+          if (pos2 > lastPos) {
+            const token2 = new state.Token("text", "", 0);
+            token2.content = text2.slice(lastPos, pos2);
+            token2.level = level;
+            nodes.push(token2);
+          }
+          const token_o = new state.Token("link_open", "a", 1);
+          token_o.attrs = [["href", fullUrl]];
+          token_o.level = level++;
+          token_o.markup = "linkify";
+          token_o.info = "auto";
+          nodes.push(token_o);
+          const token_t = new state.Token("text", "", 0);
+          token_t.content = urlText;
+          token_t.level = level;
+          nodes.push(token_t);
+          const token_c = new state.Token("link_close", "a", -1);
+          token_c.level = --level;
+          token_c.markup = "linkify";
+          token_c.info = "auto";
+          nodes.push(token_c);
+          lastPos = links[ln].lastIndex;
+        }
+        if (lastPos < text2.length) {
+          const token2 = new state.Token("text", "", 0);
+          token2.content = text2.slice(lastPos);
+          token2.level = level;
+          nodes.push(token2);
+        }
+        blockTokens[j2].children = tokens = arrayReplaceAt(tokens, i, nodes);
+      }
+    }
+  }
+}
+const RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
+const SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
+const SCOPED_ABBR_RE = /\((c|tm|r)\)/ig;
+const SCOPED_ABBR = {
+  c: "©",
+  r: "®",
+  tm: "™"
+};
+function replaceFn(match2, name) {
+  return SCOPED_ABBR[name.toLowerCase()];
+}
+function replace_scoped(inlineTokens) {
+  let inside_autolink = 0;
+  for (let i = inlineTokens.length - 1; i >= 0; i--) {
+    const token2 = inlineTokens[i];
+    if (token2.type === "text" && !inside_autolink) {
+      token2.content = token2.content.replace(SCOPED_ABBR_RE, replaceFn);
+    }
+    if (token2.type === "link_open" && token2.info === "auto") {
+      inside_autolink--;
+    }
+    if (token2.type === "link_close" && token2.info === "auto") {
+      inside_autolink++;
+    }
+  }
+}
+function replace_rare(inlineTokens) {
+  let inside_autolink = 0;
+  for (let i = inlineTokens.length - 1; i >= 0; i--) {
+    const token2 = inlineTokens[i];
+    if (token2.type === "text" && !inside_autolink) {
+      if (RARE_RE.test(token2.content)) {
+        token2.content = token2.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/mg, "$1—").replace(/(^|\s)--(?=\s|$)/mg, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/mg, "$1–");
+      }
+    }
+    if (token2.type === "link_open" && token2.info === "auto") {
+      inside_autolink--;
+    }
+    if (token2.type === "link_close" && token2.info === "auto") {
+      inside_autolink++;
+    }
+  }
+}
+function replace(state) {
+  let blkIdx;
+  if (!state.md.options.typographer) {
+    return;
+  }
+  for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+    if (state.tokens[blkIdx].type !== "inline") {
+      continue;
+    }
+    if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) {
+      replace_scoped(state.tokens[blkIdx].children);
+    }
+    if (RARE_RE.test(state.tokens[blkIdx].content)) {
+      replace_rare(state.tokens[blkIdx].children);
+    }
+  }
+}
+const QUOTE_TEST_RE = /['"]/;
+const QUOTE_RE = /['"]/g;
+const APOSTROPHE = "’";
+function replaceAt(str, index, ch3) {
+  return str.slice(0, index) + ch3 + str.slice(index + 1);
+}
+function process_inlines(tokens, state) {
+  let j2;
+  const stack2 = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token2 = tokens[i];
+    const thisLevel = tokens[i].level;
+    for (j2 = stack2.length - 1; j2 >= 0; j2--) {
+      if (stack2[j2].level <= thisLevel) {
+        break;
+      }
+    }
+    stack2.length = j2 + 1;
+    if (token2.type !== "text") {
+      continue;
+    }
+    let text2 = token2.content;
+    let pos2 = 0;
+    let max2 = text2.length;
+    OUTER:
+      while (pos2 < max2) {
+        QUOTE_RE.lastIndex = pos2;
+        const t2 = QUOTE_RE.exec(text2);
+        if (!t2) {
+          break;
+        }
+        let canOpen = true;
+        let canClose = true;
+        pos2 = t2.index + 1;
+        const isSingle = t2[0] === "'";
+        let lastChar = 32;
+        if (t2.index - 1 >= 0) {
+          lastChar = text2.charCodeAt(t2.index - 1);
+        } else {
+          for (j2 = i - 1; j2 >= 0; j2--) {
+            if (tokens[j2].type === "softbreak" || tokens[j2].type === "hardbreak") break;
+            if (!tokens[j2].content) continue;
+            lastChar = tokens[j2].content.charCodeAt(tokens[j2].content.length - 1);
             break;
           }
         }
-        lines = lines.slice(i2);
-        const currentRaw = currentLines.join("\n");
-        const currentText = currentRaw.replace(/\n {0,3}((?:=+|-+) *)(?=\n|$)/g, "\n    $1").replace(/^ {0,3}>[ \t]?/gm, "");
-        raw = raw ? `${raw}
-${currentRaw}` : currentRaw;
-        text = text ? `${text}
-${currentText}` : currentText;
-        const top2 = this.lexer.state.top;
-        this.lexer.state.top = true;
-        this.lexer.blockTokens(currentText, tokens, true);
-        this.lexer.state.top = top2;
-        if (lines.length === 0) {
-          break;
+        let nextChar = 32;
+        if (pos2 < max2) {
+          nextChar = text2.charCodeAt(pos2);
+        } else {
+          for (j2 = i + 1; j2 < tokens.length; j2++) {
+            if (tokens[j2].type === "softbreak" || tokens[j2].type === "hardbreak") break;
+            if (!tokens[j2].content) continue;
+            nextChar = tokens[j2].content.charCodeAt(0);
+            break;
+          }
         }
-        const lastToken = tokens[tokens.length - 1];
-        if ((lastToken == null ? void 0 : lastToken.type) === "code") {
-          break;
-        } else if ((lastToken == null ? void 0 : lastToken.type) === "blockquote") {
-          const oldToken = lastToken;
-          const newText = oldToken.raw + "\n" + lines.join("\n");
-          const newToken2 = this.blockquote(newText);
-          tokens[tokens.length - 1] = newToken2;
-          raw = raw.substring(0, raw.length - oldToken.raw.length) + newToken2.raw;
-          text = text.substring(0, text.length - oldToken.text.length) + newToken2.text;
-          break;
-        } else if ((lastToken == null ? void 0 : lastToken.type) === "list") {
-          const oldToken = lastToken;
-          const newText = oldToken.raw + "\n" + lines.join("\n");
-          const newToken2 = this.list(newText);
-          tokens[tokens.length - 1] = newToken2;
-          raw = raw.substring(0, raw.length - lastToken.raw.length) + newToken2.raw;
-          text = text.substring(0, text.length - oldToken.raw.length) + newToken2.raw;
-          lines = newText.substring(tokens[tokens.length - 1].raw.length).split("\n");
+        const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
+        const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
+        const isLastWhiteSpace = isWhiteSpace(lastChar);
+        const isNextWhiteSpace = isWhiteSpace(nextChar);
+        if (isNextWhiteSpace) {
+          canOpen = false;
+        } else if (isNextPunctChar) {
+          if (!(isLastWhiteSpace || isLastPunctChar)) {
+            canOpen = false;
+          }
+        }
+        if (isLastWhiteSpace) {
+          canClose = false;
+        } else if (isLastPunctChar) {
+          if (!(isNextWhiteSpace || isNextPunctChar)) {
+            canClose = false;
+          }
+        }
+        if (nextChar === 34 && t2[0] === '"') {
+          if (lastChar >= 48 && lastChar <= 57) {
+            canClose = canOpen = false;
+          }
+        }
+        if (canOpen && canClose) {
+          canOpen = isLastPunctChar;
+          canClose = isNextPunctChar;
+        }
+        if (!canOpen && !canClose) {
+          if (isSingle) {
+            token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
+          }
           continue;
         }
-      }
-      return {
-        type: "blockquote",
-        raw,
-        tokens,
-        text
-      };
-    }
-  }
-  list(src) {
-    let cap = this.rules.block.list.exec(src);
-    if (cap) {
-      let bull = cap[1].trim();
-      const isordered = bull.length > 1;
-      const list2 = {
-        type: "list",
-        raw: "",
-        ordered: isordered,
-        start: isordered ? +bull.slice(0, -1) : "",
-        loose: false,
-        items: []
-      };
-      bull = isordered ? `\\d{1,9}\\${bull.slice(-1)}` : `\\${bull}`;
-      if (this.options.pedantic) {
-        bull = isordered ? bull : "[*+-]";
-      }
-      const itemRegex = new RegExp(`^( {0,3}${bull})((?:[	 ][^\\n]*)?(?:\\n|$))`);
-      let endsWithBlankLine = false;
-      while (src) {
-        let endEarly = false;
-        let raw = "";
-        let itemContents = "";
-        if (!(cap = itemRegex.exec(src))) {
-          break;
-        }
-        if (this.rules.block.hr.test(src)) {
-          break;
-        }
-        raw = cap[0];
-        src = src.substring(raw.length);
-        let line2 = cap[2].split("\n", 1)[0].replace(/^\t+/, (t2) => " ".repeat(3 * t2.length));
-        let nextLine = src.split("\n", 1)[0];
-        let blankLine = !line2.trim();
-        let indent = 0;
-        if (this.options.pedantic) {
-          indent = 2;
-          itemContents = line2.trimStart();
-        } else if (blankLine) {
-          indent = cap[1].length + 1;
-        } else {
-          indent = cap[2].search(/[^ ]/);
-          indent = indent > 4 ? 1 : indent;
-          itemContents = line2.slice(indent);
-          indent += cap[1].length;
-        }
-        if (blankLine && /^[ \t]*$/.test(nextLine)) {
-          raw += nextLine + "\n";
-          src = src.substring(nextLine.length + 1);
-          endEarly = true;
-        }
-        if (!endEarly) {
-          const nextBulletRegex = new RegExp(`^ {0,${Math.min(3, indent - 1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`);
-          const hrRegex = new RegExp(`^ {0,${Math.min(3, indent - 1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`);
-          const fencesBeginRegex = new RegExp(`^ {0,${Math.min(3, indent - 1)}}(?:\`\`\`|~~~)`);
-          const headingBeginRegex = new RegExp(`^ {0,${Math.min(3, indent - 1)}}#`);
-          const htmlBeginRegex = new RegExp(`^ {0,${Math.min(3, indent - 1)}}<[a-z].*>`, "i");
-          while (src) {
-            const rawLine = src.split("\n", 1)[0];
-            let nextLineWithoutTabs;
-            nextLine = rawLine;
-            if (this.options.pedantic) {
-              nextLine = nextLine.replace(/^ {1,4}(?=( {4})*[^ ])/g, "  ");
-              nextLineWithoutTabs = nextLine;
-            } else {
-              nextLineWithoutTabs = nextLine.replace(/\t/g, "    ");
-            }
-            if (fencesBeginRegex.test(nextLine)) {
+        if (canClose) {
+          for (j2 = stack2.length - 1; j2 >= 0; j2--) {
+            let item = stack2[j2];
+            if (stack2[j2].level < thisLevel) {
               break;
             }
-            if (headingBeginRegex.test(nextLine)) {
-              break;
-            }
-            if (htmlBeginRegex.test(nextLine)) {
-              break;
-            }
-            if (nextBulletRegex.test(nextLine)) {
-              break;
-            }
-            if (hrRegex.test(nextLine)) {
-              break;
-            }
-            if (nextLineWithoutTabs.search(/[^ ]/) >= indent || !nextLine.trim()) {
-              itemContents += "\n" + nextLineWithoutTabs.slice(indent);
-            } else {
-              if (blankLine) {
-                break;
+            if (item.single === isSingle && stack2[j2].level === thisLevel) {
+              item = stack2[j2];
+              let openQuote;
+              let closeQuote;
+              if (isSingle) {
+                openQuote = state.md.options.quotes[2];
+                closeQuote = state.md.options.quotes[3];
+              } else {
+                openQuote = state.md.options.quotes[0];
+                closeQuote = state.md.options.quotes[1];
               }
-              if (line2.replace(/\t/g, "    ").search(/[^ ]/) >= 4) {
-                break;
+              token2.content = replaceAt(token2.content, t2.index, closeQuote);
+              tokens[item.token].content = replaceAt(
+                tokens[item.token].content,
+                item.pos,
+                openQuote
+              );
+              pos2 += closeQuote.length - 1;
+              if (item.token === i) {
+                pos2 += openQuote.length - 1;
               }
-              if (fencesBeginRegex.test(line2)) {
-                break;
-              }
-              if (headingBeginRegex.test(line2)) {
-                break;
-              }
-              if (hrRegex.test(line2)) {
-                break;
-              }
-              itemContents += "\n" + nextLine;
+              text2 = token2.content;
+              max2 = text2.length;
+              stack2.length = j2;
+              continue OUTER;
             }
-            if (!blankLine && !nextLine.trim()) {
-              blankLine = true;
-            }
-            raw += rawLine + "\n";
-            src = src.substring(rawLine.length + 1);
-            line2 = nextLineWithoutTabs.slice(indent);
           }
         }
-        if (!list2.loose) {
-          if (endsWithBlankLine) {
-            list2.loose = true;
-          } else if (/\n[ \t]*\n[ \t]*$/.test(raw)) {
-            endsWithBlankLine = true;
-          }
-        }
-        let istask = null;
-        let ischecked;
-        if (this.options.gfm) {
-          istask = /^\[[ xX]\] /.exec(itemContents);
-          if (istask) {
-            ischecked = istask[0] !== "[ ] ";
-            itemContents = itemContents.replace(/^\[[ xX]\] +/, "");
-          }
-        }
-        list2.items.push({
-          type: "list_item",
-          raw,
-          task: !!istask,
-          checked: ischecked,
-          loose: false,
-          text: itemContents,
-          tokens: []
-        });
-        list2.raw += raw;
-      }
-      list2.items[list2.items.length - 1].raw = list2.items[list2.items.length - 1].raw.trimEnd();
-      list2.items[list2.items.length - 1].text = list2.items[list2.items.length - 1].text.trimEnd();
-      list2.raw = list2.raw.trimEnd();
-      for (let i2 = 0; i2 < list2.items.length; i2++) {
-        this.lexer.state.top = false;
-        list2.items[i2].tokens = this.lexer.blockTokens(list2.items[i2].text, []);
-        if (!list2.loose) {
-          const spacers = list2.items[i2].tokens.filter((t2) => t2.type === "space");
-          const hasMultipleLineBreaks = spacers.length > 0 && spacers.some((t2) => /\n.*\n/.test(t2.raw));
-          list2.loose = hasMultipleLineBreaks;
-        }
-      }
-      if (list2.loose) {
-        for (let i2 = 0; i2 < list2.items.length; i2++) {
-          list2.items[i2].loose = true;
-        }
-      }
-      return list2;
-    }
-  }
-  html(src) {
-    const cap = this.rules.block.html.exec(src);
-    if (cap) {
-      const token2 = {
-        type: "html",
-        block: true,
-        raw: cap[0],
-        pre: cap[1] === "pre" || cap[1] === "script" || cap[1] === "style",
-        text: cap[0]
-      };
-      return token2;
-    }
-  }
-  def(src) {
-    const cap = this.rules.block.def.exec(src);
-    if (cap) {
-      const tag2 = cap[1].toLowerCase().replace(/\s+/g, " ");
-      const href = cap[2] ? cap[2].replace(/^<(.*)>$/, "$1").replace(this.rules.inline.anyPunctuation, "$1") : "";
-      const title = cap[3] ? cap[3].substring(1, cap[3].length - 1).replace(this.rules.inline.anyPunctuation, "$1") : cap[3];
-      return {
-        type: "def",
-        tag: tag2,
-        raw: cap[0],
-        href,
-        title
-      };
-    }
-  }
-  table(src) {
-    const cap = this.rules.block.table.exec(src);
-    if (!cap) {
-      return;
-    }
-    if (!/[:|]/.test(cap[2])) {
-      return;
-    }
-    const headers = splitCells(cap[1]);
-    const aligns = cap[2].replace(/^\||\| *$/g, "").split("|");
-    const rows = cap[3] && cap[3].trim() ? cap[3].replace(/\n[ \t]*$/, "").split("\n") : [];
-    const item = {
-      type: "table",
-      raw: cap[0],
-      header: [],
-      align: [],
-      rows: []
-    };
-    if (headers.length !== aligns.length) {
-      return;
-    }
-    for (const align of aligns) {
-      if (/^ *-+: *$/.test(align)) {
-        item.align.push("right");
-      } else if (/^ *:-+: *$/.test(align)) {
-        item.align.push("center");
-      } else if (/^ *:-+ *$/.test(align)) {
-        item.align.push("left");
-      } else {
-        item.align.push(null);
-      }
-    }
-    for (let i2 = 0; i2 < headers.length; i2++) {
-      item.header.push({
-        text: headers[i2],
-        tokens: this.lexer.inline(headers[i2]),
-        header: true,
-        align: item.align[i2]
-      });
-    }
-    for (const row of rows) {
-      item.rows.push(splitCells(row, item.header.length).map((cell, i2) => {
-        return {
-          text: cell,
-          tokens: this.lexer.inline(cell),
-          header: false,
-          align: item.align[i2]
-        };
-      }));
-    }
-    return item;
-  }
-  lheading(src) {
-    const cap = this.rules.block.lheading.exec(src);
-    if (cap) {
-      return {
-        type: "heading",
-        raw: cap[0],
-        depth: cap[2].charAt(0) === "=" ? 1 : 2,
-        text: cap[1],
-        tokens: this.lexer.inline(cap[1])
-      };
-    }
-  }
-  paragraph(src) {
-    const cap = this.rules.block.paragraph.exec(src);
-    if (cap) {
-      const text = cap[1].charAt(cap[1].length - 1) === "\n" ? cap[1].slice(0, -1) : cap[1];
-      return {
-        type: "paragraph",
-        raw: cap[0],
-        text,
-        tokens: this.lexer.inline(text)
-      };
-    }
-  }
-  text(src) {
-    const cap = this.rules.block.text.exec(src);
-    if (cap) {
-      return {
-        type: "text",
-        raw: cap[0],
-        text: cap[0],
-        tokens: this.lexer.inline(cap[0])
-      };
-    }
-  }
-  escape(src) {
-    const cap = this.rules.inline.escape.exec(src);
-    if (cap) {
-      return {
-        type: "escape",
-        raw: cap[0],
-        text: escape$1$1(cap[1])
-      };
-    }
-  }
-  tag(src) {
-    const cap = this.rules.inline.tag.exec(src);
-    if (cap) {
-      if (!this.lexer.state.inLink && /^<a /i.test(cap[0])) {
-        this.lexer.state.inLink = true;
-      } else if (this.lexer.state.inLink && /^<\/a>/i.test(cap[0])) {
-        this.lexer.state.inLink = false;
-      }
-      if (!this.lexer.state.inRawBlock && /^<(pre|code|kbd|script)(\s|>)/i.test(cap[0])) {
-        this.lexer.state.inRawBlock = true;
-      } else if (this.lexer.state.inRawBlock && /^<\/(pre|code|kbd|script)(\s|>)/i.test(cap[0])) {
-        this.lexer.state.inRawBlock = false;
-      }
-      return {
-        type: "html",
-        raw: cap[0],
-        inLink: this.lexer.state.inLink,
-        inRawBlock: this.lexer.state.inRawBlock,
-        block: false,
-        text: cap[0]
-      };
-    }
-  }
-  link(src) {
-    const cap = this.rules.inline.link.exec(src);
-    if (cap) {
-      const trimmedUrl = cap[2].trim();
-      if (!this.options.pedantic && /^</.test(trimmedUrl)) {
-        if (!/>$/.test(trimmedUrl)) {
-          return;
-        }
-        const rtrimSlash = rtrim(trimmedUrl.slice(0, -1), "\\");
-        if ((trimmedUrl.length - rtrimSlash.length) % 2 === 0) {
-          return;
-        }
-      } else {
-        const lastParenIndex = findClosingBracket(cap[2], "()");
-        if (lastParenIndex > -1) {
-          const start2 = cap[0].indexOf("!") === 0 ? 5 : 4;
-          const linkLen = start2 + cap[1].length + lastParenIndex;
-          cap[2] = cap[2].substring(0, lastParenIndex);
-          cap[0] = cap[0].substring(0, linkLen).trim();
-          cap[3] = "";
-        }
-      }
-      let href = cap[2];
-      let title = "";
-      if (this.options.pedantic) {
-        const link2 = /^([^'"]*[^\s])\s+(['"])(.*)\2/.exec(href);
-        if (link2) {
-          href = link2[1];
-          title = link2[3];
-        }
-      } else {
-        title = cap[3] ? cap[3].slice(1, -1) : "";
-      }
-      href = href.trim();
-      if (/^</.test(href)) {
-        if (this.options.pedantic && !/>$/.test(trimmedUrl)) {
-          href = href.slice(1);
-        } else {
-          href = href.slice(1, -1);
-        }
-      }
-      return outputLink(cap, {
-        href: href ? href.replace(this.rules.inline.anyPunctuation, "$1") : href,
-        title: title ? title.replace(this.rules.inline.anyPunctuation, "$1") : title
-      }, cap[0], this.lexer);
-    }
-  }
-  reflink(src, links) {
-    let cap;
-    if ((cap = this.rules.inline.reflink.exec(src)) || (cap = this.rules.inline.nolink.exec(src))) {
-      const linkString = (cap[2] || cap[1]).replace(/\s+/g, " ");
-      const link2 = links[linkString.toLowerCase()];
-      if (!link2) {
-        const text = cap[0].charAt(0);
-        return {
-          type: "text",
-          raw: text,
-          text
-        };
-      }
-      return outputLink(cap, link2, cap[0], this.lexer);
-    }
-  }
-  emStrong(src, maskedSrc, prevChar = "") {
-    let match = this.rules.inline.emStrongLDelim.exec(src);
-    if (!match)
-      return;
-    if (match[3] && prevChar.match(/[\p{L}\p{N}]/u))
-      return;
-    const nextChar = match[1] || match[2] || "";
-    if (!nextChar || !prevChar || this.rules.inline.punctuation.exec(prevChar)) {
-      const lLength = [...match[0]].length - 1;
-      let rDelim, rLength, delimTotal = lLength, midDelimTotal = 0;
-      const endReg = match[0][0] === "*" ? this.rules.inline.emStrongRDelimAst : this.rules.inline.emStrongRDelimUnd;
-      endReg.lastIndex = 0;
-      maskedSrc = maskedSrc.slice(-1 * src.length + lLength);
-      while ((match = endReg.exec(maskedSrc)) != null) {
-        rDelim = match[1] || match[2] || match[3] || match[4] || match[5] || match[6];
-        if (!rDelim)
-          continue;
-        rLength = [...rDelim].length;
-        if (match[3] || match[4]) {
-          delimTotal += rLength;
-          continue;
-        } else if (match[5] || match[6]) {
-          if (lLength % 3 && !((lLength + rLength) % 3)) {
-            midDelimTotal += rLength;
-            continue;
-          }
-        }
-        delimTotal -= rLength;
-        if (delimTotal > 0)
-          continue;
-        rLength = Math.min(rLength, rLength + delimTotal + midDelimTotal);
-        const lastCharLength = [...match[0]][0].length;
-        const raw = src.slice(0, lLength + match.index + lastCharLength + rLength);
-        if (Math.min(lLength, rLength) % 2) {
-          const text2 = raw.slice(1, -1);
-          return {
-            type: "em",
-            raw,
-            text: text2,
-            tokens: this.lexer.inlineTokens(text2)
-          };
-        }
-        const text = raw.slice(2, -2);
-        return {
-          type: "strong",
-          raw,
-          text,
-          tokens: this.lexer.inlineTokens(text)
-        };
-      }
-    }
-  }
-  codespan(src) {
-    const cap = this.rules.inline.code.exec(src);
-    if (cap) {
-      let text = cap[2].replace(/\n/g, " ");
-      const hasNonSpaceChars = /[^ ]/.test(text);
-      const hasSpaceCharsOnBothEnds = /^ /.test(text) && / $/.test(text);
-      if (hasNonSpaceChars && hasSpaceCharsOnBothEnds) {
-        text = text.substring(1, text.length - 1);
-      }
-      text = escape$1$1(text, true);
-      return {
-        type: "codespan",
-        raw: cap[0],
-        text
-      };
-    }
-  }
-  br(src) {
-    const cap = this.rules.inline.br.exec(src);
-    if (cap) {
-      return {
-        type: "br",
-        raw: cap[0]
-      };
-    }
-  }
-  del(src) {
-    const cap = this.rules.inline.del.exec(src);
-    if (cap) {
-      return {
-        type: "del",
-        raw: cap[0],
-        text: cap[2],
-        tokens: this.lexer.inlineTokens(cap[2])
-      };
-    }
-  }
-  autolink(src) {
-    const cap = this.rules.inline.autolink.exec(src);
-    if (cap) {
-      let text, href;
-      if (cap[2] === "@") {
-        text = escape$1$1(cap[1]);
-        href = "mailto:" + text;
-      } else {
-        text = escape$1$1(cap[1]);
-        href = text;
-      }
-      return {
-        type: "link",
-        raw: cap[0],
-        text,
-        href,
-        tokens: [
-          {
-            type: "text",
-            raw: text,
-            text
-          }
-        ]
-      };
-    }
-  }
-  url(src) {
-    var _a;
-    let cap;
-    if (cap = this.rules.inline.url.exec(src)) {
-      let text, href;
-      if (cap[2] === "@") {
-        text = escape$1$1(cap[0]);
-        href = "mailto:" + text;
-      } else {
-        let prevCapZero;
-        do {
-          prevCapZero = cap[0];
-          cap[0] = ((_a = this.rules.inline._backpedal.exec(cap[0])) == null ? void 0 : _a[0]) ?? "";
-        } while (prevCapZero !== cap[0]);
-        text = escape$1$1(cap[0]);
-        if (cap[1] === "www.") {
-          href = "http://" + cap[0];
-        } else {
-          href = cap[0];
-        }
-      }
-      return {
-        type: "link",
-        raw: cap[0],
-        text,
-        href,
-        tokens: [
-          {
-            type: "text",
-            raw: text,
-            text
-          }
-        ]
-      };
-    }
-  }
-  inlineText(src) {
-    const cap = this.rules.inline.text.exec(src);
-    if (cap) {
-      let text;
-      if (this.lexer.state.inRawBlock) {
-        text = cap[0];
-      } else {
-        text = escape$1$1(cap[0]);
-      }
-      return {
-        type: "text",
-        raw: cap[0],
-        text
-      };
-    }
-  }
-}
-const newline = /^(?:[ \t]*(?:\n|$))+/;
-const blockCode = /^((?: {4}| {0,3}\t)[^\n]+(?:\n(?:[ \t]*(?:\n|$))*)?)+/;
-const fences = /^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/;
-const hr = /^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/;
-const heading = /^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/;
-const bullet = /(?:[*+-]|\d{1,9}[.)])/;
-const lheading = edit(/^(?!bull |blockCode|fences|blockquote|heading|html)((?:.|\n(?!\s*?\n|bull |blockCode|fences|blockquote|heading|html))+?)\n {0,3}(=+|-+) *(?:\n+|$)/).replace(/bull/g, bullet).replace(/blockCode/g, /(?: {4}| {0,3}\t)/).replace(/fences/g, / {0,3}(?:`{3,}|~{3,})/).replace(/blockquote/g, / {0,3}>/).replace(/heading/g, / {0,3}#{1,6}/).replace(/html/g, / {0,3}<[^\n>]+>\n/).getRegex();
-const _paragraph = /^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/;
-const blockText = /^[^\n]+/;
-const _blockLabel = /(?!\s*\])(?:\\.|[^\[\]\\])+/;
-const def = edit(/^ {0,3}\[(label)\]: *(?:\n[ \t]*)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n[ \t]*)?| *\n[ \t]*)(title))? *(?:\n+|$)/).replace("label", _blockLabel).replace("title", /(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/).getRegex();
-const list = edit(/^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/).replace(/bull/g, bullet).getRegex();
-const _tag = "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul";
-const _comment = /<!--(?:-?>|[\s\S]*?(?:-->|$))/;
-const html = edit("^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n[ 	]*)+\\n|$))", "i").replace("comment", _comment).replace("tag", _tag).replace("attribute", / +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex();
-const paragraph = edit(_paragraph).replace("hr", hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("|table", "").replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex();
-const blockquote = edit(/^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/).replace("paragraph", paragraph).getRegex();
-const blockNormal = {
-  blockquote,
-  code: blockCode,
-  def,
-  fences,
-  heading,
-  hr,
-  html,
-  lheading,
-  list,
-  newline,
-  paragraph,
-  table: noopTest,
-  text: blockText
-};
-const gfmTable = edit("^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)").replace("hr", hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("blockquote", " {0,3}>").replace("code", "(?: {4}| {0,3}	)[^\\n]").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex();
-const blockGfm = {
-  ...blockNormal,
-  table: gfmTable,
-  paragraph: edit(_paragraph).replace("hr", hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("table", gfmTable).replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", _tag).getRegex()
-};
-const blockPedantic = {
-  ...blockNormal,
-  html: edit(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment", _comment).replace(/tag/g, "(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),
-  def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,
-  heading: /^(#{1,6})(.*)(?:\n+|$)/,
-  fences: noopTest,
-  // fences not supported
-  lheading: /^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,
-  paragraph: edit(_paragraph).replace("hr", hr).replace("heading", " *#{1,6} *[^\n]").replace("lheading", lheading).replace("|table", "").replace("blockquote", " {0,3}>").replace("|fences", "").replace("|list", "").replace("|html", "").replace("|tag", "").getRegex()
-};
-const escape$2 = /^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/;
-const inlineCode = /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/;
-const br = /^( {2,}|\\)\n(?!\s*$)/;
-const inlineText = /^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/;
-const _punctuation = "\\p{P}\\p{S}";
-const punctuation = edit(/^((?![*_])[\spunctuation])/, "u").replace(/punctuation/g, _punctuation).getRegex();
-const blockSkip = /\[[^[\]]*?\]\([^\(\)]*?\)|`[^`]*?`|<[^<>]*?>/g;
-const emStrongLDelim = edit(/^(?:\*+(?:((?!\*)[punct])|[^\s*]))|^_+(?:((?!_)[punct])|([^\s_]))/, "u").replace(/punct/g, _punctuation).getRegex();
-const emStrongRDelimAst = edit("^[^_*]*?__[^_*]*?\\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\\*)[punct](\\*+)(?=[\\s]|$)|[^punct\\s](\\*+)(?!\\*)(?=[punct\\s]|$)|(?!\\*)[punct\\s](\\*+)(?=[^punct\\s])|[\\s](\\*+)(?!\\*)(?=[punct])|(?!\\*)[punct](\\*+)(?!\\*)(?=[punct])|[^punct\\s](\\*+)(?=[^punct\\s])", "gu").replace(/punct/g, _punctuation).getRegex();
-const emStrongRDelimUnd = edit("^[^_*]*?\\*\\*[^_*]*?_[^_*]*?(?=\\*\\*)|[^_]+(?=[^_])|(?!_)[punct](_+)(?=[\\s]|$)|[^punct\\s](_+)(?!_)(?=[punct\\s]|$)|(?!_)[punct\\s](_+)(?=[^punct\\s])|[\\s](_+)(?!_)(?=[punct])|(?!_)[punct](_+)(?!_)(?=[punct])", "gu").replace(/punct/g, _punctuation).getRegex();
-const anyPunctuation = edit(/\\([punct])/, "gu").replace(/punct/g, _punctuation).getRegex();
-const autolink = edit(/^<(scheme:[^\s\x00-\x1f<>]*|email)>/).replace("scheme", /[a-zA-Z][a-zA-Z0-9+.-]{1,31}/).replace("email", /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/).getRegex();
-const _inlineComment = edit(_comment).replace("(?:-->|$)", "-->").getRegex();
-const tag = edit("^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>").replace("comment", _inlineComment).replace("attribute", /\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/).getRegex();
-const _inlineLabel = /(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/;
-const link = edit(/^!?\[(label)\]\(\s*(href)(?:\s+(title))?\s*\)/).replace("label", _inlineLabel).replace("href", /<(?:\\.|[^\n<>\\])+>|[^\s\x00-\x1f]*/).replace("title", /"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/).getRegex();
-const reflink = edit(/^!?\[(label)\]\[(ref)\]/).replace("label", _inlineLabel).replace("ref", _blockLabel).getRegex();
-const nolink = edit(/^!?\[(ref)\](?:\[\])?/).replace("ref", _blockLabel).getRegex();
-const reflinkSearch = edit("reflink|nolink(?!\\()", "g").replace("reflink", reflink).replace("nolink", nolink).getRegex();
-const inlineNormal = {
-  _backpedal: noopTest,
-  // only used for GFM url
-  anyPunctuation,
-  autolink,
-  blockSkip,
-  br,
-  code: inlineCode,
-  del: noopTest,
-  emStrongLDelim,
-  emStrongRDelimAst,
-  emStrongRDelimUnd,
-  escape: escape$2,
-  link,
-  nolink,
-  punctuation,
-  reflink,
-  reflinkSearch,
-  tag,
-  text: inlineText,
-  url: noopTest
-};
-const inlinePedantic = {
-  ...inlineNormal,
-  link: edit(/^!?\[(label)\]\((.*?)\)/).replace("label", _inlineLabel).getRegex(),
-  reflink: edit(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label", _inlineLabel).getRegex()
-};
-const inlineGfm = {
-  ...inlineNormal,
-  escape: edit(escape$2).replace("])", "~|])").getRegex(),
-  url: edit(/^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/, "i").replace("email", /[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/).getRegex(),
-  _backpedal: /(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,
-  del: /^(~~?)(?=[^\s~])([\s\S]*?[^\s~])\1(?=[^~]|$)/,
-  text: /^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/
-};
-const inlineBreaks = {
-  ...inlineGfm,
-  br: edit(br).replace("{2,}", "*").getRegex(),
-  text: edit(inlineGfm.text).replace("\\b_", "\\b_| {2,}\\n").replace(/\{2,\}/g, "*").getRegex()
-};
-const block = {
-  normal: blockNormal,
-  gfm: blockGfm,
-  pedantic: blockPedantic
-};
-const inline = {
-  normal: inlineNormal,
-  gfm: inlineGfm,
-  breaks: inlineBreaks,
-  pedantic: inlinePedantic
-};
-class _Lexer {
-  constructor(options) {
-    __publicField(this, "tokens");
-    __publicField(this, "options");
-    __publicField(this, "state");
-    __publicField(this, "tokenizer");
-    __publicField(this, "inlineQueue");
-    this.tokens = [];
-    this.tokens.links = /* @__PURE__ */ Object.create(null);
-    this.options = options || _defaults;
-    this.options.tokenizer = this.options.tokenizer || new _Tokenizer();
-    this.tokenizer = this.options.tokenizer;
-    this.tokenizer.options = this.options;
-    this.tokenizer.lexer = this;
-    this.inlineQueue = [];
-    this.state = {
-      inLink: false,
-      inRawBlock: false,
-      top: true
-    };
-    const rules = {
-      block: block.normal,
-      inline: inline.normal
-    };
-    if (this.options.pedantic) {
-      rules.block = block.pedantic;
-      rules.inline = inline.pedantic;
-    } else if (this.options.gfm) {
-      rules.block = block.gfm;
-      if (this.options.breaks) {
-        rules.inline = inline.breaks;
-      } else {
-        rules.inline = inline.gfm;
-      }
-    }
-    this.tokenizer.rules = rules;
-  }
-  /**
-   * Expose Rules
-   */
-  static get rules() {
-    return {
-      block,
-      inline
-    };
-  }
-  /**
-   * Static Lex Method
-   */
-  static lex(src, options) {
-    const lexer = new _Lexer(options);
-    return lexer.lex(src);
-  }
-  /**
-   * Static Lex Inline Method
-   */
-  static lexInline(src, options) {
-    const lexer = new _Lexer(options);
-    return lexer.inlineTokens(src);
-  }
-  /**
-   * Preprocessing
-   */
-  lex(src) {
-    src = src.replace(/\r\n|\r/g, "\n");
-    this.blockTokens(src, this.tokens);
-    for (let i2 = 0; i2 < this.inlineQueue.length; i2++) {
-      const next = this.inlineQueue[i2];
-      this.inlineTokens(next.src, next.tokens);
-    }
-    this.inlineQueue = [];
-    return this.tokens;
-  }
-  blockTokens(src, tokens = [], lastParagraphClipped = false) {
-    if (this.options.pedantic) {
-      src = src.replace(/\t/g, "    ").replace(/^ +$/gm, "");
-    }
-    let token2;
-    let lastToken;
-    let cutSrc;
-    while (src) {
-      if (this.options.extensions && this.options.extensions.block && this.options.extensions.block.some((extTokenizer) => {
-        if (token2 = extTokenizer.call({ lexer: this }, src, tokens)) {
-          src = src.substring(token2.raw.length);
-          tokens.push(token2);
-          return true;
-        }
-        return false;
-      })) {
-        continue;
-      }
-      if (token2 = this.tokenizer.space(src)) {
-        src = src.substring(token2.raw.length);
-        if (token2.raw.length === 1 && tokens.length > 0) {
-          tokens[tokens.length - 1].raw += "\n";
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (token2 = this.tokenizer.code(src)) {
-        src = src.substring(token2.raw.length);
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && (lastToken.type === "paragraph" || lastToken.type === "text")) {
-          lastToken.raw += "\n" + token2.raw;
-          lastToken.text += "\n" + token2.text;
-          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (token2 = this.tokenizer.fences(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.heading(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.hr(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.blockquote(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.list(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.html(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.def(src)) {
-        src = src.substring(token2.raw.length);
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && (lastToken.type === "paragraph" || lastToken.type === "text")) {
-          lastToken.raw += "\n" + token2.raw;
-          lastToken.text += "\n" + token2.raw;
-          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
-        } else if (!this.tokens.links[token2.tag]) {
-          this.tokens.links[token2.tag] = {
-            href: token2.href,
-            title: token2.title
-          };
-        }
-        continue;
-      }
-      if (token2 = this.tokenizer.table(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.lheading(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      cutSrc = src;
-      if (this.options.extensions && this.options.extensions.startBlock) {
-        let startIndex = Infinity;
-        const tempSrc = src.slice(1);
-        let tempStart;
-        this.options.extensions.startBlock.forEach((getStartIndex) => {
-          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
-          if (typeof tempStart === "number" && tempStart >= 0) {
-            startIndex = Math.min(startIndex, tempStart);
-          }
-        });
-        if (startIndex < Infinity && startIndex >= 0) {
-          cutSrc = src.substring(0, startIndex + 1);
-        }
-      }
-      if (this.state.top && (token2 = this.tokenizer.paragraph(cutSrc))) {
-        lastToken = tokens[tokens.length - 1];
-        if (lastParagraphClipped && (lastToken == null ? void 0 : lastToken.type) === "paragraph") {
-          lastToken.raw += "\n" + token2.raw;
-          lastToken.text += "\n" + token2.text;
-          this.inlineQueue.pop();
-          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
-        } else {
-          tokens.push(token2);
-        }
-        lastParagraphClipped = cutSrc.length !== src.length;
-        src = src.substring(token2.raw.length);
-        continue;
-      }
-      if (token2 = this.tokenizer.text(src)) {
-        src = src.substring(token2.raw.length);
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && lastToken.type === "text") {
-          lastToken.raw += "\n" + token2.raw;
-          lastToken.text += "\n" + token2.text;
-          this.inlineQueue.pop();
-          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (src) {
-        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
-        if (this.options.silent) {
-          console.error(errMsg);
-          break;
-        } else {
-          throw new Error(errMsg);
-        }
-      }
-    }
-    this.state.top = true;
-    return tokens;
-  }
-  inline(src, tokens = []) {
-    this.inlineQueue.push({ src, tokens });
-    return tokens;
-  }
-  /**
-   * Lexing/Compiling
-   */
-  inlineTokens(src, tokens = []) {
-    let token2, lastToken, cutSrc;
-    let maskedSrc = src;
-    let match;
-    let keepPrevChar, prevChar;
-    if (this.tokens.links) {
-      const links = Object.keys(this.tokens.links);
-      if (links.length > 0) {
-        while ((match = this.tokenizer.rules.inline.reflinkSearch.exec(maskedSrc)) != null) {
-          if (links.includes(match[0].slice(match[0].lastIndexOf("[") + 1, -1))) {
-            maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex);
-          }
-        }
-      }
-    }
-    while ((match = this.tokenizer.rules.inline.blockSkip.exec(maskedSrc)) != null) {
-      maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);
-    }
-    while ((match = this.tokenizer.rules.inline.anyPunctuation.exec(maskedSrc)) != null) {
-      maskedSrc = maskedSrc.slice(0, match.index) + "++" + maskedSrc.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);
-    }
-    while (src) {
-      if (!keepPrevChar) {
-        prevChar = "";
-      }
-      keepPrevChar = false;
-      if (this.options.extensions && this.options.extensions.inline && this.options.extensions.inline.some((extTokenizer) => {
-        if (token2 = extTokenizer.call({ lexer: this }, src, tokens)) {
-          src = src.substring(token2.raw.length);
-          tokens.push(token2);
-          return true;
-        }
-        return false;
-      })) {
-        continue;
-      }
-      if (token2 = this.tokenizer.escape(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.tag(src)) {
-        src = src.substring(token2.raw.length);
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && token2.type === "text" && lastToken.type === "text") {
-          lastToken.raw += token2.raw;
-          lastToken.text += token2.text;
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (token2 = this.tokenizer.link(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.reflink(src, this.tokens.links)) {
-        src = src.substring(token2.raw.length);
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && token2.type === "text" && lastToken.type === "text") {
-          lastToken.raw += token2.raw;
-          lastToken.text += token2.text;
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (token2 = this.tokenizer.emStrong(src, maskedSrc, prevChar)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.codespan(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.br(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.del(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (token2 = this.tokenizer.autolink(src)) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      if (!this.state.inLink && (token2 = this.tokenizer.url(src))) {
-        src = src.substring(token2.raw.length);
-        tokens.push(token2);
-        continue;
-      }
-      cutSrc = src;
-      if (this.options.extensions && this.options.extensions.startInline) {
-        let startIndex = Infinity;
-        const tempSrc = src.slice(1);
-        let tempStart;
-        this.options.extensions.startInline.forEach((getStartIndex) => {
-          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
-          if (typeof tempStart === "number" && tempStart >= 0) {
-            startIndex = Math.min(startIndex, tempStart);
-          }
-        });
-        if (startIndex < Infinity && startIndex >= 0) {
-          cutSrc = src.substring(0, startIndex + 1);
-        }
-      }
-      if (token2 = this.tokenizer.inlineText(cutSrc)) {
-        src = src.substring(token2.raw.length);
-        if (token2.raw.slice(-1) !== "_") {
-          prevChar = token2.raw.slice(-1);
-        }
-        keepPrevChar = true;
-        lastToken = tokens[tokens.length - 1];
-        if (lastToken && lastToken.type === "text") {
-          lastToken.raw += token2.raw;
-          lastToken.text += token2.text;
-        } else {
-          tokens.push(token2);
-        }
-        continue;
-      }
-      if (src) {
-        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
-        if (this.options.silent) {
-          console.error(errMsg);
-          break;
-        } else {
-          throw new Error(errMsg);
-        }
-      }
-    }
-    return tokens;
-  }
-}
-class _Renderer {
-  // set by the parser
-  constructor(options) {
-    __publicField(this, "options");
-    __publicField(this, "parser");
-    this.options = options || _defaults;
-  }
-  space(token2) {
-    return "";
-  }
-  code({ text, lang, escaped }) {
-    var _a;
-    const langString = (_a = (lang || "").match(/^\S*/)) == null ? void 0 : _a[0];
-    const code = text.replace(/\n$/, "") + "\n";
-    if (!langString) {
-      return "<pre><code>" + (escaped ? code : escape$1$1(code, true)) + "</code></pre>\n";
-    }
-    return '<pre><code class="language-' + escape$1$1(langString) + '">' + (escaped ? code : escape$1$1(code, true)) + "</code></pre>\n";
-  }
-  blockquote({ tokens }) {
-    const body = this.parser.parse(tokens);
-    return `<blockquote>
-${body}</blockquote>
-`;
-  }
-  html({ text }) {
-    return text;
-  }
-  heading({ tokens, depth }) {
-    return `<h${depth}>${this.parser.parseInline(tokens)}</h${depth}>
-`;
-  }
-  hr(token2) {
-    return "<hr>\n";
-  }
-  list(token2) {
-    const ordered = token2.ordered;
-    const start2 = token2.start;
-    let body = "";
-    for (let j2 = 0; j2 < token2.items.length; j2++) {
-      const item = token2.items[j2];
-      body += this.listitem(item);
-    }
-    const type = ordered ? "ol" : "ul";
-    const startAttr = ordered && start2 !== 1 ? ' start="' + start2 + '"' : "";
-    return "<" + type + startAttr + ">\n" + body + "</" + type + ">\n";
-  }
-  listitem(item) {
-    let itemBody = "";
-    if (item.task) {
-      const checkbox = this.checkbox({ checked: !!item.checked });
-      if (item.loose) {
-        if (item.tokens.length > 0 && item.tokens[0].type === "paragraph") {
-          item.tokens[0].text = checkbox + " " + item.tokens[0].text;
-          if (item.tokens[0].tokens && item.tokens[0].tokens.length > 0 && item.tokens[0].tokens[0].type === "text") {
-            item.tokens[0].tokens[0].text = checkbox + " " + item.tokens[0].tokens[0].text;
-          }
-        } else {
-          item.tokens.unshift({
-            type: "text",
-            raw: checkbox + " ",
-            text: checkbox + " "
+        if (canOpen) {
+          stack2.push({
+            token: i,
+            pos: t2.index,
+            single: isSingle,
+            level: thisLevel
           });
+        } else if (canClose && isSingle) {
+          token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
         }
-      } else {
-        itemBody += checkbox + " ";
       }
-    }
-    itemBody += this.parser.parse(item.tokens, !!item.loose);
-    return `<li>${itemBody}</li>
-`;
-  }
-  checkbox({ checked }) {
-    return "<input " + (checked ? 'checked="" ' : "") + 'disabled="" type="checkbox">';
-  }
-  paragraph({ tokens }) {
-    return `<p>${this.parser.parseInline(tokens)}</p>
-`;
-  }
-  table(token2) {
-    let header = "";
-    let cell = "";
-    for (let j2 = 0; j2 < token2.header.length; j2++) {
-      cell += this.tablecell(token2.header[j2]);
-    }
-    header += this.tablerow({ text: cell });
-    let body = "";
-    for (let j2 = 0; j2 < token2.rows.length; j2++) {
-      const row = token2.rows[j2];
-      cell = "";
-      for (let k2 = 0; k2 < row.length; k2++) {
-        cell += this.tablecell(row[k2]);
-      }
-      body += this.tablerow({ text: cell });
-    }
-    if (body)
-      body = `<tbody>${body}</tbody>`;
-    return "<table>\n<thead>\n" + header + "</thead>\n" + body + "</table>\n";
-  }
-  tablerow({ text }) {
-    return `<tr>
-${text}</tr>
-`;
-  }
-  tablecell(token2) {
-    const content = this.parser.parseInline(token2.tokens);
-    const type = token2.header ? "th" : "td";
-    const tag2 = token2.align ? `<${type} align="${token2.align}">` : `<${type}>`;
-    return tag2 + content + `</${type}>
-`;
-  }
-  /**
-   * span level renderer
-   */
-  strong({ tokens }) {
-    return `<strong>${this.parser.parseInline(tokens)}</strong>`;
-  }
-  em({ tokens }) {
-    return `<em>${this.parser.parseInline(tokens)}</em>`;
-  }
-  codespan({ text }) {
-    return `<code>${text}</code>`;
-  }
-  br(token2) {
-    return "<br>";
-  }
-  del({ tokens }) {
-    return `<del>${this.parser.parseInline(tokens)}</del>`;
-  }
-  link({ href, title, tokens }) {
-    const text = this.parser.parseInline(tokens);
-    const cleanHref = cleanUrl(href);
-    if (cleanHref === null) {
-      return text;
-    }
-    href = cleanHref;
-    let out = '<a href="' + href + '"';
-    if (title) {
-      out += ' title="' + title + '"';
-    }
-    out += ">" + text + "</a>";
-    return out;
-  }
-  image({ href, title, text }) {
-    const cleanHref = cleanUrl(href);
-    if (cleanHref === null) {
-      return text;
-    }
-    href = cleanHref;
-    let out = `<img src="${href}" alt="${text}"`;
-    if (title) {
-      out += ` title="${title}"`;
-    }
-    out += ">";
-    return out;
-  }
-  text(token2) {
-    return "tokens" in token2 && token2.tokens ? this.parser.parseInline(token2.tokens) : token2.text;
   }
 }
-class _TextRenderer {
-  // no need for block level renderers
-  strong({ text }) {
-    return text;
+function smartquotes(state) {
+  if (!state.md.options.typographer) {
+    return;
   }
-  em({ text }) {
-    return text;
+  for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+    if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) {
+      continue;
+    }
+    process_inlines(state.tokens[blkIdx].children, state);
   }
-  codespan({ text }) {
-    return text;
+}
+function text_join(state) {
+  let curr, last;
+  const blockTokens = state.tokens;
+  const l2 = blockTokens.length;
+  for (let j2 = 0; j2 < l2; j2++) {
+    if (blockTokens[j2].type !== "inline") continue;
+    const tokens = blockTokens[j2].children;
+    const max2 = tokens.length;
+    for (curr = 0; curr < max2; curr++) {
+      if (tokens[curr].type === "text_special") {
+        tokens[curr].type = "text";
+      }
+    }
+    for (curr = last = 0; curr < max2; curr++) {
+      if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
+        tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+      } else {
+        if (curr !== last) {
+          tokens[last] = tokens[curr];
+        }
+        last++;
+      }
+    }
+    if (curr !== last) {
+      tokens.length = last;
+    }
   }
-  del({ text }) {
-    return text;
+}
+const _rules$2 = [
+  ["normalize", normalize],
+  ["block", block],
+  ["inline", inline],
+  ["linkify", linkify$1],
+  ["replacements", replace],
+  ["smartquotes", smartquotes],
+  // `text_join` finds `text_special` tokens (for escape sequences)
+  // and joins them with the rest of the text
+  ["text_join", text_join]
+];
+function Core() {
+  this.ruler = new Ruler();
+  for (let i = 0; i < _rules$2.length; i++) {
+    this.ruler.push(_rules$2[i][0], _rules$2[i][1]);
   }
-  html({ text }) {
-    return text;
+}
+Core.prototype.process = function(state) {
+  const rules = this.ruler.getRules("");
+  for (let i = 0, l2 = rules.length; i < l2; i++) {
+    rules[i](state);
   }
-  text({ text }) {
-    return text;
+};
+Core.prototype.State = StateCore;
+function StateBlock(src, md, env, tokens) {
+  this.src = src;
+  this.md = md;
+  this.env = env;
+  this.tokens = tokens;
+  this.bMarks = [];
+  this.eMarks = [];
+  this.tShift = [];
+  this.sCount = [];
+  this.bsCount = [];
+  this.blkIndent = 0;
+  this.line = 0;
+  this.lineMax = 0;
+  this.tight = false;
+  this.ddIndent = -1;
+  this.listIndent = -1;
+  this.parentType = "root";
+  this.level = 0;
+  const s2 = this.src;
+  for (let start2 = 0, pos2 = 0, indent = 0, offset2 = 0, len = s2.length, indent_found = false; pos2 < len; pos2++) {
+    const ch3 = s2.charCodeAt(pos2);
+    if (!indent_found) {
+      if (isSpace(ch3)) {
+        indent++;
+        if (ch3 === 9) {
+          offset2 += 4 - offset2 % 4;
+        } else {
+          offset2++;
+        }
+        continue;
+      } else {
+        indent_found = true;
+      }
+    }
+    if (ch3 === 10 || pos2 === len - 1) {
+      if (ch3 !== 10) {
+        pos2++;
+      }
+      this.bMarks.push(start2);
+      this.eMarks.push(pos2);
+      this.tShift.push(indent);
+      this.sCount.push(offset2);
+      this.bsCount.push(0);
+      indent_found = false;
+      indent = 0;
+      offset2 = 0;
+      start2 = pos2 + 1;
+    }
   }
-  link({ text }) {
-    return "" + text;
+  this.bMarks.push(s2.length);
+  this.eMarks.push(s2.length);
+  this.tShift.push(0);
+  this.sCount.push(0);
+  this.bsCount.push(0);
+  this.lineMax = this.bMarks.length - 1;
+}
+StateBlock.prototype.push = function(type, tag, nesting) {
+  const token2 = new Token(type, tag, nesting);
+  token2.block = true;
+  if (nesting < 0) this.level--;
+  token2.level = this.level;
+  if (nesting > 0) this.level++;
+  this.tokens.push(token2);
+  return token2;
+};
+StateBlock.prototype.isEmpty = function isEmpty(line2) {
+  return this.bMarks[line2] + this.tShift[line2] >= this.eMarks[line2];
+};
+StateBlock.prototype.skipEmptyLines = function skipEmptyLines(from) {
+  for (let max2 = this.lineMax; from < max2; from++) {
+    if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) {
+      break;
+    }
   }
-  image({ text }) {
-    return "" + text;
+  return from;
+};
+StateBlock.prototype.skipSpaces = function skipSpaces(pos2) {
+  for (let max2 = this.src.length; pos2 < max2; pos2++) {
+    const ch3 = this.src.charCodeAt(pos2);
+    if (!isSpace(ch3)) {
+      break;
+    }
   }
-  br() {
+  return pos2;
+};
+StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos2, min2) {
+  if (pos2 <= min2) {
+    return pos2;
+  }
+  while (pos2 > min2) {
+    if (!isSpace(this.src.charCodeAt(--pos2))) {
+      return pos2 + 1;
+    }
+  }
+  return pos2;
+};
+StateBlock.prototype.skipChars = function skipChars(pos2, code2) {
+  for (let max2 = this.src.length; pos2 < max2; pos2++) {
+    if (this.src.charCodeAt(pos2) !== code2) {
+      break;
+    }
+  }
+  return pos2;
+};
+StateBlock.prototype.skipCharsBack = function skipCharsBack(pos2, code2, min2) {
+  if (pos2 <= min2) {
+    return pos2;
+  }
+  while (pos2 > min2) {
+    if (code2 !== this.src.charCodeAt(--pos2)) {
+      return pos2 + 1;
+    }
+  }
+  return pos2;
+};
+StateBlock.prototype.getLines = function getLines(begin, end2, indent, keepLastLF) {
+  if (begin >= end2) {
     return "";
   }
+  const queue = new Array(end2 - begin);
+  for (let i = 0, line2 = begin; line2 < end2; line2++, i++) {
+    let lineIndent = 0;
+    const lineStart = this.bMarks[line2];
+    let first = lineStart;
+    let last;
+    if (line2 + 1 < end2 || keepLastLF) {
+      last = this.eMarks[line2] + 1;
+    } else {
+      last = this.eMarks[line2];
+    }
+    while (first < last && lineIndent < indent) {
+      const ch3 = this.src.charCodeAt(first);
+      if (isSpace(ch3)) {
+        if (ch3 === 9) {
+          lineIndent += 4 - (lineIndent + this.bsCount[line2]) % 4;
+        } else {
+          lineIndent++;
+        }
+      } else if (first - lineStart < this.tShift[line2]) {
+        lineIndent++;
+      } else {
+        break;
+      }
+      first++;
+    }
+    if (lineIndent > indent) {
+      queue[i] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
+    } else {
+      queue[i] = this.src.slice(first, last);
+    }
+  }
+  return queue.join("");
+};
+StateBlock.prototype.Token = Token;
+const MAX_AUTOCOMPLETED_CELLS = 65536;
+function getLine(state, line2) {
+  const pos2 = state.bMarks[line2] + state.tShift[line2];
+  const max2 = state.eMarks[line2];
+  return state.src.slice(pos2, max2);
 }
-class _Parser {
-  constructor(options) {
-    __publicField(this, "options");
-    __publicField(this, "renderer");
-    __publicField(this, "textRenderer");
-    this.options = options || _defaults;
-    this.options.renderer = this.options.renderer || new _Renderer();
-    this.renderer = this.options.renderer;
-    this.renderer.options = this.options;
-    this.renderer.parser = this;
-    this.textRenderer = new _TextRenderer();
+function escapedSplit(str) {
+  const result = [];
+  const max2 = str.length;
+  let pos2 = 0;
+  let ch3 = str.charCodeAt(pos2);
+  let isEscaped = false;
+  let lastPos = 0;
+  let current = "";
+  while (pos2 < max2) {
+    if (ch3 === 124) {
+      if (!isEscaped) {
+        result.push(current + str.substring(lastPos, pos2));
+        current = "";
+        lastPos = pos2 + 1;
+      } else {
+        current += str.substring(lastPos, pos2 - 1);
+        lastPos = pos2;
+      }
+    }
+    isEscaped = ch3 === 92;
+    pos2++;
+    ch3 = str.charCodeAt(pos2);
   }
-  /**
-   * Static Parse Method
-   */
-  static parse(tokens, options) {
-    const parser = new _Parser(options);
-    return parser.parse(tokens);
+  result.push(current + str.substring(lastPos));
+  return result;
+}
+function table(state, startLine, endLine, silent) {
+  if (startLine + 2 > endLine) {
+    return false;
   }
-  /**
-   * Static Parse Inline Method
-   */
-  static parseInline(tokens, options) {
-    const parser = new _Parser(options);
-    return parser.parseInline(tokens);
+  let nextLine = startLine + 1;
+  if (state.sCount[nextLine] < state.blkIndent) {
+    return false;
   }
-  /**
-   * Parse Loop
-   */
-  parse(tokens, top2 = true) {
-    let out = "";
-    for (let i2 = 0; i2 < tokens.length; i2++) {
-      const anyToken = tokens[i2];
-      if (this.options.extensions && this.options.extensions.renderers && this.options.extensions.renderers[anyToken.type]) {
-        const genericToken = anyToken;
-        const ret = this.options.extensions.renderers[genericToken.type].call({ parser: this }, genericToken);
-        if (ret !== false || !["space", "hr", "heading", "code", "table", "blockquote", "list", "html", "paragraph", "text"].includes(genericToken.type)) {
-          out += ret || "";
-          continue;
+  if (state.sCount[nextLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+  if (pos2 >= state.eMarks[nextLine]) {
+    return false;
+  }
+  const firstCh = state.src.charCodeAt(pos2++);
+  if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) {
+    return false;
+  }
+  if (pos2 >= state.eMarks[nextLine]) {
+    return false;
+  }
+  const secondCh = state.src.charCodeAt(pos2++);
+  if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) {
+    return false;
+  }
+  if (firstCh === 45 && isSpace(secondCh)) {
+    return false;
+  }
+  while (pos2 < state.eMarks[nextLine]) {
+    const ch3 = state.src.charCodeAt(pos2);
+    if (ch3 !== 124 && ch3 !== 45 && ch3 !== 58 && !isSpace(ch3)) {
+      return false;
+    }
+    pos2++;
+  }
+  let lineText = getLine(state, startLine + 1);
+  let columns = lineText.split("|");
+  const aligns = [];
+  for (let i = 0; i < columns.length; i++) {
+    const t2 = columns[i].trim();
+    if (!t2) {
+      if (i === 0 || i === columns.length - 1) {
+        continue;
+      } else {
+        return false;
+      }
+    }
+    if (!/^:?-+:?$/.test(t2)) {
+      return false;
+    }
+    if (t2.charCodeAt(t2.length - 1) === 58) {
+      aligns.push(t2.charCodeAt(0) === 58 ? "center" : "right");
+    } else if (t2.charCodeAt(0) === 58) {
+      aligns.push("left");
+    } else {
+      aligns.push("");
+    }
+  }
+  lineText = getLine(state, startLine).trim();
+  if (lineText.indexOf("|") === -1) {
+    return false;
+  }
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  columns = escapedSplit(lineText);
+  if (columns.length && columns[0] === "") columns.shift();
+  if (columns.length && columns[columns.length - 1] === "") columns.pop();
+  const columnCount = columns.length;
+  if (columnCount === 0 || columnCount !== aligns.length) {
+    return false;
+  }
+  if (silent) {
+    return true;
+  }
+  const oldParentType = state.parentType;
+  state.parentType = "table";
+  const terminatorRules = state.md.block.ruler.getRules("blockquote");
+  const token_to = state.push("table_open", "table", 1);
+  const tableLines = [startLine, 0];
+  token_to.map = tableLines;
+  const token_tho = state.push("thead_open", "thead", 1);
+  token_tho.map = [startLine, startLine + 1];
+  const token_htro = state.push("tr_open", "tr", 1);
+  token_htro.map = [startLine, startLine + 1];
+  for (let i = 0; i < columns.length; i++) {
+    const token_ho = state.push("th_open", "th", 1);
+    if (aligns[i]) {
+      token_ho.attrs = [["style", "text-align:" + aligns[i]]];
+    }
+    const token_il = state.push("inline", "", 0);
+    token_il.content = columns[i].trim();
+    token_il.children = [];
+    state.push("th_close", "th", -1);
+  }
+  state.push("tr_close", "tr", -1);
+  state.push("thead_close", "thead", -1);
+  let tbodyLines;
+  let autocompletedCells = 0;
+  for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
+    if (state.sCount[nextLine] < state.blkIndent) {
+      break;
+    }
+    let terminate = false;
+    for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+      if (terminatorRules[i](state, nextLine, endLine, true)) {
+        terminate = true;
+        break;
+      }
+    }
+    if (terminate) {
+      break;
+    }
+    lineText = getLine(state, nextLine).trim();
+    if (!lineText) {
+      break;
+    }
+    if (state.sCount[nextLine] - state.blkIndent >= 4) {
+      break;
+    }
+    columns = escapedSplit(lineText);
+    if (columns.length && columns[0] === "") columns.shift();
+    if (columns.length && columns[columns.length - 1] === "") columns.pop();
+    autocompletedCells += columnCount - columns.length;
+    if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) {
+      break;
+    }
+    if (nextLine === startLine + 2) {
+      const token_tbo = state.push("tbody_open", "tbody", 1);
+      token_tbo.map = tbodyLines = [startLine + 2, 0];
+    }
+    const token_tro = state.push("tr_open", "tr", 1);
+    token_tro.map = [nextLine, nextLine + 1];
+    for (let i = 0; i < columnCount; i++) {
+      const token_tdo = state.push("td_open", "td", 1);
+      if (aligns[i]) {
+        token_tdo.attrs = [["style", "text-align:" + aligns[i]]];
+      }
+      const token_il = state.push("inline", "", 0);
+      token_il.content = columns[i] ? columns[i].trim() : "";
+      token_il.children = [];
+      state.push("td_close", "td", -1);
+    }
+    state.push("tr_close", "tr", -1);
+  }
+  if (tbodyLines) {
+    state.push("tbody_close", "tbody", -1);
+    tbodyLines[1] = nextLine;
+  }
+  state.push("table_close", "table", -1);
+  tableLines[1] = nextLine;
+  state.parentType = oldParentType;
+  state.line = nextLine;
+  return true;
+}
+function code(state, startLine, endLine) {
+  if (state.sCount[startLine] - state.blkIndent < 4) {
+    return false;
+  }
+  let nextLine = startLine + 1;
+  let last = nextLine;
+  while (nextLine < endLine) {
+    if (state.isEmpty(nextLine)) {
+      nextLine++;
+      continue;
+    }
+    if (state.sCount[nextLine] - state.blkIndent >= 4) {
+      nextLine++;
+      last = nextLine;
+      continue;
+    }
+    break;
+  }
+  state.line = last;
+  const token2 = state.push("code_block", "code", 0);
+  token2.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
+  token2.map = [startLine, state.line];
+  return true;
+}
+function fence(state, startLine, endLine, silent) {
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  let max2 = state.eMarks[startLine];
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  if (pos2 + 3 > max2) {
+    return false;
+  }
+  const marker = state.src.charCodeAt(pos2);
+  if (marker !== 126 && marker !== 96) {
+    return false;
+  }
+  let mem = pos2;
+  pos2 = state.skipChars(pos2, marker);
+  let len = pos2 - mem;
+  if (len < 3) {
+    return false;
+  }
+  const markup = state.src.slice(mem, pos2);
+  const params = state.src.slice(pos2, max2);
+  if (marker === 96) {
+    if (params.indexOf(String.fromCharCode(marker)) >= 0) {
+      return false;
+    }
+  }
+  if (silent) {
+    return true;
+  }
+  let nextLine = startLine;
+  let haveEndMarker = false;
+  for (; ; ) {
+    nextLine++;
+    if (nextLine >= endLine) {
+      break;
+    }
+    pos2 = mem = state.bMarks[nextLine] + state.tShift[nextLine];
+    max2 = state.eMarks[nextLine];
+    if (pos2 < max2 && state.sCount[nextLine] < state.blkIndent) {
+      break;
+    }
+    if (state.src.charCodeAt(pos2) !== marker) {
+      continue;
+    }
+    if (state.sCount[nextLine] - state.blkIndent >= 4) {
+      continue;
+    }
+    pos2 = state.skipChars(pos2, marker);
+    if (pos2 - mem < len) {
+      continue;
+    }
+    pos2 = state.skipSpaces(pos2);
+    if (pos2 < max2) {
+      continue;
+    }
+    haveEndMarker = true;
+    break;
+  }
+  len = state.sCount[startLine];
+  state.line = nextLine + (haveEndMarker ? 1 : 0);
+  const token2 = state.push("fence", "code", 0);
+  token2.info = params;
+  token2.content = state.getLines(startLine + 1, nextLine, len, true);
+  token2.markup = markup;
+  token2.map = [startLine, state.line];
+  return true;
+}
+function blockquote(state, startLine, endLine, silent) {
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  let max2 = state.eMarks[startLine];
+  const oldLineMax = state.lineMax;
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  if (state.src.charCodeAt(pos2) !== 62) {
+    return false;
+  }
+  if (silent) {
+    return true;
+  }
+  const oldBMarks = [];
+  const oldBSCount = [];
+  const oldSCount = [];
+  const oldTShift = [];
+  const terminatorRules = state.md.block.ruler.getRules("blockquote");
+  const oldParentType = state.parentType;
+  state.parentType = "blockquote";
+  let lastLineEmpty = false;
+  let nextLine;
+  for (nextLine = startLine; nextLine < endLine; nextLine++) {
+    const isOutdented = state.sCount[nextLine] < state.blkIndent;
+    pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+    max2 = state.eMarks[nextLine];
+    if (pos2 >= max2) {
+      break;
+    }
+    if (state.src.charCodeAt(pos2++) === 62 && !isOutdented) {
+      let initial = state.sCount[nextLine] + 1;
+      let spaceAfterMarker;
+      let adjustTab;
+      if (state.src.charCodeAt(pos2) === 32) {
+        pos2++;
+        initial++;
+        adjustTab = false;
+        spaceAfterMarker = true;
+      } else if (state.src.charCodeAt(pos2) === 9) {
+        spaceAfterMarker = true;
+        if ((state.bsCount[nextLine] + initial) % 4 === 3) {
+          pos2++;
+          initial++;
+          adjustTab = false;
+        } else {
+          adjustTab = true;
+        }
+      } else {
+        spaceAfterMarker = false;
+      }
+      let offset2 = initial;
+      oldBMarks.push(state.bMarks[nextLine]);
+      state.bMarks[nextLine] = pos2;
+      while (pos2 < max2) {
+        const ch3 = state.src.charCodeAt(pos2);
+        if (isSpace(ch3)) {
+          if (ch3 === 9) {
+            offset2 += 4 - (offset2 + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+          } else {
+            offset2++;
+          }
+        } else {
+          break;
+        }
+        pos2++;
+      }
+      lastLineEmpty = pos2 >= max2;
+      oldBSCount.push(state.bsCount[nextLine]);
+      state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
+      oldSCount.push(state.sCount[nextLine]);
+      state.sCount[nextLine] = offset2 - initial;
+      oldTShift.push(state.tShift[nextLine]);
+      state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
+      continue;
+    }
+    if (lastLineEmpty) {
+      break;
+    }
+    let terminate = false;
+    for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+      if (terminatorRules[i](state, nextLine, endLine, true)) {
+        terminate = true;
+        break;
+      }
+    }
+    if (terminate) {
+      state.lineMax = nextLine;
+      if (state.blkIndent !== 0) {
+        oldBMarks.push(state.bMarks[nextLine]);
+        oldBSCount.push(state.bsCount[nextLine]);
+        oldTShift.push(state.tShift[nextLine]);
+        oldSCount.push(state.sCount[nextLine]);
+        state.sCount[nextLine] -= state.blkIndent;
+      }
+      break;
+    }
+    oldBMarks.push(state.bMarks[nextLine]);
+    oldBSCount.push(state.bsCount[nextLine]);
+    oldTShift.push(state.tShift[nextLine]);
+    oldSCount.push(state.sCount[nextLine]);
+    state.sCount[nextLine] = -1;
+  }
+  const oldIndent = state.blkIndent;
+  state.blkIndent = 0;
+  const token_o = state.push("blockquote_open", "blockquote", 1);
+  token_o.markup = ">";
+  const lines = [startLine, 0];
+  token_o.map = lines;
+  state.md.block.tokenize(state, startLine, nextLine);
+  const token_c = state.push("blockquote_close", "blockquote", -1);
+  token_c.markup = ">";
+  state.lineMax = oldLineMax;
+  state.parentType = oldParentType;
+  lines[1] = state.line;
+  for (let i = 0; i < oldTShift.length; i++) {
+    state.bMarks[i + startLine] = oldBMarks[i];
+    state.tShift[i + startLine] = oldTShift[i];
+    state.sCount[i + startLine] = oldSCount[i];
+    state.bsCount[i + startLine] = oldBSCount[i];
+  }
+  state.blkIndent = oldIndent;
+  return true;
+}
+function hr(state, startLine, endLine, silent) {
+  const max2 = state.eMarks[startLine];
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  const marker = state.src.charCodeAt(pos2++);
+  if (marker !== 42 && marker !== 45 && marker !== 95) {
+    return false;
+  }
+  let cnt = 1;
+  while (pos2 < max2) {
+    const ch3 = state.src.charCodeAt(pos2++);
+    if (ch3 !== marker && !isSpace(ch3)) {
+      return false;
+    }
+    if (ch3 === marker) {
+      cnt++;
+    }
+  }
+  if (cnt < 3) {
+    return false;
+  }
+  if (silent) {
+    return true;
+  }
+  state.line = startLine + 1;
+  const token2 = state.push("hr", "hr", 0);
+  token2.map = [startLine, state.line];
+  token2.markup = Array(cnt + 1).join(String.fromCharCode(marker));
+  return true;
+}
+function skipBulletListMarker(state, startLine) {
+  const max2 = state.eMarks[startLine];
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  const marker = state.src.charCodeAt(pos2++);
+  if (marker !== 42 && marker !== 45 && marker !== 43) {
+    return -1;
+  }
+  if (pos2 < max2) {
+    const ch3 = state.src.charCodeAt(pos2);
+    if (!isSpace(ch3)) {
+      return -1;
+    }
+  }
+  return pos2;
+}
+function skipOrderedListMarker(state, startLine) {
+  const start2 = state.bMarks[startLine] + state.tShift[startLine];
+  const max2 = state.eMarks[startLine];
+  let pos2 = start2;
+  if (pos2 + 1 >= max2) {
+    return -1;
+  }
+  let ch3 = state.src.charCodeAt(pos2++);
+  if (ch3 < 48 || ch3 > 57) {
+    return -1;
+  }
+  for (; ; ) {
+    if (pos2 >= max2) {
+      return -1;
+    }
+    ch3 = state.src.charCodeAt(pos2++);
+    if (ch3 >= 48 && ch3 <= 57) {
+      if (pos2 - start2 >= 10) {
+        return -1;
+      }
+      continue;
+    }
+    if (ch3 === 41 || ch3 === 46) {
+      break;
+    }
+    return -1;
+  }
+  if (pos2 < max2) {
+    ch3 = state.src.charCodeAt(pos2);
+    if (!isSpace(ch3)) {
+      return -1;
+    }
+  }
+  return pos2;
+}
+function markTightParagraphs(state, idx) {
+  const level = state.level + 2;
+  for (let i = idx + 2, l2 = state.tokens.length - 2; i < l2; i++) {
+    if (state.tokens[i].level === level && state.tokens[i].type === "paragraph_open") {
+      state.tokens[i + 2].hidden = true;
+      state.tokens[i].hidden = true;
+      i += 2;
+    }
+  }
+}
+function list(state, startLine, endLine, silent) {
+  let max2, pos2, start2, token2;
+  let nextLine = startLine;
+  let tight = true;
+  if (state.sCount[nextLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) {
+    return false;
+  }
+  let isTerminatingParagraph = false;
+  if (silent && state.parentType === "paragraph") {
+    if (state.sCount[nextLine] >= state.blkIndent) {
+      isTerminatingParagraph = true;
+    }
+  }
+  let isOrdered;
+  let markerValue;
+  let posAfterMarker;
+  if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
+    isOrdered = true;
+    start2 = state.bMarks[nextLine] + state.tShift[nextLine];
+    markerValue = Number(state.src.slice(start2, posAfterMarker - 1));
+    if (isTerminatingParagraph && markerValue !== 1) return false;
+  } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
+    isOrdered = false;
+  } else {
+    return false;
+  }
+  if (isTerminatingParagraph) {
+    if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
+  }
+  if (silent) {
+    return true;
+  }
+  const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
+  const listTokIdx = state.tokens.length;
+  if (isOrdered) {
+    token2 = state.push("ordered_list_open", "ol", 1);
+    if (markerValue !== 1) {
+      token2.attrs = [["start", markerValue]];
+    }
+  } else {
+    token2 = state.push("bullet_list_open", "ul", 1);
+  }
+  const listLines = [nextLine, 0];
+  token2.map = listLines;
+  token2.markup = String.fromCharCode(markerCharCode);
+  let prevEmptyEnd = false;
+  const terminatorRules = state.md.block.ruler.getRules("list");
+  const oldParentType = state.parentType;
+  state.parentType = "list";
+  while (nextLine < endLine) {
+    pos2 = posAfterMarker;
+    max2 = state.eMarks[nextLine];
+    const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
+    let offset2 = initial;
+    while (pos2 < max2) {
+      const ch3 = state.src.charCodeAt(pos2);
+      if (ch3 === 9) {
+        offset2 += 4 - (offset2 + state.bsCount[nextLine]) % 4;
+      } else if (ch3 === 32) {
+        offset2++;
+      } else {
+        break;
+      }
+      pos2++;
+    }
+    const contentStart = pos2;
+    let indentAfterMarker;
+    if (contentStart >= max2) {
+      indentAfterMarker = 1;
+    } else {
+      indentAfterMarker = offset2 - initial;
+    }
+    if (indentAfterMarker > 4) {
+      indentAfterMarker = 1;
+    }
+    const indent = initial + indentAfterMarker;
+    token2 = state.push("list_item_open", "li", 1);
+    token2.markup = String.fromCharCode(markerCharCode);
+    const itemLines = [nextLine, 0];
+    token2.map = itemLines;
+    if (isOrdered) {
+      token2.info = state.src.slice(start2, posAfterMarker - 1);
+    }
+    const oldTight = state.tight;
+    const oldTShift = state.tShift[nextLine];
+    const oldSCount = state.sCount[nextLine];
+    const oldListIndent = state.listIndent;
+    state.listIndent = state.blkIndent;
+    state.blkIndent = indent;
+    state.tight = true;
+    state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
+    state.sCount[nextLine] = offset2;
+    if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
+      state.line = Math.min(state.line + 2, endLine);
+    } else {
+      state.md.block.tokenize(state, nextLine, endLine, true);
+    }
+    if (!state.tight || prevEmptyEnd) {
+      tight = false;
+    }
+    prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
+    state.blkIndent = state.listIndent;
+    state.listIndent = oldListIndent;
+    state.tShift[nextLine] = oldTShift;
+    state.sCount[nextLine] = oldSCount;
+    state.tight = oldTight;
+    token2 = state.push("list_item_close", "li", -1);
+    token2.markup = String.fromCharCode(markerCharCode);
+    nextLine = state.line;
+    itemLines[1] = nextLine;
+    if (nextLine >= endLine) {
+      break;
+    }
+    if (state.sCount[nextLine] < state.blkIndent) {
+      break;
+    }
+    if (state.sCount[nextLine] - state.blkIndent >= 4) {
+      break;
+    }
+    let terminate = false;
+    for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+      if (terminatorRules[i](state, nextLine, endLine, true)) {
+        terminate = true;
+        break;
+      }
+    }
+    if (terminate) {
+      break;
+    }
+    if (isOrdered) {
+      posAfterMarker = skipOrderedListMarker(state, nextLine);
+      if (posAfterMarker < 0) {
+        break;
+      }
+      start2 = state.bMarks[nextLine] + state.tShift[nextLine];
+    } else {
+      posAfterMarker = skipBulletListMarker(state, nextLine);
+      if (posAfterMarker < 0) {
+        break;
+      }
+    }
+    if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) {
+      break;
+    }
+  }
+  if (isOrdered) {
+    token2 = state.push("ordered_list_close", "ol", -1);
+  } else {
+    token2 = state.push("bullet_list_close", "ul", -1);
+  }
+  token2.markup = String.fromCharCode(markerCharCode);
+  listLines[1] = nextLine;
+  state.line = nextLine;
+  state.parentType = oldParentType;
+  if (tight) {
+    markTightParagraphs(state, listTokIdx);
+  }
+  return true;
+}
+function reference(state, startLine, _endLine, silent) {
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  let max2 = state.eMarks[startLine];
+  let nextLine = startLine + 1;
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  if (state.src.charCodeAt(pos2) !== 91) {
+    return false;
+  }
+  function getNextLine(nextLine2) {
+    const endLine = state.lineMax;
+    if (nextLine2 >= endLine || state.isEmpty(nextLine2)) {
+      return null;
+    }
+    let isContinuation = false;
+    if (state.sCount[nextLine2] - state.blkIndent > 3) {
+      isContinuation = true;
+    }
+    if (state.sCount[nextLine2] < 0) {
+      isContinuation = true;
+    }
+    if (!isContinuation) {
+      const terminatorRules = state.md.block.ruler.getRules("reference");
+      const oldParentType = state.parentType;
+      state.parentType = "reference";
+      let terminate = false;
+      for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+        if (terminatorRules[i](state, nextLine2, endLine, true)) {
+          terminate = true;
+          break;
         }
       }
-      const token2 = anyToken;
-      switch (token2.type) {
-        case "space": {
-          out += this.renderer.space(token2);
-          continue;
+      state.parentType = oldParentType;
+      if (terminate) {
+        return null;
+      }
+    }
+    const pos3 = state.bMarks[nextLine2] + state.tShift[nextLine2];
+    const max3 = state.eMarks[nextLine2];
+    return state.src.slice(pos3, max3 + 1);
+  }
+  let str = state.src.slice(pos2, max2 + 1);
+  max2 = str.length;
+  let labelEnd = -1;
+  for (pos2 = 1; pos2 < max2; pos2++) {
+    const ch3 = str.charCodeAt(pos2);
+    if (ch3 === 91) {
+      return false;
+    } else if (ch3 === 93) {
+      labelEnd = pos2;
+      break;
+    } else if (ch3 === 10) {
+      const lineContent = getNextLine(nextLine);
+      if (lineContent !== null) {
+        str += lineContent;
+        max2 = str.length;
+        nextLine++;
+      }
+    } else if (ch3 === 92) {
+      pos2++;
+      if (pos2 < max2 && str.charCodeAt(pos2) === 10) {
+        const lineContent = getNextLine(nextLine);
+        if (lineContent !== null) {
+          str += lineContent;
+          max2 = str.length;
+          nextLine++;
         }
-        case "hr": {
-          out += this.renderer.hr(token2);
-          continue;
+      }
+    }
+  }
+  if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) {
+    return false;
+  }
+  for (pos2 = labelEnd + 2; pos2 < max2; pos2++) {
+    const ch3 = str.charCodeAt(pos2);
+    if (ch3 === 10) {
+      const lineContent = getNextLine(nextLine);
+      if (lineContent !== null) {
+        str += lineContent;
+        max2 = str.length;
+        nextLine++;
+      }
+    } else if (isSpace(ch3)) ;
+    else {
+      break;
+    }
+  }
+  const destRes = state.md.helpers.parseLinkDestination(str, pos2, max2);
+  if (!destRes.ok) {
+    return false;
+  }
+  const href = state.md.normalizeLink(destRes.str);
+  if (!state.md.validateLink(href)) {
+    return false;
+  }
+  pos2 = destRes.pos;
+  const destEndPos = pos2;
+  const destEndLineNo = nextLine;
+  const start2 = pos2;
+  for (; pos2 < max2; pos2++) {
+    const ch3 = str.charCodeAt(pos2);
+    if (ch3 === 10) {
+      const lineContent = getNextLine(nextLine);
+      if (lineContent !== null) {
+        str += lineContent;
+        max2 = str.length;
+        nextLine++;
+      }
+    } else if (isSpace(ch3)) ;
+    else {
+      break;
+    }
+  }
+  let titleRes = state.md.helpers.parseLinkTitle(str, pos2, max2);
+  while (titleRes.can_continue) {
+    const lineContent = getNextLine(nextLine);
+    if (lineContent === null) break;
+    str += lineContent;
+    pos2 = max2;
+    max2 = str.length;
+    nextLine++;
+    titleRes = state.md.helpers.parseLinkTitle(str, pos2, max2, titleRes);
+  }
+  let title;
+  if (pos2 < max2 && start2 !== pos2 && titleRes.ok) {
+    title = titleRes.str;
+    pos2 = titleRes.pos;
+  } else {
+    title = "";
+    pos2 = destEndPos;
+    nextLine = destEndLineNo;
+  }
+  while (pos2 < max2) {
+    const ch3 = str.charCodeAt(pos2);
+    if (!isSpace(ch3)) {
+      break;
+    }
+    pos2++;
+  }
+  if (pos2 < max2 && str.charCodeAt(pos2) !== 10) {
+    if (title) {
+      title = "";
+      pos2 = destEndPos;
+      nextLine = destEndLineNo;
+      while (pos2 < max2) {
+        const ch3 = str.charCodeAt(pos2);
+        if (!isSpace(ch3)) {
+          break;
         }
-        case "heading": {
-          out += this.renderer.heading(token2);
-          continue;
+        pos2++;
+      }
+    }
+  }
+  if (pos2 < max2 && str.charCodeAt(pos2) !== 10) {
+    return false;
+  }
+  const label = normalizeReference(str.slice(1, labelEnd));
+  if (!label) {
+    return false;
+  }
+  if (silent) {
+    return true;
+  }
+  if (typeof state.env.references === "undefined") {
+    state.env.references = {};
+  }
+  if (typeof state.env.references[label] === "undefined") {
+    state.env.references[label] = { title, href };
+  }
+  state.line = nextLine;
+  return true;
+}
+const block_names = [
+  "address",
+  "article",
+  "aside",
+  "base",
+  "basefont",
+  "blockquote",
+  "body",
+  "caption",
+  "center",
+  "col",
+  "colgroup",
+  "dd",
+  "details",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "frame",
+  "frameset",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hr",
+  "html",
+  "iframe",
+  "legend",
+  "li",
+  "link",
+  "main",
+  "menu",
+  "menuitem",
+  "nav",
+  "noframes",
+  "ol",
+  "optgroup",
+  "option",
+  "p",
+  "param",
+  "search",
+  "section",
+  "summary",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "title",
+  "tr",
+  "track",
+  "ul"
+];
+const attr_name = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
+const unquoted = "[^\"'=<>`\\x00-\\x20]+";
+const single_quoted = "'[^']*'";
+const double_quoted = '"[^"]*"';
+const attr_value = "(?:" + unquoted + "|" + single_quoted + "|" + double_quoted + ")";
+const attribute = "(?:\\s+" + attr_name + "(?:\\s*=\\s*" + attr_value + ")?)";
+const open_tag = "<[A-Za-z][A-Za-z0-9\\-]*" + attribute + "*\\s*\\/?>";
+const close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
+const comment = "<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->";
+const processing = "<[?][\\s\\S]*?[?]>";
+const declaration = "<![A-Za-z][^>]*>";
+const cdata = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>";
+const HTML_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + "|" + comment + "|" + processing + "|" + declaration + "|" + cdata + ")");
+const HTML_OPEN_CLOSE_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + ")");
+const HTML_SEQUENCES = [
+  [/^<(script|pre|style|textarea)(?=(\s|>|$))/i, /<\/(script|pre|style|textarea)>/i, true],
+  [/^<!--/, /-->/, true],
+  [/^<\?/, /\?>/, true],
+  [/^<![A-Z]/, />/, true],
+  [/^<!\[CDATA\[/, /\]\]>/, true],
+  [new RegExp("^</?(" + block_names.join("|") + ")(?=(\\s|/?>|$))", "i"), /^$/, true],
+  [new RegExp(HTML_OPEN_CLOSE_TAG_RE.source + "\\s*$"), /^$/, false]
+];
+function html_block(state, startLine, endLine, silent) {
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  let max2 = state.eMarks[startLine];
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  if (!state.md.options.html) {
+    return false;
+  }
+  if (state.src.charCodeAt(pos2) !== 60) {
+    return false;
+  }
+  let lineText = state.src.slice(pos2, max2);
+  let i = 0;
+  for (; i < HTML_SEQUENCES.length; i++) {
+    if (HTML_SEQUENCES[i][0].test(lineText)) {
+      break;
+    }
+  }
+  if (i === HTML_SEQUENCES.length) {
+    return false;
+  }
+  if (silent) {
+    return HTML_SEQUENCES[i][2];
+  }
+  let nextLine = startLine + 1;
+  if (!HTML_SEQUENCES[i][1].test(lineText)) {
+    for (; nextLine < endLine; nextLine++) {
+      if (state.sCount[nextLine] < state.blkIndent) {
+        break;
+      }
+      pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+      max2 = state.eMarks[nextLine];
+      lineText = state.src.slice(pos2, max2);
+      if (HTML_SEQUENCES[i][1].test(lineText)) {
+        if (lineText.length !== 0) {
+          nextLine++;
         }
-        case "code": {
-          out += this.renderer.code(token2);
-          continue;
-        }
-        case "table": {
-          out += this.renderer.table(token2);
-          continue;
-        }
-        case "blockquote": {
-          out += this.renderer.blockquote(token2);
-          continue;
-        }
-        case "list": {
-          out += this.renderer.list(token2);
-          continue;
-        }
-        case "html": {
-          out += this.renderer.html(token2);
-          continue;
-        }
-        case "paragraph": {
-          out += this.renderer.paragraph(token2);
-          continue;
-        }
-        case "text": {
-          let textToken = token2;
-          let body = this.renderer.text(textToken);
-          while (i2 + 1 < tokens.length && tokens[i2 + 1].type === "text") {
-            textToken = tokens[++i2];
-            body += "\n" + this.renderer.text(textToken);
-          }
-          if (top2) {
-            out += this.renderer.paragraph({
-              type: "paragraph",
-              raw: body,
-              text: body,
-              tokens: [{ type: "text", raw: body, text: body }]
-            });
-          } else {
-            out += body;
-          }
-          continue;
-        }
-        default: {
-          const errMsg = 'Token with "' + token2.type + '" type was not found.';
-          if (this.options.silent) {
-            console.error(errMsg);
-            return "";
-          } else {
-            throw new Error(errMsg);
+        break;
+      }
+    }
+  }
+  state.line = nextLine;
+  const token2 = state.push("html_block", "", 0);
+  token2.map = [startLine, nextLine];
+  token2.content = state.getLines(startLine, nextLine, state.blkIndent, true);
+  return true;
+}
+function heading(state, startLine, endLine, silent) {
+  let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+  let max2 = state.eMarks[startLine];
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  let ch3 = state.src.charCodeAt(pos2);
+  if (ch3 !== 35 || pos2 >= max2) {
+    return false;
+  }
+  let level = 1;
+  ch3 = state.src.charCodeAt(++pos2);
+  while (ch3 === 35 && pos2 < max2 && level <= 6) {
+    level++;
+    ch3 = state.src.charCodeAt(++pos2);
+  }
+  if (level > 6 || pos2 < max2 && !isSpace(ch3)) {
+    return false;
+  }
+  if (silent) {
+    return true;
+  }
+  max2 = state.skipSpacesBack(max2, pos2);
+  const tmp = state.skipCharsBack(max2, 35, pos2);
+  if (tmp > pos2 && isSpace(state.src.charCodeAt(tmp - 1))) {
+    max2 = tmp;
+  }
+  state.line = startLine + 1;
+  const token_o = state.push("heading_open", "h" + String(level), 1);
+  token_o.markup = "########".slice(0, level);
+  token_o.map = [startLine, state.line];
+  const token_i = state.push("inline", "", 0);
+  token_i.content = state.src.slice(pos2, max2).trim();
+  token_i.map = [startLine, state.line];
+  token_i.children = [];
+  const token_c = state.push("heading_close", "h" + String(level), -1);
+  token_c.markup = "########".slice(0, level);
+  return true;
+}
+function lheading(state, startLine, endLine) {
+  const terminatorRules = state.md.block.ruler.getRules("paragraph");
+  if (state.sCount[startLine] - state.blkIndent >= 4) {
+    return false;
+  }
+  const oldParentType = state.parentType;
+  state.parentType = "paragraph";
+  let level = 0;
+  let marker;
+  let nextLine = startLine + 1;
+  for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+    if (state.sCount[nextLine] - state.blkIndent > 3) {
+      continue;
+    }
+    if (state.sCount[nextLine] >= state.blkIndent) {
+      let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+      const max2 = state.eMarks[nextLine];
+      if (pos2 < max2) {
+        marker = state.src.charCodeAt(pos2);
+        if (marker === 45 || marker === 61) {
+          pos2 = state.skipChars(pos2, marker);
+          pos2 = state.skipSpaces(pos2);
+          if (pos2 >= max2) {
+            level = marker === 61 ? 1 : 2;
+            break;
           }
         }
       }
     }
-    return out;
-  }
-  /**
-   * Parse Inline Tokens
-   */
-  parseInline(tokens, renderer) {
-    renderer = renderer || this.renderer;
-    let out = "";
-    for (let i2 = 0; i2 < tokens.length; i2++) {
-      const anyToken = tokens[i2];
-      if (this.options.extensions && this.options.extensions.renderers && this.options.extensions.renderers[anyToken.type]) {
-        const ret = this.options.extensions.renderers[anyToken.type].call({ parser: this }, anyToken);
-        if (ret !== false || !["escape", "html", "link", "image", "strong", "em", "codespan", "br", "del", "text"].includes(anyToken.type)) {
-          out += ret || "";
-          continue;
-        }
-      }
-      const token2 = anyToken;
-      switch (token2.type) {
-        case "escape": {
-          out += renderer.text(token2);
-          break;
-        }
-        case "html": {
-          out += renderer.html(token2);
-          break;
-        }
-        case "link": {
-          out += renderer.link(token2);
-          break;
-        }
-        case "image": {
-          out += renderer.image(token2);
-          break;
-        }
-        case "strong": {
-          out += renderer.strong(token2);
-          break;
-        }
-        case "em": {
-          out += renderer.em(token2);
-          break;
-        }
-        case "codespan": {
-          out += renderer.codespan(token2);
-          break;
-        }
-        case "br": {
-          out += renderer.br(token2);
-          break;
-        }
-        case "del": {
-          out += renderer.del(token2);
-          break;
-        }
-        case "text": {
-          out += renderer.text(token2);
-          break;
-        }
-        default: {
-          const errMsg = 'Token with "' + token2.type + '" type was not found.';
-          if (this.options.silent) {
-            console.error(errMsg);
-            return "";
-          } else {
-            throw new Error(errMsg);
-          }
-        }
+    if (state.sCount[nextLine] < 0) {
+      continue;
+    }
+    let terminate = false;
+    for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+      if (terminatorRules[i](state, nextLine, endLine, true)) {
+        terminate = true;
+        break;
       }
     }
-    return out;
+    if (terminate) {
+      break;
+    }
   }
+  if (!level) {
+    return false;
+  }
+  const content = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
+  state.line = nextLine + 1;
+  const token_o = state.push("heading_open", "h" + String(level), 1);
+  token_o.markup = String.fromCharCode(marker);
+  token_o.map = [startLine, state.line];
+  const token_i = state.push("inline", "", 0);
+  token_i.content = content;
+  token_i.map = [startLine, state.line - 1];
+  token_i.children = [];
+  const token_c = state.push("heading_close", "h" + String(level), -1);
+  token_c.markup = String.fromCharCode(marker);
+  state.parentType = oldParentType;
+  return true;
 }
-class _Hooks {
-  constructor(options) {
-    __publicField(this, "options");
-    __publicField(this, "block");
-    this.options = options || _defaults;
-  }
-  /**
-   * Process markdown before marked
-   */
-  preprocess(markdown) {
-    return markdown;
-  }
-  /**
-   * Process HTML after marked is finished
-   */
-  postprocess(html2) {
-    return html2;
-  }
-  /**
-   * Process all tokens before walk tokens
-   */
-  processAllTokens(tokens) {
-    return tokens;
-  }
-  /**
-   * Provide function to tokenize markdown
-   */
-  provideLexer() {
-    return this.block ? _Lexer.lex : _Lexer.lexInline;
-  }
-  /**
-   * Provide function to parse tokens
-   */
-  provideParser() {
-    return this.block ? _Parser.parse : _Parser.parseInline;
-  }
-}
-__publicField(_Hooks, "passThroughHooks", /* @__PURE__ */ new Set([
-  "preprocess",
-  "postprocess",
-  "processAllTokens"
-]));
-class Marked {
-  constructor(...args) {
-    __publicField(this, "defaults", _getDefaults());
-    __publicField(this, "options", this.setOptions);
-    __publicField(this, "parse", this.parseMarkdown(true));
-    __publicField(this, "parseInline", this.parseMarkdown(false));
-    __publicField(this, "Parser", _Parser);
-    __publicField(this, "Renderer", _Renderer);
-    __publicField(this, "TextRenderer", _TextRenderer);
-    __publicField(this, "Lexer", _Lexer);
-    __publicField(this, "Tokenizer", _Tokenizer);
-    __publicField(this, "Hooks", _Hooks);
-    this.use(...args);
-  }
-  /**
-   * Run callback for every token
-   */
-  walkTokens(tokens, callback) {
-    var _a, _b;
-    let values = [];
-    for (const token2 of tokens) {
-      values = values.concat(callback.call(this, token2));
-      switch (token2.type) {
-        case "table": {
-          const tableToken = token2;
-          for (const cell of tableToken.header) {
-            values = values.concat(this.walkTokens(cell.tokens, callback));
-          }
-          for (const row of tableToken.rows) {
-            for (const cell of row) {
-              values = values.concat(this.walkTokens(cell.tokens, callback));
-            }
-          }
-          break;
-        }
-        case "list": {
-          const listToken = token2;
-          values = values.concat(this.walkTokens(listToken.items, callback));
-          break;
-        }
-        default: {
-          const genericToken = token2;
-          if ((_b = (_a = this.defaults.extensions) == null ? void 0 : _a.childTokens) == null ? void 0 : _b[genericToken.type]) {
-            this.defaults.extensions.childTokens[genericToken.type].forEach((childTokens) => {
-              const tokens2 = genericToken[childTokens].flat(Infinity);
-              values = values.concat(this.walkTokens(tokens2, callback));
-            });
-          } else if (genericToken.tokens) {
-            values = values.concat(this.walkTokens(genericToken.tokens, callback));
-          }
-        }
+function paragraph(state, startLine, endLine) {
+  const terminatorRules = state.md.block.ruler.getRules("paragraph");
+  const oldParentType = state.parentType;
+  let nextLine = startLine + 1;
+  state.parentType = "paragraph";
+  for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+    if (state.sCount[nextLine] - state.blkIndent > 3) {
+      continue;
+    }
+    if (state.sCount[nextLine] < 0) {
+      continue;
+    }
+    let terminate = false;
+    for (let i = 0, l2 = terminatorRules.length; i < l2; i++) {
+      if (terminatorRules[i](state, nextLine, endLine, true)) {
+        terminate = true;
+        break;
       }
     }
-    return values;
+    if (terminate) {
+      break;
+    }
   }
-  use(...args) {
-    const extensions = this.defaults.extensions || { renderers: {}, childTokens: {} };
-    args.forEach((pack) => {
-      const opts = { ...pack };
-      opts.async = this.defaults.async || opts.async || false;
-      if (pack.extensions) {
-        pack.extensions.forEach((ext) => {
-          if (!ext.name) {
-            throw new Error("extension name required");
-          }
-          if ("renderer" in ext) {
-            const prevRenderer = extensions.renderers[ext.name];
-            if (prevRenderer) {
-              extensions.renderers[ext.name] = function(...args2) {
-                let ret = ext.renderer.apply(this, args2);
-                if (ret === false) {
-                  ret = prevRenderer.apply(this, args2);
-                }
-                return ret;
-              };
-            } else {
-              extensions.renderers[ext.name] = ext.renderer;
-            }
-          }
-          if ("tokenizer" in ext) {
-            if (!ext.level || ext.level !== "block" && ext.level !== "inline") {
-              throw new Error("extension level must be 'block' or 'inline'");
-            }
-            const extLevel = extensions[ext.level];
-            if (extLevel) {
-              extLevel.unshift(ext.tokenizer);
-            } else {
-              extensions[ext.level] = [ext.tokenizer];
-            }
-            if (ext.start) {
-              if (ext.level === "block") {
-                if (extensions.startBlock) {
-                  extensions.startBlock.push(ext.start);
-                } else {
-                  extensions.startBlock = [ext.start];
-                }
-              } else if (ext.level === "inline") {
-                if (extensions.startInline) {
-                  extensions.startInline.push(ext.start);
-                } else {
-                  extensions.startInline = [ext.start];
-                }
-              }
-            }
-          }
-          if ("childTokens" in ext && ext.childTokens) {
-            extensions.childTokens[ext.name] = ext.childTokens;
-          }
-        });
-        opts.extensions = extensions;
-      }
-      if (pack.renderer) {
-        const renderer = this.defaults.renderer || new _Renderer(this.defaults);
-        for (const prop in pack.renderer) {
-          if (!(prop in renderer)) {
-            throw new Error(`renderer '${prop}' does not exist`);
-          }
-          if (["options", "parser"].includes(prop)) {
-            continue;
-          }
-          const rendererProp = prop;
-          const rendererFunc = pack.renderer[rendererProp];
-          const prevRenderer = renderer[rendererProp];
-          renderer[rendererProp] = (...args2) => {
-            let ret = rendererFunc.apply(renderer, args2);
-            if (ret === false) {
-              ret = prevRenderer.apply(renderer, args2);
-            }
-            return ret || "";
-          };
-        }
-        opts.renderer = renderer;
-      }
-      if (pack.tokenizer) {
-        const tokenizer = this.defaults.tokenizer || new _Tokenizer(this.defaults);
-        for (const prop in pack.tokenizer) {
-          if (!(prop in tokenizer)) {
-            throw new Error(`tokenizer '${prop}' does not exist`);
-          }
-          if (["options", "rules", "lexer"].includes(prop)) {
-            continue;
-          }
-          const tokenizerProp = prop;
-          const tokenizerFunc = pack.tokenizer[tokenizerProp];
-          const prevTokenizer = tokenizer[tokenizerProp];
-          tokenizer[tokenizerProp] = (...args2) => {
-            let ret = tokenizerFunc.apply(tokenizer, args2);
-            if (ret === false) {
-              ret = prevTokenizer.apply(tokenizer, args2);
-            }
-            return ret;
-          };
-        }
-        opts.tokenizer = tokenizer;
-      }
-      if (pack.hooks) {
-        const hooks = this.defaults.hooks || new _Hooks();
-        for (const prop in pack.hooks) {
-          if (!(prop in hooks)) {
-            throw new Error(`hook '${prop}' does not exist`);
-          }
-          if (["options", "block"].includes(prop)) {
-            continue;
-          }
-          const hooksProp = prop;
-          const hooksFunc = pack.hooks[hooksProp];
-          const prevHook = hooks[hooksProp];
-          if (_Hooks.passThroughHooks.has(prop)) {
-            hooks[hooksProp] = (arg) => {
-              if (this.defaults.async) {
-                return Promise.resolve(hooksFunc.call(hooks, arg)).then((ret2) => {
-                  return prevHook.call(hooks, ret2);
-                });
-              }
-              const ret = hooksFunc.call(hooks, arg);
-              return prevHook.call(hooks, ret);
-            };
-          } else {
-            hooks[hooksProp] = (...args2) => {
-              let ret = hooksFunc.apply(hooks, args2);
-              if (ret === false) {
-                ret = prevHook.apply(hooks, args2);
-              }
-              return ret;
-            };
-          }
-        }
-        opts.hooks = hooks;
-      }
-      if (pack.walkTokens) {
-        const walkTokens = this.defaults.walkTokens;
-        const packWalktokens = pack.walkTokens;
-        opts.walkTokens = function(token2) {
-          let values = [];
-          values.push(packWalktokens.call(this, token2));
-          if (walkTokens) {
-            values = values.concat(walkTokens.call(this, token2));
-          }
-          return values;
-        };
-      }
-      this.defaults = { ...this.defaults, ...opts };
-    });
-    return this;
-  }
-  setOptions(opt) {
-    this.defaults = { ...this.defaults, ...opt };
-    return this;
-  }
-  lexer(src, options) {
-    return _Lexer.lex(src, options ?? this.defaults);
-  }
-  parser(tokens, options) {
-    return _Parser.parse(tokens, options ?? this.defaults);
-  }
-  parseMarkdown(blockType) {
-    const parse3 = (src, options) => {
-      const origOpt = { ...options };
-      const opt = { ...this.defaults, ...origOpt };
-      const throwError = this.onError(!!opt.silent, !!opt.async);
-      if (this.defaults.async === true && origOpt.async === false) {
-        return throwError(new Error("marked(): The async option was set to true by an extension. Remove async: false from the parse options object to return a Promise."));
-      }
-      if (typeof src === "undefined" || src === null) {
-        return throwError(new Error("marked(): input parameter is undefined or null"));
-      }
-      if (typeof src !== "string") {
-        return throwError(new Error("marked(): input parameter is of type " + Object.prototype.toString.call(src) + ", string expected"));
-      }
-      if (opt.hooks) {
-        opt.hooks.options = opt;
-        opt.hooks.block = blockType;
-      }
-      const lexer = opt.hooks ? opt.hooks.provideLexer() : blockType ? _Lexer.lex : _Lexer.lexInline;
-      const parser = opt.hooks ? opt.hooks.provideParser() : blockType ? _Parser.parse : _Parser.parseInline;
-      if (opt.async) {
-        return Promise.resolve(opt.hooks ? opt.hooks.preprocess(src) : src).then((src2) => lexer(src2, opt)).then((tokens) => opt.hooks ? opt.hooks.processAllTokens(tokens) : tokens).then((tokens) => opt.walkTokens ? Promise.all(this.walkTokens(tokens, opt.walkTokens)).then(() => tokens) : tokens).then((tokens) => parser(tokens, opt)).then((html2) => opt.hooks ? opt.hooks.postprocess(html2) : html2).catch(throwError);
-      }
-      try {
-        if (opt.hooks) {
-          src = opt.hooks.preprocess(src);
-        }
-        let tokens = lexer(src, opt);
-        if (opt.hooks) {
-          tokens = opt.hooks.processAllTokens(tokens);
-        }
-        if (opt.walkTokens) {
-          this.walkTokens(tokens, opt.walkTokens);
-        }
-        let html2 = parser(tokens, opt);
-        if (opt.hooks) {
-          html2 = opt.hooks.postprocess(html2);
-        }
-        return html2;
-      } catch (e2) {
-        return throwError(e2);
-      }
-    };
-    return parse3;
-  }
-  onError(silent, async) {
-    return (e2) => {
-      e2.message += "\nPlease report this to https://github.com/markedjs/marked.";
-      if (silent) {
-        const msg = "<p>An error occurred:</p><pre>" + escape$1$1(e2.message + "", true) + "</pre>";
-        if (async) {
-          return Promise.resolve(msg);
-        }
-        return msg;
-      }
-      if (async) {
-        return Promise.reject(e2);
-      }
-      throw e2;
-    };
+  const content = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
+  state.line = nextLine;
+  const token_o = state.push("paragraph_open", "p", 1);
+  token_o.map = [startLine, state.line];
+  const token_i = state.push("inline", "", 0);
+  token_i.content = content;
+  token_i.map = [startLine, state.line];
+  token_i.children = [];
+  state.push("paragraph_close", "p", -1);
+  state.parentType = oldParentType;
+  return true;
+}
+const _rules$1 = [
+  // First 2 params - rule name & source. Secondary array - list of rules,
+  // which can be terminated by this one.
+  ["table", table, ["paragraph", "reference"]],
+  ["code", code],
+  ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
+  ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
+  ["hr", hr, ["paragraph", "reference", "blockquote", "list"]],
+  ["list", list, ["paragraph", "reference", "blockquote"]],
+  ["reference", reference],
+  ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
+  ["heading", heading, ["paragraph", "reference", "blockquote"]],
+  ["lheading", lheading],
+  ["paragraph", paragraph]
+];
+function ParserBlock() {
+  this.ruler = new Ruler();
+  for (let i = 0; i < _rules$1.length; i++) {
+    this.ruler.push(_rules$1[i][0], _rules$1[i][1], { alt: (_rules$1[i][2] || []).slice() });
   }
 }
-const markedInstance = new Marked();
-function marked(src, opt) {
-  return markedInstance.parse(src, opt);
+ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
+  const rules = this.ruler.getRules("");
+  const len = rules.length;
+  const maxNesting = state.md.options.maxNesting;
+  let line2 = startLine;
+  let hasEmptyLines = false;
+  while (line2 < endLine) {
+    state.line = line2 = state.skipEmptyLines(line2);
+    if (line2 >= endLine) {
+      break;
+    }
+    if (state.sCount[line2] < state.blkIndent) {
+      break;
+    }
+    if (state.level >= maxNesting) {
+      state.line = endLine;
+      break;
+    }
+    const prevLine = state.line;
+    let ok = false;
+    for (let i = 0; i < len; i++) {
+      ok = rules[i](state, line2, endLine, false);
+      if (ok) {
+        if (prevLine >= state.line) {
+          throw new Error("block rule didn't increment state.line");
+        }
+        break;
+      }
+    }
+    if (!ok) throw new Error("none of the block rules matched");
+    state.tight = !hasEmptyLines;
+    if (state.isEmpty(state.line - 1)) {
+      hasEmptyLines = true;
+    }
+    line2 = state.line;
+    if (line2 < endLine && state.isEmpty(line2)) {
+      hasEmptyLines = true;
+      line2++;
+      state.line = line2;
+    }
+  }
+};
+ParserBlock.prototype.parse = function(src, md, env, outTokens) {
+  if (!src) {
+    return;
+  }
+  const state = new this.State(src, md, env, outTokens);
+  this.tokenize(state, state.line, state.lineMax);
+};
+ParserBlock.prototype.State = StateBlock;
+function StateInline(src, md, env, outTokens) {
+  this.src = src;
+  this.env = env;
+  this.md = md;
+  this.tokens = outTokens;
+  this.tokens_meta = Array(outTokens.length);
+  this.pos = 0;
+  this.posMax = this.src.length;
+  this.level = 0;
+  this.pending = "";
+  this.pendingLevel = 0;
+  this.cache = {};
+  this.delimiters = [];
+  this._prev_delimiters = [];
+  this.backticks = {};
+  this.backticksScanned = false;
+  this.linkLevel = 0;
 }
-marked.options = marked.setOptions = function(options) {
-  markedInstance.setOptions(options);
-  marked.defaults = markedInstance.defaults;
-  changeDefaults(marked.defaults);
-  return marked;
+StateInline.prototype.pushPending = function() {
+  const token2 = new Token("text", "", 0);
+  token2.content = this.pending;
+  token2.level = this.pendingLevel;
+  this.tokens.push(token2);
+  this.pending = "";
+  return token2;
 };
-marked.getDefaults = _getDefaults;
-marked.defaults = _defaults;
-marked.use = function(...args) {
-  markedInstance.use(...args);
-  marked.defaults = markedInstance.defaults;
-  changeDefaults(marked.defaults);
-  return marked;
+StateInline.prototype.push = function(type, tag, nesting) {
+  if (this.pending) {
+    this.pushPending();
+  }
+  const token2 = new Token(type, tag, nesting);
+  let token_meta = null;
+  if (nesting < 0) {
+    this.level--;
+    this.delimiters = this._prev_delimiters.pop();
+  }
+  token2.level = this.level;
+  if (nesting > 0) {
+    this.level++;
+    this._prev_delimiters.push(this.delimiters);
+    this.delimiters = [];
+    token_meta = { delimiters: this.delimiters };
+  }
+  this.pendingLevel = this.level;
+  this.tokens.push(token2);
+  this.tokens_meta.push(token_meta);
+  return token2;
 };
-marked.walkTokens = function(tokens, callback) {
-  return markedInstance.walkTokens(tokens, callback);
+StateInline.prototype.scanDelims = function(start2, canSplitWord) {
+  const max2 = this.posMax;
+  const marker = this.src.charCodeAt(start2);
+  const lastChar = start2 > 0 ? this.src.charCodeAt(start2 - 1) : 32;
+  let pos2 = start2;
+  while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
+    pos2++;
+  }
+  const count = pos2 - start2;
+  const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
+  const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
+  const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
+  const isLastWhiteSpace = isWhiteSpace(lastChar);
+  const isNextWhiteSpace = isWhiteSpace(nextChar);
+  const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
+  const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
+  const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
+  const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
+  return { can_open, can_close, length: count };
 };
-marked.parseInline = markedInstance.parseInline;
-marked.Parser = _Parser;
-marked.parser = _Parser.parse;
-marked.Renderer = _Renderer;
-marked.TextRenderer = _TextRenderer;
-marked.Lexer = _Lexer;
-marked.lexer = _Lexer.lex;
-marked.Tokenizer = _Tokenizer;
-marked.Hooks = _Hooks;
-marked.parse = marked;
-marked.options;
-marked.setOptions;
-marked.use;
-marked.walkTokens;
-marked.parseInline;
-_Parser.parse;
-_Lexer.lex;
-marked.use({
-  pedantic: false,
-  gfm: true,
-  breaks: true
+StateInline.prototype.Token = Token;
+function isTerminatorChar(ch3) {
+  switch (ch3) {
+    case 10:
+    case 33:
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 42:
+    case 43:
+    case 45:
+    case 58:
+    case 60:
+    case 61:
+    case 62:
+    case 64:
+    case 91:
+    case 92:
+    case 93:
+    case 94:
+    case 95:
+    case 96:
+    case 123:
+    case 125:
+    case 126:
+      return true;
+    default:
+      return false;
+  }
+}
+function text(state, silent) {
+  let pos2 = state.pos;
+  while (pos2 < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos2))) {
+    pos2++;
+  }
+  if (pos2 === state.pos) {
+    return false;
+  }
+  if (!silent) {
+    state.pending += state.src.slice(state.pos, pos2);
+  }
+  state.pos = pos2;
+  return true;
+}
+const SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
+function linkify(state, silent) {
+  if (!state.md.options.linkify) return false;
+  if (state.linkLevel > 0) return false;
+  const pos2 = state.pos;
+  const max2 = state.posMax;
+  if (pos2 + 3 > max2) return false;
+  if (state.src.charCodeAt(pos2) !== 58) return false;
+  if (state.src.charCodeAt(pos2 + 1) !== 47) return false;
+  if (state.src.charCodeAt(pos2 + 2) !== 47) return false;
+  const match2 = state.pending.match(SCHEME_RE);
+  if (!match2) return false;
+  const proto = match2[1];
+  const link2 = state.md.linkify.matchAtStart(state.src.slice(pos2 - proto.length));
+  if (!link2) return false;
+  let url = link2.url;
+  if (url.length <= proto.length) return false;
+  url = url.replace(/\*+$/, "");
+  const fullUrl = state.md.normalizeLink(url);
+  if (!state.md.validateLink(fullUrl)) return false;
+  if (!silent) {
+    state.pending = state.pending.slice(0, -proto.length);
+    const token_o = state.push("link_open", "a", 1);
+    token_o.attrs = [["href", fullUrl]];
+    token_o.markup = "linkify";
+    token_o.info = "auto";
+    const token_t = state.push("text", "", 0);
+    token_t.content = state.md.normalizeLinkText(url);
+    const token_c = state.push("link_close", "a", -1);
+    token_c.markup = "linkify";
+    token_c.info = "auto";
+  }
+  state.pos += url.length - proto.length;
+  return true;
+}
+function newline(state, silent) {
+  let pos2 = state.pos;
+  if (state.src.charCodeAt(pos2) !== 10) {
+    return false;
+  }
+  const pmax = state.pending.length - 1;
+  const max2 = state.posMax;
+  if (!silent) {
+    if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) {
+      if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
+        let ws = pmax - 1;
+        while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
+        state.pending = state.pending.slice(0, ws);
+        state.push("hardbreak", "br", 0);
+      } else {
+        state.pending = state.pending.slice(0, -1);
+        state.push("softbreak", "br", 0);
+      }
+    } else {
+      state.push("softbreak", "br", 0);
+    }
+  }
+  pos2++;
+  while (pos2 < max2 && isSpace(state.src.charCodeAt(pos2))) {
+    pos2++;
+  }
+  state.pos = pos2;
+  return true;
+}
+const ESCAPED = [];
+for (let i = 0; i < 256; i++) {
+  ESCAPED.push(0);
+}
+"\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch3) {
+  ESCAPED[ch3.charCodeAt(0)] = 1;
 });
+function escape$2(state, silent) {
+  let pos2 = state.pos;
+  const max2 = state.posMax;
+  if (state.src.charCodeAt(pos2) !== 92) return false;
+  pos2++;
+  if (pos2 >= max2) return false;
+  let ch1 = state.src.charCodeAt(pos2);
+  if (ch1 === 10) {
+    if (!silent) {
+      state.push("hardbreak", "br", 0);
+    }
+    pos2++;
+    while (pos2 < max2) {
+      ch1 = state.src.charCodeAt(pos2);
+      if (!isSpace(ch1)) break;
+      pos2++;
+    }
+    state.pos = pos2;
+    return true;
+  }
+  let escapedStr = state.src[pos2];
+  if (ch1 >= 55296 && ch1 <= 56319 && pos2 + 1 < max2) {
+    const ch22 = state.src.charCodeAt(pos2 + 1);
+    if (ch22 >= 56320 && ch22 <= 57343) {
+      escapedStr += state.src[pos2 + 1];
+      pos2++;
+    }
+  }
+  const origStr = "\\" + escapedStr;
+  if (!silent) {
+    const token2 = state.push("text_special", "", 0);
+    if (ch1 < 256 && ESCAPED[ch1] !== 0) {
+      token2.content = escapedStr;
+    } else {
+      token2.content = origStr;
+    }
+    token2.markup = origStr;
+    token2.info = "escape";
+  }
+  state.pos = pos2 + 1;
+  return true;
+}
+function backtick(state, silent) {
+  let pos2 = state.pos;
+  const ch3 = state.src.charCodeAt(pos2);
+  if (ch3 !== 96) {
+    return false;
+  }
+  const start2 = pos2;
+  pos2++;
+  const max2 = state.posMax;
+  while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
+    pos2++;
+  }
+  const marker = state.src.slice(start2, pos2);
+  const openerLength = marker.length;
+  if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start2) {
+    if (!silent) state.pending += marker;
+    state.pos += openerLength;
+    return true;
+  }
+  let matchEnd = pos2;
+  let matchStart;
+  while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
+    matchEnd = matchStart + 1;
+    while (matchEnd < max2 && state.src.charCodeAt(matchEnd) === 96) {
+      matchEnd++;
+    }
+    const closerLength = matchEnd - matchStart;
+    if (closerLength === openerLength) {
+      if (!silent) {
+        const token2 = state.push("code_inline", "code", 0);
+        token2.markup = marker;
+        token2.content = state.src.slice(pos2, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
+      }
+      state.pos = matchEnd;
+      return true;
+    }
+    state.backticks[closerLength] = matchStart;
+  }
+  state.backticksScanned = true;
+  if (!silent) state.pending += marker;
+  state.pos += openerLength;
+  return true;
+}
+function strikethrough_tokenize(state, silent) {
+  const start2 = state.pos;
+  const marker = state.src.charCodeAt(start2);
+  if (silent) {
+    return false;
+  }
+  if (marker !== 126) {
+    return false;
+  }
+  const scanned = state.scanDelims(state.pos, true);
+  let len = scanned.length;
+  const ch3 = String.fromCharCode(marker);
+  if (len < 2) {
+    return false;
+  }
+  let token2;
+  if (len % 2) {
+    token2 = state.push("text", "", 0);
+    token2.content = ch3;
+    len--;
+  }
+  for (let i = 0; i < len; i += 2) {
+    token2 = state.push("text", "", 0);
+    token2.content = ch3 + ch3;
+    state.delimiters.push({
+      marker,
+      length: 0,
+      // disable "rule of 3" length checks meant for emphasis
+      token: state.tokens.length - 1,
+      end: -1,
+      open: scanned.can_open,
+      close: scanned.can_close
+    });
+  }
+  state.pos += scanned.length;
+  return true;
+}
+function postProcess$1(state, delimiters) {
+  let token2;
+  const loneMarkers = [];
+  const max2 = delimiters.length;
+  for (let i = 0; i < max2; i++) {
+    const startDelim = delimiters[i];
+    if (startDelim.marker !== 126) {
+      continue;
+    }
+    if (startDelim.end === -1) {
+      continue;
+    }
+    const endDelim = delimiters[startDelim.end];
+    token2 = state.tokens[startDelim.token];
+    token2.type = "s_open";
+    token2.tag = "s";
+    token2.nesting = 1;
+    token2.markup = "~~";
+    token2.content = "";
+    token2 = state.tokens[endDelim.token];
+    token2.type = "s_close";
+    token2.tag = "s";
+    token2.nesting = -1;
+    token2.markup = "~~";
+    token2.content = "";
+    if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") {
+      loneMarkers.push(endDelim.token - 1);
+    }
+  }
+  while (loneMarkers.length) {
+    const i = loneMarkers.pop();
+    let j2 = i + 1;
+    while (j2 < state.tokens.length && state.tokens[j2].type === "s_close") {
+      j2++;
+    }
+    j2--;
+    if (i !== j2) {
+      token2 = state.tokens[j2];
+      state.tokens[j2] = state.tokens[i];
+      state.tokens[i] = token2;
+    }
+  }
+}
+function strikethrough_postProcess(state) {
+  const tokens_meta = state.tokens_meta;
+  const max2 = state.tokens_meta.length;
+  postProcess$1(state, state.delimiters);
+  for (let curr = 0; curr < max2; curr++) {
+    if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+      postProcess$1(state, tokens_meta[curr].delimiters);
+    }
+  }
+}
+const r_strikethrough = {
+  tokenize: strikethrough_tokenize,
+  postProcess: strikethrough_postProcess
+};
+function emphasis_tokenize(state, silent) {
+  const start2 = state.pos;
+  const marker = state.src.charCodeAt(start2);
+  if (silent) {
+    return false;
+  }
+  if (marker !== 95 && marker !== 42) {
+    return false;
+  }
+  const scanned = state.scanDelims(state.pos, marker === 42);
+  for (let i = 0; i < scanned.length; i++) {
+    const token2 = state.push("text", "", 0);
+    token2.content = String.fromCharCode(marker);
+    state.delimiters.push({
+      // Char code of the starting marker (number).
+      //
+      marker,
+      // Total length of these series of delimiters.
+      //
+      length: scanned.length,
+      // A position of the token this delimiter corresponds to.
+      //
+      token: state.tokens.length - 1,
+      // If this delimiter is matched as a valid opener, `end` will be
+      // equal to its position, otherwise it's `-1`.
+      //
+      end: -1,
+      // Boolean flags that determine if this delimiter could open or close
+      // an emphasis.
+      //
+      open: scanned.can_open,
+      close: scanned.can_close
+    });
+  }
+  state.pos += scanned.length;
+  return true;
+}
+function postProcess(state, delimiters) {
+  const max2 = delimiters.length;
+  for (let i = max2 - 1; i >= 0; i--) {
+    const startDelim = delimiters[i];
+    if (startDelim.marker !== 95 && startDelim.marker !== 42) {
+      continue;
+    }
+    if (startDelim.end === -1) {
+      continue;
+    }
+    const endDelim = delimiters[startDelim.end];
+    const isStrong = i > 0 && delimiters[i - 1].end === startDelim.end + 1 && // check that first two markers match and adjacent
+    delimiters[i - 1].marker === startDelim.marker && delimiters[i - 1].token === startDelim.token - 1 && // check that last two markers are adjacent (we can safely assume they match)
+    delimiters[startDelim.end + 1].token === endDelim.token + 1;
+    const ch3 = String.fromCharCode(startDelim.marker);
+    const token_o = state.tokens[startDelim.token];
+    token_o.type = isStrong ? "strong_open" : "em_open";
+    token_o.tag = isStrong ? "strong" : "em";
+    token_o.nesting = 1;
+    token_o.markup = isStrong ? ch3 + ch3 : ch3;
+    token_o.content = "";
+    const token_c = state.tokens[endDelim.token];
+    token_c.type = isStrong ? "strong_close" : "em_close";
+    token_c.tag = isStrong ? "strong" : "em";
+    token_c.nesting = -1;
+    token_c.markup = isStrong ? ch3 + ch3 : ch3;
+    token_c.content = "";
+    if (isStrong) {
+      state.tokens[delimiters[i - 1].token].content = "";
+      state.tokens[delimiters[startDelim.end + 1].token].content = "";
+      i--;
+    }
+  }
+}
+function emphasis_post_process(state) {
+  const tokens_meta = state.tokens_meta;
+  const max2 = state.tokens_meta.length;
+  postProcess(state, state.delimiters);
+  for (let curr = 0; curr < max2; curr++) {
+    if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+      postProcess(state, tokens_meta[curr].delimiters);
+    }
+  }
+}
+const r_emphasis = {
+  tokenize: emphasis_tokenize,
+  postProcess: emphasis_post_process
+};
+function link(state, silent) {
+  let code2, label, res, ref;
+  let href = "";
+  let title = "";
+  let start2 = state.pos;
+  let parseReference = true;
+  if (state.src.charCodeAt(state.pos) !== 91) {
+    return false;
+  }
+  const oldPos = state.pos;
+  const max2 = state.posMax;
+  const labelStart = state.pos + 1;
+  const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
+  if (labelEnd < 0) {
+    return false;
+  }
+  let pos2 = labelEnd + 1;
+  if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
+    parseReference = false;
+    pos2++;
+    for (; pos2 < max2; pos2++) {
+      code2 = state.src.charCodeAt(pos2);
+      if (!isSpace(code2) && code2 !== 10) {
+        break;
+      }
+    }
+    if (pos2 >= max2) {
+      return false;
+    }
+    start2 = pos2;
+    res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
+    if (res.ok) {
+      href = state.md.normalizeLink(res.str);
+      if (state.md.validateLink(href)) {
+        pos2 = res.pos;
+      } else {
+        href = "";
+      }
+      start2 = pos2;
+      for (; pos2 < max2; pos2++) {
+        code2 = state.src.charCodeAt(pos2);
+        if (!isSpace(code2) && code2 !== 10) {
+          break;
+        }
+      }
+      res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
+      if (pos2 < max2 && start2 !== pos2 && res.ok) {
+        title = res.str;
+        pos2 = res.pos;
+        for (; pos2 < max2; pos2++) {
+          code2 = state.src.charCodeAt(pos2);
+          if (!isSpace(code2) && code2 !== 10) {
+            break;
+          }
+        }
+      }
+    }
+    if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
+      parseReference = true;
+    }
+    pos2++;
+  }
+  if (parseReference) {
+    if (typeof state.env.references === "undefined") {
+      return false;
+    }
+    if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
+      start2 = pos2 + 1;
+      pos2 = state.md.helpers.parseLinkLabel(state, pos2);
+      if (pos2 >= 0) {
+        label = state.src.slice(start2, pos2++);
+      } else {
+        pos2 = labelEnd + 1;
+      }
+    } else {
+      pos2 = labelEnd + 1;
+    }
+    if (!label) {
+      label = state.src.slice(labelStart, labelEnd);
+    }
+    ref = state.env.references[normalizeReference(label)];
+    if (!ref) {
+      state.pos = oldPos;
+      return false;
+    }
+    href = ref.href;
+    title = ref.title;
+  }
+  if (!silent) {
+    state.pos = labelStart;
+    state.posMax = labelEnd;
+    const token_o = state.push("link_open", "a", 1);
+    const attrs = [["href", href]];
+    token_o.attrs = attrs;
+    if (title) {
+      attrs.push(["title", title]);
+    }
+    state.linkLevel++;
+    state.md.inline.tokenize(state);
+    state.linkLevel--;
+    state.push("link_close", "a", -1);
+  }
+  state.pos = pos2;
+  state.posMax = max2;
+  return true;
+}
+function image(state, silent) {
+  let code2, content, label, pos2, ref, res, title, start2;
+  let href = "";
+  const oldPos = state.pos;
+  const max2 = state.posMax;
+  if (state.src.charCodeAt(state.pos) !== 33) {
+    return false;
+  }
+  if (state.src.charCodeAt(state.pos + 1) !== 91) {
+    return false;
+  }
+  const labelStart = state.pos + 2;
+  const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
+  if (labelEnd < 0) {
+    return false;
+  }
+  pos2 = labelEnd + 1;
+  if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
+    pos2++;
+    for (; pos2 < max2; pos2++) {
+      code2 = state.src.charCodeAt(pos2);
+      if (!isSpace(code2) && code2 !== 10) {
+        break;
+      }
+    }
+    if (pos2 >= max2) {
+      return false;
+    }
+    start2 = pos2;
+    res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
+    if (res.ok) {
+      href = state.md.normalizeLink(res.str);
+      if (state.md.validateLink(href)) {
+        pos2 = res.pos;
+      } else {
+        href = "";
+      }
+    }
+    start2 = pos2;
+    for (; pos2 < max2; pos2++) {
+      code2 = state.src.charCodeAt(pos2);
+      if (!isSpace(code2) && code2 !== 10) {
+        break;
+      }
+    }
+    res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
+    if (pos2 < max2 && start2 !== pos2 && res.ok) {
+      title = res.str;
+      pos2 = res.pos;
+      for (; pos2 < max2; pos2++) {
+        code2 = state.src.charCodeAt(pos2);
+        if (!isSpace(code2) && code2 !== 10) {
+          break;
+        }
+      }
+    } else {
+      title = "";
+    }
+    if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
+      state.pos = oldPos;
+      return false;
+    }
+    pos2++;
+  } else {
+    if (typeof state.env.references === "undefined") {
+      return false;
+    }
+    if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
+      start2 = pos2 + 1;
+      pos2 = state.md.helpers.parseLinkLabel(state, pos2);
+      if (pos2 >= 0) {
+        label = state.src.slice(start2, pos2++);
+      } else {
+        pos2 = labelEnd + 1;
+      }
+    } else {
+      pos2 = labelEnd + 1;
+    }
+    if (!label) {
+      label = state.src.slice(labelStart, labelEnd);
+    }
+    ref = state.env.references[normalizeReference(label)];
+    if (!ref) {
+      state.pos = oldPos;
+      return false;
+    }
+    href = ref.href;
+    title = ref.title;
+  }
+  if (!silent) {
+    content = state.src.slice(labelStart, labelEnd);
+    const tokens = [];
+    state.md.inline.parse(
+      content,
+      state.md,
+      state.env,
+      tokens
+    );
+    const token2 = state.push("image", "img", 0);
+    const attrs = [["src", href], ["alt", ""]];
+    token2.attrs = attrs;
+    token2.children = tokens;
+    token2.content = content;
+    if (title) {
+      attrs.push(["title", title]);
+    }
+  }
+  state.pos = pos2;
+  state.posMax = max2;
+  return true;
+}
+const EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
+const AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
+function autolink(state, silent) {
+  let pos2 = state.pos;
+  if (state.src.charCodeAt(pos2) !== 60) {
+    return false;
+  }
+  const start2 = state.pos;
+  const max2 = state.posMax;
+  for (; ; ) {
+    if (++pos2 >= max2) return false;
+    const ch3 = state.src.charCodeAt(pos2);
+    if (ch3 === 60) return false;
+    if (ch3 === 62) break;
+  }
+  const url = state.src.slice(start2 + 1, pos2);
+  if (AUTOLINK_RE.test(url)) {
+    const fullUrl = state.md.normalizeLink(url);
+    if (!state.md.validateLink(fullUrl)) {
+      return false;
+    }
+    if (!silent) {
+      const token_o = state.push("link_open", "a", 1);
+      token_o.attrs = [["href", fullUrl]];
+      token_o.markup = "autolink";
+      token_o.info = "auto";
+      const token_t = state.push("text", "", 0);
+      token_t.content = state.md.normalizeLinkText(url);
+      const token_c = state.push("link_close", "a", -1);
+      token_c.markup = "autolink";
+      token_c.info = "auto";
+    }
+    state.pos += url.length + 2;
+    return true;
+  }
+  if (EMAIL_RE.test(url)) {
+    const fullUrl = state.md.normalizeLink("mailto:" + url);
+    if (!state.md.validateLink(fullUrl)) {
+      return false;
+    }
+    if (!silent) {
+      const token_o = state.push("link_open", "a", 1);
+      token_o.attrs = [["href", fullUrl]];
+      token_o.markup = "autolink";
+      token_o.info = "auto";
+      const token_t = state.push("text", "", 0);
+      token_t.content = state.md.normalizeLinkText(url);
+      const token_c = state.push("link_close", "a", -1);
+      token_c.markup = "autolink";
+      token_c.info = "auto";
+    }
+    state.pos += url.length + 2;
+    return true;
+  }
+  return false;
+}
+function isLinkOpen(str) {
+  return /^<a[>\s]/i.test(str);
+}
+function isLinkClose(str) {
+  return /^<\/a\s*>/i.test(str);
+}
+function isLetter(ch3) {
+  const lc = ch3 | 32;
+  return lc >= 97 && lc <= 122;
+}
+function html_inline(state, silent) {
+  if (!state.md.options.html) {
+    return false;
+  }
+  const max2 = state.posMax;
+  const pos2 = state.pos;
+  if (state.src.charCodeAt(pos2) !== 60 || pos2 + 2 >= max2) {
+    return false;
+  }
+  const ch3 = state.src.charCodeAt(pos2 + 1);
+  if (ch3 !== 33 && ch3 !== 63 && ch3 !== 47 && !isLetter(ch3)) {
+    return false;
+  }
+  const match2 = state.src.slice(pos2).match(HTML_TAG_RE);
+  if (!match2) {
+    return false;
+  }
+  if (!silent) {
+    const token2 = state.push("html_inline", "", 0);
+    token2.content = match2[0];
+    if (isLinkOpen(token2.content)) state.linkLevel++;
+    if (isLinkClose(token2.content)) state.linkLevel--;
+  }
+  state.pos += match2[0].length;
+  return true;
+}
+const DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
+const NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
+function entity(state, silent) {
+  const pos2 = state.pos;
+  const max2 = state.posMax;
+  if (state.src.charCodeAt(pos2) !== 38) return false;
+  if (pos2 + 1 >= max2) return false;
+  const ch3 = state.src.charCodeAt(pos2 + 1);
+  if (ch3 === 35) {
+    const match2 = state.src.slice(pos2).match(DIGITAL_RE);
+    if (match2) {
+      if (!silent) {
+        const code2 = match2[1][0].toLowerCase() === "x" ? parseInt(match2[1].slice(1), 16) : parseInt(match2[1], 10);
+        const token2 = state.push("text_special", "", 0);
+        token2.content = isValidEntityCode(code2) ? fromCodePoint(code2) : fromCodePoint(65533);
+        token2.markup = match2[0];
+        token2.info = "entity";
+      }
+      state.pos += match2[0].length;
+      return true;
+    }
+  } else {
+    const match2 = state.src.slice(pos2).match(NAMED_RE);
+    if (match2) {
+      const decoded = decodeHTML(match2[0]);
+      if (decoded !== match2[0]) {
+        if (!silent) {
+          const token2 = state.push("text_special", "", 0);
+          token2.content = decoded;
+          token2.markup = match2[0];
+          token2.info = "entity";
+        }
+        state.pos += match2[0].length;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function processDelimiters(delimiters) {
+  const openersBottom = {};
+  const max2 = delimiters.length;
+  if (!max2) return;
+  let headerIdx = 0;
+  let lastTokenIdx = -2;
+  const jumps = [];
+  for (let closerIdx = 0; closerIdx < max2; closerIdx++) {
+    const closer = delimiters[closerIdx];
+    jumps.push(0);
+    if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) {
+      headerIdx = closerIdx;
+    }
+    lastTokenIdx = closer.token;
+    closer.length = closer.length || 0;
+    if (!closer.close) continue;
+    if (!openersBottom.hasOwnProperty(closer.marker)) {
+      openersBottom[closer.marker] = [-1, -1, -1, -1, -1, -1];
+    }
+    const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
+    let openerIdx = headerIdx - jumps[headerIdx] - 1;
+    let newMinOpenerIdx = openerIdx;
+    for (; openerIdx > minOpenerIdx; openerIdx -= jumps[openerIdx] + 1) {
+      const opener = delimiters[openerIdx];
+      if (opener.marker !== closer.marker) continue;
+      if (opener.open && opener.end < 0) {
+        let isOddMatch = false;
+        if (opener.close || closer.open) {
+          if ((opener.length + closer.length) % 3 === 0) {
+            if (opener.length % 3 !== 0 || closer.length % 3 !== 0) {
+              isOddMatch = true;
+            }
+          }
+        }
+        if (!isOddMatch) {
+          const lastJump = openerIdx > 0 && !delimiters[openerIdx - 1].open ? jumps[openerIdx - 1] + 1 : 0;
+          jumps[closerIdx] = closerIdx - openerIdx + lastJump;
+          jumps[openerIdx] = lastJump;
+          closer.open = false;
+          opener.end = closerIdx;
+          opener.close = false;
+          newMinOpenerIdx = -1;
+          lastTokenIdx = -2;
+          break;
+        }
+      }
+    }
+    if (newMinOpenerIdx !== -1) {
+      openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
+    }
+  }
+}
+function link_pairs(state) {
+  const tokens_meta = state.tokens_meta;
+  const max2 = state.tokens_meta.length;
+  processDelimiters(state.delimiters);
+  for (let curr = 0; curr < max2; curr++) {
+    if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+      processDelimiters(tokens_meta[curr].delimiters);
+    }
+  }
+}
+function fragments_join(state) {
+  let curr, last;
+  let level = 0;
+  const tokens = state.tokens;
+  const max2 = state.tokens.length;
+  for (curr = last = 0; curr < max2; curr++) {
+    if (tokens[curr].nesting < 0) level--;
+    tokens[curr].level = level;
+    if (tokens[curr].nesting > 0) level++;
+    if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
+      tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+    } else {
+      if (curr !== last) {
+        tokens[last] = tokens[curr];
+      }
+      last++;
+    }
+  }
+  if (curr !== last) {
+    tokens.length = last;
+  }
+}
+const _rules = [
+  ["text", text],
+  ["linkify", linkify],
+  ["newline", newline],
+  ["escape", escape$2],
+  ["backticks", backtick],
+  ["strikethrough", r_strikethrough.tokenize],
+  ["emphasis", r_emphasis.tokenize],
+  ["link", link],
+  ["image", image],
+  ["autolink", autolink],
+  ["html_inline", html_inline],
+  ["entity", entity]
+];
+const _rules2 = [
+  ["balance_pairs", link_pairs],
+  ["strikethrough", r_strikethrough.postProcess],
+  ["emphasis", r_emphasis.postProcess],
+  // rules for pairs separate '**' into its own text tokens, which may be left unused,
+  // rule below merges unused segments back with the rest of the text
+  ["fragments_join", fragments_join]
+];
+function ParserInline() {
+  this.ruler = new Ruler();
+  for (let i = 0; i < _rules.length; i++) {
+    this.ruler.push(_rules[i][0], _rules[i][1]);
+  }
+  this.ruler2 = new Ruler();
+  for (let i = 0; i < _rules2.length; i++) {
+    this.ruler2.push(_rules2[i][0], _rules2[i][1]);
+  }
+}
+ParserInline.prototype.skipToken = function(state) {
+  const pos2 = state.pos;
+  const rules = this.ruler.getRules("");
+  const len = rules.length;
+  const maxNesting = state.md.options.maxNesting;
+  const cache = state.cache;
+  if (typeof cache[pos2] !== "undefined") {
+    state.pos = cache[pos2];
+    return;
+  }
+  let ok = false;
+  if (state.level < maxNesting) {
+    for (let i = 0; i < len; i++) {
+      state.level++;
+      ok = rules[i](state, true);
+      state.level--;
+      if (ok) {
+        if (pos2 >= state.pos) {
+          throw new Error("inline rule didn't increment state.pos");
+        }
+        break;
+      }
+    }
+  } else {
+    state.pos = state.posMax;
+  }
+  if (!ok) {
+    state.pos++;
+  }
+  cache[pos2] = state.pos;
+};
+ParserInline.prototype.tokenize = function(state) {
+  const rules = this.ruler.getRules("");
+  const len = rules.length;
+  const end2 = state.posMax;
+  const maxNesting = state.md.options.maxNesting;
+  while (state.pos < end2) {
+    const prevPos = state.pos;
+    let ok = false;
+    if (state.level < maxNesting) {
+      for (let i = 0; i < len; i++) {
+        ok = rules[i](state, false);
+        if (ok) {
+          if (prevPos >= state.pos) {
+            throw new Error("inline rule didn't increment state.pos");
+          }
+          break;
+        }
+      }
+    }
+    if (ok) {
+      if (state.pos >= end2) {
+        break;
+      }
+      continue;
+    }
+    state.pending += state.src[state.pos++];
+  }
+  if (state.pending) {
+    state.pushPending();
+  }
+};
+ParserInline.prototype.parse = function(str, md, env, outTokens) {
+  const state = new this.State(str, md, env, outTokens);
+  this.tokenize(state);
+  const rules = this.ruler2.getRules("");
+  const len = rules.length;
+  for (let i = 0; i < len; i++) {
+    rules[i](state);
+  }
+};
+ParserInline.prototype.State = StateInline;
+function reFactory(opts) {
+  const re = {};
+  opts = opts || {};
+  re.src_Any = Any.source;
+  re.src_Cc = Cc.source;
+  re.src_Z = Z.source;
+  re.src_P = P.source;
+  re.src_ZPCc = [re.src_Z, re.src_P, re.src_Cc].join("|");
+  re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
+  const text_separators = "[><｜]";
+  re.src_pseudo_letter = "(?:(?!" + text_separators + "|" + re.src_ZPCc + ")" + re.src_Any + ")";
+  re.src_ip4 = "(?:(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
+  re.src_auth = "(?:(?:(?!" + re.src_ZCc + "|[@/\\[\\]()]).)+@)?";
+  re.src_port = "(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?";
+  re.src_host_terminator = "(?=$|" + text_separators + "|" + re.src_ZPCc + ")(?!" + (opts["---"] ? "-(?!--)|" : "-|") + "_|:\\d|\\.-|\\.(?!$|" + re.src_ZPCc + "))";
+  re.src_path = "(?:[/?#](?:(?!" + re.src_ZCc + "|" + text_separators + `|[()[\\]{}.,"'?!\\-;]).|\\[(?:(?!` + re.src_ZCc + "|\\]).)*\\]|\\((?:(?!" + re.src_ZCc + "|[)]).)*\\)|\\{(?:(?!" + re.src_ZCc + '|[}]).)*\\}|\\"(?:(?!' + re.src_ZCc + `|["]).)+\\"|\\'(?:(?!` + re.src_ZCc + "|[']).)+\\'|\\'(?=" + re.src_pseudo_letter + "|[-])|\\.{2,}[a-zA-Z0-9%/&]|\\.(?!" + re.src_ZCc + "|[.]|$)|" + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + // allow `,,,` in paths
+  ",(?!" + re.src_ZCc + "|$)|;(?!" + re.src_ZCc + "|$)|\\!+(?!" + re.src_ZCc + "|[!]|$)|\\?(?!" + re.src_ZCc + "|[?]|$))+|\\/)?";
+  re.src_email_name = '[\\-;:&=\\+\\$,\\.a-zA-Z0-9_][\\-;:&=\\+\\$,\\"\\.a-zA-Z0-9_]*';
+  re.src_xn = "xn--[a-z0-9\\-]{1,59}";
+  re.src_domain_root = // Allow letters & digits (http://test1)
+  "(?:" + re.src_xn + "|" + re.src_pseudo_letter + "{1,63})";
+  re.src_domain = "(?:" + re.src_xn + "|(?:" + re.src_pseudo_letter + ")|(?:" + re.src_pseudo_letter + "(?:-|" + re.src_pseudo_letter + "){0,61}" + re.src_pseudo_letter + "))";
+  re.src_host = "(?:(?:(?:(?:" + re.src_domain + ")\\.)*" + re.src_domain + "))";
+  re.tpl_host_fuzzy = "(?:" + re.src_ip4 + "|(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%)))";
+  re.tpl_host_no_ip_fuzzy = "(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%))";
+  re.src_host_strict = re.src_host + re.src_host_terminator;
+  re.tpl_host_fuzzy_strict = re.tpl_host_fuzzy + re.src_host_terminator;
+  re.src_host_port_strict = re.src_host + re.src_port + re.src_host_terminator;
+  re.tpl_host_port_fuzzy_strict = re.tpl_host_fuzzy + re.src_port + re.src_host_terminator;
+  re.tpl_host_port_no_ip_fuzzy_strict = re.tpl_host_no_ip_fuzzy + re.src_port + re.src_host_terminator;
+  re.tpl_host_fuzzy_test = "localhost|www\\.|\\.\\d{1,3}\\.|(?:\\.(?:%TLDS%)(?:" + re.src_ZPCc + "|>|$))";
+  re.tpl_email_fuzzy = "(^|" + text_separators + '|"|\\(|' + re.src_ZCc + ")(" + re.src_email_name + "@" + re.tpl_host_fuzzy_strict + ")";
+  re.tpl_link_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
+  // but can start with > (markdown blockquote)
+  "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_fuzzy_strict + re.src_path + ")";
+  re.tpl_link_no_ip_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
+  // but can start with > (markdown blockquote)
+  "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_no_ip_fuzzy_strict + re.src_path + ")";
+  return re;
+}
+function assign(obj) {
+  const sources = Array.prototype.slice.call(arguments, 1);
+  sources.forEach(function(source2) {
+    if (!source2) {
+      return;
+    }
+    Object.keys(source2).forEach(function(key2) {
+      obj[key2] = source2[key2];
+    });
+  });
+  return obj;
+}
+function _class(obj) {
+  return Object.prototype.toString.call(obj);
+}
+function isString(obj) {
+  return _class(obj) === "[object String]";
+}
+function isObject(obj) {
+  return _class(obj) === "[object Object]";
+}
+function isRegExp(obj) {
+  return _class(obj) === "[object RegExp]";
+}
+function isFunction(obj) {
+  return _class(obj) === "[object Function]";
+}
+function escapeRE(str) {
+  return str.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
+}
+const defaultOptions = {
+  fuzzyLink: true,
+  fuzzyEmail: true,
+  fuzzyIP: false
+};
+function isOptionsObj(obj) {
+  return Object.keys(obj || {}).reduce(function(acc, k2) {
+    return acc || defaultOptions.hasOwnProperty(k2);
+  }, false);
+}
+const defaultSchemas = {
+  "http:": {
+    validate: function(text2, pos2, self2) {
+      const tail = text2.slice(pos2);
+      if (!self2.re.http) {
+        self2.re.http = new RegExp(
+          "^\\/\\/" + self2.re.src_auth + self2.re.src_host_port_strict + self2.re.src_path,
+          "i"
+        );
+      }
+      if (self2.re.http.test(tail)) {
+        return tail.match(self2.re.http)[0].length;
+      }
+      return 0;
+    }
+  },
+  "https:": "http:",
+  "ftp:": "http:",
+  "//": {
+    validate: function(text2, pos2, self2) {
+      const tail = text2.slice(pos2);
+      if (!self2.re.no_http) {
+        self2.re.no_http = new RegExp(
+          "^" + self2.re.src_auth + // Don't allow single-level domains, because of false positives like '//test'
+          // with code comments
+          "(?:localhost|(?:(?:" + self2.re.src_domain + ")\\.)+" + self2.re.src_domain_root + ")" + self2.re.src_port + self2.re.src_host_terminator + self2.re.src_path,
+          "i"
+        );
+      }
+      if (self2.re.no_http.test(tail)) {
+        if (pos2 >= 3 && text2[pos2 - 3] === ":") {
+          return 0;
+        }
+        if (pos2 >= 3 && text2[pos2 - 3] === "/") {
+          return 0;
+        }
+        return tail.match(self2.re.no_http)[0].length;
+      }
+      return 0;
+    }
+  },
+  "mailto:": {
+    validate: function(text2, pos2, self2) {
+      const tail = text2.slice(pos2);
+      if (!self2.re.mailto) {
+        self2.re.mailto = new RegExp(
+          "^" + self2.re.src_email_name + "@" + self2.re.src_host_strict,
+          "i"
+        );
+      }
+      if (self2.re.mailto.test(tail)) {
+        return tail.match(self2.re.mailto)[0].length;
+      }
+      return 0;
+    }
+  }
+};
+const tlds_2ch_src_re = "a[cdefgilmnoqrstuwxz]|b[abdefghijmnorstvwyz]|c[acdfghiklmnoruvwxyz]|d[ejkmoz]|e[cegrstu]|f[ijkmor]|g[abdefghilmnpqrstuwy]|h[kmnrtu]|i[delmnoqrst]|j[emop]|k[eghimnprwyz]|l[abcikrstuvy]|m[acdeghklmnopqrstuvwxyz]|n[acefgilopruz]|om|p[aefghklmnrstwy]|qa|r[eosuw]|s[abcdeghijklmnortuvxyz]|t[cdfghjklmnortvwz]|u[agksyz]|v[aceginu]|w[fs]|y[et]|z[amw]";
+const tlds_default = "biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф".split("|");
+function resetScanCache(self2) {
+  self2.__index__ = -1;
+  self2.__text_cache__ = "";
+}
+function createValidator(re) {
+  return function(text2, pos2) {
+    const tail = text2.slice(pos2);
+    if (re.test(tail)) {
+      return tail.match(re)[0].length;
+    }
+    return 0;
+  };
+}
+function createNormalizer() {
+  return function(match2, self2) {
+    self2.normalize(match2);
+  };
+}
+function compile(self2) {
+  const re = self2.re = reFactory(self2.__opts__);
+  const tlds2 = self2.__tlds__.slice();
+  self2.onCompile();
+  if (!self2.__tlds_replaced__) {
+    tlds2.push(tlds_2ch_src_re);
+  }
+  tlds2.push(re.src_xn);
+  re.src_tlds = tlds2.join("|");
+  function untpl(tpl) {
+    return tpl.replace("%TLDS%", re.src_tlds);
+  }
+  re.email_fuzzy = RegExp(untpl(re.tpl_email_fuzzy), "i");
+  re.link_fuzzy = RegExp(untpl(re.tpl_link_fuzzy), "i");
+  re.link_no_ip_fuzzy = RegExp(untpl(re.tpl_link_no_ip_fuzzy), "i");
+  re.host_fuzzy_test = RegExp(untpl(re.tpl_host_fuzzy_test), "i");
+  const aliases = [];
+  self2.__compiled__ = {};
+  function schemaError(name, val) {
+    throw new Error('(LinkifyIt) Invalid schema "' + name + '": ' + val);
+  }
+  Object.keys(self2.__schemas__).forEach(function(name) {
+    const val = self2.__schemas__[name];
+    if (val === null) {
+      return;
+    }
+    const compiled = { validate: null, link: null };
+    self2.__compiled__[name] = compiled;
+    if (isObject(val)) {
+      if (isRegExp(val.validate)) {
+        compiled.validate = createValidator(val.validate);
+      } else if (isFunction(val.validate)) {
+        compiled.validate = val.validate;
+      } else {
+        schemaError(name, val);
+      }
+      if (isFunction(val.normalize)) {
+        compiled.normalize = val.normalize;
+      } else if (!val.normalize) {
+        compiled.normalize = createNormalizer();
+      } else {
+        schemaError(name, val);
+      }
+      return;
+    }
+    if (isString(val)) {
+      aliases.push(name);
+      return;
+    }
+    schemaError(name, val);
+  });
+  aliases.forEach(function(alias) {
+    if (!self2.__compiled__[self2.__schemas__[alias]]) {
+      return;
+    }
+    self2.__compiled__[alias].validate = self2.__compiled__[self2.__schemas__[alias]].validate;
+    self2.__compiled__[alias].normalize = self2.__compiled__[self2.__schemas__[alias]].normalize;
+  });
+  self2.__compiled__[""] = { validate: null, normalize: createNormalizer() };
+  const slist = Object.keys(self2.__compiled__).filter(function(name) {
+    return name.length > 0 && self2.__compiled__[name];
+  }).map(escapeRE).join("|");
+  self2.re.schema_test = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "i");
+  self2.re.schema_search = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "ig");
+  self2.re.schema_at_start = RegExp("^" + self2.re.schema_search.source, "i");
+  self2.re.pretest = RegExp(
+    "(" + self2.re.schema_test.source + ")|(" + self2.re.host_fuzzy_test.source + ")|@",
+    "i"
+  );
+  resetScanCache(self2);
+}
+function Match(self2, shift) {
+  const start2 = self2.__index__;
+  const end2 = self2.__last_index__;
+  const text2 = self2.__text_cache__.slice(start2, end2);
+  this.schema = self2.__schema__.toLowerCase();
+  this.index = start2 + shift;
+  this.lastIndex = end2 + shift;
+  this.raw = text2;
+  this.text = text2;
+  this.url = text2;
+}
+function createMatch(self2, shift) {
+  const match2 = new Match(self2, shift);
+  self2.__compiled__[match2.schema].normalize(match2, self2);
+  return match2;
+}
+function LinkifyIt(schemas, options) {
+  if (!(this instanceof LinkifyIt)) {
+    return new LinkifyIt(schemas, options);
+  }
+  if (!options) {
+    if (isOptionsObj(schemas)) {
+      options = schemas;
+      schemas = {};
+    }
+  }
+  this.__opts__ = assign({}, defaultOptions, options);
+  this.__index__ = -1;
+  this.__last_index__ = -1;
+  this.__schema__ = "";
+  this.__text_cache__ = "";
+  this.__schemas__ = assign({}, defaultSchemas, schemas);
+  this.__compiled__ = {};
+  this.__tlds__ = tlds_default;
+  this.__tlds_replaced__ = false;
+  this.re = {};
+  compile(this);
+}
+LinkifyIt.prototype.add = function add(schema, definition) {
+  this.__schemas__[schema] = definition;
+  compile(this);
+  return this;
+};
+LinkifyIt.prototype.set = function set(options) {
+  this.__opts__ = assign(this.__opts__, options);
+  return this;
+};
+LinkifyIt.prototype.test = function test(text2) {
+  this.__text_cache__ = text2;
+  this.__index__ = -1;
+  if (!text2.length) {
+    return false;
+  }
+  let m2, ml, me, len, shift, next, re, tld_pos, at_pos;
+  if (this.re.schema_test.test(text2)) {
+    re = this.re.schema_search;
+    re.lastIndex = 0;
+    while ((m2 = re.exec(text2)) !== null) {
+      len = this.testSchemaAt(text2, m2[2], re.lastIndex);
+      if (len) {
+        this.__schema__ = m2[2];
+        this.__index__ = m2.index + m2[1].length;
+        this.__last_index__ = m2.index + m2[0].length + len;
+        break;
+      }
+    }
+  }
+  if (this.__opts__.fuzzyLink && this.__compiled__["http:"]) {
+    tld_pos = text2.search(this.re.host_fuzzy_test);
+    if (tld_pos >= 0) {
+      if (this.__index__ < 0 || tld_pos < this.__index__) {
+        if ((ml = text2.match(this.__opts__.fuzzyIP ? this.re.link_fuzzy : this.re.link_no_ip_fuzzy)) !== null) {
+          shift = ml.index + ml[1].length;
+          if (this.__index__ < 0 || shift < this.__index__) {
+            this.__schema__ = "";
+            this.__index__ = shift;
+            this.__last_index__ = ml.index + ml[0].length;
+          }
+        }
+      }
+    }
+  }
+  if (this.__opts__.fuzzyEmail && this.__compiled__["mailto:"]) {
+    at_pos = text2.indexOf("@");
+    if (at_pos >= 0) {
+      if ((me = text2.match(this.re.email_fuzzy)) !== null) {
+        shift = me.index + me[1].length;
+        next = me.index + me[0].length;
+        if (this.__index__ < 0 || shift < this.__index__ || shift === this.__index__ && next > this.__last_index__) {
+          this.__schema__ = "mailto:";
+          this.__index__ = shift;
+          this.__last_index__ = next;
+        }
+      }
+    }
+  }
+  return this.__index__ >= 0;
+};
+LinkifyIt.prototype.pretest = function pretest(text2) {
+  return this.re.pretest.test(text2);
+};
+LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text2, schema, pos2) {
+  if (!this.__compiled__[schema.toLowerCase()]) {
+    return 0;
+  }
+  return this.__compiled__[schema.toLowerCase()].validate(text2, pos2, this);
+};
+LinkifyIt.prototype.match = function match(text2) {
+  const result = [];
+  let shift = 0;
+  if (this.__index__ >= 0 && this.__text_cache__ === text2) {
+    result.push(createMatch(this, shift));
+    shift = this.__last_index__;
+  }
+  let tail = shift ? text2.slice(shift) : text2;
+  while (this.test(tail)) {
+    result.push(createMatch(this, shift));
+    tail = tail.slice(this.__last_index__);
+    shift += this.__last_index__;
+  }
+  if (result.length) {
+    return result;
+  }
+  return null;
+};
+LinkifyIt.prototype.matchAtStart = function matchAtStart(text2) {
+  this.__text_cache__ = text2;
+  this.__index__ = -1;
+  if (!text2.length) return null;
+  const m2 = this.re.schema_at_start.exec(text2);
+  if (!m2) return null;
+  const len = this.testSchemaAt(text2, m2[2], m2[0].length);
+  if (!len) return null;
+  this.__schema__ = m2[2];
+  this.__index__ = m2.index + m2[1].length;
+  this.__last_index__ = m2.index + m2[0].length + len;
+  return createMatch(this, 0);
+};
+LinkifyIt.prototype.tlds = function tlds(list2, keepOld) {
+  list2 = Array.isArray(list2) ? list2 : [list2];
+  if (!keepOld) {
+    this.__tlds__ = list2.slice();
+    this.__tlds_replaced__ = true;
+    compile(this);
+    return this;
+  }
+  this.__tlds__ = this.__tlds__.concat(list2).sort().filter(function(el, idx, arr) {
+    return el !== arr[idx - 1];
+  }).reverse();
+  compile(this);
+  return this;
+};
+LinkifyIt.prototype.normalize = function normalize2(match2) {
+  if (!match2.schema) {
+    match2.url = "http://" + match2.url;
+  }
+  if (match2.schema === "mailto:" && !/^mailto:/i.test(match2.url)) {
+    match2.url = "mailto:" + match2.url;
+  }
+};
+LinkifyIt.prototype.onCompile = function onCompile() {
+};
+const maxInt = 2147483647;
+const base = 36;
+const tMin = 1;
+const tMax = 26;
+const skew = 38;
+const damp = 700;
+const initialBias = 72;
+const initialN = 128;
+const delimiter = "-";
+const regexPunycode = /^xn--/;
+const regexNonASCII = /[^\0-\x7F]/;
+const regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g;
+const errors = {
+  "overflow": "Overflow: input needs wider integers to process",
+  "not-basic": "Illegal input >= 0x80 (not a basic code point)",
+  "invalid-input": "Invalid input"
+};
+const baseMinusTMin = base - tMin;
+const floor = Math.floor;
+const stringFromCharCode = String.fromCharCode;
+function error(type) {
+  throw new RangeError(errors[type]);
+}
+function map(array, callback) {
+  const result = [];
+  let length = array.length;
+  while (length--) {
+    result[length] = callback(array[length]);
+  }
+  return result;
+}
+function mapDomain(domain, callback) {
+  const parts = domain.split("@");
+  let result = "";
+  if (parts.length > 1) {
+    result = parts[0] + "@";
+    domain = parts[1];
+  }
+  domain = domain.replace(regexSeparators, ".");
+  const labels = domain.split(".");
+  const encoded = map(labels, callback).join(".");
+  return result + encoded;
+}
+function ucs2decode(string) {
+  const output = [];
+  let counter = 0;
+  const length = string.length;
+  while (counter < length) {
+    const value = string.charCodeAt(counter++);
+    if (value >= 55296 && value <= 56319 && counter < length) {
+      const extra = string.charCodeAt(counter++);
+      if ((extra & 64512) == 56320) {
+        output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
+      } else {
+        output.push(value);
+        counter--;
+      }
+    } else {
+      output.push(value);
+    }
+  }
+  return output;
+}
+const ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
+const basicToDigit = function(codePoint) {
+  if (codePoint >= 48 && codePoint < 58) {
+    return 26 + (codePoint - 48);
+  }
+  if (codePoint >= 65 && codePoint < 91) {
+    return codePoint - 65;
+  }
+  if (codePoint >= 97 && codePoint < 123) {
+    return codePoint - 97;
+  }
+  return base;
+};
+const digitToBasic = function(digit, flag) {
+  return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+};
+const adapt = function(delta, numPoints, firstTime) {
+  let k2 = 0;
+  delta = firstTime ? floor(delta / damp) : delta >> 1;
+  delta += floor(delta / numPoints);
+  for (; delta > baseMinusTMin * tMax >> 1; k2 += base) {
+    delta = floor(delta / baseMinusTMin);
+  }
+  return floor(k2 + (baseMinusTMin + 1) * delta / (delta + skew));
+};
+const decode = function(input) {
+  const output = [];
+  const inputLength = input.length;
+  let i = 0;
+  let n2 = initialN;
+  let bias = initialBias;
+  let basic = input.lastIndexOf(delimiter);
+  if (basic < 0) {
+    basic = 0;
+  }
+  for (let j2 = 0; j2 < basic; ++j2) {
+    if (input.charCodeAt(j2) >= 128) {
+      error("not-basic");
+    }
+    output.push(input.charCodeAt(j2));
+  }
+  for (let index = basic > 0 ? basic + 1 : 0; index < inputLength; ) {
+    const oldi = i;
+    for (let w2 = 1, k2 = base; ; k2 += base) {
+      if (index >= inputLength) {
+        error("invalid-input");
+      }
+      const digit = basicToDigit(input.charCodeAt(index++));
+      if (digit >= base) {
+        error("invalid-input");
+      }
+      if (digit > floor((maxInt - i) / w2)) {
+        error("overflow");
+      }
+      i += digit * w2;
+      const t2 = k2 <= bias ? tMin : k2 >= bias + tMax ? tMax : k2 - bias;
+      if (digit < t2) {
+        break;
+      }
+      const baseMinusT = base - t2;
+      if (w2 > floor(maxInt / baseMinusT)) {
+        error("overflow");
+      }
+      w2 *= baseMinusT;
+    }
+    const out = output.length + 1;
+    bias = adapt(i - oldi, out, oldi == 0);
+    if (floor(i / out) > maxInt - n2) {
+      error("overflow");
+    }
+    n2 += floor(i / out);
+    i %= out;
+    output.splice(i++, 0, n2);
+  }
+  return String.fromCodePoint(...output);
+};
+const encode = function(input) {
+  const output = [];
+  input = ucs2decode(input);
+  const inputLength = input.length;
+  let n2 = initialN;
+  let delta = 0;
+  let bias = initialBias;
+  for (const currentValue of input) {
+    if (currentValue < 128) {
+      output.push(stringFromCharCode(currentValue));
+    }
+  }
+  const basicLength = output.length;
+  let handledCPCount = basicLength;
+  if (basicLength) {
+    output.push(delimiter);
+  }
+  while (handledCPCount < inputLength) {
+    let m2 = maxInt;
+    for (const currentValue of input) {
+      if (currentValue >= n2 && currentValue < m2) {
+        m2 = currentValue;
+      }
+    }
+    const handledCPCountPlusOne = handledCPCount + 1;
+    if (m2 - n2 > floor((maxInt - delta) / handledCPCountPlusOne)) {
+      error("overflow");
+    }
+    delta += (m2 - n2) * handledCPCountPlusOne;
+    n2 = m2;
+    for (const currentValue of input) {
+      if (currentValue < n2 && ++delta > maxInt) {
+        error("overflow");
+      }
+      if (currentValue === n2) {
+        let q2 = delta;
+        for (let k2 = base; ; k2 += base) {
+          const t2 = k2 <= bias ? tMin : k2 >= bias + tMax ? tMax : k2 - bias;
+          if (q2 < t2) {
+            break;
+          }
+          const qMinusT = q2 - t2;
+          const baseMinusT = base - t2;
+          output.push(
+            stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0))
+          );
+          q2 = floor(qMinusT / baseMinusT);
+        }
+        output.push(stringFromCharCode(digitToBasic(q2, 0)));
+        bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
+        delta = 0;
+        ++handledCPCount;
+      }
+    }
+    ++delta;
+    ++n2;
+  }
+  return output.join("");
+};
+const toUnicode = function(input) {
+  return mapDomain(input, function(string) {
+    return regexPunycode.test(string) ? decode(string.slice(4).toLowerCase()) : string;
+  });
+};
+const toASCII = function(input) {
+  return mapDomain(input, function(string) {
+    return regexNonASCII.test(string) ? "xn--" + encode(string) : string;
+  });
+};
+const punycode = {
+  /**
+   * A string representing the current Punycode.js version number.
+   * @memberOf punycode
+   * @type String
+   */
+  "version": "2.3.1",
+  /**
+   * An object of methods to convert from JavaScript's internal character
+   * representation (UCS-2) to Unicode code points, and back.
+   * @see <https://mathiasbynens.be/notes/javascript-encoding>
+   * @memberOf punycode
+   * @type Object
+   */
+  "ucs2": {
+    "decode": ucs2decode,
+    "encode": ucs2encode
+  },
+  "decode": decode,
+  "encode": encode,
+  "toASCII": toASCII,
+  "toUnicode": toUnicode
+};
+const cfg_default = {
+  options: {
+    // Enable HTML tags in source
+    html: false,
+    // Use '/' to close single tags (<br />)
+    xhtmlOut: false,
+    // Convert '\n' in paragraphs into <br>
+    breaks: false,
+    // CSS language prefix for fenced blocks
+    langPrefix: "language-",
+    // autoconvert URL-like texts to links
+    linkify: false,
+    // Enable some language-neutral replacements + quotes beautification
+    typographer: false,
+    // Double + single quotes replacement pairs, when typographer enabled,
+    // and smartquotes on. Could be either a String or an Array.
+    //
+    // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+    // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+    quotes: "“”‘’",
+    /* “”‘’ */
+    // Highlighter function. Should return escaped HTML,
+    // or '' if the source string is not changed and should be escaped externaly.
+    // If result starts with <pre... internal wrapper is skipped.
+    //
+    // function (/*str, lang*/) { return ''; }
+    //
+    highlight: null,
+    // Internal protection, recursion limit
+    maxNesting: 100
+  },
+  components: {
+    core: {},
+    block: {},
+    inline: {}
+  }
+};
+const cfg_zero = {
+  options: {
+    // Enable HTML tags in source
+    html: false,
+    // Use '/' to close single tags (<br />)
+    xhtmlOut: false,
+    // Convert '\n' in paragraphs into <br>
+    breaks: false,
+    // CSS language prefix for fenced blocks
+    langPrefix: "language-",
+    // autoconvert URL-like texts to links
+    linkify: false,
+    // Enable some language-neutral replacements + quotes beautification
+    typographer: false,
+    // Double + single quotes replacement pairs, when typographer enabled,
+    // and smartquotes on. Could be either a String or an Array.
+    //
+    // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+    // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+    quotes: "“”‘’",
+    /* “”‘’ */
+    // Highlighter function. Should return escaped HTML,
+    // or '' if the source string is not changed and should be escaped externaly.
+    // If result starts with <pre... internal wrapper is skipped.
+    //
+    // function (/*str, lang*/) { return ''; }
+    //
+    highlight: null,
+    // Internal protection, recursion limit
+    maxNesting: 20
+  },
+  components: {
+    core: {
+      rules: [
+        "normalize",
+        "block",
+        "inline",
+        "text_join"
+      ]
+    },
+    block: {
+      rules: [
+        "paragraph"
+      ]
+    },
+    inline: {
+      rules: [
+        "text"
+      ],
+      rules2: [
+        "balance_pairs",
+        "fragments_join"
+      ]
+    }
+  }
+};
+const cfg_commonmark = {
+  options: {
+    // Enable HTML tags in source
+    html: true,
+    // Use '/' to close single tags (<br />)
+    xhtmlOut: true,
+    // Convert '\n' in paragraphs into <br>
+    breaks: false,
+    // CSS language prefix for fenced blocks
+    langPrefix: "language-",
+    // autoconvert URL-like texts to links
+    linkify: false,
+    // Enable some language-neutral replacements + quotes beautification
+    typographer: false,
+    // Double + single quotes replacement pairs, when typographer enabled,
+    // and smartquotes on. Could be either a String or an Array.
+    //
+    // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+    // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+    quotes: "“”‘’",
+    /* “”‘’ */
+    // Highlighter function. Should return escaped HTML,
+    // or '' if the source string is not changed and should be escaped externaly.
+    // If result starts with <pre... internal wrapper is skipped.
+    //
+    // function (/*str, lang*/) { return ''; }
+    //
+    highlight: null,
+    // Internal protection, recursion limit
+    maxNesting: 20
+  },
+  components: {
+    core: {
+      rules: [
+        "normalize",
+        "block",
+        "inline",
+        "text_join"
+      ]
+    },
+    block: {
+      rules: [
+        "blockquote",
+        "code",
+        "fence",
+        "heading",
+        "hr",
+        "html_block",
+        "lheading",
+        "list",
+        "reference",
+        "paragraph"
+      ]
+    },
+    inline: {
+      rules: [
+        "autolink",
+        "backticks",
+        "emphasis",
+        "entity",
+        "escape",
+        "html_inline",
+        "image",
+        "link",
+        "newline",
+        "text"
+      ],
+      rules2: [
+        "balance_pairs",
+        "emphasis",
+        "fragments_join"
+      ]
+    }
+  }
+};
+const config = {
+  default: cfg_default,
+  zero: cfg_zero,
+  commonmark: cfg_commonmark
+};
+const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
+const GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
+function validateLink(url) {
+  const str = url.trim().toLowerCase();
+  return BAD_PROTO_RE.test(str) ? GOOD_DATA_RE.test(str) : true;
+}
+const RECODE_HOSTNAME_FOR = ["http:", "https:", "mailto:"];
+function normalizeLink(url) {
+  const parsed = urlParse(url, true);
+  if (parsed.hostname) {
+    if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
+      try {
+        parsed.hostname = punycode.toASCII(parsed.hostname);
+      } catch (er) {
+      }
+    }
+  }
+  return encode$1(format$1(parsed));
+}
+function normalizeLinkText(url) {
+  const parsed = urlParse(url, true);
+  if (parsed.hostname) {
+    if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
+      try {
+        parsed.hostname = punycode.toUnicode(parsed.hostname);
+      } catch (er) {
+      }
+    }
+  }
+  return decode$1(format$1(parsed), decode$1.defaultChars + "%");
+}
+function MarkdownIt(presetName, options) {
+  if (!(this instanceof MarkdownIt)) {
+    return new MarkdownIt(presetName, options);
+  }
+  if (!options) {
+    if (!isString$1(presetName)) {
+      options = presetName || {};
+      presetName = "default";
+    }
+  }
+  this.inline = new ParserInline();
+  this.block = new ParserBlock();
+  this.core = new Core();
+  this.renderer = new Renderer();
+  this.linkify = new LinkifyIt();
+  this.validateLink = validateLink;
+  this.normalizeLink = normalizeLink;
+  this.normalizeLinkText = normalizeLinkText;
+  this.utils = utils;
+  this.helpers = assign$1({}, helpers);
+  this.options = {};
+  this.configure(presetName);
+  if (options) {
+    this.set(options);
+  }
+}
+MarkdownIt.prototype.set = function(options) {
+  assign$1(this.options, options);
+  return this;
+};
+MarkdownIt.prototype.configure = function(presets) {
+  const self2 = this;
+  if (isString$1(presets)) {
+    const presetName = presets;
+    presets = config[presetName];
+    if (!presets) {
+      throw new Error('Wrong `markdown-it` preset "' + presetName + '", check name');
+    }
+  }
+  if (!presets) {
+    throw new Error("Wrong `markdown-it` preset, can't be empty");
+  }
+  if (presets.options) {
+    self2.set(presets.options);
+  }
+  if (presets.components) {
+    Object.keys(presets.components).forEach(function(name) {
+      if (presets.components[name].rules) {
+        self2[name].ruler.enableOnly(presets.components[name].rules);
+      }
+      if (presets.components[name].rules2) {
+        self2[name].ruler2.enableOnly(presets.components[name].rules2);
+      }
+    });
+  }
+  return this;
+};
+MarkdownIt.prototype.enable = function(list2, ignoreInvalid) {
+  let result = [];
+  if (!Array.isArray(list2)) {
+    list2 = [list2];
+  }
+  ["core", "block", "inline"].forEach(function(chain) {
+    result = result.concat(this[chain].ruler.enable(list2, true));
+  }, this);
+  result = result.concat(this.inline.ruler2.enable(list2, true));
+  const missed = list2.filter(function(name) {
+    return result.indexOf(name) < 0;
+  });
+  if (missed.length && !ignoreInvalid) {
+    throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
+  }
+  return this;
+};
+MarkdownIt.prototype.disable = function(list2, ignoreInvalid) {
+  let result = [];
+  if (!Array.isArray(list2)) {
+    list2 = [list2];
+  }
+  ["core", "block", "inline"].forEach(function(chain) {
+    result = result.concat(this[chain].ruler.disable(list2, true));
+  }, this);
+  result = result.concat(this.inline.ruler2.disable(list2, true));
+  const missed = list2.filter(function(name) {
+    return result.indexOf(name) < 0;
+  });
+  if (missed.length && !ignoreInvalid) {
+    throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
+  }
+  return this;
+};
+MarkdownIt.prototype.use = function(plugin) {
+  const args = [this].concat(Array.prototype.slice.call(arguments, 1));
+  plugin.apply(plugin, args);
+  return this;
+};
+MarkdownIt.prototype.parse = function(src, env) {
+  if (typeof src !== "string") {
+    throw new Error("Input data should be a String");
+  }
+  const state = new this.core.State(src, this, env);
+  this.core.process(state);
+  return state.tokens;
+};
+MarkdownIt.prototype.render = function(src, env) {
+  env = env || {};
+  return this.renderer.render(this.parse(src, env), this.options, env);
+};
+MarkdownIt.prototype.parseInline = function(src, env) {
+  const state = new this.core.State(src, this, env);
+  state.inlineMode = true;
+  this.core.process(state);
+  return state.tokens;
+};
+MarkdownIt.prototype.renderInline = function(src, env) {
+  env = env || {};
+  return this.renderer.render(this.parseInline(src, env), this.options, env);
+};
 const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   const escaped = markdown ? escape$1(markdown) : "";
@@ -11426,7 +14514,10 @@ const MarkdownDiv = (props) => {
   const protectedText = protectMarkdown(preRendered);
   let renderedHtml = protectedText;
   try {
-    renderedHtml = marked.parse(protectedText);
+    const md = MarkdownIt({
+      breaks: true
+    });
+    renderedHtml = md.render(protectedText);
   } catch (ex) {
     console.log("Unable to markdown render content");
     console.error(ex);
@@ -11486,11 +14577,11 @@ function unescapeCodeHtmlEntities(str) {
   };
   return str.replace(
     /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
-    function(match, starttag, content, endtag) {
+    function(match2, starttag, content, endtag) {
       return starttag + content.replace(
         /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
-        function(entity) {
-          return htmlEntities[entity] || entity;
+        function(entity2) {
+          return htmlEntities[entity2] || entity2;
         }
       ) + endtag;
     }
@@ -11779,8 +14870,8 @@ Prism.languages.py = Prism.languages.python;
     "number"
   ];
   var inside = insideString.variable[1].inside;
-  for (var i2 = 0; i2 < toBeCopied.length; i2++) {
-    inside[toBeCopied[i2]] = Prism2.languages.bash[toBeCopied[i2]];
+  for (var i = 0; i < toBeCopied.length; i++) {
+    inside[toBeCopied[i]] = Prism2.languages.bash[toBeCopied[i]];
   }
   Prism2.languages.sh = Prism2.languages.bash;
   Prism2.languages.shell = Prism2.languages.bash;
@@ -11870,7 +14961,7 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
         />` : ""}`;
 };
 const MoreToggle = ({ collapsed, border, setCollapsed }) => {
-  const text = collapsed ? "more" : "less";
+  const text2 = collapsed ? "more" : "less";
   const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
   const topStyle = {
     display: "flex",
@@ -11904,7 +14995,7 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
     setCollapsed(!collapsed);
   }}
         >
-          <i class="${icon}" /> ${text}
+          <i class="${icon}" /> ${text2}
         </button>
       </div>
     </div>
@@ -11936,19 +15027,19 @@ const ToolCallView = ({
   }}
         ></i>`;
   const codeIndent = mode === "compact" ? "" : "";
-  return m$1`<p>
-        ${icon}
-        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
-        <div>
-            <div style=${{ marginLeft: `${codeIndent}` }}>
-            <${ToolInput} type=${inputType} contents=${input}/>
-            ${output ? m$1`
+  return m$1`<div>
+    ${icon}
+    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    <div>
+      <div style=${{ marginLeft: `${codeIndent}` }}>
+        <${ToolInput} type=${inputType} contents=${input} />
+        ${output ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>` : ""}
-            </div>
-        </div>
-        </p>`;
+      </div>
+    </div>
+  </div>`;
 };
 const ToolInput = ({ type, contents }) => {
   if (!contents) {
@@ -11964,8 +15055,8 @@ const ToolInput = ({ type, contents }) => {
   y(() => {
     const tokens = Prism$1.languages[type];
     if (toolInputRef.current && tokens) {
-      const html2 = Prism$1.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html2;
+      const html = Prism$1.highlight(contents, tokens, type);
+      toolInputRef.current.innerHTML = html;
     }
   }, [toolInputRef.current, contents, type]);
   return m$1`<pre
@@ -12024,7 +15115,7 @@ const ToolOutput = ({ output, style }) => {
   }
   return m$1`<div style=${{ display: "grid" }}>${outputs}</div>`;
 };
-const ToolTextOutput = ({ text, style }) => {
+const ToolTextOutput = ({ text: text2, style }) => {
   return m$1`<pre
     style=${{
     marginLeft: "2px",
@@ -12035,7 +15126,7 @@ const ToolTextOutput = ({ text, style }) => {
   }}
   >
     <code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${text.trim()}
+      ${text2.trim()}
       </code>
   </pre>`;
 };
@@ -12314,11 +15405,11 @@ const iconForMsg = (msg) => {
   }
 };
 const resolveToolMessage = (toolMessage) => {
-  var _a;
+  var _a2;
   if (!toolMessage) {
     return void 0;
   }
-  const content = ((_a = toolMessage.error) == null ? void 0 : _a.message) || toolMessage.tool_error || toolMessage.content;
+  const content = ((_a2 = toolMessage.error) == null ? void 0 : _a2.message) || toolMessage.tool_error || toolMessage.content;
   if (typeof content === "string") {
     return [
       {
@@ -12476,9 +15567,9 @@ const contentRenderers = {
   ChatMessage: {
     bucket: Buckets.first,
     canRender: (entry) => {
-      var _a, _b;
+      var _a2, _b2;
       const val = entry.value;
-      return Array.isArray(val) && val.length > 0 && ((_a = val[0]) == null ? void 0 : _a.role) !== void 0 && ((_b = val[0]) == null ? void 0 : _b.content) !== void 0;
+      return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
     },
     render: (_id, entry) => {
       return {
@@ -12514,6 +15605,20 @@ const contentRenderers = {
       });
       return {
         rendered: results
+      };
+    }
+  },
+  web_browser: {
+    bucket: Buckets.intermediate,
+    canRender: (entry) => {
+      var _a2;
+      return typeof entry.value === "string" && ((_a2 = entry.name) == null ? void 0 : _a2.startsWith("web_browser"));
+    },
+    render: (_id, entry) => {
+      return {
+        rendered: m$1`<pre style=${{ whiteSpace: "pre-wrap" }}>
+${entry.value}</pre
+        >`
       };
     }
   },
@@ -12641,8 +15746,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ log, context }) => {
-  var _a;
+const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -12652,9 +15756,9 @@ const PlanCard = ({ log, context }) => {
   }}>
       
         <${PlanDetailView}
-          evaluation=${log == null ? void 0 : log.eval}
-          plan=${log == null ? void 0 : log.plan}
-          scores=${(_a = log == null ? void 0 : log.results) == null ? void 0 : _a.scores}
+          evaluation=${evalSpec}
+          plan=${evalPlan}
+          scores=${scores}
           context=${context}
         />
       </${CardBody}>
@@ -12744,7 +15848,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   if (!evaluation) {
     return "";
   }
-  const config = (evaluation == null ? void 0 : evaluation.config) || {};
+  const config2 = (evaluation == null ? void 0 : evaluation.config) || {};
   const steps = plan == null ? void 0 : plan.steps;
   const metadata = evaluation == null ? void 0 : evaluation.metadata;
   const revision = evaluation == null ? void 0 : evaluation.revision;
@@ -12770,16 +15874,19 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
       }).join("<br/>\n")}`
     };
   }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
+  }
   if (evaluation == null ? void 0 : evaluation.model) {
-    config["model"] = evaluation.model;
+    config2["model"] = evaluation.model;
   }
   if (evaluation == null ? void 0 : evaluation.model_base_url) {
-    config["model_base_url"] = evaluation.model_base_url;
+    config2["model_base_url"] = evaluation.model_base_url;
   }
   if (evaluation == null ? void 0 : evaluation.sandbox) {
-    config["sandbox"] = evaluation.sandbox[0];
+    config2["sandbox"] = evaluation.sandbox[0];
     if (evaluation.sandbox[1]) {
-      config["sandbox_config"] = evaluation.sandbox[1];
+      config2["sandbox_config"] = evaluation.sandbox[1];
     }
   }
   const floatingColumnStyle = {
@@ -12854,7 +15961,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
     metadataColumns,
     task_args,
     model_args,
-    config,
+    config2,
     metadata
   );
   const configColumnStyle = cols === 1 ? oneColumnStyle : twoColumnStyle;
@@ -12901,7 +16008,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
       `
     });
   }
-  if (config && Object.keys(config).length > 0) {
+  if (config2 && Object.keys(config2).length > 0) {
     metadataColumns.push({
       title: "Configuration",
       style: configColumnStyle,
@@ -12909,7 +16016,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         <${MetaDataView}
           style=${planMetadataStyle}
           classes="task-plan-configuration"
-          entries="${config}"
+          entries="${config2}"
           tableOptions="sm"
           context=${context}
         />
@@ -13007,591 +16114,6 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
-};
-const isNumeric = (n2) => {
-  return !isNaN(parseFloat(n2)) && isFinite(n2);
-};
-const toArray = (val) => {
-  if (Array.isArray(val)) {
-    return val;
-  } else {
-    return [val];
-  }
-};
-const kScoreTypePassFail = "passfail";
-const kScoreTypeCategorical = "categorical";
-const kScoreTypeNumeric = "numeric";
-const kScoreTypeOther = "other";
-const kScoreTypeObject = "object";
-const samplesDescriptor = (selectedScore, scorers, samples, epochs, context) => {
-  if (!samples) {
-    return void 0;
-  }
-  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
-    if (sample.scores[scorer]) {
-      return sample.scores[scorer];
-    } else {
-      return void 0;
-    }
-  };
-  const scoreValue = (sample) => {
-    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
-      return void 0;
-    }
-    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
-      return sample.scores[selectedScore.scorer].value[selectedScore.name];
-    } else if (sample.scores[selectedScore.name]) {
-      return sample.scores[selectedScore.name].value;
-    } else {
-      return void 0;
-    }
-  };
-  const scoreAnswer = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.answer) {
-        return sampleScore.answer;
-      } else if (sample.output.choices && sample.output.choices.length > 0) {
-        const content = sample.output.choices[0].message.content;
-        if (typeof content === "string") {
-          return content;
-        } else {
-          return content.length > 0 ? content[0].text : "";
-        }
-      }
-    } else {
-      return void 0;
-    }
-  };
-  const scoreExplanation = (sample, scorer) => {
-    if (sample) {
-      const sampleScore = score(sample, scorer);
-      if (sampleScore && sampleScore.explanation) {
-        return sampleScore.explanation;
-      }
-    }
-    return void 0;
-  };
-  const uniqScoreValues = [
-    ...new Set(
-      samples.filter((sample) => !!sample.scores).filter((sample) => {
-        if (!selectedScore) {
-          return true;
-        }
-        if (selectedScore.scorer !== selectedScore.name) {
-          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
-            selectedScore.name
-          );
-        } else {
-          return Object.keys(sample.scores).includes(selectedScore.name);
-        }
-      }).map((sample) => {
-        return scoreValue(sample);
-      }).filter((value) => {
-        return value !== null;
-      })
-    )
-  ];
-  const uniqScoreTypes = [
-    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-  ];
-  let scoreDescriptor;
-  for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
-    if (scoreDescriptor) {
-      break;
-    }
-  }
-  const sizes = samples.reduce(
-    (previous, current) => {
-      var _a;
-      previous[0] = Math.min(
-        Math.max(previous[0], inputString(current.input).length),
-        300
-      );
-      previous[1] = Math.min(
-        Math.max(previous[1], arrayToString(current.target).length),
-        300
-      );
-      previous[2] = Math.min(
-        Math.max(previous[2], ((_a = scoreAnswer(current)) == null ? void 0 : _a.length) || 0),
-        300
-      );
-      return previous;
-    },
-    [0, 0, 0]
-  );
-  const base = sizes[0] + sizes[1] + sizes[2] || 1;
-  const messageShape = {
-    input: sizes[0] / base,
-    target: sizes[1] / base,
-    answer: sizes[2] / base
-  };
-  const scoreRendered = (sample) => {
-    const score2 = scoreValue(sample);
-    if (score2 === null || score2 === "undefined") {
-      return "null";
-    } else if (scoreDescriptor.render) {
-      return scoreDescriptor.render(score2);
-    } else {
-      return score2;
-    }
-  };
-  const scorerDescriptor = (sample, scorer) => {
-    return {
-      explanation: () => {
-        return scoreExplanation(sample, scorer);
-      },
-      answer: () => {
-        return scoreAnswer(sample, scorer);
-      },
-      scores: () => {
-        if (!sample || !sample.scores) {
-          return [];
-        }
-        const scoreNames = scorers.map((score2) => {
-          return score2.name;
-        });
-        const sampleScorer = sample.scores[scorer];
-        const scoreVal = sampleScorer.value;
-        if (typeof scoreVal === "object") {
-          const names = Object.keys(scoreVal);
-          if (names.find((name) => {
-            return !scoreNames.includes(name);
-          })) {
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                }
-              }
-            ];
-          } else {
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                }
-              };
-            });
-            return scores;
-          }
-        } else {
-          return [
-            {
-              name: scorer,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal);
-              }
-            }
-          ];
-        }
-      }
-    };
-  };
-  return {
-    scoreDescriptor,
-    epochs,
-    messageShape,
-    selectedScore: (sample) => {
-      return {
-        value: scoreValue(sample),
-        render: () => {
-          return scoreRendered(sample);
-        }
-      };
-    },
-    scorer: (sample, scorer) => {
-      return scorerDescriptor(sample, scorer);
-    },
-    selectedScorer: (sample) => {
-      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
-    }
-  };
-};
-const scoreCategorizers = [
-  {
-    describe: (values, types) => {
-      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    describe: (values) => {
-      if ((values.length === 1 || values.length === 2) && values.every((val) => {
-        return val === 1 || val === 0;
-      })) {
-        return booleanScoreCategorizer();
-      }
-    }
-  },
-  {
-    describe: (values, types) => {
-      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
-        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-      })) {
-        return passFailScoreCategorizer(values);
-      }
-    }
-  },
-  {
-    describe: (values, types) => {
-      if (values.length < 10 && types.length === 1 && types[0] === "string") {
-        return {
-          scoreType: kScoreTypeCategorical,
-          categories: values,
-          compare: (a2, b2) => {
-            return a2.localeCompare(b2);
-          },
-          render: (score) => {
-            return score;
-          }
-        };
-      }
-    }
-  },
-  {
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "number") {
-        return {
-          scoreType: kScoreTypeNumeric,
-          min: Math.min(...values),
-          max: Math.max(...values),
-          compare: (a2, b2) => {
-            return a2 - b2;
-          },
-          render: (score) => {
-            return formatDecimalNoTrailingZeroes(score);
-          }
-        };
-      }
-    }
-  },
-  {
-    describe: (values, types) => {
-      if (types.length !== 0 && types[0] === "object") {
-        const buckets = values.map((val) => {
-          return JSON.stringify(val);
-        });
-        const vals = new Set(buckets);
-        let categories = void 0;
-        if (vals.size < 10) {
-          categories = Array.from(vals).map((val) => {
-            return {
-              val,
-              text: val
-            };
-          });
-        }
-        return {
-          scoreType: kScoreTypeObject,
-          categories,
-          render: (score) => {
-            if (score === null || score === void 0) {
-              return "[null]";
-            }
-            const scores = [];
-            const keys = Object.keys(score);
-            keys.forEach((key2, index) => {
-              const value = score[key2];
-              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-              const style = {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                marginLeft: "0.5rem"
-              };
-              if (index + 1 < keys.length) {
-                style["paddingBottom"] = "1em";
-              }
-              scores.push(m$1`
-                <div style=${style}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-            });
-            return scores;
-          }
-        };
-      }
-    }
-  },
-  {
-    describe: (values, types, context) => {
-      return {
-        scoreType: kScoreTypeOther,
-        render: (score) => {
-          return m$1`<${RenderedContent}
-            id="asdasdas"
-            entry=${{ value: score }}
-            context=${context}
-          />`;
-        }
-      };
-    }
-  }
-];
-const filledCircleStyle = {
-  fontSize: FontSize.small,
-  fontFamily: "Consola Regular",
-  width: "20px",
-  height: "20px",
-  display: "inline-flex",
-  justifyContent: "center",
-  alignItems: "center",
-  borderRadius: "50%",
-  paddingTop: "1px"
-};
-const booleanScoreCategorizer = () => {
-  return {
-    scoreType: "boolean",
-    render: (score) => {
-      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-      return m$1`<span
-        style=${{
-        ...scoreColorStyle,
-        ...filledCircleStyle
-      }}
-        >${score}</span
-      >`;
-    }
-  };
-};
-const passFailScoreCategorizer = (values) => {
-  const categories = [];
-  if (values.includes("C")) {
-    categories.push({
-      val: "C",
-      text: "Correct"
-    });
-  }
-  if (values.includes("P")) {
-    categories.push({
-      val: "P",
-      text: "Partial"
-    });
-  }
-  if (values.includes("I")) {
-    categories.push({
-      val: "I",
-      text: "Incorrect"
-    });
-  }
-  if (values.includes("N")) {
-    categories.push({
-      val: "N",
-      text: "Refusal"
-    });
-  }
-  const order2 = ["C", "P", "I", "N"];
-  return {
-    scoreType: kScoreTypePassFail,
-    categories,
-    render: (score) => {
-      if (score === "C") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.green,
-          ...filledCircleStyle
-        }}
-          >C</span
-        >`;
-      } else if (score === "I") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >I</span
-        >`;
-      } else if (score === "P") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.orange,
-          ...filledCircleStyle
-        }}
-          >P</span
-        >`;
-      } else if (score === "N") {
-        return m$1`<span
-          style=${{
-          ...ApplicationStyles.scoreFills.red,
-          ...filledCircleStyle
-        }}
-          >N</span
-        >`;
-      } else {
-        return score;
-      }
-    },
-    compare: (a2, b2) => {
-      const sort2 = order2.indexOf(a2) - order2.indexOf(b2);
-      return sort2;
-    }
-  };
-};
-const kSampleAscVal = "sample-asc";
-const kSampleDescVal = "sample-desc";
-const kEpochAscVal = "epoch-asc";
-const kEpochDescVal = "epoch-desc";
-const kScoreAscVal = "score-asc";
-const kScoreDescVal = "score-desc";
-const kDefaultSort = kSampleAscVal;
-const SortFilter = ({ sampleDescriptor, sort: sort2, setSort, epochs }) => {
-  var _a;
-  const options = [
-    { label: "sample asc", val: kSampleAscVal },
-    { label: "sample desc", val: kSampleDescVal }
-  ];
-  if (epochs) {
-    options.push({
-      label: "epoch asc",
-      val: kEpochAscVal
-    });
-    options.push({
-      label: "epoch desc",
-      val: kEpochDescVal
-    });
-  }
-  if ((_a = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a.compare) {
-    options.push({
-      label: "score asc",
-      val: kScoreAscVal
-    });
-    options.push({
-      label: "score desc",
-      val: kScoreDescVal
-    });
-  }
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort2}
-        onChange=${(e2) => {
-    setSort(e2.target.value);
-  }}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option.val}">${option.label}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const byEpoch = (sort2) => {
-  return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
-};
-const bySample = (sort2) => {
-  return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
-};
-const sort = (sort2, samples, sampleDescriptor) => {
-  const sorted = samples.sort((a2, b2) => {
-    switch (sort2) {
-      case kSampleAscVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return a2.id - b2.id;
-        } else {
-          return String(a2.id).localeCompare(String(b2.id));
-        }
-      case kSampleDescVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return b2.id - a2.id;
-        } else {
-          return String(b2.id).localeCompare(String(a2.id));
-        }
-      case kEpochAscVal:
-        return a2.epoch - b2.epoch;
-      case kEpochDescVal:
-        return b2.epoch - a2.epoch;
-      case kScoreAscVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a2).value,
-          sampleDescriptor.selectedScore(b2).value
-        );
-      case kScoreDescVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b2).value,
-          sampleDescriptor.selectedScore(a2).value
-        );
-    }
-  });
-  return {
-    sorted,
-    order: sort2 === kSampleAscVal || sort2 === kEpochAscVal || sort2 === kScoreAscVal ? "asc" : "desc"
-  };
-};
 const LargeModal = (props) => {
   const {
     id,
@@ -13602,6 +16124,7 @@ const LargeModal = (props) => {
     onkeyup,
     visible,
     onHide,
+    showProgress,
     children
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
@@ -13689,6 +16212,13 @@ const LargeModal = (props) => {
         >
           ${headerEls}
         </div>
+        <${ProgressBar}
+          animating=${showProgress}
+          containerStyle=${{
+    marginBottom: "-2px",
+    backgroundColor: "var(--bs-body-bg)"
+  }}
+        />
         <div class="modal-body">${children}</div>
         ${modalFooter}
       </div>
@@ -13722,6 +16252,52 @@ const isVscode = () => {
     return attr.includes("data-vscode-");
   });
 };
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
+};
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
   if (scores.length === 1) {
@@ -13753,12 +16329,14 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer
+  scorer,
+  context
 }) => {
+  var _a2, _b2, _c;
   if (!sampleDescriptor) {
     return "";
   }
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
@@ -13849,25 +16427,68 @@ const SampleScoreView = ({
         </tbody>
       </table>
 
-      ${explanation && explanation !== answer ? m$1`
-        <table class="table" style=${{ width: "100%", marginBottom: "0" }}>
-              <thead>
-                <tr>
-                  <th style=${{
+      ${explanation && explanation !== answer ? m$1` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
     paddingBottom: "0",
     paddingLeft: "0",
     ...labelStyle,
     fontWeight: "400"
-  }}>Explanation</th>
-                </tr>
-              </thead>
-              <tbody>
+  }}
+                >
+                  Explanation
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
                 <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
+                  <${MarkdownDiv}
+                    markdown=${arrayToString(explanation)}
+                    style=${{ paddingLeft: "0" }}
+                    class="no-last-para-padding"
+                  />
                 </td>
-              </tbody>
-            </table
-          ` : ""}
+              </tr>
+            </tbody>
+          </table>` : ""}
+      ${((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0 ? m$1` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
+    paddingBottom: "0",
+    paddingLeft: "0",
+    ...labelStyle,
+    fontWeight: "400"
+  }}
+                >
+                  Metadata
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style=${{ paddingLeft: "0" }}>
+                  <${MetaDataView}
+                    id="task-sample-score-metadata"
+                    classes="tab-pane"
+                    entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
+                    style=${{ marginTop: "1em" }}
+                    context=${context}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>` : ""}
     </div>
   `;
 };
@@ -13875,7 +16496,7 @@ const EventPanel = ({
   id,
   classes,
   title,
-  text,
+  text: text2,
   icon,
   titleColor,
   collapse,
@@ -13961,7 +16582,7 @@ const EventPanel = ({
     setCollapsed(!collapsed);
   }}
           >
-            ${collapsed ? text : ""}
+            ${collapsed ? text2 : ""}
           </div>
           <div
             style=${{
@@ -13972,9 +16593,9 @@ const EventPanel = ({
           >
             ${(!hasCollapse || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? m$1` <${EventNavs}
                   navs=${filteredArrChildren.map((child, index) => {
-    var _a;
+    var _a2;
     const defaultTitle = `Tab ${index}`;
-    const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
+    const title2 = child && typeof child === "object" ? ((_a2 = child["props"]) == null ? void 0 : _a2.name) || defaultTitle : defaultTitle;
     return {
       id: `eventpanel-${id}-${index}`,
       title: title2,
@@ -14155,6 +16776,16 @@ const EventSection = ({ title, style, children }) => {
     ${children}
   </div>`;
 };
+const isNumeric = (n2) => {
+  return !isNaN(parseFloat(n2)) && isFinite(n2);
+};
+const toArray = (val) => {
+  if (Array.isArray(val)) {
+    return val;
+  } else {
+    return [val];
+  }
+};
 const SampleInitEventView = ({ id, event, style }) => {
   const stateObj = event.state;
   const sections = [];
@@ -14246,9 +16877,9 @@ const add_tools = {
 const renderTools = (changes, resolvedState) => {
   const toolIndexes = [];
   for (const change of changes) {
-    const match = change.path.match(kToolPattern);
-    if (match) {
-      toolIndexes.push(match[1]);
+    const match2 = change.path.match(kToolPattern);
+    if (match2) {
+      toolIndexes.push(match2[1]);
     }
   }
   const toolName = (toolChoice) => {
@@ -14467,9 +17098,9 @@ class Pipe {
     this.resultCheck = (context) => {
       if (!context.hasResult) {
         console.log(context);
-        const error = new Error(`${this.name} failed`);
-        error.noResult = true;
-        throw error;
+        const error2 = new Error(`${this.name} failed`);
+        error2.noResult = true;
+        throw error2;
       }
     };
     return this;
@@ -14810,24 +17441,24 @@ collectChildrenReverseFilter$1.filterName = "collectChildren";
 const defaultMatch = function(array1, array2, index1, index2) {
   return array1[index1] === array2[index2];
 };
-const lengthMatrix = function(array1, array2, match, context) {
+const lengthMatrix = function(array1, array2, match2, context) {
   const len1 = array1.length;
   const len2 = array2.length;
-  let x2, y2;
+  let x, y2;
   const matrix = new Array(len1 + 1);
-  for (x2 = 0; x2 < len1 + 1; x2++) {
-    matrix[x2] = new Array(len2 + 1);
+  for (x = 0; x < len1 + 1; x++) {
+    matrix[x] = new Array(len2 + 1);
     for (y2 = 0; y2 < len2 + 1; y2++) {
-      matrix[x2][y2] = 0;
+      matrix[x][y2] = 0;
     }
   }
-  matrix.match = match;
-  for (x2 = 1; x2 < len1 + 1; x2++) {
+  matrix.match = match2;
+  for (x = 1; x < len1 + 1; x++) {
     for (y2 = 1; y2 < len2 + 1; y2++) {
-      if (match(array1, array2, x2 - 1, y2 - 1, context)) {
-        matrix[x2][y2] = matrix[x2 - 1][y2 - 1] + 1;
+      if (match2(array1, array2, x - 1, y2 - 1, context)) {
+        matrix[x][y2] = matrix[x - 1][y2 - 1] + 1;
       } else {
-        matrix[x2][y2] = Math.max(matrix[x2 - 1][y2], matrix[x2][y2 - 1]);
+        matrix[x][y2] = Math.max(matrix[x - 1][y2], matrix[x][y2 - 1]);
       }
     }
   }
@@ -14861,9 +17492,9 @@ const backtrack = function(matrix, array1, array2, context) {
   }
   return subsequence;
 };
-const get = function(array1, array2, match, context) {
+const get = function(array1, array2, match2, context) {
   const innerContext = context || {};
-  const matrix = lengthMatrix(array1, array2, match || defaultMatch, innerContext);
+  const matrix = lengthMatrix(array1, array2, match2 || defaultMatch, innerContext);
   return backtrack(matrix, array1, array2, innerContext);
 };
 const lcs = {
@@ -15242,18 +17873,18 @@ const TEXT_DIFF = 2;
 const DEFAULT_MIN_LENGTH = 60;
 let cachedDiffPatch = null;
 function getDiffMatchPatch(options, required) {
-  var _a;
+  var _a2;
   if (!cachedDiffPatch) {
     let instance;
-    if ((_a = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a === void 0 ? void 0 : _a.diffMatchPatch) {
+    if ((_a2 = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a2 === void 0 ? void 0 : _a2.diffMatchPatch) {
       instance = new options.textDiff.diffMatchPatch();
     } else {
       if (!required) {
         return null;
       }
-      const error = new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
-      error.diff_match_patch_not_found = true;
-      throw error;
+      const error2 = new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
+      error2.diff_match_patch_not_found = true;
+      throw error2;
     }
     cachedDiffPatch = {
       diff: function(txt1, txt2) {
@@ -15261,10 +17892,10 @@ function getDiffMatchPatch(options, required) {
       },
       patch: function(txt1, patch) {
         const results = instance.patch_apply(instance.patch_fromText(patch), txt1);
-        for (let i2 = 0; i2 < results[1].length; i2++) {
-          if (!results[1][i2]) {
-            const error = new Error("text patch failed");
-            error.textPatchFailed = true;
+        for (let i = 0; i < results[1].length; i++) {
+          if (!results[1][i]) {
+            const error2 = new Error("text patch failed");
+            error2.textPatchFailed = true;
           }
         }
         return results[0];
@@ -15307,7 +17938,7 @@ const patchFilter = function textsPatchFilter(context) {
 };
 patchFilter.filterName = "texts";
 const textDeltaReverse = function(delta) {
-  let i2;
+  let i;
   let l2;
   let line2;
   let lineTmp;
@@ -15315,22 +17946,22 @@ const textDeltaReverse = function(delta) {
   const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
   let lineHeader;
   const lines = delta.split("\n");
-  for (i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-    line2 = lines[i2];
+  for (i = 0, l2 = lines.length; i < l2; i++) {
+    line2 = lines[i];
     const lineStart = line2.slice(0, 1);
     if (lineStart === "@") {
       header = headerRegex.exec(line2);
-      lineHeader = i2;
+      lineHeader = i;
       lines[lineHeader] = "@@ -" + header[3] + "," + header[4] + " +" + header[1] + "," + header[2] + " @@";
     } else if (lineStart === "+") {
-      lines[i2] = "-" + lines[i2].slice(1);
-      if (lines[i2 - 1].slice(0, 1) === "+") {
-        lineTmp = lines[i2];
-        lines[i2] = lines[i2 - 1];
-        lines[i2 - 1] = lineTmp;
+      lines[i] = "-" + lines[i].slice(1);
+      if (lines[i - 1].slice(0, 1) === "+") {
+        lineTmp = lines[i];
+        lines[i] = lines[i - 1];
+        lines[i - 1] = lineTmp;
       }
     } else if (lineStart === "-") {
-      lines[i2] = "+" + lines[i2].slice(1);
+      lines[i] = "+" + lines[i].slice(1);
     }
   }
   return lines.join("\n");
@@ -15416,7 +18047,7 @@ class BaseFormatter {
     throw new Error(`cannot format delta type: ${deltaType}`);
   }
   /* eslint-disable @typescript-eslint/no-unused-vars */
-  typeFormattterErrorFormatter(context, err, delta, leftValue, key2, leftKey, movedFrom) {
+  typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom) {
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */
   finalize({ buffer: buffer2 }) {
@@ -15441,10 +18072,10 @@ class BaseFormatter {
     try {
       typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
       typeFormattter.call(this, context, delta, leftValue, key2, leftKey, movedFrom);
-    } catch (err) {
-      this.typeFormattterErrorFormatter(context, err, delta, leftValue, key2, leftKey, movedFrom);
+    } catch (err2) {
+      this.typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom);
       if (typeof console !== "undefined" && console.error) {
-        console.error(err.stack);
+        console.error(err2.stack);
       }
     }
     if (typeof key2 !== "undefined") {
@@ -15535,8 +18166,8 @@ class BaseFormatter {
   parseTextDiff(value) {
     const output = [];
     const lines = value.split("\n@@ ");
-    for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-      const line2 = lines[i2];
+    for (let i = 0, l2 = lines.length; i < l2; i++) {
+      const line2 = lines[i];
       const lineOutput = {
         pieces: []
       };
@@ -15568,8 +18199,8 @@ class BaseFormatter {
   }
 }
 class HtmlFormatter extends BaseFormatter {
-  typeFormattterErrorFormatter(context, err) {
-    context.out(`<pre class="jsondiffpatch-error">${err}</pre>`);
+  typeFormattterErrorFormatter(context, err2) {
+    context.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
   }
   formatValue(context, value) {
     context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
@@ -15577,8 +18208,8 @@ class HtmlFormatter extends BaseFormatter {
   formatTextDiffString(context, value) {
     const lines = this.parseTextDiff(value);
     context.out('<ul class="jsondiffpatch-textdiff">');
-    for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-      const line2 = lines[i2];
+    for (let i = 0, l2 = lines.length; i < l2; i++) {
+      const line2 = lines[i];
       context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
       const pieces = line2.pieces;
       for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
@@ -15671,8 +18302,8 @@ class HtmlFormatter extends BaseFormatter {
     context.out("</div>");
   }
 }
-function htmlEscape(text) {
-  let html2 = text;
+function htmlEscape(text2) {
+  let html = text2;
   const replacements = [
     [/&/g, "&amp;"],
     [/</g, "&lt;"],
@@ -15680,23 +18311,23 @@ function htmlEscape(text) {
     [/'/g, "&apos;"],
     [/"/g, "&quot;"]
   ];
-  for (let i2 = 0; i2 < replacements.length; i2++) {
-    html2 = html2.replace(replacements[i2][0], replacements[i2][1]);
+  for (let i = 0; i < replacements.length; i++) {
+    html = html.replace(replacements[i][0], replacements[i][1]);
   }
-  return html2;
+  return html;
 }
 const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
   const node = nodeArg || document;
   const getElementText = ({ textContent, innerText }) => textContent || innerText;
   const eachByQuery = (el, query, fn2) => {
     const elems = el.querySelectorAll(query);
-    for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
-      fn2(elems[i2]);
+    for (let i = 0, l2 = elems.length; i < l2; i++) {
+      fn2(elems[i]);
     }
   };
   const eachChildren = ({ children }, fn2) => {
-    for (let i2 = 0, l2 = children.length; i2 < l2; i2++) {
-      fn2(children[i2], i2);
+    for (let i = 0, l2 = children.length; i < l2; i++) {
+      fn2(children[i], i);
     }
   };
   eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children, style }) => {
@@ -15722,7 +18353,7 @@ const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
       const curve = distance > 0 ? `M30,0 Q-10,${Math.round(distance / 2)} 26,${distance - 4}` : `M30,${-distance} Q-10,${Math.round(-distance / 2)} 26,4`;
       path.setAttribute("d", curve);
       svg.style.display = "";
-    } catch (err) {
+    } catch (err2) {
     }
   });
 };
@@ -15862,10 +18493,10 @@ const synthesizeComparable = (changes) => {
 function setPath(target, path, value) {
   const keys = parsePath(path);
   let current = target;
-  for (let i2 = 0; i2 < keys.length - 1; i2++) {
-    const key2 = keys[i2];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key2 = keys[i];
     if (!(key2 in current)) {
-      current[key2] = isArrayIndex(keys[i2 + 1]) ? [] : {};
+      current[key2] = isArrayIndex(keys[i + 1]) ? [] : {};
     }
     current = current[key2];
   }
@@ -15875,9 +18506,9 @@ function setPath(target, path, value) {
 function initializeArrays(target, path) {
   const keys = parsePath(path);
   let current = target;
-  for (let i2 = 0; i2 < keys.length - 1; i2++) {
-    const key2 = keys[i2];
-    const nextKey = keys[i2 + 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key2 = keys[i];
+    const nextKey = keys[i + 1];
     if (isArrayIndex(nextKey)) {
       current[key2] = initializeArray(current[key2], nextKey);
     } else {
@@ -15912,7 +18543,7 @@ function initializeObject(current) {
 const StepEventView = ({ event, children, style }) => {
   const descriptor = stepDescriptor(event);
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-  const text = summarize(children);
+  const text2 = summarize(children);
   return m$1`<${EventPanel}
     id=${`step-${event.name}`}
     classes="transcript-step"
@@ -15921,7 +18552,7 @@ const StepEventView = ({ event, children, style }) => {
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}
     collapse=${false}
-    text=${text}
+    text=${text2}
   >
     <${TranscriptComponent}
       id=${`step-${event.name}-transcript`}
@@ -16080,9 +18711,9 @@ const Rendered = ({ values }) => {
     return values;
   }
 };
-const ModelTokenTable = ({ model_usage }) => {
+const ModelTokenTable = ({ model_usage, style }) => {
   return m$1`
-  <${TokenTable}>
+  <${TokenTable} style=${style}>
     <${TokenHeader}/>
     <tbody>
     ${Object.keys(model_usage).map((key2) => {
@@ -16092,10 +18723,15 @@ const ModelTokenTable = ({ model_usage }) => {
   </${TokenTable}>
   `;
 };
-const TokenTable = ({ children }) => {
+const TokenTable = ({ style, children }) => {
   return m$1`<table
     class="table table-sm"
-    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
+    style=${{
+    width: "100%",
+    fontSize: FontSize.smaller,
+    marginTop: "0.7rem",
+    ...style
+  }}
   >
     ${children}
   </table>`;
@@ -16269,10 +18905,10 @@ const duration = (stats) => {
   return formatTime(durationSec);
 };
 const ModelEventView = ({ id, event, style }) => {
-  var _a, _b;
-  const totalUsage = (_a = event.output.usage) == null ? void 0 : _a.total_tokens;
+  var _a2, _b2;
+  const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
   const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
-  const outputMessages = (_b = event.output.choices) == null ? void 0 : _b.map((choice) => {
+  const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
     return choice.message;
   });
   const entries = { ...event.config };
@@ -16447,27 +19083,35 @@ const LoggerEventView = ({ id, event, style }) => {
   </div>
   </${EventRow}>`;
 };
-const JSONPanel = ({ data, style }) => {
-  const sourceCode = JSON.stringify(data, void 0, 2);
+const kPrismRenderMaxSize = 25e4;
+const JSONPanel = ({ id, json, data, simple, style }) => {
+  const sourceCode = json || JSON.stringify(data, void 0, 2);
   const codeRef = A();
   if (codeRef.current) {
-    codeRef.current.innerHTML = Prism$1.highlight(
-      sourceCode,
-      Prism$1.languages.javascript,
-      "javacript"
-    );
+    if (sourceCode.length < kPrismRenderMaxSize) {
+      codeRef.current.innerHTML = Prism$1.highlight(
+        sourceCode,
+        Prism$1.languages.javascript,
+        "javacript"
+      );
+    } else {
+      const textNode = document.createTextNode(sourceCode);
+      codeRef.current.innerText = "";
+      codeRef.current.appendChild(textNode);
+    }
   }
   return m$1`<div>
     <pre
       style=${{
-    background: "var(--bs-light)",
+    background: simple ? void 0 : "var(--bs-light)",
     width: "100%",
     padding: "0.5em",
-    borderRadius: "var(--bs-border-radius)",
+    borderRadius: simple ? void 0 : "var(--bs-border-radius)",
     ...style
   }}
     >
     <code 
+      id=${id}
       ref=${codeRef}
       class="sourceCode-json" 
       style=${{
@@ -16581,7 +19225,7 @@ const decisionIcon = (decision) => {
   }
 };
 const ToolEventView = ({ id, event, style, depth }) => {
-  var _a;
+  var _a2;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
@@ -16590,7 +19234,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
     return e2.event === "approval";
   });
   const title = `Tool: ${event.function}`;
-  const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
+  const output = event.result || ((_a2 = event.error) == null ? void 0 : _a2.message);
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
     <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
@@ -16831,34 +19475,8 @@ function treeifyEvents(events, depth) {
   });
   return rootNodes;
 }
-const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const denormalizedEvents = resolveEventContent(evalEvents);
-  return m$1`<${TranscriptView} id=${id} events=${denormalizedEvents} />`;
-};
-const resolveEventContent = (evalEvents) => {
-  return (
-    /** @type {import("../types/log").Events} */
-    evalEvents.events.map((e2) => {
-      return resolveValue(e2, evalEvents);
-    })
-  );
-};
-const resolveValue = (value, evalEvents) => {
-  if (Array.isArray(value)) {
-    return value.map((v2) => resolveValue(v2, evalEvents));
-  } else if (value && typeof value === "object") {
-    const resolvedObject = {};
-    for (const key2 of Object.keys(value)) {
-      resolvedObject[key2] = resolveValue(value[key2], evalEvents);
-    }
-    return resolvedObject;
-  } else if (typeof value === "string") {
-    if (value.startsWith(kContentProtocol)) {
-      return evalEvents.content[value.replace(kContentProtocol, "")];
-    }
-  }
-  return value;
+  return m$1`<${TranscriptView} id=${id} events=${evalEvents} />`;
 };
 const SampleError = ({ message, align, style }) => {
   align = align || "center";
@@ -16921,7 +19539,7 @@ const errorType = (message) => {
   }
   return "Error";
 };
-const printHtml = (html2, css) => {
+const printHtml = (html, css) => {
   const printWindow = window.open("", "", "height=600,width=800");
   printWindow.document.write("<html><head><title>Print</title>");
   printWindow.document.write(`
@@ -16933,7 +19551,7 @@ const printHtml = (html2, css) => {
           </style>
         `);
   printWindow.document.write("</head><body>");
-  printWindow.document.write(html2);
+  printWindow.document.write(html);
   printWindow.document.write("</body></html>");
   printWindow.document.close();
   printWindow.onload = function() {
@@ -16954,76 +19572,110 @@ const printHeadingHtml = () => {
 </div>`;
   return headingHtml;
 };
+const kEvalWorkspaceTabId = "eval-tab";
+const kJsonWorkspaceTabId = "json-tab";
+const kInfoWorkspaceTabId = "plan-tab";
+const kSampleMessagesTabId = `sample-display-messages`;
+const kSampleTranscriptTabId = `sample-display-transcript`;
+const kSampleScoringTabId = `sample-display-scoring`;
+const kSampleMetdataTabId = `sample-display-metadata`;
+const kSampleErrorTabId = `sample-display-error`;
+const kSampleJsonTabId = `sample-display-json`;
+const kScoreTypePassFail = "passfail";
+const kScoreTypeCategorical = "categorical";
+const kScoreTypeNumeric = "numeric";
+const kScoreTypeOther = "other";
+const kScoreTypeObject = "object";
+const kSampleAscVal = "sample-asc";
+const kSampleDescVal = "sample-desc";
+const kEpochAscVal = "epoch-asc";
+const kEpochDescVal = "epoch-desc";
+const kScoreAscVal = "score-asc";
+const kScoreDescVal = "score-desc";
+const kDefaultSort = kSampleAscVal;
 const InlineSampleDisplay = ({
-  index,
   id,
   sample,
+  sampleStatus,
+  sampleError,
   sampleDescriptor,
+  selectedTab,
+  setSelectedTab,
   context
 }) => {
   return m$1`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "1em" }}
+    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      context=${context}
+    <${ProgressBar}
+      animating=${sampleStatus === "loading"}
+      containerStyle=${{
+    background: "var(--bs-body-bg)"
+  }}
     />
+    <div style=${{ height: "1em" }} />
+    ${sampleError ? m$1`<${ErrorPanel}
+          title="Unable to load sample"
+          error=${sampleError}
+        />` : m$1` <${SampleDisplay}
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+          context=${context}
+        />`}
   </div>`;
 };
 const SampleDisplay = ({
+  id,
   sample,
   sampleDescriptor,
   visible,
-  index,
+  selectedTab,
+  setSelectedTab,
   context
 }) => {
   const baseId = `sample-dialog`;
-  const msgTabId = `${baseId}-messages`;
-  const transcriptTabId = `${baseId}-transcript`;
-  const scoringTabId = `${baseId}-scoring`;
-  const metdataTabId = `${baseId}-metadata`;
-  const errorTabId = `${baseId}-error`;
+  if (!sample) {
+    return m$1`<${EmptyPanel} />`;
+  }
   y(() => {
     if (!visible) {
       setSelectedTab(void 0);
     } else {
       if (selectedTab === void 0) {
-        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        const defaultTab = sample.events && sample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
         setSelectedTab(defaultTab);
       }
     }
   }, [visible]);
-  const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
-    const id = e2.currentTarget.id;
-    setSelectedTab(id);
+    const id2 = e2.currentTarget.id;
+    setSelectedTab(id2);
     return false;
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId}>
       <${ChatView} 
-        key=${`${baseId}-chat-${index}`} 
-        id=${`${baseId}-chat-${index}`} 
+        key=${`${baseId}-chat-${id}`} 
+        id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
       />
     </${TabPanel}>`
   ];
-  if (sample.transcript && sample.transcript.events.length > 0) {
+  if (sample.events && sample.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
+      <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === kSampleTranscriptTabId || selectedTab === void 0} scrollable=${false}>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -17048,7 +19700,7 @@ const SampleDisplay = ({
     }
   }
   const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${index}`,
+    `${baseId}-${id}`,
     sample,
     context
   );
@@ -17056,13 +19708,13 @@ const SampleDisplay = ({
     tabs.push(
       m$1`
       <${TabPanel} 
-          id=${metdataTabId} 
+          id=${kSampleMetdataTabId} 
           classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === metdataTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-        ${sampleMetadatas}
+          selected=${selectedTab === kSampleMetdataTabId}>
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+          ${sampleMetadatas}
         </div>
       </${TabPanel}>`
     );
@@ -17071,18 +19723,28 @@ const SampleDisplay = ({
     tabs.push(
       m$1`
       <${TabPanel} 
-          id=${errorTabId} 
+          id=${kSampleErrorTabId} 
           classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === errorTabId}>
+          selected=${selectedTab === kSampleErrorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
       </${TabPanel}>`
     );
   }
-  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  tabs.push(m$1`<${TabPanel} 
+          id=${kSampleJsonTabId} 
+          classes="sample-tab"
+          title="JSON" 
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === kSampleJsonTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${JSONPanel} data=${sample} simple=${true}/>
+        </div>
+      </${TabPanel}>`);
+  const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
   const printSample = () => {
     const targetTabEl = document.querySelector(
@@ -17091,7 +19753,7 @@ const SampleDisplay = ({
     if (targetTabEl) {
       const targetEl = targetTabEl.firstElementChild;
       if (targetEl) {
-        const headingId = `sample-heading-${sample.id}`;
+        const headingId = `sample-heading-${id}`;
         const headingEl = document.getElementById(headingId);
         const headingHtml = printHeadingHtml();
         const css = `
@@ -17149,7 +19811,7 @@ const SampleDisplay = ({
     );
   }
   return m$1`<${SampleSummary}
-    id=${sample.id}
+    id=${id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
@@ -17164,28 +19826,48 @@ const SampleDisplay = ({
   </${TabSet}>`;
 };
 const metadataViewsForSample = (id, sample, context) => {
-  var _a, _b, _c;
   const sampleMetadatas = [];
+  if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
+    sampleMetadatas.push(m$1`
+      <${Card}>
+        <${CardHeader} label="Usage"/>
+        <${CardBody}>
+          <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+        </${CardBody}>
+      </${Card}>`);
+  }
   if (Object.keys(sample == null ? void 0 : sample.metadata).length > 0) {
     sampleMetadatas.push(
-      m$1` <${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample == null ? void 0 : sample.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`
+      m$1`
+      <${Card}>
+        <${CardHeader} label="Metadata"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-metadata-${id}"
+            classes="tab-pane"
+            entries="${sample == null ? void 0 : sample.metadata}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+        </${Card}>`
     );
   }
-  if (((_a = sample == null ? void 0 : sample.score) == null ? void 0 : _a.metadata) && Object.keys((_b = sample == null ? void 0 : sample.score) == null ? void 0 : _b.metadata).length > 0) {
+  if (Object.keys(sample == null ? void 0 : sample.store).length > 0) {
     sampleMetadatas.push(
-      m$1`<${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`
+      m$1`
+      <${Card}>
+        <${CardHeader} label="Store"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-store-${id}"
+            classes="tab-pane"
+            entries="${sample == null ? void 0 : sample.store}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+      </${Card}>`
     );
   }
   return sampleMetadatas;
@@ -17194,7 +19876,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
@@ -17291,22 +19973,21 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     </div>
   `;
 };
-const SampleDialog = (props) => {
-  const {
-    id,
-    index,
-    title,
-    sample,
-    sampleDescriptor,
-    nextSample,
-    prevSample,
-    sampleDialogVisible,
-    hideSample,
-    context
-  } = props;
-  if (!sample) {
-    return m$1`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
-  }
+const SampleDialog = ({
+  id,
+  title,
+  sample,
+  sampleDescriptor,
+  nextSample,
+  prevSample,
+  sampleStatus,
+  sampleError,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedTab,
+  setSelectedTab,
+  context
+}) => {
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
@@ -17339,7 +20020,7 @@ const SampleDialog = (props) => {
           }
           break;
         case "Escape":
-          hideSample();
+          setShowingSampleDialog(false);
           break;
       }
     },
@@ -17351,16 +20032,21 @@ const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
-      visible=${sampleDialogVisible}
-      onHide=${hideSample}
+      visible=${showingSampleDialog}
+      onHide=${() => {
+    setShowingSampleDialog(false);
+  }}
+      showProgress=${sampleStatus === "loading"}
     >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      visible=${sampleDialogVisible}
-      context=${context}/>
+        ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
+                id=${id}
+                sample=${sample}
+                sampleDescriptor=${sampleDescriptor}
+                visible=${showingSampleDialog}
+                selectedTab=${selectedTab}
+                setSelectedTab=${setSelectedTab}
+                context=${context}
+              />`}
     </${LargeModal}>`;
 };
 const STYLE_INNER = "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -17528,16 +20214,16 @@ const SampleList = (props) => {
       }
     }
   }, [selectedIndex, rowMap, listRef]);
-  const renderRow = (item, index) => {
+  const renderRow = (item) => {
     if (item.type === "sample") {
       return m$1`
         <${SampleRow}
           id=${item.number}
-          index=${index}
+          index=${item.index}
           sample=${item.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === index}
+          selected=${selectedIndex === item.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
@@ -17707,7 +20393,7 @@ const SampleRow = ({
     ...cellStyle
   }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"
@@ -17765,22 +20451,26 @@ const gridColumns = (sampleDescriptor) => {
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
   return { input, target, answer };
 };
-const SamplesTab = (props) => {
-  const {
-    task,
-    model,
-    samples,
-    sampleDescriptor,
-    filter,
-    sort: sort$1,
-    epoch,
-    context,
-    selectedScore
-    //setSelectedScore,
-  } = props;
-  const [selectedIndex, setSelectedIndex] = h(0);
-  const [filteredSamples, setFilteredSamples] = h([]);
+const SamplesTab = ({
+  task_id,
+  sample,
+  samples,
+  groupBy,
+  groupByOrder,
+  sampleDescriptor,
+  selectedScore,
+  sampleStatus,
+  sampleError,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
+  context
+}) => {
   const [items, setItems] = h([]);
+  const [sampleItems, setSampleItems] = h([]);
   const sampleListRef = A(
     /** @type {HTMLElement|null} */
     null
@@ -17789,97 +20479,83 @@ const SamplesTab = (props) => {
     /** @type {HTMLElement|null} */
     null
   );
-  const [sampleDialogVisible, setSampleDialogVisible] = h(false);
-  y(() => {
-    setFilteredSamples(
-      (samples || []).filter((sample) => {
-        if (epoch && epoch !== "all") {
-          if (epoch !== sample.epoch + "") {
-            return false;
-          }
-        }
-        if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample, filter.value);
-        } else {
-          return true;
-        }
-      })
-    );
-  }, [samples, filter, sort$1, epoch]);
   const showSample = q(() => {
-    setSampleDialogVisible(true);
-    setTimeout(() => {
-      sampleDialogRef.current.base.focus();
-    }, 0);
-  }, [setSampleDialogVisible, sampleDialogRef]);
-  const hideSample = q(() => {
-    setSampleDialogVisible(false);
-  }, [setSampleDialogVisible]);
+    setShowingSampleDialog(true);
+  }, [sampleDialogRef]);
   y(() => {
-    const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
+    if (showingSampleDialog) {
+      setTimeout(() => {
+        sampleDialogRef.current.base.focus();
+      }, 0);
+    } else {
+      setTimeout(() => {
+        if (sampleListRef.current) {
+          sampleListRef.current.base.focus();
+        }
+      }, 0);
+    }
+  }, [showingSampleDialog]);
+  y(() => {
     const sampleProcessor = getSampleProcessor(
-      filteredSamples,
-      sort$1,
-      epoch,
-      order2,
+      samples,
+      groupBy,
+      groupByOrder,
       sampleDescriptor
     );
-    const items2 = sorted.flatMap((sample, index) => {
+    const items2 = samples.flatMap((sample2, index2) => {
       const results = [];
-      const previousSample2 = index !== 0 ? sorted[index - 1] : void 0;
-      const items3 = sampleProcessor(sample, index, previousSample2);
+      const previousSample2 = index2 !== 0 ? samples[index2 - 1] : void 0;
+      const items3 = sampleProcessor(sample2, index2, previousSample2);
       results.push(...items3);
       return results;
     });
     setItems(items2);
-    const firstSample = items2.findIndex((val) => {
-      return val.type === "sample";
-    });
+    setSampleItems(
+      items2.filter((item) => {
+        return item.type === "sample";
+      })
+    );
     if (items2.length) {
-      setSelectedIndex(firstSample);
+      setSelectedSampleIndex(0);
     }
-    return items2;
-  }, [filteredSamples, sort$1, epoch, sampleDescriptor]);
+  }, [samples, groupBy, groupByOrder, sampleDescriptor]);
   y(() => {
-    hideSample();
+    setShowingSampleDialog(false);
   }, [items]);
   const nextSampleIndex = q(() => {
-    for (let i2 = selectedIndex + 1; i2 < items.length; i2++) {
-      if (items[i2].type === "sample") {
-        return i2;
-      }
+    if (selectedSampleIndex < sampleItems.length - 1) {
+      return selectedSampleIndex + 1;
+    } else {
+      return -1;
     }
-    return -1;
-  }, [selectedIndex, items]);
+  }, [selectedSampleIndex, items]);
   const previousSampleIndex = q(() => {
-    for (let i2 = selectedIndex - 1; i2 >= 0; i2--) {
-      if (items[i2].type === "sample") {
-        return i2;
-      }
-    }
-    return -1;
-  }, [selectedIndex, items]);
+    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
+  }, [selectedSampleIndex, items]);
   const nextSample = q(() => {
     const next = nextSampleIndex();
-    if (next > -1) {
-      setSelectedIndex(next);
+    if (sampleStatus !== "loading" && next > -1) {
+      setSelectedSampleIndex(next);
     }
-  }, [selectedIndex, filteredSamples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
   const previousSample = q(() => {
     const prev = previousSampleIndex();
-    if (prev > -1) {
-      setSelectedIndex(prev);
+    if (sampleStatus !== "loading" && prev > -1) {
+      setSelectedSampleIndex(prev);
     }
-  }, [selectedIndex, filteredSamples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
   const elements = [];
-  if ((samples == null ? void 0 : samples.length) === 1 && items.length === 1) {
+  if ((samples == null ? void 0 : samples.length) === 1) {
     elements.push(
       m$1` <${InlineSampleDisplay}
-        index="0"
-        key=${`${task}-single-sample`}
+        key=${`${task_id}-single-sample`}
         id="sample-display"
-        sample=${samples[0]}
+        sample=${sample}
+        sampleStatus=${sampleStatus}
+        sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
+        selectedTab=${selectedSampleTab}
+        setSelectedTab=${setSelectedSampleTab}
         context=${context}
       />`
     );
@@ -17889,8 +20565,8 @@ const SamplesTab = (props) => {
         listRef=${sampleListRef}
         items=${items}
         sampleDescriptor=${sampleDescriptor}
-        selectedIndex=${selectedIndex}
-        setSelectedIndex=${setSelectedIndex}
+        selectedIndex=${selectedSampleIndex}
+        setSelectedIndex=${setSelectedSampleIndex}
         selectedScore=${selectedScore}
         nextSample=${nextSample}
         prevSample=${previousSample}
@@ -17898,33 +20574,38 @@ const SamplesTab = (props) => {
       />`
     );
   }
+  const title = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
+  const index = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].index : -1;
   elements.push(m$1`
     <${SampleDialog}
+      id=${(sample == null ? void 0 : sample.id) || ""}
       ref=${sampleDialogRef}
-      task=${task}
-      model=${model}
-      title=${items.length > 0 ? items[selectedIndex].label : void 0}
-      index=${items.length > 0 ? items[selectedIndex].number : void 0}
-      sample=${items.length > 0 ? items[selectedIndex].data : void 0}
+      task=${task_id}
+      title=${title}
+      index=${index}
+      sample=${sample}
+      sampleStatus=${sampleStatus}
+      sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
+      showingSampleDialog=${showingSampleDialog}
+      setShowingSampleDialog=${setShowingSampleDialog}
+      selectedTab=${selectedSampleTab}
+      setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      sampleDialogVisible=${sampleDialogVisible}
-      hideSample=${hideSample}
       context=${context}
     />
   `);
   return elements;
 };
-const getSampleProcessor = (samples, sort2, epoch, order2, sampleDescriptor) => {
-  if ((sampleDescriptor == null ? void 0 : sampleDescriptor.epochs) > 1) {
-    if (byEpoch(sort2) || epoch !== "all") {
-      return groupByEpoch(samples, sampleDescriptor, order2);
-    } else if (bySample(sort2)) {
-      return groupBySample(samples, sampleDescriptor, order2);
-    }
+const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
+  if (groupBy == "epoch") {
+    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+  } else if (groupBy === "sample") {
+    return groupBySample(samples, sampleDescriptor, groupByOrder);
+  } else {
+    return noGrouping(samples, groupByOrder);
   }
-  return noGrouping(samples, order2);
 };
 const noGrouping = (samples, order2) => {
   const counter = getCounter(samples.length, 1, order2);
@@ -17944,7 +20625,19 @@ const noGrouping = (samples, order2) => {
 };
 const groupBySample = (samples, sampleDescriptor, order2) => {
   samples = samples.sort((a2, b2) => {
-    return ("" + a2.id).localeCompare(b2.id);
+    if (typeof a2.id === "string") {
+      if (order2 === "asc") {
+        return String(a2.id).localeCompare(String(b2.id));
+      } else {
+        return String(b2.id).localeCompare(String(a2.id));
+      }
+    } else {
+      if (order2 === "asc") {
+        return Number(a2.id) - Number(b2.id);
+      } else {
+        return Number(b2.id) - Number(b2.id);
+      }
+    }
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
@@ -18032,872 +20725,7 @@ const getCounter = (itemCount, groupCount, order2) => {
     }
   };
 };
-const EpochFilter = ({ epochs, epoch, setEpoch }) => {
-  const options = ["all"];
-  for (let i2 = 1; i2 <= epochs; i2++) {
-    options.push(i2 + "");
-  }
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="epoch-filter-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Epochs:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".epoch-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${epoch}
-        onChange=${(e2) => {
-    setEpoch(e2.target.value);
-  }}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option}">${option}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const SampleFilter = ({ descriptor, filter, filterChanged }) => {
-  var _a;
-  const filterCategory = (e2) => {
-    const val = e2.currentTarget.value;
-    if (val === "all") {
-      filterChanged({
-        value: void 0,
-        filterFn: void 0
-      });
-    } else {
-      filterChanged({
-        value: val,
-        filterFn: (sample, value) => {
-          const score = descriptor.selectedScore(sample);
-          if (typeof score.value === "string") {
-            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-          } else if (typeof score.value === "object") {
-            return JSON.stringify(score.value) == value;
-          } else {
-            return score.value === value;
-          }
-        }
-      });
-    }
-  };
-  const filterInput = (e2) => {
-    filterChanged({
-      value: e2.currentTarget.value,
-      filterFn: filterText(descriptor)
-    });
-  };
-  switch ((_a = descriptor == null ? void 0 : descriptor.scoreDescriptor) == null ? void 0 : _a.scoreType) {
-    case kScoreTypePassFail: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.val };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    case kScoreTypeCategorical: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat, value: cat };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    case kScoreTypeNumeric: {
-      return m$1`
-        <input
-          type="text"
-          class="form-control"
-          value=${filter.value}
-          placeholder="Filter Samples (score)"
-          style=${{ width: "150px" }}
-          onInput=${filterInput}
-        />
-      `;
-    }
-    case kScoreTypeObject: {
-      if (!descriptor.scoreDescriptor.categories) {
-        return "";
-      }
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.value };
-        })
-      );
-      return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        filterFn=${filterCategory}
-      />`;
-    }
-    default: {
-      return void 0;
-    }
-  }
-};
-const SelectFilter = ({ value, options, filterFn }) => {
-  return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sample-label"
-        style=${{
-    alignSelf: "center",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    marginRight: "0.3em",
-    marginLeft: "0.2em"
-  }}
-        >Scores:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sample-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${value}
-        onChange=${filterFn}
-      >
-        ${options.map((option) => {
-    return m$1`<option value="${option.value}">${option.text}</option>`;
-  })}
-      </select>
-    </div>
-  `;
-};
-const filterText = (descriptor) => {
-  return (sample, value) => {
-    const score = descriptor.selectedScore(sample);
-    if (!value) {
-      return true;
-    } else {
-      if (isNumeric(value)) {
-        if (typeof score.value === "number") {
-          return score.value === Number(value);
-        } else {
-          return Number(score.value) === Number(value);
-        }
-      } else {
-        const filters = [
-          {
-            prefix: ">=",
-            fn: (score2, val) => {
-              return score2 >= val;
-            }
-          },
-          {
-            prefix: "<=",
-            fn: (score2, val) => {
-              return score2 <= val;
-            }
-          },
-          {
-            prefix: ">",
-            fn: (score2, val) => {
-              return score2 > val;
-            }
-          },
-          {
-            prefix: "<",
-            fn: (score2, val) => {
-              return score2 < val;
-            }
-          },
-          {
-            prefix: "=",
-            fn: (score2, val) => {
-              return score2 === val;
-            }
-          },
-          {
-            prefix: "!=",
-            fn: (score2, val) => {
-              return score2 !== val;
-            }
-          }
-        ];
-        for (const filter of filters) {
-          if (value == null ? void 0 : value.startsWith(filter.prefix)) {
-            const val = value.slice(filter.prefix.length).trim();
-            if (!val) {
-              return true;
-            }
-            const num = Number(val);
-            return filter.fn(score.value, num);
-          }
-        }
-        if (typeof score.value === "string") {
-          return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-        } else {
-          return score.value === value;
-        }
-      }
-    }
-  };
-};
-const SelectScorer = ({ scores, score, setScore }) => {
-  const scorers = scores.reduce((accum, scorer) => {
-    if (!accum.find((sc) => {
-      return scorer.scorer === sc.scorer;
-    })) {
-      accum.push(scorer);
-    }
-    return accum;
-  }, []);
-  if (scorers.length === 1) {
-    return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-      alignSelf: "center",
-      fontSize: FontSize.smaller,
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-          >Score:</span
-        >
-        <${ScoreSelector}
-          scores=${scores}
-          selectedIndex=${scoreIndex(score, scores)}
-          selectedIndexChanged=${(index) => {
-      setScore(scores[index]);
-    }}
-        />
-      </div>
-    `;
-  } else {
-    const scorerScores = scores.filter((sc) => {
-      return sc.scorer === score.scorer;
-    });
-    const selectors = [
-      m$1`<${ScorerSelector}
-        scorers=${scorers}
-        selectedIndex=${scorerIndex(score, scorers)}
-        selectedIndexChanged=${(index) => {
-        setScore(scorers[index]);
-      }}
-      />`
-    ];
-    if (scorerScores.length > 1) {
-      selectors.push(
-        m$1`<${ScoreSelector}
-          style=${{ marginLeft: "1em" }}
-          scores=${scorerScores}
-          selectedIndex=${scoreIndex(score, scorerScores)}
-          selectedIndexChanged=${(index) => {
-          setScore(scorerScores[index]);
-        }}
-        />`
-      );
-    }
-    return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-      alignSelf: "center",
-      fontSize: FontSize.smaller,
-      ...TextStyle.label,
-      ...TextStyle.secondary,
-      marginRight: "0.3em",
-      marginLeft: "0.2em"
-    }}
-          >Scorer:</span
-        >
-        ${selectors}
-      </div>
-    `;
-  }
-};
-const ScoreSelector = ({
-  scores,
-  selectedIndex,
-  selectedIndexChanged,
-  style
-}) => {
-  return m$1`<select
-    class="form-select form-select-sm"
-    aria-label=".select-scorer-label"
-    style=${{ fontSize: FontSize.smaller, ...style }}
-    value=${scores[selectedIndex].name}
-    onChange=${(e2) => {
-    selectedIndexChanged(e2.target.selectedIndex);
-  }}
-  >
-    ${scores.map((score) => {
-    return m$1`<option value="${score.name}">${score.name}</option>`;
-  })}
-  </select>`;
-};
-const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
-  return m$1`<select
-    class="form-select form-select-sm"
-    aria-label=".epoch-filter-label"
-    style=${{ fontSize: FontSize.smaller }}
-    value=${scorers[selectedIndex].scorer}
-    onChange=${(e2) => {
-    selectedIndexChanged(e2.target.selectedIndex);
-  }}
-  >
-    ${scorers.map((scorer) => {
-    return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
-  })}
-  </select>`;
-};
-const scoreIndex = (score, scores) => scores.findIndex((sc) => {
-  return sc.name === score.name && sc.scorer === score.scorer;
-});
-const scorerIndex = (score, scores) => scores.findIndex((sc) => {
-  return sc.scorer === score.scorer;
-});
-const SampleTools = (props) => {
-  const {
-    epoch,
-    setEpoch,
-    filter,
-    filterChanged,
-    sort: sort2,
-    setSort,
-    epochs,
-    sampleDescriptor,
-    score,
-    setScore,
-    scores
-  } = props;
-  const hasEpochs = epochs > 1;
-  const tools = [];
-  if (scores.length > 1) {
-    tools.push(
-      m$1`<${SelectScorer}
-        scores=${scores}
-        score=${score}
-        setScore=${setScore}
-      />`
-    );
-  }
-  if (hasEpochs) {
-    tools.push(
-      m$1`<${EpochFilter}
-        epoch=${epoch}
-        setEpoch="${setEpoch}"
-        epochs=${epochs}
-      />`
-    );
-  }
-  tools.push(
-    m$1`<${SampleFilter}
-      filter=${filter}
-      filterChanged=${filterChanged}
-      descriptor=${sampleDescriptor}
-    />`
-  );
-  tools.push(
-    m$1`<${SortFilter}
-      sampleDescriptor=${sampleDescriptor}
-      sort=${sort2}
-      setSort=${setSort}
-      epochs=${hasEpochs}
-    />`
-  );
-  return tools;
-};
-const CopyButton = ({ value }) => {
-  return m$1`<button
-    class="copy-button"
-    style=${{
-    border: "none",
-    backgroundColor: "inherit",
-    opacity: "0.5",
-    paddingTop: "0px"
-  }}
-    data-clipboard-text=${value}
-    onclick=${(e2) => {
-    const iEl = e2.target;
-    if (iEl) {
-      iEl.className = `${ApplicationIcons.confirm} primary`;
-      setTimeout(() => {
-        iEl.className = ApplicationIcons.copy;
-      }, 1250);
-    }
-    return false;
-  }}
-  >
-    <i class=${ApplicationIcons.copy}></i>
-  </button>`;
-};
-const LabeledValue = ({
-  label,
-  style,
-  valueStyle,
-  layout = "column",
-  children
-}) => {
-  const flexDirection = layout === "column" ? "column" : "row";
-  return m$1` <div
-    style=${{
-    display: "flex",
-    flexDirection,
-    ...style
-  }}
-  >
-    <div
-      style=${{
-    fontSize: FontSize.smaller,
-    marginBottom: "-0.2rem",
-    ...TextStyle.secondary,
-    ...TextStyle.label
-  }}
-    >
-      ${label}
-    </div>
-    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
-  </div>`;
-};
-const SecondaryBar = ({ log, status, style }) => {
-  var _a, _b, _c;
-  if (!log || status !== "success") {
-    return "";
-  }
-  const staticColStyle = {
-    flexShrink: "0"
-  };
-  const epochs = log.eval.config.epochs || 1;
-  const hyperparameters = {
-    ...log.plan.config,
-    ...log.eval.task_args
-  };
-  const hasConfig = Object.keys(hyperparameters).length > 0;
-  const values = [];
-  values.push({
-    size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
-    <${DatasetSummary}
-      dataset=${(_a = log.eval) == null ? void 0 : _a.dataset}
-      samples=${log.samples}
-      epochs=${epochs} />
-  </${LabeledValue}>
-`
-  });
-  const label = ((_b = log == null ? void 0 : log.results) == null ? void 0 : _b.scores.length) > 1 ? "Scorers" : "Scorer";
-  values.push({
-    size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
-    <${ScorerSummary} 
-      scorers=${(_c = log == null ? void 0 : log.results) == null ? void 0 : _c.scores} />
-  </${LabeledValue}>`
-  });
-  if (hasConfig) {
-    values.push({
-      size: "minmax(12%, auto)",
-      value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
-      <${ParamSummary} params=${hyperparameters}/>
-    </${LabeledValue}>`
-    });
-  }
-  return m$1`
-    <div
-      style=${{
-    margin: "0",
-    padding: "0.2em 1em 0.2em 1em",
-    display: "grid",
-    gridColumnGap: "1em",
-    borderTop: "1px solid var(--bs-border-color)",
-    gridTemplateColumns: `${values.map((val) => {
-      return val.size;
-    }).join(" ")}`,
-    ...style
-  }}
-    >
-      ${values.map((val) => {
-    return val.value;
-  })}
-    </div>
-  `;
-};
-const DatasetSummary = ({ dataset, samples, epochs, style }) => {
-  if (!dataset) {
-    return "";
-  }
-  return m$1`
-    <div style=${style}>
-      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
-    </div>
-  `;
-};
-const ScorerSummary = ({ scorers }) => {
-  if (!scorers) {
-    return "";
-  }
-  const uniqScorers = /* @__PURE__ */ new Set();
-  scorers.forEach((scorer) => {
-    uniqScorers.add(scorer.name);
-  });
-  return Array.from(uniqScorers).join(", ");
-};
-const ParamSummary = ({ params }) => {
-  if (!params) {
-    return "";
-  }
-  const paraValues = Object.keys(params).map((key2) => {
-    return `${key2}: ${params[key2]}`;
-  });
-  if (paraValues.length > 0) {
-    return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
-      >${paraValues.join(", ")}</code
-    >`;
-  } else {
-    return "";
-  }
-};
-const Navbar = ({ file, logs, log, offcanvas }) => {
-  var _a, _b, _c;
-  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
-  const logFileName = file ? filename(file) : "";
-  const task = (_a = log == null ? void 0 : log.eval) == null ? void 0 : _a.task;
-  const model = (_b = log == null ? void 0 : log.eval) == null ? void 0 : _b.model;
-  const results = log == null ? void 0 : log.results;
-  const samples = log == null ? void 0 : log.samples;
-  const status = log == null ? void 0 : log.status;
-  const created = (_c = log == null ? void 0 : log.eval) == null ? void 0 : _c.created;
-  let statusPanel;
-  if (status === "success") {
-    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
-  } else if (status === "cancelled") {
-    statusPanel = m$1`<${CanceledPanel}
-      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
-    />`;
-  } else if (status === "started") {
-    statusPanel = m$1`<${RunningPanel} />`;
-  }
-  const navbarContents = logFileName ? m$1` <div
-          class="navbar-brand navbar-text mb-0"
-          style=${{
-    display: "flex",
-    paddingTop: 0,
-    marginLeft: "0.5rem",
-    minWidth: "250px"
-  }}
-        >
-          ${logs.files.length > 1 || logs.log_dir ? m$1`<button
-                id="sidebarToggle"
-                class="btn${toggleOffCanClass}"
-                type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
-                style=${{
-    padding: "0rem 0.1rem 0.1rem 0rem",
-    display: "flex"
-  }}
-              >
-                <i class=${ApplicationIcons.menu}></i>
-              </button> ` : ""}
-          <div
-            style=${{
-    display: "flex",
-    flexDirection: "column",
-    marginLeft: "0.2rem"
-  }}
-          >
-            <div
-              style=${{
-    marginTop: "0.1rem",
-    display: "grid",
-    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
-  }}
-            >
-              <div
-                id="task-title"
-                style=${{
-    fontWeight: 600,
-    marginRight: "0.3rem",
-    ...ApplicationStyles.wrapText()
-  }}
-                class="task-title"
-                title=${task}
-              >
-                ${task}
-              </div>
-              <div
-                id="task-model"
-                style=${{
-    fontSize: FontSize.base,
-    paddingTop: "0.4rem",
-    ...ApplicationStyles.wrapText()
-  }}
-                class="task-model"
-                title=${model}
-              >
-                ${model}
-              </div>
-            </div>
-            <div
-              style=${{
-    opacity: "0.7",
-    marginTop: "0.1rem",
-    paddingBottom: 0,
-    fontSize: FontSize.small,
-    display: "grid",
-    gridTemplateColumns: "minmax(0,max-content) max-content"
-  }}
-            >
-              <div
-                class="navbar-secondary-text"
-                style=${{
-    ...ApplicationStyles.wrapText()
-  }}
-              >
-                ${logFileName}
-              </div>
-              <${CopyButton} value=${file} />
-            </div>
-          </div>
-        </div>
-
-        <div id="task-created" style=${{ display: "none" }}>${created}</div>
-
-        <div
-          class="navbar-text"
-          style=${{
-    justifyContent: "end",
-    marginRight: "1em",
-    marginBottom: "0"
-  }}
-        >
-          ${statusPanel}
-        </div>` : "";
-  return m$1`
-    <nav
-      class="navbar sticky-top"
-      style=${{
-    flexWrap: "nowrap"
-  }}
-    >
-      <div
-        style=${{
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    width: "100%"
-  }}
-      >
-        ${navbarContents}
-        <${SecondaryBar}
-          log=${log}
-          status=${status}
-          style=${{ gridColumn: "1/-1" }}
-        />
-      </div>
-    </nav>
-  `;
-};
-const CanceledPanel = ({ sampleCount }) => {
-  return m$1`<div
-    style=${{
-    padding: "1em",
-    marginTop: "0.5em",
-    textTransform: "uppercase",
-    fontSize: FontSize.smaller
-  }}
-  >
-    <i
-      class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large }}
-    />
-    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
-  </div>`;
-};
-const RunningPanel = () => {
-  return m$1`
-    <div
-      style=${{
-    marginTop: "0.5em",
-    display: "inline-grid",
-    gridTemplateColumns: "max-content max-content"
-  }}
-    >
-      <div>
-        <i class=${ApplicationIcons.running} />
-      </div>
-      <div
-        style=${{
-    marginLeft: "0.3em",
-    paddingTop: "0.2em",
-    fontSize: FontSize.smaller,
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        Running
-      </div>
-    </div>
-  `;
-};
-const ResultsPanel = ({ results }) => {
-  var _a, _b;
-  if (((_a = results == null ? void 0 : results.scores) == null ? void 0 : _a.length) === 1) {
-    const scorers = {};
-    results.scores.map((score) => {
-      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
-        return {
-          name: key2,
-          value: score.metrics[key2].value,
-          reducer: score.reducer
-        };
-      });
-    });
-    const metrics = Object.values(scorers)[0];
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center"
-    }}
-    >
-      ${metrics.map((metric, i2) => {
-      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i2 === 0} />`;
-    })}
-    </div>`;
-  } else {
-    return m$1`<div
-      style=${{
-      display: "flex",
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "end",
-      height: "100%",
-      alignItems: "center",
-      marginTop: "0.2rem",
-      paddingBottom: "0.4rem",
-      rowGap: "1em"
-    }}
-    >
-      ${(_b = results == null ? void 0 : results.scores) == null ? void 0 : _b.map((score, index) => {
-      return m$1`<${MultiScorerMetric}
-          scorer=${score}
-          isFirst=${index === 0}
-        />`;
-    })}
-    </div>`;
-  }
-};
-const VerticalMetric = ({ metric, isFirst }) => {
-  const reducer_component = metric.reducer ? m$1` <div
-        style=${{
-    fontSize: FontSize.smaller,
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.3rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        ${metric.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
-    <div
-      class="vertical-metric-label"
-      style=${{
-    fontSize: FontSize.smaller,
-    ...TextStyle.secondary,
-    textAlign: "center",
-    paddingTop: "0.3rem",
-    marginBottom: "-0.2rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary,
-    borderBottom: "solid var(--bs-border-color) 1px"
-  }}
-    >
-      ${metric.name}
-    </div>
-    ${reducer_component}
-    <div
-      class="vertical-metric-value"
-      style=${{
-    fontSize: FontSize.larger,
-    fontWeight: "500",
-    textAlign: "center"
-  }}
-    >
-      ${formatPrettyDecimal(metric.value)}
-    </div>
-  </div>`;
-};
-const MultiScorerMetric = ({ scorer, isFirst }) => {
-  const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
-  const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
-  const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
-  const reducer_component = scorer.reducer ? m$1`<div
-        style=${{
-    fontSize: reducerFontSize,
-    textAlign: "center",
-    marginBottom: "-0.3rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      >
-        ${scorer.reducer}
-      </div>` : "";
-  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
-    <div
-      style=${{
-    fontSize: titleFontSize,
-    textAlign: "center",
-    borderBottom: "solid var(--bs-border-color) 1px",
-    marginBottom: "-0.1rem",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-      class="multi-score-label"
-    >
-      ${scorer.name}
-    </div>
-    ${reducer_component}
-    <div
-      style=${{
-    display: "grid",
-    gridTemplateColumns: "auto auto",
-    gridColumnGap: "0.3rem",
-    gridRowGap: "0",
-    fontSize: valueFontSize
-  }}
-    >
-      ${Object.keys(scorer.metrics).map((key2) => {
-    const metric = scorer.metrics[key2];
-    return m$1` <div>${metric.name}</div>
-          <div style=${{ fontWeight: "600" }}>
-            ${formatPrettyDecimal(metric.value)}
-          </div>`;
-  })}
-    </div>
-  </div>`;
-};
-const asyncJsonParse = async (text) => {
+const asyncJsonParse = async (text2) => {
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
   const blobURL = URL.createObjectURL(blob);
   const worker = new Worker(blobURL);
@@ -18910,11 +20738,11 @@ const asyncJsonParse = async (text) => {
           reject(new Error(e2.data.error));
         }
       };
-      worker.onerror = function(error) {
-        reject(new Error(error.message));
+      worker.onerror = function(error2) {
+        reject(new Error(error2.message));
       };
     });
-    worker.postMessage({ scriptContent: kJson5ScriptBase64, text });
+    worker.postMessage({ scriptContent: kJson5ScriptBase64, text: text2 });
     return await result;
   } finally {
     worker.terminate();
@@ -18933,7 +20761,7 @@ self.onmessage = function (e) {
   }
 };`;
 const kJson5ScriptBase64 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
-async function download_file$1(_logfile, filename2, filecontents) {
+async function download_file$1(filename2, filecontents) {
   const blob = new Blob([filecontents], { type: "text/plain" });
   const link2 = document.createElement("a");
   link2.href = URL.createObjectURL(blob);
@@ -18946,8 +20774,8 @@ const loaded_time = Date.now();
 let last_eval_time = 0;
 async function client_events$1() {
   const params = new URLSearchParams();
-  params.append("loaded_time", loaded_time.valueOf());
-  params.append("last_eval_time", last_eval_time.valueOf());
+  params.append("loaded_time", String(loaded_time.valueOf()));
+  params.append("last_eval_time", String(last_eval_time.valueOf()));
   return (await api$1("GET", `/api/events?${params.toString()}`)).parsed;
 }
 async function eval_logs$1() {
@@ -18956,7 +20784,19 @@ async function eval_logs$1() {
   return logs.parsed;
 }
 async function eval_log$1(file, headerOnly) {
-  return await api$1("GET", `/api/logs/${file}?header-only=${headerOnly}`);
+  return await api$1(
+    "GET",
+    `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`
+  );
+}
+async function eval_log_size$1(file) {
+  return (await api$1("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
+}
+async function eval_log_bytes$1(file, start2, end2) {
+  return await api_bytes(
+    "GET",
+    `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`
+  );
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -18974,15 +20814,34 @@ async function api$1(method, path, body) {
   };
   const response = await fetch(`${path}`, { method, headers, body });
   if (response.ok) {
-    const text = await response.text();
+    const text2 = await response.text();
     return {
-      parsed: await asyncJsonParse(text),
-      raw: text
+      parsed: await asyncJsonParse(text2),
+      raw: text2
     };
   } else if (response.status !== 200) {
     const message = await response.text() || response.statusText;
-    const error = new Error(`Error: ${response.status}: ${message})`);
-    throw error;
+    const error2 = new Error(`Error: ${response.status}: ${message})`);
+    throw error2;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+async function api_bytes(method, path) {
+  const headers = {
+    Accept: "application/octet-stream",
+    Pragma: "no-cache",
+    Expires: "0",
+    ["Cache-Control"]: "no-cache"
+  };
+  const response = await fetch(`${path}`, { method, headers });
+  if (response.ok) {
+    const buffer2 = await response.arrayBuffer();
+    return new Uint8Array(buffer2);
+  } else if (response.status !== 200) {
+    const message = await response.text() || response.statusText;
+    const error2 = new Error(`Error: ${response.status}: ${message})`);
+    throw error2;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
@@ -18993,6 +20852,8 @@ const browserApi = {
   client_events: client_events$1,
   eval_logs: eval_logs$1,
   eval_log: eval_log$1,
+  eval_log_size: eval_log_size$1,
+  eval_log_bytes: eval_log_bytes$1,
   eval_log_headers: eval_log_headers$1,
   download_file: download_file$1,
   open_log_file: open_log_file$1
@@ -19031,8 +20892,8 @@ let column;
 let token;
 let key;
 let root;
-var parse = function parse2(text, reviver) {
-  source = String(text);
+var parse = function parse2(text2, reviver) {
+  source = String(text2);
   parseState = "start";
   stack = [];
   pos = 0;
@@ -19054,8 +20915,8 @@ function internalize(holder, name, reviver) {
   const value = holder[name];
   if (value != null && typeof value === "object") {
     if (Array.isArray(value)) {
-      for (let i2 = 0; i2 < value.length; i2++) {
-        const key2 = String(i2);
+      for (let i = 0; i < value.length; i++) {
+        const key2 = String(i);
         const replacement = internalize(value, key2, reviver);
         if (replacement === void 0) {
           delete value[key2];
@@ -19857,10 +21718,10 @@ function formatChar(c2) {
   return c2;
 }
 function syntaxError(message) {
-  const err = new SyntaxError(message);
-  err.lineNumber = line;
-  err.columnNumber = column;
-  return err;
+  const err2 = new SyntaxError(message);
+  err2.lineNumber = line;
+  err2.columnNumber = column;
+  return err2;
 }
 var stringify = function stringify2(value, replacer, space) {
   const stack2 = [];
@@ -19962,8 +21823,8 @@ var stringify = function stringify2(value, replacer, space) {
       "\u2029": "\\u2029"
     };
     let product = "";
-    for (let i2 = 0; i2 < value2.length; i2++) {
-      const c2 = value2[i2];
+    for (let i = 0; i < value2.length; i++) {
+      const c2 = value2[i];
       switch (c2) {
         case "'":
         case '"':
@@ -19971,7 +21832,7 @@ var stringify = function stringify2(value, replacer, space) {
           product += c2;
           continue;
         case "\0":
-          if (util.isDigit(value2[i2 + 1])) {
+          if (util.isDigit(value2[i + 1])) {
             product += "\\x00";
             continue;
           }
@@ -20037,8 +21898,8 @@ var stringify = function stringify2(value, replacer, space) {
     if (!util.isIdStartChar(firstChar)) {
       return quoteString(key2);
     }
-    for (let i2 = firstChar.length; i2 < key2.length; i2++) {
-      if (!util.isIdContinueChar(String.fromCodePoint(key2.codePointAt(i2)))) {
+    for (let i = firstChar.length; i < key2.length; i++) {
+      if (!util.isIdContinueChar(String.fromCodePoint(key2.codePointAt(i)))) {
         return quoteString(key2);
       }
     }
@@ -20052,8 +21913,8 @@ var stringify = function stringify2(value, replacer, space) {
     let stepback = indent;
     indent = indent + gap;
     let partial = [];
-    for (let i2 = 0; i2 < value2.length; i2++) {
-      const propertyString = serializeProperty(String(i2), value2);
+    for (let i = 0; i < value2.length; i++) {
+      const propertyString = serializeProperty(String(i), value2);
       partial.push(propertyString !== void 0 ? propertyString : "null");
     }
     let final;
@@ -20081,6 +21942,8 @@ const JSON5 = {
 var lib = JSON5;
 var kMethodEvalLogs = "eval_logs";
 var kMethodEvalLog = "eval_log";
+var kMethodEvalLogSize = "eval_log_size";
+var kMethodEvalLogBytes = "eval_log_bytes";
 var kMethodEvalLogHeaders = "eval_log_headers";
 function webViewJsonRpcClient(vscode) {
   var target = {
@@ -20156,8 +22019,18 @@ function asJsonRpcResponse(data) {
     return null;
   }
 }
-const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+let _vscodeApi = void 0;
+const getVscodeApi = () => {
+  if (window.acquireVsCodeApi) {
+    if (_vscodeApi == void 0) {
+      _vscodeApi = window.acquireVsCodeApi();
+    }
+    return _vscodeApi;
+  } else {
+    return void 0;
+  }
+};
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 async function client_events() {
   return [];
 }
@@ -20181,7 +22054,7 @@ async function eval_log(file, headerOnly, capabilities) {
   const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
   if (response) {
     let json;
-    if (capabilities.webWorkers) {
+    if (capabilities == null ? void 0 : capabilities.webWorkers) {
       json = await asyncJsonParse(response);
     } else {
       json = lib.parse(response);
@@ -20194,6 +22067,12 @@ async function eval_log(file, headerOnly, capabilities) {
     return void 0;
   }
 }
+async function eval_log_size(file) {
+  return await vscodeClient(kMethodEvalLogSize, [file]);
+}
+async function eval_log_bytes(file, start2, end2) {
+  return await vscodeClient(kMethodEvalLogBytes, [file, start2, end2]);
+}
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
@@ -20202,8 +22081,8 @@ async function eval_log_headers(files) {
     return void 0;
   }
 }
-async function download_file(logFile) {
-  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+async function download_file() {
+  throw Error("Downloading files is not supported in VS Code");
 }
 async function open_log_file(url, log_dir) {
   const msg = {
@@ -20211,15 +22090,682 @@ async function open_log_file(url, log_dir) {
     url,
     log_dir
   };
-  vscodeApi.postMessage(msg);
+  getVscodeApi().postMessage(msg);
 }
-const vscodeApi$1 = {
+const vscodeApi = {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_size,
+  eval_log_bytes,
   eval_log_headers,
   download_file,
   open_log_file
+};
+var ch2 = {};
+var wk = function(c2, id, msg, transfer, cb) {
+  var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
+    c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
+  ], { type: "text/javascript" }))));
+  w2.onmessage = function(e2) {
+    var d2 = e2.data, ed = d2.$e$;
+    if (ed) {
+      var err2 = new Error(ed[0]);
+      err2["code"] = ed[1];
+      err2.stack = ed[2];
+      cb(err2, null);
+    } else
+      cb(null, d2);
+  };
+  w2.postMessage(msg, transfer);
+  return w2;
+};
+var u8 = Uint8Array, u16 = Uint16Array, i32 = Int32Array;
+var fleb = new u8([
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  5,
+  5,
+  5,
+  5,
+  0,
+  /* unused */
+  0,
+  0,
+  /* impossible */
+  0
+]);
+var fdeb = new u8([
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  12,
+  13,
+  13,
+  /* unused */
+  0,
+  0
+]);
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+var freb = function(eb, start2) {
+  var b2 = new u16(31);
+  for (var i = 0; i < 31; ++i) {
+    b2[i] = start2 += 1 << eb[i - 1];
+  }
+  var r2 = new i32(b2[30]);
+  for (var i = 1; i < 30; ++i) {
+    for (var j2 = b2[i]; j2 < b2[i + 1]; ++j2) {
+      r2[j2] = j2 - b2[i] << 5 | i;
+    }
+  }
+  return { b: b2, r: r2 };
+};
+var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0), fd = _b.b;
+var rev = new u16(32768);
+for (var i = 0; i < 32768; ++i) {
+  var x = (i & 43690) >> 1 | (i & 21845) << 1;
+  x = (x & 52428) >> 2 | (x & 13107) << 2;
+  x = (x & 61680) >> 4 | (x & 3855) << 4;
+  rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+}
+var hMap = function(cd, mb, r2) {
+  var s2 = cd.length;
+  var i = 0;
+  var l2 = new u16(mb);
+  for (; i < s2; ++i) {
+    if (cd[i])
+      ++l2[cd[i] - 1];
+  }
+  var le = new u16(mb);
+  for (i = 1; i < mb; ++i) {
+    le[i] = le[i - 1] + l2[i - 1] << 1;
+  }
+  var co;
+  if (r2) {
+    co = new u16(1 << mb);
+    var rvb = 15 - mb;
+    for (i = 0; i < s2; ++i) {
+      if (cd[i]) {
+        var sv = i << 4 | cd[i];
+        var r_1 = mb - cd[i];
+        var v2 = le[cd[i] - 1]++ << r_1;
+        for (var m2 = v2 | (1 << r_1) - 1; v2 <= m2; ++v2) {
+          co[rev[v2] >> rvb] = sv;
+        }
+      }
+    }
+  } else {
+    co = new u16(s2);
+    for (i = 0; i < s2; ++i) {
+      if (cd[i]) {
+        co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+      }
+    }
+  }
+  return co;
+};
+var flt = new u8(288);
+for (var i = 0; i < 144; ++i)
+  flt[i] = 8;
+for (var i = 144; i < 256; ++i)
+  flt[i] = 9;
+for (var i = 256; i < 280; ++i)
+  flt[i] = 7;
+for (var i = 280; i < 288; ++i)
+  flt[i] = 8;
+var fdt = new u8(32);
+for (var i = 0; i < 32; ++i)
+  fdt[i] = 5;
+var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
+var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
+var max = function(a2) {
+  var m2 = a2[0];
+  for (var i = 1; i < a2.length; ++i) {
+    if (a2[i] > m2)
+      m2 = a2[i];
+  }
+  return m2;
+};
+var bits = function(d2, p2, m2) {
+  var o2 = p2 / 8 | 0;
+  return (d2[o2] | d2[o2 + 1] << 8) >> (p2 & 7) & m2;
+};
+var bits16 = function(d2, p2) {
+  var o2 = p2 / 8 | 0;
+  return (d2[o2] | d2[o2 + 1] << 8 | d2[o2 + 2] << 16) >> (p2 & 7);
+};
+var shft = function(p2) {
+  return (p2 + 7) / 8 | 0;
+};
+var slc = function(v2, s2, e2) {
+  if (s2 == null || s2 < 0)
+    s2 = 0;
+  if (e2 == null || e2 > v2.length)
+    e2 = v2.length;
+  return new u8(v2.subarray(s2, e2));
+};
+var ec = [
+  "unexpected EOF",
+  "invalid block type",
+  "invalid length/literal",
+  "invalid distance",
+  "stream finished",
+  "no stream handler",
+  ,
+  "no callback",
+  "invalid UTF-8 data",
+  "extra field too long",
+  "date not in range 1980-2099",
+  "filename too long",
+  "stream finishing",
+  "invalid zip data"
+  // determined by unknown compression method
+];
+var err = function(ind, msg, nt) {
+  var e2 = new Error(msg || ec[ind]);
+  e2.code = ind;
+  if (Error.captureStackTrace)
+    Error.captureStackTrace(e2, err);
+  if (!nt)
+    throw e2;
+  return e2;
+};
+var inflt = function(dat, st, buf, dict) {
+  var sl = dat.length, dl = dict ? dict.length : 0;
+  if (!sl || st.f && !st.l)
+    return buf || new u8(0);
+  var noBuf = !buf;
+  var resize = noBuf || st.i != 2;
+  var noSt = st.i;
+  if (noBuf)
+    buf = new u8(sl * 3);
+  var cbuf = function(l3) {
+    var bl = buf.length;
+    if (l3 > bl) {
+      var nbuf = new u8(Math.max(bl * 2, l3));
+      nbuf.set(buf);
+      buf = nbuf;
+    }
+  };
+  var final = st.f || 0, pos2 = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+  var tbts = sl * 8;
+  do {
+    if (!lm) {
+      final = bits(dat, pos2, 1);
+      var type = bits(dat, pos2 + 1, 3);
+      pos2 += 3;
+      if (!type) {
+        var s2 = shft(pos2) + 4, l2 = dat[s2 - 4] | dat[s2 - 3] << 8, t2 = s2 + l2;
+        if (t2 > sl) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + l2);
+        buf.set(dat.subarray(s2, t2), bt);
+        st.b = bt += l2, st.p = pos2 = t2 * 8, st.f = final;
+        continue;
+      } else if (type == 1)
+        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+      else if (type == 2) {
+        var hLit = bits(dat, pos2, 31) + 257, hcLen = bits(dat, pos2 + 10, 15) + 4;
+        var tl = hLit + bits(dat, pos2 + 5, 31) + 1;
+        pos2 += 14;
+        var ldt = new u8(tl);
+        var clt = new u8(19);
+        for (var i = 0; i < hcLen; ++i) {
+          clt[clim[i]] = bits(dat, pos2 + i * 3, 7);
+        }
+        pos2 += hcLen * 3;
+        var clb = max(clt), clbmsk = (1 << clb) - 1;
+        var clm = hMap(clt, clb, 1);
+        for (var i = 0; i < tl; ) {
+          var r2 = clm[bits(dat, pos2, clbmsk)];
+          pos2 += r2 & 15;
+          var s2 = r2 >> 4;
+          if (s2 < 16) {
+            ldt[i++] = s2;
+          } else {
+            var c2 = 0, n2 = 0;
+            if (s2 == 16)
+              n2 = 3 + bits(dat, pos2, 3), pos2 += 2, c2 = ldt[i - 1];
+            else if (s2 == 17)
+              n2 = 3 + bits(dat, pos2, 7), pos2 += 3;
+            else if (s2 == 18)
+              n2 = 11 + bits(dat, pos2, 127), pos2 += 7;
+            while (n2--)
+              ldt[i++] = c2;
+          }
+        }
+        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+        lbt = max(lt);
+        dbt = max(dt);
+        lm = hMap(lt, lbt, 1);
+        dm = hMap(dt, dbt, 1);
+      } else
+        err(1);
+      if (pos2 > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+    }
+    if (resize)
+      cbuf(bt + 131072);
+    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+    var lpos = pos2;
+    for (; ; lpos = pos2) {
+      var c2 = lm[bits16(dat, pos2) & lms], sym = c2 >> 4;
+      pos2 += c2 & 15;
+      if (pos2 > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+      if (!c2)
+        err(2);
+      if (sym < 256)
+        buf[bt++] = sym;
+      else if (sym == 256) {
+        lpos = pos2, lm = null;
+        break;
+      } else {
+        var add2 = sym - 254;
+        if (sym > 264) {
+          var i = sym - 257, b2 = fleb[i];
+          add2 = bits(dat, pos2, (1 << b2) - 1) + fl[i];
+          pos2 += b2;
+        }
+        var d2 = dm[bits16(dat, pos2) & dms], dsym = d2 >> 4;
+        if (!d2)
+          err(3);
+        pos2 += d2 & 15;
+        var dt = fd[dsym];
+        if (dsym > 3) {
+          var b2 = fdeb[dsym];
+          dt += bits16(dat, pos2) & (1 << b2) - 1, pos2 += b2;
+        }
+        if (pos2 > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + 131072);
+        var end2 = bt + add2;
+        if (bt < dt) {
+          var shift = dl - dt, dend = Math.min(dt, end2);
+          if (shift + bt < 0)
+            err(3);
+          for (; bt < dend; ++bt)
+            buf[bt] = dict[shift + bt];
+        }
+        for (; bt < end2; ++bt)
+          buf[bt] = buf[bt - dt];
+      }
+    }
+    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+    if (lm)
+      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+  } while (!final);
+  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+var et = /* @__PURE__ */ new u8(0);
+var mrg = function(a2, b2) {
+  var o2 = {};
+  for (var k2 in a2)
+    o2[k2] = a2[k2];
+  for (var k2 in b2)
+    o2[k2] = b2[k2];
+  return o2;
+};
+var wcln = function(fn2, fnStr, td2) {
+  var dt = fn2();
+  var st = fn2.toString();
+  var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
+  for (var i = 0; i < dt.length; ++i) {
+    var v2 = dt[i], k2 = ks[i];
+    if (typeof v2 == "function") {
+      fnStr += ";" + k2 + "=";
+      var st_1 = v2.toString();
+      if (v2.prototype) {
+        if (st_1.indexOf("[native code]") != -1) {
+          var spInd = st_1.indexOf(" ", 8) + 1;
+          fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
+        } else {
+          fnStr += st_1;
+          for (var t2 in v2.prototype)
+            fnStr += ";" + k2 + ".prototype." + t2 + "=" + v2.prototype[t2].toString();
+        }
+      } else
+        fnStr += st_1;
+    } else
+      td2[k2] = v2;
+  }
+  return fnStr;
+};
+var ch = [];
+var cbfs = function(v2) {
+  var tl = [];
+  for (var k2 in v2) {
+    if (v2[k2].buffer) {
+      tl.push((v2[k2] = new v2[k2].constructor(v2[k2])).buffer);
+    }
+  }
+  return tl;
+};
+var wrkr = function(fns, init, id, cb) {
+  if (!ch[id]) {
+    var fnStr = "", td_1 = {}, m2 = fns.length - 1;
+    for (var i = 0; i < m2; ++i)
+      fnStr = wcln(fns[i], fnStr, td_1);
+    ch[id] = { c: wcln(fns[m2], fnStr, td_1), e: td_1 };
+  }
+  var td2 = mrg({}, ch[id].e);
+  return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
+};
+var bInflt = function() {
+  return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
+};
+var guze = function() {
+  return [gzs, gzl];
+};
+var zule = function() {
+  return [zls];
+};
+var pbf = function(msg) {
+  return postMessage(msg, [msg.buffer]);
+};
+var gopt = function(o2) {
+  return o2 && {
+    out: o2.size && new u8(o2.size),
+    dictionary: o2.dictionary
+  };
+};
+var cbify = function(dat, opts, fns, init, id, cb) {
+  var w2 = wrkr(fns, init, id, function(err2, dat2) {
+    w2.terminate();
+    cb(err2, dat2);
+  });
+  w2.postMessage([dat, opts], opts.consume ? [dat.buffer] : []);
+  return function() {
+    w2.terminate();
+  };
+};
+var gzs = function(d2) {
+  if (d2[0] != 31 || d2[1] != 139 || d2[2] != 8)
+    err(6, "invalid gzip data");
+  var flg = d2[3];
+  var st = 10;
+  if (flg & 4)
+    st += (d2[10] | d2[11] << 8) + 2;
+  for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d2[st++])
+    ;
+  return st + (flg & 2);
+};
+var gzl = function(d2) {
+  var l2 = d2.length;
+  return (d2[l2 - 4] | d2[l2 - 3] << 8 | d2[l2 - 2] << 16 | d2[l2 - 1] << 24) >>> 0;
+};
+var zls = function(d2, dict) {
+  if ((d2[0] & 15) != 8 || d2[0] >> 4 > 7 || (d2[0] << 8 | d2[1]) % 31)
+    err(6, "invalid zlib data");
+  if ((d2[1] >> 5 & 1) == +!dict)
+    err(6, "invalid zlib data: " + (d2[1] & 32 ? "need" : "unexpected") + " dictionary");
+  return (d2[1] >> 3 & 4) + 2;
+};
+function inflate(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt
+  ], function(ev) {
+    return pbf(inflateSync(ev.data[0], gopt(ev.data[1])));
+  }, 1, cb);
+}
+function inflateSync(data, opts) {
+  return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+function gunzip(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt,
+    guze,
+    function() {
+      return [gunzipSync];
+    }
+  ], function(ev) {
+    return pbf(gunzipSync(ev.data[0], ev.data[1]));
+  }, 3, cb);
+}
+function gunzipSync(data, opts) {
+  var st = gzs(data);
+  if (st + 8 > data.length)
+    err(6, "invalid gzip data");
+  return inflt(data.subarray(st, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
+}
+function unzlib(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt,
+    zule,
+    function() {
+      return [unzlibSync];
+    }
+  ], function(ev) {
+    return pbf(unzlibSync(ev.data[0], gopt(ev.data[1])));
+  }, 5, cb);
+}
+function unzlibSync(data, opts) {
+  return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+function decompress(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return data[0] == 31 && data[1] == 139 && data[2] == 8 ? gunzip(data, opts, cb) : (data[0] & 15) != 8 || data[0] >> 4 > 7 || (data[0] << 8 | data[1]) % 31 ? inflate(data, opts, cb) : unzlib(data, opts, cb);
+}
+var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+var tds = 0;
+try {
+  td.decode(et, { stream: true });
+  tds = 1;
+} catch (e2) {
+}
+const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
+  const contentLength = await fetchContentLength(url);
+  const eocdrBuffer = await fetchBytes(
+    url,
+    contentLength - 22,
+    contentLength - 1
+  );
+  const eocdrView = new DataView(eocdrBuffer.buffer);
+  const centralDirOffset = eocdrView.getUint32(16, true);
+  const centralDirSize = eocdrView.getUint32(12, true);
+  const centralDirBuffer = await fetchBytes(
+    url,
+    centralDirOffset,
+    centralDirOffset + centralDirSize - 1
+  );
+  const centralDirectory = parseCentralDirectory(centralDirBuffer);
+  return {
+    centralDirectory,
+    readFile: async (file) => {
+      const entry = centralDirectory.get(file);
+      if (!entry) {
+        throw new Error(`File not found: ${file}`);
+      }
+      const headerSize = 30;
+      const headerData = await fetchBytes(
+        url,
+        entry.fileOffset,
+        entry.fileOffset + headerSize - 1
+      );
+      const filenameLength = headerData[26] + (headerData[27] << 8);
+      const extraFieldLength = headerData[28] + (headerData[29] << 8);
+      const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+      const fileData = await fetchBytes(
+        url,
+        entry.fileOffset,
+        entry.fileOffset + totalSizeToFetch - 1
+      );
+      const zipFileEntry = await parseZipFileEntry(file, fileData);
+      if (zipFileEntry.compressionMethod === 0) {
+        return zipFileEntry.data;
+      } else if (zipFileEntry.compressionMethod === 8) {
+        const results = await decompressAsync(zipFileEntry.data, {
+          size: zipFileEntry.uncompressedSize
+        });
+        return results;
+      } else {
+        throw new Error(`Unsupported compressionMethod for file ${file}`);
+      }
+    }
+  };
+};
+const fetchSize = async (url) => {
+  const response = await fetch(`${url}`, { method: "HEAD" });
+  const contentLength = Number(response.headers.get("Content-Length"));
+  return contentLength;
+};
+const fetchRange = async (url, start2, end2) => {
+  const response = await fetch(`${url}`, {
+    headers: { Range: `bytes=${start2}-${end2}` }
+  });
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+};
+const decompressAsync = async (data, opts) => {
+  return new Promise((resolve, reject) => {
+    decompress(data, opts, (err2, result) => {
+      if (err2) {
+        reject(err2);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+};
+const parseZipFileEntry = async (file, rawData) => {
+  const view = new DataView(rawData.buffer);
+  let offset2 = 0;
+  const signature = view.getUint32(offset2, true);
+  if (signature !== 67324752) {
+    throw new Error(`Invalid ZIP entry signature for ${file}`);
+  }
+  offset2 += 4;
+  const versionNeeded = view.getUint16(offset2, true);
+  offset2 += 2;
+  const bitFlag = view.getUint16(offset2, true);
+  offset2 += 2;
+  const compressionMethod = view.getUint16(offset2, true);
+  offset2 += 2;
+  offset2 += 4;
+  const crc32 = view.getUint32(offset2, true);
+  offset2 += 4;
+  const compressedSize = view.getUint32(offset2, true);
+  offset2 += 4;
+  const uncompressedSize = view.getUint32(offset2, true);
+  offset2 += 4;
+  const filenameLength = view.getUint16(offset2, true);
+  offset2 += 2;
+  const extraFieldLength = view.getUint16(offset2, true);
+  offset2 += 2;
+  offset2 += filenameLength + extraFieldLength;
+  const data = rawData.subarray(offset2, offset2 + compressedSize);
+  return {
+    versionNeeded,
+    bitFlag,
+    compressionMethod,
+    crc32,
+    compressedSize,
+    uncompressedSize,
+    filenameLength,
+    extraFieldLength,
+    data
+  };
+};
+const parseCentralDirectory = (buffer2) => {
+  let offset2 = 0;
+  const view = new DataView(buffer2.buffer);
+  const entries = /* @__PURE__ */ new Map();
+  while (offset2 < buffer2.length) {
+    if (view.getUint32(offset2, true) !== 33639248) break;
+    const filenameLength = view.getUint16(offset2 + 28, true);
+    const extraFieldLength = view.getUint16(offset2 + 30, true);
+    const fileCommentLength = view.getUint16(offset2 + 32, true);
+    const filename2 = new TextDecoder().decode(
+      buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength)
+    );
+    const entry = {
+      filename: filename2,
+      compressionMethod: view.getUint16(offset2 + 10, true),
+      compressedSize: view.getUint32(offset2 + 20, true),
+      uncompressedSize: view.getUint32(offset2 + 24, true),
+      fileOffset: view.getUint32(offset2 + 42, true)
+    };
+    entries.set(filename2, entry);
+    offset2 += 46 + filenameLength + extraFieldLength + fileCommentLength;
+  }
+  return entries;
 };
 function simpleHttpApi(log_dir, log_file) {
   const resolved_log_dir = log_dir.replace(" ", "+");
@@ -20279,6 +22825,12 @@ function simpleHttpAPI(logInfo) {
       cache.set(response.parsed);
       return response;
     },
+    eval_log_size: async (log_file2) => {
+      return await fetchSize(log_file2);
+    },
+    eval_log_bytes: async (log_file2, start2, end2) => {
+      return await fetchRange(log_file2, start2, end2);
+    },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
@@ -20315,25 +22867,25 @@ async function fetchFile(url, parse3, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
   if (response.ok) {
-    const text = await response.text();
+    const text2 = await response.text();
     return {
-      parsed: await parse3(text),
-      raw: text
+      parsed: await parse3(text2),
+      raw: text2
     };
   } else if (response.status !== 200) {
     if (handleError && handleError(response)) {
       return void 0;
     }
     const message = await response.text() || response.statusText;
-    const error = new Error(`${response.status}: ${message})`);
-    throw error;
+    const error2 = new Error(`${response.status}: ${message})`);
+    throw error2;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
   }
 }
 const fetchLogFile = async (file) => {
-  return fetchFile(file, async (text) => {
-    const log = await asyncJsonParse(text);
+  return fetchFile(file, async (text2) => {
+    const log = await asyncJsonParse(text2);
     if (log.version === 1) {
       if (log.results) {
         log.results.scores = [];
@@ -20355,8 +22907,8 @@ const fetchLogFile = async (file) => {
 const fetchLogHeaders = async (log_dir) => {
   const logs = await fetchFile(
     log_dir + "/logs.json",
-    async (text) => {
-      return await asyncJsonParse(text);
+    async (text2) => {
+      return await asyncJsonParse(text2);
     },
     (response) => {
       if (response.status === 404) {
@@ -20403,34 +22955,351 @@ function encodePathParts(url) {
     ).join("/");
   }
 }
+class AsyncQueue {
+  /**
+   * Creates an instance of AsyncQueue.
+   * @param {number} [concurrentLimit=6] - The maximum number of tasks that can run concurrently.
+   */
+  constructor(concurrentLimit = 6) {
+    this.concurrentLimit = concurrentLimit;
+    this.queue = [];
+    this.runningCount = 0;
+  }
+  /**
+   * Adds a task to the queue and runs it if the concurrency limit allows.
+   * @param {Function} task - The task to be executed asynchronously. This should be a function that returns a promise.
+   * @returns {Promise<*>} - A promise that resolves with the result of the task or rejects if the task throws an error.
+   */
+  async enqueue(task) {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (error2) {
+          reject(error2);
+        } finally {
+          this.runningCount--;
+          this.runNext();
+        }
+      });
+      if (this.runningCount < this.concurrentLimit) {
+        this.runNext();
+      }
+    });
+  }
+  /**
+   * Runs the next task in the queue if there are available slots for concurrent execution.
+   * @private
+   */
+  runNext() {
+    if (this.queue.length > 0 && this.runningCount < this.concurrentLimit) {
+      const task = this.queue.shift();
+      if (task) {
+        this.runningCount++;
+        task();
+      }
+    }
+  }
+}
+const openRemoteLogFile = async (api2, url, concurrency) => {
+  const queue = new AsyncQueue(concurrency);
+  const remoteZipFile = await openRemoteZipFile(
+    `${encodeURIComponent(url)}`,
+    api2.eval_log_size,
+    api2.eval_log_bytes
+  );
+  const readJSONFile = async (file) => {
+    try {
+      const data = await remoteZipFile.readFile(file);
+      const textDecoder = new TextDecoder("utf-8");
+      const jsonString = textDecoder.decode(data);
+      return asyncJsonParse(jsonString);
+    } catch (error2) {
+      throw new Error(`Failed to read or parse file ${file}: ${error2.message}`);
+    }
+  };
+  const listSamples = async () => {
+    return Array.from(remoteZipFile.centralDirectory.keys()).filter(
+      (filename2) => filename2.startsWith("samples/") && filename2.endsWith(".json")
+    ).map((filename2) => {
+      const [sampleId, epochStr] = filename2.split("/")[1].split("_epoch_");
+      return {
+        sampleId,
+        epoch: parseInt(epochStr.split(".")[0], 10)
+      };
+    });
+  };
+  const readSample = (sampleId, epoch) => {
+    const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
+    if (remoteZipFile.centralDirectory.has(sampleFile)) {
+      return readJSONFile(sampleFile);
+    } else {
+      console.log({ dir: remoteZipFile.centralDirectory });
+      throw new Error(
+        `Unable to read sample file ${sampleFile} - it is not present in the manifest.`
+      );
+    }
+  };
+  const readHeader = async () => {
+    if (remoteZipFile.centralDirectory.has("header.json")) {
+      return readJSONFile("header.json");
+    } else {
+      const evalSpec = await readJSONFile("_journal/start.json");
+      return {
+        status: "started",
+        eval: evalSpec.eval,
+        plan: evalSpec.plan
+      };
+    }
+  };
+  const readFallbackSummaries = async () => {
+    const summaryFiles = Array.from(
+      remoteZipFile.centralDirectory.keys()
+    ).filter(
+      (filename2) => filename2.startsWith("_journal/summaries/") && filename2.endsWith(".json")
+    );
+    const summaries = [];
+    const errors2 = [];
+    await Promise.all(
+      summaryFiles.map(
+        (filename2) => queue.enqueue(async () => {
+          try {
+            const partialSummary = await readJSONFile(filename2);
+            summaries.push(...partialSummary);
+          } catch (error2) {
+            errors2.push(error2);
+          }
+        })
+      )
+    );
+    if (errors2.length > 0) {
+      console.error(
+        `Encountered ${errors2.length} errors while reading summary files:`,
+        errors2
+      );
+    }
+    return summaries;
+  };
+  const readSampleSummaries = async () => {
+    if (remoteZipFile.centralDirectory.has("summaries.json")) {
+      return await readJSONFile("summaries.json");
+    } else {
+      return readFallbackSummaries();
+    }
+  };
+  return {
+    readHeader,
+    readLogSummary: async () => {
+      const [header, sampleSummaries] = await Promise.all([
+        readHeader(),
+        readSampleSummaries()
+      ]);
+      const result = {
+        status: header.status,
+        eval: header.eval,
+        plan: header.plan,
+        results: header.results,
+        stats: header.stats,
+        error: header.error,
+        sampleSummaries
+      };
+      return result;
+    },
+    readSample,
+    /**
+     * Reads the complete log file.
+     * @returns {Promise<import("../types/log").EvalLog>} The complete log data.
+     */
+    readCompleteLog: async () => {
+      const [evalLog, samples] = await Promise.all([
+        readHeader(),
+        listSamples().then(
+          (sampleIds) => Promise.all(
+            sampleIds.map(({ sampleId, epoch }) => readSample(sampleId, epoch))
+          )
+        )
+      ]);
+      return {
+        status: evalLog.status,
+        eval: evalLog.eval,
+        plan: evalLog.plan,
+        results: evalLog.results,
+        stats: evalLog.stats,
+        error: evalLog.error,
+        samples
+      };
+    }
+  };
+};
+const isEvalFile = (file) => {
+  return file.endsWith(".eval");
+};
+const clientApi = (api2) => {
+  let current_log = void 0;
+  let current_path = void 0;
+  const loadedEvalFile = {
+    file: void 0,
+    remoteLog: void 0
+  };
+  const remoteEvalFile = async (log_file, cached = false) => {
+    if (!cached || loadedEvalFile.file !== log_file) {
+      loadedEvalFile.file = log_file;
+      loadedEvalFile.remoteLog = await openRemoteLogFile(api2, log_file, 5);
+    }
+    return loadedEvalFile.remoteLog;
+  };
+  const get_log = async (log_file, cached = false) => {
+    if (!cached || log_file !== current_path || !current_log) {
+      if (pending_log_promise) {
+        return pending_log_promise;
+      }
+      pending_log_promise = api2.eval_log(log_file, 100).then((log) => {
+        current_log = log;
+        current_path = log_file;
+        pending_log_promise = null;
+        return log;
+      }).catch((err2) => {
+        pending_log_promise = null;
+        throw err2;
+      });
+      return pending_log_promise;
+    }
+    return current_log;
+  };
+  let pending_log_promise = null;
+  const get_log_summary = async (log_file) => {
+    var _a2;
+    if (isEvalFile(log_file)) {
+      const remoteLogFile = await remoteEvalFile(log_file);
+      return await remoteLogFile.readLogSummary();
+    } else {
+      const logContents = await get_log(log_file);
+      const sampleSummaries = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample) => {
+        return {
+          id: sample.id,
+          epoch: sample.epoch,
+          input: sample.input,
+          target: sample.target,
+          scores: sample.scores,
+          metadata: sample.metadata
+        };
+      }) : [];
+      const parsed = logContents.parsed;
+      return {
+        version: parsed.version,
+        status: parsed.status,
+        eval: parsed.eval,
+        plan: parsed.plan,
+        results: parsed.results,
+        stats: parsed.stats,
+        error: parsed.error,
+        sampleSummaries
+      };
+    }
+  };
+  const get_log_sample = async (log_file, id, epoch) => {
+    if (isEvalFile(log_file)) {
+      const remoteLogFile = await remoteEvalFile(log_file, true);
+      const sample = await remoteLogFile.readSample(id, epoch);
+      return sample;
+    } else {
+      const logContents = await get_log(log_file, true);
+      if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
+        return logContents.parsed.samples.find((sample) => {
+          return sample.id === id && sample.epoch === epoch;
+        });
+      }
+    }
+    return void 0;
+  };
+  const get_eval_log_header = async (log_file) => {
+    const remoteLogFile = await openRemoteLogFile(api2, log_file, 5);
+    return remoteLogFile.readHeader();
+  };
+  const get_log_headers = async (log_files) => {
+    const eval_files = {};
+    const json_files = {};
+    let index = 0;
+    for (const file of log_files) {
+      if (isEvalFile(file)) {
+        eval_files[file] = index;
+      } else {
+        json_files[file] = index;
+      }
+      index++;
+    }
+    const evalLogHeadersPromises = Object.keys(eval_files).map(
+      (file) => get_eval_log_header(file).then((header) => ({
+        index: eval_files[file],
+        // Store original index
+        header
+      }))
+    );
+    const jsonLogHeadersPromise = api2.eval_log_headers(Object.keys(json_files)).then(
+      (headers2) => headers2.map((header, i) => ({
+        index: json_files[Object.keys(json_files)[i]],
+        // Store original index
+        header
+      }))
+    );
+    const headers = await Promise.all([
+      ...evalLogHeadersPromises,
+      jsonLogHeadersPromise
+    ]);
+    const orderedHeaders = headers.flat().sort((a2, b2) => a2.index - b2.index);
+    return orderedHeaders.map(({ header }) => header);
+  };
+  return {
+    client_events: () => {
+      return api2.client_events();
+    },
+    get_log_paths: () => {
+      return api2.eval_logs();
+    },
+    get_log_headers: (log_files) => {
+      return get_log_headers(log_files);
+    },
+    get_log_summary,
+    get_log_sample,
+    open_log_file: (log_file, log_dir) => {
+      return api2.open_log_file(log_file, log_dir);
+    },
+    download_file: (download_file2, file_contents) => {
+      return api2.download_file(download_file2, file_contents);
+    }
+  };
+};
 const resolveApi = () => {
-  if (window.acquireVsCodeApi) {
-    return vscodeApi$1;
+  if (getVscodeApi()) {
+    return clientApi(vscodeApi);
   } else {
     const scriptEl = document.getElementById("log_dir_context");
     if (scriptEl) {
       const data = JSON.parse(scriptEl.textContent);
       if (data.log_dir || data.log_file) {
         const log_dir2 = data.log_dir || dirname(data.log_file);
-        return simpleHttpApi(log_dir2, data.log_file);
+        const api2 = simpleHttpApi(log_dir2, data.log_file);
+        return clientApi(api2);
       }
     }
     const urlParams = new URLSearchParams(window.location.search);
     const log_file = urlParams.get("log_file");
     const log_dir = urlParams.get("log_dir");
     if (log_file || log_dir) {
-      return simpleHttpApi(log_dir, log_file);
+      const api2 = simpleHttpApi(log_dir, log_file);
+      return clientApi(api2);
     }
-    return browserApi;
+    return clientApi(browserApi);
   }
 };
 const api = resolveApi();
-const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
+const DownloadButton = ({ label, fileName, fileContents }) => {
   return m$1`<button
     class="btn btn-outline-primary"
     style=${{ fontSize: FontSize.small, marginTop: "3em" }}
     onclick=${async () => {
-    await api.download_file(logFile, fileName, fileContents);
+    await api.download_file(fileName, fileContents);
   }}
   >
     ${label}
@@ -20460,6 +23329,1010 @@ const DownloadPanel = ({
     />
   </div>`;
 };
+const kJsonMaxSize = 1e7;
+const JsonTab = ({ logFileName, capabilities, json }) => {
+  const renderedContent = [];
+  if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
+    const file = `${filename(logFileName)}.json`;
+    renderedContent.push(
+      m$1`<${DownloadPanel}
+        message="Log file raw JSON is too large to render."
+        buttonLabel="Download JSON File"
+        logFile=${logFileName}
+        fileName=${file}
+        fileContents=${json}
+      />`
+    );
+  } else {
+    return m$1` <div
+      style=${{
+      padding: "0.5rem",
+      fontSize: FontSize.small,
+      width: "100%"
+    }}
+    >
+      <${JSONPanel} id="task-json-contents" json=${json} simple=${true} />
+    </div>`;
+  }
+};
+const EpochFilter = ({ epochs, epoch, setEpoch }) => {
+  const options = ["all"];
+  for (let i = 1; i <= epochs; i++) {
+    options.push(i + "");
+  }
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="epoch-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Epochs:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".epoch-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${epoch}
+        onChange=${(e2) => {
+    setEpoch(e2.target.value);
+  }}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option}">${option}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
+  var _a2;
+  const options = [
+    { label: "sample asc", val: kSampleAscVal },
+    { label: "sample desc", val: kSampleDescVal }
+  ];
+  if (epochs) {
+    options.push({
+      label: "epoch asc",
+      val: kEpochAscVal
+    });
+    options.push({
+      label: "epoch desc",
+      val: kEpochDescVal
+    });
+  }
+  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
+    options.push({
+      label: "score asc",
+      val: kScoreAscVal
+    });
+    options.push({
+      label: "score desc",
+      val: kScoreDescVal
+    });
+  }
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sort-filter-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Sort:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${sort}
+        onChange=${(e2) => {
+    setSort(e2.target.value);
+  }}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option.val}">${option.label}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const byEpoch = (sort) => {
+  return sort === kEpochAscVal || sort === kEpochDescVal;
+};
+const bySample = (sort) => {
+  return sort === kSampleAscVal || sort === kSampleDescVal;
+};
+const sortSamples = (sort, samples, samplesDescriptor) => {
+  const sortedSamples = samples.sort((a2, b2) => {
+    switch (sort) {
+      case kSampleAscVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return Number(a2.id) - Number(b2.id);
+        } else {
+          return String(a2.id).localeCompare(String(b2.id));
+        }
+      case kSampleDescVal:
+        if (isNumeric(a2.id) && isNumeric(b2.id)) {
+          return Number(b2.id) - Number(a2.id);
+        } else {
+          return String(b2.id).localeCompare(String(a2.id));
+        }
+      case kEpochAscVal:
+        return a2.epoch - b2.epoch;
+      case kEpochDescVal:
+        return b2.epoch - a2.epoch;
+      case kScoreAscVal:
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(a2).value,
+          samplesDescriptor.selectedScore(b2).value
+        );
+      case kScoreDescVal:
+        return samplesDescriptor.scoreDescriptor.compare(
+          samplesDescriptor.selectedScore(b2).value,
+          samplesDescriptor.selectedScore(a2).value
+        );
+    }
+  });
+  return {
+    sorted: sortedSamples,
+    order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+  };
+};
+const SampleFilter = ({ descriptor, filter, filterChanged }) => {
+  var _a2;
+  const filterCategory = (e2) => {
+    const val = e2.currentTarget.value;
+    if (val === "all") {
+      filterChanged({
+        value: void 0,
+        filterFn: void 0
+      });
+    } else {
+      filterChanged({
+        value: val,
+        filterFn: (sample, value) => {
+          const score = descriptor.selectedScore(sample);
+          if (typeof score.value === "string") {
+            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+          } else if (typeof score.value === "object") {
+            return JSON.stringify(score.value) == value;
+          } else {
+            return score.value === value;
+          }
+        }
+      });
+    }
+  };
+  const filterInput = (e2) => {
+    filterChanged({
+      value: e2.currentTarget.value,
+      filterFn: filterText(descriptor)
+    });
+  };
+  switch ((_a2 = descriptor == null ? void 0 : descriptor.scoreDescriptor) == null ? void 0 : _a2.scoreType) {
+    case kScoreTypePassFail: {
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat.text, value: cat.val };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    case kScoreTypeCategorical: {
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat, value: cat };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    case kScoreTypeNumeric: {
+      return m$1`
+        <input
+          type="text"
+          class="form-control"
+          value=${filter.value}
+          placeholder="Filter Samples (score)"
+          style=${{ width: "150px" }}
+          onInput=${filterInput}
+        />
+      `;
+    }
+    case kScoreTypeObject: {
+      if (!descriptor.scoreDescriptor.categories) {
+        return "";
+      }
+      const options = [{ text: "All", value: "all" }];
+      options.push(
+        ...descriptor.scoreDescriptor.categories.map((cat) => {
+          return { text: cat.text, value: cat.value };
+        })
+      );
+      return m$1`<${SelectFilter}
+        value=${filter.value || "all"}
+        options=${options}
+        filterFn=${filterCategory}
+      />`;
+    }
+    default: {
+      return void 0;
+    }
+  }
+};
+const SelectFilter = ({ value, options, filterFn }) => {
+  return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sample-label"
+        style=${{
+    alignSelf: "center",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    marginRight: "0.3em",
+    marginLeft: "0.2em"
+  }}
+        >Scores:</span
+      >
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sample-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${value}
+        onChange=${filterFn}
+      >
+        ${options.map((option) => {
+    return m$1`<option value="${option.value}">${option.text}</option>`;
+  })}
+      </select>
+    </div>
+  `;
+};
+const filterText = (descriptor) => {
+  return (sample, value) => {
+    const score = descriptor.selectedScore(sample);
+    if (!value) {
+      return true;
+    } else {
+      if (isNumeric(value)) {
+        if (typeof score.value === "number") {
+          return score.value === Number(value);
+        } else {
+          return Number(score.value) === Number(value);
+        }
+      } else {
+        const filters = [
+          {
+            prefix: ">=",
+            fn: (score2, val) => {
+              return score2 >= val;
+            }
+          },
+          {
+            prefix: "<=",
+            fn: (score2, val) => {
+              return score2 <= val;
+            }
+          },
+          {
+            prefix: ">",
+            fn: (score2, val) => {
+              return score2 > val;
+            }
+          },
+          {
+            prefix: "<",
+            fn: (score2, val) => {
+              return score2 < val;
+            }
+          },
+          {
+            prefix: "=",
+            fn: (score2, val) => {
+              return score2 === val;
+            }
+          },
+          {
+            prefix: "!=",
+            fn: (score2, val) => {
+              return score2 !== val;
+            }
+          }
+        ];
+        for (const filter of filters) {
+          if (value == null ? void 0 : value.startsWith(filter.prefix)) {
+            const val = value.slice(filter.prefix.length).trim();
+            if (!val) {
+              return true;
+            }
+            const num = Number(val);
+            return filter.fn(score.value, num);
+          }
+        }
+        if (typeof score.value === "string") {
+          return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+        } else {
+          return score.value === value;
+        }
+      }
+    }
+  };
+};
+const SelectScorer = ({ scores, score, setScore }) => {
+  const scorers = scores.reduce((accum, scorer) => {
+    if (!accum.find((sc) => {
+      return scorer.scorer === sc.scorer;
+    })) {
+      accum.push(scorer);
+    }
+    return accum;
+  }, []);
+  if (scorers.length === 1) {
+    return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >Score:</span
+        >
+        <${ScoreSelector}
+          scores=${scores}
+          selectedIndex=${scoreIndex(score, scores)}
+          selectedIndexChanged=${(index) => {
+      setScore(scores[index]);
+    }}
+        />
+      </div>
+    `;
+  } else {
+    const scorerScores = scores.filter((sc) => {
+      return sc.scorer === score.scorer;
+    });
+    const selectors = [
+      m$1`<${ScorerSelector}
+        scorers=${scorers}
+        selectedIndex=${scorerIndex(score, scorers)}
+        selectedIndexChanged=${(index) => {
+        setScore(scorers[index]);
+      }}
+      />`
+    ];
+    if (scorerScores.length > 1) {
+      selectors.push(
+        m$1`<${ScoreSelector}
+          style=${{ marginLeft: "1em" }}
+          scores=${scorerScores}
+          selectedIndex=${scoreIndex(score, scorerScores)}
+          selectedIndexChanged=${(index) => {
+          setScore(scorerScores[index]);
+        }}
+        />`
+      );
+    }
+    return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+      alignSelf: "center",
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary,
+      marginRight: "0.3em",
+      marginLeft: "0.2em"
+    }}
+          >Scorer:</span
+        >
+        ${selectors}
+      </div>
+    `;
+  }
+};
+const ScoreSelector = ({
+  scores,
+  selectedIndex,
+  selectedIndexChanged,
+  style
+}) => {
+  return m$1`<select
+    class="form-select form-select-sm"
+    aria-label=".select-scorer-label"
+    style=${{ fontSize: FontSize.smaller, ...style }}
+    value=${scores[selectedIndex].name}
+    onChange=${(e2) => {
+    selectedIndexChanged(e2.target.selectedIndex);
+  }}
+  >
+    ${scores.map((score) => {
+    return m$1`<option value="${score.name}">${score.name}</option>`;
+  })}
+  </select>`;
+};
+const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
+  return m$1`<select
+    class="form-select form-select-sm"
+    aria-label=".epoch-filter-label"
+    style=${{ fontSize: FontSize.smaller }}
+    value=${scorers[selectedIndex].scorer}
+    onChange=${(e2) => {
+    selectedIndexChanged(e2.target.selectedIndex);
+  }}
+  >
+    ${scorers.map((scorer) => {
+    return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
+  })}
+  </select>`;
+};
+const scoreIndex = (score, scores) => scores.findIndex((sc) => {
+  return sc.name === score.name && sc.scorer === score.scorer;
+});
+const scorerIndex = (score, scores) => scores.findIndex((sc) => {
+  return sc.scorer === score.scorer;
+});
+const SampleTools = (props) => {
+  const {
+    epoch,
+    setEpoch,
+    filter,
+    filterChanged,
+    sort,
+    setSort,
+    epochs,
+    sampleDescriptor,
+    score,
+    setScore,
+    scores
+  } = props;
+  const hasEpochs = epochs > 1;
+  const tools = [];
+  if (scores.length > 1) {
+    tools.push(
+      m$1`<${SelectScorer}
+        scores=${scores}
+        score=${score}
+        setScore=${setScore}
+      />`
+    );
+  }
+  if (hasEpochs) {
+    tools.push(
+      m$1`<${EpochFilter}
+        epoch=${epoch}
+        setEpoch="${setEpoch}"
+        epochs=${epochs}
+      />`
+    );
+  }
+  tools.push(
+    m$1`<${SampleFilter}
+      filter=${filter}
+      filterChanged=${filterChanged}
+      descriptor=${sampleDescriptor}
+    />`
+  );
+  tools.push(
+    m$1`<${SortFilter}
+      sampleDescriptor=${sampleDescriptor}
+      sort=${sort}
+      setSort=${setSort}
+      epochs=${hasEpochs}
+    />`
+  );
+  return tools;
+};
+const CopyButton = ({ value }) => {
+  return m$1`<button
+    class="copy-button"
+    style=${{
+    border: "none",
+    backgroundColor: "inherit",
+    opacity: "0.5",
+    paddingTop: "0px"
+  }}
+    data-clipboard-text=${value}
+    onclick=${(e2) => {
+    const iEl = e2.target;
+    if (iEl) {
+      iEl.className = `${ApplicationIcons.confirm} primary`;
+      setTimeout(() => {
+        iEl.className = ApplicationIcons.copy;
+      }, 1250);
+    }
+    return false;
+  }}
+  >
+    <i class=${ApplicationIcons.copy}></i>
+  </button>`;
+};
+const LabeledValue = ({
+  label,
+  style,
+  valueStyle,
+  layout = "column",
+  children
+}) => {
+  const flexDirection = layout === "column" ? "column" : "row";
+  return m$1` <div
+    style=${{
+    display: "flex",
+    flexDirection,
+    ...style
+  }}
+  >
+    <div
+      style=${{
+    fontSize: FontSize.smaller,
+    marginBottom: "-0.2rem",
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+    >
+      ${label}
+    </div>
+    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children}</div>
+  </div>`;
+};
+const SecondaryBar = ({
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
+  style
+}) => {
+  if (!evalSpec || status !== "success") {
+    return "";
+  }
+  const staticColStyle = {
+    flexShrink: "0"
+  };
+  const epochs = evalSpec.config.epochs || 1;
+  const hyperparameters = {
+    ...evalPlan == null ? void 0 : evalPlan.config,
+    ...evalSpec.task_args
+  };
+  const hasConfig = Object.keys(hyperparameters).length > 0;
+  const values = [];
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
+    <${DatasetSummary}
+      dataset=${evalSpec.dataset}
+      samples=${samples}
+      epochs=${epochs} />
+  </${LabeledValue}>
+`
+  });
+  const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
+    <${ScorerSummary} 
+      scorers=${evalResults == null ? void 0 : evalResults.scores} />
+  </${LabeledValue}>`
+  });
+  if (hasConfig) {
+    values.push({
+      size: "minmax(12%, auto)",
+      value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
+      <${ParamSummary} params=${hyperparameters}/>
+    </${LabeledValue}>`
+    });
+  }
+  return m$1`
+    <div
+      style=${{
+    margin: "0",
+    padding: "0.2em 1em 0.2em 1em",
+    display: "grid",
+    gridColumnGap: "1em",
+    borderTop: "1px solid var(--bs-border-color)",
+    gridTemplateColumns: `${values.map((val) => {
+      return val.size;
+    }).join(" ")}`,
+    ...style
+  }}
+    >
+      ${values.map((val) => {
+    return val.value;
+  })}
+    </div>
+  `;
+};
+const DatasetSummary = ({ dataset, samples, epochs, style }) => {
+  if (!dataset) {
+    return "";
+  }
+  return m$1`
+    <div style=${style}>
+      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
+    </div>
+  `;
+};
+const ScorerSummary = ({ scorers }) => {
+  if (!scorers) {
+    return "";
+  }
+  const uniqScorers = /* @__PURE__ */ new Set();
+  scorers.forEach((scorer) => {
+    uniqScorers.add(scorer.name);
+  });
+  return Array.from(uniqScorers).join(", ");
+};
+const ParamSummary = ({ params }) => {
+  if (!params) {
+    return "";
+  }
+  const paraValues = Object.keys(params).map((key2) => {
+    return `${key2}: ${params[key2]}`;
+  });
+  if (paraValues.length > 0) {
+    return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
+      >${paraValues.join(", ")}</code
+    >`;
+  } else {
+    return "";
+  }
+};
+const Navbar = ({
+  file,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  showToggle,
+  offcanvas,
+  status
+}) => {
+  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
+  const logFileName = file ? filename(file) : "";
+  const task = evalSpec == null ? void 0 : evalSpec.task;
+  const model = evalSpec == null ? void 0 : evalSpec.model;
+  const results = evalResults;
+  const created = evalSpec == null ? void 0 : evalSpec.created;
+  let statusPanel;
+  if (status === "success") {
+    statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
+  } else if (status === "cancelled") {
+    statusPanel = m$1`<${CanceledPanel}
+      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
+    />`;
+  } else if (status === "started") {
+    statusPanel = m$1`<${RunningPanel} />`;
+  }
+  const navbarContents = logFileName ? m$1` <div
+          class="navbar-brand navbar-text mb-0"
+          style=${{
+    display: "flex",
+    paddingTop: 0,
+    marginLeft: "0.5rem",
+    minWidth: "250px"
+  }}
+        >
+          ${showToggle ? m$1`<button
+                id="sidebarToggle"
+                class="btn${toggleOffCanClass}"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#sidebarOffCanvas"
+                aria-controls="sidebarOffCanvas"
+                style=${{
+    padding: "0rem 0.1rem 0.1rem 0rem",
+    display: "flex"
+  }}
+              >
+                <i class=${ApplicationIcons.menu}></i>
+              </button> ` : ""}
+          <div
+            style=${{
+    display: "flex",
+    flexDirection: "column",
+    marginLeft: "0.2rem"
+  }}
+          >
+            <div
+              style=${{
+    marginTop: "0.1rem",
+    display: "grid",
+    gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
+  }}
+            >
+              <div
+                id="task-title"
+                style=${{
+    fontWeight: 600,
+    marginRight: "0.3rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-title"
+                title=${task}
+              >
+                ${task}
+              </div>
+              <div
+                id="task-model"
+                style=${{
+    fontSize: FontSize.base,
+    paddingTop: "0.4rem",
+    ...ApplicationStyles.wrapText()
+  }}
+                class="task-model"
+                title=${model}
+              >
+                ${model}
+              </div>
+            </div>
+            <div
+              style=${{
+    opacity: "0.7",
+    marginTop: "0.1rem",
+    paddingBottom: 0,
+    fontSize: FontSize.small,
+    display: "grid",
+    gridTemplateColumns: "minmax(0,max-content) max-content"
+  }}
+            >
+              <div
+                class="navbar-secondary-text"
+                style=${{
+    ...ApplicationStyles.wrapText()
+  }}
+              >
+                ${logFileName}
+              </div>
+              <${CopyButton} value=${file} />
+            </div>
+          </div>
+        </div>
+
+        <div id="task-created" style=${{ display: "none" }}>${created}</div>
+
+        <div
+          class="navbar-text"
+          style=${{
+    justifyContent: "end",
+    marginRight: "1em",
+    marginBottom: "0"
+  }}
+        >
+          ${statusPanel}
+        </div>` : "";
+  return m$1`
+    <nav
+      class="navbar sticky-top"
+      style=${{
+    flexWrap: "nowrap"
+  }}
+    >
+      <div
+        style=${{
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    width: "100%"
+  }}
+      >
+        ${navbarContents}
+        <${SecondaryBar}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          evalResults=${evalResults}
+          samples=${samples}
+          status=${status}
+          style=${{ gridColumn: "1/-1" }}
+        />
+      </div>
+    </nav>
+  `;
+};
+const CanceledPanel = ({ sampleCount }) => {
+  return m$1`<div
+    style=${{
+    padding: "1em",
+    marginTop: "0.5em",
+    textTransform: "uppercase",
+    fontSize: FontSize.smaller
+  }}
+  >
+    <i
+      class="${ApplicationIcons.logging.info}"
+      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
+    />
+    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+  </div>`;
+};
+const RunningPanel = () => {
+  return m$1`
+    <div
+      style=${{
+    marginTop: "0.5em",
+    display: "inline-grid",
+    gridTemplateColumns: "max-content max-content"
+  }}
+    >
+      <div>
+        <i class=${ApplicationIcons.running} />
+      </div>
+      <div
+        style=${{
+    marginLeft: "0.3em",
+    paddingTop: "0.2em",
+    fontSize: FontSize.smaller,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        Running
+      </div>
+    </div>
+  `;
+};
+const ResultsPanel = ({ results }) => {
+  var _a2, _b2;
+  if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
+    const scorers = {};
+    results.scores.map((score) => {
+      scorers[score.name] = Object.keys(score.metrics).map((key2) => {
+        return {
+          name: key2,
+          value: score.metrics[key2].value,
+          reducer: score.reducer
+        };
+      });
+    });
+    const metrics = Object.values(scorers)[0];
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center"
+    }}
+    >
+      ${metrics.map((metric, i) => {
+      return m$1`<${VerticalMetric} metric=${metric} isFirst=${i === 0} />`;
+    })}
+    </div>`;
+  } else {
+    return m$1`<div
+      style=${{
+      display: "flex",
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "end",
+      height: "100%",
+      alignItems: "center",
+      marginTop: "0.2rem",
+      paddingBottom: "0.4rem",
+      rowGap: "1em"
+    }}
+    >
+      ${(_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score, index) => {
+      return m$1`<${MultiScorerMetric}
+          scorer=${score}
+          isFirst=${index === 0}
+        />`;
+    })}
+    </div>`;
+  }
+};
+const VerticalMetric = ({ metric, isFirst }) => {
+  const reducer_component = metric.reducer ? m$1` <div
+        style=${{
+    fontSize: FontSize.smaller,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${metric.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
+    <div
+      class="vertical-metric-label"
+      style=${{
+    fontSize: FontSize.smaller,
+    ...TextStyle.secondary,
+    textAlign: "center",
+    paddingTop: "0.3rem",
+    marginBottom: "-0.2rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary,
+    borderBottom: "solid var(--bs-border-color) 1px"
+  }}
+    >
+      ${metric.name}
+    </div>
+    ${reducer_component}
+    <div
+      class="vertical-metric-value"
+      style=${{
+    fontSize: FontSize.larger,
+    fontWeight: "500",
+    textAlign: "center"
+  }}
+    >
+      ${formatPrettyDecimal(metric.value)}
+    </div>
+  </div>`;
+};
+const MultiScorerMetric = ({ scorer, isFirst }) => {
+  const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
+  const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
+  const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
+  const reducer_component = scorer.reducer ? m$1`<div
+        style=${{
+    fontSize: reducerFontSize,
+    textAlign: "center",
+    marginBottom: "-0.3rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      >
+        ${scorer.reducer}
+      </div>` : "";
+  return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
+    <div
+      style=${{
+    fontSize: titleFontSize,
+    textAlign: "center",
+    borderBottom: "solid var(--bs-border-color) 1px",
+    marginBottom: "-0.1rem",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+      class="multi-score-label"
+    >
+      ${scorer.name}
+    </div>
+    ${reducer_component}
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "auto auto",
+    gridColumnGap: "0.3rem",
+    gridRowGap: "0",
+    fontSize: valueFontSize
+  }}
+    >
+      ${Object.keys(scorer.metrics).map((key2) => {
+    const metric = scorer.metrics[key2];
+    return m$1` <div>${metric.name}</div>
+          <div style=${{ fontWeight: "600" }}>
+            ${formatPrettyDecimal(metric.value)}
+          </div>`;
+  })}
+    </div>
+  </div>`;
+};
 const TaskErrorCard = ({ evalError }) => {
   return m$1`
     <${Card}>
@@ -20470,337 +24343,261 @@ const TaskErrorCard = ({ evalError }) => {
     </${Card}>
   `;
 };
-const kEvalTabId = "eval-tab";
-const kJsonTabId = "json-tab";
-const kInfoTabId = "plan-tab";
-const kPrismRenderMaxSize = 25e4;
-const kJsonMaxSize = 1e7;
-const WorkSpace = (props) => {
-  var _a, _b;
+const WorkSpace = ({
+  task_id,
+  evalStatus,
+  logFileName,
+  evalError,
+  evalSpec,
+  evalVersion,
+  evalPlan,
+  evalStats,
+  evalResults,
+  samples,
+  selectedSample,
+  groupBy,
+  groupByOrder,
+  showToggle,
+  refreshLog,
+  capabilities,
+  offcanvas,
+  samplesDescriptor,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
+  sampleStatus,
+  sampleError,
+  sort,
+  setSort,
+  epochs,
+  epoch,
+  setEpoch,
+  filter,
+  setFilter,
+  score,
+  setScore,
+  scores,
+  selectedTab,
+  setSelectedTab,
+  renderContext
+}) => {
   const divRef = A(
     /** @type {HTMLElement|null} */
     null
   );
-  const codeRef = A(
-    /** @type {HTMLElement|null} */
-    null
-  );
-  const workspaceLog = props.log;
-  const [currentTaskId, setCurrentTaskId] = h(
-    (_b = (_a = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a.eval) == null ? void 0 : _b.run_id
-  );
-  const [selectedTab, setSelectedTab] = h();
-  const [scores, setScores] = h([]);
-  const [score, setScore] = h(void 0);
-  const [samplesDesc, setSamplesDesc] = h(void 0);
-  const [filter, setFilter] = h({});
-  const [epoch, setEpoch] = h("all");
-  const [sort2, setSort] = h(kDefaultSort);
-  const [renderedCode, setRenderedCode] = h(false);
-  const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
+  if (!evalSpec) {
+    return "";
+  }
+  y(() => {
+    if (divRef.current) {
+      divRef.current.scrollTop = 0;
     }
-  };
-  const clearSampleTools = q(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
-  y(() => {
-    var _a2;
-    if (workspaceLog.contents && ((_a2 = workspaceLog.contents.eval) == null ? void 0 : _a2.run_id) !== currentTaskId) {
-      const defaultTab = Object.values(tabs)[0].id;
-      setSelectedTab(defaultTab);
-      if (divRef.current) {
-        divRef.current.scrollTop = 0;
-      }
-    }
-  }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
-  y(() => {
-    var _a2, _b2, _c, _d, _e, _f;
-    const scorer = ((_b2 = (_a2 = workspaceLog == null ? void 0 : workspaceLog.contents) == null ? void 0 : _a2.results) == null ? void 0 : _b2.scores[0]) ? {
-      name: (_c = workspaceLog.contents.results) == null ? void 0 : _c.scores[0].name,
-      scorer: (_d = workspaceLog.contents.results) == null ? void 0 : _d.scores[0].scorer
-    } : void 0;
-    const scorers = (((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.results) == null ? void 0 : _f.scores) || []).map((score2) => {
-      return {
-        name: score2.name,
-        scorer: score2.scorer
-      };
-    }).reduce((accum, scorer2) => {
-      if (!accum.find((sc) => {
-        return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
-      })) {
-        accum.push(scorer2);
-      }
-      return accum;
-    }, []);
-    setScores(scorers);
-    setScore(scorer);
-    clearSampleTools();
-    setRenderedCode(false);
-  }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
-  y(() => {
-    clearSampleTools();
-  }, [score]);
-  y(() => {
-    var _a2, _b2, _c, _d;
-    const sampleDescriptor = samplesDescriptor(
-      score,
-      scores,
-      (_a2 = workspaceLog.contents) == null ? void 0 : _a2.samples,
-      ((_d = (_c = (_b2 = workspaceLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-      context
-    );
-    setSamplesDesc(sampleDescriptor);
-  }, [workspaceLog, score, scores, setSamplesDesc]);
-  y(() => {
-    var _a2, _b2;
-    setCurrentTaskId((_b2 = (_a2 = workspaceLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.run_id);
-  }, [workspaceLog]);
-  const tabs = T(() => {
-    var _a2, _b2, _c, _d, _e, _f;
-    const resolvedTabs = {};
-    if (((_a2 = workspaceLog.contents) == null ? void 0 : _a2.status) !== "error" && ((_b2 = workspaceLog.contents) == null ? void 0 : _b2.samples)) {
-      resolvedTabs.samples = {
-        id: kEvalTabId,
-        scrollable: ((_d = (_c = workspaceLog.contents) == null ? void 0 : _c.samples) == null ? void 0 : _d.length) === 1,
-        label: ((_f = (_e = workspaceLog.contents) == null ? void 0 : _e.samples) == null ? void 0 : _f.length) > 1 ? "Samples" : "Sample",
-        content: () => {
-          var _a3, _b3, _c2, _d2, _e2;
-          return m$1` <${SamplesTab}
-            task=${(_b3 = (_a3 = workspaceLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.task_id}
-            model=${(_d2 = (_c2 = workspaceLog.contents) == null ? void 0 : _c2.eval) == null ? void 0 : _d2.model}
-            selectedScore=${score}
-            setSelectedScore=${setScore}
-            samples=${(_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples}
-            sampleDescriptor=${samplesDesc}
-            filter=${filter}
-            sort=${sort2}
-            epoch=${epoch}
-            context=${context}
-          />`;
-        },
-        tools: () => {
-          var _a3, _b3, _c2, _d2, _e2, _f2;
-          if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) === "started") {
-            return m$1`<${ToolButton}
-              name=${m$1`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${props.refreshLog}"
-            />`;
-          }
-          if (((_c2 = (_b3 = workspaceLog.contents) == null ? void 0 : _b3.samples) == null ? void 0 : _c2.length) <= 1) {
-            return "";
-          }
-          return m$1`<${SampleTools}
-            epoch=${epoch}
-            epochs=${(_f2 = (_e2 = (_d2 = workspaceLog.contents) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f2.epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort2}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
-            sampleDescriptor=${samplesDesc}
-          />`;
-        }
-      };
-    }
-    resolvedTabs.config = {
-      id: kInfoTabId,
-      label: "Info",
-      scrollable: true,
+  }, [divRef, task_id]);
+  const resolvedTabs = {};
+  if (evalStatus !== "error" && samples && samples.length > 0) {
+    resolvedTabs.samples = {
+      id: kEvalWorkspaceTabId,
+      scrollable: samples.length === 1,
+      label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
       content: () => {
-        var _a3, _b3, _c2, _d2, _e2, _f2, _g, _h, _i;
-        const infoCards = [];
-        infoCards.push([
-          m$1`<${PlanCard}
-            log="${workspaceLog.contents}"
-            context=${context}
-          />`
-        ]);
-        if (((_a3 = workspaceLog.contents) == null ? void 0 : _a3.status) !== "started") {
-          infoCards.push(
-            m$1`<${UsageCard}
-              stats=${(_b3 = workspaceLog.contents) == null ? void 0 : _b3.stats}
-              context=${context}
-            />`
-          );
-        }
-        if (((_c2 = workspaceLog.contents) == null ? void 0 : _c2.status) === "error" && ((_d2 = workspaceLog.contents) == null ? void 0 : _d2.error)) {
-          infoCards.unshift(
-            m$1`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`
-          );
-        }
-        const warnings = [];
-        if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
-          warnings.push(
-            m$1`<${WarningBand}
-              message="Unable to display samples (this evaluation log may be too large)."
-            />`
-          );
-        }
-        return m$1` <div style=${{ width: "100%" }}>
-          ${warnings}
-          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-            ${infoCards}
-          </div>
-        </div>`;
-      }
-    };
-    resolvedTabs.json = {
-      id: kJsonTabId,
-      label: "JSON",
-      scrollable: true,
-      content: () => {
-        const renderedContent = [];
-        if (workspaceLog.raw.length > kJsonMaxSize && props.capabilities.downloadFiles) {
-          const file = `${filename(workspaceLog.name)}.json`;
-          renderedContent.push(
-            m$1`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${workspaceLog.name}
-              fileName=${file}
-              fileContents=${workspaceLog.raw}
-            />`
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (workspaceLog.raw.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism$1.highlight(
-                workspaceLog.raw,
-                Prism$1.languages.javascript,
-                "javacript"
-              );
-            } else {
-              const textNode = document.createTextNode(workspaceLog.raw);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            m$1`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere"
-            }}>
-            </code>
-          </pre>`
-          );
-        }
-        return m$1` <div
-          style=${{
-          padding: "1rem",
-          fontSize: FontSize.small,
-          width: "100%"
-        }}
-        >
-          ${renderedContent}
-        </div>`;
+        return m$1` <${SamplesTab}
+          task_id=${task_id}
+          selectedScore=${score}
+          sample=${selectedSample}
+          sampleStatus=${sampleStatus}
+          sampleError=${sampleError}
+          showingSampleDialog=${showingSampleDialog}
+          setShowingSampleDialog=${setShowingSampleDialog}
+          samples=${samples}
+          groupBy=${groupBy}
+          groupByOrder=${groupByOrder}
+          selectedSampleIndex=${selectedSampleIndex}
+          setSelectedSampleIndex=${setSelectedSampleIndex}
+          sampleDescriptor=${samplesDescriptor}
+          selectedSampleTab=${selectedSampleTab}
+          setSelectedSampleTab=${setSelectedSampleTab}
+          filter=${filter}
+          sort=${sort}
+          epoch=${epoch}
+          context=${renderContext}
+        />`;
       },
       tools: () => {
-        if (workspaceLog.raw.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            m$1`<${ToolButton}
-              name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`
-          ];
+        if (evalStatus === "started") {
+          return m$1`<${ToolButton}
+            name=${m$1`Refresh`}
+            icon="${ApplicationIcons.refresh}"
+            onclick="${refreshLog}"
+          />`;
         }
+        if ((samples == null ? void 0 : samples.length) <= 1) {
+          return "";
+        }
+        return m$1`<${SampleTools}
+          epoch=${epoch}
+          epochs=${epochs}
+          setEpoch=${setEpoch}
+          filter=${filter}
+          filterChanged=${setFilter}
+          sort=${sort}
+          setSort=${setSort}
+          score=${score}
+          setScore=${setScore}
+          scores=${scores}
+          sampleDescriptor=${samplesDescriptor}
+        />`;
       }
     };
-    return resolvedTabs;
-  }, [
-    samplesDesc,
-    workspaceLog,
-    filter,
-    setFilter,
-    epoch,
-    setEpoch,
-    sort2,
-    setSort,
-    renderedCode,
-    setRenderedCode
-  ]);
-  const copyFeedback = q(
-    (e2) => {
-      const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
-      const iconEl = e2.currentTarget.querySelector("i.bi");
-      if (textEl) {
-        const oldText = textEl.innerText;
-        const oldIconClz = iconEl.className;
-        textEl.innerText = "Copied!";
-        iconEl.className = `${ApplicationIcons.confirm}`;
-        setTimeout(() => {
-          window.getSelection().removeAllRanges();
-        }, 50);
-        setTimeout(() => {
-          textEl.innerText = oldText;
-          iconEl.className = oldIconClz;
-        }, 1250);
+  }
+  resolvedTabs.config = {
+    id: kInfoWorkspaceTabId,
+    label: "Info",
+    scrollable: true,
+    content: () => {
+      var _a2;
+      const infoCards = [];
+      infoCards.push([
+        m$1`<${PlanCard}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          scores=${evalResults == null ? void 0 : evalResults.scores}
+          context=${renderContext}
+        />`
+      ]);
+      if (evalStatus !== "started") {
+        infoCards.push(
+          m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
+        );
       }
-    },
-    [renderedCode]
-  );
-  const tabTools = Object.keys(tabs).map((key2) => {
-    const tab = tabs[key2];
-    return tab;
-  }).filter((tab) => {
-    return tab.id === selectedTab;
-  }).map((tab) => {
-    if (tab.tools) {
-      const tools = tab.tools();
-      return tools;
-    } else {
-      return "";
+      if (evalStatus === "error" && evalError) {
+        infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
+      }
+      const warnings = [];
+      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
+        warnings.push(
+          m$1`<${WarningBand}
+            message="Unable to display samples (this evaluation log may be too large)."
+          />`
+        );
+      }
+      return m$1` <div style=${{ width: "100%" }}>
+        ${warnings}
+        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+          ${infoCards}
+        </div>
+      </div>`;
     }
-  });
+  };
+  resolvedTabs.json = {
+    id: kJsonWorkspaceTabId,
+    label: "JSON",
+    scrollable: true,
+    content: () => {
+      const evalHeader = {
+        version: evalVersion,
+        status: evalStatus,
+        eval: evalSpec,
+        plan: evalPlan,
+        error: evalError,
+        results: evalResults,
+        stats: evalStats
+      };
+      const json = JSON.stringify(evalHeader, null, 2);
+      return m$1`<${JsonTab}
+        logFileName=${logFileName}
+        json=${json}
+        capabilities=${capabilities}
+        selected=${selectedTab === kJsonWorkspaceTabId}
+      />`;
+    },
+    tools: () => {
+      return [
+        m$1`<${ToolButton}
+          name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+          icon="${ApplicationIcons.copy}"
+          classes="task-btn-json-copy clipboard-button"
+          data-clipboard-target="#task-json-contents"
+          onclick="${copyFeedback}"
+        />`
+      ];
+    }
+  };
+  const copyFeedback = (e2) => {
+    const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
+    const iconEl = e2.currentTarget.querySelector("i.bi");
+    if (textEl) {
+      const oldText = textEl.innerText;
+      const oldIconClz = iconEl.className;
+      textEl.innerText = "Copied!";
+      iconEl.className = `${ApplicationIcons.confirm}`;
+      setTimeout(() => {
+        window.getSelection().removeAllRanges();
+      }, 50);
+      setTimeout(() => {
+        textEl.innerText = oldText;
+        iconEl.className = oldIconClz;
+      }, 1250);
+    }
+  };
   return m$1`<${WorkspaceDisplay}
+    logFileName=${logFileName}
     divRef=${divRef}
-    tabs=${tabs}
-    tabTools=${tabTools}
-    log=${workspaceLog}
-    logs=${props.logs}
+    evalSpec=${evalSpec}
+    evalPlan=${evalPlan}
+    evalResults=${evalResults}
+    samples=${samples}
+    status=${evalStatus}
+    tabs=${resolvedTabs}
     selectedTab=${selectedTab}
-    fullScreen=${props.fullScreen}
-    offcanvas=${props.offcanvas}
+    showToggle=${showToggle}
+    offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    afterBodyElements=${afterBodyElements}
   />`;
 };
 const WorkspaceDisplay = ({
-  log,
-  logs,
+  logFileName,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
+  showToggle,
   selectedTab,
   tabs,
-  tabTools,
   setSelectedTab,
   divRef,
-  afterBodyElements,
   offcanvas
 }) => {
-  if (log.contents === void 0) {
+  if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
   } else {
+    const tabTools = Object.keys(tabs).map((key2) => {
+      const tab = tabs[key2];
+      return tab;
+    }).filter((tab) => {
+      return tab.id === selectedTab;
+    }).map((tab) => {
+      if (tab.tools) {
+        const tools = tab.tools();
+        return tools;
+      } else {
+        return "";
+      }
+    });
     return m$1`
     
     <${Navbar}
-      file=${log.name}
-      logs=${logs}
-      log=${log.contents}
+      evalSpec=${evalSpec}
+      evalPlan=${evalPlan}
+      evalResults=${evalResults}
+      samples=${samples}
+      status=${status}
+      file=${logFileName}
+      showToggle=${showToggle}
+      
       offcanvas=${offcanvas}
     />    
     <div ref=${divRef} class="workspace" style=${{
@@ -20851,8 +24648,7 @@ const WorkspaceDisplay = ({
     })}
             </${TabSet}>
             </div>
-          </div>
-          ${afterBodyElements}`;
+          </div>`;
   }
 };
 const FindBand = ({ hideBand }) => {
@@ -20996,89 +24792,761 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
+const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+  if (!samples) {
+    return void 0;
+  }
+  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
+    if (sample.scores[scorer]) {
+      return sample.scores[scorer];
+    } else {
+      return void 0;
+    }
+  };
+  const scoreValue = (sample) => {
+    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
+      return void 0;
+    }
+    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
+      return sample.scores[selectedScore.scorer].value[selectedScore.name];
+    } else if (sample.scores[selectedScore.name]) {
+      return sample.scores[selectedScore.name].value;
+    } else {
+      return void 0;
+    }
+  };
+  const scoreAnswer = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.answer) {
+        return sampleScore.answer;
+      }
+    } else {
+      return void 0;
+    }
+  };
+  const scoreExplanation = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.explanation) {
+        return sampleScore.explanation;
+      }
+    }
+    return void 0;
+  };
+  const uniqScoreValues = [
+    ...new Set(
+      samples.filter((sample) => !!sample.scores).filter((sample) => {
+        if (!selectedScore) {
+          return true;
+        }
+        if (selectedScore.scorer !== selectedScore.name) {
+          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
+            selectedScore.name
+          );
+        } else {
+          return Object.keys(sample.scores).includes(selectedScore.name);
+        }
+      }).map((sample) => {
+        return scoreValue(sample);
+      }).filter((value) => {
+        return value !== null;
+      })
+    )
+  ];
+  const uniqScoreTypes = [
+    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+  ];
+  let scoreDescriptor;
+  for (const categorizer of scoreCategorizers) {
+    scoreDescriptor = categorizer.describe(
+      uniqScoreValues,
+      uniqScoreTypes,
+      context
+    );
+    if (scoreDescriptor) {
+      break;
+    }
+  }
+  const sizes = samples.reduce(
+    (previous, current) => {
+      var _a2;
+      const text2 = inputString(current.input).join(" ");
+      previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+      previous[1] = Math.min(
+        Math.max(previous[1], arrayToString(current.target).length),
+        300
+      );
+      previous[2] = Math.min(
+        Math.max(
+          previous[2],
+          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+        ),
+        300
+      );
+      return previous;
+    },
+    [0, 0, 0]
+  );
+  const base2 = sizes[0] + sizes[1] + sizes[2] || 1;
+  const messageShape = {
+    input: sizes[0] / base2,
+    target: sizes[1] / base2,
+    answer: sizes[2] / base2
+  };
+  const scoreRendered = (sample) => {
+    const score2 = scoreValue(sample);
+    if (score2 === null || score2 === "undefined") {
+      return "null";
+    } else if (scoreDescriptor.render) {
+      return scoreDescriptor.render(score2);
+    } else {
+      return score2;
+    }
+  };
+  const scorerDescriptor = (sample, scorer) => {
+    return {
+      explanation: () => {
+        return scoreExplanation(sample, scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+        const scoreNames = scorers.map((score2) => {
+          return score2.name;
+        });
+        const sampleScorer = sample.scores[scorer];
+        const scoreVal = sampleScorer.value;
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+          if (names.find((name) => {
+            return !scoreNames.includes(name);
+          })) {
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                }
+              }
+            ];
+          } else {
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal[name]);
+                }
+              };
+            });
+            return scores;
+          }
+        } else {
+          return [
+            {
+              name: scorer,
+              rendered: () => {
+                return scoreDescriptor.render(scoreVal);
+              }
+            }
+          ];
+        }
+      }
+    };
+  };
+  return {
+    scoreDescriptor,
+    epochs,
+    messageShape,
+    selectedScore: (sample) => {
+      return {
+        value: scoreValue(sample),
+        render: () => {
+          return scoreRendered(sample);
+        }
+      };
+    },
+    scorer: (sample, scorer) => {
+      return scorerDescriptor(sample, scorer);
+    },
+    selectedScorer: (sample) => {
+      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
+    }
+  };
+};
+const scoreCategorizers = [
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values) => {
+      if ((values.length === 1 || values.length === 2) && values.every((val) => {
+        return val === 1 || val === 0;
+      })) {
+        return booleanScoreCategorizer();
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
+        return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+      })) {
+        return passFailScoreCategorizer(values);
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (values.length < 10 && types.length === 1 && types[0] === "string") {
+        return {
+          scoreType: kScoreTypeCategorical,
+          categories: values,
+          compare: (a2, b2) => {
+            return String(a2).localeCompare(String(b2));
+          },
+          render: (score) => {
+            return score;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "number") {
+        const onlyNumeric = values.filter((val) => {
+          return typeof val === "number";
+        });
+        return {
+          scoreType: kScoreTypeNumeric,
+          min: Math.min(...onlyNumeric),
+          max: Math.max(...onlyNumeric),
+          compare: (a2, b2) => {
+            if (typeof a2 === "number" && typeof b2 === "number") {
+              return a2 - b2;
+            } else {
+              console.warn(
+                "Comparing non-numerics using a nuermic score descriptor"
+              );
+              return 0;
+            }
+          },
+          render: (score) => {
+            return formatDecimalNoTrailingZeroes(Number(score));
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    describe: (values, types) => {
+      if (types.length !== 0 && types[0] === "object") {
+        const buckets = values.map((val) => {
+          return JSON.stringify(val);
+        });
+        const vals = new Set(buckets);
+        let categories = void 0;
+        if (vals.size < 10) {
+          categories = Array.from(vals).map((val) => {
+            return {
+              val,
+              text: val
+            };
+          });
+        }
+        return {
+          scoreType: kScoreTypeObject,
+          categories,
+          compare: () => {
+            return 0;
+          },
+          render: (score) => {
+            if (score === null || score === void 0) {
+              return "[null]";
+            }
+            const scores = [];
+            const keys = Object.keys(score);
+            keys.forEach((key2, index) => {
+              const value = score[key2];
+              const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+              const style = {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                marginLeft: "0.5rem"
+              };
+              if (index + 1 < keys.length) {
+                style["paddingBottom"] = "1em";
+              }
+              scores.push(m$1`
+                <div style=${style}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+            });
+            return scores;
+          }
+        };
+      }
+    }
+  },
+  {
+    /**
+     * @param {import("../types/log").Value2[]} values - the currently selected score
+     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+     * @param {import("../Types.mjs").RenderContext} [context] - the application context
+     * @returns {ScoreDescriptor} a ScoreDescriptor
+     */
+    // @ts-ignore
+    describe: (values, types, context) => {
+      return {
+        scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
+        render: (score) => {
+          return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score }}
+            context=${context}
+          />`;
+        }
+      };
+    }
+  }
+];
+const filledCircleStyle = {
+  fontSize: FontSize.small,
+  fontFamily: "Consola Regular",
+  width: "20px",
+  height: "20px",
+  display: "inline-flex",
+  justifyContent: "center",
+  alignItems: "center",
+  borderRadius: "50%",
+  paddingTop: "1px"
+};
+const booleanScoreCategorizer = () => {
+  return {
+    scoreType: "boolean",
+    compare: (a2, b2) => {
+      return Number(a2.value) - Number(b2.value);
+    },
+    render: (score) => {
+      const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+      return m$1`<span
+        style=${{
+        ...scoreColorStyle,
+        ...filledCircleStyle
+      }}
+        >${score}</span
+      >`;
+    }
+  };
+};
+const passFailScoreCategorizer = (values) => {
+  const categories = [];
+  if (values.includes("C")) {
+    categories.push({
+      val: "C",
+      text: "Correct"
+    });
+  }
+  if (values.includes("P")) {
+    categories.push({
+      val: "P",
+      text: "Partial"
+    });
+  }
+  if (values.includes("I")) {
+    categories.push({
+      val: "I",
+      text: "Incorrect"
+    });
+  }
+  if (values.includes("N")) {
+    categories.push({
+      val: "N",
+      text: "Refusal"
+    });
+  }
+  const order2 = ["C", "P", "I", "N"];
+  return {
+    scoreType: kScoreTypePassFail,
+    categories,
+    render: (score) => {
+      if (score === "C") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.green,
+          ...filledCircleStyle
+        }}
+          >C</span
+        >`;
+      } else if (score === "I") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >I</span
+        >`;
+      } else if (score === "P") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.orange,
+          ...filledCircleStyle
+        }}
+          >P</span
+        >`;
+      } else if (score === "N") {
+        return m$1`<span
+          style=${{
+          ...ApplicationStyles.scoreFills.red,
+          ...filledCircleStyle
+        }}
+          >N</span
+        >`;
+      } else {
+        return score;
+      }
+    },
+    compare: (a2, b2) => {
+      const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+      return sort;
+    }
+  };
+};
+const resolveAttachments = (value, attachments) => {
+  const kContentProtocol = "tc://";
+  const kAttachmentProtocol = "attachment://";
+  if (Array.isArray(value)) {
+    return value.map((v2) => resolveAttachments(v2, attachments));
+  } else if (value && typeof value === "object") {
+    const resolvedObject = {};
+    for (const key2 of Object.keys(value)) {
+      resolvedObject[key2] = resolveAttachments(value[key2], attachments);
+    }
+    return resolvedObject;
+  } else if (typeof value === "string") {
+    if (value.startsWith(kContentProtocol)) {
+      value = value.replace(kContentProtocol, kAttachmentProtocol);
+    }
+    if (value.startsWith(kAttachmentProtocol)) {
+      return attachments[value.replace(kAttachmentProtocol, "")];
+    }
+  }
+  return value;
+};
 function App({ api: api2, pollForLogs = true }) {
-  const [selected, setSelected] = h(-1);
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
+  const [selectedLogIndex, setSelectedLogIndex] = h(-1);
   const [logHeaders, setLogHeaders] = h({});
-  const [offcanvas, setOffcanvas] = h(false);
-  const [currentLog, setCurrentLog] = h({
+  const [headersLoading, setHeadersLoading] = h(false);
+  const [selectedLog, setSelectedLog] = h({
     contents: void 0,
-    name: void 0,
-    raw: void 0
+    name: void 0
   });
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = h(kEvalWorkspaceTabId);
+  const [selectedSampleIndex, setSelectedSampleIndex] = h(-1);
+  const [selectedSample, setSelectedSample] = h(void 0);
+  const [sampleStatus, setSampleStatus] = h(void 0);
+  const [sampleError, setSampleError] = h(void 0);
+  const [selectedSampleTab, setSelectedSampleTab] = h(void 0);
+  const loadingSampleIndexRef = A(null);
+  const [showingSampleDialog, setShowingSampleDialog] = h(false);
   const [status, setStatus] = h({
     loading: true,
     error: void 0
   });
-  const [headersLoading, setHeadersLoading] = h(false);
   const [capabilities, setCapabilities] = h({
     downloadFiles: true,
     webWorkers: true
   });
+  const [offcanvas, setOffcanvas] = h(false);
   const [showFind, setShowFind] = h(false);
-  const mainAppRef = A();
-  y(async () => {
-    setHeadersLoading(true);
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
-      let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
+  const [filter, setFilter] = h({});
+  const [epoch, setEpoch] = h("all");
+  const [sort, setSort] = h(kDefaultSort);
+  const [samplesDescriptor, setSamplesDescriptor] = h(void 0);
+  const [scores, setScores] = h([]);
+  const [score, setScore] = h(void 0);
+  const afterBodyElements = [];
+  const context = {
+    afterBody: (el) => {
+      afterBodyElements.push(el);
     }
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api2.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
-        });
-        if (headers.length === chunkSize) {
-          await sleep(5e3);
+  };
+  const [filteredSamples, setFilteredSamples] = h([]);
+  const [groupBy, setGroupBy] = h("none");
+  const [groupByOrder, setGroupByOrder] = h("asc");
+  y(() => {
+    if (showingSampleDialog) {
+      setSelectedSample(void 0);
+      setSelectedSampleTab(void 0);
+    }
+  }, [showingSampleDialog]);
+  y(() => {
+    var _a3;
+    const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
+    const filtered = samples.filter((sample) => {
+      if (epoch && epoch !== "all") {
+        if (epoch !== sample.epoch + "") {
+          return false;
         }
       }
-    } catch (e2) {
-      console.log(e2);
-      setStatus({ loading: false, error: e2 });
+      if (filter.filterFn && filter.value) {
+        return filter.filterFn(sample, filter.value);
+      } else {
+        return true;
+      }
+    });
+    const { sorted, order: order2 } = sortSamples(sort, filtered, samplesDescriptor);
+    let grouping = "none";
+    if ((samplesDescriptor == null ? void 0 : samplesDescriptor.epochs) > 1) {
+      if (byEpoch(sort) || epoch !== "all") {
+        grouping = "epoch";
+      } else if (bySample(sort)) {
+        grouping = "sample";
+      }
     }
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  y(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+    setFilteredSamples(sorted);
+    setGroupBy(grouping);
+    setGroupByOrder(order2);
+  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+  y(() => {
+    resetFilteringState();
+  }, [score]);
+  y(() => {
+    var _a3, _b3, _c2, _d2, _e2, _f2;
+    const scorer = ((_b3 = (_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.results) == null ? void 0 : _b3.scores[0]) ? {
+      name: (_c2 = selectedLog.contents.results) == null ? void 0 : _c2.scores[0].name,
+      scorer: (_d2 = selectedLog.contents.results) == null ? void 0 : _d2.scores[0].scorer
+    } : void 0;
+    const scorers = (((_f2 = (_e2 = selectedLog.contents) == null ? void 0 : _e2.results) == null ? void 0 : _f2.scores) || []).map((score2) => {
+      return {
+        name: score2.name,
+        scorer: score2.scorer
+      };
+    }).reduce((accum, scorer2) => {
+      if (!accum.find((sc) => {
+        return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
+      })) {
+        accum.push(scorer2);
+      }
+      return accum;
+    }, []);
+    setScores(scorers);
+    setScore(scorer);
+    resetFilteringState();
+  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
+  y(() => {
+    var _a3, _b3, _c2, _d2;
+    const sampleDescriptor = createsSamplesDescriptor(
+      scores,
+      (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
+      context,
+      score
+    );
+    setSamplesDescriptor(sampleDescriptor);
+  }, [selectedLog, score, scores, setSamplesDescriptor]);
+  const refreshSampleTab = q(
+    (sample) => {
+      if (selectedSampleTab === void 0) {
+        const defaultTab = sample.events && sample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
+        setSelectedSampleTab(defaultTab);
+      }
+    },
+    [selectedSampleTab, showingSampleDialog]
+  );
+  const resetFilteringState = q(() => {
+    setEpoch("all");
+    setFilter({});
+    setSort(kDefaultSort);
+  }, [setEpoch, setFilter, setSort]);
+  const mainAppRef = A();
+  y(() => {
+    if (!selectedLog || selectedSampleIndex === -1) {
+      setSelectedSample(void 0);
+      return;
+    }
+    if (loadingSampleIndexRef.current === selectedSampleIndex) {
+      return;
+    }
+    if (!showingSampleDialog && selectedLog.contents.sampleSummaries.length > 1) {
+      return;
+    }
+    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
+      loadingSampleIndexRef.current = selectedSampleIndex;
+      setSampleStatus("loading");
+      setSampleError(void 0);
+      const summary = filteredSamples[selectedSampleIndex];
+      api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
+        if (sample.transcript) {
+          sample.events = sample.transcript.events;
+          sample.attachments = sample.transcript.content;
+        }
+        sample.attachments = sample.attachments || {};
+        sample.input = resolveAttachments(sample.input, sample.attachments);
+        sample.messages = resolveAttachments(
+          sample.messages,
+          sample.attachments
+        );
+        sample.events = resolveAttachments(sample.events, sample.attachments);
+        sample.attachments = {};
+        setSelectedSample(sample);
+        refreshSampleTab(sample);
+        setSampleStatus("ok");
+        loadingSampleIndexRef.current = null;
+      }).catch((e2) => {
+        setSampleStatus("error");
+        setSampleError(e2);
+        setSelectedSample(void 0);
+        loadingSampleIndexRef.current = null;
+      });
+    }
+  }, [
+    selectedSampleIndex,
+    showingSampleDialog,
+    selectedLog,
+    filteredSamples,
+    setSelectedSample,
+    setSampleStatus,
+    setSampleError
+  ]);
+  y(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i = 0; i < logs.files.length; i += chunkSize) {
+        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
+        fileLists.push(chunk);
+      }
       try {
-        setStatus({ loading: true, error: void 0 });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw
+        for (const fileList of fileLists) {
+          const headers = await api2.get_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: void 0 });
+          if (headers.length === chunkSize) {
+            await sleep(5e3);
+          }
         }
       } catch (e2) {
         console.log(e2);
         setStatus({ loading: false, error: e2 });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
-        )
-      });
-    }
-  }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
+      setHeadersLoading(false);
+    };
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  const resetWorkspace = q(
+    /**
+     * @param {import("./api/Types.mjs").EvalSummary} log
+     */
+    (log) => {
+      const hasSamples = !!(log == null ? void 0 : log.sampleSummaries) && (log == null ? void 0 : log.sampleSummaries.length) > 0;
+      const showSamples = (log == null ? void 0 : log.status) !== "error" && hasSamples;
+      setSelectedWorkspaceTab(
+        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
+      );
+      setSelectedSampleTab(void 0);
+    },
+    [setSelectedWorkspaceTab]
+  );
+  y(() => {
+    const loadSpecificLog = async () => {
+      const targetLog = logs.files[selectedLogIndex];
+      if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: void 0 });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents;
+            setSelectedLog({
+              contents: log,
+              name: targetLog.name
+            });
+            setSelectedSampleIndex(-1);
+            resetWorkspace(log);
+            setStatus({ loading: false, error: void 0 });
+          }
+        } catch (e2) {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+          )
+        });
+      }
+    };
+    loadSpecificLog();
+  }, [
+    selectedLogIndex,
+    logs,
+    capabilities,
+    selectedLog,
+    setSelectedLog,
+    setStatus
+  ]);
   const loadLogs = async () => {
     try {
-      const result = await api2.eval_logs();
+      const result = await api2.get_log_paths();
       return result;
     } catch (e2) {
       console.log(e2);
@@ -21087,7 +25555,7 @@ function App({ api: api2, pollForLogs = true }) {
   };
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api2.eval_log(logFileName, 100, capabilities);
+      const logContents = await api2.get_log_summary(logFileName);
       return logContents;
     } catch (e2) {
       console.log(e2);
@@ -21097,10 +25565,10 @@ function App({ api: api2, pollForLogs = true }) {
   const refreshLog = q(async () => {
     try {
       setStatus({ loading: true, error: void 0 });
-      const targetLog = logs.files[selected];
+      const targetLog = logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
-        const log = logContents.parsed;
+        const log = logContents;
         if (log.status !== "started") {
           setLogHeaders((prev) => {
             const updatedState = { ...prev };
@@ -21116,45 +25584,45 @@ function App({ api: api2, pollForLogs = true }) {
             return updatedState;
           });
         }
-        setCurrentLog({
+        setSelectedLog({
           contents: log,
-          name: targetLog.name,
-          raw: logContents.raw
+          name: targetLog.name
         });
+        resetWorkspace(log);
         setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
       console.log(e2);
       setStatus({ loading: false, error: e2 });
     }
-  }, [logs, selected, setStatus, setCurrentLog, setLogHeaders]);
+  }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
   const showLogFile = q(
     async (logUrl) => {
       const index = logs.files.findIndex((val) => {
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
-        setSelected(index);
+        setSelectedLogIndex(index);
       } else {
         const result = await loadLogs();
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
         setLogs(result);
-        setSelected(idx > -1 ? idx : 0);
+        setSelectedLogIndex(idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelected, setLogs]
+    [logs, setSelectedLogIndex, setLogs]
   );
   const refreshLogList = q(async () => {
-    const currentLog2 = logs.files[selected > -1 ? selected : 0];
+    const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
     const refreshedLogs = await loadLogs();
     const newIndex = refreshedLogs.files.findIndex((file) => {
-      return currentLog2.name.endsWith(file.name);
+      return currentLog.name.endsWith(file.name);
     });
     setLogs(refreshedLogs);
-    setSelected(newIndex);
-  }, [logs, selected, setSelected, setLogs]);
+    setSelectedLogIndex(newIndex);
+  }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
   const onMessage = T(() => {
     return async (e2) => {
       const type = e2.data.type || e2.data.message;
@@ -21190,71 +25658,74 @@ function App({ api: api2, pollForLogs = true }) {
       window.removeEventListener("message", onMessage);
     };
   }, [onMessage]);
-  y(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]'
-    );
-    const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
-    setOffcanvas(true);
-    const logPath = urlParams.get("task_file");
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath ? async () => {
-      return {
-        log_dir: "",
-        files: [{ name: resolvedLogPath }]
-      };
-    } : loadLogs;
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      const result = await load();
-      setLogs(result);
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
+  y(() => {
+    const loadLogsAndState = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      } else if (selected === -1) {
-        setSelected(0);
       }
-    }
-    new ClipboardJS(".clipboard-button,.copy-button");
-    if (pollForLogs) {
-      setInterval(() => {
-        api2.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      setOffcanvas(true);
+      const logPath = urlParams.get("task_file");
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath ? async () => {
+        return {
+          log_dir: "",
+          files: [{ name: resolvedLogPath }]
+        };
+      } : loadLogs;
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelectedLogIndex(index);
           }
-          if (events.includes("refresh-evals")) {
-            const logs2 = await load();
-            setLogs(logs2);
-            setSelected(0);
-          }
-        });
-      }, 1e3);
-    }
+        } else if (selectedLogIndex === -1) {
+          setSelectedLogIndex(0);
+        }
+      }
+      new ClipboardJS(".clipboard-button,.copy-button");
+      if (pollForLogs) {
+        setInterval(() => {
+          api2.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs2 = await load();
+              setLogs(logs2);
+              setSelectedLogIndex(0);
+            }
+          });
+        }, 1e3);
+      }
+    };
+    loadLogsAndState();
   }, []);
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
-  const sidebar = !fullScreen && currentLog.contents ? m$1`
+  const sidebar = !fullScreen && selectedLog.contents ? m$1`
           <${Sidebar}
             logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
-            selectedIndex=${selected}
+            selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
-    setSelected(index);
+    setSelectedLogIndex(index);
     var myOffcanvas = document.getElementById("sidebarOffCanvas");
     var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
     if (bsOffcanvas) {
@@ -21263,26 +25734,6 @@ function App({ api: api2, pollForLogs = true }) {
   }}
           />
         ` : "";
-  const workspace = T(() => {
-    if (status.error) {
-      return m$1`<${ErrorPanel}
-        title="An error occurred while loading this task."
-        error=${status.error}
-      />`;
-    } else {
-      return m$1` <${WorkSpace}
-        logs=${logs}
-        log=${currentLog}
-        selected=${selected}
-        fullScreen=${fullScreen}
-        offcanvas=${offcanvas}
-        capabilities=${capabilities}
-        showFind=${showFind}
-        setShowFind=${setShowFind}
-        refreshLog=${refreshLog}
-      />`;
-    }
-  }, [logs, currentLog, selected, fullScreen, offcanvas, status]);
   const fullScreenClz = fullScreen ? " full-screen" : "";
   const offcanvasClz = offcanvas ? " off-canvas" : "";
   const hideFind = q(() => {
@@ -21291,11 +25742,12 @@ function App({ api: api2, pollForLogs = true }) {
       setShowFind(false);
     }
   }, [showFind, setShowFind]);
+  const showToggle = logs.files.length > 1 || logs.log_dir;
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
-    if (!window.acquireVsCodeApi) {
+    if (!getVscodeApi()) {
       return;
     }
     if ((e2.ctrlKey || e2.metaKey) && e2.key === "f") {
@@ -21309,8 +25761,53 @@ function App({ api: api2, pollForLogs = true }) {
     background: "var(--bs-light)",
     marginBottom: "-1px"
   }}/>
-      ${workspace}
+      ${status.error ? m$1`<${ErrorPanel}
+              title="An error occurred while loading this task."
+              error=${status.error}
+            />` : m$1`<${WorkSpace}
+              task_id=${(_b2 = (_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task_id}
+              logFileName=${selectedLog == null ? void 0 : selectedLog.name}
+              evalStatus=${(_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.status}
+              evalError=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.error}
+              evalVersion=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.version}
+              evalSpec=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval}
+              evalPlan=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.plan}
+              evalStats=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.stats}
+              evalResults=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results}
+              showToggle=${showToggle}
+              samples=${filteredSamples}
+              groupBy=${groupBy}
+              groupByOrder=${groupByOrder}
+              sampleStatus=${sampleStatus}
+              sampleError=${sampleError}
+              samplesDescriptor=${samplesDescriptor}
+              refreshLog=${refreshLog}
+              offcanvas=${offcanvas}
+              capabilities=${capabilities}
+              selected=${selectedLogIndex}
+              selectedSample=${selectedSample}
+              selectedSampleIndex=${selectedSampleIndex}
+              setSelectedSampleIndex=${setSelectedSampleIndex}
+              showingSampleDialog=${showingSampleDialog}
+              setShowingSampleDialog=${setShowingSampleDialog}
+              selectedTab=${selectedWorkspaceTab}
+              setSelectedTab=${setSelectedWorkspaceTab}
+              selectedSampleTab=${selectedSampleTab}
+              setSelectedSampleTab=${setSelectedSampleTab}
+              sort=${sort}
+              setSort=${setSort}
+              epochs=${(_l = (_k = (_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval) == null ? void 0 : _k.config) == null ? void 0 : _l.epochs}
+              epoch=${epoch}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              setFilter=${setFilter}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              renderContext=${context}
+            />`}
     </div>
+    ${afterBodyElements}
     </${AppErrorBoundary}>
   `;
 }

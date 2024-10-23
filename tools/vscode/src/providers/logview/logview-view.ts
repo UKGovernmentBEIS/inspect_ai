@@ -24,16 +24,42 @@ import { InspectViewServer } from "../inspect/inspect-view-server";
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { LogviewPanel } from "./logview-panel";
+import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
 
 const kLogViewId = "inspect.logview";
 
 
 export class InspectViewManager {
   constructor(
+    context: ExtensionContext,
+    logsWatcher: InspectLogsWatcher,
     private readonly webViewManager_: InspectViewWebviewManager,
     private readonly settingsMgr_: InspectSettingsManager,
-    private readonly envMgr_: WorkspaceEnvManager
-  ) { }
+    private readonly envMgr_: WorkspaceEnvManager,
+  ) {
+
+    context.subscriptions.push(logsWatcher.onInspectLogCreated((e) => {
+
+      // don't show the log if this was an external workspace
+      if (e.externalWorkspace) {
+        return;
+      }
+
+      const openAction = settingsMgr_.getSettings().openLogView
+        ? "open"
+        : undefined;
+      this
+        .showLogFile(e.log, openAction)
+        .catch(async (err: Error) => {
+          await showError(
+            "Unable to preview log file - failed to start Inspect View",
+            err
+          );
+        });
+
+    }));
+
+  }
 
   public async showLogFile(logFile: Uri, activation?: "open" | "activate") {
     const settings = this.settingsMgr_.getSettings();
@@ -343,7 +369,7 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
   }
 
   protected getHtml(state: LogviewState): string {
-    return this.logviewPanel_.getHtml(state.log_file);
+    return this.logviewPanel_.getHtml(state);
   }
 }
 

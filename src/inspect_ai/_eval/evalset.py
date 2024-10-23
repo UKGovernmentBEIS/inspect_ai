@@ -1,7 +1,7 @@
 import hashlib
 import logging
 from copy import deepcopy
-from typing import Any, Callable, NamedTuple, Set, cast
+from typing import Any, Callable, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic_core import to_json
@@ -63,6 +63,7 @@ def eval_set(
     score: bool = True,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
@@ -117,6 +118,8 @@ def eval_set(
         log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
           "info", "warning", "error", or "critical" (defaults to "warning")
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
+        log_format (Literal["eval", "json"] | None): Format for writing
+          log files (defaults to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -138,8 +141,9 @@ def eval_set(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
@@ -171,6 +175,7 @@ def eval_set(
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
