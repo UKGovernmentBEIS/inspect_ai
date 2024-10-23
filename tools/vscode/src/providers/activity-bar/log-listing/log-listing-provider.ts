@@ -7,7 +7,7 @@ import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
 import { LogListing } from './log-listing';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
-import { getRelativePath } from '../../../core/uri';
+import { getRelativePath, prettyUriPath } from '../../../core/uri';
 
 
 export function activateLogListing(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
@@ -39,9 +39,9 @@ export function activateLogListing(context: vscode.ExtensionContext, envManager:
     // otherwise show the protocol then the last two bits of the path
     const relativePath = getRelativePath(activeWorkspaceFolder().uri, logDir);
     if (relativePath) {
-      tree.description = relativePath;
+      tree.description = `./${relativePath}`;
     } else {
-      tree.description = logDir.path.split("/").pop();
+      tree.description = prettyUriPath(logDir);
     }
   };
   disposables.push(envManager.onEnvironmentChanged(updateTree));
