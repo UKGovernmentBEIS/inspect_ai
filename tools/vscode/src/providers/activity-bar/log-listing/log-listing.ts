@@ -1,7 +1,6 @@
 import { Uri } from "vscode";
 import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { log } from "../../../core/log";
-import { vsCodeBadge } from "@vscode/webview-ui-toolkit";
 
 export type LogNode =
   | { type: "dir", parent?: LogNode } & LogDirectory
