@@ -7,6 +7,8 @@ import { InspectViewServer } from '../inspect/inspect-view-server';
 import { HostWebviewPanel } from '../../hooks';
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { log } from '../../core/log';
+import { LogviewState } from './logview-state';
+import { dirname } from '../../core/uri';
 
 const kInspectLogViewType = 'inspect-ai.log-editor';
 
@@ -97,7 +99,11 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
       );
 
       // set html
-      webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
+      const logViewState: LogviewState = {
+        log_file: document.uri,
+        log_dir: dirname(document.uri)
+      };
+      webviewPanel.webview.html = this.logviewPanel_.getHtml(logViewState);
     } else {
       const viewColumn = webviewPanel.viewColumn;
       await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', viewColumn);
