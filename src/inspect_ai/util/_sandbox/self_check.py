@@ -174,7 +174,7 @@ async def test_write_file_without_permissions(
 
 
 async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
-    exec_result = await sandbox_env.exec(["bash", "-c", "echo foo; echo bar"])
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; echo bar"])
     expected = "foo\nbar\n"
     # in the assertion message, we show the actual bytes to help debug newline issues
     assert (
