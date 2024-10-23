@@ -240,7 +240,10 @@ export function App({ api, pollForLogs = true }) {
       return;
     }
 
-    if (!showingSampleDialog) {
+    if (
+      !showingSampleDialog &&
+      selectedLog.contents.sampleSummaries.length > 1
+    ) {
       return;
     }
 
