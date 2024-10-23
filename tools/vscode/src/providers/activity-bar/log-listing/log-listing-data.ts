@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
 import * as vscode from 'vscode';
@@ -9,6 +11,10 @@ import { LogNode, LogListing } from './log-listing';
 export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Disposable {
 
   public static readonly viewType = "inspect_ai.logs-view";
+
+  constructor(private context_: vscode.ExtensionContext) {
+
+  }
 
   dispose() {
 
@@ -23,6 +29,9 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   async getTreeItem(element: LogNode): Promise<TreeItem> {
     return Promise.resolve({
       id: element.name,
+      iconPath: element.type === "file"
+        ? this.context_.asAbsolutePath(path.join("assets", "icon", "eval.svg"))
+        : undefined,
       label: element.name.split("/").pop(),
       collapsibleState: element.type === "dir"
         ? TreeItemCollapsibleState.Collapsed

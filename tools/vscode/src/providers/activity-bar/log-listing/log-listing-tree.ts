@@ -6,7 +6,7 @@ import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
 import { LogListing } from './log-listing';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
 
-export function activateLogs(envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
+export function activateLogs(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
 
 
   const disposables: vscode.Disposable[] = [];
@@ -19,7 +19,7 @@ export function activateLogs(envManager: WorkspaceEnvManager, viewServer: Inspec
 
 
   // create tree data provider and tree
-  const treeDataProvider = new LogTreeDataProvider();
+  const treeDataProvider = new LogTreeDataProvider(context);
   disposables.push(treeDataProvider);
 
 
