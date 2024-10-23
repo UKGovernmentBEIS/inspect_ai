@@ -26,8 +26,8 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   }
 
 
-  async getTreeItem(element: LogNode): Promise<TreeItem> {
-    return Promise.resolve({
+  getTreeItem(element: LogNode): TreeItem {
+    const treeItem: TreeItem = {
       id: element.name,
       iconPath: element.type === "file"
         ? element.name.endsWith(".eval")
@@ -37,8 +37,21 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
       label: element.name.split("/").pop(),
       collapsibleState: element.type === "dir"
         ? TreeItemCollapsibleState.Collapsed
-        : TreeItemCollapsibleState.None
-    });
+        : TreeItemCollapsibleState.None,
+    };
+
+    if (element.type === "file") {
+      treeItem.command = {
+        command: 'vscode.openWith',
+        title: 'Open Custom File',
+        arguments: [
+          this.logListing_?.uriForNode(element),
+          'inspect-ai.log-editor'
+        ]
+      };
+    }
+
+    return treeItem;
   }
 
   async getChildren(element?: LogNode): Promise<LogNode[]> {
