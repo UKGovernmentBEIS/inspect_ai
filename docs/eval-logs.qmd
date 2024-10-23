@@ -183,7 +183,7 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 Note that the attachments feature described below is available only in the development version of Inspect. You can install the development version with:
 
 ``` bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
