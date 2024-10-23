@@ -7,21 +7,40 @@ import { LargeModal } from "../components/LargeModal.mjs";
 import { SampleDisplay } from "./SampleDisplay.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
 
-export const SampleDialog = (props) => {
-  const {
-    id,
-    title,
-    sample,
-    sampleDescriptor,
-    nextSample,
-    prevSample,
-    sampleStatus,
-    sampleError,
-    showingSampleDialog,
-    setShowingSampleDialog,
-    context,
-  } = props;
-
+/**
+ * Inline Sample Display
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The task id
+ * @param {string} props.title - The task title
+ * @param {string} props.sampleStatus - the sample status
+ * @param {Error} [props.sampleError] - sample error
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {string} props.selectedTab - The selected tab
+ * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {boolean} props.showingSampleDialog - whether the dialog is showing
+ * @param {(showing: boolean) => void} props.setShowingSampleDialog - function to set whether the dialog is showing
+ * @param {() => void} [props.nextSample] - function to move to next sample
+ * @param {() => void} [props.prevSample] - function to move to previous sample
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const SampleDialog = ({
+  id,
+  title,
+  sample,
+  sampleDescriptor,
+  nextSample,
+  prevSample,
+  sampleStatus,
+  sampleError,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedTab,
+  setSelectedTab,
+  context,
+}) => {
   const tools = useMemo(() => {
     const nextTool = {
       label: "Next Sample",
@@ -85,6 +104,8 @@ export const SampleDialog = (props) => {
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
                 visible=${showingSampleDialog}
+                selectedTab=${selectedTab}
+                setSelectedTab=${setSelectedTab}
                 context=${context}
               />`
         }

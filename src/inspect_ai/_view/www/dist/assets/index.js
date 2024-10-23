@@ -19578,6 +19578,8 @@ const InlineSampleDisplay = ({
   sampleStatus,
   sampleError,
   sampleDescriptor,
+  selectedTab,
+  setSelectedTab,
   context
 }) => {
   return m$1`<div
@@ -19597,6 +19599,8 @@ const InlineSampleDisplay = ({
           id=${id}
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
           context=${context}
         />`}
   </div>`;
@@ -19606,15 +19610,11 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   visible,
+  selectedTab,
+  setSelectedTab,
   context
 }) => {
   const baseId = `sample-dialog`;
-  const msgTabId = `${baseId}-messages`;
-  const transcriptTabId = `${baseId}-transcript`;
-  const scoringTabId = `${baseId}-scoring`;
-  const metdataTabId = `${baseId}-metadata`;
-  const errorTabId = `${baseId}-error`;
-  const jsonTabId = `${baseId}-json`;
   if (!sample) {
     return m$1`<${EmptyPanel} />`;
   }
@@ -19623,12 +19623,11 @@ const SampleDisplay = ({
       setSelectedTab(void 0);
     } else {
       if (selectedTab === void 0) {
-        const defaultTab = sample.events && sample.events.length > 0 ? transcriptTabId : msgTabId;
+        const defaultTab = sample.events && sample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
         setSelectedTab(defaultTab);
       }
     }
   }, [visible]);
-  const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
     const id2 = e2.currentTarget.id;
     setSelectedTab(id2);
@@ -19636,7 +19635,7 @@ const SampleDisplay = ({
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId}>
       <${ChatView} 
         key=${`${baseId}-chat-${id}`} 
         id=${`${baseId}-chat-${id}`} 
@@ -19648,14 +19647,14 @@ const SampleDisplay = ({
   ];
   if (sample.events && sample.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+      <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === kSampleTranscriptTabId || selectedTab === void 0} scrollable=${false}>
         <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -19688,11 +19687,11 @@ const SampleDisplay = ({
     tabs.push(
       m$1`
       <${TabPanel} 
-          id=${metdataTabId} 
+          id=${kSampleMetdataTabId} 
           classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === metdataTabId}>
+          selected=${selectedTab === kSampleMetdataTabId}>
          <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
           ${sampleMetadatas}
         </div>
@@ -19703,11 +19702,11 @@ const SampleDisplay = ({
     tabs.push(
       m$1`
       <${TabPanel} 
-          id=${errorTabId} 
+          id=${kSampleErrorTabId} 
           classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === errorTabId}>
+          selected=${selectedTab === kSampleErrorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
@@ -19715,11 +19714,11 @@ const SampleDisplay = ({
     );
   }
   tabs.push(m$1`<${TabPanel} 
-          id=${jsonTabId} 
+          id=${kSampleJsonTabId} 
           classes="sample-tab"
           title="JSON" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === jsonTabId}>
+          selected=${selectedTab === kSampleJsonTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${JSONPanel} data=${sample} simple=${true}/>
         </div>
@@ -19953,20 +19952,21 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     </div>
   `;
 };
-const SampleDialog = (props) => {
-  const {
-    id,
-    title,
-    sample,
-    sampleDescriptor,
-    nextSample,
-    prevSample,
-    sampleStatus,
-    sampleError,
-    showingSampleDialog,
-    setShowingSampleDialog,
-    context
-  } = props;
+const SampleDialog = ({
+  id,
+  title,
+  sample,
+  sampleDescriptor,
+  nextSample,
+  prevSample,
+  sampleStatus,
+  sampleError,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedTab,
+  setSelectedTab,
+  context
+}) => {
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
@@ -20022,6 +20022,8 @@ const SampleDialog = (props) => {
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
                 visible=${showingSampleDialog}
+                selectedTab=${selectedTab}
+                setSelectedTab=${setSelectedTab}
                 context=${context}
               />`}
     </${LargeModal}>`;
@@ -20442,6 +20444,8 @@ const SamplesTab = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
   context
 }) => {
   const [items, setItems] = h([]);
@@ -20529,6 +20533,8 @@ const SamplesTab = ({
         sampleStatus=${sampleStatus}
         sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
+        selectedTab=${selectedSampleTab}
+        setSelectedTab=${setSelectedSampleTab}
         context=${context}
       />`
     );
@@ -20562,6 +20568,8 @@ const SamplesTab = ({
       sampleDescriptor=${sampleDescriptor}
       showingSampleDialog=${showingSampleDialog}
       setShowingSampleDialog=${setShowingSampleDialog}
+      selectedTab=${selectedSampleTab}
+      setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
@@ -24817,6 +24825,8 @@ const WorkSpace = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
   sampleStatus,
   sampleError,
   sort,
@@ -24866,6 +24876,8 @@ const WorkSpace = ({
           selectedSampleIndex=${selectedSampleIndex}
           setSelectedSampleIndex=${setSelectedSampleIndex}
           sampleDescriptor=${samplesDescriptor}
+          selectedSampleTab=${selectedSampleTab}
+          setSelectedSampleTab=${setSelectedSampleTab}
           filter=${filter}
           sort=${sort}
           epoch=${epoch}
@@ -25263,6 +25275,12 @@ const resolveAttachments = (value, attachments) => {
 const kEvalWorkspaceTabId = "eval-tab";
 const kJsonWorkspaceTabId = "json-tab";
 const kInfoWorkspaceTabId = "plan-tab";
+const kSampleMessagesTabId = `$sample-display-messages`;
+const kSampleTranscriptTabId = `sample-display-transcript`;
+const kSampleScoringTabId = `sample-display-scoring`;
+const kSampleMetdataTabId = `sample-display-metadata`;
+const kSampleErrorTabId = `sample-display-error`;
+const kSampleJsonTabId = `sample-display-json`;
 function App({ api: api2, pollForLogs = true }) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const [logs, setLogs] = h({ log_dir: "", files: [] });
@@ -25278,6 +25296,7 @@ function App({ api: api2, pollForLogs = true }) {
   const [selectedSample, setSelectedSample] = h(void 0);
   const [sampleStatus, setSampleStatus] = h(void 0);
   const [sampleError, setSampleError] = h(void 0);
+  const [selectedSampleTab, setSelectedSampleTab] = h(void 0);
   const loadingSampleIndexRef = A(null);
   const [showingSampleDialog, setShowingSampleDialog] = h(false);
   const [status, setStatus] = h({
@@ -25308,6 +25327,7 @@ function App({ api: api2, pollForLogs = true }) {
   y(() => {
     if (showingSampleDialog) {
       setSelectedSample(void 0);
+      setSelectedSampleTab(void 0);
     }
   }, [showingSampleDialog]);
   y(() => {
@@ -25375,6 +25395,15 @@ function App({ api: api2, pollForLogs = true }) {
     );
     setSamplesDescriptor(sampleDescriptor);
   }, [selectedLog, score, scores, setSamplesDescriptor]);
+  const refreshSampleTab = q(
+    (sample) => {
+      if (selectedSampleTab === void 0) {
+        const defaultTab = sample.events && sample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
+        setSelectedSampleTab(defaultTab);
+      }
+    },
+    [selectedSampleTab, showingSampleDialog]
+  );
   const resetFilteringState = q(() => {
     setEpoch("all");
     setFilter({});
@@ -25411,6 +25440,7 @@ function App({ api: api2, pollForLogs = true }) {
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
         setSelectedSample(sample);
+        refreshSampleTab(sample);
         setSampleStatus("ok");
         loadingSampleIndexRef.current = null;
       }).catch((e2) => {
@@ -25461,7 +25491,7 @@ function App({ api: api2, pollForLogs = true }) {
     };
     loadHeaders();
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  const resetWorkspaceTab = q(
+  const resetWorkspace = q(
     /**
      * @param {import("./api/Types.mjs").EvalSummary} log
      */
@@ -25471,6 +25501,7 @@ function App({ api: api2, pollForLogs = true }) {
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
       );
+      setSelectedSampleTab(void 0);
     },
     [setSelectedWorkspaceTab]
   );
@@ -25488,7 +25519,7 @@ function App({ api: api2, pollForLogs = true }) {
               name: targetLog.name
             });
             setSelectedSampleIndex(-1);
-            resetWorkspaceTab(log);
+            resetWorkspace(log);
             setStatus({ loading: false, error: void 0 });
           }
         } catch (e2) {
@@ -25557,7 +25588,7 @@ function App({ api: api2, pollForLogs = true }) {
           contents: log,
           name: targetLog.name
         });
-        resetWorkspaceTab(log);
+        resetWorkspace(log);
         setStatus({ loading: false, error: void 0 });
       }
     } catch (e2) {
@@ -25761,6 +25792,8 @@ function App({ api: api2, pollForLogs = true }) {
               setShowingSampleDialog=${setShowingSampleDialog}
               selectedTab=${selectedWorkspaceTab}
               setSelectedTab=${setSelectedWorkspaceTab}
+              selectedSampleTab=${selectedSampleTab}
+              setSelectedSampleTab=${setSelectedSampleTab}
               sort=${sort}
               setSort=${setSort}
               epochs=${(_l = (_k = (_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval) == null ? void 0 : _k.config) == null ? void 0 : _l.epochs}

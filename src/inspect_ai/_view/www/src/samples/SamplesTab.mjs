@@ -24,6 +24,8 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
  * @param {boolean} props.showingSampleDialog - whether the dialog is showing
  * @param {(showing: boolean) => void } props.setShowingSampleDialog - update whether the dialog is showing
+ * @param {string} props.selectedSampleTab - the selected tab
+ * @param {(tab: string) => void} props.setSelectedSampleTab - function to select a tab
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {any} props.sort - the selected sort
@@ -44,6 +46,8 @@ export const SamplesTab = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
   context,
 }) => {
   const [items, setItems] = useState([]);
@@ -144,6 +148,8 @@ export const SamplesTab = ({
         sampleStatus=${sampleStatus}
         sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
+        selectedTab=${selectedSampleTab}
+        setSelectedTab=${setSelectedSampleTab}
         context=${context}
       />`,
     );
@@ -184,6 +190,8 @@ export const SamplesTab = ({
       sampleDescriptor=${sampleDescriptor}
       showingSampleDialog=${showingSampleDialog}
       setShowingSampleDialog=${setShowingSampleDialog}
+      selectedTab=${selectedSampleTab}
+      setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}

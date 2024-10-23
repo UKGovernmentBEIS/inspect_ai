@@ -48,6 +48,8 @@ import {
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
  * @param {(index: number) => void} props.setSelectedSampleIndex - function to selected a sample
+ * @param {string} props.selectedSampleTab - the selected sample tab
+ * @param {(tab: string) => void} props.setSelectedSampleTab - the function to select a sample tab
  * @param {string} props.sort - the current sort
  * @param {(sort: string) => void} props.setSort - set the current sort
  * @param {number} [props.epochs] - the number of epochs
@@ -89,6 +91,8 @@ export const WorkSpace = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
   sampleStatus,
   sampleError,
   sort,
@@ -145,6 +149,8 @@ export const WorkSpace = ({
           selectedSampleIndex=${selectedSampleIndex}
           setSelectedSampleIndex=${setSelectedSampleIndex}
           sampleDescriptor=${samplesDescriptor}
+          selectedSampleTab=${selectedSampleTab}
+          setSelectedSampleTab=${setSelectedSampleTab}
           filter=${filter}
           sort=${sort}
           epoch=${epoch}
