@@ -218,7 +218,7 @@ export const WorkSpace = ({
       if (
         (!samples || samples.length === 0) &&
         evalSpec?.dataset?.samples > 0 &&
-        evalStatus !== "error"
+        evalStatus === "success"
       ) {
         warnings.push(
           html`<${WarningBand}

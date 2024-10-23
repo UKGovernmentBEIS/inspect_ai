@@ -24476,7 +24476,7 @@ const WorkSpace = ({
         infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
       }
       const warnings = [];
-      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus !== "error") {
+      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
         warnings.push(
           m$1`<${WarningBand}
             message="Unable to display samples (this evaluation log may be too large)."
