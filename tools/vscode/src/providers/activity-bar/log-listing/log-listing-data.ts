@@ -20,8 +20,10 @@ export class LogTreeDataProvider implements vscode.TreeDataProvider<LogNode>, vs
 
   async getTreeItem(element: LogNode): Promise<vscode.TreeItem> {
     return Promise.resolve({
-      label: element.name,
-      collapsibleState: vscode.TreeItemCollapsibleState.Collapsed
+      label: element.name.split("/").pop(),
+      collapsibleState: element.type === "dir"
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.None
     });
   }
 
