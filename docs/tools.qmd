@@ -221,14 +221,6 @@ Note that the `tool_with()` function returns a copy of the passed tool with modi
 
 ## Dynamic Tools {#sec-dynamic-tools}
 
-::: {.callout-note appearance="simple"}
-Note that the dynamic tools feature described below is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 As described above, normally tools are defined using `@tool` decorators and documentation comments. It's also possible to create a tool dynamically from any function by creating a `ToolDef`. For example:
 
 ``` python

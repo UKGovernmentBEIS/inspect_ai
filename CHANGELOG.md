@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.42 (23 October 2024)
 
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Added `--tags` option to eval for tagging evaluation runs.
