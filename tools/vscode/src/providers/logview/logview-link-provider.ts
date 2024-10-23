@@ -49,7 +49,7 @@ export const logviewTerminalLinkProvider = (manager: InspectViewManager) => {
       // Resolve the clicked link into a complete Uri to the file
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
-        if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true)) {
+        if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion)) {
           // If it's a local file, open it in VSCode
           await commands.executeCommand('vscode.openWith', logUri, kInspectLogViewType);
         } else {

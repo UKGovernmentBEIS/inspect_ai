@@ -168,7 +168,7 @@ export class InspectViewServer implements Disposable {
 
 
   private haveInspectEvalLogFormat() {
-    return hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true);
+    return hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
   }
 
   private async api_json(path: string): Promise<string> {

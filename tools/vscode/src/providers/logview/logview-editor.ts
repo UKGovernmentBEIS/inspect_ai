@@ -64,7 +64,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     // check if we should use the log viewer (pref + never show files > 100mb)
     let useLogViewer =
       this.settings_.getSettings().jsonLogView &&
-      hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true);
+      hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
 
     if (useLogViewer) {
       const docUri = document.uri.toString();
