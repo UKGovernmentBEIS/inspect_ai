@@ -1,4 +1,4 @@
-import { MessageItem, Uri, window, workspace } from "vscode";
+import { commands, MessageItem, TextDocumentShowOptions, Uri, window, workspace } from "vscode";
 
 import { InspectViewManager } from "./logview-view";
 import { workspacePath } from "../../core/path";
@@ -8,7 +8,7 @@ import { existsSync } from "fs";
 import { basename } from "path";
 import { hasMinimumInspectVersion } from "../../inspect/version";
 import { kInspectEvalLogFormatVersion } from "../inspect/inspect-constants";
-import { showInspectLogEditor } from "./logview-editor";
+import { kInspectLogViewType } from "./logview-editor";
 
 const kLogFilePattern = /^.*Log: (\S*?\.json)\s*/g;
 
@@ -51,7 +51,7 @@ export const logviewTerminalLinkProvider = (manager: InspectViewManager) => {
       if (logUri) {
         if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true)) {
           // If it's a local file, open it in VSCode
-          await showInspectLogEditor(logUri);
+          await commands.executeCommand('vscode.openWith', logUri, kInspectLogViewType);
         } else {
           manager.showLogFile(logUri, "activate").catch(async (err: Error) => {
             await showError("Failed to preview log file - failed to start Inspect View", err);

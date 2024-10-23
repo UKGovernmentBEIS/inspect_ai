@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.36
+
+- Show Inspect version in status bar
+- Release with internal changes to support future log viewing features.
+
 ## 0.3.33
 
 - Fix bug that prevented run, debug buttons from appearing for tasks whose function declarations spanned more than single line.

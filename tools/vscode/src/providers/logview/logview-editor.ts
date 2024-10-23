@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { commands, Uri } from 'vscode';
+import { Uri, commands } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
@@ -10,11 +10,12 @@ import { log } from '../../core/log';
 import { LogviewState } from './logview-state';
 import { dirname } from '../../core/uri';
 
-const kInspectLogViewType = 'inspect-ai.log-editor';
 
-export const showInspectLogEditor = async (uri: Uri) => {
-  await commands.executeCommand('vscode.openWith', uri, kInspectLogViewType);
-};
+import { hasMinimumInspectVersion } from '../../inspect/version';
+import { kInspectEvalLogFormatVersion } from '../inspect/inspect-constants';
+
+export const kInspectLogViewType = 'inspect-ai.log-editor';
+
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
@@ -61,7 +62,10 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
   ): Promise<void> {
 
     // check if we should use the log viewer (pref + never show files > 100mb)
-    let useLogViewer = this.settings_.getSettings().jsonLogView;
+    let useLogViewer =
+      this.settings_.getSettings().jsonLogView &&
+      hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true);
+
     if (useLogViewer) {
       const docUri = document.uri.toString();
       if (docUri.endsWith(".json")) {

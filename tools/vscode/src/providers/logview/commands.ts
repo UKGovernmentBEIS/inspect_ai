@@ -2,7 +2,6 @@ import { Command } from "../../core/command";
 import { InspectViewManager } from "./logview-view";
 import { showError } from "../../components/error";
 import { MessageItem, Uri, commands, window } from "vscode";
-import { withMinimumInspectVersion } from "../../inspect/version";
 import { kInspectEvalLogFormatVersion, kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import { inspectLogInfo } from "../../inspect/logs";
 import { LogviewState } from "./logview-state";

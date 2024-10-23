@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.34",
+  "version": "0.3.36",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -415,7 +415,6 @@
   },
   "devDependencies": {
     "@types/async-lock": "^1.4.2",
-    "@types/date-fns": "^2.6.3",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
@@ -439,7 +438,6 @@
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",
     "async-lock": "^1.4.1",
-    "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "semver": "^7.6.0"
   }
