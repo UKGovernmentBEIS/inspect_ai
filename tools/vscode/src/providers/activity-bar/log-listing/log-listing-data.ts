@@ -11,9 +11,6 @@ import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
 import { prettyUriPath } from '../../../core/uri';
 import { throttle } from 'lodash';
-import { kInspectLogViewType } from '../../logview/logview-editor';
-
-
 
 
 export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Disposable {
@@ -74,9 +71,9 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     // open files in the editor
     if (element.type === "file") {
       treeItem.command = {
-        command: 'vscode.openWith',
+        command: 'vscode.open',
         title: 'View Inspect Log',
-        arguments: [this.logListing_?.uriForNode(element), kInspectLogViewType]
+        arguments: [this.logListing_?.uriForNode(element), <vscode.TextDocumentShowOptions>{ preview: true }]
       };
     }
 
