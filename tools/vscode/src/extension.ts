@@ -117,6 +117,7 @@ export async function activate(context: ExtensionContext) {
     stateManager,
     workspaceEnvManager,
     server,
+    logsWatcher,
     context
   );
 

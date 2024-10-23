@@ -7,10 +7,11 @@ import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
 import { LogListing } from './log-listing';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
-import { getRelativePath, prettyUriPath } from '../../../core/uri';
+import { getRelativePath, isPathContained, prettyUriPath } from '../../../core/uri';
+import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
 
 
-export function activateLogListing(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
+export function activateLogListing(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer, logsWatcher: InspectLogsWatcher): [Command[], vscode.Disposable[]] {
 
 
   const disposables: vscode.Disposable[] = [];
@@ -29,6 +30,14 @@ export function activateLogListing(context: vscode.ExtensionContext, envManager:
     canSelectMany: false,
   });
 
+  // refresh when a log in our directory changes
+  disposables.push(logsWatcher.onInspectLogCreated((e) => {
+    const treeLogDir = treeDataProvider.getLogListing()?.logDir();
+    if (treeLogDir && isPathContained(treeLogDir, e.log)) {
+      treeDataProvider.refresh();
+    }
+  }));
+
 
   // sync to updates to the .env
   const updateTree = () => {
@@ -44,9 +53,10 @@ export function activateLogListing(context: vscode.ExtensionContext, envManager:
       tree.description = prettyUriPath(logDir);
     }
   };
+  updateTree();
   disposables.push(envManager.onEnvironmentChanged(updateTree));
 
-  updateTree();
+
 
   return [[], disposables];
 }
