@@ -6,7 +6,7 @@ const kSeparator = "<separator>";
 const kWorkspaceLogDirectory = "<workspace-log-dir>";
 const kSelectLocalDirectory = "<select-local>";
 const kSelectRemoteURL = "<select-remote-url>";
-
+const kClearRecentLocations = "<clear-recent>";
 
 export interface SelectLocationQuickPickItem extends QuickPickItem {
   location: string
@@ -45,6 +45,10 @@ export async function selectLogListingLocation(workspaceLogDir: Uri): Promise<Ur
       label: "Recent locations",
       kind: QuickPickItemKind.Separator,
       location: kSeparator
+    });
+    items.push({
+      label: "Clear recent locations",
+      location: kClearRecentLocations
     });
 
     // setup and show quick pick
