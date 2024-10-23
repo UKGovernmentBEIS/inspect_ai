@@ -29,7 +29,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
       provider,
       {
         webviewOptions: {
-          retainContextWhenHidden: false
+          retainContextWhenHidden: true
         },
         supportsMultipleEditorsPerDocument: true
       }
