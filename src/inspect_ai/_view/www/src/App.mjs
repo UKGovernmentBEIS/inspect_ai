@@ -30,10 +30,17 @@ import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
-import { kDefaultSort } from "./samples/tools/SortFilter.mjs";
+import { kDefaultSort } from "./constants.mjs";
 import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
+
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kSampleMessagesTabId,
+  kSampleTranscriptTabId,
+} from "./constants.mjs";
 
 /**
  * Renders the Main Application
@@ -58,11 +65,17 @@ export function App({ api, pollForLogs = true }) {
     name: undefined,
   });
 
+  // Workspace (the selected tab)
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] =
+    useState(kEvalWorkspaceTabId);
+
   // Samples
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
   const [selectedSample, setSelectedSample] = useState(undefined);
   const [sampleStatus, setSampleStatus] = useState(undefined);
   const [sampleError, setSampleError] = useState(undefined);
+  const [selectedSampleTab, setSelectedSampleTab] = useState(undefined);
+
   const loadingSampleIndexRef = useRef(null);
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(false);
@@ -131,6 +144,7 @@ export function App({ api, pollForLogs = true }) {
   useEffect(() => {
     if (showingSampleDialog) {
       setSelectedSample(undefined);
+      setSelectedSampleTab(undefined);
     }
   }, [showingSampleDialog]);
 
@@ -218,6 +232,19 @@ export function App({ api, pollForLogs = true }) {
     setSamplesDescriptor(sampleDescriptor);
   }, [selectedLog, score, scores, setSamplesDescriptor]);
 
+  const refreshSampleTab = useCallback(
+    (sample) => {
+      if (selectedSampleTab === undefined) {
+        const defaultTab =
+          sample.events && sample.events.length > 0
+            ? kSampleTranscriptTabId
+            : kSampleMessagesTabId;
+        setSelectedSampleTab(defaultTab);
+      }
+    },
+    [selectedSampleTab, showingSampleDialog],
+  );
+
   const resetFilteringState = useCallback(() => {
     setEpoch("all");
     setFilter({});
@@ -275,6 +302,9 @@ export function App({ api, pollForLogs = true }) {
           sample.attachments = {};
 
           setSelectedSample(sample);
+
+          refreshSampleTab(sample);
+
           setSampleStatus("ok");
           loadingSampleIndexRef.current = null;
         })
@@ -337,6 +367,34 @@ export function App({ api, pollForLogs = true }) {
     loadHeaders();
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
 
+  /**
+   * Resets the workspace tab based on the provided log's state.
+   *
+   * Determines whether the workspace tab should display samples or info,
+   * depending on the presence of samples and the log status.
+   *
+   * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+   * @returns {void}
+   */
+  const resetWorkspace = useCallback(
+    /**
+     * @param {import("./api/Types.mjs").EvalSummary} log
+     */
+    (log) => {
+      // Reset the workspace tab
+      const hasSamples =
+        !!log?.sampleSummaries && log?.sampleSummaries.length > 0;
+      const showSamples = log?.status !== "error" && hasSamples;
+      setSelectedWorkspaceTab(
+        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
+      );
+
+      // Reset the sample tab
+      setSelectedSampleTab(undefined);
+    },
+    [setSelectedWorkspaceTab],
+  );
+
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
@@ -354,6 +412,9 @@ export function App({ api, pollForLogs = true }) {
 
             // Clear the sample index
             setSelectedSampleIndex(-1);
+
+            // Reset the workspace tab
+            resetWorkspace(log);
 
             setStatus({ loading: false, error: undefined });
           }
@@ -432,6 +493,10 @@ export function App({ api, pollForLogs = true }) {
           contents: log,
           name: targetLog.name,
         });
+
+        // Reset the workspace tab
+        resetWorkspace(log);
+
         setStatus({ loading: false, error: undefined });
       }
     } catch (e) {
@@ -664,8 +729,6 @@ export function App({ api, pollForLogs = true }) {
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
-              hasSamples=${selectedLog?.contents?.sampleSummaries &&
-              selectedLog?.contents?.sampleSummaries.length > 0}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
@@ -680,6 +743,10 @@ export function App({ api, pollForLogs = true }) {
               setSelectedSampleIndex=${setSelectedSampleIndex}
               showingSampleDialog=${showingSampleDialog}
               setShowingSampleDialog=${setShowingSampleDialog}
+              selectedTab=${selectedWorkspaceTab}
+              setSelectedTab=${setSelectedWorkspaceTab}
+              selectedSampleTab=${selectedSampleTab}
+              setSelectedSampleTab=${setSelectedSampleTab}
               sort=${sort}
               setSort=${setSort}
               epochs=${selectedLog?.contents?.eval?.config?.epochs}

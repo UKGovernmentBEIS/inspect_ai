@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useState, useEffect } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 
 import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -28,6 +28,14 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { JSONPanel } from "../components/JsonPanel.mjs";
 import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import {
+  kSampleErrorTabId,
+  kSampleJsonTabId,
+  kSampleMessagesTabId,
+  kSampleMetdataTabId,
+  kSampleScoringTabId,
+  kSampleTranscriptTabId,
+} from "../constants.mjs";
 
 /**
  * Inline Sample Display
@@ -36,8 +44,10 @@ import { Card, CardBody, CardHeader } from "../components/Card.mjs";
  * @param {string} props.id - The task id
  * @param {string} props.sampleStatus - the sample status
  * @param {Error} [props.sampleError] - sample error
- * @param {import("../types/log").Sample} [props.sample] - the sample
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {string} props.selectedTab - The selected tab
+ * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
  * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
@@ -47,6 +57,8 @@ export const InlineSampleDisplay = ({
   sampleStatus,
   sampleError,
   sampleDescriptor,
+  selectedTab,
+  setSelectedTab,
   context,
 }) => {
   return html`<div
@@ -68,26 +80,37 @@ export const InlineSampleDisplay = ({
           id=${id}
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
           context=${context}
         />`}
   </div>`;
 };
 
+/**
+ * Component to display a sample with relevant context and visibility control.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The unique identifier for the sample.
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {string} props.selectedTab - The selected tab
+ * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {boolean} props.visible - Determines whether the sample is visible.
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export const SampleDisplay = ({
   id,
   sample,
   sampleDescriptor,
   visible,
+  selectedTab,
+  setSelectedTab,
   context,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
-  const msgTabId = `${baseId}-messages`;
-  const transcriptTabId = `${baseId}-transcript`;
-  const scoringTabId = `${baseId}-scoring`;
-  const metdataTabId = `${baseId}-metadata`;
-  const errorTabId = `${baseId}-error`;
-  const jsonTabId = `${baseId}-json`;
 
   if (!sample) {
     // Placeholder
@@ -102,15 +125,14 @@ export const SampleDisplay = ({
       if (selectedTab === undefined) {
         const defaultTab =
           sample.events && sample.events.length > 0
-            ? transcriptTabId
-            : msgTabId;
+            ? kSampleTranscriptTabId
+            : kSampleMessagesTabId;
         setSelectedTab(defaultTab);
       }
     }
   }, [visible]);
 
   // Tab selection
-  const [selectedTab, setSelectedTab] = useState(undefined);
   const onSelectedTab = (e) => {
     const id = e.currentTarget.id;
     setSelectedTab(id);
@@ -120,8 +142,8 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
-      selectedTab === msgTabId
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
+      selectedTab === kSampleMessagesTabId
     }>
       <${ChatView} 
         key=${`${baseId}-chat-${id}`} 
@@ -135,8 +157,8 @@ export const SampleDisplay = ({
 
   if (sample.events && sample.events.length > 0) {
     tabs.unshift(html`
-      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
-        selectedTab === transcriptTabId || selectedTab === undefined
+      <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
+        selectedTab === kSampleTranscriptTabId || selectedTab === undefined
       } scrollable=${false}>
         <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
@@ -145,8 +167,8 @@ export const SampleDisplay = ({
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${
-        selectedTab === scoringTabId
+      <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${
+        selectedTab === kSampleScoringTabId
       }>
         <${SampleScoreView}
           sample=${sample}
@@ -170,27 +192,6 @@ export const SampleDisplay = ({
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
-          ${
-            sample?.score?.metadata &&
-            Object.keys(sample?.score?.metadata).length > 0
-              ? html` <div
-                    style=${{
-                      fontSize: FontSize.small,
-                      ...TextStyle.label,
-                      ...TextStyle.secondary,
-                    }}
-                  >
-                    Scorer Metadata
-                  </div>
-                  <${MetaDataView}
-                    id="task-sample-metadata-${id}"
-                    classes="tab-pane"
-                    entries="${sample?.score?.metadata}"
-                    style=${{ marginTop: "1em" }}
-                    context=${context}
-                  />`
-              : ""
-          }
         </${TabPanel}>`);
     }
   }
@@ -204,11 +205,11 @@ export const SampleDisplay = ({
     tabs.push(
       html`
       <${TabPanel} 
-          id=${metdataTabId} 
+          id=${kSampleMetdataTabId} 
           classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === metdataTabId}>
+          selected=${selectedTab === kSampleMetdataTabId}>
          <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
           ${sampleMetadatas}
         </div>
@@ -220,11 +221,11 @@ export const SampleDisplay = ({
     tabs.push(
       html`
       <${TabPanel} 
-          id=${errorTabId} 
+          id=${kSampleErrorTabId} 
           classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === errorTabId}>
+          selected=${selectedTab === kSampleErrorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
@@ -233,11 +234,11 @@ export const SampleDisplay = ({
   }
 
   tabs.push(html`<${TabPanel} 
-          id=${jsonTabId} 
+          id=${kSampleJsonTabId} 
           classes="sample-tab"
           title="JSON" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === jsonTabId}>
+          selected=${selectedTab === kSampleJsonTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${JSONPanel} data=${sample} simple=${true}/>
         </div>
@@ -334,13 +335,15 @@ export const SampleDisplay = ({
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
-  sampleMetadatas.push(html`
-    <${Card}>
-      <${CardHeader} label="Usage"/>
-      <${CardBody}>
-        <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
-      </${CardBody}>
-    </${Card}>`);
+  if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
+    sampleMetadatas.push(html`
+      <${Card}>
+        <${CardHeader} label="Usage"/>
+        <${CardBody}>
+          <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+        </${CardBody}>
+      </${Card}>`);
+  }
 
   if (Object.keys(sample?.metadata).length > 0) {
     sampleMetadatas.push(

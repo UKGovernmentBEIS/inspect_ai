@@ -1,13 +1,20 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { Uri, window } from 'vscode';
+import { commands, Uri } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
 import { HostWebviewPanel } from '../../hooks';
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { log } from '../../core/log';
+import { LogviewState } from './logview-state';
+import { dirname } from '../../core/uri';
 
+const kInspectLogViewType = 'inspect-ai.log-editor';
+
+export const showInspectLogEditor = async (uri: Uri) => {
+  await commands.executeCommand('vscode.openWith', uri, kInspectLogViewType);
+};
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
@@ -18,7 +25,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
   ): vscode.Disposable {
     const provider = new InspectLogReadonlyEditor(context, settings, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
-      InspectLogReadonlyEditor.viewType,
+      kInspectLogViewType,
       provider,
       {
         webviewOptions: {
@@ -30,7 +37,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     return providerRegistration;
   }
 
-  private static readonly viewType = 'inspect-ai.log-editor';
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
@@ -93,7 +99,11 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
       );
 
       // set html
-      webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
+      const logViewState: LogviewState = {
+        log_file: document.uri,
+        log_dir: dirname(document.uri)
+      };
+      webviewPanel.webview.html = this.logviewPanel_.getHtml(logViewState);
     } else {
       const viewColumn = webviewPanel.viewColumn;
       await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', viewColumn);

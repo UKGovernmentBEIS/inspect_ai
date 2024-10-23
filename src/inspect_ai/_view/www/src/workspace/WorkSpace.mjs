@@ -1,6 +1,6 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -16,10 +16,11 @@ import { Navbar } from "../navbar/Navbar.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
-
-const kEvalTabId = "eval-tab";
-const kJsonTabId = "json-tab";
-const kInfoTabId = "plan-tab";
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kJsonWorkspaceTabId,
+} from "../constants.mjs";
 
 /**
  * Renders the Main Application
@@ -36,7 +37,6 @@ const kInfoTabId = "plan-tab";
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
- * @param {boolean} props.hasSamples - Whether this log has samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
@@ -48,6 +48,8 @@ const kInfoTabId = "plan-tab";
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
  * @param {(index: number) => void} props.setSelectedSampleIndex - function to selected a sample
+ * @param {string} props.selectedSampleTab - the selected sample tab
+ * @param {(tab: string) => void} props.setSelectedSampleTab - the function to select a sample tab
  * @param {string} props.sort - the current sort
  * @param {(sort: string) => void} props.setSort - set the current sort
  * @param {number} [props.epochs] - the number of epochs
@@ -61,6 +63,8 @@ const kInfoTabId = "plan-tab";
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
+ * @param {string} props.selectedTab - The selected tab id
+ * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
@@ -75,7 +79,6 @@ export const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
-  hasSamples,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -88,6 +91,8 @@ export const WorkSpace = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
   sampleStatus,
   sampleError,
   sort,
@@ -100,6 +105,8 @@ export const WorkSpace = ({
   score,
   setScore,
   scores,
+  selectedTab,
+  setSelectedTab,
   renderContext,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -108,23 +115,12 @@ export const WorkSpace = ({
     return "";
   }
 
-  // State tracking for the view
-  const [selectedTab, setSelectedTab] = useState(kEvalTabId);
-
-  /**
-   * @type {[boolean, function(boolean): void]}
-   */
-  const [renderedCode, setRenderedCode] = useState(false);
-
   // Display the log
   useEffect(() => {
-    const showSamples = evalStatus !== "error" && hasSamples;
-    setSelectedTab(showSamples ? kEvalTabId : kInfoTabId);
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-    setRenderedCode(false);
-  }, [divRef, task_id, samples, evalStatus, setSelectedTab]);
+  }, [divRef, task_id]);
 
   // Tabs that are available within the app
   // Include the tab contents as well as any tools that the tab provides
@@ -135,7 +131,7 @@ export const WorkSpace = ({
   // Currently only appears when the result is successful
   if (evalStatus !== "error" && samples && samples.length > 0) {
     resolvedTabs.samples = {
-      id: kEvalTabId,
+      id: kEvalWorkspaceTabId,
       scrollable: samples.length === 1,
       label: samples?.length > 1 ? "Samples" : "Sample",
       content: () => {
@@ -153,6 +149,8 @@ export const WorkSpace = ({
           selectedSampleIndex=${selectedSampleIndex}
           setSelectedSampleIndex=${setSelectedSampleIndex}
           sampleDescriptor=${samplesDescriptor}
+          selectedSampleTab=${selectedSampleTab}
+          setSelectedSampleTab=${setSelectedSampleTab}
           filter=${filter}
           sort=${sort}
           epoch=${epoch}
@@ -191,7 +189,7 @@ export const WorkSpace = ({
 
   // The info tab
   resolvedTabs.config = {
-    id: kInfoTabId,
+    id: kInfoWorkspaceTabId,
     label: "Info",
     scrollable: true,
     content: () => {
@@ -220,7 +218,7 @@ export const WorkSpace = ({
       if (
         (!samples || samples.length === 0) &&
         evalSpec?.dataset?.samples > 0 &&
-        evalStatus !== "error"
+        evalStatus === "success"
       ) {
         warnings.push(
           html`<${WarningBand}
@@ -240,7 +238,7 @@ export const WorkSpace = ({
 
   // The JSON Tab
   resolvedTabs.json = {
-    id: kJsonTabId,
+    id: kJsonWorkspaceTabId,
     label: "JSON",
     scrollable: true,
     content: () => {
@@ -258,7 +256,7 @@ export const WorkSpace = ({
         logFileName=${logFileName}
         json=${json}
         capabilities=${capabilities}
-        selected=${selectedTab === kJsonTabId}
+        selected=${selectedTab === kJsonWorkspaceTabId}
       />`;
     },
     tools: () => {
@@ -274,26 +272,23 @@ export const WorkSpace = ({
     },
   };
 
-  const copyFeedback = useCallback(
-    (e) => {
-      const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
-      const iconEl = e.currentTarget.querySelector("i.bi");
-      if (textEl) {
-        const oldText = textEl.innerText;
-        const oldIconClz = iconEl.className;
-        textEl.innerText = "Copied!";
-        iconEl.className = `${ApplicationIcons.confirm}`;
-        setTimeout(() => {
-          window.getSelection().removeAllRanges();
-        }, 50);
-        setTimeout(() => {
-          textEl.innerText = oldText;
-          iconEl.className = oldIconClz;
-        }, 1250);
-      }
-    },
-    [renderedCode],
-  );
+  const copyFeedback = (e) => {
+    const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
+    const iconEl = e.currentTarget.querySelector("i.bi");
+    if (textEl) {
+      const oldText = textEl.innerText;
+      const oldIconClz = iconEl.className;
+      textEl.innerText = "Copied!";
+      iconEl.className = `${ApplicationIcons.confirm}`;
+      setTimeout(() => {
+        window.getSelection().removeAllRanges();
+      }, 50);
+      setTimeout(() => {
+        textEl.innerText = oldText;
+        iconEl.className = oldIconClz;
+      }, 1250);
+    }
+  };
 
   return html`<${WorkspaceDisplay}
     logFileName=${logFileName}
