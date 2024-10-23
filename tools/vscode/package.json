@@ -115,6 +115,13 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListingRefresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
         "command": "inspect.runSelectedTask",
         "title": "Run",
         "icon": "$(play)",
@@ -294,6 +301,11 @@
         {
           "command": "inspect.taskOutlineTree",
           "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'list'"
+        },
+        {
+          "command": "inspect.logListingRefresh",
+          "when": "view == inspect_ai.logs-view",
+          "group": "navigation"
         },
         {
           "command": "inspect.showLogview",

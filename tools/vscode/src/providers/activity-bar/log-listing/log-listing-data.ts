@@ -1,10 +1,12 @@
+import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
+
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
 
 
 
 
-export class LogTreeDataProvider implements vscode.TreeDataProvider<LogNode>, vscode.Disposable {
+export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Disposable {
 
   public static readonly viewType = "inspect_ai.logs-view";
 
@@ -18,12 +20,13 @@ export class LogTreeDataProvider implements vscode.TreeDataProvider<LogNode>, vs
   }
 
 
-  async getTreeItem(element: LogNode): Promise<vscode.TreeItem> {
+  async getTreeItem(element: LogNode): Promise<TreeItem> {
     return Promise.resolve({
+      id: element.name,
       label: element.name.split("/").pop(),
       collapsibleState: element.type === "dir"
-        ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.None
+        ? TreeItemCollapsibleState.Collapsed
+        : TreeItemCollapsibleState.None
     });
   }
 
@@ -40,8 +43,8 @@ export class LogTreeDataProvider implements vscode.TreeDataProvider<LogNode>, vs
     this._onDidChangeTreeData.fire();
   }
 
-  private _onDidChangeTreeData: vscode.EventEmitter<LogNode | undefined | null | void> = new vscode.EventEmitter<LogNode | undefined | null | void>();
-  readonly onDidChangeTreeData: vscode.Event<LogNode | undefined | null | void> = this._onDidChangeTreeData.event;
+  private _onDidChangeTreeData: EventEmitter<LogNode | undefined | null | void> = new vscode.EventEmitter<LogNode | undefined | null | void>();
+  readonly onDidChangeTreeData: Event<LogNode | undefined | null | void> = this._onDidChangeTreeData.event;
 
 
   private logListing_?: LogListing;

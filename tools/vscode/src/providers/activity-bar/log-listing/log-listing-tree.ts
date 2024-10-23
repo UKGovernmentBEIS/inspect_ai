@@ -8,7 +8,14 @@ import { InspectViewServer } from '../../inspect/inspect-view-server';
 
 export function activateLogs(envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
 
+
   const disposables: vscode.Disposable[] = [];
+
+  // Register refresh command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingRefresh', () => {
+    treeDataProvider.refresh();
+  }));
+
 
 
   // create tree data provider and tree
