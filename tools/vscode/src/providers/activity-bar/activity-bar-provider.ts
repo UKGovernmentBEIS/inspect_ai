@@ -10,7 +10,7 @@ import { TaskConfigurationProvider } from "./task-config-provider";
 import { InspectManager } from "../inspect/inspect-manager";
 import { DebugConfigTaskCommand, RunConfigTaskCommand } from "./task-config-commands";
 import { InspectViewManager } from "../logview/logview-view";
-import { activateLogs } from "./log-listing/log-listing-tree";
+import { activateLogListing } from "./log-listing/log-listing-provider";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 
 export async function activateActivityBar(
@@ -28,7 +28,7 @@ export async function activateActivityBar(
   const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
   context.subscriptions.push(treeDataProvider);
 
-  const [logsCommands, logsDispose] = activateLogs(context, workspaceEnvMgr, inspectViewServer);
+  const [logsCommands, logsDispose] = activateLogListing(context, workspaceEnvMgr, inspectViewServer);
   context.subscriptions.push(...logsDispose);
 
   const envProvider = new EnvConfigurationProvider(context.extensionUri, workspaceEnvMgr, workspaceStateMgr, inspectManager);

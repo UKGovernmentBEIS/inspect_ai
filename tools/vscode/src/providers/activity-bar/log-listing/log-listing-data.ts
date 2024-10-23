@@ -5,7 +5,7 @@ import * as path from 'path';
 import { format, isToday, isThisYear } from 'date-fns';
 
 
-import { CancellationToken, Event, EventEmitter, ProviderResult, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
@@ -29,6 +29,10 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   public setLogListing(logListing: LogListing) {
     this.logListing_ = logListing;
     this._onDidChangeTreeData.fire();
+  }
+
+  public getLogListing(): LogListing | undefined {
+    return this.logListing_;
   }
 
 
@@ -103,7 +107,7 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 function parseLogDate(logName: string) {
 
   // Take only first bit
-  const logDate = logName.split("_")[0]
+  const logDate = logName.split("_")[0];
 
   // Input validation
   if (!logDate.match(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[+-]\d{2}-\d{2}$/)) {
@@ -126,7 +130,7 @@ function formatPrettyDateTime(date: Date) {
 
   // For today, just show time
   if (isToday(date)) {
-    return `Today, ${format(date, 'h:mmaaa')}`
+    return `Today, ${format(date, 'h:mmaaa')}`;
   }
 
   // For this year, show month and day

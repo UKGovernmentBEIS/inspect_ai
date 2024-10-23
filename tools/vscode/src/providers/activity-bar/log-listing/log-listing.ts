@@ -28,6 +28,10 @@ export class LogListing {
 
   }
 
+  public logDir(): Uri {
+    return this.logDir_;
+  }
+
   public async ls(parent?: LogDirectory): Promise<LogNode[]> {
 
     // fetch the nodes if we don't have them yet

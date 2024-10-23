@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+
 import { Command } from '../../../core/command';
 import { LogTreeDataProvider } from './log-listing-data';
 
@@ -8,7 +9,8 @@ import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
 import { getRelativePath } from '../../../core/uri';
 
-export function activateLogs(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
+
+export function activateLogListing(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer): [Command[], vscode.Disposable[]] {
 
 
   const disposables: vscode.Disposable[] = [];
@@ -18,18 +20,15 @@ export function activateLogs(context: vscode.ExtensionContext, envManager: Works
     treeDataProvider.refresh();
   }));
 
-
-
   // create tree data provider and tree
   const treeDataProvider = new LogTreeDataProvider(context);
   disposables.push(treeDataProvider);
-
-
   const tree = vscode.window.createTreeView(LogTreeDataProvider.viewType, {
     treeDataProvider,
     showCollapseAll: false,
     canSelectMany: false,
   });
+
 
   // sync to updates to the .env
   const updateTree = () => {
@@ -44,8 +43,6 @@ export function activateLogs(context: vscode.ExtensionContext, envManager: Works
     } else {
       tree.description = logDir.path.split("/").pop();
     }
-
-    // tree.title = "Logs";
   };
   disposables.push(envManager.onEnvironmentChanged(updateTree));
 
