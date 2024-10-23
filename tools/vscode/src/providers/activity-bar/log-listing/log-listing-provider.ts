@@ -11,8 +11,12 @@ import { getRelativePath, isPathContained, prettyUriPath } from '../../../core/u
 import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
 
 
-export function activateLogListing(context: vscode.ExtensionContext, envManager: WorkspaceEnvManager, viewServer: InspectViewServer, logsWatcher: InspectLogsWatcher): [Command[], vscode.Disposable[]] {
-
+export function activateLogListing(
+  context: vscode.ExtensionContext,
+  envManager: WorkspaceEnvManager,
+  viewServer: InspectViewServer,
+  logsWatcher: InspectLogsWatcher
+): [Command[], vscode.Disposable[]] {
 
   const disposables: vscode.Disposable[] = [];
 

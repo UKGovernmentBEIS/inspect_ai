@@ -10,6 +10,7 @@ import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleSta
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
 import { prettyUriPath } from '../../../core/uri';
+import { throttle } from 'lodash';
 
 
 
@@ -18,8 +19,13 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 
   public static readonly viewType = "inspect_ai.logs-view";
 
-  constructor(private context_: vscode.ExtensionContext) {
+  private readonly throttledRefresh_: () => void;
 
+  constructor(private context_: vscode.ExtensionContext) {
+    this.throttledRefresh_ = throttle(() => {
+      this.logListing_?.invalidate();
+      this._onDidChangeTreeData.fire();
+    }, 1000);
   }
 
   dispose() {
@@ -28,13 +34,17 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 
   public setLogListing(logListing: LogListing) {
     this.logListing_ = logListing;
-    this._onDidChangeTreeData.fire();
+    this.refresh();
   }
 
   public getLogListing(): LogListing | undefined {
     return this.logListing_;
   }
 
+
+  public refresh(): void {
+    this.throttledRefresh_();
+  }
 
   getTreeItem(element: LogNode): TreeItem {
 
@@ -91,10 +101,6 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     return Promise.resolve(item);
   }
 
-  refresh(): void {
-    this.logListing_?.invalidate();
-    this._onDidChangeTreeData.fire();
-  }
 
   private _onDidChangeTreeData: EventEmitter<LogNode | undefined | null | void> = new vscode.EventEmitter<LogNode | undefined | null | void>();
   readonly onDidChangeTreeData: Event<LogNode | undefined | null | void> = this._onDidChangeTreeData.event;
