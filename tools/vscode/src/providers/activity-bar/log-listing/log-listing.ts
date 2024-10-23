@@ -3,8 +3,8 @@ import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { log } from "../../../core/log";
 
 export type LogNode =
-  | { type: "dir", parent?: LogDirectory } & LogDirectory
-  | { type: "file", parent?: LogDirectory } & LogFile;
+  | { type: "dir", parent?: LogNode } & LogDirectory
+  | { type: "file", parent?: LogNode } & LogFile;
 
 export interface LogDirectory {
   name: string
@@ -100,57 +100,94 @@ export class LogListing {
 
 function buildLogTree(logs: LogFile[]): LogNode[] {
 
-  // Keep a map so we can quickly look up parents
-  const treeMap: Map<string, LogNode> = new Map();
+  const root: LogNode[] = [];
+  const dirCache: Map<string, LogNode> = new Map();
 
-  logs.forEach(log => {
-    // track the parent node as we make children
-    let parentNode: LogDirectory | undefined;
+  // Helper to create a directory node
+  function createDir(name: string, parent?: LogNode): LogNode {
+    return {
+      type: "dir",
+      name,
+      children: [],
+      parent
+    };
+  }
 
-    // Split the file into parts so we can make subfolder items in the tree
-    const parts = log.name.split("/");
-    let currentPath = "";
-    parts.forEach((part, idx) => {
-      currentPath = currentPath ? `${currentPath}${part}` : part;
-      const isFolder = idx !== parts.length - 1; // Last part is the file
-      if (isFolder && !treeMap.has(currentPath)) {
-        const node: LogNode = {
-          type: "dir",
-          name: part,
-          children: [],
-          parent: parentNode,
-        };
-        treeMap.set(currentPath, node);
+  // Helper to create a file node
+  function createFileNode(file: LogFile, parent?: LogNode): LogNode {
+    return {
+      ...file,
+      type: "file",
+      parent
+    };
+  }
 
-        // If we're in a child node, make sure to add the parent
-        if (parentNode) {
-          parentNode.children.push(node);
+  // Helper to ensure directory exists and return it
+  function ensureDirectory(path: string, parent?: LogNode): LogNode {
+    if (dirCache.has(path)) {
+      return dirCache.get(path)!;
+    }
+
+    const dir = createDir(path, parent);
+    dirCache.set(path, dir);
+    return dir;
+  }
+
+  // Process each log file
+  for (const log of logs) {
+    const parts = log.name.split('/');
+    parts.pop()!; // remove the filename
+    let currentParent: LogNode | undefined;
+    let currentPath = '';
+
+    // Create/get all necessary parent directories
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const parentDir = currentParent;
+      currentParent = ensureDirectory(currentPath, parentDir);
+
+      if (parentDir?.type === "dir") {
+        if (!parentDir.children.some(child => child.name === currentPath)) {
+          parentDir.children.push(currentParent);
         }
-
-        parentNode = treeMap.get(currentPath) as LogDirectory;
+      } else if (!root.some(node => node.name === currentPath)) {
+        root.push(currentParent);
       }
-    });
-
-    // Add the file as a child to the parent node
-    const file: LogNode = { type: "file", parent: parentNode, ...log };
-    if (parentNode) {
-      parentNode.children.push(file);
-    } else {
-      treeMap.set(currentPath, file);
     }
 
-  });
-
-  // Return the root tree nodes
-  const vals = Array.from(treeMap.values()).filter((entry) => {
-    return entry.parent === undefined;
-  });
-
-  return vals.sort((a, b) => {
-    if (a.name === b.name) {
-      return a.name.localeCompare(b.name);
+    // Create and add the file node
+    const fileNode = createFileNode(log, currentParent);
+    if (currentParent?.type === "dir") {
+      currentParent.children.push(fileNode);
     } else {
-      return a.name.localeCompare(b.name);
+      root.push(fileNode);
+    }
+  }
+
+  return sortLogTree(root);
+}
+
+
+
+function sortLogTree(nodes: LogNode[]): LogNode[] {
+  // sort all of the children
+  for (const node of nodes) {
+    if (node.type === "dir") {
+      node.children = sortLogTree(node.children);
+    }
+  }
+
+  // sort this level
+  return nodes.sort((a, b) => {
+    if (a.type === "dir" && b.type === "dir") {
+      return a.name.split("/").pop()?.localeCompare(b.name.split("/").pop() || "") || 0;
+    } else if (a.type === "file" && b.type === "file") {
+      return a.mtime - b.mtime;
+    } else if (a.type === "dir") {
+      return -1;
+    } else {
+      return 1;
     }
   });
+
 }
