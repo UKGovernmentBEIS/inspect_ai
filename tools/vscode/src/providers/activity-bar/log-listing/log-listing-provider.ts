@@ -40,7 +40,7 @@ export function activateLogListing(
     const logDir = preferredLogDir ? Uri.parse(preferredLogDir) : envManager.getDefaultLogDir();
 
     // set it
-    treeDataProvider.setLogListing(new LogListing(logDir, viewServer));
+    treeDataProvider.setLogListing(new LogListing(context, logDir, viewServer));
 
     // show a workspace relative path if this is in the workspace,
     // otherwise show the protocol then the last two bits of the path
@@ -64,7 +64,7 @@ export function activateLogListing(
 
   // Register select log dir command
   disposables.push(vscode.commands.registerCommand('inspect.logListingSelectLogDir', async () => {
-    const logLocation = await selectLogListingLocation(envManager.getDefaultLogDir());
+    const logLocation = await selectLogListingLocation(context, envManager.getDefaultLogDir());
     if (logLocation !== undefined) {
       // store state ('null' means use workspace default so pass 'undefined' to clear for that)
       await context.workspaceState.update(

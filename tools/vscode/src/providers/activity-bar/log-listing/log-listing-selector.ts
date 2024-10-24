@@ -1,6 +1,7 @@
-import { QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, window } from "vscode";
+import { ExtensionContext, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, window } from "vscode";
 import { prettyUriPath } from "../../../core/uri";
 import { activeWorkspaceFolder } from "../../../core/workspace";
+import { LogListingMRU } from "./log-listing-mru";
 
 
 const kSeparator = "<separator>";
@@ -13,9 +14,18 @@ export interface SelectLocationQuickPickItem extends QuickPickItem {
   location: string
 }
 
-export async function selectLogListingLocation(workspaceLogDir: Uri): Promise<Uri | null | undefined> {
+export async function selectLogListingLocation(
+  context: ExtensionContext,
+  workspaceLogDir: Uri
+): Promise<Uri | null | undefined> {
 
   return new Promise<Uri | null | undefined>((resolve) => {
+
+    // get the mru (screen out the current workspaceLogDir)
+    const mru = new LogListingMRU(context);
+    const mruLocations = mru.get().filter(
+      location => location.toString() !== workspaceLogDir.toString()
+    );
 
     // build list of items
     const items: SelectLocationQuickPickItem[] = [];
@@ -42,15 +52,26 @@ export async function selectLogListingLocation(workspaceLogDir: Uri): Promise<Ur
       detail: "View logs in remote storage locations (e.g. S3)",
       location: kSelectRemoteURL
     });
-    items.push({
-      label: "Recent locations",
-      kind: QuickPickItemKind.Separator,
-      location: kSeparator
-    });
-    items.push({
-      label: "Clear recent locations",
-      location: kClearRecentLocations
-    });
+    if (mruLocations.length > 0) {
+      items.push({
+        label: "Recent locations",
+        kind: QuickPickItemKind.Separator,
+        location: kSeparator
+      });
+      for (const mruLocation of mruLocations) {
+        items.push({
+          iconPath: new ThemeIcon("folder"),
+          label: mruLocation.path.split("/").pop()!,
+          detail: prettyUriPath(mruLocation),
+          location: mruLocation.toString()
+        });
+      }
+      items.push({
+        label: "Clear recent locations",
+        location: kClearRecentLocations
+      });
+    }
+
 
     // setup and show quick pick
     const quickPick = window.createQuickPick<SelectLocationQuickPickItem>();
@@ -70,11 +91,13 @@ export async function selectLogListingLocation(workspaceLogDir: Uri): Promise<Ur
         resolve(await selectLocalDirectory());
       } else if (location === kSelectRemoteURL) {
         resolve(await selectRemoteURL());
+      } else if (location === kClearRecentLocations) {
+        await mru.clear();
+        resolve(undefined);
+      } else {
+        // selected from mru
+        resolve(Uri.parse(location));
       }
-
-
-      resolve(undefined);
-
     });
     quickPick.onDidHide(() => {
       if (!accepted) {
@@ -83,7 +106,6 @@ export async function selectLogListingLocation(workspaceLogDir: Uri): Promise<Ur
     });
     quickPick.show();
   });
-
 }
 
 
