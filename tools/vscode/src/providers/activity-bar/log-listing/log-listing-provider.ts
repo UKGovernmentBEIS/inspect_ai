@@ -83,10 +83,13 @@ export function activateLogListing(
   }));
 
   // Register reveal command
-  disposables.push(vscode.commands.registerCommand('inspect.logListingReveal', (uri?: Uri) => {
+  disposables.push(vscode.commands.registerCommand('inspect.logListingReveal', async (uri?: Uri) => {
     const treeLogUri = treeDataProvider.getLogListing()?.logDir();
     if (treeLogUri && uri && getRelativeUri(treeLogUri, uri) !== null) {
-      // TODO: find and select
+      const node = treeDataProvider.getLogListing()?.nodeForUri(uri);
+      if (node) {
+        await tree.reveal(node);
+      }
     }
   }));
 

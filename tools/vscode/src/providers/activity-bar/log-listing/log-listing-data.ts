@@ -88,6 +88,10 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     }
   }
 
+  getParent(element: LogNode): LogNode | undefined {
+    return element.parent;
+  }
+
   async resolveTreeItem?(
     item: TreeItem,
     element: LogNode
