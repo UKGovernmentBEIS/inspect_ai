@@ -324,12 +324,21 @@ export function App({ api, initialState, pollForLogs = true }) {
     }
 
     if (selectedSampleIndex < filteredSamples.length) {
+      const summary = filteredSamples[selectedSampleIndex];
+      // If this sample is already loaded, don't bother
+      if (
+        selectedSample &&
+        selectedSample.id === summary.id &&
+        selectedSample.epoch === summary.epoch
+      ) {
+        return;
+      }
+
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSampleError(undefined);
 
-      const summary = filteredSamples[selectedSampleIndex];
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
@@ -365,6 +374,7 @@ export function App({ api, initialState, pollForLogs = true }) {
         });
     }
   }, [
+    selectedSample,
     selectedSampleIndex,
     showingSampleDialog,
     selectedLog,

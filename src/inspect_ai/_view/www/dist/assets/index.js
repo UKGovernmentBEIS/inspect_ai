@@ -25474,10 +25474,13 @@ function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
       return;
     }
     if (selectedSampleIndex < filteredSamples.length) {
+      const summary = filteredSamples[selectedSampleIndex];
+      if (selectedSample && selectedSample.id === summary.id && selectedSample.epoch === summary.epoch) {
+        return;
+      }
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSampleError(void 0);
-      const summary = filteredSamples[selectedSampleIndex];
       api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
         if (sample.transcript) {
           sample.events = sample.transcript.events;
@@ -25503,6 +25506,7 @@ function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
       });
     }
   }, [
+    selectedSample,
     selectedSampleIndex,
     showingSampleDialog,
     selectedLog,
