@@ -63,8 +63,12 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     // make file display nicer
     if (element.type === "file") {
       treeItem.label = element.task || "task";
-      const date = parseLogDate(element.name.split("/").pop()!);
-      treeItem.description = `${formatPrettyDateTime(date)}`;
+      try {
+        const date = parseLogDate(element.name.split("/").pop()!);
+        treeItem.description = `${formatPrettyDateTime(date)}`;
+      } catch {
+        treeItem.description = String(element.name.split("/").pop()!);
+      }
 
     }
 
