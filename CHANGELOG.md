@@ -4,6 +4,7 @@
 
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - Extensions: correctly load extensions in packages where package name differs from dist name.
+- Use `casefold()` for case-insensitive compare in `includes()` scorer.
 
 ## v0.3.42 (23 October 2024)
 
@@ -24,7 +25,6 @@
 - Added `include_history` option to model graded scorers to optionally include the full chat history in the presented question.
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
 - Improve answer detection in multiple choice scorer.
-- Use `casefold()` for case-insensitive compare in `includes()` scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 - Capture `list` and `dict` of registry objects when logging `plan`.
 - Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
