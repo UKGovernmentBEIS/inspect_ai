@@ -2,17 +2,13 @@ import { workspace } from "vscode";
 
 // Inspect Settings
 export interface InspectSettings {
-  openLogView: boolean;
   jsonLogView: boolean;
-  logViewType: InspectLogViewStyle;
 }
 export type InspectLogViewStyle = "html" | "text";
 
 // Settings namespace and constants
 const kInspectConfigSection = "inspect_ai";
-const kInspectConfigOpenLogView = "openLogView";
 const kInspectConfigJsonLogView = "jsonLogView";
-const kInspectConfigLogViewType = "logViewType";
 
 // Manages the settings for the inspect extension
 export class InspectSettingsManager {
@@ -40,13 +36,8 @@ export class InspectSettingsManager {
   // Read settings values directly from VS.Code
   private readSettings() {
     const configuration = workspace.getConfiguration(kInspectConfigSection);
-    const logViewType =
-      configuration.get<InspectLogViewStyle>(kInspectConfigLogViewType) || "html";
-    const openLogView = configuration.get<boolean>(kInspectConfigOpenLogView);
     const jsonLogView = configuration.get<boolean>(kInspectConfigJsonLogView);
     return {
-      logViewType,
-      openLogView: openLogView !== undefined ? openLogView : true,
       jsonLogView: jsonLogView !== undefined ? jsonLogView : true
     };
   }

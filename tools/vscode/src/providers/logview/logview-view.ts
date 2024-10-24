@@ -3,15 +3,12 @@ import {
   ExtensionContext,
   Uri,
   ViewColumn,
-  window,
-  workspace,
 } from "vscode";
 
 import {
   InspectWebview,
   InspectWebviewManager,
 } from "../../components/webview";
-import { dirname } from "../../core/uri";
 import { inspectViewPath } from "../../inspect/props";
 import {
   InspectChangedEvent,
@@ -21,10 +18,8 @@ import { LogviewState } from "./logview-state";
 import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 import { showError } from "../../components/error";
 import { InspectViewServer } from "../inspect/inspect-view-server";
-import { InspectSettingsManager } from "../settings/inspect-settings";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { LogviewPanel } from "./logview-panel";
-import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
 
 const kLogViewId = "inspect.logview";
@@ -33,48 +28,9 @@ const kLogViewId = "inspect.logview";
 export class InspectViewManager {
   constructor(
     private readonly context_: ExtensionContext,
-    logsWatcher: InspectLogsWatcher,
     private readonly webViewManager_: InspectViewWebviewManager,
-    private readonly settingsMgr_: InspectSettingsManager,
     private readonly envMgr_: WorkspaceEnvManager,
-  ) {
-
-    context_.subscriptions.push(logsWatcher.onInspectLogCreated((e) => {
-
-      // don't show the log if this was an external workspace
-      if (e.externalWorkspace) {
-        return;
-      }
-
-      const openAction = settingsMgr_.getSettings().openLogView
-        ? "open"
-        : undefined;
-      this
-        .showLogFile(e.log, openAction)
-        .catch(async (err: Error) => {
-          await showError(
-            "Unable to preview log file - failed to start Inspect View",
-            err
-          );
-        });
-
-    }));
-
-  }
-
-  public async showLogFile(logFile: Uri, activation?: "open" | "activate") {
-    const settings = this.settingsMgr_.getSettings();
-    if (settings.logViewType === "text" && logFile.scheme === "file") {
-      await workspace.openTextDocument(logFile).then(async (doc) => {
-        await window.showTextDocument(doc, {
-          preserveFocus: true,
-          viewColumn: ViewColumn.Two,
-        });
-      });
-    } else {
-      await this.webViewManager_.showLogFile(logFile, activation);
-    }
-  }
+  ) { }
 
   public async showInspectView() {
     // pick a directory
@@ -92,8 +48,6 @@ export class InspectViewManager {
     return this.webViewManager_.viewColumn();
   }
 }
-
-
 
 export class InspectViewWebviewManager extends InspectWebviewManager<
   InspectViewWebview,
@@ -131,27 +85,6 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     );
   }
   private activeLogDir_: Uri | null = null;
-
-  public async showLogFile(uri: Uri, activation?: "open" | "activate") {
-    // Get the directory name using posix path methods
-    const log_dir = dirname(uri);
-
-    await this.showLogview({ log_file: uri, log_dir }, activation);
-  }
-
-  public async showLogFileIfOpen(uri: Uri) {
-    if (this.isVisible()) {
-      // If the viewer is visible / showing, then send a refresh signal
-
-      // Get the directory name using posix path methods
-      const log_dir = dirname(uri);
-      await this.showLogview({
-        log_file: uri,
-        log_dir,
-        background_refresh: true,
-      });
-    }
-  }
 
   public async showLogview(
     state: LogviewState,

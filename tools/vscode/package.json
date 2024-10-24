@@ -198,29 +198,10 @@
     "configuration": {
       "title": "Inspect AI",
       "properties": {
-        "inspect_ai.openLogView": {
-          "type": "boolean",
-          "default": true,
-          "description": "Open the Inspect Log View when evaluations in the workspace complete.",
-          "order": 1
-        },
-        "inspect_ai.logViewType": {
-          "type": "string",
-          "default": "html",
-          "enum": [
-            "html",
-            "text"
-          ],
-          "markdownEnumDescriptions": [
-            "Use `inspect view` to display evaluation log files.",
-            "Use a text editor to display evaluation log files."
-          ],
-          "order": 2
-        },
         "inspect_ai.jsonLogView": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Use Inspect Log View as the default viewer for JSON log files.",
+          "markdownDescription": "Use Inspect Log View as the default editor for JSON log files.",
           "order": 3
         },
         "inspect_ai.taskListView": {

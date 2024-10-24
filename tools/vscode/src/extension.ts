@@ -100,7 +100,6 @@ export async function activate(context: ExtensionContext) {
     inspectManager,
     settingsMgr,
     server,
-    logsWatcher,
     workspaceEnvManager,
     context,
     host
@@ -123,7 +122,7 @@ export async function activate(context: ExtensionContext) {
 
   // Register the log view link provider
   window.registerTerminalLinkProvider(
-    logviewTerminalLinkProvider(logviewWebviewManager)
+    logviewTerminalLinkProvider()
   );
 
   // Activate Code Lens
