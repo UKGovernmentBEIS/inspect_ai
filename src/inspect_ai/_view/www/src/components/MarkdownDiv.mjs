@@ -16,6 +16,7 @@ export const MarkdownDiv = (props) => {
   try {
     const md = markdownit({
       breaks: true,
+      html: true,
     });
     renderedHtml = md.render(protectedText);
   } catch (ex) {
