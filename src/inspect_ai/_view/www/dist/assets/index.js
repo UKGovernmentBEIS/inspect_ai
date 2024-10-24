@@ -25407,9 +25407,6 @@ function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
       if (!show) {
         setSelectedSample(void 0);
         setSelectedSampleTab(void 0);
-      } else {
-        const defaultTab = (selectedSample == null ? void 0 : selectedSample.events) && selectedSample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
-        setSelectedSampleTab(defaultTab);
       }
     },
     [

@@ -232,12 +232,6 @@ export function App({ api, initialState, pollForLogs = true }) {
       if (!show) {
         setSelectedSample(undefined);
         setSelectedSampleTab(undefined);
-      } else {
-        const defaultTab =
-          selectedSample?.events && selectedSample.events.length > 0
-            ? kSampleTranscriptTabId
-            : kSampleMessagesTabId;
-        setSelectedSampleTab(defaultTab);
       }
     },
     [
