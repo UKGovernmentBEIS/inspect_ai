@@ -109,7 +109,7 @@ export async function activate(context: ExtensionContext) {
   const inspectLogviewManager = logviewWebviewManager;
 
   // initilisze open log
-  activateOpenLog(context);
+  activateOpenLog(context, logviewWebviewManager);
 
   // Activate the Activity Bar
   const taskBarCommands = await activateActivityBar(

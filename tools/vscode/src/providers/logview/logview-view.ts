@@ -60,10 +60,6 @@ export class InspectViewManager {
     await this.webViewManager_.showLogFile(uri, activation);
   }
 
-  public async showLogFileIfOpen(uri: Uri) {
-    await this.webViewManager_.showLogFileIfOpen(uri);
-  }
-
   public logFileWillVisiblyUpdate(uri: Uri): boolean {
     return this.webViewManager_.isVisible() && this.webViewManager_.logFileIsWithinLogDir(uri);
   }
@@ -116,20 +112,6 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     const log_dir = dirname(uri);
 
     await this.showLogview({ log_file: uri, log_dir }, activation);
-  }
-
-  public async showLogFileIfOpen(uri: Uri) {
-    if (this.isVisible()) {
-      // If the viewer is visible / showing, then send a refresh signal
-
-      // Get the directory name using posix path methods
-      const log_dir = dirname(uri);
-      await this.showLogview({
-        log_file: uri,
-        log_dir,
-        background_refresh: true,
-      });
-    }
   }
 
   public logFileIsWithinLogDir(log_file: Uri) {
