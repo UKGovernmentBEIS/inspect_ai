@@ -73,10 +73,10 @@ export class LogListing {
 
   public nodeForUri(uri: Uri): LogNode | undefined {
 
-    // recursively look for a node that suffix matches the uri
+    // recursively look for a node that matches the uri
     const findNodeWithUri = (node: LogNode): LogNode | undefined => {
       if (node.type === "file") {
-        return uri.path.endsWith(node.name) ? node : undefined;
+        return this.uriForNode(node).toString() === uri.toString() ? node : undefined;
       } else if (node.type === "dir") {
         for (const child of node.children) {
           const uri = findNodeWithUri(child);
