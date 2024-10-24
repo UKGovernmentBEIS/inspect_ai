@@ -5,12 +5,14 @@ import * as path from 'path';
 import { format, isToday, isThisYear } from 'date-fns';
 
 
-import { Event, EventEmitter, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
 import { prettyUriPath } from '../../../core/uri';
 import { throttle } from 'lodash';
+import { InspectViewServer } from '../../inspect/inspect-view-server';
+import { EvalLog } from '../../../@types/log';
 
 
 export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Disposable {
@@ -19,7 +21,10 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 
   private readonly throttledRefresh_: () => void;
 
-  constructor(private context_: vscode.ExtensionContext) {
+  constructor(
+    private context_: vscode.ExtensionContext,
+    private viewServer_: InspectViewServer
+  ) {
     this.throttledRefresh_ = throttle(() => {
       this.logListing_?.invalidate();
       this._onDidChangeTreeData.fire();
@@ -98,7 +103,13 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   ): Promise<TreeItem> {
     const nodeUri = this.logListing_?.uriForNode(element);
     if (nodeUri) {
-      item.tooltip = prettyUriPath(nodeUri);
+      const headers = await this.viewServer_.evalLogHeaders([nodeUri.toString()]);
+      if (headers !== undefined) {
+        const evalLog = (JSON.parse(headers) as EvalLog[])[0];
+        if (evalLog.version === 2) {
+          item.tooltip = new MarkdownString(prettyUriPath(nodeUri));
+        }
+      }
     }
     return Promise.resolve(item);
   }

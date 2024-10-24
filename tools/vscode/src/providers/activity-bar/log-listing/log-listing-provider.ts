@@ -13,7 +13,6 @@ import { selectLogDirectory } from './log-directory-selector';
 import { Uri } from 'vscode';
 
 
-
 export function activateLogListing(
   context: vscode.ExtensionContext,
   envManager: WorkspaceEnvManager,
@@ -25,7 +24,7 @@ export function activateLogListing(
   const disposables: vscode.Disposable[] = [];
 
   // create tree data provider and tree
-  const treeDataProvider = new LogTreeDataProvider(context);
+  const treeDataProvider = new LogTreeDataProvider(context, viewServer);
   disposables.push(treeDataProvider);
   const tree = vscode.window.createTreeView(LogTreeDataProvider.viewType, {
     treeDataProvider,
