@@ -14515,7 +14515,8 @@ const MarkdownDiv = (props) => {
   let renderedHtml = protectedText;
   try {
     const md = MarkdownIt({
-      breaks: true
+      breaks: true,
+      html: true
     });
     renderedHtml = md.render(protectedText);
   } catch (ex) {
