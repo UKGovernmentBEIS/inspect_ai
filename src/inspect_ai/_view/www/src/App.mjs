@@ -34,6 +34,7 @@ import { kDefaultSort } from "./constants.mjs";
 import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
+import { filterFnForType } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -139,11 +140,6 @@ export function App({ api, initialState, pollForLogs = true }) {
   const [sort, setSort] = useState(initialState?.sort || kDefaultSort);
 
   /**
-   * @type {[import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
-   */
-  const [samplesDescriptor, setSamplesDescriptor] = useState(undefined);
-
-  /**
    * @type {[import("./Types.mjs").ScoreLabel[], function(import("./Types.mjs").ScoreLabel[]): void]}
    */
   const [scores, setScores] = useState(initialState?.scores || []);
@@ -230,12 +226,27 @@ export function App({ api, initialState, pollForLogs = true }) {
     groupByOrder,
   ]);
 
-  useEffect(() => {
-    if (showingSampleDialog) {
-      setSelectedSample(undefined);
-      setSelectedSampleTab(undefined);
-    }
-  }, [showingSampleDialog]);
+  const handleSampleShowingDialog = useCallback(
+    (show) => {
+      setShowingSampleDialog(show);
+      if (!show) {
+        setSelectedSample(undefined);
+        setSelectedSampleTab(undefined);
+      } else {
+        const defaultTab =
+          selectedSample?.events && selectedSample.events.length > 0
+            ? kSampleTranscriptTabId
+            : kSampleMessagesTabId;
+        setSelectedSampleTab(defaultTab);
+      }
+    },
+    [
+      setShowingSampleDialog,
+      setSelectedSample,
+      setSelectedSampleTab,
+      selectedSample,
+    ],
+  );
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
@@ -247,8 +258,10 @@ export function App({ api, initialState, pollForLogs = true }) {
         }
       }
 
-      if (filter.filterFn && filter.value) {
-        return filter.filterFn(sample, filter.value);
+      // Apply the filter
+      const filterFn = filterFnForType(filter);
+      if (filterFn && filter.value) {
+        return filterFn(samplesDescriptor, sample, filter.value);
       } else {
         return true;
       }
@@ -270,56 +283,15 @@ export function App({ api, initialState, pollForLogs = true }) {
     setFilteredSamples(sorted);
     setGroupBy(grouping);
     setGroupByOrder(order);
-  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+  }, [selectedLog, filter, sort, epoch]);
 
-  // Anytime the selected score changes, reset filtering
-  useEffect(() => {
-    resetFilteringState();
-  }, [score]);
-
-  useEffect(() => {
-    // Select the default scorer to use
-    const scorer = selectedLog?.contents?.results?.scores[0]
-      ? {
-          name: selectedLog.contents.results?.scores[0].name,
-          scorer: selectedLog.contents.results?.scores[0].scorer,
-        }
-      : undefined;
-    const scorers = (selectedLog.contents?.results?.scores || [])
-      .map((score) => {
-        return {
-          name: score.name,
-          scorer: score.scorer,
-        };
-      })
-      .reduce((accum, scorer) => {
-        if (
-          !accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })
-        ) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, []);
-
-    // Reset state
-    setScores(scorers);
-    setScore(scorer);
-
-    resetFilteringState();
-  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
-
-  useEffect(() => {
-    const sampleDescriptor = createsSamplesDescriptor(
-      scores,
-      selectedLog.contents?.sampleSummaries,
-      selectedLog.contents?.eval?.config?.epochs || 1,
-      context,
-      score,
-    );
-    setSamplesDescriptor(sampleDescriptor);
-  }, [selectedLog, score, scores, setSamplesDescriptor]);
+  const samplesDescriptor = createsSamplesDescriptor(
+    scores,
+    selectedLog.contents?.sampleSummaries,
+    selectedLog.contents?.eval?.config?.epochs || 1,
+    context,
+    score,
+  );
 
   const refreshSampleTab = useCallback(
     (sample) => {
@@ -333,12 +305,6 @@ export function App({ api, initialState, pollForLogs = true }) {
     },
     [selectedSampleTab, showingSampleDialog],
   );
-
-  const resetFilteringState = useCallback(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
 
   // The main application reference
   const mainAppRef = useRef();
@@ -363,7 +329,7 @@ export function App({ api, initialState, pollForLogs = true }) {
       return;
     }
 
-    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
+    if (selectedSampleIndex < filteredSamples.length) {
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
@@ -472,14 +438,53 @@ export function App({ api, initialState, pollForLogs = true }) {
     (log) => {
       // Reset the workspace tab
       const hasSamples =
-        !!log?.sampleSummaries && log?.sampleSummaries.length > 0;
-      const showSamples = log?.status !== "error" && hasSamples;
+        !!log.sampleSummaries && log.sampleSummaries.length > 0;
+      const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
       );
 
+      // Select the default scorer to use
+      const scorer = log.results?.scores[0]
+        ? {
+            name: log.results?.scores[0].name,
+            scorer: log.results?.scores[0].scorer,
+          }
+        : undefined;
+      const scorers = (log.results?.scores || [])
+        .map((score) => {
+          return {
+            name: score.name,
+            scorer: score.scorer,
+          };
+        })
+        .reduce((accum, scorer) => {
+          if (
+            !accum.find((sc) => {
+              return scorer.scorer === sc.scorer && scorer.name === sc.name;
+            })
+          ) {
+            accum.push(scorer);
+          }
+          return accum;
+        }, []);
+
+      // Reset state
+      setScores(scorers);
+      setScore(scorer);
+
+      setEpoch("all");
+      setFilter({});
+      setSort(kDefaultSort);
+
       // Reset the sample tab
       setSelectedSampleTab(undefined);
+
+      if (showSamples) {
+        setSelectedSampleIndex(0);
+      } else {
+        setSelectedSampleIndex(-1);
+      }
     },
     [setSelectedWorkspaceTab],
   );
@@ -498,9 +503,6 @@ export function App({ api, initialState, pollForLogs = true }) {
               contents: log,
               name: targetLog.name,
             });
-
-            // Clear the sample index
-            setSelectedSampleIndex(-1);
 
             // Reset the workspace tab
             resetWorkspace(log);
@@ -778,6 +780,19 @@ export function App({ api, initialState, pollForLogs = true }) {
   }, [showFind, setShowFind]);
 
   const showToggle = logs.files.length > 1 || logs.log_dir;
+
+  /**
+   * Determines the sample mode based on the selected log's contents.
+   *
+   * @type {import("./Types.mjs").SampleMode}
+   */
+  const sampleMode =
+    selectedLog?.contents?.sampleSummaries === undefined ||
+    selectedLog.contents.sampleSummaries.length === 0
+      ? "none"
+      : selectedLog.contents.sampleSummaries.length === 1
+        ? "single"
+        : "many";
   return html`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -818,6 +833,7 @@ export function App({ api, initialState, pollForLogs = true }) {
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
+              sampleMode=${sampleMode}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
@@ -831,7 +847,7 @@ export function App({ api, initialState, pollForLogs = true }) {
               selectedSampleIndex=${selectedSampleIndex}
               setSelectedSampleIndex=${setSelectedSampleIndex}
               showingSampleDialog=${showingSampleDialog}
-              setShowingSampleDialog=${setShowingSampleDialog}
+              setShowingSampleDialog=${handleSampleShowingDialog}
               selectedTab=${selectedWorkspaceTab}
               setSelectedTab=${setSelectedWorkspaceTab}
               selectedSampleTab=${selectedSampleTab}
