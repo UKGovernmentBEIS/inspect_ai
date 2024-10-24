@@ -5,8 +5,8 @@ from platformdirs import user_cache_path, user_runtime_path
 from inspect_ai._util.constants import PKG_NAME
 
 
-def _xdg_error(dir_type: str, dir_name: str) -> str:
-    return f"""{dir_type} directory {dir_name} is not writeable.
+def _xdg_error(dir_type: str, dir: Path) -> str:
+    return f"""{dir_type} directory {dir} is not writeable.
         This may be because you are running Inspect without a normal login session.
         On Linux, try setting XDG_RUNTIME_DIR to somewhere writeable.
         See also https://github.com/UKGovernmentBEIS/inspect_ai/issues/51."""
