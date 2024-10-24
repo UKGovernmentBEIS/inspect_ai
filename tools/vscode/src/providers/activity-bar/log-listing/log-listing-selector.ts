@@ -64,12 +64,16 @@ export async function selectLogListingLocation(
       });
       for (const mruLocation of mruLocations) {
         items.push({
-          iconPath: new ThemeIcon("folder"),
           label: mruLocation.path.split("/").pop()!,
           description: prettyUriPath(mruLocation),
           location: mruLocation.toString()
         });
       }
+      items.push({
+        label: "",
+        kind: QuickPickItemKind.Separator,
+        location: kSeparator
+      });
       items.push({
         label: "Clear recent locations",
         location: kClearRecentLocations
