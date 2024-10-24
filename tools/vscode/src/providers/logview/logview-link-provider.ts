@@ -45,7 +45,7 @@ export const logviewTerminalLinkProvider = () => {
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
 
-        await commands.executeCommand("inspect.openLogCustomEditor", logUri);
+        await commands.executeCommand("inspect.openLogViewer", logUri);
 
       } else {
         // Since we couldn't resolve the log file, just let the user know

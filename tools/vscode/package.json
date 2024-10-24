@@ -184,8 +184,8 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
-        "command": "inspect.openLogCustomEditor",
-        "title": "Open Log File",
+        "command": "inspect.openLogViewer",
+        "title": "Open in Inspect Log Viewer",
         "enablement": "workspaceFolderCount != 0"
       }
     ],
@@ -309,6 +309,13 @@
           "group": "navigation"
         }
       ],
+      "explorer/context": [
+        {
+          "command": "inspect.openLogViewer",
+          "group": "navigation@100",
+          "when": "resourceFilename =~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}[:-]\\d{2}[:-]\\d{2}.*\\.json$/"
+        }
+      ],
       "view/item/context": [
         {
           "command": "inspect.debugSelectedTask",
@@ -375,7 +382,7 @@
           "when": "false"
         },
         {
-          "command": "inspect.openLogCustomEditor",
+          "command": "inspect.openLogViewer",
           "when": "false"
         }
       ]

@@ -34,7 +34,7 @@ export function activateLogNotify(
     );
     if (result === viewLog) {
       // open the editor
-      await commands.executeCommand('inspect.openLogCustomEditor', e.log);
+      await commands.executeCommand('inspect.openLogViewer', e.log);
 
     } else if (result === dontShowAgain) {
       settingsMgr.setNotifyEvalComplete(false);

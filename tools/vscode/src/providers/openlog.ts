@@ -4,7 +4,7 @@ import { kInspectLogViewType } from "./logview/logview-editor";
 
 export function activateOpenLog(context: ExtensionContext) {
 
-  context.subscriptions.push(commands.registerCommand('inspect.openLogCustomEditor', async (uri: Uri) => {
+  context.subscriptions.push(commands.registerCommand('inspect.openLogViewer', async (uri: Uri) => {
 
     if (uri.path.endsWith(".eval")) {
       // normal default path for .eval files (so they get preview treatment)
