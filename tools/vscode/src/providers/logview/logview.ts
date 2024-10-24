@@ -4,7 +4,6 @@ import { Command } from "../../core/command";
 import { logviewCommands } from "./commands";
 import { InspectViewWebviewManager } from "./logview-view";
 import { InspectViewManager } from "./logview-view";
-import { InspectSettingsManager } from "../settings/inspect-settings";
 import { InspectManager } from "../inspect/inspect-manager";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { ExtensionHost } from "../../hooks";
@@ -13,7 +12,6 @@ import { activateLogviewEditor } from "./logview-editor";
 
 export async function activateLogview(
   inspectManager: InspectManager,
-  settingsMgr: InspectSettingsManager,
   server: InspectViewServer,
   envMgr: WorkspaceEnvManager,
   context: ExtensionContext,
@@ -21,7 +19,7 @@ export async function activateLogview(
 ): Promise<[Command[], InspectViewManager]> {
 
   // activate the log viewer editor
-  activateLogviewEditor(context, settingsMgr, server);
+  activateLogviewEditor(context, server);
 
   // initilize manager
   const logviewWebManager = new InspectViewWebviewManager(

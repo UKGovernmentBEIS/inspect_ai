@@ -1,4 +1,4 @@
-import { window, ExtensionContext, MessageItem, commands, TextDocumentShowOptions } from "vscode";
+import { window, ExtensionContext, MessageItem, commands } from "vscode";
 import { InspectLogsWatcher } from "./inspect/inspect-logs-watcher";
 import { InspectSettingsManager } from "./settings/inspect-settings";
 
@@ -34,14 +34,12 @@ export function activateLogNotify(
     );
     if (result === viewLog) {
       // open the editor
-      await commands.executeCommand('vscode.open', e.log, <TextDocumentShowOptions>{ preview: true });
-
-      // reveal the log listing
-      await commands.executeCommand('inspect.logListingReveal', e.log);
+      await commands.executeCommand('inspect.openLogCustomEditor', e.log);
 
     } else if (result === dontShowAgain) {
       settingsMgr.setNotifyEvalComplete(false);
     }
+
 
   }));
 

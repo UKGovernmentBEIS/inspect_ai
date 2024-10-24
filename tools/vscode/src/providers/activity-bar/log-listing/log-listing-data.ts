@@ -71,9 +71,9 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
     // open files in the editor
     if (element.type === "file") {
       treeItem.command = {
-        command: 'vscode.open',
+        command: 'inspect.openLogCustomEditor',
         title: 'View Inspect Log',
-        arguments: [this.logListing_?.uriForNode(element), <vscode.TextDocumentShowOptions>{ preview: true }]
+        arguments: [this.logListing_?.uriForNode(element)]
       };
     }
 

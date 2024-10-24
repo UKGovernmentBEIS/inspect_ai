@@ -25,6 +25,7 @@ import { activateStatusBar } from "./providers/statusbar";
 import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
 import { activateLogNotify } from "./providers/lognotify";
+import { activateOpenLog } from "./providers/openlog";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -96,10 +97,12 @@ export async function activate(context: ExtensionContext) {
   // initialise logs watcher
   const logsWatcher = new InspectLogsWatcher(stateManager);
 
+  // initilisze open log
+  activateOpenLog(context);
+
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
-    settingsMgr,
     server,
     workspaceEnvManager,
     context,

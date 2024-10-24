@@ -1,4 +1,4 @@
-import { commands, MessageItem, TextDocumentShowOptions, Uri, window, workspace } from "vscode";
+import { commands, MessageItem, Uri, window, workspace } from "vscode";
 
 import { workspacePath } from "../../core/path";
 import { TerminalLink, TerminalLinkContext } from "vscode";
@@ -45,7 +45,7 @@ export const logviewTerminalLinkProvider = () => {
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
 
-        await commands.executeCommand('vscode.open', logUri, <TextDocumentShowOptions>{ preview: true });
+        await commands.executeCommand("inspect.openLogCustomEditor", logUri);
 
       } else {
         // Since we couldn't resolve the log file, just let the user know
