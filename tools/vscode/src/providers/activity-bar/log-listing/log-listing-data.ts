@@ -1,18 +1,14 @@
-
-
 import * as path from 'path';
 
 import { format, isToday, isThisYear } from 'date-fns';
 
-
-import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
+import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from 'vscode';
 
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
-import { prettyUriPath } from '../../../core/uri';
 import { throttle } from 'lodash';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
-import { EvalLog } from '../../../@types/log';
+import { EvalLog, EvalResults } from '../../../@types/log';
 
 
 export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Disposable {
@@ -107,7 +103,7 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
       if (headers !== undefined) {
         const evalLog = (JSON.parse(headers) as EvalLog[])[0];
         if (evalLog.version === 2) {
-          item.tooltip = new MarkdownString(prettyUriPath(nodeUri));
+          item.tooltip = evalSummary(element, nodeUri, evalLog);
         }
       }
     }
@@ -122,6 +118,56 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   private logListing_?: LogListing;
 }
 
+function evalSummary(node: LogNode, logUri: Uri, log: EvalLog): MarkdownString {
+
+  const summary: string[] = [
+    `### ${log.eval.task} - ${log.eval.model}`,
+    log.results ? evalResults(log.results) : "",
+    "```json",
+    `config: ${JSON.stringify(log.plan?.config)}`,
+    "```",
+    "",
+    "<small>log: " + node.name + "</small>"
+
+  ];
+
+  return new MarkdownString(summary.join("\n  "), true);
+}
+
+function evalResults(results: EvalResults): string {
+  const scorer_names = new Set<string>(results.scores.map(score => score.name));
+  const reducer_names = new Set<string>(results.scores.filter(score => score.reducer !== null).map(score => score.reducer || ""));
+  const show_reducer = reducer_names.size > 1 || !reducer_names.has("avg");
+  const output: Record<string, string> = {};
+  for (const score of results.scores) {
+    for (const metricName of Object.keys(score.metrics)) {
+      const metricValue = score.metrics[metricName];
+      const value = metricValue.value === 1
+        ? "1.0"
+        : formatNumber(metricValue.value);
+      const name = show_reducer && score.reducer
+        ? `${metricName}[${score.reducer}]`
+        : metricName;
+      const key = scorer_names.size > 1
+        ? `${score.name}/${name}`
+        : name;
+      output[key] = value;
+    }
+  }
+
+  const markdown: string[] = [];
+  for (const key of Object.keys(output)) {
+    const value = output[key];
+    markdown.push(`**${key}:** ${value}`);
+  }
+  return markdown.join(", ");
+}
+
+function formatNumber(num: number) {
+  return Number(num) === Math.floor(num)
+    ? num.toString()
+    : num.toFixed(3).replace(/\.?0+$/, '');
+}
 
 function parseLogDate(logName: string) {
 
