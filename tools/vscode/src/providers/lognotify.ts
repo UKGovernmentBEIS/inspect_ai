@@ -1,12 +1,14 @@
 import { window, ExtensionContext, MessageItem, commands } from "vscode";
 import { InspectLogsWatcher } from "./inspect/inspect-logs-watcher";
 import { InspectSettingsManager } from "./settings/inspect-settings";
+import { InspectViewManager } from "./logview/logview-view";
 
 
 export function activateLogNotify(
   context: ExtensionContext,
   logsWatcher: InspectLogsWatcher,
-  settingsMgr: InspectSettingsManager
+  settingsMgr: InspectSettingsManager,
+  viewManager: InspectViewManager
 ) {
 
   context.subscriptions.push(logsWatcher.onInspectLogCreated(async e => {
@@ -17,6 +19,10 @@ export function activateLogNotify(
 
     if (!settingsMgr.getSettings().notifyEvalComplete) {
       return;
+    }
+
+    if (viewManager.logFileWillVisiblyUpdate(e.log)) {
+      return false;
     }
 
     // see if we can pick out the task name

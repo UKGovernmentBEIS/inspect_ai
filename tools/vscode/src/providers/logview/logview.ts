@@ -9,11 +9,13 @@ import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { ExtensionHost } from "../../hooks";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { activateLogviewEditor } from "./logview-editor";
+import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
 
 export async function activateLogview(
   inspectManager: InspectManager,
   server: InspectViewServer,
   envMgr: WorkspaceEnvManager,
+  logsWatcher: InspectLogsWatcher,
   context: ExtensionContext,
   host: ExtensionHost
 ): Promise<[Command[], InspectViewManager]> {
@@ -31,7 +33,8 @@ export async function activateLogview(
   const logviewManager = new InspectViewManager(
     context,
     logviewWebManager,
-    envMgr
+    envMgr,
+    logsWatcher
   );
 
   // logview commands

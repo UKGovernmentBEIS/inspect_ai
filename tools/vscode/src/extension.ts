@@ -102,6 +102,7 @@ export async function activate(context: ExtensionContext) {
     inspectManager,
     server,
     workspaceEnvManager,
+    logsWatcher,
     context,
     host
   );
@@ -136,7 +137,7 @@ export async function activate(context: ExtensionContext) {
   activateStatusBar(context, inspectManager);
 
   // Activate Log Notification
-  activateLogNotify(context, logsWatcher, settingsMgr);
+  activateLogNotify(context, logsWatcher, settingsMgr, inspectLogviewManager);
 
   // Activate commands
   [

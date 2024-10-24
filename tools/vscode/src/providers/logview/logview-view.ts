@@ -21,7 +21,8 @@ import { InspectViewServer } from "../inspect/inspect-view-server";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { LogviewPanel } from "./logview-panel";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
-import { dirname } from "../../core/uri";
+import { dirname, getRelativeUri } from "../../core/uri";
+import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
 
 const kLogViewId = "inspect.logview";
 
@@ -31,7 +32,17 @@ export class InspectViewManager {
     private readonly context_: ExtensionContext,
     private readonly webViewManager_: InspectViewWebviewManager,
     private readonly envMgr_: WorkspaceEnvManager,
-  ) { }
+    logsWatcher: InspectLogsWatcher
+  ) {
+
+    this.context_.subscriptions.push(logsWatcher.onInspectLogCreated(async (e) => {
+      // if this log is contained in the directory currently being viewed
+      // then do a background refresh on it
+      if (this.webViewManager_.hasWebview()) {
+        await this.webViewManager_.showLogFileIfWithinLogDir(e.log);
+      }
+    }));
+  }
 
   public async showInspectView() {
     // pick a directory
@@ -51,6 +62,10 @@ export class InspectViewManager {
 
   public async showLogFileIfOpen(uri: Uri) {
     await this.webViewManager_.showLogFileIfOpen(uri);
+  }
+
+  public logFileWillVisiblyUpdate(uri: Uri): boolean {
+    return this.webViewManager_.isVisible() && this.webViewManager_.logFileIsWithinLogDir(uri);
   }
 
   public viewColumn() {
@@ -95,6 +110,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
   }
   private activeLogDir_: Uri | null = null;
 
+
   public async showLogFile(uri: Uri, activation?: "open" | "activate") {
     // Get the directory name using posix path methods
     const log_dir = dirname(uri);
@@ -115,6 +131,25 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
       });
     }
   }
+
+  public logFileIsWithinLogDir(log_file: Uri) {
+    const state = this.getWorkspaceState();
+    return state?.log_dir !== undefined && getRelativeUri(state?.log_dir, log_file) !== null;
+  }
+
+  public async showLogFileIfWithinLogDir(log_file: Uri) {
+    const state = this.getWorkspaceState();
+    if (state?.log_dir) {
+      if (getRelativeUri(state?.log_dir, log_file) !== null) {
+        await this.displayLogFile({
+          log_file: log_file,
+          log_dir: state?.log_dir,
+          background_refresh: true
+        });
+      }
+    }
+  }
+
 
   public async showLogview(
     state: LogviewState,
@@ -147,6 +182,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
         return;
     }
   }
+
 
   public viewColumn() {
     return this.activeView_?.webviewPanel().viewColumn;
