@@ -25906,11 +25906,14 @@ if (vscode) {
 B$1(m$1`<${App}
     api=${api}
     initialState=${initialState}
-    saveInitialState=${(state) => {
+    saveInitialState=${throttle((state) => {
   const vscode2 = getVscodeApi();
   if (vscode2) {
+    console.log({
+      state
+    });
     vscode2.setState(state);
   }
-}}
+}, 1e3)}
   />`, document.getElementById("app"));
 //# sourceMappingURL=index.js.map

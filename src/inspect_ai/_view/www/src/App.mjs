@@ -173,8 +173,8 @@ export function App({
     },
   };
 
-  // If we're in vscode, store the state for
-  // future use in restoring state
+  // Save state when it changes, so that we can restore it later
+  //
   useEffect(() => {
     const state = {
       logs,
