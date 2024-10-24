@@ -77,10 +77,8 @@ export function activateLogListing(
       // trigger update
       updateTree();
 
-      // select inspect activity bar
-      await vscode.commands.executeCommand('workbench.action.focusSideBar');
-      await vscode.commands.executeCommand(`workbench.view.extension.inspect_ai-activity-bar`);
-
+      // reveal
+      await revealLogListing();
     }
   }));
 
@@ -107,3 +105,7 @@ export function activateLogListing(
   return [[], disposables];
 }
 
+export async function revealLogListing() {
+  await vscode.commands.executeCommand('workbench.action.focusSideBar');
+  await vscode.commands.executeCommand(`workbench.view.extension.inspect_ai-activity-bar`);
+}

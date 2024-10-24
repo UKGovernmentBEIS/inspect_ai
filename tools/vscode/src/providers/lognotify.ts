@@ -1,0 +1,44 @@
+import { window, ExtensionContext, MessageItem, commands, TextDocumentShowOptions } from "vscode";
+import { InspectLogsWatcher } from "./inspect/inspect-logs-watcher";
+import { InspectSettingsManager } from "./settings/inspect-settings";
+
+
+export function activateLogNotify(
+  context: ExtensionContext,
+  logsWatcher: InspectLogsWatcher,
+  settingsMgr: InspectSettingsManager
+) {
+
+  context.subscriptions.push(logsWatcher.onInspectLogCreated(async e => {
+
+    if (e.externalWorkspace) {
+      return;
+    }
+
+    if (!settingsMgr.getSettings().notifyEvalComplete) {
+      return;
+    }
+
+    // see if we can pick out the task name
+    const logFile = e.log.path.split("/").pop()!;
+    const parts = logFile?.split("_");
+    const task = parts.length > 1 ? parts[1] : "task";
+
+    // show the message
+    const viewLog: MessageItem = { title: "View Log" };
+    const dontShowAgain: MessageItem = { title: "Don't Show Again" };
+    const result = await window.showInformationMessage(
+      `Eval complete: ${task}`,
+      viewLog,
+      dontShowAgain,
+    );
+    if (result === viewLog) {
+      await commands.executeCommand('vscode.open', e.log, <TextDocumentShowOptions>{ preview: true });
+    } else if (result === dontShowAgain) {
+      settingsMgr.setNotifyEvalComplete(false);
+    }
+
+  }));
+
+
+}

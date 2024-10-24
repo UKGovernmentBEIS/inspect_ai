@@ -24,6 +24,7 @@ import { extensionHost } from "./hooks";
 import { activateStatusBar } from "./providers/statusbar";
 import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
+import { activateLogNotify } from "./providers/lognotify";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -130,6 +131,9 @@ export async function activate(context: ExtensionContext) {
 
   // Activate Status Bar
   activateStatusBar(context, inspectManager);
+
+  // Activate Log Notification
+  activateLogNotify(context, logsWatcher, settingsMgr);
 
   // Activate commands
   [
