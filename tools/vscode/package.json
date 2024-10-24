@@ -116,8 +116,14 @@
       },
       {
         "command": "inspect.logListingRefresh",
-        "title": "Refresh",
+        "title": "Refresh Log Listing",
         "icon": "$(refresh)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingReveal",
+        "title": "Reveal Log Listing",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
       },
@@ -320,6 +326,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "inspect.logListingRefresh",
+          "when": "false"
+        },
+        {
+          "command": "inspect.logListingReveal",
+          "when": "false"
+        },
         {
           "command": "inspect.debugSelectedTask",
           "when": "false"

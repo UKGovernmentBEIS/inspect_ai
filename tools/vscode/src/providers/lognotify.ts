@@ -33,7 +33,12 @@ export function activateLogNotify(
       dontShowAgain,
     );
     if (result === viewLog) {
+      // open the editor
       await commands.executeCommand('vscode.open', e.log, <TextDocumentShowOptions>{ preview: true });
+
+      // reveal the log listing
+      //await commands.executeCommand('inspect.logListingReveal', e.log);
+
     } else if (result === dontShowAgain) {
       settingsMgr.setNotifyEvalComplete(false);
     }

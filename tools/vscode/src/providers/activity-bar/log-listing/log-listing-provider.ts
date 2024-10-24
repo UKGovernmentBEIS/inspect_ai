@@ -82,6 +82,11 @@ export function activateLogListing(
     }
   }));
 
+  // Register reveal command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingReveal', async (uri?: Uri) => {
+    await revealLogListing();
+  }));
+
   // Register refresh command
   disposables.push(vscode.commands.registerCommand('inspect.logListingRefresh', () => {
     treeDataProvider.refresh();
