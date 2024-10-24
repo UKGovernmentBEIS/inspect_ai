@@ -49,10 +49,16 @@ import {
  * @param {Object} props - The parameters for the component.
  * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
  * @param {Object} props.initialState - The api that this view should use
+ * @param {(state: Object) => void} props.saveInitialState - The api that this view should use
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export function App({ api, initialState, pollForLogs = true }) {
+export function App({
+  api,
+  initialState,
+  saveInitialState,
+  pollForLogs = true,
+}) {
   // List of Logs
   const [logs, setLogs] = useState(
     initialState?.logs || { log_dir: "", files: [] },
@@ -167,7 +173,8 @@ export function App({ api, initialState, pollForLogs = true }) {
     },
   };
 
-  // Test storing state
+  // If we're in vscode, store the state for
+  // future use in restoring state
   useEffect(() => {
     const state = {
       logs,
@@ -195,10 +202,7 @@ export function App({ api, initialState, pollForLogs = true }) {
       groupBy,
       groupByOrder,
     };
-    const vscode = getVscodeApi();
-    if (vscode) {
-      vscode.setState(state);
-    }
+    saveInitialState(state);
   }, [
     logs,
     selectedLogIndex,

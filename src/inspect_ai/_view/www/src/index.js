@@ -13,6 +13,15 @@ if (vscode) {
 }
 
 render(
-  html`<${App} api=${api} initialState=${initialState} />`,
+  html`<${App}
+    api=${api}
+    initialState=${initialState}
+    saveInitialState=${(state) => {
+      const vscode = getVscodeApi();
+      if (vscode) {
+        vscode.setState(state);
+      }
+    }}
+  />`,
   document.getElementById("app"),
 );

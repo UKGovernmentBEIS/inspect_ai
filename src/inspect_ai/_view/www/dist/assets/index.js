@@ -25276,7 +25276,12 @@ const filterFnsForType = {
   [kScoreTypeCategorical]: filterCategory,
   [kScoreTypeNumeric]: filterText
 };
-function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
+function App({
+  api: api2,
+  initialState: initialState2,
+  saveInitialState,
+  pollForLogs = true
+}) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const [logs, setLogs] = h(
     (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
@@ -25371,10 +25376,7 @@ function App({ api: api2, initialState: initialState2, pollForLogs = true }) {
       groupBy,
       groupByOrder
     };
-    const vscode2 = getVscodeApi();
-    if (vscode2) {
-      vscode2.setState(state);
-    }
+    saveInitialState(state);
   }, [
     logs,
     selectedLogIndex,
@@ -25901,5 +25903,14 @@ let initialState = void 0;
 if (vscode) {
   initialState = vscode.getState();
 }
-B$1(m$1`<${App} api=${api} initialState=${initialState} />`, document.getElementById("app"));
+B$1(m$1`<${App}
+    api=${api}
+    initialState=${initialState}
+    saveInitialState=${(state) => {
+  const vscode2 = getVscodeApi();
+  if (vscode2) {
+    vscode2.setState(state);
+  }
+}}
+  />`, document.getElementById("app"));
 //# sourceMappingURL=index.js.map
