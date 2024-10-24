@@ -2,6 +2,7 @@ import { ExtensionContext, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, win
 import { prettyUriPath } from "../../../core/uri";
 import { activeWorkspaceFolder } from "../../../core/workspace";
 import { LogListingMRU } from "./log-listing-mru";
+import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
 
 
 const kSeparator = "<separator>";
@@ -16,10 +17,13 @@ export interface SelectLocationQuickPickItem extends QuickPickItem {
 
 export async function selectLogListingLocation(
   context: ExtensionContext,
-  workspaceLogDir: Uri
+  envManager: WorkspaceEnvManager
 ): Promise<Uri | null | undefined> {
 
   return new Promise<Uri | null | undefined>((resolve) => {
+
+    // get the default workspace env dir
+    const workspaceLogDir = envManager.getDefaultLogDir();
 
     // get the mru (screen out the current workspaceLogDir)
     const mru = new LogListingMRU(context);
@@ -32,7 +36,7 @@ export async function selectLogListingLocation(
     items.push({
       iconPath: new ThemeIcon("code-oss"),
       label: "Workspace Log Directory",
-      detail: prettyUriPath(workspaceLogDir),
+      description: prettyUriPath(workspaceLogDir),
       location: kWorkspaceLogDirectory
     });
     items.push({
@@ -43,13 +47,13 @@ export async function selectLogListingLocation(
     items.push({
       iconPath: new ThemeIcon("vm"),
       label: "Local Log Directory...",
-      detail: "View logs in folders on your local machine",
+      description: "Logs on your local machine",
       location: kSelectLocalDirectory
     });
     items.push({
       iconPath: new ThemeIcon("remote-explorer"),
       label: "Remote Log Directory...",
-      detail: "View logs in remote storage locations (e.g. S3)",
+      description: "Logs in remote storage (e.g. s3://my-bucket/logs)",
       location: kSelectRemoteURL
     });
     if (mruLocations.length > 0) {
@@ -62,7 +66,7 @@ export async function selectLogListingLocation(
         items.push({
           iconPath: new ThemeIcon("folder"),
           label: mruLocation.path.split("/").pop()!,
-          detail: prettyUriPath(mruLocation),
+          description: prettyUriPath(mruLocation),
           location: mruLocation.toString()
         });
       }

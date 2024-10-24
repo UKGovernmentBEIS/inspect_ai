@@ -64,7 +64,7 @@ export function activateLogListing(
 
   // Register select log dir command
   disposables.push(vscode.commands.registerCommand('inspect.logListingSelectLogDir', async () => {
-    const logLocation = await selectLogListingLocation(context, envManager.getDefaultLogDir());
+    const logLocation = await selectLogListingLocation(context, envManager);
     if (logLocation !== undefined) {
       // store state ('null' means use workspace default so pass 'undefined' to clear for that)
       await context.workspaceState.update(
