@@ -1,8 +1,7 @@
 import { ExtensionContext, Uri } from "vscode";
 
-const kMruListSize = 5;
+const kMruListSize = 10;
 const kMruKey = 'inspect_ai.log-listing-mru';
-
 
 
 export class LogListingMRU {
