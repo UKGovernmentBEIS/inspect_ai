@@ -1,12 +1,13 @@
 import functools
 import os
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, cast
 
 import click
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
+    DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
@@ -56,6 +57,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--log-dir",
         type=str,
         default="./logs",
+        callback=clean_log_dir,
         envvar="INSPECT_LOG_DIR",
         help="Directory for log files.",
     )
@@ -89,7 +91,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
+def process_common_options(options: CommonOptions) -> None:
     # disable ansi if requested
     if options["no_ansi"]:
         os.environ["INSPECT_NO_ANSI"] = "1"
@@ -103,6 +105,25 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
         debugpy.wait_for_client()
         print("Debugger attached")
 
-    # return resolved options
-    log_dir = options["log_dir"].rstrip("/\\")
-    return (log_dir, options["log_level"], options["log_level_transcript"])
+
+def clean_log_dir(
+    ctx: click.Context, param: click.Option, value: str | None
+) -> str | None:
+    if value is not None:
+        value = value.rstrip("/\\")
+    return value
+
+
+def log_images_flag(
+    ctx: click.Context, param: click.Option, value: bool | None
+) -> bool | None:
+    log_images_unset = (
+        ctx.get_parameter_source("log_images") == click.core.ParameterSource.DEFAULT
+    )
+
+    if log_images_unset:
+        # If log_images wasn't explicitly set, check log-format parameter
+        log_format_param = ctx.params.get("log_format", DEFAULT_LOG_FORMAT)
+        return str(log_format_param) == "eval"
+    else:
+        return value

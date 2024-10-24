@@ -2,10 +2,10 @@ import { Command } from "../../core/command";
 import { InspectViewManager } from "./logview-view";
 import { showError } from "../../components/error";
 import { MessageItem, Uri, commands, window } from "vscode";
-import { withMinimumInspectVersion } from "../../inspect/version";
-import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
+import { kInspectEvalLogFormatVersion, kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import { inspectLogInfo } from "../../inspect/logs";
 import { LogviewState } from "./logview-state";
+import { inspectVersionDescriptor } from "../../inspect/props";
 
 export interface LogviewOptions {
   state?: LogviewState;
@@ -18,9 +18,8 @@ export async function logviewCommands(
 ): Promise<Command[]> {
 
   // Check whether the open in inspect view command should be enabled
-  const enableOpenInView = withMinimumInspectVersion(kInspectOpenInspectViewVersion, () => {
-    return true;
-  }, () => { return false; });
+  const descriptor = inspectVersionDescriptor();
+  const enableOpenInView = descriptor?.version && descriptor.version.compare(kInspectOpenInspectViewVersion) >= 0 && descriptor.version.compare(kInspectEvalLogFormatVersion) <= 0;
   await commands.executeCommand(
     "setContext",
     "inspect_ai.enableOpenInView",

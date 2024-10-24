@@ -87,16 +87,16 @@ export const SampleList = (props) => {
     }
   }, [selectedIndex, rowMap, listRef]);
 
-  const renderRow = (item, index) => {
+  const renderRow = (item) => {
     if (item.type === "sample") {
       return html`
         <${SampleRow}
           id=${item.number}
-          index=${index}
+          index=${item.index}
           sample=${item.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === index}
+          selected=${selectedIndex === item.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
@@ -288,7 +288,7 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"

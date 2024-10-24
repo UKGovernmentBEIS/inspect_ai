@@ -11,7 +11,7 @@ from inspect_ai._display._display import clear_task_screen, init_task_screen
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog
-from inspect_ai.log._log import Recorder
+from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer

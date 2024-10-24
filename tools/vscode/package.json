@@ -31,7 +31,9 @@
   "activationEvents": [
     "onWebviewPanel:inspect.logview",
     "onWebviewPanel:inspect_ai.task-configuration",
+    "onWebviewPanel:inspect_ai.logs-view",
     "onWebviewPanel:inspect_ai.env-configuration-view",
+    "onWebviewPanel:inspect_ai.task-outline-view",
     "onLanguage:eval",
     "workspaceContains:**/*.eval",
     "onLanguage:python",
@@ -113,6 +115,20 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListingRefresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingSelectLogDir",
+        "title": "Select Log Directory",
+        "icon": "$(root-folder-opened)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
         "command": "inspect.runSelectedTask",
         "title": "Run",
         "icon": "$(play)",
@@ -167,7 +183,7 @@
       {
         "command": "inspect.openInInspectView",
         "title": "Open with Inspect View",
-        "enablement": "workspaceFolderCount != 0"
+        "enablement": "inspect_ai.enableOpenInView && workspaceFolderCount != 0"
       }
     ],
     "keybindings": [
@@ -253,15 +269,21 @@
           "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
         },
         {
-          "type": "webview",
-          "id": "inspect_ai.task-configuration",
-          "name": "Task",
-          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
-        },
-        {
           "id": "inspect_ai.task-outline-view",
           "name": "Tasks",
           "when": "workspaceFolderCount != 0"
+        },
+        {
+          "id": "inspect_ai.logs-view",
+          "name": "Logs",
+          "when": "workspaceFolderCount != 0"
+        },
+        {
+          "type": "webview",
+          "id": "inspect_ai.task-configuration",
+          "name": "Task",
+          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false",
+          "collapsed": true
         }
       ]
     },
@@ -286,6 +308,16 @@
         {
           "command": "inspect.taskOutlineTree",
           "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'list'"
+        },
+        {
+          "command": "inspect.logListingRefresh",
+          "when": "view == inspect_ai.logs-view",
+          "group": "navigation"
+        },
+        {
+          "command": "inspect.logListingSelectLogDir",
+          "when": "view == inspect_ai.logs-view",
+          "group": "navigation"
         },
         {
           "command": "inspect.showLogview",
@@ -383,6 +415,7 @@
   },
   "devDependencies": {
     "@types/async-lock": "^1.4.2",
+    "@types/date-fns": "^2.6.3",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
@@ -406,6 +439,7 @@
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",
     "async-lock": "^1.4.1",
+    "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "semver": "^7.6.0"
   }

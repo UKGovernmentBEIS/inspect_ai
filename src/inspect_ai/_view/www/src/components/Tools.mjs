@@ -69,23 +69,21 @@ export const ToolCallView = ({
           }}
         ></i>`;
   const codeIndent = mode === "compact" ? "" : "";
-  return html`<p>
-        ${icon}
-        <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
-        <div>
-            <div style=${{ marginLeft: `${codeIndent}` }}>
-            <${ToolInput} type=${inputType} contents=${input}/>
-            ${
-              output
-                ? html`
+  return html`<div>
+    ${icon}
+    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    <div>
+      <div style=${{ marginLeft: `${codeIndent}` }}>
+        <${ToolInput} type=${inputType} contents=${input} />
+        ${output
+          ? html`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>`
-                : ""
-            }
-            </div>
-        </div>
-        </p>`;
+          : ""}
+      </div>
+    </div>
+  </div>`;
 };
 
 /**

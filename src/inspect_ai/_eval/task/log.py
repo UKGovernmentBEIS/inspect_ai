@@ -1,9 +1,11 @@
 from importlib import metadata as importlib_metadata
-from typing import Any, cast
+from typing import Any, Literal
 
 from shortuuid import uuid
 
-from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.constants import (
+    PKG_NAME,
+)
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
@@ -11,12 +13,11 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_params,
 )
-from inspect_ai.dataset import Dataset, Sample
+from inspect_ai.dataset import Dataset
 from inspect_ai.log import (
     EvalConfig,
     EvalDataset,
     EvalError,
-    EvalLog,
     EvalPlan,
     EvalPlanStep,
     EvalResults,
@@ -25,18 +26,16 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import LogType, Recorder
-from inspect_ai.log._transcript import eval_events, transcript
+from inspect_ai.log._log import EvalLog, EvalSampleReductions
+from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage, sample_model_usage
-from inspect_ai.scorer import Score
-from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.model._model import model_usage
+from inspect_ai.solver._plan import Plan
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -111,10 +110,14 @@ class TaskLogger:
 
         # stack recorder and location
         self.recorder = recorder
-        self._location = self.recorder.log_start(self.eval)
+        self._location = self.recorder.log_init(self.eval)
 
         # number of samples logged
         self._samples_completed = 0
+
+        # size of flush buffer (how many samples we buffer before hitting storage)
+        self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer()
+        self.flush_pending = 0
 
     @property
     def location(self) -> str:
@@ -124,77 +127,38 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
-    def log(
-        self,
-        type: LogType,
-        data: EvalSample | EvalPlan | EvalResults,
-        flush: bool = False,
-    ) -> None:
-        self.recorder.log(self.eval, type, data, flush)
+    def log_start(self, plan: EvalPlan) -> None:
+        self.recorder.log_start(self.eval, plan)
+
+    def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
+        # log the sample
+        self.recorder.log_sample(self.eval, sample)
+
+        # flush if requested
+        if flush:
+            self.flush_pending += 1
+            if self.flush_pending >= self.flush_buffer:
+                self.recorder.flush(self.eval)
+                self.flush_pending = 0
 
         # track sucessful samples logged
-        if type == "sample":
-            sample = cast(EvalSample, data)
-            if sample.error is None:
-                self._samples_completed += 1
+        if sample.error is None:
+            self._samples_completed += 1
 
-    def log_sample(
+    def log_finish(
         self,
-        epoch: int,
-        sample: Sample,
-        state: TaskState,
-        scores: dict[str, SampleScore],
-        error: EvalError | None,
-        log_images: bool,
-    ) -> None:
-        # sample must have id to be logged
-        id = sample.id
-        if id is None:
-            raise ValueError(
-                f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
-            )
-
-        # log
-        self.log(
-            "sample",
-            EvalSample(
-                id=id,
-                epoch=epoch,
-                input=sample.input,
-                choices=sample.choices,
-                target=sample.target,
-                metadata=state.metadata if state.metadata else {},
-                sandbox=sample.sandbox,
-                files=list(sample.files.keys()) if sample.files else None,
-                setup=sample.setup,
-                messages=state.messages,
-                output=state.output,
-                scores=cast(dict[str, Score], scores),
-                store=dict(state.store.items()),
-                transcript=eval_events(transcript().events, log_images),
-                model_usage=sample_model_usage(),
-                error=error,
-            ),
-            True,
+        status: Literal["success", "cancelled", "error"],
+        stats: EvalStats,
+        results: EvalResults | None = None,
+        reductions: list[EvalSampleReductions] | None = None,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        return self.recorder.log_finish(
+            self.eval, status, stats, results, reductions, error
         )
 
-    def log_plan(self, plan: EvalPlan) -> None:
-        self.log("plan", plan)
 
-    def log_results(self, results: EvalResults) -> None:
-        self.log("results", results)
-
-    def log_cancelled(self, stats: EvalStats) -> EvalLog:
-        return self.recorder.log_cancelled(self.eval, stats)
-
-    def log_success(self, stats: EvalStats) -> EvalLog:
-        return self.recorder.log_success(self.eval, stats)
-
-    def log_failure(self, stats: EvalStats, error: EvalError) -> EvalLog:
-        return self.recorder.log_failure(self.eval, stats, error)
-
-
-def log_plan(
+def log_start(
     logger: TaskLogger,
     plan: Plan,
     config: GenerateConfig,
@@ -213,10 +177,10 @@ def log_plan(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log("plan", eval_plan)
+    logger.log_start(eval_plan)
 
 
-def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
+def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()

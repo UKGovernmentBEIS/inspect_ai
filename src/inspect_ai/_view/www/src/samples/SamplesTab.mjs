@@ -1,145 +1,155 @@
+//@ts-check
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
-import { byEpoch, bySample, sort as doSort } from "./tools/SortFilter.mjs";
 import { SampleDialog } from "./SampleDialog.mjs";
 import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
 
-export const SamplesTab = (props) => {
-  const {
-    task,
-    model,
-    samples,
-    sampleDescriptor,
-    filter,
-    sort,
-    epoch,
-    context,
-    selectedScore,
-    //setSelectedScore,
-  } = props;
-
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [filteredSamples, setFilteredSamples] = useState([]);
+/**
+ * Renders Samples Tab
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").Sample} [props.sample] - The sample
+ * @param {string} [props.task_id] - The task id
+ * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {"epoch" | "sample" | "none" } props.groupBy - how to group items
+ * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
+ * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @param {string} props.sampleStatus - whether the sample is loading
+ * @param {Error} [props.sampleError] - sample error
+ * @param {number} props.selectedSampleIndex - the selected sample index
+ * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
+ * @param {boolean} props.showingSampleDialog - whether the dialog is showing
+ * @param {(showing: boolean) => void } props.setShowingSampleDialog - update whether the dialog is showing
+ * @param {string} props.selectedSampleTab - the selected tab
+ * @param {(tab: string) => void} props.setSelectedSampleTab - function to select a tab
+ * @param {string} props.epoch - the selected epoch
+ * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
+ * @param {any} props.sort - the selected sort
+ *
+ * @returns {import("preact").JSX.Element[]} The TranscriptView component.
+ */
+export const SamplesTab = ({
+  task_id,
+  sample,
+  samples,
+  groupBy,
+  groupByOrder,
+  sampleDescriptor,
+  selectedScore,
+  sampleStatus,
+  sampleError,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
+  context,
+}) => {
   const [items, setItems] = useState([]);
+  const [sampleItems, setSampleItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const [sampleDialogVisible, setSampleDialogVisible] = useState(false);
-
-  // Re-filter the samples
-  useEffect(() => {
-    setFilteredSamples(
-      (samples || []).filter((sample) => {
-        // Filter by epoch if specified
-        if (epoch && epoch !== "all") {
-          if (epoch !== sample.epoch + "") {
-            return false;
-          }
-        }
-
-        if (filter.filterFn && filter.value) {
-          return filter.filterFn(sample, filter.value);
-        } else {
-          return true;
-        }
-      }),
-    );
-  }, [samples, filter, sort, epoch]);
 
   // Shows the sample dialog
   const showSample = useCallback(() => {
-    setSampleDialogVisible(true);
-    setTimeout(() => {
-      sampleDialogRef.current.base.focus();
-    }, 0);
-  }, [setSampleDialogVisible, sampleDialogRef]);
-
-  const hideSample = useCallback(() => {
-    setSampleDialogVisible(false);
-  }, [setSampleDialogVisible]);
+    setShowingSampleDialog(true);
+  }, [sampleDialogRef]);
 
   useEffect(() => {
-    // Sort the samples
-    const { sorted, order } = doSort(sort, filteredSamples, sampleDescriptor);
+    if (showingSampleDialog) {
+      setTimeout(() => {
+        // @ts-ignore
+        sampleDialogRef.current.base.focus();
+      }, 0);
+    } else {
+      setTimeout(() => {
+        if (sampleListRef.current) {
+          // @ts-ignore
+          sampleListRef.current.base.focus();
+        }
+      }, 0);
+    }
+  }, [showingSampleDialog]);
 
+  useEffect(() => {
     const sampleProcessor = getSampleProcessor(
-      filteredSamples,
-      sort,
-      epoch,
-      order,
+      samples,
+      groupBy,
+      groupByOrder,
       sampleDescriptor,
     );
 
     // Process the samples into the proper data structure
-    const items = sorted.flatMap((sample, index) => {
+    const items = samples.flatMap((sample, index) => {
       const results = [];
-      const previousSample = index !== 0 ? sorted[index - 1] : undefined;
+      const previousSample = index !== 0 ? samples[index - 1] : undefined;
       const items = sampleProcessor(sample, index, previousSample);
       results.push(...items);
       return results;
     });
 
     setItems(items);
-    const firstSample = items.findIndex((val) => {
-      return val.type === "sample";
-    });
+    setSampleItems(
+      items.filter((item) => {
+        return item.type === "sample";
+      }),
+    );
     if (items.length) {
-      setSelectedIndex(firstSample);
+      setSelectedSampleIndex(0);
     }
-
-    return items;
-  }, [filteredSamples, sort, epoch, sampleDescriptor]);
+  }, [samples, groupBy, groupByOrder, sampleDescriptor]);
 
   // Focus the sample list
   useEffect(() => {
     // Hide a dialog, if it is displaying
-    hideSample();
+    setShowingSampleDialog(false);
   }, [items]);
 
   const nextSampleIndex = useCallback(() => {
-    for (let i = selectedIndex + 1; i < items.length; i++) {
-      if (items[i].type === "sample") {
-        return i;
-      }
+    if (selectedSampleIndex < sampleItems.length - 1) {
+      return selectedSampleIndex + 1;
+    } else {
+      return -1;
     }
-    return -1;
-  }, [selectedIndex, items]);
+  }, [selectedSampleIndex, items]);
 
   const previousSampleIndex = useCallback(() => {
-    for (let i = selectedIndex - 1; i >= 0; i--) {
-      if (items[i].type === "sample") {
-        return i;
-      }
-    }
-    return -1;
-  }, [selectedIndex, items]);
+    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
+  }, [selectedSampleIndex, items]);
 
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
-    if (next > -1) {
-      setSelectedIndex(next);
+    if (sampleStatus !== "loading" && next > -1) {
+      setSelectedSampleIndex(next);
     }
-  }, [selectedIndex, filteredSamples, nextSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (prev > -1) {
-      setSelectedIndex(prev);
+    if (sampleStatus !== "loading" && prev > -1) {
+      setSelectedSampleIndex(prev);
     }
-  }, [selectedIndex, filteredSamples, previousSampleIndex]);
+  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
 
   const elements = [];
-  if (samples?.length === 1 && items.length === 1) {
+  if (samples?.length === 1) {
     elements.push(
       html` <${InlineSampleDisplay}
-        index="0"
-        key=${`${task}-single-sample`}
+        key=${`${task_id}-single-sample`}
         id="sample-display"
-        sample=${samples[0]}
+        sample=${sample}
+        sampleStatus=${sampleStatus}
+        sampleError=${sampleError}
         sampleDescriptor=${sampleDescriptor}
+        selectedTab=${selectedSampleTab}
+        setSelectedTab=${setSelectedSampleTab}
         context=${context}
       />`,
     );
@@ -149,8 +159,8 @@ export const SamplesTab = (props) => {
         listRef=${sampleListRef}
         items=${items}
         sampleDescriptor=${sampleDescriptor}
-        selectedIndex=${selectedIndex}
-        setSelectedIndex=${setSelectedIndex}
+        selectedIndex=${selectedSampleIndex}
+        setSelectedIndex=${setSelectedSampleIndex}
         selectedScore=${selectedScore}
         nextSample=${nextSample}
         prevSample=${previousSample}
@@ -159,19 +169,31 @@ export const SamplesTab = (props) => {
     );
   }
 
+  const title =
+    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
+      ? sampleItems[selectedSampleIndex].label
+      : "";
+  const index =
+    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
+      ? sampleItems[selectedSampleIndex].index
+      : -1;
   elements.push(html`
     <${SampleDialog}
+      id=${sample?.id || ""}
       ref=${sampleDialogRef}
-      task=${task}
-      model=${model}
-      title=${items.length > 0 ? items[selectedIndex].label : undefined}
-      index=${items.length > 0 ? items[selectedIndex].number : undefined}
-      sample=${items.length > 0 ? items[selectedIndex].data : undefined}
+      task=${task_id}
+      title=${title}
+      index=${index}
+      sample=${sample}
+      sampleStatus=${sampleStatus}
+      sampleError=${sampleError}
       sampleDescriptor=${sampleDescriptor}
+      showingSampleDialog=${showingSampleDialog}
+      setShowingSampleDialog=${setShowingSampleDialog}
+      selectedTab=${selectedSampleTab}
+      setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      sampleDialogVisible=${sampleDialogVisible}
-      hideSample=${hideSample}
       context=${context}
     />
   `);
@@ -179,20 +201,48 @@ export const SamplesTab = (props) => {
   return elements;
 };
 
-// Perform any grouping of the samples
-const getSampleProcessor = (samples, sort, epoch, order, sampleDescriptor) => {
+/**
+ * @typedef {Object} ListItem
+ * @property {string} label - The label for the sample, formatted as "Sample {group} (Epoch {item})".
+ * @property {number} number - The current counter item value.
+ * @property {number} index - The index of the sample.
+ * @property {import("../api/Types.mjs").SampleSummary | string} data - The items data payload.
+ * @property {string} type - The type of the result, in this case, "sample". (or "separator")
+ */
+
+/**
+ * Perform any grouping of the samples
+ *
+ * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
+ * @param {"sample" | "epoch" | "none"} groupBy - how to group samples
+ * @param {"asc" | "desc"} groupByOrder - how to order grouped samples
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ 
+ * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list items
+ */
+const getSampleProcessor = (
+  samples,
+  groupBy,
+  groupByOrder,
+  sampleDescriptor,
+) => {
   // Perform grouping if there are epochs
-  if (sampleDescriptor?.epochs > 1) {
-    if (byEpoch(sort) || epoch !== "all") {
-      return groupByEpoch(samples, sampleDescriptor, order);
-    } else if (bySample(sort)) {
-      return groupBySample(samples, sampleDescriptor, order);
-    }
+  if (groupBy == "epoch") {
+    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+  } else if (groupBy === "sample") {
+    return groupBySample(samples, sampleDescriptor, groupByOrder);
+  } else {
+    return noGrouping(samples, groupByOrder);
   }
-  return noGrouping(samples, order);
 };
 
-// Performs no grouping
+/**
+ * Performs no grouping
+ *
+ * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
+ * @param {string} order - the selected order
+ * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list
+ */
 const noGrouping = (samples, order) => {
   const counter = getCounter(samples.length, 1, order);
   return (sample, index) => {
@@ -210,11 +260,30 @@ const noGrouping = (samples, order) => {
   };
 };
 
-// Groups by sample (showing separators for Epochs)
+/**
+ * Groups by sample (showing separators for Epochs)
+ *
+ * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
+ * @param {string} order - the selected order
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list
+ */
 const groupBySample = (samples, sampleDescriptor, order) => {
   // ensure that we are sorted by id
   samples = samples.sort((a, b) => {
-    return ("" + a.id).localeCompare(b.id);
+    if (typeof a.id === "string") {
+      if (order === "asc") {
+        return String(a.id).localeCompare(String(b.id));
+      } else {
+        return String(b.id).localeCompare(String(a.id));
+      }
+    } else {
+      if (order === "asc") {
+        return Number(a.id) - Number(b.id);
+      } else {
+        return Number(b.id) - Number(b.id);
+      }
+    }
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
@@ -248,7 +317,14 @@ const groupBySample = (samples, sampleDescriptor, order) => {
   };
 };
 
-// Groups by epoch (showing a separator for each sample)
+/**
+ * Groups by epoch (showing a separator for each sample)
+ *
+ * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
+ * @param {string} order - the selected order
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list
+ */
 const groupByEpoch = (samples, sampleDescriptor, order) => {
   const groupCount = sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;

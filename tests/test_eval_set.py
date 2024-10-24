@@ -3,6 +3,7 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
 from test_helpers.utils import failing_solver, failing_task, failing_task_deterministic
 
 from inspect_ai import Task, task
@@ -209,6 +210,7 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir, ignore_errors=True)
 
 
+@pytest.mark.slow
 def test_eval_set_s3(mock_s3) -> None:
     success, logs = eval_set(
         tasks=failing_task(rate=0, samples=1),

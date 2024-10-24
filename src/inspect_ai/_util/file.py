@@ -11,6 +11,7 @@ import fsspec  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
+from s3fs import S3FileSystem  # type: ignore
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -47,7 +48,6 @@ def file(
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[io.TextIOWrapper] | Iterator[BinaryIO]:
-    open
     """Open local or remote file stream.
 
     Open a file stream for reading or writing. Refer to a local file or
@@ -79,6 +79,35 @@ def file(
             f.close()
 
 
+def open_file(
+    file: str,
+    mode: OpenTextMode | OpenBinaryMode,
+    encoding: str = "utf-8",
+    fs_options: dict[str, Any] = {},
+) -> fsspec.core.OpenFile:
+    # get the default storage options for the scheme then apply passed options
+    options = default_fs_options(file)
+    options.update(fs_options)
+
+    # open the file and return the stream
+    return fsspec.open(file, mode=mode, encoding=encoding, **options)
+
+
+# utility to copy a file
+def copy_file(
+    input_file: str,
+    output_file: str,
+    buffer_size: int = 1024 * 1024,
+) -> None:
+    """Copy a file across filesystems."""
+    with file(input_file, "rb") as fin, file(output_file, "wb") as fout:
+        while True:
+            chunk = fin.read(buffer_size)
+            if not chunk:
+                break
+            fout.write(chunk)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 
@@ -97,6 +126,16 @@ def basename(file: str) -> str:
     _, path_without_protocol = split_protocol(normalized_path)
     name: str = path_without_protocol.rstrip("/").split("/")[-1]
     return name
+
+
+def dirname(file: str) -> str:
+    base = basename(file)
+    return file[: -(len(base) + 1)]
+
+
+def exists(file: str) -> bool:
+    fs = filesystem(file)
+    return fs.exists(file)
 
 
 class FileInfo(BaseModel):
@@ -158,11 +197,20 @@ class FileSystem:
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
+    def is_async(self) -> bool:
+        return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
+
+    def is_s3(self) -> bool:
+        return isinstance(self.fs, S3FileSystem)
+
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
 
     def get_file(self, rpath: str, lpath: str) -> None:
         self.fs.get_file(rpath, lpath)
+
+    def read_bytes(self, path: str, start: int, end: int) -> bytes:
+        return cast(bytes, self.fs.read_bytes(path, start, end))
 
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended

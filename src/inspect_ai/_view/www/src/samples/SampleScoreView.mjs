@@ -3,6 +3,7 @@ import { arrayToString, inputString } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleScores } from "./SampleScores.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { MetaDataView } from "../components/MetaDataView.mjs";
 
 const labelStyle = {
   paddingRight: "2em",
@@ -17,11 +18,12 @@ export const SampleScoreView = ({
   sampleDescriptor,
   style,
   scorer,
+  context,
 }) => {
   if (!sampleDescriptor) {
     return "";
   }
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
@@ -115,25 +117,71 @@ export const SampleScoreView = ({
       </table>
 
       ${explanation && explanation !== answer
-        ? html`
-        <table class="table" style=${{ width: "100%", marginBottom: "0" }}>
-              <thead>
-                <tr>
-                  <th style=${{
+        ? html` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
                     paddingBottom: "0",
                     paddingLeft: "0",
                     ...labelStyle,
                     fontWeight: "400",
-                  }}>Explanation</th>
-                </tr>
-              </thead>
-              <tbody>
+                  }}
+                >
+                  Explanation
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
                 <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv} markdown=${arrayToString(explanation)} style=${{ paddingLeft: "0" }} class="no-last-para-padding"/>
+                  <${MarkdownDiv}
+                    markdown=${arrayToString(explanation)}
+                    style=${{ paddingLeft: "0" }}
+                    class="no-last-para-padding"
+                  />
                 </td>
-              </tbody>
-            </table
-          `
+              </tr>
+            </tbody>
+          </table>`
+        : ""}
+      ${sample?.score?.metadata &&
+      Object.keys(sample?.score?.metadata).length > 0
+        ? html` <table
+            class="table"
+            style=${{ width: "100%", marginBottom: "0" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style=${{
+                    paddingBottom: "0",
+                    paddingLeft: "0",
+                    ...labelStyle,
+                    fontWeight: "400",
+                  }}
+                >
+                  Metadata
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style=${{ paddingLeft: "0" }}>
+                  <${MetaDataView}
+                    id="task-sample-score-metadata"
+                    classes="tab-pane"
+                    entries="${sample?.score?.metadata}"
+                    style=${{ marginTop: "1em" }}
+                    context=${context}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>`
         : ""}
     </div>
   `;

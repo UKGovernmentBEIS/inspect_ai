@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useState, useEffect } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 
 import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -20,42 +20,102 @@ import { FlatSampleError } from "./SampleError.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
-import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
+import { ProgressBar } from "../components/ProgressBar.mjs";
 
+import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
+import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel.mjs";
+import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import {
+  kSampleErrorTabId,
+  kSampleJsonTabId,
+  kSampleMessagesTabId,
+  kSampleMetdataTabId,
+  kSampleScoringTabId,
+  kSampleTranscriptTabId,
+} from "../constants.mjs";
+
+/**
+ * Inline Sample Display
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The task id
+ * @param {string} props.sampleStatus - the sample status
+ * @param {Error} [props.sampleError] - sample error
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {string} props.selectedTab - The selected tab
+ * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export const InlineSampleDisplay = ({
-  index,
   id,
   sample,
+  sampleStatus,
+  sampleError,
   sampleDescriptor,
+  selectedTab,
+  setSelectedTab,
   context,
 }) => {
   return html`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "1em" }}
+    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
   >
-    <${SampleDisplay}
-      index=${index}
-      id=${id}
-      sample=${sample}
-      sampleDescriptor=${sampleDescriptor}
-      context=${context}
+    <${ProgressBar}
+      animating=${sampleStatus === "loading"}
+      containerStyle=${{
+        background: "var(--bs-body-bg)",
+      }}
     />
+    <div style=${{ height: "1em" }} />
+    ${sampleError
+      ? html`<${ErrorPanel}
+          title="Unable to load sample"
+          error=${sampleError}
+        />`
+      : html` <${SampleDisplay}
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+          context=${context}
+        />`}
   </div>`;
 };
 
+/**
+ * Component to display a sample with relevant context and visibility control.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The unique identifier for the sample.
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @param {string} props.selectedTab - The selected tab
+ * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {boolean} props.visible - Determines whether the sample is visible.
+ * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export const SampleDisplay = ({
+  id,
   sample,
   sampleDescriptor,
   visible,
-  index,
+  selectedTab,
+  setSelectedTab,
   context,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
-  const msgTabId = `${baseId}-messages`;
-  const transcriptTabId = `${baseId}-transcript`;
-  const scoringTabId = `${baseId}-scoring`;
-  const metdataTabId = `${baseId}-metadata`;
-  const errorTabId = `${baseId}-error`;
+
+  if (!sample) {
+    // Placeholder
+    return html`<${EmptyPanel} />`;
+  }
 
   // Upon new dialog
   useEffect(() => {
@@ -64,16 +124,15 @@ export const SampleDisplay = ({
     } else {
       if (selectedTab === undefined) {
         const defaultTab =
-          sample.transcript && sample.transcript.events.length > 0
-            ? transcriptTabId
-            : msgTabId;
+          sample.events && sample.events.length > 0
+            ? kSampleTranscriptTabId
+            : kSampleMessagesTabId;
         setSelectedTab(defaultTab);
       }
     }
   }, [visible]);
 
   // Tab selection
-  const [selectedTab, setSelectedTab] = useState(undefined);
   const onSelectedTab = (e) => {
     const id = e.currentTarget.id;
     setSelectedTab(id);
@@ -83,12 +142,12 @@ export const SampleDisplay = ({
   // The core tabs
   const tabs = [
     html`
-    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
-      selectedTab === msgTabId
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
+      selectedTab === kSampleMessagesTabId
     }>
       <${ChatView} 
-        key=${`${baseId}-chat-${index}`} 
-        id=${`${baseId}-chat-${index}`} 
+        key=${`${baseId}-chat-${id}`} 
+        id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
@@ -96,20 +155,20 @@ export const SampleDisplay = ({
     </${TabPanel}>`,
   ];
 
-  if (sample.transcript && sample.transcript.events.length > 0) {
+  if (sample.events && sample.events.length > 0) {
     tabs.unshift(html`
-      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
-        selectedTab === transcriptTabId || selectedTab === undefined
+      <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
+        selectedTab === kSampleTranscriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
       </${TabPanel}>`);
   }
 
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(html`
-      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${
-        selectedTab === scoringTabId
+      <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${
+        selectedTab === kSampleScoringTabId
       }>
         <${SampleScoreView}
           sample=${sample}
@@ -138,7 +197,7 @@ export const SampleDisplay = ({
   }
 
   const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${index}`,
+    `${baseId}-${id}`,
     sample,
     context,
   );
@@ -146,13 +205,13 @@ export const SampleDisplay = ({
     tabs.push(
       html`
       <${TabPanel} 
-          id=${metdataTabId} 
+          id=${kSampleMetdataTabId} 
           classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === metdataTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-        ${sampleMetadatas}
+          selected=${selectedTab === kSampleMetdataTabId}>
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+          ${sampleMetadatas}
         </div>
       </${TabPanel}>`,
     );
@@ -162,11 +221,11 @@ export const SampleDisplay = ({
     tabs.push(
       html`
       <${TabPanel} 
-          id=${errorTabId} 
+          id=${kSampleErrorTabId} 
           classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
-          selected=${selectedTab === errorTabId}>
+          selected=${selectedTab === kSampleErrorTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
           <${ANSIDisplay} output=${sample.error.traceback_ansi} style=${{ fontSize: FontSize.small, margin: "1em 0" }}/>
         </div>
@@ -174,7 +233,18 @@ export const SampleDisplay = ({
     );
   }
 
-  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  tabs.push(html`<${TabPanel} 
+          id=${kSampleJsonTabId} 
+          classes="sample-tab"
+          title="JSON" 
+          onSelected=${onSelectedTab} 
+          selected=${selectedTab === kSampleJsonTabId}>
+         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+          <${JSONPanel} data=${sample} simple=${true}/>
+        </div>
+      </${TabPanel}>`);
+
+  const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
   const printSample = () => {
     // The active tab
@@ -186,7 +256,7 @@ export const SampleDisplay = ({
       const targetEl = targetTabEl.firstElementChild;
       if (targetEl) {
         // Get the sample heading to include
-        const headingId = `sample-heading-${sample.id}`;
+        const headingId = `sample-heading-${id}`;
         const headingEl = document.getElementById(headingId);
 
         // Print the document
@@ -248,7 +318,7 @@ export const SampleDisplay = ({
   }
 
   return html`<${SampleSummary}
-    id=${sample.id}
+    id=${id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
@@ -265,32 +335,52 @@ export const SampleDisplay = ({
 
 const metadataViewsForSample = (id, sample, context) => {
   const sampleMetadatas = [];
+  if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
+    sampleMetadatas.push(html`
+      <${Card}>
+        <${CardHeader} label="Usage"/>
+        <${CardBody}>
+          <${ModelTokenTable} model_usage=${sample.model_usage} style=${{ marginTop: 0 }}/>
+        </${CardBody}>
+      </${Card}>`);
+  }
+
   if (Object.keys(sample?.metadata).length > 0) {
     sampleMetadatas.push(
-      html` <${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample?.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`,
+      html`
+      <${Card}>
+        <${CardHeader} label="Metadata"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-metadata-${id}"
+            classes="tab-pane"
+            entries="${sample?.metadata}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+        </${Card}>`,
     );
   }
 
-  if (
-    sample?.score?.metadata &&
-    Object.keys(sample?.score?.metadata).length > 0
-  ) {
+  if (Object.keys(sample?.store).length > 0) {
     sampleMetadatas.push(
-      html`<${MetaDataView}
-        id="task-sample-metadata-${id}"
-        classes="tab-pane"
-        entries="${sample?.score?.metadata}"
-        style=${{ marginTop: "1em" }}
-        context=${context}
-      />`,
+      html`
+      <${Card}>
+        <${CardHeader} label="Store"/>
+        <${CardBody}>
+          <${MetaDataView}
+            id="task-sample-store-${id}"
+            classes="tab-pane"
+            entries="${sample?.store}"
+            style=${{ marginTop: "0" }}
+            context=${context}
+          />
+        </${CardBody}>
+      </${Card}>`,
     );
   }
+
   return sampleMetadatas;
 };
 
@@ -308,7 +398,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
 
-  const scoreInput = [inputString(sample.input)];
+  const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
     scoreInput.push(
