@@ -25,20 +25,21 @@ import { InspectSettingsManager } from "../settings/inspect-settings";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { LogviewPanel } from "./logview-panel";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
 
 const kLogViewId = "inspect.logview";
 
 
 export class InspectViewManager {
   constructor(
-    context: ExtensionContext,
+    private readonly context_: ExtensionContext,
     logsWatcher: InspectLogsWatcher,
     private readonly webViewManager_: InspectViewWebviewManager,
     private readonly settingsMgr_: InspectSettingsManager,
     private readonly envMgr_: WorkspaceEnvManager,
   ) {
 
-    context.subscriptions.push(logsWatcher.onInspectLogCreated((e) => {
+    context_.subscriptions.push(logsWatcher.onInspectLogCreated((e) => {
 
       // don't show the log if this was an external workspace
       if (e.externalWorkspace) {
@@ -76,11 +77,15 @@ export class InspectViewManager {
   }
 
   public async showInspectView() {
-    // See if there is a log dir
-    const log_dir = this.envMgr_.getDefaultLogDir();
-
-    // Show the log view for the log dir (or the workspace)
-    await this.webViewManager_.showLogview({ log_dir }, "activate");
+    // pick a directory
+    let log_dir = await selectLogDirectory(this.context_, this.envMgr_);
+    if (log_dir === null) {
+      log_dir = this.envMgr_.getDefaultLogDir();
+    }
+    if (log_dir) {
+      // Show the log view for the log dir (or the workspace)
+      await this.webViewManager_.showLogview({ log_dir }, "activate");
+    }
   }
 
   public viewColumn() {

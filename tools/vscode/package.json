@@ -74,8 +74,8 @@
     ],
     "commands": [
       {
-        "command": "inspect.showLogview",
-        "title": "Show Logs",
+        "command": "inspect.inspectView",
+        "title": "Inspect View...",
         "icon": "$(code-oss)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
@@ -122,8 +122,8 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
-        "command": "inspect.logListingSelectLogDir",
-        "title": "Select Log Directory",
+        "command": "inspect.logListing",
+        "title": "Log Listing...",
         "icon": "$(root-folder-opened)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
@@ -179,11 +179,6 @@
         "icon": "$(debug-alt)",
         "title": "Debug Task",
         "enablement": "workspaceFolderCount != 0"
-      },
-      {
-        "command": "inspect.openInInspectView",
-        "title": "Open with Inspect View",
-        "enablement": "inspect_ai.enableOpenInView && workspaceFolderCount != 0"
       }
     ],
     "keybindings": [
@@ -198,11 +193,6 @@
         "key": "ctrl+shift+t",
         "mac": "cmd+shift+t",
         "when": "inspect_ai.activeTask"
-      },
-      {
-        "command": "inspect.showLogview",
-        "key": "ctrl+shift+l",
-        "mac": "cmd+shift+l"
       }
     ],
     "configuration": {
@@ -315,13 +305,8 @@
           "group": "navigation"
         },
         {
-          "command": "inspect.logListingSelectLogDir",
+          "command": "inspect.logListing",
           "when": "view == inspect_ai.logs-view",
-          "group": "navigation"
-        },
-        {
-          "command": "inspect.showLogview",
-          "when": "view == inspect_ai.task-outline-view",
           "group": "navigation"
         },
         {
@@ -333,13 +318,6 @@
           "command": "inspect.runConfigTask",
           "when": "view == inspect_ai.task-configuration && inspect_ai.activeTask",
           "group": "navigation"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "inspect.openInInspectView",
-          "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.(json|eval)$/"
         }
       ],
       "view/item/context": [

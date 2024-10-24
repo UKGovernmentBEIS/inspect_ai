@@ -15,7 +15,7 @@ export interface SelectLocationQuickPickItem extends QuickPickItem {
   location: string
 }
 
-export async function selectLogListingLocation(
+export async function selectLogDirectory(
   context: ExtensionContext,
   envManager: WorkspaceEnvManager
 ): Promise<Uri | null | undefined> {

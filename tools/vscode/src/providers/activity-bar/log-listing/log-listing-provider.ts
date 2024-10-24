@@ -9,7 +9,7 @@ import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
 import { getRelativeUri, prettyUriPath } from '../../../core/uri';
 import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
-import { selectLogListingLocation } from './log-listing-selector';
+import { selectLogDirectory } from './log-directory-selector';
 import { Uri } from 'vscode';
 
 
@@ -63,8 +63,8 @@ export function activateLogListing(
   }));
 
   // Register select log dir command
-  disposables.push(vscode.commands.registerCommand('inspect.logListingSelectLogDir', async () => {
-    const logLocation = await selectLogListingLocation(context, envManager);
+  disposables.push(vscode.commands.registerCommand('inspect.logListing', async () => {
+    const logLocation = await selectLogDirectory(context, envManager);
     if (logLocation !== undefined) {
       // store state ('null' means use workspace default so pass 'undefined' to clear for that)
       await context.workspaceState.update(
@@ -76,6 +76,11 @@ export function activateLogListing(
 
       // trigger update
       updateTree();
+
+      // select inspect activity bar
+      await vscode.commands.executeCommand('workbench.action.focusSideBar');
+      await vscode.commands.executeCommand(`workbench.view.extension.inspect_ai-activity-bar`);
+
     }
   }));
 
