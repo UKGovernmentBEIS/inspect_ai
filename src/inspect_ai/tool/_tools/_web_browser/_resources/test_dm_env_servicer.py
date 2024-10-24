@@ -54,7 +54,7 @@ class JoinedServerConnection(ServerConnection):
             super().close()
 
 
-class CatchDmEnvRpcStepTest(compliance.Step):
+class DmEnvRpcStepTest(compliance.Step):
     @property
     def connection(self):
         return self._server_connection.connection
@@ -77,7 +77,7 @@ class CatchDmEnvRpcStepTest(compliance.Step):
         pass
 
 
-class CatchDmEnvRpcCreateAndDestoryWorldTest(compliance.CreateDestroyWorld):
+class DmEnvRpcCreateAndDestoryWorldTest(compliance.CreateDestroyWorld):
     @property
     def connection(self):
         return self._server_connection.connection
@@ -95,7 +95,7 @@ class CatchDmEnvRpcCreateAndDestoryWorldTest(compliance.CreateDestroyWorld):
     @property
     def has_multiple_world_support(self):
         """Does the server support creating more than one world?"""
-        return False
+        return True
 
     def setUp(self):
         self._server_connection = ServerConnection()
@@ -106,7 +106,7 @@ class CatchDmEnvRpcCreateAndDestoryWorldTest(compliance.CreateDestroyWorld):
         self._server_connection.close()
 
 
-class CatchDmEnvRpcJoinAndLeaveWorldTest(compliance.JoinLeaveWorld):
+class DmEnvRpcJoinAndLeaveWorldTest(compliance.JoinLeaveWorld):
     @property
     def connection(self):
         return self._server_connection.connection
