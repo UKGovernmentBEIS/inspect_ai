@@ -26,10 +26,14 @@
 /**
  * @typedef {Object} ScoreFilter
  * @property {string} [value]
- * @property {(sample: import("./api/Types.mjs").SampleSummary, value: string) => boolean} [filterFn]
+ * @property {string} [type]
  */
 
 /**
  * @typedef {Object} RenderContext
  * @property {(el: import("preact").JSX.Element) => void} afterBody:
+ */
+
+/**
+ * @typedef {"none" | "single" | "many"} SampleMode
  */
