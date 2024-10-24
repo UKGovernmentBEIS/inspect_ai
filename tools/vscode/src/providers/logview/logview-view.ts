@@ -21,6 +21,7 @@ import { InspectViewServer } from "../inspect/inspect-view-server";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { LogviewPanel } from "./logview-panel";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
+import { dirname } from "../../core/uri";
 
 const kLogViewId = "inspect.logview";
 
@@ -42,6 +43,14 @@ export class InspectViewManager {
       // Show the log view for the log dir (or the workspace)
       await this.webViewManager_.showLogview({ log_dir }, "activate");
     }
+  }
+
+  public async showLogFile(uri: Uri, activation?: "open" | "activate") {
+    await this.webViewManager_.showLogFile(uri, activation);
+  }
+
+  public async showLogFileIfOpen(uri: Uri) {
+    await this.webViewManager_.showLogFileIfOpen(uri);
   }
 
   public viewColumn() {
@@ -85,6 +94,27 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     );
   }
   private activeLogDir_: Uri | null = null;
+
+  public async showLogFile(uri: Uri, activation?: "open" | "activate") {
+    // Get the directory name using posix path methods
+    const log_dir = dirname(uri);
+
+    await this.showLogview({ log_file: uri, log_dir }, activation);
+  }
+
+  public async showLogFileIfOpen(uri: Uri) {
+    if (this.isVisible()) {
+      // If the viewer is visible / showing, then send a refresh signal
+
+      // Get the directory name using posix path methods
+      const log_dir = dirname(uri);
+      await this.showLogview({
+        log_file: uri,
+        log_dir,
+        background_refresh: true,
+      });
+    }
+  }
 
   public async showLogview(
     state: LogviewState,

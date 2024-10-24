@@ -97,9 +97,6 @@ export async function activate(context: ExtensionContext) {
   // initialise logs watcher
   const logsWatcher = new InspectLogsWatcher(stateManager);
 
-  // initilisze open log
-  activateOpenLog(context);
-
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
@@ -109,6 +106,9 @@ export async function activate(context: ExtensionContext) {
     host
   );
   const inspectLogviewManager = logviewWebviewManager;
+
+  // initilisze open log
+  activateOpenLog(context);
 
   // Activate the Activity Bar
   const taskBarCommands = await activateActivityBar(
