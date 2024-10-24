@@ -5,6 +5,7 @@
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - Extensions: correctly load extensions in packages where package name differs from dist name.
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
+- OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
 
 ## v0.3.42 (23 October 2024)
 
