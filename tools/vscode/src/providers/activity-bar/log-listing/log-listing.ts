@@ -2,7 +2,7 @@ import { ExtensionContext, Uri } from "vscode";
 import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { log } from "../../../core/log";
 import { LogListingMRU } from "./log-listing-mru";
-import { getRelativeUri, normalizeWindowsUri } from "../../../core/uri";
+import { normalizeWindowsUri } from "../../../core/uri";
 
 export type LogNode =
   | { type: "dir", parent?: LogNode } & LogDirectory
@@ -107,9 +107,9 @@ export class LogListing {
       const logsJSON = await this.viewServer_.evalLogs(this.logDir_);
       if (logsJSON) {
         const logs = JSON.parse(logsJSON) as { log_dir: string; files: LogFile[] };
+        const log_dir = normalizeWindowsUri(logs.log_dir.endsWith("/") ? logs.log_dir : `${logs.log_dir}/`);
         for (const file of logs.files) {
-          const fileUri = normalizeWindowsUri(file.name);
-          file.name = getRelativeUri(this.logDir_, fileUri) || file.name;
+          file.name = normalizeWindowsUri(file.name).replace(`${log_dir}`, "");
         }
         const tree = buildLogTree(logs.files);
         return tree;
