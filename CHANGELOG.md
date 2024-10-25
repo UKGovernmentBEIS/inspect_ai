@@ -7,6 +7,7 @@
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
 - Don't include package scope for task name part of log files.
+- Use user_data_dir rather than user_runtime_dir for view notifications.
 
 ## v0.3.42 (23 October 2024)
 
