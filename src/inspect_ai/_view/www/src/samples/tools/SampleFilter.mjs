@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { isNumeric } from "../../utils/Type.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
 import {
@@ -19,36 +18,16 @@ import {
  * @returns {import("preact").JSX.Element | string} The TranscriptView component.
  */
 export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
-  const filterCategory = (e) => {
+  const updateCategoryValue = (e) => {
     const val = e.currentTarget.value;
     if (val === "all") {
-      filterChanged({
-        value: undefined,
-        filterFn: undefined,
-      });
+      filterChanged({});
     } else {
       filterChanged({
         value: val,
-        filterFn: (sample, value) => {
-          const score = descriptor.selectedScore(sample);
-          if (typeof score.value === "string") {
-            return score.value.toLowerCase() === value?.toLowerCase();
-          } else if (typeof score.value === "object") {
-            return JSON.stringify(score.value) == value;
-          } else {
-            // @ts-ignore
-            return score.value === value;
-          }
-        },
+        type: kScoreTypeCategorical,
       });
     }
-  };
-
-  const filterInput = (e) => {
-    filterChanged({
-      value: e.currentTarget.value,
-      filterFn: filterText(descriptor),
-    });
   };
 
   switch (descriptor?.scoreDescriptor?.scoreType) {
@@ -62,7 +41,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       return html`<${SelectFilter}
         value=${filter.value || "all"}
         options=${options}
-        filterFn=${filterCategory}
+        onChange=${updateCategoryValue}
       />`;
     }
 
@@ -76,7 +55,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       return html`<${SelectFilter}
         value=${filter.value || "all"}
         options=${options}
-        filterFn=${filterCategory}
+        onChange=${updateCategoryValue}
       />`;
     }
 
@@ -89,7 +68,12 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
           value=${filter.value}
           placeholder="Filter Samples (score)"
           style=${{ width: "150px" }}
-          onInput=${filterInput}
+          onInput=${(e) => {
+            filterChanged({
+              value: e.currentTarget.value,
+              type: kScoreTypeNumeric,
+            });
+          }}
         />
       `;
     }
@@ -108,7 +92,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       return html`<${SelectFilter}
         value=${filter.value || "all"}
         options=${options}
-        filterFn=${filterCategory}
+        onChange=${updateCategoryValue}
       />`;
     }
 
@@ -118,7 +102,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
   }
 };
 
-const SelectFilter = ({ value, options, filterFn }) => {
+const SelectFilter = ({ value, options, onChange }) => {
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -138,7 +122,7 @@ const SelectFilter = ({ value, options, filterFn }) => {
         aria-label=".sample-label"
         style=${{ fontSize: FontSize.smaller }}
         value=${value}
-        onChange=${filterFn}
+        onChange=${onChange}
       >
         ${options.map((option) => {
           return html`<option value="${option.value}">${option.text}</option>`;
@@ -146,77 +130,4 @@ const SelectFilter = ({ value, options, filterFn }) => {
       </select>
     </div>
   `;
-};
-
-const filterText = (descriptor) => {
-  return (sample, value) => {
-    const score = descriptor.selectedScore(sample);
-    if (!value) {
-      return true;
-    } else {
-      if (isNumeric(value)) {
-        if (typeof score.value === "number") {
-          return score.value === Number(value);
-        } else {
-          return Number(score.value) === Number(value);
-        }
-      } else {
-        const filters = [
-          {
-            prefix: ">=",
-            fn: (score, val) => {
-              return score >= val;
-            },
-          },
-          {
-            prefix: "<=",
-            fn: (score, val) => {
-              return score <= val;
-            },
-          },
-          {
-            prefix: ">",
-            fn: (score, val) => {
-              return score > val;
-            },
-          },
-          {
-            prefix: "<",
-            fn: (score, val) => {
-              return score < val;
-            },
-          },
-          {
-            prefix: "=",
-            fn: (score, val) => {
-              return score === val;
-            },
-          },
-          {
-            prefix: "!=",
-            fn: (score, val) => {
-              return score !== val;
-            },
-          },
-        ];
-
-        for (const filter of filters) {
-          if (value?.startsWith(filter.prefix)) {
-            const val = value.slice(filter.prefix.length).trim();
-            if (!val) {
-              return true;
-            }
-
-            const num = Number(val);
-            return filter.fn(score.value, num);
-          }
-        }
-        if (typeof score.value === "string") {
-          return score.value.toLowerCase() === value?.toLowerCase();
-        } else {
-          return score.value === value;
-        }
-      }
-    }
-  };
 };

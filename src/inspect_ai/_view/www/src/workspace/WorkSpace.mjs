@@ -37,6 +37,7 @@ import {
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
@@ -79,6 +80,7 @@ export const WorkSpace = ({
   evalStats,
   evalResults,
   samples,
+  sampleMode,
   selectedSample,
   groupBy,
   groupByOrder,
@@ -129,7 +131,7 @@ export const WorkSpace = ({
 
   // The samples tab
   // Currently only appears when the result is successful
-  if (evalStatus !== "error" && samples && samples.length > 0) {
+  if (evalStatus !== "error" && sampleMode !== "none") {
     resolvedTabs.samples = {
       id: kEvalWorkspaceTabId,
       scrollable: samples.length === 1,
@@ -144,6 +146,7 @@ export const WorkSpace = ({
           showingSampleDialog=${showingSampleDialog}
           setShowingSampleDialog=${setShowingSampleDialog}
           samples=${samples}
+          sampleMode=${sampleMode}
           groupBy=${groupBy}
           groupByOrder=${groupByOrder}
           selectedSampleIndex=${selectedSampleIndex}
@@ -167,7 +170,7 @@ export const WorkSpace = ({
         }
 
         // Don't show tools if there is a single sample
-        if (samples?.length <= 1) {
+        if (sampleMode === "single") {
           return "";
         }
         return html`<${SampleTools}

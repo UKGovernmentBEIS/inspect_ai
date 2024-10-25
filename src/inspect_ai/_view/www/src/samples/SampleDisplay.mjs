@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { useEffect } from "preact/hooks";
 
 import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -96,7 +95,6 @@ export const InlineSampleDisplay = ({
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
- * @param {boolean} props.visible - Determines whether the sample is visible.
  * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
@@ -104,7 +102,6 @@ export const SampleDisplay = ({
   id,
   sample,
   sampleDescriptor,
-  visible,
   selectedTab,
   setSelectedTab,
   context,
@@ -116,21 +113,6 @@ export const SampleDisplay = ({
     // Placeholder
     return html`<${EmptyPanel} />`;
   }
-
-  // Upon new dialog
-  useEffect(() => {
-    if (!visible) {
-      setSelectedTab(undefined);
-    } else {
-      if (selectedTab === undefined) {
-        const defaultTab =
-          sample.events && sample.events.length > 0
-            ? kSampleTranscriptTabId
-            : kSampleMessagesTabId;
-        setSelectedTab(defaultTab);
-      }
-    }
-  }, [visible]);
 
   // Tab selection
   const onSelectedTab = (e) => {

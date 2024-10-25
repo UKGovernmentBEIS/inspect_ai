@@ -103,7 +103,6 @@ export const SampleDialog = ({
                 id=${id}
                 sample=${sample}
                 sampleDescriptor=${sampleDescriptor}
-                visible=${showingSampleDialog}
                 selectedTab=${selectedTab}
                 setSelectedTab=${setSelectedTab}
                 context=${context}
