@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-from inspect_ai._util.appdirs import inspect_runtime_dir
+from inspect_ai._util.appdirs import inspect_data_dir
 
 # lightweight tracking of when the last eval task completed
 # this enables the view client to poll for changes frequently
@@ -41,9 +41,9 @@ def view_last_eval_time() -> int:
         return 0
 
 
-def view_runtime_dir() -> Path:
-    return inspect_runtime_dir("view")
+def view_data_dir() -> Path:
+    return inspect_data_dir("view")
 
 
 def view_last_eval_file() -> Path:
-    return view_runtime_dir() / "last-eval-result"
+    return view_data_dir() / "last-eval-result"

@@ -16,7 +16,7 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._view.server import view_server
 
-from .notify import view_runtime_dir
+from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def view(
 
 
 def view_port_pid_file(port: int) -> Path:
-    ports_dir = view_runtime_dir() / "ports"
+    ports_dir = view_data_dir() / "ports"
     ports_dir.mkdir(parents=True, exist_ok=True)
     return ports_dir / str(port)
 
