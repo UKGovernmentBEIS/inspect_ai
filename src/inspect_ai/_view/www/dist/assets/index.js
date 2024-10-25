@@ -25909,9 +25909,6 @@ B$1(m$1`<${App}
     saveInitialState=${throttle((state) => {
   const vscode2 = getVscodeApi();
   if (vscode2) {
-    console.log({
-      state
-    });
     vscode2.setState(state);
   }
 }, 1e3)}

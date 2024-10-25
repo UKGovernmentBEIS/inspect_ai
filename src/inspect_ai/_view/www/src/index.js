@@ -20,7 +20,6 @@ render(
     saveInitialState=${throttle((state) => {
       const vscode = getVscodeApi();
       if (vscode) {
-        console.log({ state });
         vscode.setState(state);
       }
     }, 1000)}
