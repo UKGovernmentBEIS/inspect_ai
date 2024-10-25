@@ -30,7 +30,7 @@ export async function activateActivityBar(
   const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
   context.subscriptions.push(treeDataProvider);
 
-  const [logsCommands, logsDispose] = activateLogListing(context, workspaceEnvMgr, inspectViewServer, logsWatcher);
+  const [logsCommands, logsDispose] = await activateLogListing(context, workspaceEnvMgr, inspectViewServer, logsWatcher);
   context.subscriptions.push(...logsDispose);
 
   const envProvider = new EnvConfigurationProvider(context.extensionUri, workspaceEnvMgr, workspaceStateMgr, inspectManager);

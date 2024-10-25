@@ -47,6 +47,15 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
 
   getTreeItem(element: LogNode): TreeItem {
 
+    // determine some context value attributes
+    const contextValue: string[] = [element.type];
+    contextValue.push(
+      this.logListing_?.uriForNode(element)?.scheme === "file"
+        ? "local"
+        : "remote"
+    );
+    contextValue.push(element.name.endsWith(".eval") ? "eval" : "json");
+
     // base tree item
     const treeItem: TreeItem = {
       id: element.name,
@@ -59,6 +68,7 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
       collapsibleState: element.type === "dir"
         ? TreeItemCollapsibleState.Collapsed
         : TreeItemCollapsibleState.None,
+      contextValue: contextValue.join("+")
     };
 
     // make file display nicer

@@ -4,24 +4,33 @@ import { Command } from '../../../core/command';
 import { LogTreeDataProvider } from './log-listing-data';
 
 import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
-import { LogListing } from './log-listing';
+import { LogListing, LogNode } from './log-listing';
 import { InspectViewServer } from '../../inspect/inspect-view-server';
 import { activeWorkspaceFolder } from '../../../core/workspace';
 import { getRelativeUri, prettyUriPath } from '../../../core/uri';
 import { InspectLogsWatcher } from '../../inspect/inspect-logs-watcher';
 import { selectLogDirectory } from './log-directory-selector';
 import { Uri } from 'vscode';
+import { hasMinimumInspectVersion } from '../../../inspect/version';
+import { kInspectEvalLogFormatVersion } from '../../inspect/inspect-constants';
 
 
-export function activateLogListing(
+export async function activateLogListing(
   context: vscode.ExtensionContext,
   envManager: WorkspaceEnvManager,
   viewServer: InspectViewServer,
   logsWatcher: InspectLogsWatcher
-): [Command[], vscode.Disposable[]] {
+): Promise<[Command[], vscode.Disposable[]]> {
 
   const kLogListingDir = "inspect_ai.logListingDir";
   const disposables: vscode.Disposable[] = [];
+
+  await vscode.commands.executeCommand(
+    "setContext",
+    "inspect_ai.haveEvalLogFormat",
+    hasMinimumInspectVersion(kInspectEvalLogFormatVersion)
+  );
+
 
   // create tree data provider and tree
   const treeDataProvider = new LogTreeDataProvider(context, viewServer);
@@ -95,6 +104,44 @@ export function activateLogListing(
   // Register refresh command
   disposables.push(vscode.commands.registerCommand('inspect.logListingRefresh', () => {
     treeDataProvider.refresh();
+  }));
+
+  // Register Reveal in Explorer command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingRevealInExplorer', async (node: LogNode) => {
+    const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
+    if (logUri) {
+      await vscode.commands.executeCommand('revealInExplorer', logUri);
+    }
+  }));
+
+  // Register Open in JSON Editor... command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingOpenInJSONEditor', async (node: LogNode) => {
+    const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
+    if (logUri) {
+      await vscode.commands.executeCommand('vscode.open', logUri, <vscode.TextDocumentShowOptions>{ preview: true });
+    }
+  }));
+
+  // Register delete log file command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingDeleteLogFile', async (node: LogNode) => {
+    const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
+    if (logUri) {
+      const result = await vscode.window.showInformationMessage(
+        'Delete Log File',
+        {
+          modal: true,
+          detail: `Are you sure you want to delete the log file at ${prettyUriPath(logUri)}?`
+        },
+        { title: 'Delete', isCloseAffordance: false },
+        { title: 'Cancel', isCloseAffordance: true }
+      );
+
+      if (result?.title === 'Delete') {
+        await viewServer.evalLogDelete(logUri.toString());
+        treeDataProvider.refresh();
+      }
+
+    }
   }));
 
   // refresh when a log in our directory changes
