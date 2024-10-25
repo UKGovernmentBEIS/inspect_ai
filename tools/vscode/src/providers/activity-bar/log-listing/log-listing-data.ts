@@ -2,7 +2,7 @@ import * as path from 'path';
 
 import { format, isToday, isThisYear } from 'date-fns';
 
-import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri } from 'vscode';
+import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
 
 import * as vscode from 'vscode';
 import { LogNode, LogListing } from './log-listing';
@@ -107,7 +107,7 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
       if (headers !== undefined) {
         const evalLog = (JSON.parse(headers) as EvalLog[])[0];
         if (evalLog.version === 2) {
-          item.tooltip = evalSummary(element, nodeUri, evalLog);
+          item.tooltip = evalSummary(element, evalLog);
         }
       }
     }
@@ -122,23 +122,109 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
   private logListing_?: LogListing;
 }
 
-function evalSummary(node: LogNode, logUri: Uri, log: EvalLog): MarkdownString {
+function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
 
-  const summary: string[] = [
-    `### ${log.eval.task} - ${log.eval.model}`,
-    log.results ? evalResults(log.results) : "",
-    "```json",
-    `config: ${JSON.stringify(log.plan?.config)}`,
-    "```",
-    "",
-    "<small>log: " + node.name + "</small>"
+  // build summary
+  const summary = evalHeader(log);
 
-  ];
+  // results
+  if (log.results) {
+    summary.push("***");
+    summary.push(...evalResults(log.results));
+  }
+
+  // params / config
+  const config = evalConfig(log);
+  if (config) {
+    summary.push("***");
+    summary.push(...config);
+  }
 
   return new MarkdownString(summary.join("\n  "), true);
 }
 
-function evalResults(results: EvalResults): string {
+function evalHeader(log: EvalLog): string[] {
+  const kMinWidth = 60;
+  const title = `### ${log.eval.task} - ${log.eval.model}`;
+  const padding = "&nbsp;".repeat(Math.max(kMinWidth - title.length, 0));
+  return [
+    `${title}${padding}`,
+    evalTarget(log),
+  ];
+}
+
+function evalTarget(log: EvalLog): string {
+
+  // setup target
+  const target: string[] = [];
+  if (log.status !== "success") {
+    target.push(`status:&nbsp;${log.status}`);
+  }
+
+  // dataset
+  const dataset: string[] = ["dataset:"];
+  if (log.eval.dataset.name) {
+    dataset.push(log.eval.dataset.name);
+  }
+  if (log.eval.dataset.samples) {
+    const eval_epochs = log.eval.config.epochs || 1;
+    const epochs = eval_epochs > 1 ? ` x ${eval_epochs}` : "";
+    dataset.push(`(${log.eval.dataset.samples}${epochs} sample` + (log.eval.dataset.samples > 1 ? 's' : '') + ")");
+  }
+  if (dataset.length === 1) {
+    dataset.push("(samples)");
+  }
+  target.push(dataset.join(" "));
+
+  // scorers
+  if (log.results) {
+    const scorer_names = new Set<string>(log.results.scores.map(score => score.scorer));
+    target.push("scorers: " + Array.from(scorer_names).join(', '));
+  }
+
+  return target.join("  \n");
+}
+
+
+function evalConfig(log: EvalLog): string[] | undefined {
+
+  let config: Record<string, unknown> = {};
+
+  // task args
+  const taskArgs = log.eval.task_args as Record<string, unknown>;
+  for (const arg of Object.keys(taskArgs)) {
+    let value = taskArgs[arg];
+    if (isObject(value) && Object.keys(value).includes("name")) {
+      value = value["name"];
+    }
+    config[arg] = value;
+  }
+
+  // eval config and generate config
+  config = { ...config, ...log.eval.config, ...log.plan?.config };
+
+  // remove some params
+  delete config["model"];
+
+  if (Object.keys(config).length > 0) {
+    return [
+      "```json",
+      " ",
+      `${JSON.stringify(config, undefined, 2).slice(2, -1).trim()}`,
+      " ",
+      "```",
+    ];
+  } else {
+    return undefined;
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+
+function evalResults(results: EvalResults): string[] {
   const scorer_names = new Set<string>(results.scores.map(score => score.name));
   const reducer_names = new Set<string>(results.scores.filter(score => score.reducer !== null).map(score => score.reducer || ""));
   const show_reducer = reducer_names.size > 1 || !reducer_names.has("avg");
@@ -162,9 +248,9 @@ function evalResults(results: EvalResults): string {
   const markdown: string[] = [];
   for (const key of Object.keys(output)) {
     const value = output[key];
-    markdown.push(`**${key}:** ${value}`);
+    markdown.push(`${key}: ${value}`);
   }
-  return markdown.join(", ");
+  return [`**${markdown.join(", ")}**`];
 }
 
 function formatNumber(num: number) {
