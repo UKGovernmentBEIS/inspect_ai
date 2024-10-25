@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.36",
+  "version": "0.3.37",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -123,6 +123,21 @@
         "title": "Refresh Log Listing",
         "icon": "$(refresh)",
         "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingRevealInExplorer",
+        "title": "Reveal in Explorer",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingOpenInJSONEditor",
+        "title": "Open in JSON Editor",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingDeleteLogFile",
+        "title": "Delete Log File...",
         "enablement": "workspaceFolderCount != 0"
       },
       {
@@ -326,6 +341,21 @@
           "command": "inspect.runSelectedTask",
           "group": "inline",
           "when": "view == inspect_ai.task-outline-view && viewItem == runnable"
+        },
+        {
+          "command": "inspect.logListingRevealInExplorer",
+          "group": "navigation",
+          "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local/"
+        },
+        {
+          "command": "inspect.logListingOpenInJSONEditor",
+          "group": "navigation@100",
+          "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local\\+json/"
+        },
+        {
+          "command": "inspect.logListingDeleteLogFile",
+          "group": "1_modification",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
         }
       ],
       "commandPalette": [
