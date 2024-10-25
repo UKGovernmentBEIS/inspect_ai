@@ -1,6 +1,5 @@
 ---
 title: "Errors and Limits"
-format: html
 ---
 
 ## Overview

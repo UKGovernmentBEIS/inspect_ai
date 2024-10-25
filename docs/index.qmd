@@ -1,5 +1,6 @@
 ---
-toc: true
+title: Inspect
+subtitle: An open-source framework for large language model evaluations
 ---
 
 ## Welcome
@@ -10,7 +11,7 @@ Inspect provides many built-in components, including facilities for prompt engin
 
 ![](images/inspect.png){.lightbox .border fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."}
 
-We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Workflow](#sec-workflow), [Solvers](#sec-solvers), [Tools](#sec-tools), [Scorers](#sec-scorers), [Datasets](#sec-datasets), and [Models](#sec-models) to learn how to create more advanced evaluations.
+We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Workflow](workflow.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd), [Scorers](scorers.qmd), [Datasets](datasets.qmd), and [Models](models.qmd) to learn how to create more advanced evaluations.
 
 ## Getting Started
 
@@ -81,7 +82,7 @@ $ inspect eval arc.py --model together/Qwen/Qwen1.5-72B-Chat
 ```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](#sec-models) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](models.qmd) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
@@ -143,7 +144,7 @@ $ inspect eval theory.py --model openai/gpt-4
 
 
 ::: {.callout-note appearance="simple"}
-This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](#sec-workflow).
+This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](workflow.qmd).
 :::
 
 ## Evaluation Logs
@@ -158,7 +159,7 @@ $ inspect view
 
 ![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."}
 
-See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
+See the [Log Viewer](log-viewer.qmd) section for additional details on using Inspect View.
 
 
 ## Tasks and Solvers
@@ -244,40 +245,40 @@ eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
 
 ## Learning More
 
-The best way to get familar with Inspect's core features is the [Tutorial](#sec-tutorial), which includes several annotated examples.
+The best way to get familar with Inspect's core features is the [Tutorial](tutorial.qmd), which includes several annotated examples.
 
 Next, review these articles which cover basic workflow, more sophisticated examples, and additional useful tooling:
 
--   [Workflow](#sec-workflow) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
+-   [Workflow](workflow.qmd) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
 
--   [Examples](#sec-examples) demonstrates a variety of evaluation types and techniques by implementing some popular LLM benchmarks and papers.
+-   [Examples](examples/index.qmd) demonstrates a variety of evaluation types and techniques by implementing some popular LLM benchmarks and papers.
 
--   [Log Viewer](#sec-log-viewer) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
+-   [Log Viewer](log-viewer.qmd) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 
--   [VS Code](#sec-vscode) provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
+-   [VS Code](vscode.qmd) provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
--   [Solvers](#sec-solvers) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
+-   [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
 
--   [Tools](#sec-tools) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
+-   [Tools](tools.qmd) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
--   [Agents](#sec-agents) combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This section describes how to build agent evaluations with Inspect.
+-   [Agents](agents.qmd) combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This section describes how to build agent evaluations with Inspect.
 
--   [Scorers](#sec-scorers) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
+-   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
--   [Datasets](#sec-datasets) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
+-   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 
--   [Models](#sec-models) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
+-   [Models](models.qmd) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
 
 These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
--   [Eval Sets](#sec-eval-sets) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
+-   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
--   [Caching](#sec-caching) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
+-   [Caching](caching.qmd) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
--   [Parallelism](#sec-parallelism) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+-   [Parallelism](parallelism.qmd) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
 
--   [Eval Logs](#sec-eval-logs) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
+-   [Eval Logs](eval-logs.qmd) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 
--   [Extensions](#sec-extensions) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
+-   [Extensions](extensions.qmd) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).

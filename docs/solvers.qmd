@@ -1,8 +1,7 @@
 ---
+title: Solvers
 tbl-colwidths: [20,25,45]
 ---
-
-# Solvers {#sec-solvers}
 
 ## Overview
 
@@ -443,7 +442,7 @@ Note that the `score()` function returns a list of `Score` (as its possible that
 
 ### Concurrency
 
-When creating custom solvers, it's critical that you understand Inspect's concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](#sec-parallel-solvers-and-scorers) for a more in depth discussion.
+When creating custom solvers, it's critical that you understand Inspect's concurrency model. More specifically, if your solver is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) for a more in depth discussion.
 
 ## Early Termination
 

@@ -1,9 +1,11 @@
-# Workflow {#sec-workflow}
+---
+title: Workflow 
+---
 
 There are a variety of ways to run evaluations that range from interactive work in a notebook or REPL all the way up to running large evaluation suites. We'll start with the basics, then cover exploratory workflows, and finally discuss how to compose evals together into a suite.
 
 ::: {.callout-note appearance="simple"}
-If you are using VS Code, we recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
+If you are using VS Code, we recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](vscode.qmd) for more details on installing and using the extension.
 :::
 
 ## Eval Basics
@@ -46,7 +48,7 @@ def theory_of_mind():
     )
 ```
 
-We walked through this code in detail in [Hello, Inspect](#sec-hello-inspect) so won't do so again here (you may want to refer back to that section now if this code isn't familiar to you).
+We walked through this code in detail in [Hello, Inspect](index.qmd#sec-hello-inspect) so won't do so again here (you may want to refer back to that section now if this code isn't familiar to you).
 
 ### Running
 
@@ -132,7 +134,7 @@ $ inspect eval theory.py \
 
 ### Visualising
 
-As you iterate on an evaluation, you'll typically want to dig further into message histories, scoring decisions, and other diagnostics. Typically at the outset of working session you'll run `inspect view` to open the Inspect [Log Viewer](#sec-log-viewer):
+As you iterate on an evaluation, you'll typically want to dig further into message histories, scoring decisions, and other diagnostics. Typically at the outset of working session you'll run `inspect view` to open the Inspect [Log Viewer](log-viewer.qmd):
 
 ``` bash
 $ inspect view
@@ -144,7 +146,7 @@ The log viewer will update automatically whenever a new evaluation is completed 
 
 ![](images/inspect-view-scoring.png){.border .lightbox fig-alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation."}
 
-See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
+See the [Log Viewer](log-viewer.qmd) section for additional details on using Inspect View.
 
 
 ### Options
@@ -270,7 +272,7 @@ plot_results([log for log in logs if log.status == "success"])
 
 You might additionally choose to print error messages for failed tasks, or perhaps even abandon plotting altogether if all of the evals don't succeed.
 
-See [Eval Logs](#sec-eval-logs) for additional details on working with evaluation logs.
+See [Eval Logs](eval-logs.qmd) for additional details on working with evaluation logs.
 
 ### Transition
 
@@ -382,4 +384,4 @@ $ inspect eval security/jeopardy
 $ inspect eval security/attack_defense 
 ```
 
-Inspect has lots of features aimed at running evaluation suites, including filtering tasks based on tags/metadata, recovering from partially completed suites (due to failed evals), and more. See the documentation on [Eval Sets](#sec-eval-sets) to learn more.
+Inspect has lots of features aimed at running evaluation suites, including filtering tasks based on tags/metadata, recovering from partially completed suites (due to failed evals), and more. See the documentation on [Eval Sets](eval-sets.qmd) to learn more.

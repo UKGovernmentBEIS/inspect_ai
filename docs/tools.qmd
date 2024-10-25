@@ -1,4 +1,6 @@
-# Tools {#sec-tools}
+---
+title: Tools
+---
 
 ## Overview
 
@@ -9,7 +11,7 @@ Inspect natively supports registering Python functions as tools and providing th
 ::: callout-note
 ### Tools and Agents
 
-One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. This is covered in more depth in the [Agents](#sec-agents) section.
+One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. This is covered in more depth in the [Agents](agents.qmd) section.
 :::
 
 ## Built-In Tools
@@ -78,7 +80,7 @@ Note that when using tools with models, the models do not call the Python functi
 
 ## Tool Errors
 
-Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](#sec-sandbox-environments) to execute code in a container sandbox. As a tool writer you need to decide how you'd like to handle error conditions. A number of approaches are possible:
+Various errors can occur during tool execution, especially when interacting with the file system or network or when using [Sandbox Environments](agents.qmd#sec-sandbox-environments) to execute code in a container sandbox. As a tool writer you need to decide how you'd like to handle error conditions. A number of approaches are possible:
 
 1.  Notify the model that an error occurred to see whether it can recover.
 
@@ -157,7 +159,7 @@ The following instance methods are available to tools that need to interact with
 
 {{< include _sandboxenv-interface.md >}}
 
-See the documentation on [Sandbox Environments](#sec-sandbox-environments) for additional details.
+See the documentation on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for additional details.
 
 ## Tool Choice
 
@@ -186,7 +188,7 @@ solver = [
 ]
 ```
 
-## Tool Descriptions
+## Tool Descriptions {#sec-tool-descriptions}
 
 Well crafted tools should include descriptions that provide models with the context required to use them correctly and productively. If you will be developing custom tools it's worth taking some time to learn how to provide good tool definitions. Here are some resources you may find helpful:
 
@@ -279,7 +281,7 @@ Specifying `parallel=False` results in two behaviours:
 
 ## Bash and Python {#sec-bash-and-python}
 
-The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](agents.qmd#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
 ``` python
 from inspect_ai.tool import bash, python

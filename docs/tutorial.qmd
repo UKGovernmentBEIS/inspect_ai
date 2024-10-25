@@ -1,9 +1,6 @@
 ---
-execute: 
-   enabled: false
+title: "Tutorial"
 ---
-
-# Tutorial {#sec-tutorial}
 
 ## Overview
 
@@ -495,7 +492,7 @@ We run the eval with:
 inspect eval addition_problem.py
 ```
 
-## InterCode CTF
+## InterCode CTF #{sec-intercode-ctf}
 
 "Capture the Flag" is a competitive cybersecurity game that requires expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities to accomplish the primary objective of discovering encrypted "flags" concealed within code snippets or file systems
 
@@ -529,7 +526,7 @@ def intercode_ctf(max_attempts=3, message_limit=30, shuffle=False):
     )
 ```
 
-Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](#sec-sandbox-environments).
+Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](agents.qmd#sec-sandbox-environments).
 
 Here is the definition of the agent:
 

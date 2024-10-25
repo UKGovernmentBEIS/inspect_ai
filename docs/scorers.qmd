@@ -1,8 +1,7 @@
 ---
+title: Scorers
 code-annotations: below
 ---
-
-# Scorers {#sec-scorers}
 
 ## Overview
 
@@ -125,7 +124,7 @@ model_graded_qa(
 )
 ```
 
-The implementation of multiple grader models takes advantage of the `multi_scorer()` and `majority_vote()` functions, both of which can be used in your own scorers (as described in the [Multi Scorer](#sec-multi-scorer) section below).
+The implementation of multiple grader models takes advantage of the `multi_scorer()` and `majority_vote()` functions, both of which can be used in your own scorers (as described in the [Multiple Scorers](#sec-multiple-scorers) section below).
 
 ## Custom Scorers
 
@@ -141,7 +140,7 @@ async def score(state: TaskState, target: Target):
 First we'll talk about the core `Score` and `Value` objects, then provide some examples of custom scorers to make things more concrete.
 
 ::: {.callout-note appearance="simple"}
-Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](#sec-parallel-solvers-and-scorers) before proceeding.
+Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) before proceeding.
 :::
 
 ### Score
@@ -399,7 +398,7 @@ Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* w
 
 ### Sandbox Access
 
-If your Solver is an [Agent](#sec-agents) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
+If your Solver is an [Agent](agents.qmd) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
 
 The contents of the sandbox for the Sample are available to the scorer; simply call `await sandbox().read_file()` (or `.exec()`).
 
