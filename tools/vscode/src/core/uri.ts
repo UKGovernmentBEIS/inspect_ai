@@ -69,3 +69,17 @@ export function getRelativeUri(parentUri: Uri, childUri: Uri): string | null {
     return childStr.slice(parentStr.length);
   }
 }
+
+export function normalizeWindowsUri(uri: string) {
+  // Check if the URI is already correctly formatted
+  const windowsFilePattern = /^file:\/\/\/[a-zA-Z]:\\/;
+  if (windowsFilePattern.test(uri)) {
+    return Uri.parse(uri); // Already well-formed
+  }
+
+  // If not, correct the URI to have the right number of slashes
+  const malformedPattern = /^file:\/\/([a-zA-Z]):\//;
+  const correctedUri = uri.replace(malformedPattern, 'file:///$1:/');
+
+  return Uri.parse(correctedUri);
+}
