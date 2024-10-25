@@ -3,6 +3,7 @@ from typing import Any
 from inspect_ai._util.file import (
     filesystem,
 )
+from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalSpec
 from .recorder import Recorder
@@ -26,7 +27,10 @@ class FileRecorder(Recorder):
         def clean(s: str) -> str:
             return s.replace("_", "-").replace("/", "-").replace(":", "-")
 
-        return f"{clean(eval.created)}_{clean(eval.task)}_{clean(eval.task_id)}"
+        # remove package from task name
+        task = registry_unqualified_name(eval.task)
+
+        return f"{clean(eval.created)}_{clean(task)}_{clean(eval.task_id)}"
 
     def _log_file_path(self, eval: EvalSpec) -> str:
         return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"
