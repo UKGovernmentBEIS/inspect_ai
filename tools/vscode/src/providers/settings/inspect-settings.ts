@@ -2,17 +2,13 @@ import { workspace } from "vscode";
 
 // Inspect Settings
 export interface InspectSettings {
-  openLogView: boolean;
-  jsonLogView: boolean;
-  logViewType: InspectLogViewStyle;
+  notifyEvalComplete: boolean;
 }
 export type InspectLogViewStyle = "html" | "text";
 
 // Settings namespace and constants
 const kInspectConfigSection = "inspect_ai";
-const kInspectConfigOpenLogView = "openLogView";
-const kInspectConfigJsonLogView = "jsonLogView";
-const kInspectConfigLogViewType = "logViewType";
+const kInspectConfigNotifyEvalComplete = "notifyEvalComplete";
 
 // Manages the settings for the inspect extension
 export class InspectSettingsManager {
@@ -30,24 +26,26 @@ export class InspectSettingsManager {
   private settings_: InspectSettings | undefined;
 
   // get the current settings values
-  getSettings(): InspectSettings {
+  public getSettings(): InspectSettings {
     if (!this.settings_) {
       this.settings_ = this.readSettings();
     }
     return this.settings_;
   }
 
+  // write the notification pref
+  public setNotifyEvalComplete(notify: boolean) {
+    const configuration = workspace.getConfiguration(kInspectConfigSection,);
+    void configuration.update(kInspectConfigNotifyEvalComplete, notify, true);
+  }
+
+
   // Read settings values directly from VS.Code
   private readSettings() {
     const configuration = workspace.getConfiguration(kInspectConfigSection);
-    const logViewType =
-      configuration.get<InspectLogViewStyle>(kInspectConfigLogViewType) || "html";
-    const openLogView = configuration.get<boolean>(kInspectConfigOpenLogView);
-    const jsonLogView = configuration.get<boolean>(kInspectConfigJsonLogView);
+    const notifyEvalComplete = configuration.get<boolean>(kInspectConfigNotifyEvalComplete);
     return {
-      logViewType,
-      openLogView: openLogView !== undefined ? openLogView : true,
-      jsonLogView: jsonLogView !== undefined ? jsonLogView : true
+      notifyEvalComplete: notifyEvalComplete !== undefined ? notifyEvalComplete : true
     };
   }
 

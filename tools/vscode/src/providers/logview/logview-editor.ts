@@ -21,10 +21,9 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   static register(
     context: vscode.ExtensionContext,
-    settings: InspectSettingsManager,
     server: InspectViewServer
   ): vscode.Disposable {
-    const provider = new InspectLogReadonlyEditor(context, settings, server);
+    const provider = new InspectLogReadonlyEditor(context, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
       kInspectLogViewType,
       provider,
@@ -32,7 +31,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
         webviewOptions: {
           retainContextWhenHidden: false
         },
-        supportsMultipleEditorsPerDocument: true
+        supportsMultipleEditorsPerDocument: false
       }
     );
     return providerRegistration;
@@ -41,7 +40,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
-    private readonly settings_: InspectSettingsManager,
     private readonly server_: InspectViewServer
   ) { }
 
@@ -61,11 +59,8 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
 
-    // check if we should use the log viewer (pref + never show files > 100mb)
-    let useLogViewer =
-      this.settings_.getSettings().jsonLogView &&
-      hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
-
+    // check if we should use the log viewer (version check + size threshold)
+    let useLogViewer = hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
     if (useLogViewer) {
       const docUri = document.uri.toString();
       if (docUri.endsWith(".json")) {
@@ -124,7 +119,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
 export function activateLogviewEditor(
   context: vscode.ExtensionContext,
-  settings: InspectSettingsManager,
   server: InspectViewServer) {
-  context.subscriptions.push(InspectLogReadonlyEditor.register(context, settings, server));
+  context.subscriptions.push(InspectLogReadonlyEditor.register(context, server));
 }

@@ -64,9 +64,6 @@
         "selector": [
           {
             "filenamePattern": "*.eval"
-          },
-          {
-            "filenamePattern": "{[0-9][0-9][0-9][0-9]}-{[0-9][0-9]}-{[0-9][0-9]}T{[0-9][0-9]}[:-]{[0-9][0-9]}[:-]{[0-9][0-9]}*{[A-Za-z0-9]{21}}*.json"
           }
         ],
         "priority": "default"
@@ -74,8 +71,8 @@
     ],
     "commands": [
       {
-        "command": "inspect.showLogview",
-        "title": "Show Logs",
+        "command": "inspect.inspectView",
+        "title": "Inspect View...",
         "icon": "$(code-oss)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
@@ -115,16 +112,22 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListing",
+        "title": "Log Listing...",
+        "icon": "$(root-folder-opened)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
         "command": "inspect.logListingRefresh",
-        "title": "Refresh",
+        "title": "Refresh Log Listing",
         "icon": "$(refresh)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
       },
       {
-        "command": "inspect.logListingSelectLogDir",
-        "title": "Select Log Directory",
-        "icon": "$(root-folder-opened)",
+        "command": "inspect.logListingReveal",
+        "title": "Reveal Log Listing",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
       },
@@ -181,9 +184,9 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
-        "command": "inspect.openInInspectView",
-        "title": "Open with Inspect View",
-        "enablement": "inspect_ai.enableOpenInView && workspaceFolderCount != 0"
+        "command": "inspect.openLogViewer",
+        "title": "Open in Inspect Log Viewer",
+        "enablement": "workspaceFolderCount != 0"
       }
     ],
     "keybindings": [
@@ -198,40 +201,16 @@
         "key": "ctrl+shift+t",
         "mac": "cmd+shift+t",
         "when": "inspect_ai.activeTask"
-      },
-      {
-        "command": "inspect.showLogview",
-        "key": "ctrl+shift+l",
-        "mac": "cmd+shift+l"
       }
     ],
     "configuration": {
       "title": "Inspect AI",
       "properties": {
-        "inspect_ai.openLogView": {
+        "inspect_ai.notifyEvalComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Open the Inspect Log View when evaluations in the workspace complete.",
+          "markdownDescription": "Show a notification with a **View Log** button when evals complete.",
           "order": 1
-        },
-        "inspect_ai.logViewType": {
-          "type": "string",
-          "default": "html",
-          "enum": [
-            "html",
-            "text"
-          ],
-          "markdownEnumDescriptions": [
-            "Use `inspect view` to display evaluation log files.",
-            "Use a text editor to display evaluation log files."
-          ],
-          "order": 2
-        },
-        "inspect_ai.jsonLogView": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Use Inspect Log View as the default viewer for JSON log files.",
-          "order": 3
         },
         "inspect_ai.taskListView": {
           "type": "string",
@@ -315,13 +294,8 @@
           "group": "navigation"
         },
         {
-          "command": "inspect.logListingSelectLogDir",
+          "command": "inspect.logListing",
           "when": "view == inspect_ai.logs-view",
-          "group": "navigation"
-        },
-        {
-          "command": "inspect.showLogview",
-          "when": "view == inspect_ai.task-outline-view",
           "group": "navigation"
         },
         {
@@ -337,9 +311,9 @@
       ],
       "explorer/context": [
         {
-          "command": "inspect.openInInspectView",
+          "command": "inspect.openLogViewer",
           "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.(json|eval)$/"
+          "when": "resourceFilename =~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}[:-]\\d{2}[:-]\\d{2}.*\\.json$/"
         }
       ],
       "view/item/context": [
@@ -355,6 +329,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "inspect.logListingRefresh",
+          "when": "false"
+        },
+        {
+          "command": "inspect.logListingReveal",
+          "when": "false"
+        },
         {
           "command": "inspect.debugSelectedTask",
           "when": "false"
@@ -397,6 +379,10 @@
         },
         {
           "command": "inspect.debugActiveTask",
+          "when": "false"
+        },
+        {
+          "command": "inspect.openLogViewer",
           "when": "false"
         }
       ]

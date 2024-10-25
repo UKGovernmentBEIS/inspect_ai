@@ -24,6 +24,8 @@ import { extensionHost } from "./hooks";
 import { activateStatusBar } from "./providers/statusbar";
 import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
+import { activateLogNotify } from "./providers/lognotify";
+import { activateOpenLog } from "./providers/openlog";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -98,14 +100,16 @@ export async function activate(context: ExtensionContext) {
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
-    settingsMgr,
     server,
-    logsWatcher,
     workspaceEnvManager,
+    logsWatcher,
     context,
     host
   );
   const inspectLogviewManager = logviewWebviewManager;
+
+  // initilisze open log
+  activateOpenLog(context, logviewWebviewManager);
 
   // Activate the Activity Bar
   const taskBarCommands = await activateActivityBar(
@@ -123,7 +127,7 @@ export async function activate(context: ExtensionContext) {
 
   // Register the log view link provider
   window.registerTerminalLinkProvider(
-    logviewTerminalLinkProvider(logviewWebviewManager)
+    logviewTerminalLinkProvider()
   );
 
   // Activate Code Lens
@@ -131,6 +135,9 @@ export async function activate(context: ExtensionContext) {
 
   // Activate Status Bar
   activateStatusBar(context, inspectManager);
+
+  // Activate Log Notification
+  activateLogNotify(context, logsWatcher, settingsMgr, inspectLogviewManager);
 
   // Activate commands
   [

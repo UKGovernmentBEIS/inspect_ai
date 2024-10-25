@@ -14,6 +14,7 @@ import { inspectBinPath } from "../../inspect/props";
 import { shQuote } from "../../core/string";
 import { spawnProcess } from "../../core/process";
 import { InspectManager } from "./inspect-manager";
+import { activeWorkspaceFolder } from "../../core/workspace";
 
 
 export class InspectViewServer implements Disposable {
@@ -247,9 +248,16 @@ function evalLogs(log_dir: Uri): Promise<string | undefined> {
   const response = withMinimumInspectVersion<string | undefined>(
     kInspectOpenInspectViewVersion,
     () => {
+      const workspaceRoot = activeWorkspaceFolder().uri;
       const logs = inspectEvalLogs(activeWorkspacePath(), log_dir);
-      const logsJson = logs ? (JSON.parse(logs) as unknown) : [];
-      return JSON.stringify({ log_dir: log_dir.toString(), files: logsJson });
+      const logsJson = (logs ? (JSON.parse(logs)) : []) as Array<{ name: string }>;
+      return JSON.stringify({
+        log_dir: log_dir.toString(true),
+        files: logsJson.map(log => ({
+          ...log,
+          name: Uri.joinPath(workspaceRoot, log.name).toString(true)
+        }))
+      });
     },
     () => {
       // Return the original log content

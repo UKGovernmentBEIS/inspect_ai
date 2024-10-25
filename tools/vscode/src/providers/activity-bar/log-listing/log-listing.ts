@@ -1,6 +1,7 @@
-import { Uri } from "vscode";
+import { ExtensionContext, Uri } from "vscode";
 import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { log } from "../../../core/log";
+import { LogListingMRU } from "./log-listing-mru";
 
 export type LogNode =
   | { type: "dir", parent?: LogNode } & LogDirectory
@@ -22,10 +23,14 @@ export interface LogFile {
 
 
 export class LogListing {
+
+  private readonly mru_: LogListingMRU;
+
   constructor(
+    private readonly context: ExtensionContext,
     private readonly logDir_: Uri,
     private readonly viewServer_: InspectViewServer) {
-
+    this.mru_ = new LogListingMRU(context);
   }
 
   public logDir(): Uri {
@@ -36,7 +41,15 @@ export class LogListing {
 
     // fetch the nodes if we don't have them yet
     if (this.nodes_ === undefined) {
+      // do the listing
       this.nodes_ = await this.listLogs();
+
+      // track in MRU (add if we got logs, remove if we didn't)
+      if (this.nodes_.length > 0) {
+        await this.mru_.add(this.logDir());
+      } else {
+        await this.mru_.remove(this.logDir());
+      }
     }
 
     // if there is no parent, return the root nodes
@@ -56,6 +69,32 @@ export class LogListing {
 
   public uriForNode(node: LogNode) {
     return Uri.joinPath(this.logDir_, node.name);
+  }
+
+  public nodeForUri(uri: Uri): LogNode | undefined {
+
+    // recursively look for a node that matches the uri
+    const findNodeWithUri = (node: LogNode): LogNode | undefined => {
+      if (node.type === "file") {
+        return this.uriForNode(node).toString() === uri.toString() ? node : undefined;
+      } else if (node.type === "dir") {
+        for (const child of node.children) {
+          const uri = findNodeWithUri(child);
+          if (uri) {
+            return uri;
+          }
+        }
+      }
+      return undefined;
+    };
+
+    // recursve down through top level nodes
+    for (const node of this.nodes_ || []) {
+      const foundNode = findNodeWithUri(node);
+      if (foundNode) {
+        return foundNode;
+      }
+    }
   }
 
   public invalidate() {

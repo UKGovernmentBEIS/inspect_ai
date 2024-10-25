@@ -1,13 +1,9 @@
-import { commands, MessageItem, TextDocumentShowOptions, Uri, window, workspace } from "vscode";
+import { commands, MessageItem, Uri, window, workspace } from "vscode";
 
-import { InspectViewManager } from "./logview-view";
 import { workspacePath } from "../../core/path";
-import { showError } from "../../components/error";
 import { TerminalLink, TerminalLinkContext } from "vscode";
 import { existsSync } from "fs";
 import { basename } from "path";
-import { hasMinimumInspectVersion } from "../../inspect/version";
-import { kInspectEvalLogFormatVersion } from "../inspect/inspect-constants";
 
 const kLogFilePattern = /^.*Log: (\S*?\.json)\s*/g;
 
@@ -15,7 +11,7 @@ interface LogViewTerminalLink extends TerminalLink {
   data: string;
 }
 
-export const logviewTerminalLinkProvider = (manager: InspectViewManager) => {
+export const logviewTerminalLinkProvider = () => {
   return {
     provideTerminalLinks: (
       context: TerminalLinkContext,
@@ -48,14 +44,9 @@ export const logviewTerminalLinkProvider = (manager: InspectViewManager) => {
       // Resolve the clicked link into a complete Uri to the file
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
-        if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion)) {
-          // If it's a local file, open it in VSCode
-          await commands.executeCommand('vscode.open', logUri, <TextDocumentShowOptions>{ preview: true });
-        } else {
-          manager.showLogFile(logUri, "activate").catch(async (err: Error) => {
-            await showError("Failed to preview log file - failed to start Inspect View", err);
-          });
-        }
+
+        await commands.executeCommand("inspect.openLogViewer", logUri);
+
       } else {
         // Since we couldn't resolve the log file, just let the user know
         const close: MessageItem = { title: "Close" };
