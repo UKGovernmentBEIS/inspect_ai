@@ -126,7 +126,7 @@ export class InspectViewServer implements Disposable {
               "COLUMNS": "150",
               "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
             },
-            shell: os.platform() === "win32"
+            windowsHide: true
           };
 
           // forward output to channel and resolve promise
