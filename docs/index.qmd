@@ -72,17 +72,9 @@ $ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 $ pip install vllm
 $ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
 ```
-
-#### Together
-
-``` bash
-$ pip install openai
-$ export TOGETHER_API_KEY=your-together-api-key
-$ inspect eval arc.py --model together/Qwen/Qwen1.5-72B-Chat
-```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on Azure AI, AWS Bedrock, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](models.qmd) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](models.qmd) for additional details.
 
 ## Hello, Inspect {#sec-hello-inspect}
 

@@ -243,23 +243,26 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--frequency-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and Groq only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only.",
         envvar="INSPECT_EVAL_FREQUENCY_PENALTY",
     )
     @click.option(
         "--presence-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI and Groq only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only.",
         envvar="INSPECT_EVAL_PRESENCE_PENALTY",
     )
     @click.option(
         "--logit-bias",
         type=str,
-        help='Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10")',
+        help='Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI, Grok, and Grok only.',
         envvar="INSPECT_EVAL_LOGIT_BIAS",
     )
     @click.option(
-        "--seed", type=int, help="Random seed. OpenAI only.", envvar="INSPECT_EVAL_SEED"
+        "--seed",
+        type=int,
+        help="Random seed. OpenAI, Mistral, HuggingFace, and vLLM only.",
+        envvar="INSPECT_EVAL_SEED",
     )
     @click.option(
         "--stop-seqs",
@@ -288,26 +291,26 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--top-k",
         type=int,
-        help="Randomly sample the next word from the top_k most likely next words. GDM only.",
+        help="Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_K",
     )
     @click.option(
         "--num-choices",
         type=int,
-        help="How many chat completion choices to generate for each input message.",
+        help="How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.",
         envvar="INSPECT_EVAL_NUM_CHOICES",
     )
     @click.option(
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only.",
+        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
