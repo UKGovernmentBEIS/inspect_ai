@@ -1,5 +1,7 @@
 import * as path from 'path';
 
+import { stringify } from 'yaml';
+
 import { format, isToday, isThisYear } from 'date-fns';
 
 import { Event, EventEmitter, MarkdownString, TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode';
@@ -139,14 +141,13 @@ function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
 
   // results
   if (log.results) {
-    summary.push("***");
+    summary.push("  ");
     summary.push(...evalResults(log.results));
   }
 
   // params / config
   const config = evalConfig(log);
   if (config) {
-    summary.push("***");
     summary.push(...config);
   }
 
@@ -218,10 +219,8 @@ function evalConfig(log: EvalLog): string[] | undefined {
 
   if (Object.keys(config).length > 0) {
     return [
-      "```json",
-      " ",
-      `${JSON.stringify(config, undefined, 2).slice(2, -1).trim()}`,
-      " ",
+      "```",
+      `${stringify(config)}`,
       "```",
     ];
   } else {
