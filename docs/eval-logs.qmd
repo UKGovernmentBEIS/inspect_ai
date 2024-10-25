@@ -1,4 +1,6 @@
-# Eval Logs {#sec-eval-logs}
+---
+title: Eval Logs
+---
 
 ## Overview
 
@@ -228,7 +230,7 @@ AWS_DEFAULT_REGION=eu-west-2
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
-## Log Commands
+## Log Commands {#sec-log-commands}
 
 ::: {.callout-note appearance="simple"}
 The log commands described below are supported only in the development version of Inspect. To install the development version from GitHub:

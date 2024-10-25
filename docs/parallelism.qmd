@@ -1,9 +1,8 @@
 ---
+title: Parallelism
 aliases:
   - eval-tuning.html
 ---
-
-# Parallelism {#sec-parallelism}
 
 ## Overview
 
@@ -122,7 +121,7 @@ This code will evaluate a total of 12 tasks (6 temperature variations against 2 
 
 ## Sandbox Environments {#sec-parallel-tool-environments}
 
-[Sandbox Environments](#sec-sandbox-environments) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.
+[Sandbox Environments](agents.qmd#sec-sandbox-environments) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.
 
 ### Max Samples
 
