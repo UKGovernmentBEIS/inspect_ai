@@ -71,6 +71,15 @@ def view_server(
 
         return await log_size_response(file)
 
+    @routes.get("/api/log-delete/{log}")
+    async def api_log_delete(request: web.Request) -> web.Response:
+        # log file requested
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        return await log_delete_response(file)
+
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
         # log file requested
@@ -206,6 +215,12 @@ async def log_size_response(log_file: str) -> web.Response:
     else:
         info = fs.info(log_file)
     return web.json_response(info.size)
+
+
+async def log_delete_response(log_file: str) -> web.Response:
+    fs = filesystem(log_file)
+    fs.rm(log_file)
+    return web.json_response(True)
 
 
 async def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:

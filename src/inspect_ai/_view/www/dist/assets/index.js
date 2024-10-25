@@ -23760,12 +23760,18 @@ const CopyButton = ({ value }) => {
   }}
     data-clipboard-text=${value}
     onclick=${(e2) => {
-    const iEl = e2.target;
+    let iEl = e2.target;
+    if (iEl.tagName === "BUTTON") {
+      iEl = iEl.firstChild;
+    }
+    console.log({ iEl });
     if (iEl) {
-      iEl.className = `${ApplicationIcons.confirm} primary`;
-      setTimeout(() => {
-        iEl.className = ApplicationIcons.copy;
-      }, 1250);
+      if (iEl) {
+        iEl.className = `${ApplicationIcons.confirm} primary`;
+        setTimeout(() => {
+          iEl.className = ApplicationIcons.copy;
+        }, 1250);
+      }
     }
     return false;
   }}

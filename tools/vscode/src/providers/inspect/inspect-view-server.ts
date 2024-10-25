@@ -69,6 +69,17 @@ export class InspectViewServer implements Disposable {
     }
   }
 
+  public async evalLogDelete(
+    file: string
+  ): Promise<number> {
+
+    if (this.haveInspectEvalLogFormat()) {
+      return Number(await this.api_json(`/api/log-delete/${encodeURIComponent(file)}`));
+    } else {
+      throw new Error("evalLogDelete not implemented");
+    }
+  }
+
   public async evalLogBytes(
     file: string,
     start: number,
@@ -126,7 +137,7 @@ export class InspectViewServer implements Disposable {
               "COLUMNS": "150",
               "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
             },
-            shell: os.platform() === "win32"
+            windowsHide: true
           };
 
           // forward output to channel and resolve promise
