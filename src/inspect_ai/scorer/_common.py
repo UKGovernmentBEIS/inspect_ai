@@ -54,8 +54,8 @@ def match_str(
 
     # further cleanup
     if ignore_case:
-        v = v.lower()
-        t = t.lower()
+        v = v.casefold()
+        t = t.casefold()
     if numeric:
         # remove punctuation
         v = strip_numeric_punctuation(v)

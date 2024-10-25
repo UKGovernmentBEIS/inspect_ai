@@ -34,6 +34,7 @@ import { kDefaultSort } from "./constants.mjs";
 import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
+import { filterFnForType } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -47,85 +48,121 @@ import {
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
+ * @param {Object} props.initialState - The api that this view should use
+ * @param {(state: Object) => void} props.saveInitialState - The api that this view should use
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export function App({ api, pollForLogs = true }) {
+export function App({
+  api,
+  initialState,
+  saveInitialState,
+  pollForLogs = true,
+}) {
   // List of Logs
-  const [logs, setLogs] = useState({ log_dir: "", files: [] });
-  const [selectedLogIndex, setSelectedLogIndex] = useState(-1);
+  const [logs, setLogs] = useState(
+    initialState?.logs || { log_dir: "", files: [] },
+  );
+  const [selectedLogIndex, setSelectedLogIndex] = useState(
+    initialState?.selectedLogIndex !== undefined
+      ? initialState.selectedLogIndex
+      : -1,
+  );
 
   // Log Headers
-  const [logHeaders, setLogHeaders] = useState({});
-  const [headersLoading, setHeadersLoading] = useState(false);
+  const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || {});
+  const [headersLoading, setHeadersLoading] = useState(
+    initialState?.headersLoading || false,
+  );
 
   // Selected Log
-  const [selectedLog, setSelectedLog] = useState({
-    contents: undefined,
-    name: undefined,
-  });
+  const [selectedLog, setSelectedLog] = useState(
+    initialState?.selectedLog || {
+      contents: undefined,
+      name: undefined,
+    },
+  );
 
   // Workspace (the selected tab)
-  const [selectedWorkspaceTab, setSelectedWorkspaceTab] =
-    useState(kEvalWorkspaceTabId);
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState(
+    initialState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
+  );
 
   // Samples
-  const [selectedSampleIndex, setSelectedSampleIndex] = useState(-1);
-  const [selectedSample, setSelectedSample] = useState(undefined);
-  const [sampleStatus, setSampleStatus] = useState(undefined);
-  const [sampleError, setSampleError] = useState(undefined);
-  const [selectedSampleTab, setSelectedSampleTab] = useState(undefined);
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState(
+    initialState?.selectedSampleIndex !== undefined
+      ? initialState.selectedSampleIndex
+      : -1,
+  );
+  const [selectedSample, setSelectedSample] = useState(
+    initialState?.selectedSample,
+  );
+  const [sampleStatus, setSampleStatus] = useState(initialState?.sampleStatus);
+  const [sampleError, setSampleError] = useState(initialState?.sampleError);
+  const [selectedSampleTab, setSelectedSampleTab] = useState(
+    initialState?.selectedSampleTab,
+  );
 
   const loadingSampleIndexRef = useRef(null);
 
-  const [showingSampleDialog, setShowingSampleDialog] = useState(false);
+  const [showingSampleDialog, setShowingSampleDialog] = useState(
+    initialState?.showingSampleDialog,
+  );
 
   // App loading status
-  const [status, setStatus] = useState({
-    loading: true,
-    error: undefined,
-  });
+  const [status, setStatus] = useState(
+    initialState?.status || {
+      loading: true,
+      error: undefined,
+    },
+  );
 
   // App host capabilities
-  const [capabilities, setCapabilities] = useState({
-    downloadFiles: true,
-    webWorkers: true,
-  });
+  const [capabilities, setCapabilities] = useState(
+    initialState?.capabilities || {
+      downloadFiles: true,
+      webWorkers: true,
+    },
+  );
 
   // Other application state
-  const [offcanvas, setOffcanvas] = useState(false);
-  const [showFind, setShowFind] = useState(false);
+  const [offcanvas, setOffcanvas] = useState(initialState?.offcanvas || false);
+  const [showFind, setShowFind] = useState(initialState?.showFind || false);
 
   // Filtering and sorting
   /**
    * @type {[import("./Types.mjs").ScoreFilter, function(import("./Types.mjs").ScoreFilter): void]}
    */
-  const [filter, setFilter] = useState({});
+  const [filter, setFilter] = useState(initialState?.filter || {});
 
   /**
    * @type {[string, function(string): void]}
    */
-  const [epoch, setEpoch] = useState("all");
+  const [epoch, setEpoch] = useState(initialState?.epoch || "all");
 
   /**
    * @type {[string, function(string): void]}
    */
-  const [sort, setSort] = useState(kDefaultSort);
-
-  /**
-   * @type {[import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined, function(import("./samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined): void]}
-   */
-  const [samplesDescriptor, setSamplesDescriptor] = useState(undefined);
+  const [sort, setSort] = useState(initialState?.sort || kDefaultSort);
 
   /**
    * @type {[import("./Types.mjs").ScoreLabel[], function(import("./Types.mjs").ScoreLabel[]): void]}
    */
-  const [scores, setScores] = useState([]);
+  const [scores, setScores] = useState(initialState?.scores || []);
 
   /**
    * @type {[import("./Types.mjs").ScoreLabel, function(import("./Types.mjs").ScoreLabel): void]}
    */
-  const [score, setScore] = useState(undefined);
+  const [score, setScore] = useState(initialState?.score);
+
+  // Re-filter the samples
+  const [filteredSamples, setFilteredSamples] = useState(
+    initialState?.filteredSamples || [],
+  );
+  const [groupBy, setGroupBy] = useState(initialState?.groupBy || "none");
+  const [groupByOrder, setGroupByOrder] = useState(
+    initialState?.groupByOrder || "asc",
+  );
 
   const afterBodyElements = [];
 
@@ -136,17 +173,78 @@ export function App({ api, pollForLogs = true }) {
     },
   };
 
-  // Re-filter the samples
-  const [filteredSamples, setFilteredSamples] = useState([]);
-  const [groupBy, setGroupBy] = useState("none");
-  const [groupByOrder, setGroupByOrder] = useState("asc");
-
+  // Save state when it changes, so that we can restore it later
+  //
   useEffect(() => {
-    if (showingSampleDialog) {
-      setSelectedSample(undefined);
-      setSelectedSampleTab(undefined);
-    }
-  }, [showingSampleDialog]);
+    const state = {
+      logs,
+      selectedLogIndex,
+      logHeaders,
+      headersLoading,
+      selectedLog,
+      selectedSampleIndex,
+      selectedWorkspaceTab,
+      selectedSample,
+      sampleStatus,
+      sampleError,
+      selectedSampleTab,
+      showingSampleDialog,
+      status,
+      capabilities,
+      offcanvas,
+      showFind,
+      filter,
+      epoch,
+      sort,
+      scores,
+      score,
+      filteredSamples,
+      groupBy,
+      groupByOrder,
+    };
+    saveInitialState(state);
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder,
+  ]);
+
+  const handleSampleShowingDialog = useCallback(
+    (show) => {
+      setShowingSampleDialog(show);
+      if (!show) {
+        setSelectedSample(undefined);
+        setSelectedSampleTab(undefined);
+      }
+    },
+    [
+      setShowingSampleDialog,
+      setSelectedSample,
+      setSelectedSampleTab,
+      selectedSample,
+    ],
+  );
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
@@ -158,8 +256,10 @@ export function App({ api, pollForLogs = true }) {
         }
       }
 
-      if (filter.filterFn && filter.value) {
-        return filter.filterFn(sample, filter.value);
+      // Apply the filter
+      const filterFn = filterFnForType(filter);
+      if (filterFn && filter.value) {
+        return filterFn(samplesDescriptor, sample, filter.value);
       } else {
         return true;
       }
@@ -181,56 +281,15 @@ export function App({ api, pollForLogs = true }) {
     setFilteredSamples(sorted);
     setGroupBy(grouping);
     setGroupByOrder(order);
-  }, [selectedLog, filter, sort, epoch, samplesDescriptor]);
+  }, [selectedLog, filter, sort, epoch]);
 
-  // Anytime the selected score changes, reset filtering
-  useEffect(() => {
-    resetFilteringState();
-  }, [score]);
-
-  useEffect(() => {
-    // Select the default scorer to use
-    const scorer = selectedLog?.contents?.results?.scores[0]
-      ? {
-          name: selectedLog.contents.results?.scores[0].name,
-          scorer: selectedLog.contents.results?.scores[0].scorer,
-        }
-      : undefined;
-    const scorers = (selectedLog.contents?.results?.scores || [])
-      .map((score) => {
-        return {
-          name: score.name,
-          scorer: score.scorer,
-        };
-      })
-      .reduce((accum, scorer) => {
-        if (
-          !accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })
-        ) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, []);
-
-    // Reset state
-    setScores(scorers);
-    setScore(scorer);
-
-    resetFilteringState();
-  }, [selectedLog, setScores, setScore, setEpoch, setFilter]);
-
-  useEffect(() => {
-    const sampleDescriptor = createsSamplesDescriptor(
-      scores,
-      selectedLog.contents?.sampleSummaries,
-      selectedLog.contents?.eval?.config?.epochs || 1,
-      context,
-      score,
-    );
-    setSamplesDescriptor(sampleDescriptor);
-  }, [selectedLog, score, scores, setSamplesDescriptor]);
+  const samplesDescriptor = createsSamplesDescriptor(
+    scores,
+    selectedLog.contents?.sampleSummaries,
+    selectedLog.contents?.eval?.config?.epochs || 1,
+    context,
+    score,
+  );
 
   const refreshSampleTab = useCallback(
     (sample) => {
@@ -244,12 +303,6 @@ export function App({ api, pollForLogs = true }) {
     },
     [selectedSampleTab, showingSampleDialog],
   );
-
-  const resetFilteringState = useCallback(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
 
   // The main application reference
   const mainAppRef = useRef();
@@ -274,13 +327,22 @@ export function App({ api, pollForLogs = true }) {
       return;
     }
 
-    if (selectedSampleIndex < selectedLog.contents.sampleSummaries.length) {
+    if (selectedSampleIndex < filteredSamples.length) {
+      const summary = filteredSamples[selectedSampleIndex];
+      // If this sample is already loaded, don't bother
+      if (
+        selectedSample &&
+        selectedSample.id === summary.id &&
+        selectedSample.epoch === summary.epoch
+      ) {
+        return;
+      }
+
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSampleError(undefined);
 
-      const summary = filteredSamples[selectedSampleIndex];
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
@@ -316,6 +378,7 @@ export function App({ api, pollForLogs = true }) {
         });
     }
   }, [
+    selectedSample,
     selectedSampleIndex,
     showingSampleDialog,
     selectedLog,
@@ -383,14 +446,53 @@ export function App({ api, pollForLogs = true }) {
     (log) => {
       // Reset the workspace tab
       const hasSamples =
-        !!log?.sampleSummaries && log?.sampleSummaries.length > 0;
-      const showSamples = log?.status !== "error" && hasSamples;
+        !!log.sampleSummaries && log.sampleSummaries.length > 0;
+      const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
       );
 
+      // Select the default scorer to use
+      const scorer = log.results?.scores[0]
+        ? {
+            name: log.results?.scores[0].name,
+            scorer: log.results?.scores[0].scorer,
+          }
+        : undefined;
+      const scorers = (log.results?.scores || [])
+        .map((score) => {
+          return {
+            name: score.name,
+            scorer: score.scorer,
+          };
+        })
+        .reduce((accum, scorer) => {
+          if (
+            !accum.find((sc) => {
+              return scorer.scorer === sc.scorer && scorer.name === sc.name;
+            })
+          ) {
+            accum.push(scorer);
+          }
+          return accum;
+        }, []);
+
+      // Reset state
+      setScores(scorers);
+      setScore(scorer);
+
+      setEpoch("all");
+      setFilter({});
+      setSort(kDefaultSort);
+
       // Reset the sample tab
       setSelectedSampleTab(undefined);
+
+      if (showSamples) {
+        setSelectedSampleIndex(0);
+      } else {
+        setSelectedSampleIndex(-1);
+      }
     },
     [setSelectedWorkspaceTab],
   );
@@ -409,9 +511,6 @@ export function App({ api, pollForLogs = true }) {
               contents: log,
               name: targetLog.name,
             });
-
-            // Clear the sample index
-            setSelectedSampleIndex(-1);
 
             // Reset the workspace tab
             resetWorkspace(log);
@@ -689,6 +788,19 @@ export function App({ api, pollForLogs = true }) {
   }, [showFind, setShowFind]);
 
   const showToggle = logs.files.length > 1 || logs.log_dir;
+
+  /**
+   * Determines the sample mode based on the selected log's contents.
+   *
+   * @type {import("./Types.mjs").SampleMode}
+   */
+  const sampleMode =
+    selectedLog?.contents?.sampleSummaries === undefined ||
+    selectedLog.contents.sampleSummaries.length === 0
+      ? "none"
+      : selectedLog.contents.sampleSummaries.length === 1
+        ? "single"
+        : "many";
   return html`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -729,6 +841,7 @@ export function App({ api, pollForLogs = true }) {
               evalResults=${selectedLog?.contents?.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
+              sampleMode=${sampleMode}
               groupBy=${groupBy}
               groupByOrder=${groupByOrder}
               sampleStatus=${sampleStatus}
@@ -742,7 +855,7 @@ export function App({ api, pollForLogs = true }) {
               selectedSampleIndex=${selectedSampleIndex}
               setSelectedSampleIndex=${setSelectedSampleIndex}
               showingSampleDialog=${showingSampleDialog}
-              setShowingSampleDialog=${setShowingSampleDialog}
+              setShowingSampleDialog=${handleSampleShowingDialog}
               selectedTab=${selectedWorkspaceTab}
               setSelectedTab=${setSelectedWorkspaceTab}
               selectedSampleTab=${selectedSampleTab}

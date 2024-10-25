@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { SampleDialog } from "./SampleDialog.mjs";
 import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
+import { EmptyPanel } from "../components/EmptyPanel.mjs";
 
 /**
  * Renders Samples Tab
@@ -13,6 +14,7 @@ import { InlineSampleDisplay } from "./SampleDisplay.mjs";
  * @param {import("../types/log").Sample} [props.sample] - The sample
  * @param {string} [props.task_id] - The task id
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {"epoch" | "sample" | "none" } props.groupBy - how to group items
  * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
@@ -36,6 +38,7 @@ export const SamplesTab = ({
   task_id,
   sample,
   samples,
+  sampleMode,
   groupBy,
   groupByOrder,
   sampleDescriptor,
@@ -57,9 +60,13 @@ export const SamplesTab = ({
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // Shows the sample dialog
-  const showSample = useCallback(() => {
-    setShowingSampleDialog(true);
-  }, [sampleDialogRef]);
+  const showSample = useCallback(
+    (index) => {
+      setSelectedSampleIndex(index);
+      setShowingSampleDialog(true);
+    },
+    [sampleDialogRef],
+  );
 
   useEffect(() => {
     if (showingSampleDialog) {
@@ -100,16 +107,7 @@ export const SamplesTab = ({
         return item.type === "sample";
       }),
     );
-    if (items.length) {
-      setSelectedSampleIndex(0);
-    }
   }, [samples, groupBy, groupByOrder, sampleDescriptor]);
-
-  // Focus the sample list
-  useEffect(() => {
-    // Hide a dialog, if it is displaying
-    setShowingSampleDialog(false);
-  }, [items]);
 
   const nextSampleIndex = useCallback(() => {
     if (selectedSampleIndex < sampleItems.length - 1) {
@@ -139,7 +137,7 @@ export const SamplesTab = ({
   }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
 
   const elements = [];
-  if (samples?.length === 1) {
+  if (sampleMode === "single") {
     elements.push(
       html` <${InlineSampleDisplay}
         key=${`${task_id}-single-sample`}
@@ -153,7 +151,7 @@ export const SamplesTab = ({
         context=${context}
       />`,
     );
-  } else {
+  } else if (sampleMode === "many") {
     elements.push(
       html`<${SampleList}
         listRef=${sampleListRef}
@@ -167,6 +165,8 @@ export const SamplesTab = ({
         showSample=${showSample}
       />`,
     );
+  } else {
+    elements.push(html`<${EmptyPanel} />`);
   }
 
   const title =
