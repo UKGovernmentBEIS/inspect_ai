@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.37
+
+This version includes a signficant rework of the overall workflow for interacting with Inspect. You can view the most up to date documentation on using the VS Code extension [here](https://inspect.ai-safety-institute.org.uk/vscode.html). Changes include:
+
+- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
+- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
+- New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
+- Support for the new Inspect `eval` log format. More information [here](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format).
+
 ## 0.3.36
 
 - Show Inspect version in status bar
