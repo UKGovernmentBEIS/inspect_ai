@@ -12,6 +12,7 @@ Inspect has built in support for a variety of language model API providers and c
 | Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
 | Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
 | Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
+| Grok | `pip install openai` | `GROK_API_KEY` |
 | TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
 | AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
@@ -25,7 +26,7 @@ Inspect has built in support for a variety of language model API providers and c
 : {tbl-colwidths="\[18,45,37\]"}
 
 ::: {.callout-note appearance="minimal"}
-Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
+Note that some providers ([Grok](https://docs.x.ai/api/integrations#openai-sdk), [Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
 :::
 
 ## Using Models
@@ -38,6 +39,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
 | Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
 | Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
+| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
 | Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
 | vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
 | Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
@@ -84,6 +86,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | Anthropic   | `ANTHROPIC_BASE_URL`  |
 | Google      | `GOOGLE_BASE_URL`     |
 | Mistral     | `MISTRAL_BASE_URL`    |
+| Grok        | `GROK_BASE_URL`    |
 | TogetherAI  | `TOGETHER_BASE_URL`   |
 | Ollama      | `OLLAMA_BASE_URL`     |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |

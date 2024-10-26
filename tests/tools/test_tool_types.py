@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
@@ -202,6 +203,11 @@ def test_vertex_tool_types():
 @skip_if_no_mistral
 def test_mistral_tool_types() -> None:
     check_tool_types("mistral/mistral-large-latest")
+
+
+@skip_if_no_grok
+def test_grok_tool_types() -> None:
+    check_tool_types("grok/grok-beta")
 
 
 @skip_if_no_groq
