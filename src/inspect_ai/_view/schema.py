@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,10 @@ def sync_view_schema() -> None:
     # export schema file
     schema_path = Path(WWW_DIR, "log-schema.json")
     types_path = Path(WWW_DIR, "src", "types", "log.d.ts")
+    vs_code_types_path = Path(
+        WWW_DIR, "..", "..", "..", "..", "tools", "vscode", "src", "@types", "log.d.ts"
+    )
+
     with open(schema_path, "w", encoding="utf-8") as f:
         # make everything required
         schema = EvalLog.model_json_schema()
@@ -29,7 +34,7 @@ def sync_view_schema() -> None:
         # generate types w/ json-schema-to-typescript
         subprocess.run(
             [
-                # "yarn",
+                "yarn",
                 "json2ts",
                 "--input",
                 schema_path,
@@ -40,7 +45,10 @@ def sync_view_schema() -> None:
             ],
             cwd=WWW_DIR,
         )
+
         subprocess.run(["yarn", "prettier:write"], cwd=types_path.parent)
+
+        shutil.copyfile(types_path, vs_code_types_path)
 
 
 def schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:

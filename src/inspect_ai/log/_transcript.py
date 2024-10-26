@@ -24,7 +24,12 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallError,
+    ToolCallView,
+)
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._store import store, store_changes, store_jsonable
@@ -128,6 +133,9 @@ class ToolEvent(BaseEvent):
 
     truncated: tuple[int, int] | None = Field(default=None)
     """Bytes truncated (from,to) if truncation occurred"""
+
+    view: ToolCallContent | None = Field(default=None)
+    """Custom view of tool call output."""
 
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""

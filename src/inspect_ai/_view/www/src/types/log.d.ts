@@ -250,11 +250,11 @@ export type Id3 = string;
 export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
+export type Format = "text" | "markdown";
+export type Content5 = string;
 export type Timestamp5 = string;
 export type Event5 = "approval";
 export type Message2 = string;
-export type Format = "text" | "markdown";
-export type Content5 = string;
 export type Approver = string;
 export type Decision =
   | "approve"
@@ -827,11 +827,19 @@ export interface ToolEvent {
   arguments: Arguments1;
   result: Result;
   truncated: Truncated;
+  view: ToolCallContent | null;
   error: ToolCallError | null;
   events: Events1;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;
+}
+/**
+ * Content to include in tool call view.
+ */
+export interface ToolCallContent {
+  format: Format;
+  content: Content5;
 }
 /**
  * Tool approval.
@@ -856,13 +864,6 @@ export interface ApprovalEvent {
 export interface ToolCallView {
   context: ToolCallContent | null;
   call: ToolCallContent | null;
-}
-/**
- * Content to include in tool call view.
- */
-export interface ToolCallContent {
-  format: Format;
-  content: Content5;
 }
 /**
  * Input screen interaction.
