@@ -63,7 +63,7 @@ export class LogTreeDataProvider implements TreeDataProvider<LogNode>, vscode.Di
       id: element.name,
       iconPath: element.type === "file"
         ? element.name.endsWith(".eval")
-          ? this.context_.asAbsolutePath(path.join("assets", "icon", "eval.svg"))
+          ? this.context_.asAbsolutePath(path.join("assets", "icon", "eval-treeview.svg"))
           : new vscode.ThemeIcon("bracket", new vscode.ThemeColor("symbolIcon.classForeground"))
         : undefined,
       label: element.name.split("/").pop(),
