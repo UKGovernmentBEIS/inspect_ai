@@ -61,18 +61,18 @@ export function App({
 }) {
   // List of Logs
   const [logs, setLogs] = useState(
-    initialState?.logs || { log_dir: "", files: [] }
+    initialState?.logs || { log_dir: "", files: [] },
   );
   const [selectedLogIndex, setSelectedLogIndex] = useState(
     initialState?.selectedLogIndex !== undefined
       ? initialState.selectedLogIndex
-      : -1
+      : -1,
   );
 
   // Log Headers
   const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || {});
   const [headersLoading, setHeadersLoading] = useState(
-    initialState?.headersLoading || false
+    initialState?.headersLoading || false,
   );
 
   // Selected Log
@@ -80,33 +80,33 @@ export function App({
     initialState?.selectedLog || {
       contents: undefined,
       name: undefined,
-    }
+    },
   );
 
   // Workspace (the selected tab)
   const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState(
-    initialState?.selectedWorkspaceTab || kEvalWorkspaceTabId
+    initialState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
   );
 
   // Samples
   const [selectedSampleIndex, setSelectedSampleIndex] = useState(
     initialState?.selectedSampleIndex !== undefined
       ? initialState.selectedSampleIndex
-      : -1
+      : -1,
   );
   const [selectedSample, setSelectedSample] = useState(
-    initialState?.selectedSample
+    initialState?.selectedSample,
   );
   const [sampleStatus, setSampleStatus] = useState(initialState?.sampleStatus);
   const [sampleError, setSampleError] = useState(initialState?.sampleError);
   const [selectedSampleTab, setSelectedSampleTab] = useState(
-    initialState?.selectedSampleTab
+    initialState?.selectedSampleTab,
   );
 
   const loadingSampleIndexRef = useRef(null);
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(
-    initialState?.showingSampleDialog
+    initialState?.showingSampleDialog,
   );
 
   // App loading status
@@ -114,7 +114,7 @@ export function App({
     initialState?.status || {
       loading: true,
       error: undefined,
-    }
+    },
   );
 
   // App host capabilities
@@ -122,7 +122,7 @@ export function App({
     initialState?.capabilities || {
       downloadFiles: true,
       webWorkers: true,
-    }
+    },
   );
 
   // Other application state
@@ -157,11 +157,11 @@ export function App({
 
   // Re-filter the samples
   const [filteredSamples, setFilteredSamples] = useState(
-    initialState?.filteredSamples || []
+    initialState?.filteredSamples || [],
   );
   const [groupBy, setGroupBy] = useState(initialState?.groupBy || "none");
   const [groupByOrder, setGroupByOrder] = useState(
-    initialState?.groupByOrder || "asc"
+    initialState?.groupByOrder || "asc",
   );
 
   const afterBodyElements = [];
@@ -245,7 +245,7 @@ export function App({
       setSelectedSample,
       setSelectedSampleTab,
       selectedSample,
-    ]
+    ],
   );
 
   useEffect(() => {
@@ -290,7 +290,7 @@ export function App({
     selectedLog.contents?.sampleSummaries,
     selectedLog.contents?.eval?.config?.epochs || 1,
     context,
-    score
+    score,
   );
 
   const refreshSampleTab = useCallback(
@@ -303,7 +303,7 @@ export function App({
         setSelectedSampleTab(defaultTab);
       }
     },
-    [selectedSampleTab, showingSampleDialog]
+    [selectedSampleTab, showingSampleDialog],
   );
 
   // The main application reference
@@ -360,7 +360,7 @@ export function App({
           sample.input = resolveAttachments(sample.input, sample.attachments);
           sample.messages = resolveAttachments(
             sample.messages,
-            sample.attachments
+            sample.attachments,
           );
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
@@ -451,7 +451,7 @@ export function App({
         !!log.sampleSummaries && log.sampleSummaries.length > 0;
       const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
-        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
+        showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
       );
 
       // Select the default scorer to use
@@ -496,7 +496,7 @@ export function App({
         setSelectedSampleIndex(-1);
       }
     },
-    [setSelectedWorkspaceTab]
+    [setSelectedWorkspaceTab],
   );
 
   // Load a specific log
@@ -527,7 +527,7 @@ export function App({
         setStatus({
           loading: false,
           error: new Error(
-            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
           ),
         });
       }
@@ -623,7 +623,7 @@ export function App({
         setSelectedLogIndex(idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelectedLogIndex, setLogs]
+    [logs, setSelectedLogIndex, setLogs],
   );
 
   const refreshLogList = useCallback(async () => {
@@ -682,7 +682,7 @@ export function App({
 
       // Determine the capabilities
       const extensionVersionEl = document.querySelector(
-        'meta[name="inspect-extension:version"]'
+        'meta[name="inspect-extension:version"]',
       );
       const extensionVersion = extensionVersionEl
         ? extensionVersionEl.getAttribute("content")
@@ -807,7 +807,7 @@ export function App({
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
-      e
+      e,
     ) => {
       // regular browsers user their own find
       if (!getVscodeApi()) {
