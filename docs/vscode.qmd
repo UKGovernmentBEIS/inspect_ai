@@ -1,6 +1,9 @@
 ---
 title: VS Code Extension
+lightbox: true
 ---
+
+## Overview
 
 The Inspect VS Code Extension provides a variety of tools, including:
 
@@ -10,7 +13,7 @@ The Inspect VS Code Extension provides a variety of tools, including:
 -   A panel for browsing all tasks contained in the workspace
 -   A task panel for setting task CLI options and task arguments
 
-## Installation
+### Installation {.unlisted}
 
 To install, search for **"Inspect AI"** in the extensions marketplace panel within VS Code.
 
@@ -36,7 +39,7 @@ Links to evaluation logs are also displayed at the bottom of every task result:
 
 If you prefer not to browse and view logs using the logs pane, you can also use the **Inspect: Inspect View...** command to open up a new pane running `inspect view`. See the article on the [Log Viewer](log-viewer.qmd) for additional details on using it to explore eval results.
 
-## Running Tasks
+## Run and Debug
 
 :::: {layout="[55,45]"}
 
@@ -55,12 +58,11 @@ There are several ways to run tasks within VS Code:
 ![](images/inspect-vscode-run-task.png){.border .lightbox fig-alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."}
 ::::
 
-You can also run tasks in the VS Code debugger by:
+You can also run tasks in the VS Code debugger by using the **Debug Task** button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.
 
-1.  Using the **Debug Task** button.
-2.  Using the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.
-
+::: {.callout-note appearance="simple"}
 Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (`--limit 1` on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for "inspect debug").
+:::
 
 ## Activity Bar
 
