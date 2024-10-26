@@ -66,17 +66,20 @@ Note that when debugging a task, the Inspect extension will automatically limit 
 
 ## Activity Bar
 
-In additionl to browsing logs, the Inspect Activity Bar provides interfaces for tuning global configuration and task CLI arguments. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:
+In addition to log listings, the Inspect Activity Bar provides interfaces for browsing tasks tuning configuration. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:
 
-![](images/inspect-vscode-config.png){.border .lightbox fig-alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."}
+![](images/inspect-activity-bar.png){.border .lightbox fig-alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."}
 
 The activity bar has four panels:
 
 -   **Configuration** edits global configuration by reading and writing values from the workspace `.env` config file (see the documentation on [Configuration](workflow.qmd#configuration) for more details on `.env` files).
 
+-   **Tasks** displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.
+
+-   **Logs** lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).
+
 -   **Task** provides a way to tweak the CLI arguments passed to `inspect eval` when it is run from the user interface.
 
--   **Tasks** (not shown above) lists all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.
 
 ## Troubleshooting
 
