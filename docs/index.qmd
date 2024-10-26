@@ -21,6 +21,8 @@ First, install Inspect with:
 $ pip install inspect-ai
 ```
 
+If you are using VS Code, we also recommend installing the [Inspect VS Code Extension](vscode.qmd).
+
 To develop and run evaluations, you'll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.
 
 Assuming you had written an evaluation in a script named `arc.py`, here's how you would setup and run the eval for a few different model providers:
@@ -72,17 +74,9 @@ $ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 $ pip install vllm
 $ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
 ```
-
-#### Together
-
-``` bash
-$ pip install openai
-$ export TOGETHER_API_KEY=your-together-api-key
-$ inspect eval arc.py --model together/Qwen/Qwen1.5-72B-Chat
-```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and Cloudflare, as well as local models with Ollama. See the documentation on [Models](models.qmd) for additional details.
+In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and Cloudflare, as well as local models with Ollama.
 
 ## Hello, Inspect {#sec-hello-inspect}
 
@@ -142,7 +136,6 @@ $ inspect eval theory.py --model openai/gpt-4
 
 ![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
 
-
 ::: {.callout-note appearance="simple"}
 This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](workflow.qmd).
 :::
@@ -151,7 +144,9 @@ This example demonstrates evals being run from the terminal with the `inspect ev
 
 By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
 
-You can also explore eval results using the Inspect log viewer. Run `inspect view` to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):
+If you are using VS Code, we recommend installing the [Inspect VS Code Extension](vscode.qmd) and using its integrated log browsing and viewing.
+
+For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):
 
 ``` bash
 $ inspect view
@@ -161,7 +156,6 @@ $ inspect view
 
 See the [Log Viewer](log-viewer.qmd) section for additional details on using Inspect View.
 
-
 ## Tasks and Solvers
 
 While tasks always include a *default* solver, you can also vary the solver to explore other strategies and elicitation techniques.
@@ -170,17 +164,17 @@ While tasks always include a *default* solver, you can also vary the solver to e
 
 In the example above we combined together several solvers into a composite solver. This illustrates the fact that there are two distinct roles that solvers can play in the system:
 
-1. As a _composite_ end-to-end specification of how to solve a task.
+1.  As a *composite* end-to-end specification of how to solve a task.
 
-2. As a _component_ that is chained together with other solvers to create a composite solver;
+2.  As a *component* that is chained together with other solvers to create a composite solver;
 
-Some solvers are capable of playing both roles. For example, `generate()` is a complete end-to-end solver (albeit a simple one) but is often also used as a _component_ within other solvers.
+Some solvers are capable of playing both roles. For example, `generate()` is a complete end-to-end solver (albeit a simple one) but is often also used as a *component* within other solvers.
 
 ### Solver Functions
 
 The most convenient way to create a composite solver is to define a `@solver` decorated function that returns a chain of other solvers. For example, imagine we have written a `tree_of_thought` module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where `critique` is used as the default):
 
-```{.python filename="theory.py"}
+``` {.python filename="theory.py"}
 from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
@@ -230,7 +224,6 @@ $ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
 
 Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
 
-
 ## Eval from Python
 
 Above we demonstrated using `inspect eval` from CLI to run evaluations—you can perform all of the same operations from directly within Python using the `eval()` function. For example:
@@ -241,7 +234,6 @@ from inspect_ai import eval
 eval(theory_of_mind(), model="openai/gpt-4o")
 eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
 ```
-
 
 ## Learning More
 
