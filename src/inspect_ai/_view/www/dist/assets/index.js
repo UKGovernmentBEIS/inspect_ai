@@ -25284,8 +25284,8 @@ const filterFnsForType = {
 };
 function App({
   api: api2,
-  initialState: initialState2,
-  saveInitialState,
+  initialState: initialState2 = void 0,
+  saveInitialState = void 0,
   pollForLogs = true
 }) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
@@ -25382,7 +25382,9 @@ function App({
       groupBy,
       groupByOrder
     };
-    saveInitialState(state);
+    if (saveInitialState) {
+      saveInitialState(state);
+    }
   }, [
     logs,
     selectedLogIndex,
