@@ -48,8 +48,8 @@ import {
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
- * @param {Object} props.initialState - Initial state for app (optional, used by VS Code extension)
- * @param {(state: Object) => void} props.saveInitialState - Save initial state for app (optional, used by VS Code extension)
+ * @param {Object} [props.initialState] - Initial state for app (optional, used by VS Code extension)
+ * @param {(state: Object) => void} [props.saveInitialState] - Save initial state for app (optional, used by VS Code extension)
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
  * @returns {import("preact").JSX.Element} The App component.
  */
