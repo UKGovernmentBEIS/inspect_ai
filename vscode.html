@@ -295,9 +295,9 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a></li>
-  <li><a href="#running-tasks" id="toc-running-tasks" class="nav-link" data-scroll-target="#running-tasks">Running Tasks</a></li>
-  <li><a href="#debugging-tasks" id="toc-debugging-tasks" class="nav-link" data-scroll-target="#debugging-tasks">Debugging Tasks</a></li>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#viewing-logs" id="toc-viewing-logs" class="nav-link" data-scroll-target="#viewing-logs">Viewing Logs</a></li>
+  <li><a href="#run-and-debug" id="toc-run-and-debug" class="nav-link" data-scroll-target="#run-and-debug">Run and Debug</a></li>
   <li><a href="#activity-bar" id="toc-activity-bar" class="nav-link" data-scroll-target="#activity-bar">Activity Bar</a></li>
   <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
   </ul>
@@ -325,51 +325,35 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>The Inspect VS Code Extension provides a variety of tools, including:</p>
 <ul>
-<li>An integrated viewer for evaluation log files</li>
-<li>Commands and key-bindings for running tasks</li>
-<li>Commands and key-bindings for debugging tasks</li>
+<li>Integrated browsing and viewing of eval log files</li>
+<li>Commands and key-bindings for running and debugging tasks</li>
 <li>A configuration panel that edits config in workspace <code>.env</code> files</li>
-<li>A task panel for setting task CLI options and task arguments</li>
 <li>A panel for browsing all tasks contained in the workspace</li>
+<li>A task panel for setting task CLI options and task arguments</li>
 </ul>
-<section id="installation" class="level2">
-<h2 class="anchored" data-anchor-id="installation">Installation</h2>
+<section id="installation" class="level3 unlisted">
+<h3 class="unlisted anchored" data-anchor-id="installation">Installation</h3>
 <p>To install, search for <strong>“Inspect AI”</strong> in the extensions marketplace panel within VS Code.</p>
-<p><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:90.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></p>
-<p>The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
+<p><a href="images/inspect-vscode-install.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:100.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></a></p>
+<p>The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <strong>Python: Select Interpreter</strong> command to associate a version of Python with your workspace.</p>
 </section>
-<section id="running-tasks" class="level2">
-<h2 class="anchored" data-anchor-id="running-tasks">Running Tasks</h2>
-<div>
-
-</div>
-<div class="quarto-layout-panel" data-layout="[55,45]">
-<div class="quarto-layout-row">
-<div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
-<p>There are many ways to run evaluation tasks within VS Code, including:</p>
-<ol type="1">
-<li>Calling <code>inspect eval</code> in the terminal</li>
-<li>Calling <code>eval()</code> directly in a notebook or script</li>
-<li>Using the <strong>Run Task</strong> button in the editor</li>
-<li>Using the <kbd>Cmd+Shift+U</kbd> keyboard shortcut (which will run the task currently selected in the active editor).</li>
-</ol>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
-</div>
-</div>
-</div>
-<p>No matter how you run a task, when the task is complete the eval log will automatically display to the right of the active editor:</p>
-<p><a href="images/inspect-vscode-logview.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-vscode-logview.png" class="border img-fluid" alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."></a></p>
-<p>If you’d rather have the log viewer display in its own window (e.g.&nbsp;to move it to a different monitor) you can drag the <strong>Inspect View</strong> tab out of VS Code and move it to wherever is most convenient.</p>
-<p>If you prefer not to have logs shown automatically, there is a setting which can disable this behaviour (search settings for “inspect log”). In that case, you can still view eval logs by clicking on the link at the bottom of the eval results:</p>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
-<p>See the article on the <a href="./log-viewer.html">Log Viewer</a> for additional details on using it to explore eval results.</p>
 </section>
-<section id="debugging-tasks" class="level2">
-<h2 class="anchored" data-anchor-id="debugging-tasks">Debugging Tasks</h2>
+<section id="viewing-logs" class="level2">
+<h2 class="anchored" data-anchor-id="viewing-logs">Viewing Logs</h2>
+<p>The <strong>Logs</strong> pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:</p>
+<p><a href="images/logs.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/logs.png" class="border img-fluid"></a></p>
+<p>Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g.&nbsp;for logs on Amazon S3):</p>
+<p><img src="images/logs-open-button.png" class="border img-fluid" style="margin-right: 2%;;width:27.0%"> <img src="images/logs-drop-down.png" class="border img-fluid" style="width:70.0%"></p>
+<p>Links to evaluation logs are also displayed at the bottom of every task result:</p>
+<p><a href="images/eval-log.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></a></p>
+<p>If you prefer not to browse and view logs using the logs pane, you can also use the <strong>Inspect: Inspect View…</strong> command to open up a new pane running <code>inspect view</code>. See the article on the <a href="./log-viewer.html">Log Viewer</a> for additional details on using it to explore eval results.</p>
+</section>
+<section id="run-and-debug" class="level2">
+<h2 class="anchored" data-anchor-id="run-and-debug">Run and Debug</h2>
 <div>
 
 </div>
@@ -377,35 +361,48 @@ ul.task-list li input[type="checkbox"] {
 <div class="quarto-layout-row">
 <div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
 <div style="margin-bottom: 15px;">
-<p>There are two ways to debug tasks within VS Code:</p>
+<p>There are several ways to run tasks within VS Code:</p>
 </div>
 <ol type="1">
-<li><p>Using the <strong>Debug Task</strong> button in the editor</p></li>
-<li><p>Using the <kbd>Cmd+Shift+T</kbd> keyboard shortcut (which will debug the task currently selected in the active editor).</p></li>
+<li><code>inspect eval</code> in the terminal</li>
+<li>Calling <code>eval()</code> in a script</li>
+<li>Using the <strong>Run Task</strong> button .</li>
+<li>Using the <kbd>Cmd+Shift+U</kbd> keyboard shortcut.</li>
 </ol>
 </div>
 <div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
+<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
 </div>
 </div>
 </div>
+<p>You can also run tasks in the VS Code debugger by using the <strong>Debug Task</strong> button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
 <p>Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (<code>--limit 1</code> on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for “inspect debug”).</p>
+</div>
+</div>
+</div>
 </section>
 <section id="activity-bar" class="level2">
 <h2 class="anchored" data-anchor-id="activity-bar">Activity Bar</h2>
-<p>The Inspect Activity Bar provides an interface for tuning both global configuration and task CLI arguments. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:</p>
-<p><a href="images/inspect-vscode-config.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-config.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
-<p>The activity bar has three panels:</p>
+<p>In addition to log listings, the Inspect Activity Bar provides interfaces for browsing tasks tuning configuration. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:</p>
+<p><a href="images/inspect-activity-bar.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-activity-bar.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
+<p>The activity bar has four panels:</p>
 <ul>
 <li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./workflow.html#configuration">Configuration</a> for more details on <code>.env</code> files).</p></li>
+<li><p><strong>Tasks</strong> displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
+<li><p><strong>Logs</strong> lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).</p></li>
 <li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
-<li><p><strong>Tasks</strong> (not shown above) lists all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
 </ul>
 </section>
 <section id="troubleshooting" class="level2">
 <h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
 <p>If the Inspect extension is not loading into the workspace, you should investigate what version of Python it is discovering as well as whether the <code>inspect-ai</code> package is detected within that Python environment. Use the <strong>Output</strong> panel (at the bottom of VS Code in the same panel as the Terminal) and select the <strong>Inspect</strong> output channel using the picker on the right side of the panel:</p>
-<p><a href="images/inspect-vscode-output-channel.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-vscode-output-channel.png" class="border img-fluid" alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension."></a></p>
+<p><a href="images/inspect-vscode-output-channel.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-vscode-output-channel.png" class="border img-fluid" alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension."></a></p>
 <p>Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
 
 
@@ -939,7 +936,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","loop":false,"openEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
