@@ -132,29 +132,6 @@ Inspect uses an asynchronous architecture to run task samples in parallel. If yo
 
 If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
 
-### Model Specific Configuration
-
-In some cases you'll want to vary generation configuration options by model provider. You can do this by adding a `model` argument to your task function. You can use the `model` in a [pattern matching](https://peps.python.org/pep-0636/) statement to condition on different models. For example:
-
-``` python
-@task
-def popularity(model):
-    # condition temperature on model
-    config = GenerateConfig()
-    match model:
-        case "gpt" | "gemini":
-            config.temperature = 0.9
-        case "claude":
-            config.temperature = 0.8
-
-    return Task(
-        dataset=json_dataset("popularity.jsonl"),
-        solver=[system_message(SYSTEM_MESSAGE), generate()],
-        scorer=match(),
-        config=config,
-    )
-```
-
 ## Provider Notes
 
 This section provides additional documentation on using the Azure AI, AWS Bedrock, Hugging Face, and vLLM providers.
