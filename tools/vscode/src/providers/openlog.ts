@@ -3,6 +3,7 @@ import { kInspectLogViewType } from "./logview/logview-editor";
 import { hasMinimumInspectVersion } from "../inspect/version";
 import { kInspectEvalLogFormatVersion } from "./inspect/inspect-constants";
 import { InspectViewManager } from "./logview/logview-view";
+import { withEditorAssociation } from "../core/vscode/association";
 
 
 export function activateOpenLog(
@@ -12,23 +13,30 @@ export function activateOpenLog(
 
   context.subscriptions.push(commands.registerCommand('inspect.openLogViewer', async (uri: Uri) => {
 
+    // function to open using defualt editor in preview mode
+    const openLogViewer = async () => {
+      await commands.executeCommand(
+        'vscode.open',
+        uri,
+        <TextDocumentShowOptions>{ preview: true }
+      );
+    }
+
     if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion)) {
       if (uri.path.endsWith(".eval")) {
-        // normal default path for .eval files (so they get preview treatment)
-        await commands.executeCommand(
-          'vscode.open',
-          uri,
-          <TextDocumentShowOptions>{ preview: true }
-        );
+
+        await openLogViewer();
+
       } else {
-        // force our custom editor for .json as we aren't the default. this has the issue of not 
-        // using preview so proliferates more editors
-        await commands.executeCommand(
-          'vscode.openWith',
-          uri,
-          kInspectLogViewType,
-          <TextDocumentShowOptions>{ preview: true }
+
+        await withEditorAssociation(
+          {
+            viewType: kInspectLogViewType,
+            filenamePattern: "{[0-9][0-9][0-9][0-9]}-{[0-9][0-9]}-{[0-9][0-9]}T{[0-9][0-9]}[:-]{[0-9][0-9]}[:-]{[0-9][0-9]}*{[A-Za-z0-9]{21}}*.json"
+          },
+          openLogViewer
         );
+
       }
 
       // notify the logs pane that we are doing this so that it can take a reveal action
