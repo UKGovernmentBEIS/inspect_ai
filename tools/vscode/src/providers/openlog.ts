@@ -20,7 +20,7 @@ export function activateOpenLog(
         uri,
         <TextDocumentShowOptions>{ preview: true }
       );
-    }
+    };
 
     if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion)) {
       if (uri.path.endsWith(".eval")) {
