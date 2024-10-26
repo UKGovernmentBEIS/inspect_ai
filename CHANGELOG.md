@@ -5,6 +5,7 @@
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
+- Write custom tool call views into transcript for use by Inspect View.
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
 - Don't include package scope for task name part of log files.

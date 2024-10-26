@@ -3352,6 +3352,17 @@
           "default": null,
           "title": "Truncated"
         },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -3420,6 +3431,7 @@
         "arguments",
         "result",
         "truncated",
+        "view",
         "error",
         "events"
       ],
