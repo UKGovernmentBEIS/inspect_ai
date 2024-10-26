@@ -216,6 +216,7 @@ function evalConfig(log: EvalLog): string[] | undefined {
 
   // remove some params
   delete config["model"];
+  delete config["log_images"];
 
   if (Object.keys(config).length > 0) {
     return [

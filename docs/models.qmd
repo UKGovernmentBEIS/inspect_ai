@@ -12,6 +12,7 @@ Inspect has built in support for a variety of language model API providers and c
 | Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
 | Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
 | Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
+| Grok | `pip install openai` | `GROK_API_KEY` |
 | TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
 | AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
@@ -25,7 +26,7 @@ Inspect has built in support for a variety of language model API providers and c
 : {tbl-colwidths="\[18,45,37\]"}
 
 ::: {.callout-note appearance="minimal"}
-Note that some providers ([Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
+Note that some providers ([Grok](https://docs.x.ai/api/integrations#openai-sdk), [Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
 :::
 
 ## Using Models
@@ -38,6 +39,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
 | Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
 | Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
+| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
 | Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
 | vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
 | Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
@@ -84,6 +86,7 @@ Each model also can use a different base URL than the default (e.g. if running t
 | Anthropic   | `ANTHROPIC_BASE_URL`  |
 | Google      | `GOOGLE_BASE_URL`     |
 | Mistral     | `MISTRAL_BASE_URL`    |
+| Grok        | `GROK_BASE_URL`    |
 | TogetherAI  | `TOGETHER_BASE_URL`   |
 | Ollama      | `OLLAMA_BASE_URL`     |
 | AWS Bedrock | `BEDROCK_BASE_URL`    |
@@ -128,29 +131,6 @@ Use `inspect eval --help` to learn about all of the available generation config 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
 If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
-
-### Model Specific Configuration
-
-In some cases you'll want to vary generation configuration options by model provider. You can do this by adding a `model` argument to your task function. You can use the `model` in a [pattern matching](https://peps.python.org/pep-0636/) statement to condition on different models. For example:
-
-``` python
-@task
-def popularity(model):
-    # condition temperature on model
-    config = GenerateConfig()
-    match model:
-        case "gpt" | "gemini":
-            config.temperature = 0.9
-        case "claude":
-            config.temperature = 0.8
-
-    return Task(
-        dataset=json_dataset("popularity.jsonl"),
-        solver=[system_message(SYSTEM_MESSAGE), generate()],
-        scorer=match(),
-        config=config,
-    )
-```
 
 ## Provider Notes
 

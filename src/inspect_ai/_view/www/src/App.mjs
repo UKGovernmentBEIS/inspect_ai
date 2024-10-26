@@ -48,15 +48,15 @@ import {
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
- * @param {Object} props.initialState - The api that this view should use
- * @param {(state: Object) => void} props.saveInitialState - The api that this view should use
+ * @param {Object} props.initialState - Initial state for app (optional, used by VS Code extension)
+ * @param {(state: Object) => void} props.saveInitialState - Save initial state for app (optional, used by VS Code extension)
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
- * @returns {import("preact").JSX.Element} The TranscriptView component.
+ * @returns {import("preact").JSX.Element} The App component.
  */
 export function App({
   api,
-  initialState,
-  saveInitialState,
+  initialState = undefined,
+  saveInitialState = undefined,
   pollForLogs = true,
 }) {
   // List of Logs
@@ -202,7 +202,9 @@ export function App({
       groupBy,
       groupByOrder,
     };
-    saveInitialState(state);
+    if (saveInitialState) {
+      saveInitialState(state);
+    }
   }, [
     logs,
     selectedLogIndex,
