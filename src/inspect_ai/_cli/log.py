@@ -10,6 +10,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
+from inspect_ai._ui.apps.logview.logview import LogviewApp
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
@@ -171,12 +172,13 @@ def headers(files: tuple[str]) -> None:
 
 
 @log_command.command("view", hidden=True)
-@click.argument("log-file", type=str, required=True)
+@click.argument("log-file", type=str, required=False)
 @click.option("--sample", type=str)
-@click.option("--epoch", type=int)
-def view_command(log_file: str, sample: str | None, epoch: int | None) -> None:
+@click.option("--epoch", type=int, default=1)
+def view_command(log_file: str | None, sample: str | None, epoch: int) -> None:
     """View a log in the terminal."""
-    print(log_file)
+    app = LogviewApp(log_file, sample, epoch)
+    app.run()
 
 
 @log_command.command("schema")

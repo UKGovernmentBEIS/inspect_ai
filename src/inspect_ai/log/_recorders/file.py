@@ -46,7 +46,7 @@ class FileRecorder(Recorder):
             (
                 sample
                 for sample in (eval_log.samples)
-                if sample.id == id and sample.epoch == epoch
+                if str(sample.id) == str(id) and sample.epoch == epoch
             ),
             None,
         )
