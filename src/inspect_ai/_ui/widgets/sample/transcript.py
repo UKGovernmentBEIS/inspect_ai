@@ -6,7 +6,7 @@ from textual.widgets import ListItem, ListView, Static
 
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSample
-from inspect_ai.log._transcript import Event, StepEvent
+from inspect_ai.log._transcript import Event, StepEvent, SubtaskEvent, ToolEvent
 
 
 class TranscriptView(ListView):
@@ -46,6 +46,10 @@ def collapse_steps(events: list[Event]) -> list[Event | TranscriptStep]:
         elif len(active_steps) > 0:
             active_steps[-1][1].append(event)
         else:
+            if isinstance(event, ToolEvent | SubtaskEvent):
+                event = event.model_copy(
+                    update=dict(events=collapse_steps(event.events))
+                )
             collapsed_steps.append(event)
 
     return collapsed_steps
