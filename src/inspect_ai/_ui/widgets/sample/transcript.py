@@ -12,57 +12,68 @@ from inspect_ai.log._transcript import Event, StepEvent, SubtaskEvent, ToolEvent
 class TranscriptView(ListView):
     def __init__(self, sample: EvalSample) -> None:
         sample = resolve_sample_attachments(sample)
-        super().__init__(*transcript_list_items(sample.events))
-
-
-def transcript_list_items(events: list[Event]) -> list[ListItem]:
-    return [event_list_item(event) for event in collapse_steps(events)]
+        list_items = [group_list_item(group) for group in group_events(sample.events)]
+        super().__init__(*list_items)
 
 
 @dataclass
-class TranscriptStep:
+class Step:
     type: str
     name: str
-    events: list[Event | "TranscriptStep"]
+    groups: list["Group"]
 
 
-def collapse_steps(events: list[Event]) -> list[Event | TranscriptStep]:
-    collapsed_steps: list[Event | TranscriptStep] = []
+Group = Step | Event
 
+
+def group_events(events: list[Event]) -> list[Group]:
+    # groups are eitehr plain events (some of which can have sub-events)
+    # and higher level steps (e.g. solvers/scorers) that contain events
+    grouped_steps: list[Group] = []
+
+    # track stack of active steps
     active_steps: list[tuple[StepEvent, list[Event]]] = []
+
+    # iterate though events
     for event in events:
+        # manage step events
         if isinstance(event, StepEvent):
             if event.action == "begin":
                 active_steps.append((event, []))
             elif event.action == "end":
                 begin_step, step_events = active_steps.pop()
-                collapsed_steps.append(
-                    TranscriptStep(
+                grouped_steps.append(
+                    Step(
                         type=begin_step.type or "step",
                         name=begin_step.name,
-                        events=collapse_steps(step_events),
+                        groups=group_events(step_events),
                     )
                 )
-        elif len(active_steps) > 0:
-            active_steps[-1][1].append(event)
+
+        # other events
         else:
+            # tool and subtask events have their own nested event lists
             if isinstance(event, ToolEvent | SubtaskEvent):
-                event = event.model_copy(
-                    update=dict(events=collapse_steps(event.events))
-                )
-            collapsed_steps.append(event)
+                event = event.model_copy(update=dict(events=group_events(event.events)))
 
-    return collapsed_steps
+            # add to active step if we have one
+            if len(active_steps) > 0:
+                active_steps[-1][1].append(event)
+            # otherwise just add to root list
+            else:
+                grouped_steps.append(event)
+
+    return grouped_steps
 
 
-def event_list_item(event: Event | TranscriptStep) -> ListItem:
-    if isinstance(event, TranscriptStep):
-        panel = event_panel(f"{event.type}: {event.name}")
+def group_list_item(group: Group) -> ListItem:
+    if isinstance(group, Step):
+        panel = group_panel(f"{group.type}: {group.name}")
     else:
-        panel = event_panel(event.event)
+        panel = group_panel(group.event)
 
     return ListItem(Static(panel))
 
 
-def event_panel(title: str, renderable: RenderableType = "") -> Panel:
+def group_panel(title: str, renderable: RenderableType = "") -> Panel:
     return Panel(renderable, title=title, expand=True)
