@@ -1,8 +1,9 @@
 from textual.app import App, ComposeResult
-from textual.containers import ScrollableContainer
-from textual.widgets import Button, Footer, Header
+from textual.widgets import Footer, Header
 
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
+
+from ...widgets import TranscriptView
 
 # textual console
 # textual run --dev inspect_ai._ui.apps.logview.logview:LogviewApp
@@ -34,7 +35,7 @@ class LogviewApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header(classes="header")
         yield Footer()
-        yield ScrollableContainer(Button(label="Do It", variant="success"))
+        yield TranscriptView(self.eval_sample)
 
     def action_toggle_dark(self) -> None:
         self.dark = not self.dark

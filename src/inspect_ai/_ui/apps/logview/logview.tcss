@@ -1,6 +1,11 @@
 
 
-
-.header {
-    background: blue;
+Screen {
+    layout: vertical;
 }
+
+EventList {
+   
+    border: solid red;
+}
+
