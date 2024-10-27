@@ -164,15 +164,6 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
-    ) -> EvalSample:
-        raise NotImplementedError(
-            "read_log_sample is not supported for .json log files."
-        )
-
-    @override
-    @classmethod
     def write_log(cls, location: str, log: EvalLog) -> None:
         from inspect_ai.log._file import eval_log_json
 

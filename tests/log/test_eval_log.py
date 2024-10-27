@@ -79,10 +79,12 @@ def test_migrate_length_stop_reason():
 
 def test_read_sample():
     log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
-    with pytest.raises(Exception):
-        read_eval_log_sample(log_file, 1, 1)
-
     with tempfile.TemporaryDirectory() as tmpdirname:
+        # try out json file
+        sample = read_eval_log_sample(log_file, 1, 1)
+        assert sample.target == " Yes"
+
+        # try out eval file
         log = read_eval_log(log_file)
         eval_log_path = os.path.join(tmpdirname, "new_log.eval")
         write_eval_log(log, eval_log_path)
