@@ -160,7 +160,7 @@ You can enumerate, read, and write `EvalLog` objects using the following helper 
 |------------------|------------------------------------------------------|
 | `list_eval_logs` | List all of the eval logs at a given location. |
 | `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
-| `read_eval_log_sample` | Read a single `EvalSample` from a log file (works only for `eval` file format). |
+| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
 | `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
