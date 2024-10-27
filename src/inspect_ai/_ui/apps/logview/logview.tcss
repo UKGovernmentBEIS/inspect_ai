@@ -9,3 +9,15 @@ EventList {
     border: solid red;
 }
 
+TranscriptView > ListItem {
+    background: transparent;
+}
+
+TranscriptView > ListItem.--highlight {
+    background: $boost;
+    
+}
+TranscriptView:focus > ListItem.--highlight {
+    background: $boost;
+}
+
