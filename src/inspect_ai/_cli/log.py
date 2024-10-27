@@ -170,6 +170,15 @@ def headers(files: tuple[str]) -> None:
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
 
 
+@log_command.command("view", hidden=True)
+@click.argument("log-file", type=str, required=True)
+@click.option("--sample", type=str)
+@click.option("--epoch", type=int)
+def view_command(log_file: str, sample: str | None, epoch: int | None) -> None:
+    """View a log in the terminal."""
+    print(log_file)
+
+
 @log_command.command("schema")
 def schema_command() -> None:
     """Print JSON schema for log files."""
