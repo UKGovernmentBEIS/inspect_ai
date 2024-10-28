@@ -3,21 +3,3 @@
 Screen {
     layout: vertical;
 }
-
-EventList {
-   
-    border: solid red;
-}
-
-EventGroupListView > ListItem {
-    background: transparent;
-}
-
-EventGroupListView > ListItem.--highlight {
-    background: $boost;
-    
-}
-EventGroupListView:focus > ListItem.--highlight {
-    background: $boost;
-}
-
