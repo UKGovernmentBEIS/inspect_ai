@@ -19,3 +19,9 @@ class EventGroupDisplay(NamedTuple):
 
 
 EventGroupRenderer = Callable[[EventGroup], EventGroupDisplay | None]
+
+_renderers: list[EventGroupRenderer] = []
+
+
+def register_renderer(renderer: EventGroupRenderer) -> None:
+    _renderers.append(renderer)
