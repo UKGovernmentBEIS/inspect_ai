@@ -1,6 +1,7 @@
 from typing import Any, Callable, NamedTuple, Type
 
 from rich.console import Group, RenderableType
+from rich.json import JSON
 from rich.markdown import Markdown
 from rich.text import Text
 
@@ -8,6 +9,7 @@ from inspect_ai._util.format import format_function_call
 from inspect_ai.log._transcript import (
     ErrorEvent,
     Event,
+    InfoEvent,
     LoggerEvent,
     ModelEvent,
     SampleInitEvent,
@@ -118,6 +120,14 @@ def render_scorer_event(event: StepEvent) -> EventDisplay:
     return EventDisplay(step_title(event))
 
 
+def render_info_event(event: InfoEvent) -> EventDisplay:
+    if isinstance(event.data, str):
+        content: RenderableType = Markdown(event.data)
+    else:
+        content = JSON.from_data(event.data)
+    return EventDisplay("info", content)
+
+
 def render_logger_event(event: LoggerEvent) -> EventDisplay:
     content = event.message.level.upper()
     if event.message.name:
@@ -151,6 +161,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (StepEvent, render_step_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
+    (InfoEvent, render_info_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
 ]
@@ -165,6 +176,6 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
 # | ScoreEvent
 # | ErrorEvent      [DONE]
 # | LoggerEvent     [DONE]
-# | InfoEvent
+# | InfoEvent       [DONE]
 # | StepEvent       [DONE]
 # | SubtaskEvent,
