@@ -5,7 +5,7 @@ from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.text import Text
 
-from inspect_ai._util.transcript import TranscriptPanel
+from inspect_ai._util.transcript import transcript_panel
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.util._console import input_screen
@@ -66,7 +66,7 @@ def human_approver(
                 add_view_content(view.call)
                 renderables.append(Text())
 
-            console.print(TranscriptPanel(title="Approve Tool", content=renderables))
+            console.print(transcript_panel(title="Approve Tool", content=renderables))
 
             # provide choices
             prompts: dict[str, str] = {}

@@ -4,7 +4,7 @@ from rich import print
 from rich.console import RenderableType
 from rich.text import Text
 
-from inspect_ai._util.transcript import TranscriptPanel
+from inspect_ai._util.transcript import transcript_panel
 
 
 def trace_enabled() -> bool:
@@ -29,7 +29,7 @@ def trace_panel(
       content (RenderableType | list[RenderableType]): One or more Rich renderables.
     """
     print(
-        TranscriptPanel(title, subtitle, content),
+        transcript_panel(title, subtitle, content),
         Text(),
     )
 

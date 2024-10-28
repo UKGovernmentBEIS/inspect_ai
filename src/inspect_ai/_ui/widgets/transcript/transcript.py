@@ -3,7 +3,7 @@ from rich.panel import Panel
 from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
-from inspect_ai._util.transcript import TranscriptPanel
+from inspect_ai._util.transcript import transcript_panel
 
 from ...core.group import EventGroup
 from .event import event_group_display
@@ -36,4 +36,4 @@ def event_group_panel(group: EventGroup) -> Panel | None:
                 content.append(child_panel)
 
     # create panel
-    return TranscriptPanel(title=display.title, content=content, level=group.level)
+    return transcript_panel(title=display.title, content=content, level=group.level)
