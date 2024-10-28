@@ -1,8 +1,13 @@
 from typing import Callable, NamedTuple
 
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
+from rich.markdown import Markdown
+from rich.text import Text
 
-from inspect_ai.log._transcript import ModelEvent, SampleInitEvent, StepEvent
+from inspect_ai._util.format import format_function_call
+from inspect_ai.log._transcript import ModelEvent, SampleInitEvent, StepEvent, ToolEvent
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._render import messages_preceding_assistant, render_tool_calls
 
 from ...core.group import EventGroup
 
@@ -40,7 +45,45 @@ def render_sample_init(group: EventGroup) -> EventGroupDisplay | None:
 
 def render_model(group: EventGroup) -> EventGroupDisplay | None:
     if isinstance(group.event, ModelEvent):
-        return EventGroupDisplay(f"model: {group.event.model}")
+        # content
+        content: list[RenderableType] = []
+
+        def render_message(message: ChatMessage) -> None:
+            content.extend([Text(message.role.capitalize(), style="bold"), Text()])
+            if message.text:
+                content.extend([Text(message.text)])
+
+        # render preceding messages
+        map(render_message, messages_preceding_assistant(group.event.input))
+
+        # display assistant message (note that we don't render tool calls
+        # because they will be handled as part of render_tool)
+        if group.event.output.message.text:
+            render_message(group.event.output.message)
+
+        return EventGroupDisplay(f"model: {group.event.model}", Group(*content))
+    else:
+        return None
+
+
+def render_tool(group: EventGroup) -> EventGroupDisplay | None:
+    if isinstance(group.event, ToolEvent):
+        # render the call
+        content: list[RenderableType] = []
+        if group.event.view:
+            if group.event.view.format == "markdown":
+                content.append(Markdown(group.event.view.content))
+            else:
+                content.append(group.event.view.content)
+        else:
+            call = format_function_call(group.event.function, group.event.arguments)
+            content.append(Markdown("```python\n" + call + "\n```\n"))
+        content.append(Text())
+
+        # render the output
+        content.append(str(group.event.result).strip())
+
+        return EventGroupDisplay("tool call", Group(*content))
     else:
         return None
 
@@ -68,4 +111,5 @@ _renderers: list[EventGroupRenderer] = [
     render_solver,
     render_scorer,
     render_model,
+    render_tool,
 ]
