@@ -3,10 +3,14 @@ from typing import Any, Callable, NamedTuple, Type
 from rich.console import Group, RenderableType
 from rich.json import JSON
 from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from textual.containers import ScrollableContainer
+from textual.widgets import Static
 
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.transcript import transcript_panel
 from inspect_ai.log._transcript import (
     ErrorEvent,
     Event,
@@ -20,6 +24,40 @@ from inspect_ai.log._transcript import (
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
+
+from ..core.group import EventGroup
+
+
+class TranscriptView(ScrollableContainer):
+    def __init__(self, event_groups: list[EventGroup]) -> None:
+        panels = [event_group_panel(group) for group in event_groups]
+        widgets = [
+            Static(Group(panel, Text())) for panel in panels if panel is not None
+        ]
+        super().__init__(*widgets)
+
+
+def event_group_panel(group: EventGroup) -> Panel | None:
+    # get display
+    display = render_event(group.event)
+    if display is None:
+        return None
+
+    # content group
+    content: list[RenderableType] = []
+    if display.content:
+        content.append(display.content)
+
+    # resolve child groups
+    if group.groups:
+        content.append(Text())
+        for child_group in group.groups:
+            child_panel = event_group_panel(child_group)
+            if child_panel:
+                content.append(child_panel)
+
+    # create panel
+    return transcript_panel(title=display.title, content=content, level=group.level)
 
 
 class EventDisplay(NamedTuple):
