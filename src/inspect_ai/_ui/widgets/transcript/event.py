@@ -54,7 +54,7 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         if isinstance(sample.input, str)
         else sample.input
     )
-    content: list[RenderableType] = []
+    content: list[RenderableType] = [Text()]
     for message in messages:
         content.extend(render_message(message))
 
@@ -64,6 +64,8 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         content.append(Text("Target", style="bold"))
         content.append(Text())
         content.append(str(sample.target).strip())
+
+    content.append(Text())
 
     return EventDisplay("sample init", Group(*content))
 
