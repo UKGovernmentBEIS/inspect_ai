@@ -9,15 +9,15 @@ EventList {
     border: solid red;
 }
 
-EventGroupsListView > ListItem {
+EventGroupListView > ListItem {
     background: transparent;
 }
 
-EventGroupsListView > ListItem.--highlight {
+EventGroupListView > ListItem.--highlight {
     background: $boost;
     
 }
-EventGroupsListView:focus > ListItem.--highlight {
+EventGroupListView:focus > ListItem.--highlight {
     background: $boost;
 }
 

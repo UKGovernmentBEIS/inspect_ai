@@ -3,10 +3,10 @@ from textual.widgets import ListItem, ListView, Static
 
 from inspect_ai.log._transcript import StepEvent
 
-from ..core.group import EventGroup
+from ...core.group import EventGroup
 
 
-class EventGroupsListView(ListView):
+class EventGroupListView(ListView):
     def __init__(self, event_groups: list[EventGroup]) -> None:
         # pass list to super
         super().__init__(*[EventGroupListItem(group) for group in event_groups])
