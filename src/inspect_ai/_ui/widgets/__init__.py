@@ -1,3 +1,3 @@
-from .transcript import TranscriptView
+from .transcript import EventGroupsListView
 
-__all__ = ["TranscriptView"]
+__all__ = ["EventGroupsListView"]

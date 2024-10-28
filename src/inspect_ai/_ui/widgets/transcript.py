@@ -1,31 +1,23 @@
-from rich.console import RenderableType
 from rich.panel import Panel
 from textual.widgets import ListItem, ListView, Static
 
-from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.log._log import EvalSample
 from inspect_ai.log._transcript import StepEvent
 
-from ..core.group import EventGroup, group_events
+from ..core.group import EventGroup
 
 
-class TranscriptView(ListView):
-    def __init__(self, sample: EvalSample) -> None:
-        sample = resolve_sample_attachments(sample)
-        list_items = [
-            event_group_list_item(group) for group in group_events(sample.events)
-        ]
-        super().__init__(*list_items)
+class EventGroupsListView(ListView):
+    def __init__(self, event_groups: list[EventGroup]) -> None:
+        # pass list to super
+        super().__init__(*[EventGroupListItem(group) for group in event_groups])
 
 
-def event_group_list_item(group: EventGroup) -> ListItem:
-    if isinstance(group.event, StepEvent):
-        panel = group_panel(f"{group.event.type or 'step'}: {group.event.name}")
-    else:
-        panel = group_panel(group.event.event)
+class EventGroupListItem(ListItem):
+    def __init__(self, group: EventGroup) -> None:
+        # handle title
+        if isinstance(group.event, StepEvent):
+            title = f"{group.event.type or 'step'}: {group.event.name}"
+        else:
+            title = group.event.event
 
-    return ListItem(Static(panel))
-
-
-def group_panel(title: str, renderable: RenderableType = "") -> Panel:
-    return Panel(renderable, title=title, expand=True)
+        super().__init__(Static(Panel("", title=title, expand=True)))

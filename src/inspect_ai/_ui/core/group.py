@@ -13,10 +13,11 @@ class EventGroup:
     """
 
     event: Event
+    level: int
     groups: list["EventGroup"] | None = None
 
 
-def group_events(events: list[Event]) -> list[EventGroup]:
+def group_events(events: list[Event], level: int = 1) -> list[EventGroup]:
     """Transform ordinary list of events into list of event groups."""
     # groups are eitehr plain events (some of which can have sub-events)
     # and higher level steps (e.g. solvers/scorers) that contain events
@@ -33,15 +34,24 @@ def group_events(events: list[Event]) -> list[EventGroup]:
                 active_steps.append((event, []))
             elif event.action == "end":
                 begin_step, step_groups = active_steps.pop()
-                event_groups.append(EventGroup(event=begin_step, groups=step_groups))
+                event_groups.append(
+                    EventGroup(event=begin_step, level=level, groups=step_groups)
+                )
 
         # other events
         else:
+            # target level depends on whether we are appending to a set
+            level = level + 1 if len(active_steps) > 0 else level
+
             # tool and subtask events have their own nested event lists
             if isinstance(event, ToolEvent | SubtaskEvent):
-                group = EventGroup(event, group_events(event.events))
+                group = EventGroup(
+                    event=event,
+                    groups=group_events(event.events, level=level + 1),
+                    level=level,
+                )
             else:
-                group = EventGroup(event)
+                group = EventGroup(event=event, level=level)
 
             # add to active step if we have one
             if len(active_steps) > 0:
