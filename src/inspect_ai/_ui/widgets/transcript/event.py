@@ -5,14 +5,18 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from inspect_ai._util.format import format_function_call
-from inspect_ai.log._transcript import ModelEvent, SampleInitEvent, StepEvent, ToolEvent
+from inspect_ai.log._transcript import (
+    Event,
+    ModelEvent,
+    SampleInitEvent,
+    StepEvent,
+    ToolEvent,
+)
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 
-from ...core.group import EventGroup
 
-
-class EventGroupDisplay(NamedTuple):
+class EventDisplay(NamedTuple):
     """Display for an event group."""
 
     title: str
@@ -22,13 +26,13 @@ class EventGroupDisplay(NamedTuple):
     """Optional custom content to display."""
 
 
-EventGroupRenderer = Callable[[EventGroup], EventGroupDisplay | None]
+EventRenderer = Callable[[Event], EventDisplay | None]
 
 
-def event_group_display(group: EventGroup) -> EventGroupDisplay | None:
+def render_event(event: Event) -> EventDisplay | None:
     # see if we have a renderer
     for renderer in _renderers:
-        display = renderer(group)
+        display = renderer(event)
         if display:
             return display
 
@@ -36,10 +40,10 @@ def event_group_display(group: EventGroup) -> EventGroupDisplay | None:
     return None
 
 
-def render_sample_init(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, SampleInitEvent):
+def render_sample_init_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, SampleInitEvent):
         # alias sample
-        sample = group.event.sample
+        sample = event.sample
 
         # input
         messages: list[ChatMessage] = (
@@ -58,7 +62,75 @@ def render_sample_init(group: EventGroup) -> EventGroupDisplay | None:
             content.append(Text())
             content.append(str(sample.target).strip())
 
-        return EventGroupDisplay("sample init", Group(*content))
+        return EventDisplay("sample init", Group(*content))
+    else:
+        return None
+
+
+def render_model_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, ModelEvent):
+        # content
+        content: list[RenderableType] = []
+
+        def append_message(message: ChatMessage) -> None:
+            content.extend(render_message(message))
+
+        # render preceding messages
+        map(append_message, messages_preceding_assistant(event.input))
+
+        # display assistant message (note that we don't render tool calls
+        # because they will be handled as part of render_tool)
+        if event.output.message.text:
+            append_message(event.output.message)
+
+        return EventDisplay(f"model: {event.model}", Group(*content))
+    else:
+        return None
+
+
+def render_tool_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, ToolEvent):
+        # render the call
+        content: list[RenderableType] = []
+        if event.view:
+            if event.view.format == "markdown":
+                content.append(Markdown(event.view.content))
+            else:
+                content.append(event.view.content)
+        else:
+            call = format_function_call(event.function, event.arguments)
+            content.append(Markdown("```python\n" + call + "\n```\n"))
+        content.append(Text())
+
+        # render the output
+        content.append(str(event.result).strip())
+
+        return EventDisplay("tool call", Group(*content))
+    else:
+        return None
+
+
+def render_solver_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, StepEvent) and event.type == "solver":
+        return EventDisplay(step_title(event))
+    else:
+        return None
+
+
+def render_scorer_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, StepEvent) and event.type == "scorer":
+        return EventDisplay(step_title(event))
+    else:
+        return None
+
+
+def render_error_event(event: Event) -> EventDisplay | None:
+    return None
+
+
+def render_step_event(event: Event) -> EventDisplay | None:
+    if isinstance(event, StepEvent) and event.type == "scorer":
+        return EventDisplay(step_title(event))
     else:
         return None
 
@@ -73,85 +145,21 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
     return content
 
 
-def render_model(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, ModelEvent):
-        # content
-        content: list[RenderableType] = []
-
-        def append_message(message: ChatMessage) -> None:
-            content.extend(render_message(message))
-
-        # render preceding messages
-        map(append_message, messages_preceding_assistant(group.event.input))
-
-        # display assistant message (note that we don't render tool calls
-        # because they will be handled as part of render_tool)
-        if group.event.output.message.text:
-            append_message(group.event.output.message)
-
-        return EventGroupDisplay(f"model: {group.event.model}", Group(*content))
-    else:
-        return None
-
-
-def render_tool(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, ToolEvent):
-        # render the call
-        content: list[RenderableType] = []
-        if group.event.view:
-            if group.event.view.format == "markdown":
-                content.append(Markdown(group.event.view.content))
-            else:
-                content.append(group.event.view.content)
-        else:
-            call = format_function_call(group.event.function, group.event.arguments)
-            content.append(Markdown("```python\n" + call + "\n```\n"))
-        content.append(Text())
-
-        # render the output
-        content.append(str(group.event.result).strip())
-
-        return EventGroupDisplay("tool call", Group(*content))
-    else:
-        return None
-
-
-def render_solver(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, StepEvent) and group.event.type == "solver":
-        return EventGroupDisplay(step_title(group.event))
-    else:
-        return None
-
-
-def render_scorer(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, StepEvent) and group.event.type == "scorer":
-        return EventGroupDisplay(step_title(group.event))
-    else:
-        return None
-
-
-def render_step(group: EventGroup) -> EventGroupDisplay | None:
-    if isinstance(group.event, StepEvent) and group.event.type == "scorer":
-        return EventGroupDisplay(step_title(group.event))
-    else:
-        return None
-
-
 def step_title(event: StepEvent) -> str:
     return f"{event.type or 'step'}: {event.name}"
 
 
-_renderers: list[EventGroupRenderer] = [
-    render_sample_init,
-    render_solver,
-    render_scorer,
-    render_step,
-    render_model,
-    render_tool,
+_renderers: list[EventRenderer] = [
+    render_sample_init_event,
+    render_solver_event,
+    render_scorer_event,
+    render_step_event,
+    render_model_event,
+    render_tool_event,
 ]
 
 # | SampleInitEvent [DONE]
-# | StateEvent      [DONE]
+# | StateEvent
 # | StoreEvent      [DONE]
 # | ModelEvent      [DONE]
 # | ToolEvent       [DONE]

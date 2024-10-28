@@ -6,7 +6,7 @@ from textual.widgets import Static
 from inspect_ai._util.transcript import transcript_panel
 
 from ...core.group import EventGroup
-from .event import event_group_display
+from .event import render_event
 
 
 class TranscriptView(ScrollableContainer):
@@ -19,7 +19,7 @@ class TranscriptView(ScrollableContainer):
 
 def event_group_panel(group: EventGroup) -> Panel | None:
     # get display
-    display = event_group_display(group)
+    display = render_event(group.event)
     if display is None:
         return None
 
