@@ -1,4 +1,4 @@
-from typing import Callable, NamedTuple
+from typing import Any, Callable, NamedTuple, Type
 
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
@@ -6,7 +6,9 @@ from rich.text import Text
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai.log._transcript import (
+    ErrorEvent,
     Event,
+    LoggerEvent,
     ModelEvent,
     SampleInitEvent,
     StepEvent,
@@ -26,113 +28,106 @@ class EventDisplay(NamedTuple):
     """Optional custom content to display."""
 
 
-EventRenderer = Callable[[Event], EventDisplay | None]
-
-
 def render_event(event: Event) -> EventDisplay | None:
     # see if we have a renderer
-    for renderer in _renderers:
-        display = renderer(event)
-        if display:
-            return display
+    for event_type, renderer in _renderers:
+        if isinstance(event, event_type):
+            display = renderer(event)
+            if display:
+                return display
 
     # no renderer
     return None
 
 
-def render_sample_init_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, SampleInitEvent):
-        # alias sample
-        sample = event.sample
+def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
+    # alias sample
+    sample = event.sample
 
-        # input
-        messages: list[ChatMessage] = (
-            [ChatMessageUser(content=sample.input)]
-            if isinstance(sample.input, str)
-            else sample.input
-        )
-        content: list[RenderableType] = []
-        for message in messages:
-            content.extend(render_message(message))
+    # input
+    messages: list[ChatMessage] = (
+        [ChatMessageUser(content=sample.input)]
+        if isinstance(sample.input, str)
+        else sample.input
+    )
+    content: list[RenderableType] = []
+    for message in messages:
+        content.extend(render_message(message))
 
-        # target
-        if sample.target:
-            content.append(Text())
-            content.append(Text("Target", style="bold"))
-            content.append(Text())
-            content.append(str(sample.target).strip())
-
-        return EventDisplay("sample init", Group(*content))
-    else:
-        return None
-
-
-def render_model_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, ModelEvent):
-        # content
-        content: list[RenderableType] = []
-
-        def append_message(message: ChatMessage) -> None:
-            content.extend(render_message(message))
-
-        # render preceding messages
-        map(append_message, messages_preceding_assistant(event.input))
-
-        # display assistant message (note that we don't render tool calls
-        # because they will be handled as part of render_tool)
-        if event.output.message.text:
-            append_message(event.output.message)
-
-        return EventDisplay(f"model: {event.model}", Group(*content))
-    else:
-        return None
-
-
-def render_tool_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, ToolEvent):
-        # render the call
-        content: list[RenderableType] = []
-        if event.view:
-            if event.view.format == "markdown":
-                content.append(Markdown(event.view.content))
-            else:
-                content.append(event.view.content)
-        else:
-            call = format_function_call(event.function, event.arguments)
-            content.append(Markdown("```python\n" + call + "\n```\n"))
+    # target
+    if sample.target:
         content.append(Text())
+        content.append(Text("Target", style="bold"))
+        content.append(Text())
+        content.append(str(sample.target).strip())
 
-        # render the output
-        content.append(str(event.result).strip())
+    return EventDisplay("sample init", Group(*content))
 
-        return EventDisplay("tool call", Group(*content))
+
+def render_model_event(event: ModelEvent) -> EventDisplay:
+    # content
+    content: list[RenderableType] = []
+
+    def append_message(message: ChatMessage) -> None:
+        content.extend(render_message(message))
+
+    # render preceding messages
+    map(append_message, messages_preceding_assistant(event.input))
+
+    # display assistant message (note that we don't render tool calls
+    # because they will be handled as part of render_tool)
+    if event.output.message.text:
+        append_message(event.output.message)
+
+    return EventDisplay(f"model: {event.model}", Group(*content))
+
+
+def render_tool_event(event: ToolEvent) -> EventDisplay:
+    # render the call
+    content: list[RenderableType] = []
+    if event.view:
+        if event.view.format == "markdown":
+            content.append(Markdown(event.view.content))
+        else:
+            content.append(event.view.content)
     else:
-        return None
+        call = format_function_call(event.function, event.arguments)
+        content.append(Markdown("```python\n" + call + "\n```\n"))
+    content.append(Text())
+
+    # render the output
+    content.append(str(event.result).strip())
+
+    return EventDisplay("tool call", Group(*content))
 
 
-def render_solver_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, StepEvent) and event.type == "solver":
+def render_step_event(event: StepEvent) -> EventDisplay:
+    if event.type == "solver":
+        return render_solver_event(event)
+    if event.type == "scorer":
+        return render_scorer_event(event)
+    else:
         return EventDisplay(step_title(event))
-    else:
-        return None
 
 
-def render_scorer_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, StepEvent) and event.type == "scorer":
-        return EventDisplay(step_title(event))
-    else:
-        return None
+def render_solver_event(event: StepEvent) -> EventDisplay:
+    return EventDisplay(step_title(event))
 
 
-def render_error_event(event: Event) -> EventDisplay | None:
-    return None
+def render_scorer_event(event: StepEvent) -> EventDisplay:
+    return EventDisplay(step_title(event))
 
 
-def render_step_event(event: Event) -> EventDisplay | None:
-    if isinstance(event, StepEvent) and event.type == "scorer":
-        return EventDisplay(step_title(event))
-    else:
-        return None
+def render_logger_event(event: LoggerEvent) -> EventDisplay:
+    content = event.message.level.upper()
+    if event.message.name:
+        content = f"{content} (${event.message.name})"
+    content = f"{content}: {event.message.message}"
+    return EventDisplay("logger", content)
+
+
+def render_error_event(event: ErrorEvent) -> EventDisplay:
+    return EventDisplay("error", event.error.traceback.strip())
 
 
 def render_message(message: ChatMessage) -> list[RenderableType]:
@@ -149,13 +144,15 @@ def step_title(event: StepEvent) -> str:
     return f"{event.type or 'step'}: {event.name}"
 
 
-_renderers: list[EventRenderer] = [
-    render_sample_init_event,
-    render_solver_event,
-    render_scorer_event,
-    render_step_event,
-    render_model_event,
-    render_tool_event,
+EventRenderer = Callable[[Any], EventDisplay | None]
+
+_renderers: list[tuple[Type[Event], EventRenderer]] = [
+    (SampleInitEvent, render_sample_init_event),
+    (StepEvent, render_step_event),
+    (ModelEvent, render_model_event),
+    (ToolEvent, render_tool_event),
+    (LoggerEvent, render_logger_event),
+    (ErrorEvent, render_error_event),
 ]
 
 # | SampleInitEvent [DONE]
@@ -166,8 +163,8 @@ _renderers: list[EventRenderer] = [
 # | ApprovalEvent
 # | InputEvent
 # | ScoreEvent
-# | ErrorEvent
-# | LoggerEvent
+# | ErrorEvent      [DONE]
+# | LoggerEvent     [DONE]
 # | InfoEvent
 # | StepEvent       [DONE]
 # | SubtaskEvent,

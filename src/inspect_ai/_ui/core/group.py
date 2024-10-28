@@ -60,4 +60,12 @@ def group_events(events: list[Event], level: int = 1) -> list[EventGroup]:
             else:
                 event_groups.append(group)
 
+    # if there are active steps alive then collect them (an error
+    # may have prevented them from having end steps)
+    while len(active_steps) > 0:
+        begin_step, step_groups = active_steps.pop()
+        event_groups.append(
+            EventGroup(event=begin_step, level=level, groups=step_groups)
+        )
+
     return event_groups

@@ -13,7 +13,6 @@ class TranscriptView(ScrollableContainer):
     def __init__(self, event_groups: list[EventGroup]) -> None:
         panels = [event_group_panel(group) for group in event_groups]
         widgets = [Static(panel) for panel in panels if panel is not None]
-
         super().__init__(*widgets)
 
 
