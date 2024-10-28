@@ -7,7 +7,7 @@ from textual.widgets import Static
 
 from inspect_ai.log._transcript import StepEvent
 
-from ..core.group import EventGroup
+from ...core.group import EventGroup
 
 
 class TranscriptView(ScrollableContainer):
