@@ -130,6 +130,13 @@ def render_scorer(group: EventGroup) -> EventGroupDisplay | None:
         return None
 
 
+def render_step(group: EventGroup) -> EventGroupDisplay | None:
+    if isinstance(group.event, StepEvent) and group.event.type == "scorer":
+        return EventGroupDisplay(step_title(group.event))
+    else:
+        return None
+
+
 def step_title(event: StepEvent) -> str:
     return f"{event.type or 'step'}: {event.name}"
 
@@ -138,6 +145,21 @@ _renderers: list[EventGroupRenderer] = [
     render_sample_init,
     render_solver,
     render_scorer,
+    render_step,
     render_model,
     render_tool,
 ]
+
+# | SampleInitEvent [DONE]
+# | StateEvent      [DONE]
+# | StoreEvent      [DONE]
+# | ModelEvent      [DONE]
+# | ToolEvent       [DONE]
+# | ApprovalEvent
+# | InputEvent
+# | ScoreEvent
+# | ErrorEvent
+# | LoggerEvent
+# | InfoEvent
+# | StepEvent       [DONE]
+# | SubtaskEvent,
