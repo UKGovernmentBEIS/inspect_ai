@@ -3,6 +3,7 @@ from typing import Any, Callable, NamedTuple, Type
 from rich.console import Group, RenderableType
 from rich.json import JSON
 from rich.markdown import Markdown
+from rich.table import Table
 from rich.text import Text
 
 from inspect_ai._util.format import format_function_call
@@ -13,6 +14,7 @@ from inspect_ai.log._transcript import (
     LoggerEvent,
     ModelEvent,
     SampleInitEvent,
+    ScoreEvent,
     StepEvent,
     ToolEvent,
 )
@@ -120,6 +122,20 @@ def render_scorer_event(event: StepEvent) -> EventDisplay:
     return EventDisplay(step_title(event))
 
 
+def render_score_event(event: ScoreEvent) -> EventDisplay:
+    table = Table(box=None, show_header=False)
+    table.add_column("", min_width=10, justify="left")
+    table.add_column("", justify="left")
+    table.add_row("Target", str(event.target).strip())
+    if event.score.answer:
+        table.add_row("Answer", Markdown(event.score.answer))
+    table.add_row("Score", str(event.score.value).strip())
+    if event.score.explanation:
+        table.add_row("Explanation", Markdown(event.score.explanation))
+
+    return EventDisplay("score", table)
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
         content: RenderableType = Markdown(event.data)
@@ -161,6 +177,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (StepEvent, render_step_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
+    (ScoreEvent, render_score_event),
     (InfoEvent, render_info_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
@@ -173,7 +190,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
 # | ToolEvent       [DONE]
 # | ApprovalEvent
 # | InputEvent
-# | ScoreEvent
+# | ScoreEvent      [DONE]
 # | ErrorEvent      [DONE]
 # | LoggerEvent     [DONE]
 # | InfoEvent       [DONE]
