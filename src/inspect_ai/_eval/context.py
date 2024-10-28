@@ -1,7 +1,6 @@
-from inspect_ai._display.logger import init_logger
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.hooks import init_hooks
-from inspect_ai._util.logger import init_http_rate_limit_count
+from inspect_ai._util.logger import init_http_rate_limit_count, init_logger
 from inspect_ai.model import GenerateConfig, Model
 from inspect_ai.model._model import init_active_model, init_model_usage
 from inspect_ai.util._concurrency import init_concurrency

@@ -3,10 +3,10 @@ from textual.widgets import Footer, Header
 
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
 
-from ...widgets import TranscriptView
+from ..widgets import TranscriptView
 
 # textual console
-# textual run --dev inspect_ai._ui.apps.logview.logview:LogviewApp
+# textual run --dev inspect_ai._ui.logview.logview:LogviewApp
 
 
 class LogviewApp(App[None]):

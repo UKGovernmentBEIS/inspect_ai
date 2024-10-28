@@ -4,10 +4,10 @@ import os
 import click
 from typing_extensions import Unpack
 
-from inspect_ai._display import display
 from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
+from inspect_ai._ui.display import display
 from inspect_ai._util.constants import SCORED_SUFFIX
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model import get_model

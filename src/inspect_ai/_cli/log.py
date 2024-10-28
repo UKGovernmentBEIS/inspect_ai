@@ -10,7 +10,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
-from inspect_ai._ui.apps.logview.logview import LogviewApp
+from inspect_ai._ui.logview.logview import LogviewApp
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs

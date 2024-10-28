@@ -6,7 +6,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._transcript import StepEvent
 
-from .group import EventGroup, group_events
+from ..core.group import EventGroup, group_events
 
 
 class TranscriptView(ListView):

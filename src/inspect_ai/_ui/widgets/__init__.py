@@ -1,3 +1,3 @@
-from .sample.transcript import TranscriptView
+from .transcript import TranscriptView
 
 __all__ = ["TranscriptView"]

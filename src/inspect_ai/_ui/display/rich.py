@@ -36,7 +36,7 @@ from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
-from ._display import (
+from .display import (
     Display,
     Progress,
     TaskCancelled,
@@ -79,7 +79,7 @@ class RichDisplay(Display):
 
     @override
     def print(self, message: str) -> None:
-        rich_console().print(message, markup=False, highlight=False)
+        rich.get_console().print(message, markup=False, highlight=False)
 
     @override
     @contextlib.contextmanager
@@ -98,7 +98,7 @@ class RichDisplay(Display):
             with (
                 Live(
                     None,
-                    console=rich_console(),
+                    console=rich.get_console(),
                     transient=True,
                     auto_refresh=False,
                 ) as live,
@@ -136,7 +136,7 @@ class RichDisplay(Display):
         # if there is no ansi display than all of the below will
         # be a no-op, so we print a simple text message for the task
         if no_ansi():
-            rich_console().print(task_no_ansi(profile))
+            rich.get_console().print(task_no_ansi(profile))
 
         # for typechekcer
         if self.tasks is None:
@@ -370,7 +370,7 @@ def tasks_live_status(
 ) -> RenderableType:
     # rendering context
     theme = rich_theme()
-    console = rich_console()
+    console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
     # compute completed tasks
@@ -441,7 +441,7 @@ def task_panel(
 ) -> Panel:
     # rendering context
     theme = rich_theme()
-    console = rich_console()
+    console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
     jupyter = console.is_jupyter
 
@@ -732,10 +732,6 @@ def rich_theme() -> Theme:
     return _theme
 
 
-def rich_console() -> Console:
-    return rich.get_console()
-
-
 def rich_display() -> RichDisplay:
     global _display
     if _display is None:
@@ -744,7 +740,7 @@ def rich_display() -> RichDisplay:
 
 
 def rich_progress() -> RProgress:
-    console = rich_console()
+    console = rich.get_console()
     return RProgress(
         TextColumn("{task.fields[status]}"),
         TextColumn("{task.description}"),

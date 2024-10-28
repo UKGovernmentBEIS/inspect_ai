@@ -9,12 +9,12 @@ from typing import Callable, Literal, cast
 
 from typing_extensions import Unpack
 
-from inspect_ai._display import display
-from inspect_ai._display._display import (
+from inspect_ai._ui.display import (
     TaskCancelled,
     TaskError,
     TaskProfile,
     TaskSuccess,
+    display,
 )
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
