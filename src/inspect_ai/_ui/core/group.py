@@ -41,17 +41,17 @@ def group_events(events: list[Event], level: int = 1) -> list[EventGroup]:
         # other events
         else:
             # target level depends on whether we are appending to a set
-            level = level + 1 if len(active_steps) > 0 else level
+            target_level = level + 1 if len(active_steps) > 0 else level
 
             # tool and subtask events have their own nested event lists
             if isinstance(event, ToolEvent | SubtaskEvent):
                 group = EventGroup(
                     event=event,
-                    groups=group_events(event.events, level=level + 1),
-                    level=level,
+                    groups=group_events(event.events, level=target_level + 1),
+                    level=target_level,
                 )
             else:
-                group = EventGroup(event=event, level=level)
+                group = EventGroup(event=event, level=target_level)
 
             # add to active step if we have one
             if len(active_steps) > 0:
