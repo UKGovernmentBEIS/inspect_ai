@@ -2,7 +2,7 @@ from typing import Callable, NamedTuple
 
 from rich.console import RenderableType
 
-from inspect_ai.log._transcript import StepEvent
+from inspect_ai.log._transcript import ModelEvent, SampleInitEvent, StepEvent
 
 from ...core.group import EventGroup
 
@@ -31,14 +31,28 @@ def event_group_display(group: EventGroup) -> EventGroupDisplay | None:
     return None
 
 
-def solver_renderer(group: EventGroup) -> EventGroupDisplay | None:
+def render_sample_init(group: EventGroup) -> EventGroupDisplay | None:
+    if isinstance(group.event, SampleInitEvent):
+        return EventGroupDisplay("sample init")
+    else:
+        return None
+
+
+def render_model(group: EventGroup) -> EventGroupDisplay | None:
+    if isinstance(group.event, ModelEvent):
+        return EventGroupDisplay(f"model: {group.event.model}")
+    else:
+        return None
+
+
+def render_solver(group: EventGroup) -> EventGroupDisplay | None:
     if isinstance(group.event, StepEvent) and group.event.type == "solver":
         return EventGroupDisplay(step_title(group.event))
     else:
         return None
 
 
-def scorer_renderer(group: EventGroup) -> EventGroupDisplay | None:
+def render_scorer(group: EventGroup) -> EventGroupDisplay | None:
     if isinstance(group.event, StepEvent) and group.event.type == "scorer":
         return EventGroupDisplay(step_title(group.event))
     else:
@@ -50,6 +64,8 @@ def step_title(event: StepEvent) -> str:
 
 
 _renderers: list[EventGroupRenderer] = [
-    solver_renderer,
-    scorer_renderer,
+    render_sample_init,
+    render_solver,
+    render_scorer,
+    render_model,
 ]
