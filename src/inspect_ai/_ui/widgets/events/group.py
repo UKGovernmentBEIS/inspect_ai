@@ -2,22 +2,17 @@ from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
 from rich.panel import Panel
-from textual.widgets import ListItem, ListView, Static
+from textual.containers import ScrollableContainer
+from textual.widgets import Static
 
 from inspect_ai.log._transcript import StepEvent
 
 from ...core.group import EventGroup
 
 
-class EventGroupListView(ListView):
+class EventGroupsView(ScrollableContainer):
     def __init__(self, event_groups: list[EventGroup]) -> None:
-        # pass list to super
-        super().__init__(*[EventGroupListItem(group) for group in event_groups])
-
-
-class EventGroupListItem(ListItem):
-    def __init__(self, group: EventGroup) -> None:
-        super().__init__(Static(EventGroupPanel(group)))
+        super().__init__(*[Static(EventGroupPanel(group)) for group in event_groups])
 
 
 class EventGroupPanel(Panel):

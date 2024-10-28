@@ -1,3 +1,3 @@
-from .events.group import EventGroupListItem, EventGroupListView
+from .events.group import EventGroupsView
 
-__all__ = ["EventGroupListView", "EventGroupListItem"]
+__all__ = ["EventGroupsView"]
