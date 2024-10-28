@@ -6,8 +6,8 @@ from rich.text import Text
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai.log._transcript import ModelEvent, SampleInitEvent, StepEvent, ToolEvent
-from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._render import messages_preceding_assistant, render_tool_calls
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._render import messages_preceding_assistant
 
 from ...core.group import EventGroup
 
@@ -38,9 +38,39 @@ def event_group_display(group: EventGroup) -> EventGroupDisplay | None:
 
 def render_sample_init(group: EventGroup) -> EventGroupDisplay | None:
     if isinstance(group.event, SampleInitEvent):
-        return EventGroupDisplay("sample init")
+        # alias sample
+        sample = group.event.sample
+
+        # input
+        messages: list[ChatMessage] = (
+            [ChatMessageUser(content=sample.input)]
+            if isinstance(sample.input, str)
+            else sample.input
+        )
+        content: list[RenderableType] = []
+        for message in messages:
+            content.extend(render_message(message))
+
+        # target
+        if sample.target:
+            content.append(Text())
+            content.append(Text("Target", style="bold"))
+            content.append(Text())
+            content.append(str(sample.target).strip())
+
+        return EventGroupDisplay("sample init", Group(*content))
     else:
         return None
+
+
+def render_message(message: ChatMessage) -> list[RenderableType]:
+    content: list[RenderableType] = [
+        Text(message.role.capitalize(), style="bold"),
+        Text(),
+    ]
+    if message.text:
+        content.extend([Text(message.text)])
+    return content
 
 
 def render_model(group: EventGroup) -> EventGroupDisplay | None:
@@ -48,18 +78,16 @@ def render_model(group: EventGroup) -> EventGroupDisplay | None:
         # content
         content: list[RenderableType] = []
 
-        def render_message(message: ChatMessage) -> None:
-            content.extend([Text(message.role.capitalize(), style="bold"), Text()])
-            if message.text:
-                content.extend([Text(message.text)])
+        def append_message(message: ChatMessage) -> None:
+            content.extend(render_message(message))
 
         # render preceding messages
-        map(render_message, messages_preceding_assistant(group.event.input))
+        map(append_message, messages_preceding_assistant(group.event.input))
 
         # display assistant message (note that we don't render tool calls
         # because they will be handled as part of render_tool)
         if group.event.output.message.text:
-            render_message(group.event.output.message)
+            append_message(group.event.output.message)
 
         return EventGroupDisplay(f"model: {group.event.model}", Group(*content))
     else:
