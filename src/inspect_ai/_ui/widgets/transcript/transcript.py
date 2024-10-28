@@ -1,5 +1,6 @@
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
 from rich.panel import Panel
+from rich.text import Text
 from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
@@ -12,7 +13,9 @@ from .event import render_event
 class TranscriptView(ScrollableContainer):
     def __init__(self, event_groups: list[EventGroup]) -> None:
         panels = [event_group_panel(group) for group in event_groups]
-        widgets = [Static(panel) for panel in panels if panel is not None]
+        widgets = [
+            Static(Group(panel, Text())) for panel in panels if panel is not None
+        ]
         super().__init__(*widgets)
 
 
