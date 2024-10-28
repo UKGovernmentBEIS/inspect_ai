@@ -1,9 +1,9 @@
-from rich.align import AlignMethod
-from rich.box import ROUNDED, Box
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.panel import Panel
 from textual.containers import ScrollableContainer
 from textual.widgets import Static
+
+from inspect_ai._util.transcript import TranscriptPanel
 
 from ...core.group import EventGroup
 from .event import event_group_display
@@ -23,16 +23,6 @@ def event_group_panel(group: EventGroup) -> Panel | None:
     if display is None:
         return None
 
-    # handle level
-    if group.level == 1:
-        title = f"[bold][blue]{display.title}[/blue][/bold]"
-        title_align: AlignMethod = "left"
-        box = ROUNDED
-    else:
-        title = f"[bold]{display.title}[/bold]"
-        title_align = "center"
-        box = LINE
-
     # content group
     content: list[RenderableType] = []
     if display.content:
@@ -46,13 +36,4 @@ def event_group_panel(group: EventGroup) -> Panel | None:
                 content.append(child_panel)
 
     # create panel
-    return Panel(
-        renderable=Group(*content, fit=False),
-        title=title,
-        title_align=title_align,
-        box=box,
-        expand=True,
-    )
-
-
-LINE: Box = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+    return TranscriptPanel(title=display.title, content=content, level=group.level)

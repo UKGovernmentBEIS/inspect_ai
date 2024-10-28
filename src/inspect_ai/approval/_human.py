@@ -5,10 +5,11 @@ from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.text import Text
 
+from inspect_ai._util.transcript import TranscriptPanel
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.util._console import input_screen
-from inspect_ai.util._trace import TracePanel, trace_enabled
+from inspect_ai.util._trace import trace_enabled
 
 from ._approval import Approval, ApprovalDecision
 from ._approver import Approver
@@ -65,7 +66,7 @@ def human_approver(
                 add_view_content(view.call)
                 renderables.append(Text())
 
-            console.print(TracePanel(title="Approve Tool", content=renderables))
+            console.print(TranscriptPanel(title="Approve Tool", content=renderables))
 
             # provide choices
             prompts: dict[str, str] = {}
