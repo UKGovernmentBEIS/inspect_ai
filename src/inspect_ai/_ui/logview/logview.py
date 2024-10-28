@@ -10,8 +10,21 @@ from ..widgets import TranscriptView
 # textual console
 # textual run --dev inspect_ai._ui.logview.logview:LogviewApp
 
+# Active Samples   | Sample
+# ---------------- | ----------------------------------------
+# task A           | [Raise Error] [Score Incorrect]
+#   sample 1 [g/t] | ----------------------------------------
+#   sample 2       |
+# task B           | Transcript (events)
+#   sample 1       |
+#                  |
+
 
 class LogviewApp(App[None]):
+    TITLE = "Active Samples"
+    CSS_PATH = "logview.tcss"
+    BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
+
     def __init__(
         self, log_file: str | None = None, sample: str | None = None, epoch: int = 1
     ) -> None:
@@ -35,9 +48,6 @@ class LogviewApp(App[None]):
         self.event_groups = group_events(
             resolve_sample_attachments(self.eval_sample).events
         )
-
-    CSS_PATH = "logview.tcss"
-    BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
 
     def compose(self) -> ComposeResult:
         yield Header(classes="header")
