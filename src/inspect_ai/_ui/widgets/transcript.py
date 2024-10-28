@@ -7,10 +7,10 @@ from textual.widgets import Static
 
 from inspect_ai.log._transcript import StepEvent
 
-from ...core.group import EventGroup
+from ..core.group import EventGroup
 
 
-class EventGroupsView(ScrollableContainer):
+class TranscriptView(ScrollableContainer):
     def __init__(self, event_groups: list[EventGroup]) -> None:
         super().__init__(*[Static(EventGroupPanel(group)) for group in event_groups])
 

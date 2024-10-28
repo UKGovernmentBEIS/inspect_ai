@@ -5,7 +5,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
 
 from ..core.group import group_events
-from ..widgets import EventGroupsView
+from ..widgets.transcript import TranscriptView
 
 # textual console
 # textual run --dev inspect_ai._ui.logview.logview:LogviewApp
@@ -42,7 +42,7 @@ class LogviewApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header(classes="header")
         yield Footer()
-        yield EventGroupsView(self.event_groups)
+        yield TranscriptView(self.event_groups)
 
     def action_toggle_dark(self) -> None:
         self.dark = not self.dark
