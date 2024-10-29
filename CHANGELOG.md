@@ -9,6 +9,7 @@
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
 - Don't include package scope for task name part of log files.
+- Improve performance of write_file for Docker sandboxes.
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
 
