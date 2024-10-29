@@ -133,6 +133,11 @@ async def eval_run(
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
 
+                # add sample ids to dataset if they aren't there (start at 1 not 0)
+                for id, sample in enumerate(task.dataset):
+                    if sample.id is None:
+                        sample.id = id + 1
+
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,

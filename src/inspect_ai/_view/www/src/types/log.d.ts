@@ -19,6 +19,7 @@ export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
+export type SampleIds = (number | string)[] | null;
 export type Shuffled = boolean | null;
 /**
  * @minItems 1
@@ -400,6 +401,7 @@ export interface EvalDataset {
   name: Name;
   location: Location;
   samples: Samples;
+  sample_ids: SampleIds;
   shuffled: Shuffled;
 }
 export interface ModelArgs {}
