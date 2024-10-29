@@ -5,7 +5,6 @@ import "prismjs";
 import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
-// @ts-ignore
 import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
