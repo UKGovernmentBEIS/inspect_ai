@@ -307,7 +307,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
         )
 
-        parent = Path(file).parent.as_posix()
+        parent = PurePosixPath(file).parent
 
         # We do these steps in a shell script for efficiency to avoid round-trips to docker.
         res_cp = await self.exec(
