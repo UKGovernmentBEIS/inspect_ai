@@ -20,7 +20,10 @@ def transcript_panel(
     else:
         title = f"[bold]{title}[/bold]"
         title_align = "center"
-        box = LINE
+        if level == 2:
+            box = LINE
+        else:
+            box = DOTTED
 
     # resolve content to list
     content = content if isinstance(content, list) else [content]
@@ -34,7 +37,6 @@ def transcript_panel(
     for c in content:
         if isinstance(c, Markdown):
             c.code_theme = "xcode"
-
     return Panel(
         Group(*content),
         title=title,
@@ -45,4 +47,6 @@ def transcript_panel(
     )
 
 
-LINE: Box = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+
+DOTTED = Box(" ·· \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
