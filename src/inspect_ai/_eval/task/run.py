@@ -70,6 +70,7 @@ from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
 from ..task import Task
+from .dataset import dataset_with_ids
 from .error import SampleErrorHandler
 from .generate import task_generate
 from .images import (
@@ -537,18 +538,8 @@ async def resolve_dataset(
     message_limit: int | None,
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
-    # apply limit to dataset
-    dataset_limit = (
-        slice(0, len(dataset))
-        if limit is None
-        else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
-    )
-    dataset = dataset[dataset_limit]
-
-    # add sample ids to dataset if they aren't there (start at 1 not 0)
-    for id, sample in zip(range(dataset_limit.start, dataset_limit.stop), dataset):
-        if sample.id is None:
-            sample.id = id + 1
+    # ensure ids
+    dataset = dataset_with_ids(dataset, limit)
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []

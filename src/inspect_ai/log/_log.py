@@ -379,6 +379,9 @@ class EvalDataset(BaseModel):
     samples: int | None = Field(default=None)
     """Number of samples in the dataset."""
 
+    sample_ids: list[int | str] | None = Field(default=None)
+    """IDs of samples in the dataset."""
+
     shuffled: bool | None = Field(default=None)
     """Was the dataset shuffled after reading."""
 

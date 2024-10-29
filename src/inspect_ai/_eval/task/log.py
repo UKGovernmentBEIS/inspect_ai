@@ -1,5 +1,5 @@
 from importlib import metadata as importlib_metadata
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 
@@ -37,6 +37,8 @@ from inspect_ai.model._model import model_usage
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+from .dataset import dataset_with_ids
 
 
 class TaskLogger:
@@ -79,6 +81,10 @@ class TaskLogger:
                 sandbox.type, cwd_relative_path(sandbox.config)
             )
 
+        # ensure that the dataset has sample ids and record them
+        dataset = dataset_with_ids(dataset, eval_config.limit)
+        sample_ids = cast(list[int | str], [sample.id for sample in dataset])
+
         # create eval spec
         self.eval = EvalSpec(
             run_id=run_id,
@@ -98,6 +104,7 @@ class TaskLogger:
                 name=dataset.name,
                 location=cwd_relative_path(dataset.location),
                 samples=len(dataset),
+                sample_ids=sample_ids,
                 shuffled=dataset.shuffled,
             ),
             sandbox=sandbox,
