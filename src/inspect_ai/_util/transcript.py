@@ -5,6 +5,12 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
+MARKDOWN_CODE_THEME = "xcode"
+
+
+def transcript_markdown(content: str) -> Markdown:
+    return Markdown(content, code_theme=MARKDOWN_CODE_THEME)
+
 
 def transcript_panel(
     title: str,
@@ -33,10 +39,10 @@ def transcript_panel(
         content.insert(0, Text())
         content.insert(0, Text.from_markup(f"[bold]{subtitle}[/bold]"))
 
-    # use vs theme for markdown code
+    # use xcode theme for markdown code
     for c in content:
         if isinstance(c, Markdown):
-            c.code_theme = "xcode"
+            c.code_theme = MARKDOWN_CODE_THEME
     return Panel(
         Group(*content),
         title=title,

@@ -1,8 +1,8 @@
 from typing import Any, Callable, NamedTuple, Type
 
+from pydantic_core import to_json, to_jsonable_python
 from rich.console import Group, RenderableType
 from rich.json import JSON
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -10,7 +10,7 @@ from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.transcript import transcript_panel
+from inspect_ai._util.transcript import transcript_markdown, transcript_panel
 from inspect_ai.log._transcript import (
     ErrorEvent,
     Event,
@@ -20,6 +20,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     ScoreEvent,
     StepEvent,
+    SubtaskEvent,
     ToolEvent,
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -131,12 +132,11 @@ def render_tool_event(event: ToolEvent) -> EventDisplay:
     content: list[RenderableType] = []
     if event.view:
         if event.view.format == "markdown":
-            content.append(Markdown(event.view.content))
+            content.append(transcript_markdown(event.view.content))
         else:
             content.append(event.view.content)
     else:
-        call = format_function_call(event.function, event.arguments)
-        content.append(Markdown("```python\n" + call + "\n```\n"))
+        content.append(render_function_call(event.function, event.arguments))
     content.append(Text())
 
     # render the output
@@ -168,19 +168,27 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
     table.add_column("", justify="left")
     table.add_row("Target", str(event.target).strip())
     if event.score.answer:
-        table.add_row("Answer", Markdown(event.score.answer))
+        table.add_row("Answer", transcript_markdown(event.score.answer))
     table.add_row("Score", str(event.score.value).strip())
     if event.score.explanation:
-        table.add_row("Explanation", Markdown(event.score.explanation))
+        table.add_row("Explanation", transcript_markdown(event.score.explanation))
 
     return EventDisplay("score", table)
 
 
+def render_subtask_event(event: SubtaskEvent) -> EventDisplay:
+    content: list[RenderableType] = [render_function_call(event.name, event.input)]
+    content.append(Text())
+    content.append(render_as_json(event.result))
+
+    return EventDisplay(f"subtask: {event.name}", Group(*content))
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
-        content: RenderableType = Markdown(event.data)
+        content: RenderableType = transcript_markdown(event.data)
     else:
-        content = JSON.from_data(event.data)
+        content = render_as_json(event.data)
     return EventDisplay("info", content)
 
 
@@ -194,6 +202,19 @@ def render_logger_event(event: LoggerEvent) -> EventDisplay:
 
 def render_error_event(event: ErrorEvent) -> EventDisplay:
     return EventDisplay("error", event.error.traceback.strip())
+
+
+def render_function_call(function: str, arguments: dict[str, Any]) -> RenderableType:
+    call = format_function_call(function, arguments)
+    return transcript_markdown("```python\n" + call + "\n```\n")
+
+
+def render_as_json(json: Any) -> RenderableType:
+    return transcript_markdown(
+        "```json\n"
+        + to_json(json, indent=2, fallback=lambda _: None).decode()
+        + "\n```\n"
+    )
 
 
 def render_message(message: ChatMessage) -> list[RenderableType]:
@@ -217,6 +238,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (StepEvent, render_step_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
+    (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
     (InfoEvent, render_info_event),
     (LoggerEvent, render_logger_event),
@@ -235,4 +257,4 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
 # | LoggerEvent     [DONE]
 # | InfoEvent       [DONE]
 # | StepEvent       [DONE]
-# | SubtaskEvent,
+# | SubtaskEvent    [DONE]

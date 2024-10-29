@@ -1,6 +1,7 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 
+from inspect_ai._ui.display.rich import rich_display
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
 
@@ -30,6 +31,9 @@ class LogviewApp(App[None]):
     ) -> None:
         # call super
         super().__init__()
+
+        # enable rich hooks
+        rich_display()
 
         # enable resolution of default log file for dev/debug
         if not log_file:
