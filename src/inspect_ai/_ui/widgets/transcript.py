@@ -8,9 +8,11 @@ from rich.text import Text
 from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.transcript import transcript_markdown, transcript_panel
 from inspect_ai.log._transcript import (
+    ApprovalEvent,
     ErrorEvent,
     Event,
     InfoEvent,
@@ -25,6 +27,7 @@ from inspect_ai.log._transcript import (
 )
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
+from inspect_ai.tool._tool import ToolResult
 
 from ..core.group import EventGroup
 
@@ -140,7 +143,17 @@ def render_tool_event(event: ToolEvent) -> EventDisplay:
     content.append(Text())
 
     # render the output
-    content.append(str(event.result).strip())
+    if isinstance(event.result, list):
+        result: ToolResult = "\n".join(
+            [
+                content.text
+                for content in event.result
+                if isinstance(content, ContentText)
+            ]
+        )
+    else:
+        result = event.result
+    content.append(transcript_markdown(str(result)))
 
     return EventDisplay("tool call", Group(*content))
 
@@ -186,6 +199,14 @@ def render_subtask_event(event: SubtaskEvent) -> EventDisplay:
 
 def render_input_event(event: InputEvent) -> EventDisplay:
     return EventDisplay("input", Text.from_ansi(event.input_ansi.strip()))
+
+
+def render_approval_event(event: ApprovalEvent) -> EventDisplay:
+    content: list[RenderableType] = [
+        f"[bold]{event.approver}[/bold]: {event.decision} ({event.explanation})"
+    ]
+
+    return EventDisplay("approval", Group(*content))
 
 
 def render_info_event(event: InfoEvent) -> EventDisplay:
@@ -245,6 +266,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),
+    (ApprovalEvent, render_approval_event),
     (InfoEvent, render_info_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
@@ -255,7 +277,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
 # | StoreEvent      [DONE]
 # | ModelEvent      [DONE]
 # | ToolEvent       [DONE]
-# | ApprovalEvent
+# | ApprovalEvent   [DONE]
 # | InputEvent      [DONE]
 # | ScoreEvent      [DONE]
 # | ErrorEvent      [DONE]
