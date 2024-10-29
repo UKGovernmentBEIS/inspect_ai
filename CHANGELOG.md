@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
+- [Grok](https://docs.x.ai/) model provider.
+- Extensions: correctly load extensions in packages where package name differs from dist name.
+- Write custom tool call views into transcript for use by Inspect View.
+- Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
+- OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
+- Don't include package scope for task name part of log files.
+- Use user_data_dir rather than user_runtime_dir for view notifications.
+- Implement `read_eval_log_sample()` for JSON log files.
+
+## v0.3.42 (23 October 2024)
+
 - [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Added `--tags` option to eval for tagging evaluation runs.
+- Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
 - Cleanup Docker Containers immediately for samples with errors.
 - Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).

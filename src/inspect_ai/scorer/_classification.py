@@ -152,7 +152,7 @@ def _normalize(answer: str) -> str:
     tokens = []
     tokenized_answer = _tokenize(answer)
     for token in tokenized_answer:
-        token = _remove_punc(token.lower())
+        token = _remove_punc(token.casefold())
         token = _normalize_number(token)
         token = _remove_articles(token)
         token = _normalize_whitespace(token)

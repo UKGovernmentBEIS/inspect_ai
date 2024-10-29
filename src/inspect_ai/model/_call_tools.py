@@ -26,7 +26,7 @@ from inspect_ai.tool._tool import (
     ToolApprovalError,
     ToolParsingError,
 )
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
@@ -131,6 +131,7 @@ async def call_tools(
                 arguments=call.arguments,
                 result=content,
                 truncated=truncated,
+                view=tool_call_view(call, tdefs),
                 error=tool_error,
                 events=transcript().events,
             )
@@ -314,6 +315,14 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return input
     else:
         return input
+
+
+def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
+    tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
+    if tool_def and tool_def.viewer:
+        return tool_def.viewer(call).call
+    else:
+        return None
 
 
 def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:

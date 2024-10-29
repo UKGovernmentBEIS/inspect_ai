@@ -271,17 +271,21 @@ def registry_log_name(o: str | object) -> str:
     return name.replace(f"{PKG_NAME}/", "", 1)
 
 
-def registry_unqualified_name(o: object | RegistryInfo) -> str:
+def registry_unqualified_name(o: str | object | RegistryInfo) -> str:
     r"""Unqualified name of object (i.e. without package prefix).
 
     Args:
-        o (object | str): Object or name to get unqualified name for
+        o (str | object | RegistryInfo): string, registry object, or RegistryInfo to get unqualified name for.
 
     Returns:
         Unqualified name of object
     """
-    info = o if isinstance(o, RegistryInfo) else registry_info(o)
-    parts = info.name.split("/")
+    if isinstance(o, str):
+        name = o
+    else:
+        info = o if isinstance(o, RegistryInfo) else registry_info(o)
+        name = info.name
+    parts = name.split("/")
     if len(parts) == 1:
         return parts[0]
     else:

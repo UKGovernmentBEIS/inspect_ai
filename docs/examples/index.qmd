@@ -1,4 +1,5 @@
 ---
+title: "Examples"
 page-layout: article
 listing:
   id: examples
@@ -23,9 +24,7 @@ aliases:
 </nav>
 
 
-# Examples {#sec-examples}
-
-The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial](#sec-tutorial) examples before exploring these.
+The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial](../tutorial.qmd) examples before exploring these.
 
 ::: {#examples}
 :::

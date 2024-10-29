@@ -1,4 +1,3 @@
-import abc
 import asyncio
 import os
 import sys
@@ -9,7 +8,7 @@ from typing import Any, Literal, Type
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -27,7 +26,7 @@ from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
-from ._transcript import EvalEvents
+from ._transcript import Event
 
 logger = getLogger(__name__)
 
@@ -134,6 +133,33 @@ class EvalSample(BaseModel):
     output: ModelOutput
     """Model output from sample."""
 
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample."""
+
+    metadata: dict[str, Any]
+    """Additional sample metadata."""
+
+    store: dict[str, Any] = Field(default_factory=dict)
+    """State at end of sample execution."""
+
+    events: list[Event] = Field(default_factory=list)
+    """Events that occurred during sample execution."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
+
+    error: EvalError | None = Field(default=None)
+    """Error that halted sample."""
+
+    attachments: dict[str, str] = Field(default_factory=dict)
+    """Attachments referenced from messages and events.
+
+    Resolve attachments for a sample (replacing attachment://* references with
+    attachment content) with the resolve_sample_attachments() function.
+    """
+
+    # deprecated properties
+
     @property
     def score(self) -> Score | None:
         """Score for sample (deprecated)."""
@@ -144,27 +170,18 @@ class EvalSample(BaseModel):
 
         return list(self.scores.values())[0] if self.scores else None
 
-    scores: dict[str, Score] | None = Field(default=None)
-    """Scores for sample."""
-
-    metadata: dict[str, Any]
-    """Additional sample metadata."""
-
-    store: dict[str, Any] = Field(default_factory=dict)
-    """State at end of sample execution."""
-
-    transcript: EvalEvents = Field(default_factory=EvalEvents)
-    """Transcript of sample events."""
-
-    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
-    """Model token usage for sample."""
-
-    error: EvalError | None = Field(default=None)
-    """Error that halted sample."""
+    @property
+    def transcript(self) -> "EvalEvents":
+        """Transcript of sample events (deprecated)."""
+        warn_once(
+            logger,
+            "EvalSample 'transcript' field is deprecated. Please use 'events' and 'attachments' fields instead.",
+        )
+        return EvalEvents(events=self.events, content=self.attachments)
 
     @model_validator(mode="before")
     @classmethod
-    def convert_score_to_scores(
+    def migrate_deprecated(
         cls: Type["EvalSample"], values: dict[str, Any]
     ) -> dict[str, Any]:
         if "score" in values:
@@ -181,10 +198,28 @@ class EvalSample(BaseModel):
             # Get rid of the 'scorer' property
             del values["score"]
 
+        if "transcript" in values:
+            # promote 'transcript' up to 'events' and 'attachments'
+            eval_events = EvalEvents(**values["transcript"])
+            values["events"] = eval_events.events
+            values["attachments"] = eval_events.content
+
+            # get rid of transcript (property accessor w/ deprecation
+            # warning will handle this)
+            del values["transcript"]
+
         return values
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalEvents(BaseModel):
+    events: list[Event] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
 
 
 class EvalPlanStep(BaseModel):
@@ -288,8 +323,22 @@ class EvalResults(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
 
-    sample_reductions: list[EvalSampleReductions] | None = Field(default=None)
-    """List of per sample scores reduced across epochs"""
+    _sample_reductions: list[EvalSampleReductions] | None = PrivateAttr(default=None)
+    """Private member to hold sample reductions"""
+
+    @property
+    def sample_reductions(self) -> list[EvalSampleReductions] | None:
+        """List of per sample scores reduced across epochs"""
+        warn_once(
+            logger,
+            "The 'sample_reductions' field is deprecated. Access reductions through the 'reductions' field on EvalLog instead.",
+        )
+        return self._sample_reductions
+
+    @sample_reductions.setter
+    def sample_reductions(self, value: list[EvalSampleReductions] | None) -> None:
+        """Set list of per sample scores reduced across epochs"""
+        self._sample_reductions = value
 
     @model_validator(mode="before")
     @classmethod
@@ -493,6 +542,9 @@ class EvalLog(BaseModel):
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
+    reductions: list[EvalSampleReductions] | None = Field(default=None)
+    """Reduced sample values"""
+
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
@@ -504,40 +556,29 @@ class EvalLog(BaseModel):
 
         return self
 
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_sample_reductions(
+        cls: Type["EvalLog"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        has_reductions = "reductions" in values
+        has_results = values.get("results", None) is not None
+        has_sample_reductions = has_results and (
+            "sample_reductions" in values["results"]
+        )
 
-LogType = Literal["plan", "sample", "score", "results", "scorer"]
+        if has_sample_reductions and not has_reductions:
+            values["reductions"] = values["results"]["sample_reductions"]
+        elif has_reductions and (has_results and not has_sample_reductions):
+            values["results"]["sample_reductions"] = values["reductions"]
+        return values
 
 
-class Recorder(abc.ABC):
-    @abc.abstractmethod
-    def log_start(self, eval: EvalSpec) -> str: ...
-
-    @abc.abstractmethod
-    def log(
-        self,
-        spec: EvalSpec,
-        type: LogType,
-        data: EvalSample | EvalPlan | EvalResults,
-        flush: bool = False,
-    ) -> None:
-        pass
-
-    @abc.abstractmethod
-    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_failure(
-        self, eval: EvalSpec, stats: EvalStats, error: EvalError
-    ) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def read_log(self, location: str) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def write_log(self, location: str, log: EvalLog) -> None: ...
-
-    @abc.abstractmethod
-    def read_latest_log(self) -> EvalLog: ...
+def sort_samples(samples: list[EvalSample]) -> None:
+    # convert into string zfilled so order is preserved
+    samples.sort(
+        key=lambda sample: (
+            sample.epoch,
+            (sample.id if isinstance(sample.id, str) else str(sample.id).zfill(20)),
+        )
+    )

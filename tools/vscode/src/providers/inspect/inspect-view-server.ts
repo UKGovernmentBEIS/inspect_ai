@@ -14,6 +14,7 @@ import { inspectBinPath } from "../../inspect/props";
 import { shQuote } from "../../core/string";
 import { spawnProcess } from "../../core/process";
 import { InspectManager } from "./inspect-manager";
+import { activeWorkspaceFolder } from "../../core/workspace";
 
 
 export class InspectViewServer implements Disposable {
@@ -65,6 +66,17 @@ export class InspectViewServer implements Disposable {
       return Number(await this.api_json(`/api/log-size/${encodeURIComponent(file)}`));
     } else {
       throw new Error("evalLogSize not implemented");
+    }
+  }
+
+  public async evalLogDelete(
+    file: string
+  ): Promise<number> {
+
+    if (this.haveInspectEvalLogFormat()) {
+      return Number(await this.api_json(`/api/log-delete/${encodeURIComponent(file)}`));
+    } else {
+      throw new Error("evalLogDelete not implemented");
     }
   }
 
@@ -125,7 +137,7 @@ export class InspectViewServer implements Disposable {
               "COLUMNS": "150",
               "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
             },
-            shell: os.platform() === "win32"
+            windowsHide: true
           };
 
           // forward output to channel and resolve promise
@@ -168,7 +180,7 @@ export class InspectViewServer implements Disposable {
 
 
   private haveInspectEvalLogFormat() {
-    return hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true);
+    return hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
   }
 
   private async api_json(path: string): Promise<string> {
@@ -247,9 +259,16 @@ function evalLogs(log_dir: Uri): Promise<string | undefined> {
   const response = withMinimumInspectVersion<string | undefined>(
     kInspectOpenInspectViewVersion,
     () => {
+      const workspaceRoot = activeWorkspaceFolder().uri;
       const logs = inspectEvalLogs(activeWorkspacePath(), log_dir);
-      const logsJson = logs ? (JSON.parse(logs) as unknown) : [];
-      return JSON.stringify({ log_dir: log_dir.toString(), files: logsJson });
+      const logsJson = (logs ? (JSON.parse(logs)) : []) as Array<{ name: string }>;
+      return JSON.stringify({
+        log_dir: log_dir.toString(true),
+        files: logsJson.map(log => ({
+          ...log,
+          name: Uri.joinPath(workspaceRoot, log.name).toString(true)
+        }))
+      });
     },
     () => {
       // Return the original log content

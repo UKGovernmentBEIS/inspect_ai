@@ -8,6 +8,7 @@ import { Disposable } from "../../core/dispose";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { workspacePath } from "../../core/path";
+import { LogviewState } from "./logview-state";
 
 
 
@@ -77,7 +78,7 @@ export class LogviewPanel extends Disposable {
     this._pmUnsubcribe.dispose();
   }
 
-  public getHtml(log_file?: Uri): string {
+  public getHtml(state: LogviewState): string {
     // read the index.html from the log view directory
     const viewDir = inspectViewPath();
     if (viewDir) {
@@ -111,10 +112,10 @@ export class LogviewPanel extends Disposable {
       // message being sent before the view itself is configured to receive messages)
       const stateMsg = {
         type: "updateState",
-        url: log_file?.toString(),
+        url: state.log_file?.toString(),
       };
       const stateScript =
-        log_file
+        state.log_file
           ? `<script id="logview-state" type="application/json">${JSON.stringify(
             stateMsg
           )}</script>`

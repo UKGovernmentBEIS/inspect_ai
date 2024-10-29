@@ -1,10 +1,13 @@
 from inspect_ai._util.error import EvalError
 
 from ._bundle import bundle_log_dir
+from ._condense import condense_sample, resolve_sample_attachments
+from ._convert import convert_eval_logs
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
     read_eval_log,
+    read_eval_log_sample,
     write_eval_log,
     write_log_dir_manifest,
 )
@@ -25,7 +28,24 @@ from ._log import (
 )
 from ._message import LoggingLevel, LoggingMessage
 from ._retry import retryable_eval_logs
-from ._transcript import Transcript, transcript
+from ._transcript import (
+    ApprovalEvent,
+    ErrorEvent,
+    Event,
+    InfoEvent,
+    InputEvent,
+    LoggerEvent,
+    ModelEvent,
+    SampleInitEvent,
+    ScoreEvent,
+    StateEvent,
+    StepEvent,
+    StoreEvent,
+    SubtaskEvent,
+    ToolEvent,
+    Transcript,
+    transcript,
+)
 
 __all__ = [
     "EvalConfig",
@@ -47,8 +67,26 @@ __all__ = [
     "LoggingMessage",
     "Transcript",
     "transcript",
+    "Event",
+    "ApprovalEvent",
+    "ErrorEvent",
+    "InfoEvent",
+    "InputEvent",
+    "LoggerEvent",
+    "ModelEvent",
+    "SampleInitEvent",
+    "ScoreEvent",
+    "StateEvent",
+    "StepEvent",
+    "StoreEvent",
+    "SubtaskEvent",
+    "ToolEvent",
+    "convert_eval_logs",
     "list_eval_logs",
     "read_eval_log",
+    "read_eval_log_sample",
+    "condense_sample",
+    "resolve_sample_attachments",
     "write_eval_log",
     "write_log_dir_manifest",
     "retryable_eval_logs",

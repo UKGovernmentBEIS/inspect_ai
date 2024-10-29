@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { useCallback } from "preact/hooks";
 import { useEffect, useMemo } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
@@ -87,16 +88,16 @@ export const SampleList = (props) => {
     }
   }, [selectedIndex, rowMap, listRef]);
 
-  const renderRow = (item, index) => {
+  const renderRow = (item) => {
     if (item.type === "sample") {
       return html`
         <${SampleRow}
           id=${item.number}
-          index=${index}
+          index=${item.index}
           sample=${item.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === index}
+          selected=${selectedIndex === item.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
@@ -115,25 +116,28 @@ export const SampleList = (props) => {
     }
   };
 
-  const onkeydown = (e) => {
-    switch (e.key) {
-      case "ArrowUp":
-        prevSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      case "ArrowDown":
-        nextSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      case "Enter":
-        showSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-    }
-  };
+  const onkeydown = useCallback(
+    (e) => {
+      switch (e.key) {
+        case "ArrowUp":
+          prevSample();
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        case "ArrowDown":
+          nextSample();
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        case "Enter":
+          showSample(selectedIndex);
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }
+    },
+    [selectedIndex],
+  );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
 
@@ -239,7 +243,6 @@ const SampleRow = ({
   sampleDescriptor,
   height,
   selected,
-  setSelected,
   showSample,
 }) => {
   const selectedStyle = selected
@@ -257,13 +260,7 @@ const SampleRow = ({
     <div
       id=${`sample-${id}`}
       onclick=${() => {
-        if (setSelected) {
-          setSelected(index);
-        }
-
-        if (showSample) {
-          showSample();
-        }
+        showSample(index);
       }}
       style=${{
         height: `${height}px`,
@@ -288,7 +285,7 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"

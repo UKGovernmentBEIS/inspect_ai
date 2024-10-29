@@ -1,4 +1,6 @@
-# Extensions {#sec-extensions}
+---
+title: Extensions 
+---
 
 ## Overview
 
@@ -105,7 +107,7 @@ eval(math, model = "custom/my-model")
 
 ## Sandboxes {#sec-sandbox-environment-extensions}
 
-[Sandbox Environments](#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
+[Sandbox Environments](agents.qmd#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
 | Environment Type | Description |
 |----------------------------|--------------------------------------------|
@@ -327,13 +329,13 @@ approvers:
 
 Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which provides support for a wide variety of filesystems, including:
 
--   [Amazon S3]((#sec-amazon-s3))
+-   [Amazon S3](https://aws.amazon.com/pm/serv-s3)
 -   [Google Cloud Storage](https://gcsfs.readthedocs.io/en/latest/)
 -   [Azure Blob Storage](https://github.com/fsspec/adlfs)
 -   [Azure Data Lake Storage](https://github.com/fsspec/adlfs)
 -   [DVC](https://dvc.org/doc/api-reference/dvcfilesystem)
 
-Support for [Amazon S3]((#sec-amazon-s3)) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
+Support for [Amazon S3](eval-logs.qmd#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
 
 See [Custom Filesystems](#sec-custom-filesystems) below for details on implementing your own fsspec compatible filesystem as a storage back-end.
 
@@ -360,7 +362,7 @@ csv_dataset("s3://inspect-datasets/ctf-12.csv")
 list_eval_logs("s3://my-s3-inspect-log-bucket")
 ```
 
-### Custom Filesystems
+### Custom Filesystems {#sec-custom-filesystems}
 
 See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/en/latest/developer.html) for details on implementing a custom filesystem. Note that if your implementation is *only* for use with Inspect, you need to implement only the subset of the fsspec API used by Inspect. The properties and methods used by Inspect include:
 

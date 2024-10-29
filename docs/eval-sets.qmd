@@ -1,9 +1,8 @@
 ---
+title: Eval Sets
 aliases: 
   - eval-suites.html
 ---
-
-# Eval Sets {#sec-eval-sets}
 
 ## Overview
 

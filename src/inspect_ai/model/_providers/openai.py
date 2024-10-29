@@ -344,9 +344,6 @@ def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
         name=tool.name,
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
-        # use strict tool calling if all params are required (OpenAI
-        # will reject strict mode if there are optional params)
-        strict=len(tool.parameters.properties) == len(tool.parameters.required),
     )
     return ChatCompletionToolParam(type="function", function=function)
 

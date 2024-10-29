@@ -1,4 +1,6 @@
-# Agents {#sec-agents}
+---
+title: Agents 
+---
 
 ## Overview
 
@@ -346,7 +348,7 @@ The following instance methods are available to tools that need to interact with
 
 {{< include _sandboxenv-interface.md >}}
 
-The sandbox is also available to custom [scorers](#sec-sandbox-access).
+The sandbox is also available to custom scorers.
 
 ### Environment Binding
 

@@ -1,42 +1,45 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from 'vscode';
-import { Uri, window } from 'vscode';
+import { Uri, commands } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
 import { HostWebviewPanel } from '../../hooks';
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { log } from '../../core/log';
+import { LogviewState } from './logview-state';
+import { dirname } from '../../core/uri';
+
+
 import { hasMinimumInspectVersion } from '../../inspect/version';
 import { kInspectEvalLogFormatVersion } from '../inspect/inspect-constants';
+
+export const kInspectLogViewType = 'inspect-ai.log-editor';
 
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   static register(
     context: vscode.ExtensionContext,
-    settings: InspectSettingsManager,
     server: InspectViewServer
   ): vscode.Disposable {
-    const provider = new InspectLogReadonlyEditor(context, settings, server);
+    const provider = new InspectLogReadonlyEditor(context, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
-      InspectLogReadonlyEditor.viewType,
+      kInspectLogViewType,
       provider,
       {
         webviewOptions: {
           retainContextWhenHidden: false
         },
-        supportsMultipleEditorsPerDocument: true
+        supportsMultipleEditorsPerDocument: false
       }
     );
     return providerRegistration;
   }
 
-  private static readonly viewType = 'inspect-ai.log-editor';
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
-    private readonly settings_: InspectSettingsManager,
     private readonly server_: InspectViewServer
   ) { }
 
@@ -56,12 +59,8 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
 
-    // check if we should use the log viewer (pref + never show files > 100mb)
-    let useLogViewer = this.settings_.getSettings().jsonLogView;
-
-    // Check for a required version
-    useLogViewer = hasMinimumInspectVersion(kInspectEvalLogFormatVersion, true);
-
+    // check if we should use the log viewer (version check + size threshold)
+    let useLogViewer = hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
     if (useLogViewer) {
       const docUri = document.uri.toString();
       if (docUri.endsWith(".json")) {
@@ -99,7 +98,11 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
       );
 
       // set html
-      webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
+      const logViewState: LogviewState = {
+        log_file: document.uri,
+        log_dir: dirname(document.uri)
+      };
+      webviewPanel.webview.html = this.logviewPanel_.getHtml(logViewState);
     } else {
       const viewColumn = webviewPanel.viewColumn;
       await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default', viewColumn);
@@ -116,7 +119,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
 export function activateLogviewEditor(
   context: vscode.ExtensionContext,
-  settings: InspectSettingsManager,
   server: InspectViewServer) {
-  context.subscriptions.push(InspectLogReadonlyEditor.register(context, settings, server));
+  context.subscriptions.push(InspectLogReadonlyEditor.register(context, server));
 }
