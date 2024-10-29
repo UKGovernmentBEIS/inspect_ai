@@ -1,8 +1,7 @@
 from typing import Any, Callable, NamedTuple, Type
 
-from pydantic_core import to_json, to_jsonable_python
+from pydantic_core import to_json
 from rich.console import Group, RenderableType
-from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
