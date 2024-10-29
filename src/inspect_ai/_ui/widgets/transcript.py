@@ -14,6 +14,7 @@ from inspect_ai.log._transcript import (
     ErrorEvent,
     Event,
     InfoEvent,
+    InputEvent,
     LoggerEvent,
     ModelEvent,
     SampleInitEvent,
@@ -183,6 +184,10 @@ def render_subtask_event(event: SubtaskEvent) -> EventDisplay:
     return EventDisplay(f"subtask: {event.name}", Group(*content))
 
 
+def render_input_event(event: InputEvent) -> EventDisplay:
+    return EventDisplay("input", Text.from_ansi(event.input_ansi.strip()))
+
+
 def render_info_event(event: InfoEvent) -> EventDisplay:
     if isinstance(event.data, str):
         content: RenderableType = transcript_markdown(event.data)
@@ -239,6 +244,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (ToolEvent, render_tool_event),
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
+    (InputEvent, render_input_event),
     (InfoEvent, render_info_event),
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
@@ -250,7 +256,7 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
 # | ModelEvent      [DONE]
 # | ToolEvent       [DONE]
 # | ApprovalEvent
-# | InputEvent
+# | InputEvent      [DONE]
 # | ScoreEvent      [DONE]
 # | ErrorEvent      [DONE]
 # | LoggerEvent     [DONE]
