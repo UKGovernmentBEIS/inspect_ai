@@ -8180,7 +8180,7 @@ const Sidebar = ({
                         >
                       </div>` : ""}
                 </div>
-                <${EvalStatus} logHeader=${logHeader} />
+                <${EvalStatus$1} logHeader=${logHeader} />
               </div>
               <div
                 style=${{
@@ -8229,15 +8229,15 @@ const prettyDir = (path) => {
     return path;
   }
 };
-const EvalStatus = ({ logHeader }) => {
+const EvalStatus$1 = ({ logHeader }) => {
   var _a2, _b2;
   switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
-      return m$1`<${StatusError} message="Error" />`;
+      return m$1`<${StatusError$1} message="Error" />`;
     case "cancelled":
-      return m$1`<${StatusCancelled} message="Cancelled" />`;
+      return m$1`<${StatusCancelled$1} message="Cancelled" />`;
     case "started":
-      return m$1`<${StatusRunning} message="Running" />`;
+      return m$1`<${StatusRunning$1} message="Running" />`;
     default:
       if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
         if (logHeader.results.scores.length === 1) {
@@ -8367,7 +8367,7 @@ const SidebarScores = ({ scores }) => {
   })}
   </div>`;
 };
-const StatusCancelled = ({ message }) => {
+const StatusCancelled$1 = ({ message }) => {
   return m$1`<div
     style=${{
     marginTop: "0.2em",
@@ -8379,7 +8379,7 @@ const StatusCancelled = ({ message }) => {
     ${message}
   </div>`;
 };
-const StatusRunning = ({ message }) => {
+const StatusRunning$1 = ({ message }) => {
   return m$1` <div
     style=${{
     display: "grid",
@@ -8394,7 +8394,7 @@ const StatusRunning = ({ message }) => {
     <div>${message}</div>
   </div>`;
 };
-const StatusError = ({ message }) => {
+const StatusError$1 = ({ message }) => {
   return m$1`<div
     style=${{
     color: "var(--bs-danger)",
@@ -25844,6 +25844,307 @@ const filterFnsForType = {
   [kScoreTypeCategorical]: filterCategory,
   [kScoreTypeNumeric]: filterText
 };
+const ListView = ({
+  rows,
+  renderer,
+  selectedIndex,
+  onSelectedIndex,
+  onShowItem,
+  style
+}) => {
+  const rowMap = T(() => {
+    return rows.reduce((values, current, index) => {
+      const previous = values.length > 0 ? values[values.length - 1] : void 0;
+      const start2 = previous === void 0 ? 0 : previous.start + previous.height;
+      values.push({
+        index,
+        height: current.height,
+        start: start2
+      });
+      return values;
+    }, []);
+  }, [rows]);
+  const previousItem = q(() => {
+    onSelectedIndex(Math.max(selectedIndex - 1, 0));
+  }, [selectedIndex, onSelectedIndex]);
+  const nextItem = q(() => {
+    onSelectedIndex(Math.min(selectedIndex + 1, rows.length));
+  }, [rows, selectedIndex, onSelectedIndex]);
+  const showItem = q(
+    (index) => {
+      onSelectedIndex(index);
+      setTimeout(() => {
+        const currentItem = rows[index].item;
+        onShowItem(currentItem);
+      }, 15);
+    },
+    [rows, selectedIndex, onShowItem, onSelectedIndex]
+  );
+  const withEventHandling = (renderer2, selectedIndex2) => {
+    return (row, index) => {
+      return m$1` <div
+        onclick=${() => {
+        showItem(index);
+      }}
+        style=${{
+        boxShadow: index === selectedIndex2 ? "inset 0 0 0px 2px var(--bs-focus-ring-color)" : void 0,
+        borderBottom: "solid 1px var(--bs-light-border-subtle)"
+      }}
+      >
+        ${renderer2(row, index)}
+      </div>`;
+    };
+  };
+  const onkeydown = q(
+    (e2) => {
+      switch (e2.key) {
+        case "ArrowUp":
+          previousItem();
+          e2.preventDefault();
+          e2.stopPropagation();
+          return false;
+        case "ArrowDown":
+          nextItem();
+          e2.preventDefault();
+          e2.stopPropagation();
+          return false;
+        case "Enter":
+          showItem(selectedIndex);
+          e2.preventDefault();
+          e2.stopPropagation();
+          return false;
+      }
+    },
+    [rows, selectedIndex]
+  );
+  return m$1` <${VirtualList}
+    data=${rows}
+    rowMap=${rowMap}
+    renderRow=${withEventHandling(renderer, selectedIndex)}
+    style=${style}
+    onkeydown=${onkeydown}
+  />`;
+};
+const kRowHeight = 65;
+const TaskList = ({
+  logs,
+  logHeaders,
+  selectedIndex,
+  onSelectedIndex,
+  onShowLog,
+  style
+}) => {
+  const listRef = A();
+  const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const [visibleLogs, setVisibleLogs] = h([]);
+  y(() => {
+    const visible = [];
+    for (const log of logs.files) {
+      const headers = logHeaders[log.name];
+      if (headers) {
+        visible.push(headers);
+      }
+    }
+    setVisibleLogs(visible);
+  }, [logs, logHeaders]);
+  const [rows, setRows] = h([]);
+  y(() => {
+    setRows(
+      visibleLogs.map((visibleLog, index) => {
+        return {
+          item: visibleLog,
+          height: kRowHeight,
+          index
+        };
+      })
+    );
+  }, [visibleLogs]);
+  const configStr = (config2, taskArgs) => {
+    const hyperparameters = {
+      ...config2,
+      ...taskArgs
+    };
+    return Object.keys(hyperparameters).map((param) => {
+      return `${param}=${hyperparameters[param]}`;
+    }).join(", ");
+  };
+  const renderRow = (row) => {
+    return m$1` <div
+      style=${{
+      display: "grid",
+      gridTemplateColumns: "3fr 1fr",
+      width: "100%",
+      height: `${row.height}px`,
+      padding: "0.5em"
+    }}
+      tabindex="0"
+    >
+      <div
+        style=${{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      columnGap: "1em"
+    }}
+      >
+        <div
+          style=${{
+      gridColumn: "1",
+      fontSize: FontSize.large,
+      fontWeight: 600
+    }}
+        >
+          ${row.item.eval.task}
+        </div>
+        <div style=${{ gridColumn: "2", fontSize: FontSize.base }}>
+          ${new Date(row.item.eval.created).toLocaleString()}
+        </div>
+        <div style=${{ gridColumn: "1/-1", fontSize: FontSize.small }}>
+          ${row.item.eval.model}:
+          ${configStr(row.item.eval.config, row.item.eval.task_args)}
+        </div>
+      </div>
+      <div>
+        <${EvalStatus} logHeader=${row.item} />
+      </div>
+    </div>`;
+  };
+  return m$1`
+    <${ListView}
+      ref=${listRef}
+      rows=${rows}
+      renderer=${renderRow}
+      selectedIndex=${selectedIndex}
+      onSelectedIndex=${onSelectedIndex}
+      onShowItem=${onShowLog}
+      tabIndex="0"
+      style=${listStyle}
+    />
+  `;
+};
+const EvalStatus = ({ logHeader }) => {
+  var _a2;
+  switch (logHeader == null ? void 0 : logHeader.status) {
+    case "error":
+      return m$1`<${StatusError} message="Error" />`;
+    case "cancelled":
+      return m$1`<${StatusCancelled} message="Cancelled" />`;
+    case "started":
+      return m$1`<${StatusRunning} message="Running" />`;
+    default:
+      if ((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) {
+        return m$1`<${Scores} scores=${logHeader.results.scores} />`;
+      } else {
+        return "";
+      }
+  }
+};
+const Scores = ({ scores }) => {
+  return m$1`<div
+    style=${{
+    display: "flex",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    rowGap: "1em"
+  }}
+  >
+    ${scores.map((score) => {
+    const name = score.name;
+    const reducer = score.reducer;
+    return m$1`
+        <div
+          style=${{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      marginLeft: "1em"
+    }}
+        >
+          <div
+            style=${{
+      fontSize: FontSize.base,
+      width: "100%",
+      fontWeight: 300,
+      borderBottom: "solid var(--bs-border-color) 1px",
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >
+            ${name}
+          </div>
+          ${reducer ? m$1` <div
+                style=${{
+      fontSize: FontSize.smaller,
+      width: "100%",
+      fontWeight: 300
+    }}
+              >
+                ${reducer}
+              </div>` : ""}
+          <div
+            style=${{
+      fontSize: FontSize.smaller,
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      gridGap: "0 0.3rem"
+    }}
+          >
+            ${Object.keys(score.metrics).map((key2) => {
+      const metric = score.metrics[key2];
+      return m$1` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
+                <div style=${{ fontWeight: "600" }}>
+                  ${formatPrettyDecimal(metric.value)}
+                </div>`;
+    })}
+          </div>
+        </div>
+      `;
+  })}
+  </div>`;
+};
+const StatusCancelled = ({ message }) => {
+  return m$1`<div
+    style=${{
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  }}
+  >
+    ${message}
+  </div>`;
+};
+const StatusRunning = ({ message }) => {
+  return m$1` <div
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "0.5em",
+    marginTop: "0.3em",
+    fontSize: FontSize.small,
+    ...TextStyle.secondary,
+    ...TextStyle.label
+  }}
+  >
+    <div>${message}</div>
+  </div>`;
+};
+const StatusError = ({ message }) => {
+  return m$1`<div
+    style=${{
+    color: "var(--bs-danger)",
+    marginTop: "0.2em",
+    fontSize: FontSize.small,
+    ...TextStyle.label
+  }}
+  >
+    ${message}
+  </div>`;
+};
 function App({
   api: api2,
   initialState: initialState2 = void 0,
@@ -26462,52 +26763,57 @@ function App({
       ${status.error ? m$1`<${ErrorPanel}
               title="An error occurred while loading this task."
               error=${status.error}
-            />` : m$1`<${TaskView}
-              task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
-              logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-              evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
-              evalError=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error}
-              evalVersion=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version}
-              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
-              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
-              evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
-              evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
-              showToggle=${showToggle}
-              samples=${filteredSamples}
-              sampleMode=${sampleMode}
-              groupBy=${groupBy}
-              groupByOrder=${groupByOrder}
-              sampleStatus=${sampleStatus}
-              sampleError=${sampleError}
-              samplesDescriptor=${samplesDescriptor}
-              refreshLog=${refreshLog}
-              offcanvas=${offcanvas}
-              capabilities=${capabilities}
-              selected=${selectedLogIndex}
-              selectedSample=${selectedSample}
-              selectedSampleIndex=${selectedSampleIndex}
-              setSelectedSampleIndex=${setSelectedSampleIndex}
-              showingSampleDialog=${showingSampleDialog}
-              setShowingSampleDialog=${handleSampleShowingDialog}
-              selectedTab=${selectedWorkspaceTab}
-              setSelectedTab=${setSelectedWorkspaceTab}
-              selectedSampleTab=${selectedSampleTab}
-              setSelectedSampleTab=${setSelectedSampleTab}
-              sort=${sort}
-              setSort=${setSort}
-              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
-              epoch=${epoch}
-              setEpoch=${setEpoch}
-              filter=${filter}
-              setFilter=${setFilter}
-              score=${score}
-              setScore=${setScore}
-              scores=${scores}
-              sampleScrollPositionRef=${sampleScrollPosition}
-              setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
-              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
-            />`}
+            />` : selectedLog.contents === void 0 ? m$1`<${TaskList}
+                logs=${logs}
+                logHeaders=${logHeaders}
+                selectedIndex=${selectedLogIndex}
+                onSelectedIndex=${setSelectedLogIndex}
+              />` : m$1`<${TaskView}
+                task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
+                logFileName=${selectedLog == null ? void 0 : selectedLog.name}
+                evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
+                evalError=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error}
+                evalVersion=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version}
+                evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
+                evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
+                evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
+                evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
+                showToggle=${showToggle}
+                samples=${filteredSamples}
+                sampleMode=${sampleMode}
+                groupBy=${groupBy}
+                groupByOrder=${groupByOrder}
+                sampleStatus=${sampleStatus}
+                sampleError=${sampleError}
+                samplesDescriptor=${samplesDescriptor}
+                refreshLog=${refreshLog}
+                offcanvas=${offcanvas}
+                capabilities=${capabilities}
+                selected=${selectedLogIndex}
+                selectedSample=${selectedSample}
+                selectedSampleIndex=${selectedSampleIndex}
+                setSelectedSampleIndex=${setSelectedSampleIndex}
+                showingSampleDialog=${showingSampleDialog}
+                setShowingSampleDialog=${handleSampleShowingDialog}
+                selectedTab=${selectedWorkspaceTab}
+                setSelectedTab=${setSelectedWorkspaceTab}
+                selectedSampleTab=${selectedSampleTab}
+                setSelectedSampleTab=${setSelectedSampleTab}
+                sort=${sort}
+                setSort=${setSort}
+                epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
+                epoch=${epoch}
+                setEpoch=${setEpoch}
+                filter=${filter}
+                setFilter=${setFilter}
+                score=${score}
+                setScore=${setScore}
+                scores=${scores}
+                sampleScrollPositionRef=${sampleScrollPosition}
+                setSampleScrollPosition=${setSampleScrollPosition}
+                workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+                setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+              />`}
     </div>
     ${afterBodyElements}
     </${AppErrorBoundary}>

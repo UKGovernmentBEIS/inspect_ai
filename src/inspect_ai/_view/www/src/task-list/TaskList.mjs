@@ -21,7 +21,7 @@ const kRowHeight = 65;
  *
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
-export const EvalList = ({
+export const TaskList = ({
   logs,
   logHeaders,
   selectedIndex,

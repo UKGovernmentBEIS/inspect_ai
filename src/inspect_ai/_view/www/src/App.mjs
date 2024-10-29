@@ -34,6 +34,7 @@ import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
 import { filterFnForType } from "./samples/tools/filters.mjs";
+import { TaskList } from "./task-list/TaskList.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -869,52 +870,59 @@ export function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />`
-          : html`<${TaskView}
-              task_id=${selectedLog?.contents?.eval?.task_id}
-              logFileName=${selectedLog?.name}
-              evalStatus=${selectedLog?.contents?.status}
-              evalError=${selectedLog?.contents?.error}
-              evalVersion=${selectedLog?.contents?.version}
-              evalSpec=${selectedLog?.contents?.eval}
-              evalPlan=${selectedLog?.contents?.plan}
-              evalStats=${selectedLog?.contents?.stats}
-              evalResults=${selectedLog?.contents?.results}
-              showToggle=${showToggle}
-              samples=${filteredSamples}
-              sampleMode=${sampleMode}
-              groupBy=${groupBy}
-              groupByOrder=${groupByOrder}
-              sampleStatus=${sampleStatus}
-              sampleError=${sampleError}
-              samplesDescriptor=${samplesDescriptor}
-              refreshLog=${refreshLog}
-              offcanvas=${offcanvas}
-              capabilities=${capabilities}
-              selected=${selectedLogIndex}
-              selectedSample=${selectedSample}
-              selectedSampleIndex=${selectedSampleIndex}
-              setSelectedSampleIndex=${setSelectedSampleIndex}
-              showingSampleDialog=${showingSampleDialog}
-              setShowingSampleDialog=${handleSampleShowingDialog}
-              selectedTab=${selectedWorkspaceTab}
-              setSelectedTab=${setSelectedWorkspaceTab}
-              selectedSampleTab=${selectedSampleTab}
-              setSelectedSampleTab=${setSelectedSampleTab}
-              sort=${sort}
-              setSort=${setSort}
-              epochs=${selectedLog?.contents?.eval?.config?.epochs}
-              epoch=${epoch}
-              setEpoch=${setEpoch}
-              filter=${filter}
-              setFilter=${setFilter}
-              score=${score}
-              setScore=${setScore}
-              scores=${scores}
-              sampleScrollPositionRef=${sampleScrollPosition}
-              setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
-              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
-            />`
+          : selectedLog.contents === undefined
+            ? html`<${TaskList}
+                logs=${logs}
+                logHeaders=${logHeaders}
+                selectedIndex=${selectedLogIndex}
+                onSelectedIndex=${setSelectedLogIndex}
+              />`
+            : html`<${TaskView}
+                task_id=${selectedLog?.contents?.eval?.task_id}
+                logFileName=${selectedLog?.name}
+                evalStatus=${selectedLog?.contents?.status}
+                evalError=${selectedLog?.contents?.error}
+                evalVersion=${selectedLog?.contents?.version}
+                evalSpec=${selectedLog?.contents?.eval}
+                evalPlan=${selectedLog?.contents?.plan}
+                evalStats=${selectedLog?.contents?.stats}
+                evalResults=${selectedLog?.contents?.results}
+                showToggle=${showToggle}
+                samples=${filteredSamples}
+                sampleMode=${sampleMode}
+                groupBy=${groupBy}
+                groupByOrder=${groupByOrder}
+                sampleStatus=${sampleStatus}
+                sampleError=${sampleError}
+                samplesDescriptor=${samplesDescriptor}
+                refreshLog=${refreshLog}
+                offcanvas=${offcanvas}
+                capabilities=${capabilities}
+                selected=${selectedLogIndex}
+                selectedSample=${selectedSample}
+                selectedSampleIndex=${selectedSampleIndex}
+                setSelectedSampleIndex=${setSelectedSampleIndex}
+                showingSampleDialog=${showingSampleDialog}
+                setShowingSampleDialog=${handleSampleShowingDialog}
+                selectedTab=${selectedWorkspaceTab}
+                setSelectedTab=${setSelectedWorkspaceTab}
+                selectedSampleTab=${selectedSampleTab}
+                setSelectedSampleTab=${setSelectedSampleTab}
+                sort=${sort}
+                setSort=${setSort}
+                epochs=${selectedLog?.contents?.eval?.config?.epochs}
+                epoch=${epoch}
+                setEpoch=${setEpoch}
+                filter=${filter}
+                setFilter=${setFilter}
+                score=${score}
+                setScore=${setScore}
+                scores=${scores}
+                sampleScrollPositionRef=${sampleScrollPosition}
+                setSampleScrollPosition=${setSampleScrollPosition}
+                workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+                setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+              />`
       }
     </div>
     ${afterBodyElements}
