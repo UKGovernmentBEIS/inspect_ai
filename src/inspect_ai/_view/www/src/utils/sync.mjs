@@ -19,7 +19,7 @@ export function sleep(ms) {
  * @param {Object} [options] - The options object.
  * @param {boolean} [options.leading=true] - If `false`, the function will not be invoked on the leading edge.
  * @param {boolean} [options.trailing=true] - If `false`, the function will not be invoked on the trailing edge.
- * @returns {Function} - The throttled function.
+ * @returns {() => void} - The throttled function.
  */
 export function throttle(func, wait, options) {
   var context, args, result;

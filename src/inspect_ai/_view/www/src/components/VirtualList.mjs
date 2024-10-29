@@ -4,6 +4,22 @@ import { html, Component } from "htm/preact";
 import { createRef } from "preact";
 import { throttle } from "../utils/sync.mjs";
 
+/**
+ * @typedef {Object} RowDescriptor
+ * @property {number} index - The index of the current file in the list.
+ * @property {number} height - The height of the row, defined by `kRowHeight`.
+ * @property {number} start - The starting position of the row, calculated based on the previous row.
+ */
+
+/**
+ * @template T
+ * @callback RowRenderer
+ * A function that renders a single row in the virtualized list.
+ * @param {T} item - The data item corresponding to the row.
+ * @param {number} index - The index of the current row.
+ * @returns {import('preact').JSX.Element} A JSX element representing the row.
+ */
+
 const STYLE_INNER =
   "position:relative; overflow:hidden; width:100%; min-height:100%;";
 const STYLE_CONTENT =
@@ -21,6 +37,11 @@ export class VirtualList extends Component {
     this.containerRef = createRef();
   }
 
+  /**
+   * Resizes the component based on the current height of the container.
+   * Updates the height state if the container height has changed.
+   * @private
+   */
   resize() {
     if (this.state.height !== this.base.offsetHeight) {
       this.setState({ height: this.base.offsetHeight });
@@ -88,7 +109,7 @@ export class VirtualList extends Component {
           ${selection.map((item, index) => {
             const component = renderRow(item, start + index);
 
-            return html` <div key=${`list-item-${start + index}`}>
+            return html`<div key=${`list-item-${start + index}`}>
               ${component}
             </div>`;
           })}

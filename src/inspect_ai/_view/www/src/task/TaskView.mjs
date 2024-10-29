@@ -79,7 +79,7 @@ import { debounce } from "../utils/sync.mjs";
  * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
-export const WorkSpace = ({
+export const TaskView = ({
   task_id,
   evalStatus,
   logFileName,

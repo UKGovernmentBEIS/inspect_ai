@@ -108,6 +108,7 @@
  * @property {string} error
  * @property {string} expand-all
  * @property {string} expand-down
+ * @property {string} folder
  * @property {string} fork
  * @property {string} info
  * @property {string} input
@@ -180,6 +181,7 @@ export const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",

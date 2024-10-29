@@ -25,7 +25,7 @@ import { ErrorPanel } from "./components/ErrorPanel.mjs";
 import { ProgressBar } from "./components/ProgressBar.mjs";
 
 import { Sidebar } from "./sidebar/Sidebar.mjs";
-import { WorkSpace } from "./workspace/WorkSpace.mjs";
+import { TaskView } from "./task/TaskView.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
@@ -869,7 +869,7 @@ export function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />`
-          : html`<${WorkSpace}
+          : html`<${TaskView}
               task_id=${selectedLog?.contents?.eval?.task_id}
               logFileName=${selectedLog?.name}
               evalStatus=${selectedLog?.contents?.status}

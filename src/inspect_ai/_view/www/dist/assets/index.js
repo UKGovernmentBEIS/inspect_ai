@@ -7811,6 +7811,7 @@ const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  folder: "bi bi-folder",
   fork: "bi bi-signpost-split",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
@@ -15153,7 +15154,17 @@ const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
 const resolveToolInput = (fn2, toolArgs) => {
   const toolName = fn2;
   const [inputKey, inputType] = extractInputMetadata(toolName);
-  const { input, args } = extractInput(inputKey, toolArgs);
+  const parseInput = () => {
+    if (inputKey) {
+      return extractInput(inputKey, toolArgs);
+    } else {
+      return {
+        input: void 0,
+        args: []
+      };
+    }
+  };
+  const { input, args } = parseInput();
   const functionCall = args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
   return {
     functionCall,
@@ -20376,6 +20387,11 @@ class VirtualList extends k$1 {
     this.handleScroll = throttle(this.handleScroll.bind(this), 100);
     this.containerRef = m$2();
   }
+  /**
+   * Resizes the component based on the current height of the container.
+   * Updates the height state if the container height has changed.
+   * @private
+   */
   resize() {
     if (this.state.height !== this.base.offsetHeight) {
       this.setState({ height: this.base.offsetHeight });
@@ -20423,7 +20439,7 @@ class VirtualList extends k$1 {
         <div style=${`${STYLE_CONTENT} top:${top2}px;`} ref=${this.containerRef}>
           ${selection.map((item, index) => {
       const component = renderRow(item, start2 + index);
-      return m$1` <div key=${`list-item-${start2 + index}`}>
+      return m$1`<div key=${`list-item-${start2 + index}`}>
               ${component}
             </div>`;
     })}
@@ -24694,7 +24710,7 @@ const TaskErrorCard = ({ evalError }) => {
     </${Card}>
   `;
 };
-const WorkSpace = ({
+const TaskView = ({
   task_id,
   evalStatus,
   logFileName,
@@ -26446,7 +26462,7 @@ function App({
       ${status.error ? m$1`<${ErrorPanel}
               title="An error occurred while loading this task."
               error=${status.error}
-            />` : m$1`<${WorkSpace}
+            />` : m$1`<${TaskView}
               task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
               logFileName=${selectedLog == null ? void 0 : selectedLog.name}
               evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
