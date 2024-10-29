@@ -38,8 +38,6 @@ from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
-from .dataset import dataset_with_ids
-
 
 class TaskLogger:
     def __init__(
@@ -82,7 +80,6 @@ class TaskLogger:
             )
 
         # ensure that the dataset has sample ids and record them
-        dataset = dataset_with_ids(dataset, eval_config.limit)
         sample_ids = cast(list[int | str], [sample.id for sample in dataset])
 
         # create eval spec
