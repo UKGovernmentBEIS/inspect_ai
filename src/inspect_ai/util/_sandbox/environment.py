@@ -166,6 +166,8 @@ class SandboxEnvironment(abc.ABC):
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         """Read a file from the sandbox environment.
 
+        File size is limited to 100 MiB.
+
         Args:
           file (str): Path to file (relative file paths will resolve to the
             per-sample working directory).
@@ -182,6 +184,8 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to read from the specified path.
           IsADirectoryError: If the file is a directory.
+          SandboxReadFileLimitExceededError: If the file size
+            exceeds the 100 MiB limit.
         """
         ...
 

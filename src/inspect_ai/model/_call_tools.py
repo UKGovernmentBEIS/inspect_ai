@@ -30,7 +30,10 @@ from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
-from inspect_ai.util import SandboxOutputLimitExceededError
+from inspect_ai.util import (
+    SandboxOutputLimitExceededError,
+    SandboxReadFileLimitExceededError,
+)
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 from ._generate_config import active_generate_config
@@ -103,6 +106,11 @@ async def call_tools(
                     f"The sandbox exec output limit of {ex.limit_str} was exceeded.",
                 )
                 result = ex.truncated_result
+            except SandboxReadFileLimitExceededError as ex:
+                tool_error = ToolCallError(
+                    "read_file_limit",
+                    f"The sandbox read file limit of {ex.limit_str} was exceeded.",
+                )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:

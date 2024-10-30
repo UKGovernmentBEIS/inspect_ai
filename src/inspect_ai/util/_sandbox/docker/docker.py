@@ -11,7 +11,7 @@ from typing_extensions import override
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import SandboxEnvironment
-from ..limits import verify_exec_result_size
+from ..limits import verify_exec_result_size, verify_read_file_size
 from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
@@ -382,6 +382,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     )
                 else:
                     raise ex
+
+            verify_read_file_size(dest_file)
 
             # read and return w/ appropriate encoding
             if text:
