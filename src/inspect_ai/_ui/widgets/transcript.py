@@ -120,7 +120,10 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
         content.extend(render_message(message))
 
     # render preceding messages
-    map(append_message, messages_preceding_assistant(event.input))
+    preceding = messages_preceding_assistant(event.input)
+    for message in preceding:
+        append_message(message)
+        content.append(Text())
 
     # display assistant message (note that we don't render tool calls
     # because they will be handled as part of render_tool)
@@ -248,7 +251,7 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
         Text(),
     ]
     if message.text:
-        content.extend([Text(message.text)])
+        content.extend([transcript_markdown(message.text.strip())])
     return content
 
 
