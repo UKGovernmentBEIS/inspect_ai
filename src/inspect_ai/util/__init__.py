@@ -3,9 +3,11 @@ from ._console import input_screen
 from ._resource import resource
 from ._sandbox import (
     SandboxEnvironment,
+    SandboxEnvironmentLimits,
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    SandboxOutputLimitExceededError,
     sandbox,
     sandbox_with,
     sandboxenv,
@@ -25,9 +27,11 @@ __all__ = [
     "resource",
     "subprocess",
     "SandboxEnvironment",
+    "SandboxEnvironmentLimits",
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
+    "SandboxOutputLimitExceededError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

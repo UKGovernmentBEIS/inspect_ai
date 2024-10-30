@@ -8,14 +8,17 @@ from .environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
 )
+from .limits import SandboxEnvironmentLimits, SandboxOutputLimitExceededError
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
 
 __all__ = [
     "SandboxEnvironment",
+    "SandboxEnvironmentLimits",
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
+    "SandboxOutputLimitExceededError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

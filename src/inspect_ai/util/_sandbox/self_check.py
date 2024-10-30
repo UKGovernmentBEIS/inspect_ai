@@ -1,6 +1,8 @@
 from typing import Any, Callable, Coroutine, Generic, Optional, Type, TypeVar
 
-from inspect_ai.util import SandboxEnvironment
+import pytest
+
+from inspect_ai.util import SandboxEnvironment, SandboxOutputLimitExceededError
 
 
 async def check_test_fn(
@@ -44,6 +46,9 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_cwd_custom,
         test_cwd_relative,
         test_cwd_absolute,
+        test_exec_stdout_is_limited,
+        test_exec_stderr_is_limited,
+        test_exec_limit_exceeded_does_not_terminate_command,
     ]:
         results[fn.__name__] = await check_test_fn(fn, sandbox_env)
 
@@ -261,6 +266,40 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     current_dir_contents = (await sandbox_env.exec(["ls"], cwd=cwd_directory)).stdout
     assert "test_cwd_absolute.file" in current_dir_contents
     await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
+    output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
+    with pytest.raises(SandboxOutputLimitExceededError) as e_info:
+        await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size}"])
+    assert "limit of 1 MiB was exceeded" in str(e_info.value)
+    # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
+    assert len(e_info.value.truncated_result.stdout) == 1024**2
+
+
+async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
+    output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
+    with pytest.raises(SandboxOutputLimitExceededError) as e_info:
+        await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size} 1>&2"])
+    assert "limit of 1 MiB was exceeded" in str(e_info.value)
+    assert len(e_info.value.truncated_result.stderr) == 1024**2
+
+
+async def test_exec_limit_exceeded_does_not_terminate_command(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file = "limit-exceeded-but-still-running.file"
+    # Write 2 MiB to stdout, then create a file.
+    script = f"""\
+yes | head -c {2 * 1024**2}
+touch {file}
+"""
+    with pytest.raises(SandboxOutputLimitExceededError):
+        await sandbox_env.exec(["sh", "-c", script])
+    # Verify that exceeding the output limit did not terminate the command.
+    test_result = await sandbox_env.exec(["test", "-f", file])
+    assert test_result.returncode == 0
+    await _cleanup_file(sandbox_env, file)
 
 
 # TODO: write a test for when cwd doesn't exist
