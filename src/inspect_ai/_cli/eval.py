@@ -24,7 +24,7 @@ from .common import (
     log_images_flag,
     process_common_options,
 )
-from .util import parse_cli_args, parse_sandbox
+from .util import parse_cli_args, parse_cli_config, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
@@ -70,11 +70,23 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="One or more native model arguments (e.g. -M arg=value)",
     )
     @click.option(
+        "--model-config",
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_CONFIG",
+        help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
         "-T",
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_TASK_ARGS",
         help="One or more task arguments (e.g. -T arg=value)",
+    )
+    @click.option(
+        "--task-config",
+        type=str,
+        envvar="INSPECT_EVAL_TASK_CONFIG",
+        help="YAML or JSON config file with task arguments.",
     )
     @click.option(
         "--solver",
@@ -88,6 +100,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_SOLVER_ARGS",
         help="One or more solver arguments (e.g. -S arg=value)",
+    )
+    @click.option(
+        "--solver-config",
+        type=str,
+        envvar="INSPECT_EVAL_SOLVER_CONFIG",
+        help="YAML or JSON config file with solver arguments.",
     )
     @click.option(
         "--tags",
@@ -356,8 +374,11 @@ def eval_command(
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
     tags: str | None,
     trace: bool | None,
     approval: str | None,
@@ -419,8 +440,11 @@ def eval_command(
         model=model,
         model_base_url=model_base_url,
         m=m,
+        model_config=model_config,
         t=t,
+        task_config=task_config,
         s=s,
+        solver_config=solver_config,
         tags=tags,
         trace=trace,
         approval=approval,
@@ -502,8 +526,11 @@ def eval_set_command(
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
     tags: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -565,8 +592,11 @@ def eval_set_command(
         model=model,
         model_base_url=model_base_url,
         m=m,
+        model_config=model_config,
         t=t,
+        task_config=task_config,
         s=s,
+        solver_config=solver_config,
         tags=tags,
         trace=trace,
         approval=approval,
@@ -611,8 +641,11 @@ def eval_exec(
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
     tags: str | None,
     trace: bool | None,
     approval: str | None,
@@ -643,9 +676,9 @@ def eval_exec(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
-    task_args = parse_cli_args(t)
-    solver_args = parse_cli_args(s)
-    model_args = parse_cli_args(m)
+    task_args = parse_cli_config(t, task_config)
+    solver_args = parse_cli_config(s, solver_config)
+    model_args = parse_cli_config(m, model_config)
 
     # parse tags
     eval_tags = parse_comma_separated(tags)
