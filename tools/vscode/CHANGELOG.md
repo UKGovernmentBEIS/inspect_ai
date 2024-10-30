@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.39
+
+- Fix an issue that would cause view to be unable to display when using VSCode extension with Inpsect version 0.3.42
+
 ## 0.3.38
 
 - Improved behavior when previewing json files using the Inspect viewer.

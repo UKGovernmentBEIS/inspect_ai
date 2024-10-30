@@ -489,7 +489,7 @@ export function App({
 
       // Reset the sample tab
       setSelectedSampleTab(undefined);
-
+      setSelectedSample(undefined);
       if (showSamples) {
         setSelectedSampleIndex(0);
       } else {
