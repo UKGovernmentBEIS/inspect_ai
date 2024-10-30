@@ -15,9 +15,6 @@ def test_s3_bundle(mock_s3) -> None:
     # run an eval to generate a log file to this directory
     s3_fs = filesystem("s3://test-bucket/")
 
-    # ensure log directory exists
-    s3_fs.mkdir("test_s3_bundle/logs")
-
     # target directories
     log_dir = "s3://test-bucket/test_s3_bundle/logs"
     output_dir = "s3://test-bucket/test_s3_bundle/view"

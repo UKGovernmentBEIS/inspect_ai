@@ -248,17 +248,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # resolve relative file paths
         file = self.container_file(file)
 
-        # ensure that the directory exists
-        parent = Path(file).parent.as_posix()
-        if parent != ".":
-            result = await self.exec(["mkdir", "-p", parent])
-            if not result.success:
-                if "permission denied" in result.stderr.lower():
-                    raise PermissionError(errno.EACCES, "Permission denied.", parent)
-                else:
-                    msg = f"Failed to create container directory {parent}: {result}"
-                    raise RuntimeError(msg)
-
         # We want to be able to write a file in the container,
         # but only if the container's user would be allowed to do that.
         # We need to avoid implicitly trusting the provided "file" string.
@@ -278,15 +267,18 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # Copy the local tmp file into a tmp file on the container.
         # Both tmp files have safe names as we created them ourselves
 
-        # Use a custom mktemp target in the default cwd, because there
-        # was much strangness using mktemp in /tmp within GitHub CI:
-        # the temp files were created with the wrong ownership.
-        mktemp_result = await self.exec(["mktemp", ".tmp_inspect_sandbox_XXXXXX"])
-        if not mktemp_result.success:
-            raise RuntimeError(
-                f"failed to create temporary file in container: {mktemp_result}"
-            )
-        container_tmpfile = mktemp_result.stdout.strip()
+        # We write the tmp file in the default directory,
+        # because of strangeness with /tmp on GitHub action runners.
+
+        # We are reusing the generated local tmp file name within
+        # the sandbox to save on a container roundtrip. There is a very slight
+        # risk of collision if another write_file call happens
+        # to get the same local tmp file name. But we assume tmp file
+        # names have enough randomness for us to ignore that.
+
+        container_tmpfile = (
+            f".tmp_inspect_sandbox_{os.path.basename(local_tmpfile.name)}"
+        )
 
         # compose cp will leave the file owned by root
         await compose_cp(
@@ -315,12 +307,26 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
         )
 
-        res_cp = await self.exec(["cp", "-T", "--", container_tmpfile, file])
+        parent = PurePosixPath(file).parent
+
+        # We do these steps in a shell script for efficiency to avoid round-trips to docker.
+        res_cp = await self.exec(
+            [
+                "sh",
+                "-e",
+                "-c",
+                "mkdir -p -- $1; cp -T -- $2 $3; rm -- $2",
+                "copy_script",
+                str(parent),
+                container_tmpfile,
+                file,
+            ]
+        )
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
                 ls_result = await self.exec(["ls", "-la", "."])
-                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+                error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
             elif (
                 "cannot overwrite directory" in res_cp.stderr
@@ -330,11 +336,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     f"Failed to write file: {file} because it is a directory already"
                 )
             else:
-                raise RuntimeError(
-                    f"failed to copy temporary file during write_file: {res_cp}"
-                )
-
-        await self.exec(["rm", container_tmpfile])
+                raise RuntimeError(f"failed to copy during write_file: {res_cp}")
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...

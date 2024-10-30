@@ -815,6 +815,28 @@
           "default": null,
           "title": "Samples"
         },
+        "sample_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Ids"
+        },
         "shuffled": {
           "anyOf": [
             {
@@ -834,6 +856,7 @@
         "name",
         "location",
         "samples",
+        "sample_ids",
         "shuffled"
       ],
       "additionalProperties": false
