@@ -717,7 +717,8 @@ def rich_initialise() -> None:
                 self.lexer_name,
                 theme=self.theme,
                 word_wrap=True,
-                background_color="default",
+                background_color="#282c34",
+                padding=1,
             )
             yield syntax
 

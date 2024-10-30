@@ -5,7 +5,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-MARKDOWN_CODE_THEME = "xcode"
+MARKDOWN_CODE_THEME = "vscode"
 
 
 def transcript_markdown(content: str) -> Markdown:
