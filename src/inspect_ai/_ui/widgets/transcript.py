@@ -54,10 +54,10 @@ def event_group_panel(group: EventGroup) -> Panel | None:
 
     # resolve child groups
     if group.groups:
-        content.append(Text())
         for child_group in group.groups:
             child_panel = event_group_panel(child_group)
             if child_panel:
+                content.append(Text())
                 content.append(child_panel)
 
     # create panel

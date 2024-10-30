@@ -18,11 +18,18 @@ def transcript_panel(
     content: RenderableType | list[RenderableType] = [],
     level: int = 1,
 ) -> Panel:
+    # resolve content to list
+    content = content if isinstance(content, list) else [content]
+
+    # no padding if there is no content
+    padding = (0, 1) if content else (0, 0)
+
     # handle title/level
     if level == 1:
         title = f"[bold][blue]{title}[/blue][/bold]"
         title_align: AlignMethod = "left"
-        box = ROUNDED
+        # box if content, else line
+        box = ROUNDED if content else LINE
     else:
         title = f"[bold]{title}[/bold]"
         title_align = "center"
@@ -30,9 +37,6 @@ def transcript_panel(
             box = LINE
         else:
             box = DOTTED
-
-    # resolve content to list
-    content = content if isinstance(content, list) else [content]
 
     # inject subtitle
     if subtitle:
@@ -43,11 +47,13 @@ def transcript_panel(
     for c in content:
         if isinstance(c, Markdown):
             c.code_theme = MARKDOWN_CODE_THEME
+
     return Panel(
         Group(*content),
         title=title,
         title_align=title_align,
         box=box,
+        padding=padding,
         highlight=True,
         expand=True,
     )
