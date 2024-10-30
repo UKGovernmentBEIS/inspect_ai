@@ -102,9 +102,9 @@ def eval_set(
         model_base_url: (str | None): Base URL for communicating
           with the model API.
         model_args (dict[str,Any] | str): Model creation args
-          (as a dicitionary or as a path to a JSON or YAML config file)
+          (as a dictionary or as a path to a JSON or YAML config file)
         task_args (dict[str,Any] | str): Task creation arguments
-          (as a dicitionary or as a path to a JSON or YAML config file)
+          (as a dictionary or as a path to a JSON or YAML config file)
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
