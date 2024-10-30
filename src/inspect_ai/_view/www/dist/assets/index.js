@@ -25591,6 +25591,7 @@ function App({
       setFilter({});
       setSort(kDefaultSort);
       setSelectedSampleTab(void 0);
+      setSelectedSample(void 0);
       if (showSamples) {
         setSelectedSampleIndex(0);
       } else {
