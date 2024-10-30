@@ -69,14 +69,19 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
 };
 
 const DatasetDetailView = ({ dataset, context, style }) => {
-  if (!dataset || Object.keys(dataset).length === 0) {
+  // Filter out sample_ids
+  const filtered = Object.fromEntries(
+    Object.entries(dataset).filter(([key]) => key !== "sample_ids"),
+  );
+
+  if (!dataset || Object.keys(filtered).length === 0) {
     return html`<span style=${{ ...planItemStyle, ...style }}
       >No dataset information available</span
     >`;
   }
 
   return html`<${MetaDataView}
-    entries="${dataset}"
+    entries="${filtered}"
     tableOptions="borderless,sm"
     context=${context}
     style=${{ ...planItemStyle, ...style }}
