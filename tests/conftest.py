@@ -56,7 +56,6 @@ def mock_s3():
             "AWS_ACCESS_KEY_ID",
             "AWS_SECRET_ACCESS_KEY",
             "AWS_DEFAULT_REGION",
-            "AWS_REGION",
         ]
     }
 
@@ -64,7 +63,6 @@ def mock_s3():
     os.environ["AWS_ACCESS_KEY_ID"] = "unused_id_mock_s3"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
     os.environ["AWS_DEFAULT_REGION"] = "us-west-1"
-    os.environ["AWS_REGION"] = "us-west-1"
 
     s3_client = boto3.client("s3")
     s3_client.create_bucket(
