@@ -41,7 +41,7 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_api)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def mock_s3():
     server = ThreadedMotoServer(port=19100)
     server.start()
@@ -72,7 +72,7 @@ def mock_s3():
 
     yield
 
-    # Unfortunately, we can't just throw away moto,
+    # Unfortunately, we can't just throw away moto after the test,
     # because there is caching of S3 bucket state (e.g. ownership)
     # somewhere in s3fs or boto. So we have to go through
     # the charade of emptying and deleting the mocked bucket.
