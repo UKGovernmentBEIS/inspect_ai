@@ -5,12 +5,16 @@
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
+- Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
+- View: properly render complex score objects in transcript.
 - Write custom tool call views into transcript for use by Inspect View.
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
 - Don't include package scope for task name part of log files.
+- Improve performance of write_file for Docker sandboxes.
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
+- Log the list of dataset sample IDs.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
 
 ## v0.3.42 (23 October 2024)

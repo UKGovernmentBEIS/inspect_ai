@@ -15789,13 +15789,16 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
   />`;
 };
 const DatasetDetailView = ({ dataset, context, style }) => {
-  if (!dataset || Object.keys(dataset).length === 0) {
+  const filtered = Object.fromEntries(
+    Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
+  );
+  if (!dataset || Object.keys(filtered).length === 0) {
     return m$1`<span style=${{ ...planItemStyle, ...style }}
       >No dataset information available</span
     >`;
   }
   return m$1`<${MetaDataView}
-    entries="${dataset}"
+    entries="${filtered}"
     tableOptions="borderless,sm"
     context=${context}
     style=${{ ...planItemStyle, ...style }}
@@ -19168,7 +19171,7 @@ const ScoreEventView = ({ id, event, style }) => {
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Score</div>  
-      <div>${event.score.value}</div>
+      <div>${renderScore(event.score.value)}</div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     </div>
     ${event.score.metadata ? m$1`<div name="Metadata">
@@ -19178,9 +19181,16 @@ const ScoreEventView = ({ id, event, style }) => {
               style=${{ margin: "0.5em 0" }}
             />
           </div>` : void 0}
-
-
   </${EventPanel}>`;
+};
+const renderScore = (value) => {
+  if (Array.isArray(value)) {
+    return m$1`<${MetaDataGrid} entries=${value} />`;
+  } else if (typeof value === "object") {
+    return m$1`<${MetaDataGrid} entries=${value} />`;
+  } else {
+    return value;
+  }
 };
 const ApprovalEventView = ({ id, event, style }) => {
   return m$1`
@@ -25591,6 +25601,7 @@ function App({
       setFilter({});
       setSort(kDefaultSort);
       setSelectedSampleTab(void 0);
+      setSelectedSample(void 0);
       if (showSamples) {
         setSelectedSampleIndex(0);
       } else {

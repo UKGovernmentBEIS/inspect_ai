@@ -6,6 +6,7 @@ import sys
 import time
 import warnings
 
+import boto3
 import pytest
 from moto.server import ThreadedMotoServer
 
@@ -50,22 +51,47 @@ def mock_s3():
 
     existing_env = {
         key: os.environ.get(key, None)
-        for key in ["AWS_ENDPOINT_URL", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+        for key in [
+            "AWS_ENDPOINT_URL",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_DEFAULT_REGION",
+        ]
     }
 
     os.environ["AWS_ENDPOINT_URL"] = "http://127.0.0.1:19100"
     os.environ["AWS_ACCESS_KEY_ID"] = "unused_id_mock_s3"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
+    os.environ["AWS_DEFAULT_REGION"] = "us-west-1"
+
+    s3_client = boto3.client("s3")
+    s3_client.create_bucket(
+        Bucket="test-bucket",
+        CreateBucketConfiguration={"LocationConstraint": "us-west-1"},
+    )
 
     yield
 
+    # Unfortunately, we can't just throw away moto after the test,
+    # because there is caching of S3 bucket state (e.g. ownership)
+    # somewhere in s3fs or boto. So we have to go through
+    # the charade of emptying and deleting the mocked bucket.
+    s3 = boto3.resource("s3")
+    s3_bucket = s3.Bucket("test-bucket")
+    bucket_versioning = s3.BucketVersioning("test-bucket")
+    if bucket_versioning.status == "Enabled":
+        s3_bucket.object_versions.delete()
+    else:
+        s3_bucket.objects.all().delete()
+
+    s3_client.delete_bucket(Bucket="test-bucket")
+
+    server.stop()
     for key, value in existing_env.items():
         if value is None:
             del os.environ[key]
         else:
             os.environ[key] = value
-
-    server.stop()
 
 
 def pytest_sessionfinish(session, exitstatus):

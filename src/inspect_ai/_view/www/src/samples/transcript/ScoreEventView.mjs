@@ -49,7 +49,7 @@ export const ScoreEventView = ({ id, event, style }) => {
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Score</div>  
-      <div>${event.score.value}</div>
+      <div>${renderScore(event.score.value)}</div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     </div>
     ${
@@ -63,7 +63,15 @@ export const ScoreEventView = ({ id, event, style }) => {
           </div>`
         : undefined
     }
-
-
   </${EventPanel}>`;
+};
+
+const renderScore = (value) => {
+  if (Array.isArray(value)) {
+    return html`<${MetaDataGrid} entries=${value} />`;
+  } else if (typeof value === "object") {
+    return html`<${MetaDataGrid} entries=${value} />`;
+  } else {
+    return value;
+  }
 };

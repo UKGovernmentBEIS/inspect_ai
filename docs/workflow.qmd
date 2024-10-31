@@ -102,7 +102,13 @@ def theory_of_mind(dataset = "validation.csv"):
 Use `-T` to specify task parameters from the CLI:
 
 ``` bash
-$ insepct eval theory.py -T "test.csv" --model openai/gpt-4o
+$ inspect eval theory.py -T dataset="test.csv" --model openai/gpt-4o
+```
+
+Alternatively, use `--task-config` to specify a set of task arguments in a JSON or YAML config file:
+
+``` bash
+$ inspect eval theory.py --task-config config.yaml --model openai/gpt-4o
 ```
 
 ### Solvers
@@ -129,6 +135,14 @@ Use `-S` to specify solver parameters from the CLI:
 ``` bash
 $ inspect eval theory.py \
     --solver=tree_of_thought -S depth=3 \
+    --model=openai/gpt-4
+```
+
+Alternative, use `--solver-config` to specify a set of solver arguments in a JSON or YAML config file:
+
+``` bash
+$ inspect eval theory.py \
+    --solver=tree_of_thought --solver-config config.yaml \
     --model=openai/gpt-4
 ```
 

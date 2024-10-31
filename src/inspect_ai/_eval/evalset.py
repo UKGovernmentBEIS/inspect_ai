@@ -52,8 +52,8 @@ def eval_set(
     retry_cleanup: bool | None = None,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
@@ -97,12 +97,14 @@ def eval_set(
         retry_cleanup (bool | None): Cleanup failed log files after retries
           (defaults to True)
         model (str | Model | list[str] | list[Model] | None): Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+          evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+          environment variable.
         model_base_url: (str | None): Base URL for communicating
-            with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
+          with the model API.
+        model_args (dict[str,Any] | str): Model creation args
+          (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+          (as a dictionary or as a path to a JSON or YAML config file)
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes

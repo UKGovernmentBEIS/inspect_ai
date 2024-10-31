@@ -33,6 +33,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_read_file_is_directory,
         test_read_file_nonsense_name,
         test_write_file_zero_length,
+        test_write_file_space,
         test_write_file_is_directory,
         test_write_file_without_permissions,
         test_exec_output,
@@ -147,6 +148,14 @@ async def test_write_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     assert zero_length == ""
 
 
+async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
+    space = "✨☽︎✨🌞︎︎✨🚀✨"
+    await sandbox_env.write_file("file with space.file", space)
+    file_with_space = await sandbox_env.read_file("file with space.file", text=True)
+    assert isinstance(file_with_space, str)
+    assert file_with_space == space
+
+
 async def test_write_file_is_directory(
     sandbox_env: SandboxEnvironment,
 ) -> None:
@@ -174,7 +183,7 @@ async def test_write_file_without_permissions(
 
 
 async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
-    exec_result = await sandbox_env.exec(["bash", "-c", "echo foo; echo bar"])
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; echo bar"])
     expected = "foo\nbar\n"
     # in the assertion message, we show the actual bytes to help debug newline issues
     assert (
