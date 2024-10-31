@@ -11,6 +11,7 @@
 - Don't include package scope for task name part of log files.
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
+- Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
 
 ## v0.3.42 (23 October 2024)
 
