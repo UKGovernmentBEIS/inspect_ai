@@ -6,6 +6,7 @@
 - [Grok](https://docs.x.ai/) model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
 - Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
+- View: properly render complex score objects in transcript.
 - Write custom tool call views into transcript for use by Inspect View.
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
