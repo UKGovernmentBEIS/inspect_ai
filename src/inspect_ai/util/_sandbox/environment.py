@@ -110,9 +110,9 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
-        Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, a
-        `SandboxOutputLimitExceededError` will be raised. This will not cause the
-        command to be terminated.
+        Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, an
+        `OutputLimitExceededError` will be raised. This will not cause the command to be
+        terminated.
 
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
@@ -131,8 +131,8 @@ class SandboxEnvironment(abc.ABC):
             decoding the command output.
           PermissionError: If the user does not have
             permission to execute the command.
-          SandboxOutputLimitExceededError: If an output
-            stream exceeds the 1 MiB limit.
+          OutputLimitExceededError: If an output stream
+            exceeds the 1 MiB limit.
         """
         ...
 
@@ -184,7 +184,7 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to read from the specified path.
           IsADirectoryError: If the file is a directory.
-          SandboxReadFileLimitExceededError: If the file size
+          OutputLimitExceededError: If the file size
             exceeds the 100 MiB limit.
         """
         ...

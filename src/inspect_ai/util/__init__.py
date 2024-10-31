@@ -2,13 +2,12 @@ from ._concurrency import concurrency
 from ._console import input_screen
 from ._resource import resource
 from ._sandbox import (
+    OutputLimitExceededError,
     SandboxEnvironment,
     SandboxEnvironmentLimits,
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
-    SandboxOutputLimitExceededError,
-    SandboxReadFileLimitExceededError,
     sandbox,
     sandbox_with,
     sandboxenv,
@@ -25,6 +24,7 @@ __all__ = [
     "ExecResult",
     "concurrency",
     "input_screen",
+    "OutputLimitExceededError",
     "resource",
     "subprocess",
     "SandboxEnvironment",
@@ -32,8 +32,6 @@ __all__ = [
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
-    "SandboxOutputLimitExceededError",
-    "SandboxReadFileLimitExceededError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

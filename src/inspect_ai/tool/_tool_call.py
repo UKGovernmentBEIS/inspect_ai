@@ -32,7 +32,6 @@ class ToolCallError:
         "file_not_found",
         "is_a_directory",
         "output_limit",
-        "read_file_limit",
         "approval",
         "unknown",
     ]

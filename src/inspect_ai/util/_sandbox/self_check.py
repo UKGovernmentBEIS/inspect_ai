@@ -4,10 +4,9 @@ from unittest import mock
 import pytest
 
 from inspect_ai.util import (
+    OutputLimitExceededError,
     SandboxEnvironment,
     SandboxEnvironmentLimits,
-    SandboxOutputLimitExceededError,
-    SandboxReadFileLimitExceededError,
 )
 
 
@@ -157,9 +156,9 @@ async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     await sandbox_env.write_file(file_name, "a" * 2048)  # 2 KiB
     # Patch limit down to 1KiB for the test to save us from writing a 100 MiB file.
     with mock.patch.object(SandboxEnvironmentLimits, "MAX_READ_FILE_SIZE", 1024):
-        with Raises(SandboxReadFileLimitExceededError) as e_info:
+        with Raises(OutputLimitExceededError) as e_info:
             await sandbox_env.read_file("large.file", text=True)
-        assert "file size limit of 100 MiB was exceeded" in str(e_info.value)
+        assert "limit of 100 MiB was exceeded" in str(e_info.value)
     await _cleanup_file(sandbox_env, file_name)
 
 
@@ -288,19 +287,21 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
     output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
-    with pytest.raises(SandboxOutputLimitExceededError) as e_info:
+    with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size}"])
     assert "limit of 1 MiB was exceeded" in str(e_info.value)
+    truncated_output = e_info.value.truncated_output
     # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
-    assert len(e_info.value.truncated_result.stdout) == 1024**2
+    assert truncated_output and len(truncated_output) == 1024**2
 
 
 async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
     output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
-    with pytest.raises(SandboxOutputLimitExceededError) as e_info:
+    with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size} 1>&2"])
     assert "limit of 1 MiB was exceeded" in str(e_info.value)
-    assert len(e_info.value.truncated_result.stderr) == 1024**2
+    truncated_output = e_info.value.truncated_output
+    assert truncated_output and len(truncated_output) == 1024**2
 
 
 async def test_exec_limit_exceeded_does_not_terminate_command(
@@ -312,7 +313,7 @@ async def test_exec_limit_exceeded_does_not_terminate_command(
 yes | head -c {2 * 1024**2}
 touch {file}
 """
-    with pytest.raises(SandboxOutputLimitExceededError):
+    with pytest.raises(OutputLimitExceededError):
         await sandbox_env.exec(["sh", "-c", script])
     # Verify that exceeding the output limit did not terminate the command.
     test_result = await sandbox_env.exec(["test", "-f", file])
