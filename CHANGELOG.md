@@ -15,6 +15,7 @@
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
 - Log the list of dataset sample IDs.
+- Fix an issue which forced all values passed to a custom metric to a float value (https://github.com/UKGovernmentBEIS/inspect_ai/issues/775)
 
 ## v0.3.42 (23 October 2024)
 
