@@ -78,8 +78,6 @@ class MistralAPI(ModelAPI):
             self.api_key = os.environ.get(MISTRAL_API_KEY, None)
             if self.api_key:
                 base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
-                if base_url:
-                    model_args["server_url"] = base_url
             else:
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
@@ -94,7 +92,9 @@ class MistralAPI(ModelAPI):
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
-                model_args["server_url"] = base_url
+
+        if base_url:
+            model_args["server_url"] = base_url
 
         # create client
         self.client = Mistral(
