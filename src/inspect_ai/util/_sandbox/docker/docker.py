@@ -317,7 +317,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 "sh",
                 "-e",
                 "-c",
-                "mkdir -p -- $1; cp -T -- $2 $3; rm -- $2",
+                'mkdir -p -- "$1"; cp -T -- "$2" "$3"; rm -- "$2"',
                 "copy_script",
                 str(parent),
                 container_tmpfile,

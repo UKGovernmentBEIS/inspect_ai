@@ -19171,7 +19171,7 @@ const ScoreEventView = ({ id, event, style }) => {
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Score</div>  
-      <div>${event.score.value}</div>
+      <div>${renderScore(event.score.value)}</div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
     </div>
     ${event.score.metadata ? m$1`<div name="Metadata">
@@ -19181,9 +19181,16 @@ const ScoreEventView = ({ id, event, style }) => {
               style=${{ margin: "0.5em 0" }}
             />
           </div>` : void 0}
-
-
   </${EventPanel}>`;
+};
+const renderScore = (value) => {
+  if (Array.isArray(value)) {
+    return m$1`<${MetaDataGrid} entries=${value} />`;
+  } else if (typeof value === "object") {
+    return m$1`<${MetaDataGrid} entries=${value} />`;
+  } else {
+    return value;
+  }
 };
 const ApprovalEventView = ({ id, event, style }) => {
   return m$1`
