@@ -33,6 +33,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_read_file_is_directory,
         test_read_file_nonsense_name,
         test_write_file_zero_length,
+        test_write_file_space,
         test_write_file_is_directory,
         test_write_file_without_permissions,
         test_exec_output,
@@ -145,6 +146,14 @@ async def test_write_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     zero_length = await sandbox_env.read_file("zero_length_file.file", text=True)
     assert isinstance(zero_length, str)
     assert zero_length == ""
+
+
+async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
+    space = "✨☽︎✨🌞︎︎✨🚀✨"
+    await sandbox_env.write_file("file with space.file", space)
+    file_with_space = await sandbox_env.read_file("file with space.file", text=True)
+    assert isinstance(file_with_space, str)
+    assert file_with_space == space
 
 
 async def test_write_file_is_directory(
