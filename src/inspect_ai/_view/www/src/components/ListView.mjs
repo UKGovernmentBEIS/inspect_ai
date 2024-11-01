@@ -151,7 +151,7 @@ export const ListView = ({
   return html` <${VirtualList}
     data=${rows}
     rowMap=${rowMap}
-    renderRow=${withEventHandling(renderer, selectedIndex, onSelectedIndex)}
+    renderRow=${withEventHandling(renderer, selectedIndex)}
     style=${style}
     onkeydown=${onkeydown}
   />`;
