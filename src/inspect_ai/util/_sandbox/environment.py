@@ -111,8 +111,7 @@ class SandboxEnvironment(abc.ABC):
         filesystem context.
 
         Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, an
-        `OutputLimitExceededError` will be raised. This will not cause the command to be
-        terminated.
+        `OutputLimitExceededError` will be raised.
 
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
