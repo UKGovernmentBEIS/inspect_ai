@@ -56,7 +56,7 @@
  * @typedef {Object} ClientAPI
  * @property { () => Promise<string[]> } client_events - A function which can be polled to check for client events.
  * @property { () => Promise<LogFiles>} get_log_paths - Get the list of files
- * @property { (log_files: string[]) => Promise<import("../types/log").EvalLog[]>} get_log_headers - Get the log headers
+ * @property { (log_files: string[]) => Promise<EvalLogHeader[]>} get_log_headers - Get the log headers
  * @property { (log_file: string) => Promise<EvalSummary>} get_log_summary - Get the log summary
  * @property { (log_file: string, id: string | number, epoch: number) => Promise<import("../types/log").EvalSample | undefined>} get_log_sample - Get a sample
  * @property { (log_file: string, download_files?: boolean, web_workers?: boolean) => Promise<void> } download_file - Execute a file download
