@@ -19,6 +19,7 @@
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
 - Fix an issue which forced all values passed to a custom metric to a float value (https://github.com/UKGovernmentBEIS/inspect_ai/issues/775)
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
+- HF models take a `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 
 ## v0.3.42 (23 October 2024)
 

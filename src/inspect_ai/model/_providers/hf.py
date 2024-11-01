@@ -71,6 +71,9 @@ class HuggingFaceAPI(ModelAPI):
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
+        self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
+        if self.tokenizer_call_args is None:
+            self.tokenizer_call_args = {}
 
         # device
         if device:
@@ -116,8 +119,14 @@ class HuggingFaceAPI(ModelAPI):
         # create chat
         chat = self.hf_chat(input, tools)
 
+        assert isinstance(self.tokenizer_call_args, dict)
         # prepare tokenizer
-        tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
+        tokenizer = functools.partial(
+            self.tokenizer,
+            return_tensors="pt",
+            padding=True,
+            **self.tokenizer_call_args,
+        )
 
         # prepare generator
         kwargs: dict[str, Any] = dict(do_sample=True)
