@@ -24,7 +24,6 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
 import { ProgressBar } from "./components/ProgressBar.mjs";
 
-import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { TaskView } from "./task/TaskView.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
@@ -792,34 +791,6 @@ export function App({
     loadLogsAndState();
   }, []);
 
-  // Configure an app envelope specific to the current state
-  // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
-  const sidebar =
-    !fullScreen && selectedLog.contents
-      ? html`
-          <${Sidebar}
-            logs=${logs}
-            logHeaders=${logHeaders}
-            loading=${headersLoading}
-            offcanvas=${offcanvas}
-            selectedIndex=${selectedLogIndex}
-            onSelectedIndexChanged=${(index) => {
-              setSelectedLogIndex(index);
-
-              // hide the sidebar offcanvas
-              var myOffcanvas = document.getElementById("sidebarOffCanvas");
-              var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
-            }}
-          />
-        `
-      : "";
-
-  const fullScreenClz = fullScreen ? " full-screen" : "";
-  const offcanvasClz = offcanvas ? " off-canvas" : "";
 
   const hideFind = useCallback(() => {
     clearDocumentSelection();
@@ -844,8 +815,7 @@ export function App({
         : "many";
   return html`
     <${AppErrorBoundary}>
-    ${sidebar}
-    <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
+    <div ref=${mainAppRef} class="app-main-grid" tabIndex="0" onKeyDown=${(
       e,
     ) => {
       // regular browsers user their own find

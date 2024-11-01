@@ -8018,426 +8018,6 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
     </div>
   `;
 };
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
-};
-const Sidebar = ({
-  offcanvas,
-  logs,
-  loading,
-  logHeaders,
-  selectedIndex,
-  onSelectedIndexChanged
-}) => {
-  const btnOffCanClass = offcanvas ? "" : " d-md-none";
-  const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
-  return m$1`
-    <div
-      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
-      id="sidebarOffCanvas"
-      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
-    >
-      <div
-        style=${{
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) auto",
-    columnGap: "0.2rem",
-    alignItems: "center",
-    paddingLeft: "0.5rem",
-    opacity: "0.7",
-    position: "fixed",
-    width: "var(--sidebar-width)",
-    zIndex: 10,
-    borderBottom: "solid var(--bs-light-border-subtle) 1px",
-    paddingBottom: "0.5rem",
-    paddingTop: "0.5rem",
-    height: "3.6em"
-  }}
-      >
-        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
-        <button
-          id="sidebarToggle"
-          class="btn d-inline${btnOffCanClass}"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebarOffCanvas"
-          aria-controls="sidebarOffCanvas"
-          style=${{
-    padding: ".1rem",
-    alignSelf: "end",
-    width: "40px",
-    flex: "0 0 content"
-  }}
-        >
-          <i class=${ApplicationIcons.close}></i>
-        </button>
-      </div>
-      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
-      </div>
-      <ul
-        class="list-group"
-        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
-      >
-        ${logs.files.map((file, index) => {
-    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
-    const active = index === selectedIndex ? " active" : "";
-    const logHeader = logHeaders[file.name];
-    const hyperparameters = logHeader ? {
-      ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
-      ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
-    } : void 0;
-    const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-    const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
-    const uniqScorers = /* @__PURE__ */ new Set();
-    (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
-      uniqScorers.add(scorer2.name);
-    });
-    const scorer = Array.from(uniqScorers).join(",");
-    const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-    const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-    const time = completed ? new Date(completed) : void 0;
-    const timeStr = time ? `${time.toDateString()}
-          ${time.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    })}` : "";
-    return m$1`
-            <li
-              class="list-group-item list-group-item-action${active}"
-              onclick=${() => onSelectedIndexChanged(index)}
-            >
-              <div
-                style=${{
-      display: "flex",
-      flexDirection: "row",
-      justifyContent: "space-between"
-    }}
-              >
-                <div style=${{ overflow: "hidden" }}>
-                  <div
-                    style=${{
-      fontSize: FontSize["title-secondary"],
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis"
-    }}
-                  >
-                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
-                  </div>
-                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
-                    ${timeStr}
-                  </small>
-
-                  ${model ? m$1` <div>
-                        <small
-                          class="mb-1"
-                          style=${{ fontSize: FontSize.small }}
-                          >${model}</small
-                        >
-                      </div>` : ""}
-                </div>
-                <${EvalStatus$1} logHeader=${logHeader} />
-              </div>
-              <div
-                style=${{
-      marginTop: "1em",
-      ...ApplicationStyles.threeLineClamp
-    }}
-              >
-                <small class="mb-1">
-                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-      const val = hyperparameters[key2];
-      if (Array.isArray(val) || typeof val === "object") {
-        return `${key2}: ${JSON.stringify(val)}`;
-      } else {
-        return `${key2}: ${val}`;
-      }
-    }).join(", ") : ""}
-                </small>
-              </div>
-              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
-                    style=${{
-      display: "flex",
-      justifyContent: "space-between",
-      marginTop: "0em",
-      fontSize: FontSize.small
-    }}
-                  >
-                    <span>dataset: ${dataset.name || "(samples)"}</span
-                    ><span>${scorerLabel}: ${scorer}</span>
-                  </div>` : ""}
-            </li>
-          `;
-  })}
-      </ul>
-    </div>
-  `;
-};
-const prettyDir = (path) => {
-  try {
-    let url = new URL(path);
-    if (url.protocol === "file:") {
-      return url.pathname;
-    } else {
-      return path;
-    }
-  } catch {
-    return path;
-  }
-};
-const EvalStatus$1 = ({ logHeader }) => {
-  var _a2, _b2;
-  switch (logHeader == null ? void 0 : logHeader.status) {
-    case "error":
-      return m$1`<${StatusError$1} message="Error" />`;
-    case "cancelled":
-      return m$1`<${StatusCancelled$1} message="Cancelled" />`;
-    case "started":
-      return m$1`<${StatusRunning$1} message="Running" />`;
-    default:
-      if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
-        if (logHeader.results.scores.length === 1) {
-          return m$1`<${SidebarScore}
-            scorer=${logHeader.results.scores[0]}
-          />`;
-        } else {
-          return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
-        }
-      } else {
-        return "";
-      }
-  }
-};
-const SidebarScore = ({ scorer }) => {
-  return m$1`<div
-    style=${{
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-end"
-  }}
-  >
-    ${Object.keys(scorer.metrics).map((metric) => {
-    return m$1`
-        <div
-          style=${{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-end",
-      marginLeft: "1em",
-      marginBottom: "0.4em",
-      marginTop: "0.5rem"
-    }}
-        >
-          <div
-            style=${{
-      marginBottom: "-0.3em",
-      fontSize: FontSize.small,
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-          >
-            ${scorer.metrics[metric].name}
-          </div>
-          ${scorer.reducer ? m$1`<div
-                style=${{
-      fontSize: FontSize.small,
-      marginBottom: "-0.2rem"
-    }}
-              >
-                ${scorer.reducer}
-              </div>` : ""}
-          <div style=${{ fontSize: FontSize["title-secondary"] }}>
-            ${formatPrettyDecimal(scorer.metrics[metric].value)}
-          </div>
-        </div>
-      `;
-  })}
-  </div>`;
-};
-const SidebarScores = ({ scores }) => {
-  return m$1`<div
-    style=${{
-    display: "flex",
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    rowGap: "1em"
-  }}
-  >
-    ${scores.map((score) => {
-    const name = score.name;
-    const reducer = score.reducer;
-    return m$1`
-        <div
-          style=${{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      marginLeft: "1em"
-    }}
-        >
-          <div
-            style=${{
-      fontSize: FontSize.base,
-      width: "100%",
-      fontWeight: 300,
-      borderBottom: "solid var(--bs-border-color) 1px",
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-          >
-            ${name}
-          </div>
-          ${reducer ? m$1` <div
-                style=${{
-      fontSize: FontSize.smaller,
-      width: "100%",
-      fontWeight: 300
-    }}
-              >
-                ${reducer}
-              </div>` : ""}
-          <div
-            style=${{
-      fontSize: FontSize.smaller,
-      display: "grid",
-      gridTemplateColumns: "max-content max-content",
-      gridGap: "0 0.3rem"
-    }}
-          >
-            ${Object.keys(score.metrics).map((key2) => {
-      const metric = score.metrics[key2];
-      return m$1` <div
-                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-                >
-                  ${metric.name}
-                </div>
-                <div style=${{ fontWeight: "600" }}>
-                  ${formatPrettyDecimal(metric.value)}
-                </div>`;
-    })}
-          </div>
-        </div>
-      `;
-  })}
-  </div>`;
-};
-const StatusCancelled$1 = ({ message }) => {
-  return m$1`<div
-    style=${{
-    marginTop: "0.2em",
-    fontSize: FontSize.small,
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  }}
-  >
-    ${message}
-  </div>`;
-};
-const StatusRunning$1 = ({ message }) => {
-  return m$1` <div
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content max-content",
-    columnGap: "0.5em",
-    marginTop: "0.3em",
-    fontSize: FontSize.small,
-    ...TextStyle.secondary,
-    ...TextStyle.label
-  }}
-  >
-    <div>${message}</div>
-  </div>`;
-};
-const StatusError$1 = ({ message }) => {
-  return m$1`<div
-    style=${{
-    color: "var(--bs-danger)",
-    marginTop: "0.2em",
-    fontSize: FontSize.small,
-    ...TextStyle.label
-  }}
-  >
-    ${message}
-  </div>`;
-};
-const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
-  if (log_dir) {
-    const displayDir = prettyDir(log_dir);
-    return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span
-        style=${{
-      fontSize: FontSize.smaller,
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-        >Log Directory</span
-      >
-      <span
-        title=${displayDir}
-        style=${{
-      fontSize: FontSize.base,
-      overflow: "hidden",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis"
-    }}
-        >${offcanvas ? displayDir : ""}</span
-      >
-    </div>`;
-  } else {
-    return m$1`<span
-      style=${{
-      fontSize: FontSize.title
-    }}
-      >${offcanvas ? "Log History" : ""}
-    </span>`;
-  }
-};
 const EmptyPanel = ({ id, classes, height, style, children }) => {
   const emptyStyle = {
     display: "flex",
@@ -16584,6 +16164,52 @@ const isVscode = () => {
     return attr.includes("data-vscode-");
   });
 };
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
+};
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
   if (scores.length === 1) {
@@ -24372,10 +23998,8 @@ const Navbar = ({
   evalStats,
   samples,
   showToggle,
-  offcanvas,
   status
 }) => {
-  const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
   const task = evalSpec == null ? void 0 : evalSpec.task;
   const model = evalSpec == null ? void 0 : evalSpec.model;
@@ -24402,7 +24026,7 @@ const Navbar = ({
         >
           ${showToggle ? m$1`<button
                 id="sidebarToggle"
-                class="btn${toggleOffCanClass}"
+                class="btn"
                 type="button"
                 data-bs-toggle="offcanvas"
                 data-bs-target="#sidebarOffCanvas"
@@ -24412,7 +24036,7 @@ const Navbar = ({
     display: "flex"
   }}
               >
-                <i class=${ApplicationIcons.menu}></i>
+                <i class=${ApplicationIcons.previous}></i>
               </button> ` : ""}
           <div
             style=${{
@@ -26714,26 +26338,6 @@ function App({
     };
     loadLogsAndState();
   }, []);
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
-  const sidebar = !fullScreen && selectedLog.contents ? m$1`
-          <${Sidebar}
-            logs=${logs}
-            logHeaders=${logHeaders}
-            loading=${headersLoading}
-            offcanvas=${offcanvas}
-            selectedIndex=${selectedLogIndex}
-            onSelectedIndexChanged=${(index) => {
-    setSelectedLogIndex(index);
-    var myOffcanvas = document.getElementById("sidebarOffCanvas");
-    var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-    if (bsOffcanvas) {
-      bsOffcanvas.hide();
-    }
-  }}
-          />
-        ` : "";
-  const fullScreenClz = fullScreen ? " full-screen" : "";
-  const offcanvasClz = offcanvas ? " off-canvas" : "";
   const hideFind = q(() => {
     clearDocumentSelection();
     if (showFind) {
@@ -26744,8 +26348,7 @@ function App({
   const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
   return m$1`
     <${AppErrorBoundary}>
-    ${sidebar}
-    <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
+    <div ref=${mainAppRef} class="app-main-grid" tabIndex="0" onKeyDown=${(e2) => {
     if (!getVscodeApi()) {
       return;
     }
