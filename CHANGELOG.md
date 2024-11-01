@@ -16,6 +16,7 @@
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
 - Log the list of dataset sample IDs.
+- Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
 - Fix an issue which forced all values passed to a custom metric to a float value (https://github.com/UKGovernmentBEIS/inspect_ai/issues/775)
 
 ## v0.3.42 (23 October 2024)

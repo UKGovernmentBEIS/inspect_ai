@@ -11,6 +11,7 @@ from typing_extensions import override
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import SandboxEnvironment
+from ..limits import verify_exec_result_size, verify_read_file_size
 from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
@@ -236,6 +237,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             timeout=timeout,
             input=input,
         )
+        verify_exec_result_size(exec_result)
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
             raise PermissionError(f"Permission denied executing command: {exec_result}")
 
@@ -380,6 +382,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     )
                 else:
                     raise ex
+
+            verify_read_file_size(dest_file)
 
             # read and return w/ appropriate encoding
             if text:

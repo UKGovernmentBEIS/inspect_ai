@@ -30,6 +30,7 @@ from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util import OutputLimitExceededError
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 from ._generate_config import active_generate_config
@@ -96,6 +97,12 @@ async def call_tools(
                 if isinstance(ex.filename, str):
                     err = f"{err} Filename '{ex.filename}'."
                 tool_error = ToolCallError("is_a_directory", err)
+            except OutputLimitExceededError as ex:
+                tool_error = ToolCallError(
+                    "output_limit",
+                    f"The tool output limit of {ex.limit_str} was exceeded.",
+                )
+                result = ex.truncated_output or ""
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
