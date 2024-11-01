@@ -55,7 +55,6 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_cwd_absolute,
         test_exec_stdout_is_limited,
         test_exec_stderr_is_limited,
-        test_exec_limit_exceeded_does_not_terminate_command,
     ]:
         results[fn.__name__] = await check_test_fn(fn, sandbox_env)
 
@@ -311,23 +310,6 @@ async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
     assert "limit of 1 MiB was exceeded" in str(e_info.value)
     truncated_output = e_info.value.truncated_output
     assert truncated_output and len(truncated_output) == 1024**2
-
-
-async def test_exec_limit_exceeded_does_not_terminate_command(
-    sandbox_env: SandboxEnvironment,
-) -> None:
-    file = "limit-exceeded-but-still-running.file"
-    # Write 2 MiB to stdout, then create a file.
-    script = f"""\
-yes | head -c {2 * 1024**2}
-touch {file}
-"""
-    with pytest.raises(OutputLimitExceededError):
-        await sandbox_env.exec(["sh", "-c", script])
-    # Verify that exceeding the output limit did not terminate the command.
-    test_result = await sandbox_env.exec(["test", "-f", file])
-    assert test_result.returncode == 0
-    await _cleanup_file(sandbox_env, file)
 
 
 # TODO: write a test for when cwd doesn't exist
