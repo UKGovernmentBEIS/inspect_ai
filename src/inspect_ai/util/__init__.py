@@ -4,7 +4,6 @@ from ._resource import resource
 from ._sandbox import (
     OutputLimitExceededError,
     SandboxEnvironment,
-    SandboxEnvironmentLimits,
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -28,7 +27,6 @@ __all__ = [
     "resource",
     "subprocess",
     "SandboxEnvironment",
-    "SandboxEnvironmentLimits",
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",

@@ -6,8 +6,8 @@ import pytest
 from inspect_ai.util import (
     OutputLimitExceededError,
     SandboxEnvironment,
-    SandboxEnvironmentLimits,
 )
+from inspect_ai.util._sandbox import SandboxEnvironmentLimits
 
 
 async def check_test_fn(
