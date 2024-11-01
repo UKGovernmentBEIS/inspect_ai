@@ -18,6 +18,7 @@
 - Log the list of dataset sample IDs.
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
 - Fix an issue which forced all values passed to a custom metric to a float value (https://github.com/UKGovernmentBEIS/inspect_ai/issues/775)
+- Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
 
 ## v0.3.42 (23 October 2024)
 
