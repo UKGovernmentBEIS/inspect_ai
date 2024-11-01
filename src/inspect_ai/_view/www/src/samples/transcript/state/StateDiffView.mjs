@@ -16,7 +16,8 @@ import { format } from "jsondiffpatch/formatters/html";
  */
 export const StateDiffView = ({ before, after, style }) => {
   // Diff the objects and render the diff
-  const state_diff = diff(before, after);
+  const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
+
   const html_result = format(state_diff) || "Unable to render differences";
   return html`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
@@ -32,4 +33,21 @@ function unescapeNewlines(obj) {
     }
   }
   return obj;
+}
+
+function sanitizeKeys(obj) {
+  if (typeof obj !== "object" || obj === null) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeKeys);
+  }
+
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [
+      key.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+      sanitizeKeys(value),
+    ]),
+  );
 }

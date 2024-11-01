@@ -46,6 +46,8 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
             return _compute_dict_stat(scores, value_to_float, statistics.mean)
         elif isinstance(scores[0].value, list):
             return _compute_list_stat(scores, value_to_float, statistics.mean)
+        elif isinstance(scores[0].value, str):
+            return mode_score()(scores)
         else:
             return _compute_scalar_stat(scores, value_to_float, statistics.mean)
 

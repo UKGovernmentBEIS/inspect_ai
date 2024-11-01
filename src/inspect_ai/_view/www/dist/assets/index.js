@@ -18369,7 +18369,7 @@ function format(delta, left2) {
   return defaultInstance.format(delta, left2);
 }
 const StateDiffView = ({ before, after, style }) => {
-  const state_diff = diff(before, after);
+  const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
   const html_result = format(state_diff) || "Unable to render differences";
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
@@ -18385,6 +18385,20 @@ function unescapeNewlines(obj) {
     }
   }
   return obj;
+}
+function sanitizeKeys(obj) {
+  if (typeof obj !== "object" || obj === null) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeKeys);
+  }
+  return Object.fromEntries(
+    Object.entries(obj).map(([key2, value]) => [
+      key2.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+      sanitizeKeys(value)
+    ])
+  );
 }
 const StateEventView = ({ id, event, style }) => {
   const summary = summarizeChanges(event.changes);

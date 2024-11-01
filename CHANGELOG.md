@@ -10,12 +10,14 @@
 - Write custom tool call views into transcript for use by Inspect View.
 - Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
 - OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
+- Mistral: fix bug where base_url was not respected when passing both an api_key and base_url.
 - Don't include package scope for task name part of log files.
 - Improve performance of write_file for Docker sandboxes.
 - Use user_data_dir rather than user_runtime_dir for view notifications.
 - Implement `read_eval_log_sample()` for JSON log files.
 - Log the list of dataset sample IDs.
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
+- Fix an issue which forced all values passed to a custom metric to a float value (https://github.com/UKGovernmentBEIS/inspect_ai/issues/775)
 
 ## v0.3.42 (23 October 2024)
 
