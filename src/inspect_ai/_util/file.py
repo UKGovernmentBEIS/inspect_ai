@@ -143,7 +143,7 @@ class FileInfo(BaseModel):
     """Name of file."""
 
     type: str
-    """Type of file (file or dir)"""
+    """Type of file (file or directory)"""
 
     size: int
     """File size in bytes."""

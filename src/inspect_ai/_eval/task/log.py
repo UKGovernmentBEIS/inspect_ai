@@ -1,5 +1,5 @@
 from importlib import metadata as importlib_metadata
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 
@@ -79,6 +79,9 @@ class TaskLogger:
                 sandbox.type, cwd_relative_path(sandbox.config)
             )
 
+        # ensure that the dataset has sample ids and record them
+        sample_ids = cast(list[int | str], [sample.id for sample in dataset])
+
         # create eval spec
         self.eval = EvalSpec(
             run_id=run_id,
@@ -98,6 +101,7 @@ class TaskLogger:
                 name=dataset.name,
                 location=cwd_relative_path(dataset.location),
                 samples=len(dataset),
+                sample_ids=sample_ids,
                 shuffled=dataset.shuffled,
             ),
             sandbox=sandbox,

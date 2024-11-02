@@ -2,7 +2,22 @@ from typing import Any
 
 import yaml
 
+from inspect_ai._util.config import resolve_args
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+
+def parse_cli_config(
+    args: tuple[str] | list[str] | None, config: str | None
+) -> dict[str, Any]:
+    # start with file if any
+    cli_config: dict[str, Any] = {}
+    if config is not None:
+        cli_config = cli_config | resolve_args(config)
+
+    # merge in cli args
+    cli_args = parse_cli_args(args)
+    cli_config.update(**cli_args)
+    return cli_config
 
 
 def parse_cli_args(args: tuple[str] | list[str] | None) -> dict[str, Any]:

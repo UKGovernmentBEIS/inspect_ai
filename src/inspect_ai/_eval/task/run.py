@@ -545,11 +545,6 @@ async def resolve_dataset(
     )
     dataset = dataset[dataset_limit]
 
-    # add sample ids to dataset if they aren't there (start at 1 not 0)
-    for id, sample in zip(range(dataset_limit.start, dataset_limit.stop), dataset):
-        if sample.id is None:
-            sample.id = id + 1
-
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []
     for _ in range(0, epochs):

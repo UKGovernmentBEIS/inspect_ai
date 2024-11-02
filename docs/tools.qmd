@@ -100,6 +100,8 @@ If you do not explicitly handle errors, then Inspect provides some default error
 
 -   `UnicodeDecodeError` — Occurs when the output from executing a process or reading a file is binary rather than text.
 
+-   `OutputLimitExceededError` - Occurs when one or both of the output streams from `sandbox().exec()` exceed 1 MiB or when attempting to read a file over 100 MiB in size.
+
 -   `ToolError` — Special error thrown by tools to indicate they'd like to report an error to the model.
 
 These are all errors that are *expected* (in fact the `SandboxEnvironemnt` interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g. a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the `Sample` failing with an error.

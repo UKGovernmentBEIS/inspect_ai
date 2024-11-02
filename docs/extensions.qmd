@@ -55,7 +55,7 @@ The layer of indirection (creating a function that returns a ModelAPI class) is 
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
 
-The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
+The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` and `--model-config` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
 
 The `generate()` method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a `tuple[ModelOutput,ModelCall]` in order to record the raw request and response to the model within the sample transcript.
 

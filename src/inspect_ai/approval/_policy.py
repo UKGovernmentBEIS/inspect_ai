@@ -1,14 +1,13 @@
 import fnmatch
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from re import Pattern
 from typing import Any, Generator, cast
 
-import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from inspect_ai._util.config import read_config_object
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -179,10 +178,7 @@ def read_policy_config(policy_config: str) -> ApprovalPolicyConfig:
     policy_config = resource(policy_config, type="file")
 
     # detect json vs. yaml
-    is_json = policy_config.strip().startswith("{")
-    policy_config_dict = (
-        json.loads(policy_config) if is_json else yaml.safe_load(policy_config)
-    )
+    policy_config_dict = read_config_object(policy_config)
     if not isinstance(policy_config_dict, dict):
         raise ValueError(f"Invalid approval policy: {specified_policy_config}")
 

@@ -49,7 +49,8 @@ def convert_eval_logs(
         output_fs.mkdir(target_dir, exist_ok=True)
 
         # compute file input file based on path
-        input_file = f"{path}{fs.sep}{input_file}"
+        if fs.info(path).type == "directory":
+            input_file = f"{path}{fs.sep}{input_file}"
 
         # compute full output file and enforce overwrite
         output_file = f"{output_dir}{fs.sep}{input_name}.{to}"

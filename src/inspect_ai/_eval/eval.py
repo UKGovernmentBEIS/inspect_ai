@@ -8,6 +8,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
@@ -45,8 +46,8 @@ def eval(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
@@ -82,8 +83,10 @@ def eval(
             environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
+        model_args (dict[str,Any] | str): Model creation args
+            (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+            (as a dictionary or as a path to a JSON or YAML config file)
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
@@ -174,8 +177,8 @@ async def eval_async(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
@@ -211,8 +214,10 @@ async def eval_async(
             environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
+        model_args (dict[str,Any] | str): Model creation args
+            (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+            (as a dictionary or as a path to a JSON or YAML config file)
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
@@ -272,6 +277,11 @@ async def eval_async(
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
     _eval_async_running = True
+
+    # resolve model and task args
+    model_args = resolve_args(model_args)
+    task_args = resolve_args(task_args)
+
     try:
         # intialise eval
         model, approval, resolved_tasks = eval_init(
@@ -704,8 +714,8 @@ def eval_init(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -716,6 +726,10 @@ def eval_init(
 ) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
     init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
+
+    # resolve model and task args
+    model_args = resolve_args(model_args)
+    task_args = resolve_args(task_args)
 
     # resolve model args from environment if not specified
     if len(model_args) == 0:
