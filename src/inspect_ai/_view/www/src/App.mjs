@@ -5,7 +5,6 @@ import "prismjs";
 import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
-import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
   useCallback,
@@ -69,10 +68,16 @@ export function App({
   );
 
   // Log Headers
-  const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || {});
+  const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || []);
   const [headersLoading, setHeadersLoading] = useState(
     initialState?.headersLoading || false,
   );
+
+  // Log Header page
+  const [logHeaderPage, setLogHeaderPage] = useState(
+    initialState?.logHeaderPage || -1,
+  );
+  const [logHeaderPageSize] = useState(10);
 
   // Selected Log
   const [selectedLog, setSelectedLog] = useState(
@@ -114,7 +119,7 @@ export function App({
   // App loading status
   const [status, setStatus] = useState(
     initialState?.status || {
-      loading: true,
+      loading: false,
       error: undefined,
     },
   );
@@ -359,6 +364,11 @@ export function App({
     [selectedSampleTab, showingSampleDialog],
   );
 
+  const clearSelectedLog = useCallback(() => {
+    setSelectedLog({ contents: undefined, name: undefined });
+    setSelectedLogIndex(-1);
+  }, [setSelectedLogIndex, setSelectedLog]);
+
   // The main application reference
   const mainAppRef = useRef();
 
@@ -377,7 +387,7 @@ export function App({
 
     if (
       !showingSampleDialog &&
-      selectedLog.contents.sampleSummaries.length > 1
+      selectedLog.contents?.sampleSummaries.length > 1
     ) {
       return;
     }
@@ -450,44 +460,33 @@ export function App({
   // Read header information for the logs
   // and then update
   useEffect(() => {
+    if (logHeaderPage === -1) {
+      return;
+    }
+
     const loadHeaders = async () => {
-      setHeadersLoading(true);
-
-      // Group into chunks
-      const chunkSize = 8;
-      const fileLists = [];
-      for (let i = 0; i < logs.files.length; i += chunkSize) {
-        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
-        fileLists.push(chunk);
+      if (logHeaderPage < logs.files.length / logHeaderPageSize) {
+        setHeadersLoading(true);
+        const startIndex = logHeaderPage * logHeaderPageSize;
+        const files = logs.files.slice(
+          startIndex,
+          startIndex + logHeaderPageSize,
+        );
+        const headers = await api.get_log_headers(files.map((f) => f.name));
+        setLogHeaders(headers);
+        setHeadersLoading(false);
+      } else {
+        // TODO: Woah we went too far, no-op or throw
       }
-
-      // Chunk by chunk, read the header information
-      try {
-        for (const fileList of fileLists) {
-          const headers = await api.get_log_headers(fileList);
-          setLogHeaders((prev) => {
-            const updatedHeaders = {};
-            headers.forEach((header, index) => {
-              const logFile = fileList[index];
-              updatedHeaders[logFile] = header;
-            });
-            return { ...prev, ...updatedHeaders };
-          });
-
-          if (headers.length === chunkSize) {
-            await sleep(5000); // Pause between chunks
-          }
-        }
-      } catch (e) {
-        console.log(e);
-        setStatus({ loading: false, error: e });
-      }
-
-      setHeadersLoading(false);
     };
-
     loadHeaders();
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  }, [
+    logs,
+    logHeaderPage,
+    logHeaderPageSize,
+    setLogHeaders,
+    setHeadersLoading,
+  ]);
 
   /**
    * Resets the workspace tab based on the provided log's state.
@@ -540,7 +539,9 @@ export function App({
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
-      const targetLog = logs.files[selectedLogIndex];
+      const targetLogIndex =
+        logHeaderPage * logHeaderPageSize + selectedLogIndex;
+      const targetLog = logs.files[targetLogIndex];
       if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
         try {
           setStatus({ loading: true, error: undefined });
@@ -570,8 +571,9 @@ export function App({
         });
       }
     };
-
-    loadSpecificLog();
+    if (selectedLogIndex !== -1) {
+      loadSpecificLog();
+    }
   }, [
     selectedLogIndex,
     logs,
@@ -756,6 +758,8 @@ export function App({
         const result = await load();
         setLogs(result);
 
+        setLogHeaderPage(0);
+
         // If a log file was passed, select it
         const log_file = urlParams.get("log_file");
         if (log_file) {
@@ -766,7 +770,7 @@ export function App({
             setSelectedLogIndex(index);
           }
         } else if (selectedLogIndex === -1) {
-          setSelectedLogIndex(0);
+          //setSelectedLogIndex(0);
         }
       }
 
@@ -790,7 +794,6 @@ export function App({
 
     loadLogsAndState();
   }, []);
-
 
   const hideFind = useCallback(() => {
     clearDocumentSelection();
@@ -842,10 +845,15 @@ export function App({
             />`
           : selectedLog.contents === undefined
             ? html`<${TaskList}
-                logs=${logs}
+                status=${headersLoading ? "loading" : "ok"}
+                logDir=${logs.log_dir}
+                logCount=${logs.files.length}
                 logHeaders=${logHeaders}
-                selectedIndex=${selectedLogIndex}
-                onSelectedIndex=${setSelectedLogIndex}
+                selectedLogIndex=${selectedLogIndex}
+                onSelectedLogIndex=${setSelectedLogIndex}
+                page=${logHeaderPage}
+                pageCount="${Math.ceil(logs.files.length / logHeaderPageSize)}"
+                onPageChanged="${setLogHeaderPage}"
               />`
             : html`<${TaskView}
                 task_id=${selectedLog?.contents?.eval?.task_id}
@@ -858,6 +866,7 @@ export function App({
                 evalStats=${selectedLog?.contents?.stats}
                 evalResults=${selectedLog?.contents?.results}
                 showToggle=${showToggle}
+                onToggle=${clearSelectedLog}
                 samples=${filteredSamples}
                 sampleMode=${sampleMode}
                 groupBy=${groupBy}

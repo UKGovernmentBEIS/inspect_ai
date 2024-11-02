@@ -1662,16 +1662,16 @@ var prism = { exports: {} };
     function parseRange(range) {
       var m2 = /^\s*(\d+)\s*(?:(,)\s*(?:(\d+)\s*)?)?$/.exec(range || "");
       if (m2) {
-        var start2 = Number(m2[1]);
+        var start = Number(m2[1]);
         var comma = m2[2];
-        var end2 = m2[3];
+        var end = m2[3];
         if (!comma) {
-          return [start2, start2];
+          return [start, start];
         }
-        if (!end2) {
-          return [start2, void 0];
+        if (!end) {
+          return [start, void 0];
         }
-        return [start2, Number(end2)];
+        return [start, Number(end)];
       }
       return void 0;
     }
@@ -1707,19 +1707,19 @@ var prism = { exports: {} };
             var range = parseRange(pre.getAttribute("data-range"));
             if (range) {
               var lines = text2.split(/\r\n?|\n/g);
-              var start2 = range[0];
-              var end2 = range[1] == null ? lines.length : range[1];
-              if (start2 < 0) {
-                start2 += lines.length;
+              var start = range[0];
+              var end = range[1] == null ? lines.length : range[1];
+              if (start < 0) {
+                start += lines.length;
               }
-              start2 = Math.max(0, Math.min(start2 - 1, lines.length));
-              if (end2 < 0) {
-                end2 += lines.length;
+              start = Math.max(0, Math.min(start - 1, lines.length));
+              if (end < 0) {
+                end += lines.length;
               }
-              end2 = Math.max(0, Math.min(end2, lines.length));
-              text2 = lines.slice(start2, end2).join("\n");
+              end = Math.max(0, Math.min(end, lines.length));
+              text2 = lines.slice(start, end).join("\n");
               if (!pre.hasAttribute("data-start")) {
-                pre.setAttribute("data-start", String(start2 + 1));
+                pre.setAttribute("data-start", String(start + 1));
               }
             }
             code2.textContent = text2;
@@ -1806,14 +1806,14 @@ var clipboard = { exports: {} };
               };
               var actions_cut = ClipboardActionCut;
               function createFakeElement(value) {
-                var isRTL2 = document.documentElement.getAttribute("dir") === "rtl";
+                var isRTL = document.documentElement.getAttribute("dir") === "rtl";
                 var fakeElement = document.createElement("textarea");
                 fakeElement.style.fontSize = "12pt";
                 fakeElement.style.border = "0";
                 fakeElement.style.padding = "0";
                 fakeElement.style.margin = "0";
                 fakeElement.style.position = "absolute";
-                fakeElement.style[isRTL2 ? "right" : "left"] = "-9999px";
+                fakeElement.style[isRTL ? "right" : "left"] = "-9999px";
                 var yPosition = window.pageYOffset || document.documentElement.scrollTop;
                 fakeElement.style.top = "".concat(yPosition, "px");
                 fakeElement.setAttribute("readonly", "");
@@ -2402,5054 +2402,6 @@ var clipboard = { exports: {} };
 })(clipboard);
 var clipboardExports = clipboard.exports;
 const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-var top = "top";
-var bottom = "bottom";
-var right = "right";
-var left = "left";
-var auto = "auto";
-var basePlacements = [top, bottom, right, left];
-var start = "start";
-var end = "end";
-var clippingParents = "clippingParents";
-var viewport = "viewport";
-var popper = "popper";
-var reference$1 = "reference";
-var variationPlacements = /* @__PURE__ */ basePlacements.reduce(function(acc, placement) {
-  return acc.concat([placement + "-" + start, placement + "-" + end]);
-}, []);
-var placements = /* @__PURE__ */ [].concat(basePlacements, [auto]).reduce(function(acc, placement) {
-  return acc.concat([placement, placement + "-" + start, placement + "-" + end]);
-}, []);
-var beforeRead = "beforeRead";
-var read$1 = "read";
-var afterRead = "afterRead";
-var beforeMain = "beforeMain";
-var main = "main";
-var afterMain = "afterMain";
-var beforeWrite = "beforeWrite";
-var write = "write";
-var afterWrite = "afterWrite";
-var modifierPhases = [beforeRead, read$1, afterRead, beforeMain, main, afterMain, beforeWrite, write, afterWrite];
-function getNodeName(element) {
-  return element ? (element.nodeName || "").toLowerCase() : null;
-}
-function getWindow(node) {
-  if (node == null) {
-    return window;
-  }
-  if (node.toString() !== "[object Window]") {
-    var ownerDocument = node.ownerDocument;
-    return ownerDocument ? ownerDocument.defaultView || window : window;
-  }
-  return node;
-}
-function isElement$1(node) {
-  var OwnElement = getWindow(node).Element;
-  return node instanceof OwnElement || node instanceof Element;
-}
-function isHTMLElement(node) {
-  var OwnElement = getWindow(node).HTMLElement;
-  return node instanceof OwnElement || node instanceof HTMLElement;
-}
-function isShadowRoot(node) {
-  if (typeof ShadowRoot === "undefined") {
-    return false;
-  }
-  var OwnElement = getWindow(node).ShadowRoot;
-  return node instanceof OwnElement || node instanceof ShadowRoot;
-}
-function applyStyles(_ref) {
-  var state = _ref.state;
-  Object.keys(state.elements).forEach(function(name) {
-    var style = state.styles[name] || {};
-    var attributes = state.attributes[name] || {};
-    var element = state.elements[name];
-    if (!isHTMLElement(element) || !getNodeName(element)) {
-      return;
-    }
-    Object.assign(element.style, style);
-    Object.keys(attributes).forEach(function(name2) {
-      var value = attributes[name2];
-      if (value === false) {
-        element.removeAttribute(name2);
-      } else {
-        element.setAttribute(name2, value === true ? "" : value);
-      }
-    });
-  });
-}
-function effect$2(_ref2) {
-  var state = _ref2.state;
-  var initialStyles = {
-    popper: {
-      position: state.options.strategy,
-      left: "0",
-      top: "0",
-      margin: "0"
-    },
-    arrow: {
-      position: "absolute"
-    },
-    reference: {}
-  };
-  Object.assign(state.elements.popper.style, initialStyles.popper);
-  state.styles = initialStyles;
-  if (state.elements.arrow) {
-    Object.assign(state.elements.arrow.style, initialStyles.arrow);
-  }
-  return function() {
-    Object.keys(state.elements).forEach(function(name) {
-      var element = state.elements[name];
-      var attributes = state.attributes[name] || {};
-      var styleProperties = Object.keys(state.styles.hasOwnProperty(name) ? state.styles[name] : initialStyles[name]);
-      var style = styleProperties.reduce(function(style2, property) {
-        style2[property] = "";
-        return style2;
-      }, {});
-      if (!isHTMLElement(element) || !getNodeName(element)) {
-        return;
-      }
-      Object.assign(element.style, style);
-      Object.keys(attributes).forEach(function(attribute2) {
-        element.removeAttribute(attribute2);
-      });
-    });
-  };
-}
-const applyStyles$1 = {
-  name: "applyStyles",
-  enabled: true,
-  phase: "write",
-  fn: applyStyles,
-  effect: effect$2,
-  requires: ["computeStyles"]
-};
-function getBasePlacement(placement) {
-  return placement.split("-")[0];
-}
-var max$1 = Math.max;
-var min = Math.min;
-var round = Math.round;
-function getUAString() {
-  var uaData = navigator.userAgentData;
-  if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) {
-    return uaData.brands.map(function(item) {
-      return item.brand + "/" + item.version;
-    }).join(" ");
-  }
-  return navigator.userAgent;
-}
-function isLayoutViewport() {
-  return !/^((?!chrome|android).)*safari/i.test(getUAString());
-}
-function getBoundingClientRect(element, includeScale, isFixedStrategy) {
-  if (includeScale === void 0) {
-    includeScale = false;
-  }
-  if (isFixedStrategy === void 0) {
-    isFixedStrategy = false;
-  }
-  var clientRect = element.getBoundingClientRect();
-  var scaleX = 1;
-  var scaleY = 1;
-  if (includeScale && isHTMLElement(element)) {
-    scaleX = element.offsetWidth > 0 ? round(clientRect.width) / element.offsetWidth || 1 : 1;
-    scaleY = element.offsetHeight > 0 ? round(clientRect.height) / element.offsetHeight || 1 : 1;
-  }
-  var _ref = isElement$1(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
-  var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
-  var x = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
-  var y2 = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
-  var width = clientRect.width / scaleX;
-  var height = clientRect.height / scaleY;
-  return {
-    width,
-    height,
-    top: y2,
-    right: x + width,
-    bottom: y2 + height,
-    left: x,
-    x,
-    y: y2
-  };
-}
-function getLayoutRect(element) {
-  var clientRect = getBoundingClientRect(element);
-  var width = element.offsetWidth;
-  var height = element.offsetHeight;
-  if (Math.abs(clientRect.width - width) <= 1) {
-    width = clientRect.width;
-  }
-  if (Math.abs(clientRect.height - height) <= 1) {
-    height = clientRect.height;
-  }
-  return {
-    x: element.offsetLeft,
-    y: element.offsetTop,
-    width,
-    height
-  };
-}
-function contains(parent, child) {
-  var rootNode = child.getRootNode && child.getRootNode();
-  if (parent.contains(child)) {
-    return true;
-  } else if (rootNode && isShadowRoot(rootNode)) {
-    var next = child;
-    do {
-      if (next && parent.isSameNode(next)) {
-        return true;
-      }
-      next = next.parentNode || next.host;
-    } while (next);
-  }
-  return false;
-}
-function getComputedStyle$1(element) {
-  return getWindow(element).getComputedStyle(element);
-}
-function isTableElement(element) {
-  return ["table", "td", "th"].indexOf(getNodeName(element)) >= 0;
-}
-function getDocumentElement(element) {
-  return ((isElement$1(element) ? element.ownerDocument : (
-    // $FlowFixMe[prop-missing]
-    element.document
-  )) || window.document).documentElement;
-}
-function getParentNode(element) {
-  if (getNodeName(element) === "html") {
-    return element;
-  }
-  return (
-    // this is a quicker (but less type safe) way to save quite some bytes from the bundle
-    // $FlowFixMe[incompatible-return]
-    // $FlowFixMe[prop-missing]
-    element.assignedSlot || // step into the shadow DOM of the parent of a slotted node
-    element.parentNode || // DOM Element detected
-    (isShadowRoot(element) ? element.host : null) || // ShadowRoot detected
-    // $FlowFixMe[incompatible-call]: HTMLElement is a Node
-    getDocumentElement(element)
-  );
-}
-function getTrueOffsetParent(element) {
-  if (!isHTMLElement(element) || // https://github.com/popperjs/popper-core/issues/837
-  getComputedStyle$1(element).position === "fixed") {
-    return null;
-  }
-  return element.offsetParent;
-}
-function getContainingBlock(element) {
-  var isFirefox = /firefox/i.test(getUAString());
-  var isIE = /Trident/i.test(getUAString());
-  if (isIE && isHTMLElement(element)) {
-    var elementCss = getComputedStyle$1(element);
-    if (elementCss.position === "fixed") {
-      return null;
-    }
-  }
-  var currentNode = getParentNode(element);
-  if (isShadowRoot(currentNode)) {
-    currentNode = currentNode.host;
-  }
-  while (isHTMLElement(currentNode) && ["html", "body"].indexOf(getNodeName(currentNode)) < 0) {
-    var css = getComputedStyle$1(currentNode);
-    if (css.transform !== "none" || css.perspective !== "none" || css.contain === "paint" || ["transform", "perspective"].indexOf(css.willChange) !== -1 || isFirefox && css.willChange === "filter" || isFirefox && css.filter && css.filter !== "none") {
-      return currentNode;
-    } else {
-      currentNode = currentNode.parentNode;
-    }
-  }
-  return null;
-}
-function getOffsetParent(element) {
-  var window2 = getWindow(element);
-  var offsetParent = getTrueOffsetParent(element);
-  while (offsetParent && isTableElement(offsetParent) && getComputedStyle$1(offsetParent).position === "static") {
-    offsetParent = getTrueOffsetParent(offsetParent);
-  }
-  if (offsetParent && (getNodeName(offsetParent) === "html" || getNodeName(offsetParent) === "body" && getComputedStyle$1(offsetParent).position === "static")) {
-    return window2;
-  }
-  return offsetParent || getContainingBlock(element) || window2;
-}
-function getMainAxisFromPlacement(placement) {
-  return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
-}
-function within(min$1, value, max2) {
-  return max$1(min$1, min(value, max2));
-}
-function withinMaxClamp(min2, value, max2) {
-  var v2 = within(min2, value, max2);
-  return v2 > max2 ? max2 : v2;
-}
-function getFreshSideObject() {
-  return {
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0
-  };
-}
-function mergePaddingObject(paddingObject) {
-  return Object.assign({}, getFreshSideObject(), paddingObject);
-}
-function expandToHashMap(value, keys) {
-  return keys.reduce(function(hashMap, key2) {
-    hashMap[key2] = value;
-    return hashMap;
-  }, {});
-}
-var toPaddingObject = function toPaddingObject2(padding, state) {
-  padding = typeof padding === "function" ? padding(Object.assign({}, state.rects, {
-    placement: state.placement
-  })) : padding;
-  return mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-};
-function arrow(_ref) {
-  var _state$modifiersData$;
-  var state = _ref.state, name = _ref.name, options = _ref.options;
-  var arrowElement = state.elements.arrow;
-  var popperOffsets2 = state.modifiersData.popperOffsets;
-  var basePlacement = getBasePlacement(state.placement);
-  var axis = getMainAxisFromPlacement(basePlacement);
-  var isVertical = [left, right].indexOf(basePlacement) >= 0;
-  var len = isVertical ? "height" : "width";
-  if (!arrowElement || !popperOffsets2) {
-    return;
-  }
-  var paddingObject = toPaddingObject(options.padding, state);
-  var arrowRect = getLayoutRect(arrowElement);
-  var minProp = axis === "y" ? top : left;
-  var maxProp = axis === "y" ? bottom : right;
-  var endDiff = state.rects.reference[len] + state.rects.reference[axis] - popperOffsets2[axis] - state.rects.popper[len];
-  var startDiff = popperOffsets2[axis] - state.rects.reference[axis];
-  var arrowOffsetParent = getOffsetParent(arrowElement);
-  var clientSize = arrowOffsetParent ? axis === "y" ? arrowOffsetParent.clientHeight || 0 : arrowOffsetParent.clientWidth || 0 : 0;
-  var centerToReference = endDiff / 2 - startDiff / 2;
-  var min2 = paddingObject[minProp];
-  var max2 = clientSize - arrowRect[len] - paddingObject[maxProp];
-  var center = clientSize / 2 - arrowRect[len] / 2 + centerToReference;
-  var offset2 = within(min2, center, max2);
-  var axisProp = axis;
-  state.modifiersData[name] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset2, _state$modifiersData$.centerOffset = offset2 - center, _state$modifiersData$);
-}
-function effect$1(_ref2) {
-  var state = _ref2.state, options = _ref2.options;
-  var _options$element = options.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
-  if (arrowElement == null) {
-    return;
-  }
-  if (typeof arrowElement === "string") {
-    arrowElement = state.elements.popper.querySelector(arrowElement);
-    if (!arrowElement) {
-      return;
-    }
-  }
-  if (!contains(state.elements.popper, arrowElement)) {
-    return;
-  }
-  state.elements.arrow = arrowElement;
-}
-const arrow$1 = {
-  name: "arrow",
-  enabled: true,
-  phase: "main",
-  fn: arrow,
-  effect: effect$1,
-  requires: ["popperOffsets"],
-  requiresIfExists: ["preventOverflow"]
-};
-function getVariation(placement) {
-  return placement.split("-")[1];
-}
-var unsetSides = {
-  top: "auto",
-  right: "auto",
-  bottom: "auto",
-  left: "auto"
-};
-function roundOffsetsByDPR(_ref, win) {
-  var x = _ref.x, y2 = _ref.y;
-  var dpr = win.devicePixelRatio || 1;
-  return {
-    x: round(x * dpr) / dpr || 0,
-    y: round(y2 * dpr) / dpr || 0
-  };
-}
-function mapToStyles(_ref2) {
-  var _Object$assign2;
-  var popper2 = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
-  var _offsets$x = offsets.x, x = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
-  var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
-    x,
-    y: y2
-  }) : {
-    x,
-    y: y2
-  };
-  x = _ref3.x;
-  y2 = _ref3.y;
-  var hasX = offsets.hasOwnProperty("x");
-  var hasY = offsets.hasOwnProperty("y");
-  var sideX = left;
-  var sideY = top;
-  var win = window;
-  if (adaptive) {
-    var offsetParent = getOffsetParent(popper2);
-    var heightProp = "clientHeight";
-    var widthProp = "clientWidth";
-    if (offsetParent === getWindow(popper2)) {
-      offsetParent = getDocumentElement(popper2);
-      if (getComputedStyle$1(offsetParent).position !== "static" && position === "absolute") {
-        heightProp = "scrollHeight";
-        widthProp = "scrollWidth";
-      }
-    }
-    offsetParent = offsetParent;
-    if (placement === top || (placement === left || placement === right) && variation === end) {
-      sideY = bottom;
-      var offsetY = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.height : (
-        // $FlowFixMe[prop-missing]
-        offsetParent[heightProp]
-      );
-      y2 -= offsetY - popperRect.height;
-      y2 *= gpuAcceleration ? 1 : -1;
-    }
-    if (placement === left || (placement === top || placement === bottom) && variation === end) {
-      sideX = right;
-      var offsetX = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.width : (
-        // $FlowFixMe[prop-missing]
-        offsetParent[widthProp]
-      );
-      x -= offsetX - popperRect.width;
-      x *= gpuAcceleration ? 1 : -1;
-    }
-  }
-  var commonStyles = Object.assign({
-    position
-  }, adaptive && unsetSides);
-  var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
-    x,
-    y: y2
-  }, getWindow(popper2)) : {
-    x,
-    y: y2
-  };
-  x = _ref4.x;
-  y2 = _ref4.y;
-  if (gpuAcceleration) {
-    var _Object$assign;
-    return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x + "px, " + y2 + "px)" : "translate3d(" + x + "px, " + y2 + "px, 0)", _Object$assign));
-  }
-  return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x + "px" : "", _Object$assign2.transform = "", _Object$assign2));
-}
-function computeStyles(_ref5) {
-  var state = _ref5.state, options = _ref5.options;
-  var _options$gpuAccelerat = options.gpuAcceleration, gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat, _options$adaptive = options.adaptive, adaptive = _options$adaptive === void 0 ? true : _options$adaptive, _options$roundOffsets = options.roundOffsets, roundOffsets = _options$roundOffsets === void 0 ? true : _options$roundOffsets;
-  var commonStyles = {
-    placement: getBasePlacement(state.placement),
-    variation: getVariation(state.placement),
-    popper: state.elements.popper,
-    popperRect: state.rects.popper,
-    gpuAcceleration,
-    isFixed: state.options.strategy === "fixed"
-  };
-  if (state.modifiersData.popperOffsets != null) {
-    state.styles.popper = Object.assign({}, state.styles.popper, mapToStyles(Object.assign({}, commonStyles, {
-      offsets: state.modifiersData.popperOffsets,
-      position: state.options.strategy,
-      adaptive,
-      roundOffsets
-    })));
-  }
-  if (state.modifiersData.arrow != null) {
-    state.styles.arrow = Object.assign({}, state.styles.arrow, mapToStyles(Object.assign({}, commonStyles, {
-      offsets: state.modifiersData.arrow,
-      position: "absolute",
-      adaptive: false,
-      roundOffsets
-    })));
-  }
-  state.attributes.popper = Object.assign({}, state.attributes.popper, {
-    "data-popper-placement": state.placement
-  });
-}
-const computeStyles$1 = {
-  name: "computeStyles",
-  enabled: true,
-  phase: "beforeWrite",
-  fn: computeStyles,
-  data: {}
-};
-var passive = {
-  passive: true
-};
-function effect(_ref) {
-  var state = _ref.state, instance = _ref.instance, options = _ref.options;
-  var _options$scroll = options.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options.resize, resize = _options$resize === void 0 ? true : _options$resize;
-  var window2 = getWindow(state.elements.popper);
-  var scrollParents = [].concat(state.scrollParents.reference, state.scrollParents.popper);
-  if (scroll) {
-    scrollParents.forEach(function(scrollParent) {
-      scrollParent.addEventListener("scroll", instance.update, passive);
-    });
-  }
-  if (resize) {
-    window2.addEventListener("resize", instance.update, passive);
-  }
-  return function() {
-    if (scroll) {
-      scrollParents.forEach(function(scrollParent) {
-        scrollParent.removeEventListener("scroll", instance.update, passive);
-      });
-    }
-    if (resize) {
-      window2.removeEventListener("resize", instance.update, passive);
-    }
-  };
-}
-const eventListeners = {
-  name: "eventListeners",
-  enabled: true,
-  phase: "write",
-  fn: function fn() {
-  },
-  effect,
-  data: {}
-};
-var hash$1 = {
-  left: "right",
-  right: "left",
-  bottom: "top",
-  top: "bottom"
-};
-function getOppositePlacement(placement) {
-  return placement.replace(/left|right|bottom|top/g, function(matched) {
-    return hash$1[matched];
-  });
-}
-var hash = {
-  start: "end",
-  end: "start"
-};
-function getOppositeVariationPlacement(placement) {
-  return placement.replace(/start|end/g, function(matched) {
-    return hash[matched];
-  });
-}
-function getWindowScroll(node) {
-  var win = getWindow(node);
-  var scrollLeft = win.pageXOffset;
-  var scrollTop = win.pageYOffset;
-  return {
-    scrollLeft,
-    scrollTop
-  };
-}
-function getWindowScrollBarX(element) {
-  return getBoundingClientRect(getDocumentElement(element)).left + getWindowScroll(element).scrollLeft;
-}
-function getViewportRect(element, strategy) {
-  var win = getWindow(element);
-  var html = getDocumentElement(element);
-  var visualViewport = win.visualViewport;
-  var width = html.clientWidth;
-  var height = html.clientHeight;
-  var x = 0;
-  var y2 = 0;
-  if (visualViewport) {
-    width = visualViewport.width;
-    height = visualViewport.height;
-    var layoutViewport = isLayoutViewport();
-    if (layoutViewport || !layoutViewport && strategy === "fixed") {
-      x = visualViewport.offsetLeft;
-      y2 = visualViewport.offsetTop;
-    }
-  }
-  return {
-    width,
-    height,
-    x: x + getWindowScrollBarX(element),
-    y: y2
-  };
-}
-function getDocumentRect(element) {
-  var _element$ownerDocumen;
-  var html = getDocumentElement(element);
-  var winScroll = getWindowScroll(element);
-  var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-  var width = max$1(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-  var height = max$1(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
-  var x = -winScroll.scrollLeft + getWindowScrollBarX(element);
-  var y2 = -winScroll.scrollTop;
-  if (getComputedStyle$1(body || html).direction === "rtl") {
-    x += max$1(html.clientWidth, body ? body.clientWidth : 0) - width;
-  }
-  return {
-    width,
-    height,
-    x,
-    y: y2
-  };
-}
-function isScrollParent(element) {
-  var _getComputedStyle = getComputedStyle$1(element), overflow = _getComputedStyle.overflow, overflowX = _getComputedStyle.overflowX, overflowY = _getComputedStyle.overflowY;
-  return /auto|scroll|overlay|hidden/.test(overflow + overflowY + overflowX);
-}
-function getScrollParent(node) {
-  if (["html", "body", "#document"].indexOf(getNodeName(node)) >= 0) {
-    return node.ownerDocument.body;
-  }
-  if (isHTMLElement(node) && isScrollParent(node)) {
-    return node;
-  }
-  return getScrollParent(getParentNode(node));
-}
-function listScrollParents(element, list2) {
-  var _element$ownerDocumen;
-  if (list2 === void 0) {
-    list2 = [];
-  }
-  var scrollParent = getScrollParent(element);
-  var isBody = scrollParent === ((_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body);
-  var win = getWindow(scrollParent);
-  var target = isBody ? [win].concat(win.visualViewport || [], isScrollParent(scrollParent) ? scrollParent : []) : scrollParent;
-  var updatedList = list2.concat(target);
-  return isBody ? updatedList : (
-    // $FlowFixMe[incompatible-call]: isBody tells us target will be an HTMLElement here
-    updatedList.concat(listScrollParents(getParentNode(target)))
-  );
-}
-function rectToClientRect(rect) {
-  return Object.assign({}, rect, {
-    left: rect.x,
-    top: rect.y,
-    right: rect.x + rect.width,
-    bottom: rect.y + rect.height
-  });
-}
-function getInnerBoundingClientRect(element, strategy) {
-  var rect = getBoundingClientRect(element, false, strategy === "fixed");
-  rect.top = rect.top + element.clientTop;
-  rect.left = rect.left + element.clientLeft;
-  rect.bottom = rect.top + element.clientHeight;
-  rect.right = rect.left + element.clientWidth;
-  rect.width = element.clientWidth;
-  rect.height = element.clientHeight;
-  rect.x = rect.left;
-  rect.y = rect.top;
-  return rect;
-}
-function getClientRectFromMixedType(element, clippingParent, strategy) {
-  return clippingParent === viewport ? rectToClientRect(getViewportRect(element, strategy)) : isElement$1(clippingParent) ? getInnerBoundingClientRect(clippingParent, strategy) : rectToClientRect(getDocumentRect(getDocumentElement(element)));
-}
-function getClippingParents(element) {
-  var clippingParents2 = listScrollParents(getParentNode(element));
-  var canEscapeClipping = ["absolute", "fixed"].indexOf(getComputedStyle$1(element).position) >= 0;
-  var clipperElement = canEscapeClipping && isHTMLElement(element) ? getOffsetParent(element) : element;
-  if (!isElement$1(clipperElement)) {
-    return [];
-  }
-  return clippingParents2.filter(function(clippingParent) {
-    return isElement$1(clippingParent) && contains(clippingParent, clipperElement) && getNodeName(clippingParent) !== "body";
-  });
-}
-function getClippingRect(element, boundary, rootBoundary, strategy) {
-  var mainClippingParents = boundary === "clippingParents" ? getClippingParents(element) : [].concat(boundary);
-  var clippingParents2 = [].concat(mainClippingParents, [rootBoundary]);
-  var firstClippingParent = clippingParents2[0];
-  var clippingRect = clippingParents2.reduce(function(accRect, clippingParent) {
-    var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-    accRect.top = max$1(rect.top, accRect.top);
-    accRect.right = min(rect.right, accRect.right);
-    accRect.bottom = min(rect.bottom, accRect.bottom);
-    accRect.left = max$1(rect.left, accRect.left);
-    return accRect;
-  }, getClientRectFromMixedType(element, firstClippingParent, strategy));
-  clippingRect.width = clippingRect.right - clippingRect.left;
-  clippingRect.height = clippingRect.bottom - clippingRect.top;
-  clippingRect.x = clippingRect.left;
-  clippingRect.y = clippingRect.top;
-  return clippingRect;
-}
-function computeOffsets(_ref) {
-  var reference2 = _ref.reference, element = _ref.element, placement = _ref.placement;
-  var basePlacement = placement ? getBasePlacement(placement) : null;
-  var variation = placement ? getVariation(placement) : null;
-  var commonX = reference2.x + reference2.width / 2 - element.width / 2;
-  var commonY = reference2.y + reference2.height / 2 - element.height / 2;
-  var offsets;
-  switch (basePlacement) {
-    case top:
-      offsets = {
-        x: commonX,
-        y: reference2.y - element.height
-      };
-      break;
-    case bottom:
-      offsets = {
-        x: commonX,
-        y: reference2.y + reference2.height
-      };
-      break;
-    case right:
-      offsets = {
-        x: reference2.x + reference2.width,
-        y: commonY
-      };
-      break;
-    case left:
-      offsets = {
-        x: reference2.x - element.width,
-        y: commonY
-      };
-      break;
-    default:
-      offsets = {
-        x: reference2.x,
-        y: reference2.y
-      };
-  }
-  var mainAxis = basePlacement ? getMainAxisFromPlacement(basePlacement) : null;
-  if (mainAxis != null) {
-    var len = mainAxis === "y" ? "height" : "width";
-    switch (variation) {
-      case start:
-        offsets[mainAxis] = offsets[mainAxis] - (reference2[len] / 2 - element[len] / 2);
-        break;
-      case end:
-        offsets[mainAxis] = offsets[mainAxis] + (reference2[len] / 2 - element[len] / 2);
-        break;
-    }
-  }
-  return offsets;
-}
-function detectOverflow(state, options) {
-  if (options === void 0) {
-    options = {};
-  }
-  var _options = options, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
-  var paddingObject = mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-  var altContext = elementContext === popper ? reference$1 : popper;
-  var popperRect = state.rects.popper;
-  var element = state.elements[altBoundary ? altContext : elementContext];
-  var clippingClientRect = getClippingRect(isElement$1(element) ? element : element.contextElement || getDocumentElement(state.elements.popper), boundary, rootBoundary, strategy);
-  var referenceClientRect = getBoundingClientRect(state.elements.reference);
-  var popperOffsets2 = computeOffsets({
-    reference: referenceClientRect,
-    element: popperRect,
-    strategy: "absolute",
-    placement
-  });
-  var popperClientRect = rectToClientRect(Object.assign({}, popperRect, popperOffsets2));
-  var elementClientRect = elementContext === popper ? popperClientRect : referenceClientRect;
-  var overflowOffsets = {
-    top: clippingClientRect.top - elementClientRect.top + paddingObject.top,
-    bottom: elementClientRect.bottom - clippingClientRect.bottom + paddingObject.bottom,
-    left: clippingClientRect.left - elementClientRect.left + paddingObject.left,
-    right: elementClientRect.right - clippingClientRect.right + paddingObject.right
-  };
-  var offsetData = state.modifiersData.offset;
-  if (elementContext === popper && offsetData) {
-    var offset2 = offsetData[placement];
-    Object.keys(overflowOffsets).forEach(function(key2) {
-      var multiply = [right, bottom].indexOf(key2) >= 0 ? 1 : -1;
-      var axis = [top, bottom].indexOf(key2) >= 0 ? "y" : "x";
-      overflowOffsets[key2] += offset2[axis] * multiply;
-    });
-  }
-  return overflowOffsets;
-}
-function computeAutoPlacement(state, options) {
-  if (options === void 0) {
-    options = {};
-  }
-  var _options = options, placement = _options.placement, boundary = _options.boundary, rootBoundary = _options.rootBoundary, padding = _options.padding, flipVariations = _options.flipVariations, _options$allowedAutoP = _options.allowedAutoPlacements, allowedAutoPlacements = _options$allowedAutoP === void 0 ? placements : _options$allowedAutoP;
-  var variation = getVariation(placement);
-  var placements$1 = variation ? flipVariations ? variationPlacements : variationPlacements.filter(function(placement2) {
-    return getVariation(placement2) === variation;
-  }) : basePlacements;
-  var allowedPlacements = placements$1.filter(function(placement2) {
-    return allowedAutoPlacements.indexOf(placement2) >= 0;
-  });
-  if (allowedPlacements.length === 0) {
-    allowedPlacements = placements$1;
-  }
-  var overflows = allowedPlacements.reduce(function(acc, placement2) {
-    acc[placement2] = detectOverflow(state, {
-      placement: placement2,
-      boundary,
-      rootBoundary,
-      padding
-    })[getBasePlacement(placement2)];
-    return acc;
-  }, {});
-  return Object.keys(overflows).sort(function(a2, b2) {
-    return overflows[a2] - overflows[b2];
-  });
-}
-function getExpandedFallbackPlacements(placement) {
-  if (getBasePlacement(placement) === auto) {
-    return [];
-  }
-  var oppositePlacement = getOppositePlacement(placement);
-  return [getOppositeVariationPlacement(placement), oppositePlacement, getOppositeVariationPlacement(oppositePlacement)];
-}
-function flip(_ref) {
-  var state = _ref.state, options = _ref.options, name = _ref.name;
-  if (state.modifiersData[name]._skip) {
-    return;
-  }
-  var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? true : _options$altAxis, specifiedFallbackPlacements = options.fallbackPlacements, padding = options.padding, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, _options$flipVariatio = options.flipVariations, flipVariations = _options$flipVariatio === void 0 ? true : _options$flipVariatio, allowedAutoPlacements = options.allowedAutoPlacements;
-  var preferredPlacement = state.options.placement;
-  var basePlacement = getBasePlacement(preferredPlacement);
-  var isBasePlacement = basePlacement === preferredPlacement;
-  var fallbackPlacements = specifiedFallbackPlacements || (isBasePlacement || !flipVariations ? [getOppositePlacement(preferredPlacement)] : getExpandedFallbackPlacements(preferredPlacement));
-  var placements2 = [preferredPlacement].concat(fallbackPlacements).reduce(function(acc, placement2) {
-    return acc.concat(getBasePlacement(placement2) === auto ? computeAutoPlacement(state, {
-      placement: placement2,
-      boundary,
-      rootBoundary,
-      padding,
-      flipVariations,
-      allowedAutoPlacements
-    }) : placement2);
-  }, []);
-  var referenceRect = state.rects.reference;
-  var popperRect = state.rects.popper;
-  var checksMap = /* @__PURE__ */ new Map();
-  var makeFallbackChecks = true;
-  var firstFittingPlacement = placements2[0];
-  for (var i = 0; i < placements2.length; i++) {
-    var placement = placements2[i];
-    var _basePlacement = getBasePlacement(placement);
-    var isStartVariation = getVariation(placement) === start;
-    var isVertical = [top, bottom].indexOf(_basePlacement) >= 0;
-    var len = isVertical ? "width" : "height";
-    var overflow = detectOverflow(state, {
-      placement,
-      boundary,
-      rootBoundary,
-      altBoundary,
-      padding
-    });
-    var mainVariationSide = isVertical ? isStartVariation ? right : left : isStartVariation ? bottom : top;
-    if (referenceRect[len] > popperRect[len]) {
-      mainVariationSide = getOppositePlacement(mainVariationSide);
-    }
-    var altVariationSide = getOppositePlacement(mainVariationSide);
-    var checks = [];
-    if (checkMainAxis) {
-      checks.push(overflow[_basePlacement] <= 0);
-    }
-    if (checkAltAxis) {
-      checks.push(overflow[mainVariationSide] <= 0, overflow[altVariationSide] <= 0);
-    }
-    if (checks.every(function(check) {
-      return check;
-    })) {
-      firstFittingPlacement = placement;
-      makeFallbackChecks = false;
-      break;
-    }
-    checksMap.set(placement, checks);
-  }
-  if (makeFallbackChecks) {
-    var numberOfChecks = flipVariations ? 3 : 1;
-    var _loop = function _loop2(_i2) {
-      var fittingPlacement = placements2.find(function(placement2) {
-        var checks2 = checksMap.get(placement2);
-        if (checks2) {
-          return checks2.slice(0, _i2).every(function(check) {
-            return check;
-          });
-        }
-      });
-      if (fittingPlacement) {
-        firstFittingPlacement = fittingPlacement;
-        return "break";
-      }
-    };
-    for (var _i = numberOfChecks; _i > 0; _i--) {
-      var _ret = _loop(_i);
-      if (_ret === "break") break;
-    }
-  }
-  if (state.placement !== firstFittingPlacement) {
-    state.modifiersData[name]._skip = true;
-    state.placement = firstFittingPlacement;
-    state.reset = true;
-  }
-}
-const flip$1 = {
-  name: "flip",
-  enabled: true,
-  phase: "main",
-  fn: flip,
-  requiresIfExists: ["offset"],
-  data: {
-    _skip: false
-  }
-};
-function getSideOffsets(overflow, rect, preventedOffsets) {
-  if (preventedOffsets === void 0) {
-    preventedOffsets = {
-      x: 0,
-      y: 0
-    };
-  }
-  return {
-    top: overflow.top - rect.height - preventedOffsets.y,
-    right: overflow.right - rect.width + preventedOffsets.x,
-    bottom: overflow.bottom - rect.height + preventedOffsets.y,
-    left: overflow.left - rect.width - preventedOffsets.x
-  };
-}
-function isAnySideFullyClipped(overflow) {
-  return [top, right, bottom, left].some(function(side) {
-    return overflow[side] >= 0;
-  });
-}
-function hide(_ref) {
-  var state = _ref.state, name = _ref.name;
-  var referenceRect = state.rects.reference;
-  var popperRect = state.rects.popper;
-  var preventedOffsets = state.modifiersData.preventOverflow;
-  var referenceOverflow = detectOverflow(state, {
-    elementContext: "reference"
-  });
-  var popperAltOverflow = detectOverflow(state, {
-    altBoundary: true
-  });
-  var referenceClippingOffsets = getSideOffsets(referenceOverflow, referenceRect);
-  var popperEscapeOffsets = getSideOffsets(popperAltOverflow, popperRect, preventedOffsets);
-  var isReferenceHidden = isAnySideFullyClipped(referenceClippingOffsets);
-  var hasPopperEscaped = isAnySideFullyClipped(popperEscapeOffsets);
-  state.modifiersData[name] = {
-    referenceClippingOffsets,
-    popperEscapeOffsets,
-    isReferenceHidden,
-    hasPopperEscaped
-  };
-  state.attributes.popper = Object.assign({}, state.attributes.popper, {
-    "data-popper-reference-hidden": isReferenceHidden,
-    "data-popper-escaped": hasPopperEscaped
-  });
-}
-const hide$1 = {
-  name: "hide",
-  enabled: true,
-  phase: "main",
-  requiresIfExists: ["preventOverflow"],
-  fn: hide
-};
-function distanceAndSkiddingToXY(placement, rects, offset2) {
-  var basePlacement = getBasePlacement(placement);
-  var invertDistance = [left, top].indexOf(basePlacement) >= 0 ? -1 : 1;
-  var _ref = typeof offset2 === "function" ? offset2(Object.assign({}, rects, {
-    placement
-  })) : offset2, skidding = _ref[0], distance = _ref[1];
-  skidding = skidding || 0;
-  distance = (distance || 0) * invertDistance;
-  return [left, right].indexOf(basePlacement) >= 0 ? {
-    x: distance,
-    y: skidding
-  } : {
-    x: skidding,
-    y: distance
-  };
-}
-function offset(_ref2) {
-  var state = _ref2.state, options = _ref2.options, name = _ref2.name;
-  var _options$offset = options.offset, offset2 = _options$offset === void 0 ? [0, 0] : _options$offset;
-  var data = placements.reduce(function(acc, placement) {
-    acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
-    return acc;
-  }, {});
-  var _data$state$placement = data[state.placement], x = _data$state$placement.x, y2 = _data$state$placement.y;
-  if (state.modifiersData.popperOffsets != null) {
-    state.modifiersData.popperOffsets.x += x;
-    state.modifiersData.popperOffsets.y += y2;
-  }
-  state.modifiersData[name] = data;
-}
-const offset$1 = {
-  name: "offset",
-  enabled: true,
-  phase: "main",
-  requires: ["popperOffsets"],
-  fn: offset
-};
-function popperOffsets(_ref) {
-  var state = _ref.state, name = _ref.name;
-  state.modifiersData[name] = computeOffsets({
-    reference: state.rects.reference,
-    element: state.rects.popper,
-    strategy: "absolute",
-    placement: state.placement
-  });
-}
-const popperOffsets$1 = {
-  name: "popperOffsets",
-  enabled: true,
-  phase: "read",
-  fn: popperOffsets,
-  data: {}
-};
-function getAltAxis(axis) {
-  return axis === "x" ? "y" : "x";
-}
-function preventOverflow(_ref) {
-  var state = _ref.state, options = _ref.options, name = _ref.name;
-  var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? false : _options$altAxis, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, padding = options.padding, _options$tether = options.tether, tether = _options$tether === void 0 ? true : _options$tether, _options$tetherOffset = options.tetherOffset, tetherOffset = _options$tetherOffset === void 0 ? 0 : _options$tetherOffset;
-  var overflow = detectOverflow(state, {
-    boundary,
-    rootBoundary,
-    padding,
-    altBoundary
-  });
-  var basePlacement = getBasePlacement(state.placement);
-  var variation = getVariation(state.placement);
-  var isBasePlacement = !variation;
-  var mainAxis = getMainAxisFromPlacement(basePlacement);
-  var altAxis = getAltAxis(mainAxis);
-  var popperOffsets2 = state.modifiersData.popperOffsets;
-  var referenceRect = state.rects.reference;
-  var popperRect = state.rects.popper;
-  var tetherOffsetValue = typeof tetherOffset === "function" ? tetherOffset(Object.assign({}, state.rects, {
-    placement: state.placement
-  })) : tetherOffset;
-  var normalizedTetherOffsetValue = typeof tetherOffsetValue === "number" ? {
-    mainAxis: tetherOffsetValue,
-    altAxis: tetherOffsetValue
-  } : Object.assign({
-    mainAxis: 0,
-    altAxis: 0
-  }, tetherOffsetValue);
-  var offsetModifierState = state.modifiersData.offset ? state.modifiersData.offset[state.placement] : null;
-  var data = {
-    x: 0,
-    y: 0
-  };
-  if (!popperOffsets2) {
-    return;
-  }
-  if (checkMainAxis) {
-    var _offsetModifierState$;
-    var mainSide = mainAxis === "y" ? top : left;
-    var altSide = mainAxis === "y" ? bottom : right;
-    var len = mainAxis === "y" ? "height" : "width";
-    var offset2 = popperOffsets2[mainAxis];
-    var min$1 = offset2 + overflow[mainSide];
-    var max2 = offset2 - overflow[altSide];
-    var additive = tether ? -popperRect[len] / 2 : 0;
-    var minLen = variation === start ? referenceRect[len] : popperRect[len];
-    var maxLen = variation === start ? -popperRect[len] : -referenceRect[len];
-    var arrowElement = state.elements.arrow;
-    var arrowRect = tether && arrowElement ? getLayoutRect(arrowElement) : {
-      width: 0,
-      height: 0
-    };
-    var arrowPaddingObject = state.modifiersData["arrow#persistent"] ? state.modifiersData["arrow#persistent"].padding : getFreshSideObject();
-    var arrowPaddingMin = arrowPaddingObject[mainSide];
-    var arrowPaddingMax = arrowPaddingObject[altSide];
-    var arrowLen = within(0, referenceRect[len], arrowRect[len]);
-    var minOffset = isBasePlacement ? referenceRect[len] / 2 - additive - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis : minLen - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis;
-    var maxOffset = isBasePlacement ? -referenceRect[len] / 2 + additive + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis : maxLen + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis;
-    var arrowOffsetParent = state.elements.arrow && getOffsetParent(state.elements.arrow);
-    var clientOffset = arrowOffsetParent ? mainAxis === "y" ? arrowOffsetParent.clientTop || 0 : arrowOffsetParent.clientLeft || 0 : 0;
-    var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
-    var tetherMin = offset2 + minOffset - offsetModifierValue - clientOffset;
-    var tetherMax = offset2 + maxOffset - offsetModifierValue;
-    var preventedOffset = within(tether ? min(min$1, tetherMin) : min$1, offset2, tether ? max$1(max2, tetherMax) : max2);
-    popperOffsets2[mainAxis] = preventedOffset;
-    data[mainAxis] = preventedOffset - offset2;
-  }
-  if (checkAltAxis) {
-    var _offsetModifierState$2;
-    var _mainSide = mainAxis === "x" ? top : left;
-    var _altSide = mainAxis === "x" ? bottom : right;
-    var _offset = popperOffsets2[altAxis];
-    var _len = altAxis === "y" ? "height" : "width";
-    var _min = _offset + overflow[_mainSide];
-    var _max = _offset - overflow[_altSide];
-    var isOriginSide = [top, left].indexOf(basePlacement) !== -1;
-    var _offsetModifierValue = (_offsetModifierState$2 = offsetModifierState == null ? void 0 : offsetModifierState[altAxis]) != null ? _offsetModifierState$2 : 0;
-    var _tetherMin = isOriginSide ? _min : _offset - referenceRect[_len] - popperRect[_len] - _offsetModifierValue + normalizedTetherOffsetValue.altAxis;
-    var _tetherMax = isOriginSide ? _offset + referenceRect[_len] + popperRect[_len] - _offsetModifierValue - normalizedTetherOffsetValue.altAxis : _max;
-    var _preventedOffset = tether && isOriginSide ? withinMaxClamp(_tetherMin, _offset, _tetherMax) : within(tether ? _tetherMin : _min, _offset, tether ? _tetherMax : _max);
-    popperOffsets2[altAxis] = _preventedOffset;
-    data[altAxis] = _preventedOffset - _offset;
-  }
-  state.modifiersData[name] = data;
-}
-const preventOverflow$1 = {
-  name: "preventOverflow",
-  enabled: true,
-  phase: "main",
-  fn: preventOverflow,
-  requiresIfExists: ["offset"]
-};
-function getHTMLElementScroll(element) {
-  return {
-    scrollLeft: element.scrollLeft,
-    scrollTop: element.scrollTop
-  };
-}
-function getNodeScroll(node) {
-  if (node === getWindow(node) || !isHTMLElement(node)) {
-    return getWindowScroll(node);
-  } else {
-    return getHTMLElementScroll(node);
-  }
-}
-function isElementScaled(element) {
-  var rect = element.getBoundingClientRect();
-  var scaleX = round(rect.width) / element.offsetWidth || 1;
-  var scaleY = round(rect.height) / element.offsetHeight || 1;
-  return scaleX !== 1 || scaleY !== 1;
-}
-function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
-  if (isFixed === void 0) {
-    isFixed = false;
-  }
-  var isOffsetParentAnElement = isHTMLElement(offsetParent);
-  var offsetParentIsScaled = isHTMLElement(offsetParent) && isElementScaled(offsetParent);
-  var documentElement = getDocumentElement(offsetParent);
-  var rect = getBoundingClientRect(elementOrVirtualElement, offsetParentIsScaled, isFixed);
-  var scroll = {
-    scrollLeft: 0,
-    scrollTop: 0
-  };
-  var offsets = {
-    x: 0,
-    y: 0
-  };
-  if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
-    if (getNodeName(offsetParent) !== "body" || // https://github.com/popperjs/popper-core/issues/1078
-    isScrollParent(documentElement)) {
-      scroll = getNodeScroll(offsetParent);
-    }
-    if (isHTMLElement(offsetParent)) {
-      offsets = getBoundingClientRect(offsetParent, true);
-      offsets.x += offsetParent.clientLeft;
-      offsets.y += offsetParent.clientTop;
-    } else if (documentElement) {
-      offsets.x = getWindowScrollBarX(documentElement);
-    }
-  }
-  return {
-    x: rect.left + scroll.scrollLeft - offsets.x,
-    y: rect.top + scroll.scrollTop - offsets.y,
-    width: rect.width,
-    height: rect.height
-  };
-}
-function order(modifiers) {
-  var map2 = /* @__PURE__ */ new Map();
-  var visited = /* @__PURE__ */ new Set();
-  var result = [];
-  modifiers.forEach(function(modifier) {
-    map2.set(modifier.name, modifier);
-  });
-  function sort(modifier) {
-    visited.add(modifier.name);
-    var requires = [].concat(modifier.requires || [], modifier.requiresIfExists || []);
-    requires.forEach(function(dep) {
-      if (!visited.has(dep)) {
-        var depModifier = map2.get(dep);
-        if (depModifier) {
-          sort(depModifier);
-        }
-      }
-    });
-    result.push(modifier);
-  }
-  modifiers.forEach(function(modifier) {
-    if (!visited.has(modifier.name)) {
-      sort(modifier);
-    }
-  });
-  return result;
-}
-function orderModifiers(modifiers) {
-  var orderedModifiers = order(modifiers);
-  return modifierPhases.reduce(function(acc, phase) {
-    return acc.concat(orderedModifiers.filter(function(modifier) {
-      return modifier.phase === phase;
-    }));
-  }, []);
-}
-function debounce$1(fn2) {
-  var pending;
-  return function() {
-    if (!pending) {
-      pending = new Promise(function(resolve) {
-        Promise.resolve().then(function() {
-          pending = void 0;
-          resolve(fn2());
-        });
-      });
-    }
-    return pending;
-  };
-}
-function mergeByName(modifiers) {
-  var merged = modifiers.reduce(function(merged2, current) {
-    var existing = merged2[current.name];
-    merged2[current.name] = existing ? Object.assign({}, existing, current, {
-      options: Object.assign({}, existing.options, current.options),
-      data: Object.assign({}, existing.data, current.data)
-    }) : current;
-    return merged2;
-  }, {});
-  return Object.keys(merged).map(function(key2) {
-    return merged[key2];
-  });
-}
-var DEFAULT_OPTIONS = {
-  placement: "bottom",
-  modifiers: [],
-  strategy: "absolute"
-};
-function areValidElements() {
-  for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-    args[_key] = arguments[_key];
-  }
-  return !args.some(function(element) {
-    return !(element && typeof element.getBoundingClientRect === "function");
-  });
-}
-function popperGenerator(generatorOptions) {
-  if (generatorOptions === void 0) {
-    generatorOptions = {};
-  }
-  var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers2 = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions2 = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
-  return function createPopper2(reference2, popper2, options) {
-    if (options === void 0) {
-      options = defaultOptions2;
-    }
-    var state = {
-      placement: "bottom",
-      orderedModifiers: [],
-      options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions2),
-      modifiersData: {},
-      elements: {
-        reference: reference2,
-        popper: popper2
-      },
-      attributes: {},
-      styles: {}
-    };
-    var effectCleanupFns = [];
-    var isDestroyed = false;
-    var instance = {
-      state,
-      setOptions: function setOptions(setOptionsAction) {
-        var options2 = typeof setOptionsAction === "function" ? setOptionsAction(state.options) : setOptionsAction;
-        cleanupModifierEffects();
-        state.options = Object.assign({}, defaultOptions2, state.options, options2);
-        state.scrollParents = {
-          reference: isElement$1(reference2) ? listScrollParents(reference2) : reference2.contextElement ? listScrollParents(reference2.contextElement) : [],
-          popper: listScrollParents(popper2)
-        };
-        var orderedModifiers = orderModifiers(mergeByName([].concat(defaultModifiers2, state.options.modifiers)));
-        state.orderedModifiers = orderedModifiers.filter(function(m2) {
-          return m2.enabled;
-        });
-        runModifierEffects();
-        return instance.update();
-      },
-      // Sync update – it will always be executed, even if not necessary. This
-      // is useful for low frequency updates where sync behavior simplifies the
-      // logic.
-      // For high frequency updates (e.g. `resize` and `scroll` events), always
-      // prefer the async Popper#update method
-      forceUpdate: function forceUpdate() {
-        if (isDestroyed) {
-          return;
-        }
-        var _state$elements = state.elements, reference3 = _state$elements.reference, popper3 = _state$elements.popper;
-        if (!areValidElements(reference3, popper3)) {
-          return;
-        }
-        state.rects = {
-          reference: getCompositeRect(reference3, getOffsetParent(popper3), state.options.strategy === "fixed"),
-          popper: getLayoutRect(popper3)
-        };
-        state.reset = false;
-        state.placement = state.options.placement;
-        state.orderedModifiers.forEach(function(modifier) {
-          return state.modifiersData[modifier.name] = Object.assign({}, modifier.data);
-        });
-        for (var index = 0; index < state.orderedModifiers.length; index++) {
-          if (state.reset === true) {
-            state.reset = false;
-            index = -1;
-            continue;
-          }
-          var _state$orderedModifie = state.orderedModifiers[index], fn2 = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name = _state$orderedModifie.name;
-          if (typeof fn2 === "function") {
-            state = fn2({
-              state,
-              options: _options,
-              name,
-              instance
-            }) || state;
-          }
-        }
-      },
-      // Async and optimistically optimized update – it will not be executed if
-      // not necessary (debounced to run at most once-per-tick)
-      update: debounce$1(function() {
-        return new Promise(function(resolve) {
-          instance.forceUpdate();
-          resolve(state);
-        });
-      }),
-      destroy: function destroy() {
-        cleanupModifierEffects();
-        isDestroyed = true;
-      }
-    };
-    if (!areValidElements(reference2, popper2)) {
-      return instance;
-    }
-    instance.setOptions(options).then(function(state2) {
-      if (!isDestroyed && options.onFirstUpdate) {
-        options.onFirstUpdate(state2);
-      }
-    });
-    function runModifierEffects() {
-      state.orderedModifiers.forEach(function(_ref) {
-        var name = _ref.name, _ref$options = _ref.options, options2 = _ref$options === void 0 ? {} : _ref$options, effect2 = _ref.effect;
-        if (typeof effect2 === "function") {
-          var cleanupFn = effect2({
-            state,
-            name,
-            instance,
-            options: options2
-          });
-          var noopFn = function noopFn2() {
-          };
-          effectCleanupFns.push(cleanupFn || noopFn);
-        }
-      });
-    }
-    function cleanupModifierEffects() {
-      effectCleanupFns.forEach(function(fn2) {
-        return fn2();
-      });
-      effectCleanupFns = [];
-    }
-    return instance;
-  };
-}
-var createPopper$2 = /* @__PURE__ */ popperGenerator();
-var defaultModifiers$1 = [eventListeners, popperOffsets$1, computeStyles$1, applyStyles$1];
-var createPopper$1 = /* @__PURE__ */ popperGenerator({
-  defaultModifiers: defaultModifiers$1
-});
-var defaultModifiers = [eventListeners, popperOffsets$1, computeStyles$1, applyStyles$1, offset$1, flip$1, preventOverflow$1, arrow$1, hide$1];
-var createPopper = /* @__PURE__ */ popperGenerator({
-  defaultModifiers
-});
-const Popper = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  afterMain,
-  afterRead,
-  afterWrite,
-  applyStyles: applyStyles$1,
-  arrow: arrow$1,
-  auto,
-  basePlacements,
-  beforeMain,
-  beforeRead,
-  beforeWrite,
-  bottom,
-  clippingParents,
-  computeStyles: computeStyles$1,
-  createPopper,
-  createPopperBase: createPopper$2,
-  createPopperLite: createPopper$1,
-  detectOverflow,
-  end,
-  eventListeners,
-  flip: flip$1,
-  hide: hide$1,
-  left,
-  main,
-  modifierPhases,
-  offset: offset$1,
-  placements,
-  popper,
-  popperGenerator,
-  popperOffsets: popperOffsets$1,
-  preventOverflow: preventOverflow$1,
-  read: read$1,
-  reference: reference$1,
-  right,
-  start,
-  top,
-  variationPlacements,
-  viewport,
-  write
-}, Symbol.toStringTag, { value: "Module" }));
-/*!
-  * Bootstrap v5.3.3 (https://getbootstrap.com/)
-  * Copyright 2011-2024 The Bootstrap Authors (https://github.com/twbs/bootstrap/graphs/contributors)
-  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
-  */
-const elementMap = /* @__PURE__ */ new Map();
-const Data = {
-  set(element, key2, instance) {
-    if (!elementMap.has(element)) {
-      elementMap.set(element, /* @__PURE__ */ new Map());
-    }
-    const instanceMap = elementMap.get(element);
-    if (!instanceMap.has(key2) && instanceMap.size !== 0) {
-      console.error(`Bootstrap doesn't allow more than one instance per element. Bound instance: ${Array.from(instanceMap.keys())[0]}.`);
-      return;
-    }
-    instanceMap.set(key2, instance);
-  },
-  get(element, key2) {
-    if (elementMap.has(element)) {
-      return elementMap.get(element).get(key2) || null;
-    }
-    return null;
-  },
-  remove(element, key2) {
-    if (!elementMap.has(element)) {
-      return;
-    }
-    const instanceMap = elementMap.get(element);
-    instanceMap.delete(key2);
-    if (instanceMap.size === 0) {
-      elementMap.delete(element);
-    }
-  }
-};
-const MAX_UID = 1e6;
-const MILLISECONDS_MULTIPLIER = 1e3;
-const TRANSITION_END = "transitionend";
-const parseSelector = (selector) => {
-  if (selector && window.CSS && window.CSS.escape) {
-    selector = selector.replace(/#([^\s"#']+)/g, (match2, id) => `#${CSS.escape(id)}`);
-  }
-  return selector;
-};
-const toType = (object) => {
-  if (object === null || object === void 0) {
-    return `${object}`;
-  }
-  return Object.prototype.toString.call(object).match(/\s([a-z]+)/i)[1].toLowerCase();
-};
-const getUID = (prefix) => {
-  do {
-    prefix += Math.floor(Math.random() * MAX_UID);
-  } while (document.getElementById(prefix));
-  return prefix;
-};
-const getTransitionDurationFromElement = (element) => {
-  if (!element) {
-    return 0;
-  }
-  let {
-    transitionDuration,
-    transitionDelay
-  } = window.getComputedStyle(element);
-  const floatTransitionDuration = Number.parseFloat(transitionDuration);
-  const floatTransitionDelay = Number.parseFloat(transitionDelay);
-  if (!floatTransitionDuration && !floatTransitionDelay) {
-    return 0;
-  }
-  transitionDuration = transitionDuration.split(",")[0];
-  transitionDelay = transitionDelay.split(",")[0];
-  return (Number.parseFloat(transitionDuration) + Number.parseFloat(transitionDelay)) * MILLISECONDS_MULTIPLIER;
-};
-const triggerTransitionEnd = (element) => {
-  element.dispatchEvent(new Event(TRANSITION_END));
-};
-const isElement = (object) => {
-  if (!object || typeof object !== "object") {
-    return false;
-  }
-  if (typeof object.jquery !== "undefined") {
-    object = object[0];
-  }
-  return typeof object.nodeType !== "undefined";
-};
-const getElement = (object) => {
-  if (isElement(object)) {
-    return object.jquery ? object[0] : object;
-  }
-  if (typeof object === "string" && object.length > 0) {
-    return document.querySelector(parseSelector(object));
-  }
-  return null;
-};
-const isVisible = (element) => {
-  if (!isElement(element) || element.getClientRects().length === 0) {
-    return false;
-  }
-  const elementIsVisible = getComputedStyle(element).getPropertyValue("visibility") === "visible";
-  const closedDetails = element.closest("details:not([open])");
-  if (!closedDetails) {
-    return elementIsVisible;
-  }
-  if (closedDetails !== element) {
-    const summary = element.closest("summary");
-    if (summary && summary.parentNode !== closedDetails) {
-      return false;
-    }
-    if (summary === null) {
-      return false;
-    }
-  }
-  return elementIsVisible;
-};
-const isDisabled = (element) => {
-  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
-    return true;
-  }
-  if (element.classList.contains("disabled")) {
-    return true;
-  }
-  if (typeof element.disabled !== "undefined") {
-    return element.disabled;
-  }
-  return element.hasAttribute("disabled") && element.getAttribute("disabled") !== "false";
-};
-const findShadowRoot = (element) => {
-  if (!document.documentElement.attachShadow) {
-    return null;
-  }
-  if (typeof element.getRootNode === "function") {
-    const root2 = element.getRootNode();
-    return root2 instanceof ShadowRoot ? root2 : null;
-  }
-  if (element instanceof ShadowRoot) {
-    return element;
-  }
-  if (!element.parentNode) {
-    return null;
-  }
-  return findShadowRoot(element.parentNode);
-};
-const noop = () => {
-};
-const reflow = (element) => {
-  element.offsetHeight;
-};
-const getjQuery = () => {
-  if (window.jQuery && !document.body.hasAttribute("data-bs-no-jquery")) {
-    return window.jQuery;
-  }
-  return null;
-};
-const DOMContentLoadedCallbacks = [];
-const onDOMContentLoaded = (callback) => {
-  if (document.readyState === "loading") {
-    if (!DOMContentLoadedCallbacks.length) {
-      document.addEventListener("DOMContentLoaded", () => {
-        for (const callback2 of DOMContentLoadedCallbacks) {
-          callback2();
-        }
-      });
-    }
-    DOMContentLoadedCallbacks.push(callback);
-  } else {
-    callback();
-  }
-};
-const isRTL = () => document.documentElement.dir === "rtl";
-const defineJQueryPlugin = (plugin) => {
-  onDOMContentLoaded(() => {
-    const $2 = getjQuery();
-    if ($2) {
-      const name = plugin.NAME;
-      const JQUERY_NO_CONFLICT = $2.fn[name];
-      $2.fn[name] = plugin.jQueryInterface;
-      $2.fn[name].Constructor = plugin;
-      $2.fn[name].noConflict = () => {
-        $2.fn[name] = JQUERY_NO_CONFLICT;
-        return plugin.jQueryInterface;
-      };
-    }
-  });
-};
-const execute = (possibleCallback, args = [], defaultValue = possibleCallback) => {
-  return typeof possibleCallback === "function" ? possibleCallback(...args) : defaultValue;
-};
-const executeAfterTransition = (callback, transitionElement, waitForTransition = true) => {
-  if (!waitForTransition) {
-    execute(callback);
-    return;
-  }
-  const durationPadding = 5;
-  const emulatedDuration = getTransitionDurationFromElement(transitionElement) + durationPadding;
-  let called = false;
-  const handler = ({
-    target
-  }) => {
-    if (target !== transitionElement) {
-      return;
-    }
-    called = true;
-    transitionElement.removeEventListener(TRANSITION_END, handler);
-    execute(callback);
-  };
-  transitionElement.addEventListener(TRANSITION_END, handler);
-  setTimeout(() => {
-    if (!called) {
-      triggerTransitionEnd(transitionElement);
-    }
-  }, emulatedDuration);
-};
-const getNextActiveElement = (list2, activeElement, shouldGetNext, isCycleAllowed) => {
-  const listLength = list2.length;
-  let index = list2.indexOf(activeElement);
-  if (index === -1) {
-    return !shouldGetNext && isCycleAllowed ? list2[listLength - 1] : list2[0];
-  }
-  index += shouldGetNext ? 1 : -1;
-  if (isCycleAllowed) {
-    index = (index + listLength) % listLength;
-  }
-  return list2[Math.max(0, Math.min(index, listLength - 1))];
-};
-const namespaceRegex = /[^.]*(?=\..*)\.|.*/;
-const stripNameRegex = /\..*/;
-const stripUidRegex = /::\d+$/;
-const eventRegistry = {};
-let uidEvent = 1;
-const customEvents = {
-  mouseenter: "mouseover",
-  mouseleave: "mouseout"
-};
-const nativeEvents = /* @__PURE__ */ new Set(["click", "dblclick", "mouseup", "mousedown", "contextmenu", "mousewheel", "DOMMouseScroll", "mouseover", "mouseout", "mousemove", "selectstart", "selectend", "keydown", "keypress", "keyup", "orientationchange", "touchstart", "touchmove", "touchend", "touchcancel", "pointerdown", "pointermove", "pointerup", "pointerleave", "pointercancel", "gesturestart", "gesturechange", "gestureend", "focus", "blur", "change", "reset", "select", "submit", "focusin", "focusout", "load", "unload", "beforeunload", "resize", "move", "DOMContentLoaded", "readystatechange", "error", "abort", "scroll"]);
-function makeEventUid(element, uid) {
-  return uid && `${uid}::${uidEvent++}` || element.uidEvent || uidEvent++;
-}
-function getElementEvents(element) {
-  const uid = makeEventUid(element);
-  element.uidEvent = uid;
-  eventRegistry[uid] = eventRegistry[uid] || {};
-  return eventRegistry[uid];
-}
-function bootstrapHandler(element, fn2) {
-  return function handler(event) {
-    hydrateObj(event, {
-      delegateTarget: element
-    });
-    if (handler.oneOff) {
-      EventHandler.off(element, event.type, fn2);
-    }
-    return fn2.apply(element, [event]);
-  };
-}
-function bootstrapDelegationHandler(element, selector, fn2) {
-  return function handler(event) {
-    const domElements = element.querySelectorAll(selector);
-    for (let {
-      target
-    } = event; target && target !== this; target = target.parentNode) {
-      for (const domElement of domElements) {
-        if (domElement !== target) {
-          continue;
-        }
-        hydrateObj(event, {
-          delegateTarget: target
-        });
-        if (handler.oneOff) {
-          EventHandler.off(element, event.type, selector, fn2);
-        }
-        return fn2.apply(target, [event]);
-      }
-    }
-  };
-}
-function findHandler(events, callable, delegationSelector = null) {
-  return Object.values(events).find((event) => event.callable === callable && event.delegationSelector === delegationSelector);
-}
-function normalizeParameters(originalTypeEvent, handler, delegationFunction) {
-  const isDelegated = typeof handler === "string";
-  const callable = isDelegated ? delegationFunction : handler || delegationFunction;
-  let typeEvent = getTypeEvent(originalTypeEvent);
-  if (!nativeEvents.has(typeEvent)) {
-    typeEvent = originalTypeEvent;
-  }
-  return [isDelegated, callable, typeEvent];
-}
-function addHandler(element, originalTypeEvent, handler, delegationFunction, oneOff) {
-  if (typeof originalTypeEvent !== "string" || !element) {
-    return;
-  }
-  let [isDelegated, callable, typeEvent] = normalizeParameters(originalTypeEvent, handler, delegationFunction);
-  if (originalTypeEvent in customEvents) {
-    const wrapFunction = (fn3) => {
-      return function(event) {
-        if (!event.relatedTarget || event.relatedTarget !== event.delegateTarget && !event.delegateTarget.contains(event.relatedTarget)) {
-          return fn3.call(this, event);
-        }
-      };
-    };
-    callable = wrapFunction(callable);
-  }
-  const events = getElementEvents(element);
-  const handlers = events[typeEvent] || (events[typeEvent] = {});
-  const previousFunction = findHandler(handlers, callable, isDelegated ? handler : null);
-  if (previousFunction) {
-    previousFunction.oneOff = previousFunction.oneOff && oneOff;
-    return;
-  }
-  const uid = makeEventUid(callable, originalTypeEvent.replace(namespaceRegex, ""));
-  const fn2 = isDelegated ? bootstrapDelegationHandler(element, handler, callable) : bootstrapHandler(element, callable);
-  fn2.delegationSelector = isDelegated ? handler : null;
-  fn2.callable = callable;
-  fn2.oneOff = oneOff;
-  fn2.uidEvent = uid;
-  handlers[uid] = fn2;
-  element.addEventListener(typeEvent, fn2, isDelegated);
-}
-function removeHandler(element, events, typeEvent, handler, delegationSelector) {
-  const fn2 = findHandler(events[typeEvent], handler, delegationSelector);
-  if (!fn2) {
-    return;
-  }
-  element.removeEventListener(typeEvent, fn2, Boolean(delegationSelector));
-  delete events[typeEvent][fn2.uidEvent];
-}
-function removeNamespacedHandlers(element, events, typeEvent, namespace) {
-  const storeElementEvent = events[typeEvent] || {};
-  for (const [handlerKey, event] of Object.entries(storeElementEvent)) {
-    if (handlerKey.includes(namespace)) {
-      removeHandler(element, events, typeEvent, event.callable, event.delegationSelector);
-    }
-  }
-}
-function getTypeEvent(event) {
-  event = event.replace(stripNameRegex, "");
-  return customEvents[event] || event;
-}
-const EventHandler = {
-  on(element, event, handler, delegationFunction) {
-    addHandler(element, event, handler, delegationFunction, false);
-  },
-  one(element, event, handler, delegationFunction) {
-    addHandler(element, event, handler, delegationFunction, true);
-  },
-  off(element, originalTypeEvent, handler, delegationFunction) {
-    if (typeof originalTypeEvent !== "string" || !element) {
-      return;
-    }
-    const [isDelegated, callable, typeEvent] = normalizeParameters(originalTypeEvent, handler, delegationFunction);
-    const inNamespace = typeEvent !== originalTypeEvent;
-    const events = getElementEvents(element);
-    const storeElementEvent = events[typeEvent] || {};
-    const isNamespace = originalTypeEvent.startsWith(".");
-    if (typeof callable !== "undefined") {
-      if (!Object.keys(storeElementEvent).length) {
-        return;
-      }
-      removeHandler(element, events, typeEvent, callable, isDelegated ? handler : null);
-      return;
-    }
-    if (isNamespace) {
-      for (const elementEvent of Object.keys(events)) {
-        removeNamespacedHandlers(element, events, elementEvent, originalTypeEvent.slice(1));
-      }
-    }
-    for (const [keyHandlers, event] of Object.entries(storeElementEvent)) {
-      const handlerKey = keyHandlers.replace(stripUidRegex, "");
-      if (!inNamespace || originalTypeEvent.includes(handlerKey)) {
-        removeHandler(element, events, typeEvent, event.callable, event.delegationSelector);
-      }
-    }
-  },
-  trigger(element, event, args) {
-    if (typeof event !== "string" || !element) {
-      return null;
-    }
-    const $2 = getjQuery();
-    const typeEvent = getTypeEvent(event);
-    const inNamespace = event !== typeEvent;
-    let jQueryEvent = null;
-    let bubbles = true;
-    let nativeDispatch = true;
-    let defaultPrevented = false;
-    if (inNamespace && $2) {
-      jQueryEvent = $2.Event(event, args);
-      $2(element).trigger(jQueryEvent);
-      bubbles = !jQueryEvent.isPropagationStopped();
-      nativeDispatch = !jQueryEvent.isImmediatePropagationStopped();
-      defaultPrevented = jQueryEvent.isDefaultPrevented();
-    }
-    const evt = hydrateObj(new Event(event, {
-      bubbles,
-      cancelable: true
-    }), args);
-    if (defaultPrevented) {
-      evt.preventDefault();
-    }
-    if (nativeDispatch) {
-      element.dispatchEvent(evt);
-    }
-    if (evt.defaultPrevented && jQueryEvent) {
-      jQueryEvent.preventDefault();
-    }
-    return evt;
-  }
-};
-function hydrateObj(obj, meta = {}) {
-  for (const [key2, value] of Object.entries(meta)) {
-    try {
-      obj[key2] = value;
-    } catch (_unused) {
-      Object.defineProperty(obj, key2, {
-        configurable: true,
-        get() {
-          return value;
-        }
-      });
-    }
-  }
-  return obj;
-}
-function normalizeData(value) {
-  if (value === "true") {
-    return true;
-  }
-  if (value === "false") {
-    return false;
-  }
-  if (value === Number(value).toString()) {
-    return Number(value);
-  }
-  if (value === "" || value === "null") {
-    return null;
-  }
-  if (typeof value !== "string") {
-    return value;
-  }
-  try {
-    return JSON.parse(decodeURIComponent(value));
-  } catch (_unused) {
-    return value;
-  }
-}
-function normalizeDataKey(key2) {
-  return key2.replace(/[A-Z]/g, (chr) => `-${chr.toLowerCase()}`);
-}
-const Manipulator = {
-  setDataAttribute(element, key2, value) {
-    element.setAttribute(`data-bs-${normalizeDataKey(key2)}`, value);
-  },
-  removeDataAttribute(element, key2) {
-    element.removeAttribute(`data-bs-${normalizeDataKey(key2)}`);
-  },
-  getDataAttributes(element) {
-    if (!element) {
-      return {};
-    }
-    const attributes = {};
-    const bsKeys = Object.keys(element.dataset).filter((key2) => key2.startsWith("bs") && !key2.startsWith("bsConfig"));
-    for (const key2 of bsKeys) {
-      let pureKey = key2.replace(/^bs/, "");
-      pureKey = pureKey.charAt(0).toLowerCase() + pureKey.slice(1, pureKey.length);
-      attributes[pureKey] = normalizeData(element.dataset[key2]);
-    }
-    return attributes;
-  },
-  getDataAttribute(element, key2) {
-    return normalizeData(element.getAttribute(`data-bs-${normalizeDataKey(key2)}`));
-  }
-};
-class Config {
-  // Getters
-  static get Default() {
-    return {};
-  }
-  static get DefaultType() {
-    return {};
-  }
-  static get NAME() {
-    throw new Error('You have to implement the static method "NAME", for each component!');
-  }
-  _getConfig(config2) {
-    config2 = this._mergeConfigObj(config2);
-    config2 = this._configAfterMerge(config2);
-    this._typeCheckConfig(config2);
-    return config2;
-  }
-  _configAfterMerge(config2) {
-    return config2;
-  }
-  _mergeConfigObj(config2, element) {
-    const jsonConfig = isElement(element) ? Manipulator.getDataAttribute(element, "config") : {};
-    return {
-      ...this.constructor.Default,
-      ...typeof jsonConfig === "object" ? jsonConfig : {},
-      ...isElement(element) ? Manipulator.getDataAttributes(element) : {},
-      ...typeof config2 === "object" ? config2 : {}
-    };
-  }
-  _typeCheckConfig(config2, configTypes = this.constructor.DefaultType) {
-    for (const [property, expectedTypes] of Object.entries(configTypes)) {
-      const value = config2[property];
-      const valueType = isElement(value) ? "element" : toType(value);
-      if (!new RegExp(expectedTypes).test(valueType)) {
-        throw new TypeError(`${this.constructor.NAME.toUpperCase()}: Option "${property}" provided type "${valueType}" but expected type "${expectedTypes}".`);
-      }
-    }
-  }
-}
-const VERSION = "5.3.3";
-class BaseComponent extends Config {
-  constructor(element, config2) {
-    super();
-    element = getElement(element);
-    if (!element) {
-      return;
-    }
-    this._element = element;
-    this._config = this._getConfig(config2);
-    Data.set(this._element, this.constructor.DATA_KEY, this);
-  }
-  // Public
-  dispose() {
-    Data.remove(this._element, this.constructor.DATA_KEY);
-    EventHandler.off(this._element, this.constructor.EVENT_KEY);
-    for (const propertyName of Object.getOwnPropertyNames(this)) {
-      this[propertyName] = null;
-    }
-  }
-  _queueCallback(callback, element, isAnimated = true) {
-    executeAfterTransition(callback, element, isAnimated);
-  }
-  _getConfig(config2) {
-    config2 = this._mergeConfigObj(config2, this._element);
-    config2 = this._configAfterMerge(config2);
-    this._typeCheckConfig(config2);
-    return config2;
-  }
-  // Static
-  static getInstance(element) {
-    return Data.get(getElement(element), this.DATA_KEY);
-  }
-  static getOrCreateInstance(element, config2 = {}) {
-    return this.getInstance(element) || new this(element, typeof config2 === "object" ? config2 : null);
-  }
-  static get VERSION() {
-    return VERSION;
-  }
-  static get DATA_KEY() {
-    return `bs.${this.NAME}`;
-  }
-  static get EVENT_KEY() {
-    return `.${this.DATA_KEY}`;
-  }
-  static eventName(name) {
-    return `${name}${this.EVENT_KEY}`;
-  }
-}
-const getSelector = (element) => {
-  let selector = element.getAttribute("data-bs-target");
-  if (!selector || selector === "#") {
-    let hrefAttribute = element.getAttribute("href");
-    if (!hrefAttribute || !hrefAttribute.includes("#") && !hrefAttribute.startsWith(".")) {
-      return null;
-    }
-    if (hrefAttribute.includes("#") && !hrefAttribute.startsWith("#")) {
-      hrefAttribute = `#${hrefAttribute.split("#")[1]}`;
-    }
-    selector = hrefAttribute && hrefAttribute !== "#" ? hrefAttribute.trim() : null;
-  }
-  return selector ? selector.split(",").map((sel) => parseSelector(sel)).join(",") : null;
-};
-const SelectorEngine = {
-  find(selector, element = document.documentElement) {
-    return [].concat(...Element.prototype.querySelectorAll.call(element, selector));
-  },
-  findOne(selector, element = document.documentElement) {
-    return Element.prototype.querySelector.call(element, selector);
-  },
-  children(element, selector) {
-    return [].concat(...element.children).filter((child) => child.matches(selector));
-  },
-  parents(element, selector) {
-    const parents = [];
-    let ancestor = element.parentNode.closest(selector);
-    while (ancestor) {
-      parents.push(ancestor);
-      ancestor = ancestor.parentNode.closest(selector);
-    }
-    return parents;
-  },
-  prev(element, selector) {
-    let previous = element.previousElementSibling;
-    while (previous) {
-      if (previous.matches(selector)) {
-        return [previous];
-      }
-      previous = previous.previousElementSibling;
-    }
-    return [];
-  },
-  // TODO: this is now unused; remove later along with prev()
-  next(element, selector) {
-    let next = element.nextElementSibling;
-    while (next) {
-      if (next.matches(selector)) {
-        return [next];
-      }
-      next = next.nextElementSibling;
-    }
-    return [];
-  },
-  focusableChildren(element) {
-    const focusables = ["a", "button", "input", "textarea", "select", "details", "[tabindex]", '[contenteditable="true"]'].map((selector) => `${selector}:not([tabindex^="-"])`).join(",");
-    return this.find(focusables, element).filter((el) => !isDisabled(el) && isVisible(el));
-  },
-  getSelectorFromElement(element) {
-    const selector = getSelector(element);
-    if (selector) {
-      return SelectorEngine.findOne(selector) ? selector : null;
-    }
-    return null;
-  },
-  getElementFromSelector(element) {
-    const selector = getSelector(element);
-    return selector ? SelectorEngine.findOne(selector) : null;
-  },
-  getMultipleElementsFromSelector(element) {
-    const selector = getSelector(element);
-    return selector ? SelectorEngine.find(selector) : [];
-  }
-};
-const enableDismissTrigger = (component, method = "hide") => {
-  const clickEvent = `click.dismiss${component.EVENT_KEY}`;
-  const name = component.NAME;
-  EventHandler.on(document, clickEvent, `[data-bs-dismiss="${name}"]`, function(event) {
-    if (["A", "AREA"].includes(this.tagName)) {
-      event.preventDefault();
-    }
-    if (isDisabled(this)) {
-      return;
-    }
-    const target = SelectorEngine.getElementFromSelector(this) || this.closest(`.${name}`);
-    const instance = component.getOrCreateInstance(target);
-    instance[method]();
-  });
-};
-const NAME$f = "alert";
-const DATA_KEY$a = "bs.alert";
-const EVENT_KEY$b = `.${DATA_KEY$a}`;
-const EVENT_CLOSE = `close${EVENT_KEY$b}`;
-const EVENT_CLOSED = `closed${EVENT_KEY$b}`;
-const CLASS_NAME_FADE$5 = "fade";
-const CLASS_NAME_SHOW$8 = "show";
-class Alert extends BaseComponent {
-  // Getters
-  static get NAME() {
-    return NAME$f;
-  }
-  // Public
-  close() {
-    const closeEvent = EventHandler.trigger(this._element, EVENT_CLOSE);
-    if (closeEvent.defaultPrevented) {
-      return;
-    }
-    this._element.classList.remove(CLASS_NAME_SHOW$8);
-    const isAnimated = this._element.classList.contains(CLASS_NAME_FADE$5);
-    this._queueCallback(() => this._destroyElement(), this._element, isAnimated);
-  }
-  // Private
-  _destroyElement() {
-    this._element.remove();
-    EventHandler.trigger(this._element, EVENT_CLOSED);
-    this.dispose();
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Alert.getOrCreateInstance(this);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2](this);
-    });
-  }
-}
-enableDismissTrigger(Alert, "close");
-defineJQueryPlugin(Alert);
-const NAME$e = "button";
-const DATA_KEY$9 = "bs.button";
-const EVENT_KEY$a = `.${DATA_KEY$9}`;
-const DATA_API_KEY$6 = ".data-api";
-const CLASS_NAME_ACTIVE$3 = "active";
-const SELECTOR_DATA_TOGGLE$5 = '[data-bs-toggle="button"]';
-const EVENT_CLICK_DATA_API$6 = `click${EVENT_KEY$a}${DATA_API_KEY$6}`;
-class Button extends BaseComponent {
-  // Getters
-  static get NAME() {
-    return NAME$e;
-  }
-  // Public
-  toggle() {
-    this._element.setAttribute("aria-pressed", this._element.classList.toggle(CLASS_NAME_ACTIVE$3));
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Button.getOrCreateInstance(this);
-      if (config2 === "toggle") {
-        data[config2]();
-      }
-    });
-  }
-}
-EventHandler.on(document, EVENT_CLICK_DATA_API$6, SELECTOR_DATA_TOGGLE$5, (event) => {
-  event.preventDefault();
-  const button = event.target.closest(SELECTOR_DATA_TOGGLE$5);
-  const data = Button.getOrCreateInstance(button);
-  data.toggle();
-});
-defineJQueryPlugin(Button);
-const NAME$d = "swipe";
-const EVENT_KEY$9 = ".bs.swipe";
-const EVENT_TOUCHSTART = `touchstart${EVENT_KEY$9}`;
-const EVENT_TOUCHMOVE = `touchmove${EVENT_KEY$9}`;
-const EVENT_TOUCHEND = `touchend${EVENT_KEY$9}`;
-const EVENT_POINTERDOWN = `pointerdown${EVENT_KEY$9}`;
-const EVENT_POINTERUP = `pointerup${EVENT_KEY$9}`;
-const POINTER_TYPE_TOUCH = "touch";
-const POINTER_TYPE_PEN = "pen";
-const CLASS_NAME_POINTER_EVENT = "pointer-event";
-const SWIPE_THRESHOLD = 40;
-const Default$c = {
-  endCallback: null,
-  leftCallback: null,
-  rightCallback: null
-};
-const DefaultType$c = {
-  endCallback: "(function|null)",
-  leftCallback: "(function|null)",
-  rightCallback: "(function|null)"
-};
-class Swipe extends Config {
-  constructor(element, config2) {
-    super();
-    this._element = element;
-    if (!element || !Swipe.isSupported()) {
-      return;
-    }
-    this._config = this._getConfig(config2);
-    this._deltaX = 0;
-    this._supportPointerEvents = Boolean(window.PointerEvent);
-    this._initEvents();
-  }
-  // Getters
-  static get Default() {
-    return Default$c;
-  }
-  static get DefaultType() {
-    return DefaultType$c;
-  }
-  static get NAME() {
-    return NAME$d;
-  }
-  // Public
-  dispose() {
-    EventHandler.off(this._element, EVENT_KEY$9);
-  }
-  // Private
-  _start(event) {
-    if (!this._supportPointerEvents) {
-      this._deltaX = event.touches[0].clientX;
-      return;
-    }
-    if (this._eventIsPointerPenTouch(event)) {
-      this._deltaX = event.clientX;
-    }
-  }
-  _end(event) {
-    if (this._eventIsPointerPenTouch(event)) {
-      this._deltaX = event.clientX - this._deltaX;
-    }
-    this._handleSwipe();
-    execute(this._config.endCallback);
-  }
-  _move(event) {
-    this._deltaX = event.touches && event.touches.length > 1 ? 0 : event.touches[0].clientX - this._deltaX;
-  }
-  _handleSwipe() {
-    const absDeltaX = Math.abs(this._deltaX);
-    if (absDeltaX <= SWIPE_THRESHOLD) {
-      return;
-    }
-    const direction = absDeltaX / this._deltaX;
-    this._deltaX = 0;
-    if (!direction) {
-      return;
-    }
-    execute(direction > 0 ? this._config.rightCallback : this._config.leftCallback);
-  }
-  _initEvents() {
-    if (this._supportPointerEvents) {
-      EventHandler.on(this._element, EVENT_POINTERDOWN, (event) => this._start(event));
-      EventHandler.on(this._element, EVENT_POINTERUP, (event) => this._end(event));
-      this._element.classList.add(CLASS_NAME_POINTER_EVENT);
-    } else {
-      EventHandler.on(this._element, EVENT_TOUCHSTART, (event) => this._start(event));
-      EventHandler.on(this._element, EVENT_TOUCHMOVE, (event) => this._move(event));
-      EventHandler.on(this._element, EVENT_TOUCHEND, (event) => this._end(event));
-    }
-  }
-  _eventIsPointerPenTouch(event) {
-    return this._supportPointerEvents && (event.pointerType === POINTER_TYPE_PEN || event.pointerType === POINTER_TYPE_TOUCH);
-  }
-  // Static
-  static isSupported() {
-    return "ontouchstart" in document.documentElement || navigator.maxTouchPoints > 0;
-  }
-}
-const NAME$c = "carousel";
-const DATA_KEY$8 = "bs.carousel";
-const EVENT_KEY$8 = `.${DATA_KEY$8}`;
-const DATA_API_KEY$5 = ".data-api";
-const ARROW_LEFT_KEY$1 = "ArrowLeft";
-const ARROW_RIGHT_KEY$1 = "ArrowRight";
-const TOUCHEVENT_COMPAT_WAIT = 500;
-const ORDER_NEXT = "next";
-const ORDER_PREV = "prev";
-const DIRECTION_LEFT = "left";
-const DIRECTION_RIGHT = "right";
-const EVENT_SLIDE = `slide${EVENT_KEY$8}`;
-const EVENT_SLID = `slid${EVENT_KEY$8}`;
-const EVENT_KEYDOWN$1 = `keydown${EVENT_KEY$8}`;
-const EVENT_MOUSEENTER$1 = `mouseenter${EVENT_KEY$8}`;
-const EVENT_MOUSELEAVE$1 = `mouseleave${EVENT_KEY$8}`;
-const EVENT_DRAG_START = `dragstart${EVENT_KEY$8}`;
-const EVENT_LOAD_DATA_API$3 = `load${EVENT_KEY$8}${DATA_API_KEY$5}`;
-const EVENT_CLICK_DATA_API$5 = `click${EVENT_KEY$8}${DATA_API_KEY$5}`;
-const CLASS_NAME_CAROUSEL = "carousel";
-const CLASS_NAME_ACTIVE$2 = "active";
-const CLASS_NAME_SLIDE = "slide";
-const CLASS_NAME_END = "carousel-item-end";
-const CLASS_NAME_START = "carousel-item-start";
-const CLASS_NAME_NEXT = "carousel-item-next";
-const CLASS_NAME_PREV = "carousel-item-prev";
-const SELECTOR_ACTIVE = ".active";
-const SELECTOR_ITEM = ".carousel-item";
-const SELECTOR_ACTIVE_ITEM = SELECTOR_ACTIVE + SELECTOR_ITEM;
-const SELECTOR_ITEM_IMG = ".carousel-item img";
-const SELECTOR_INDICATORS = ".carousel-indicators";
-const SELECTOR_DATA_SLIDE = "[data-bs-slide], [data-bs-slide-to]";
-const SELECTOR_DATA_RIDE = '[data-bs-ride="carousel"]';
-const KEY_TO_DIRECTION = {
-  [ARROW_LEFT_KEY$1]: DIRECTION_RIGHT,
-  [ARROW_RIGHT_KEY$1]: DIRECTION_LEFT
-};
-const Default$b = {
-  interval: 5e3,
-  keyboard: true,
-  pause: "hover",
-  ride: false,
-  touch: true,
-  wrap: true
-};
-const DefaultType$b = {
-  interval: "(number|boolean)",
-  // TODO:v6 remove boolean support
-  keyboard: "boolean",
-  pause: "(string|boolean)",
-  ride: "(boolean|string)",
-  touch: "boolean",
-  wrap: "boolean"
-};
-class Carousel extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._interval = null;
-    this._activeElement = null;
-    this._isSliding = false;
-    this.touchTimeout = null;
-    this._swipeHelper = null;
-    this._indicatorsElement = SelectorEngine.findOne(SELECTOR_INDICATORS, this._element);
-    this._addEventListeners();
-    if (this._config.ride === CLASS_NAME_CAROUSEL) {
-      this.cycle();
-    }
-  }
-  // Getters
-  static get Default() {
-    return Default$b;
-  }
-  static get DefaultType() {
-    return DefaultType$b;
-  }
-  static get NAME() {
-    return NAME$c;
-  }
-  // Public
-  next() {
-    this._slide(ORDER_NEXT);
-  }
-  nextWhenVisible() {
-    if (!document.hidden && isVisible(this._element)) {
-      this.next();
-    }
-  }
-  prev() {
-    this._slide(ORDER_PREV);
-  }
-  pause() {
-    if (this._isSliding) {
-      triggerTransitionEnd(this._element);
-    }
-    this._clearInterval();
-  }
-  cycle() {
-    this._clearInterval();
-    this._updateInterval();
-    this._interval = setInterval(() => this.nextWhenVisible(), this._config.interval);
-  }
-  _maybeEnableCycle() {
-    if (!this._config.ride) {
-      return;
-    }
-    if (this._isSliding) {
-      EventHandler.one(this._element, EVENT_SLID, () => this.cycle());
-      return;
-    }
-    this.cycle();
-  }
-  to(index) {
-    const items = this._getItems();
-    if (index > items.length - 1 || index < 0) {
-      return;
-    }
-    if (this._isSliding) {
-      EventHandler.one(this._element, EVENT_SLID, () => this.to(index));
-      return;
-    }
-    const activeIndex = this._getItemIndex(this._getActive());
-    if (activeIndex === index) {
-      return;
-    }
-    const order2 = index > activeIndex ? ORDER_NEXT : ORDER_PREV;
-    this._slide(order2, items[index]);
-  }
-  dispose() {
-    if (this._swipeHelper) {
-      this._swipeHelper.dispose();
-    }
-    super.dispose();
-  }
-  // Private
-  _configAfterMerge(config2) {
-    config2.defaultInterval = config2.interval;
-    return config2;
-  }
-  _addEventListeners() {
-    if (this._config.keyboard) {
-      EventHandler.on(this._element, EVENT_KEYDOWN$1, (event) => this._keydown(event));
-    }
-    if (this._config.pause === "hover") {
-      EventHandler.on(this._element, EVENT_MOUSEENTER$1, () => this.pause());
-      EventHandler.on(this._element, EVENT_MOUSELEAVE$1, () => this._maybeEnableCycle());
-    }
-    if (this._config.touch && Swipe.isSupported()) {
-      this._addTouchEventListeners();
-    }
-  }
-  _addTouchEventListeners() {
-    for (const img of SelectorEngine.find(SELECTOR_ITEM_IMG, this._element)) {
-      EventHandler.on(img, EVENT_DRAG_START, (event) => event.preventDefault());
-    }
-    const endCallBack = () => {
-      if (this._config.pause !== "hover") {
-        return;
-      }
-      this.pause();
-      if (this.touchTimeout) {
-        clearTimeout(this.touchTimeout);
-      }
-      this.touchTimeout = setTimeout(() => this._maybeEnableCycle(), TOUCHEVENT_COMPAT_WAIT + this._config.interval);
-    };
-    const swipeConfig = {
-      leftCallback: () => this._slide(this._directionToOrder(DIRECTION_LEFT)),
-      rightCallback: () => this._slide(this._directionToOrder(DIRECTION_RIGHT)),
-      endCallback: endCallBack
-    };
-    this._swipeHelper = new Swipe(this._element, swipeConfig);
-  }
-  _keydown(event) {
-    if (/input|textarea/i.test(event.target.tagName)) {
-      return;
-    }
-    const direction = KEY_TO_DIRECTION[event.key];
-    if (direction) {
-      event.preventDefault();
-      this._slide(this._directionToOrder(direction));
-    }
-  }
-  _getItemIndex(element) {
-    return this._getItems().indexOf(element);
-  }
-  _setActiveIndicatorElement(index) {
-    if (!this._indicatorsElement) {
-      return;
-    }
-    const activeIndicator = SelectorEngine.findOne(SELECTOR_ACTIVE, this._indicatorsElement);
-    activeIndicator.classList.remove(CLASS_NAME_ACTIVE$2);
-    activeIndicator.removeAttribute("aria-current");
-    const newActiveIndicator = SelectorEngine.findOne(`[data-bs-slide-to="${index}"]`, this._indicatorsElement);
-    if (newActiveIndicator) {
-      newActiveIndicator.classList.add(CLASS_NAME_ACTIVE$2);
-      newActiveIndicator.setAttribute("aria-current", "true");
-    }
-  }
-  _updateInterval() {
-    const element = this._activeElement || this._getActive();
-    if (!element) {
-      return;
-    }
-    const elementInterval = Number.parseInt(element.getAttribute("data-bs-interval"), 10);
-    this._config.interval = elementInterval || this._config.defaultInterval;
-  }
-  _slide(order2, element = null) {
-    if (this._isSliding) {
-      return;
-    }
-    const activeElement = this._getActive();
-    const isNext = order2 === ORDER_NEXT;
-    const nextElement = element || getNextActiveElement(this._getItems(), activeElement, isNext, this._config.wrap);
-    if (nextElement === activeElement) {
-      return;
-    }
-    const nextElementIndex = this._getItemIndex(nextElement);
-    const triggerEvent = (eventName) => {
-      return EventHandler.trigger(this._element, eventName, {
-        relatedTarget: nextElement,
-        direction: this._orderToDirection(order2),
-        from: this._getItemIndex(activeElement),
-        to: nextElementIndex
-      });
-    };
-    const slideEvent = triggerEvent(EVENT_SLIDE);
-    if (slideEvent.defaultPrevented) {
-      return;
-    }
-    if (!activeElement || !nextElement) {
-      return;
-    }
-    const isCycling = Boolean(this._interval);
-    this.pause();
-    this._isSliding = true;
-    this._setActiveIndicatorElement(nextElementIndex);
-    this._activeElement = nextElement;
-    const directionalClassName = isNext ? CLASS_NAME_START : CLASS_NAME_END;
-    const orderClassName = isNext ? CLASS_NAME_NEXT : CLASS_NAME_PREV;
-    nextElement.classList.add(orderClassName);
-    reflow(nextElement);
-    activeElement.classList.add(directionalClassName);
-    nextElement.classList.add(directionalClassName);
-    const completeCallBack = () => {
-      nextElement.classList.remove(directionalClassName, orderClassName);
-      nextElement.classList.add(CLASS_NAME_ACTIVE$2);
-      activeElement.classList.remove(CLASS_NAME_ACTIVE$2, orderClassName, directionalClassName);
-      this._isSliding = false;
-      triggerEvent(EVENT_SLID);
-    };
-    this._queueCallback(completeCallBack, activeElement, this._isAnimated());
-    if (isCycling) {
-      this.cycle();
-    }
-  }
-  _isAnimated() {
-    return this._element.classList.contains(CLASS_NAME_SLIDE);
-  }
-  _getActive() {
-    return SelectorEngine.findOne(SELECTOR_ACTIVE_ITEM, this._element);
-  }
-  _getItems() {
-    return SelectorEngine.find(SELECTOR_ITEM, this._element);
-  }
-  _clearInterval() {
-    if (this._interval) {
-      clearInterval(this._interval);
-      this._interval = null;
-    }
-  }
-  _directionToOrder(direction) {
-    if (isRTL()) {
-      return direction === DIRECTION_LEFT ? ORDER_PREV : ORDER_NEXT;
-    }
-    return direction === DIRECTION_LEFT ? ORDER_NEXT : ORDER_PREV;
-  }
-  _orderToDirection(order2) {
-    if (isRTL()) {
-      return order2 === ORDER_PREV ? DIRECTION_LEFT : DIRECTION_RIGHT;
-    }
-    return order2 === ORDER_PREV ? DIRECTION_RIGHT : DIRECTION_LEFT;
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Carousel.getOrCreateInstance(this, config2);
-      if (typeof config2 === "number") {
-        data.to(config2);
-        return;
-      }
-      if (typeof config2 === "string") {
-        if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-          throw new TypeError(`No method named "${config2}"`);
-        }
-        data[config2]();
-      }
-    });
-  }
-}
-EventHandler.on(document, EVENT_CLICK_DATA_API$5, SELECTOR_DATA_SLIDE, function(event) {
-  const target = SelectorEngine.getElementFromSelector(this);
-  if (!target || !target.classList.contains(CLASS_NAME_CAROUSEL)) {
-    return;
-  }
-  event.preventDefault();
-  const carousel = Carousel.getOrCreateInstance(target);
-  const slideIndex = this.getAttribute("data-bs-slide-to");
-  if (slideIndex) {
-    carousel.to(slideIndex);
-    carousel._maybeEnableCycle();
-    return;
-  }
-  if (Manipulator.getDataAttribute(this, "slide") === "next") {
-    carousel.next();
-    carousel._maybeEnableCycle();
-    return;
-  }
-  carousel.prev();
-  carousel._maybeEnableCycle();
-});
-EventHandler.on(window, EVENT_LOAD_DATA_API$3, () => {
-  const carousels = SelectorEngine.find(SELECTOR_DATA_RIDE);
-  for (const carousel of carousels) {
-    Carousel.getOrCreateInstance(carousel);
-  }
-});
-defineJQueryPlugin(Carousel);
-const NAME$b = "collapse";
-const DATA_KEY$7 = "bs.collapse";
-const EVENT_KEY$7 = `.${DATA_KEY$7}`;
-const DATA_API_KEY$4 = ".data-api";
-const EVENT_SHOW$6 = `show${EVENT_KEY$7}`;
-const EVENT_SHOWN$6 = `shown${EVENT_KEY$7}`;
-const EVENT_HIDE$6 = `hide${EVENT_KEY$7}`;
-const EVENT_HIDDEN$6 = `hidden${EVENT_KEY$7}`;
-const EVENT_CLICK_DATA_API$4 = `click${EVENT_KEY$7}${DATA_API_KEY$4}`;
-const CLASS_NAME_SHOW$7 = "show";
-const CLASS_NAME_COLLAPSE = "collapse";
-const CLASS_NAME_COLLAPSING = "collapsing";
-const CLASS_NAME_COLLAPSED = "collapsed";
-const CLASS_NAME_DEEPER_CHILDREN = `:scope .${CLASS_NAME_COLLAPSE} .${CLASS_NAME_COLLAPSE}`;
-const CLASS_NAME_HORIZONTAL = "collapse-horizontal";
-const WIDTH = "width";
-const HEIGHT = "height";
-const SELECTOR_ACTIVES = ".collapse.show, .collapse.collapsing";
-const SELECTOR_DATA_TOGGLE$4 = '[data-bs-toggle="collapse"]';
-const Default$a = {
-  parent: null,
-  toggle: true
-};
-const DefaultType$a = {
-  parent: "(null|element)",
-  toggle: "boolean"
-};
-class Collapse extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._isTransitioning = false;
-    this._triggerArray = [];
-    const toggleList = SelectorEngine.find(SELECTOR_DATA_TOGGLE$4);
-    for (const elem of toggleList) {
-      const selector = SelectorEngine.getSelectorFromElement(elem);
-      const filterElement = SelectorEngine.find(selector).filter((foundElement) => foundElement === this._element);
-      if (selector !== null && filterElement.length) {
-        this._triggerArray.push(elem);
-      }
-    }
-    this._initializeChildren();
-    if (!this._config.parent) {
-      this._addAriaAndCollapsedClass(this._triggerArray, this._isShown());
-    }
-    if (this._config.toggle) {
-      this.toggle();
-    }
-  }
-  // Getters
-  static get Default() {
-    return Default$a;
-  }
-  static get DefaultType() {
-    return DefaultType$a;
-  }
-  static get NAME() {
-    return NAME$b;
-  }
-  // Public
-  toggle() {
-    if (this._isShown()) {
-      this.hide();
-    } else {
-      this.show();
-    }
-  }
-  show() {
-    if (this._isTransitioning || this._isShown()) {
-      return;
-    }
-    let activeChildren = [];
-    if (this._config.parent) {
-      activeChildren = this._getFirstLevelChildren(SELECTOR_ACTIVES).filter((element) => element !== this._element).map((element) => Collapse.getOrCreateInstance(element, {
-        toggle: false
-      }));
-    }
-    if (activeChildren.length && activeChildren[0]._isTransitioning) {
-      return;
-    }
-    const startEvent = EventHandler.trigger(this._element, EVENT_SHOW$6);
-    if (startEvent.defaultPrevented) {
-      return;
-    }
-    for (const activeInstance of activeChildren) {
-      activeInstance.hide();
-    }
-    const dimension = this._getDimension();
-    this._element.classList.remove(CLASS_NAME_COLLAPSE);
-    this._element.classList.add(CLASS_NAME_COLLAPSING);
-    this._element.style[dimension] = 0;
-    this._addAriaAndCollapsedClass(this._triggerArray, true);
-    this._isTransitioning = true;
-    const complete = () => {
-      this._isTransitioning = false;
-      this._element.classList.remove(CLASS_NAME_COLLAPSING);
-      this._element.classList.add(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW$7);
-      this._element.style[dimension] = "";
-      EventHandler.trigger(this._element, EVENT_SHOWN$6);
-    };
-    const capitalizedDimension = dimension[0].toUpperCase() + dimension.slice(1);
-    const scrollSize = `scroll${capitalizedDimension}`;
-    this._queueCallback(complete, this._element, true);
-    this._element.style[dimension] = `${this._element[scrollSize]}px`;
-  }
-  hide() {
-    if (this._isTransitioning || !this._isShown()) {
-      return;
-    }
-    const startEvent = EventHandler.trigger(this._element, EVENT_HIDE$6);
-    if (startEvent.defaultPrevented) {
-      return;
-    }
-    const dimension = this._getDimension();
-    this._element.style[dimension] = `${this._element.getBoundingClientRect()[dimension]}px`;
-    reflow(this._element);
-    this._element.classList.add(CLASS_NAME_COLLAPSING);
-    this._element.classList.remove(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW$7);
-    for (const trigger of this._triggerArray) {
-      const element = SelectorEngine.getElementFromSelector(trigger);
-      if (element && !this._isShown(element)) {
-        this._addAriaAndCollapsedClass([trigger], false);
-      }
-    }
-    this._isTransitioning = true;
-    const complete = () => {
-      this._isTransitioning = false;
-      this._element.classList.remove(CLASS_NAME_COLLAPSING);
-      this._element.classList.add(CLASS_NAME_COLLAPSE);
-      EventHandler.trigger(this._element, EVENT_HIDDEN$6);
-    };
-    this._element.style[dimension] = "";
-    this._queueCallback(complete, this._element, true);
-  }
-  _isShown(element = this._element) {
-    return element.classList.contains(CLASS_NAME_SHOW$7);
-  }
-  // Private
-  _configAfterMerge(config2) {
-    config2.toggle = Boolean(config2.toggle);
-    config2.parent = getElement(config2.parent);
-    return config2;
-  }
-  _getDimension() {
-    return this._element.classList.contains(CLASS_NAME_HORIZONTAL) ? WIDTH : HEIGHT;
-  }
-  _initializeChildren() {
-    if (!this._config.parent) {
-      return;
-    }
-    const children = this._getFirstLevelChildren(SELECTOR_DATA_TOGGLE$4);
-    for (const element of children) {
-      const selected = SelectorEngine.getElementFromSelector(element);
-      if (selected) {
-        this._addAriaAndCollapsedClass([element], this._isShown(selected));
-      }
-    }
-  }
-  _getFirstLevelChildren(selector) {
-    const children = SelectorEngine.find(CLASS_NAME_DEEPER_CHILDREN, this._config.parent);
-    return SelectorEngine.find(selector, this._config.parent).filter((element) => !children.includes(element));
-  }
-  _addAriaAndCollapsedClass(triggerArray, isOpen) {
-    if (!triggerArray.length) {
-      return;
-    }
-    for (const element of triggerArray) {
-      element.classList.toggle(CLASS_NAME_COLLAPSED, !isOpen);
-      element.setAttribute("aria-expanded", isOpen);
-    }
-  }
-  // Static
-  static jQueryInterface(config2) {
-    const _config = {};
-    if (typeof config2 === "string" && /show|hide/.test(config2)) {
-      _config.toggle = false;
-    }
-    return this.each(function() {
-      const data = Collapse.getOrCreateInstance(this, _config);
-      if (typeof config2 === "string") {
-        if (typeof data[config2] === "undefined") {
-          throw new TypeError(`No method named "${config2}"`);
-        }
-        data[config2]();
-      }
-    });
-  }
-}
-EventHandler.on(document, EVENT_CLICK_DATA_API$4, SELECTOR_DATA_TOGGLE$4, function(event) {
-  if (event.target.tagName === "A" || event.delegateTarget && event.delegateTarget.tagName === "A") {
-    event.preventDefault();
-  }
-  for (const element of SelectorEngine.getMultipleElementsFromSelector(this)) {
-    Collapse.getOrCreateInstance(element, {
-      toggle: false
-    }).toggle();
-  }
-});
-defineJQueryPlugin(Collapse);
-const NAME$a = "dropdown";
-const DATA_KEY$6 = "bs.dropdown";
-const EVENT_KEY$6 = `.${DATA_KEY$6}`;
-const DATA_API_KEY$3 = ".data-api";
-const ESCAPE_KEY$2 = "Escape";
-const TAB_KEY$1 = "Tab";
-const ARROW_UP_KEY$1 = "ArrowUp";
-const ARROW_DOWN_KEY$1 = "ArrowDown";
-const RIGHT_MOUSE_BUTTON = 2;
-const EVENT_HIDE$5 = `hide${EVENT_KEY$6}`;
-const EVENT_HIDDEN$5 = `hidden${EVENT_KEY$6}`;
-const EVENT_SHOW$5 = `show${EVENT_KEY$6}`;
-const EVENT_SHOWN$5 = `shown${EVENT_KEY$6}`;
-const EVENT_CLICK_DATA_API$3 = `click${EVENT_KEY$6}${DATA_API_KEY$3}`;
-const EVENT_KEYDOWN_DATA_API = `keydown${EVENT_KEY$6}${DATA_API_KEY$3}`;
-const EVENT_KEYUP_DATA_API = `keyup${EVENT_KEY$6}${DATA_API_KEY$3}`;
-const CLASS_NAME_SHOW$6 = "show";
-const CLASS_NAME_DROPUP = "dropup";
-const CLASS_NAME_DROPEND = "dropend";
-const CLASS_NAME_DROPSTART = "dropstart";
-const CLASS_NAME_DROPUP_CENTER = "dropup-center";
-const CLASS_NAME_DROPDOWN_CENTER = "dropdown-center";
-const SELECTOR_DATA_TOGGLE$3 = '[data-bs-toggle="dropdown"]:not(.disabled):not(:disabled)';
-const SELECTOR_DATA_TOGGLE_SHOWN = `${SELECTOR_DATA_TOGGLE$3}.${CLASS_NAME_SHOW$6}`;
-const SELECTOR_MENU = ".dropdown-menu";
-const SELECTOR_NAVBAR = ".navbar";
-const SELECTOR_NAVBAR_NAV = ".navbar-nav";
-const SELECTOR_VISIBLE_ITEMS = ".dropdown-menu .dropdown-item:not(.disabled):not(:disabled)";
-const PLACEMENT_TOP = isRTL() ? "top-end" : "top-start";
-const PLACEMENT_TOPEND = isRTL() ? "top-start" : "top-end";
-const PLACEMENT_BOTTOM = isRTL() ? "bottom-end" : "bottom-start";
-const PLACEMENT_BOTTOMEND = isRTL() ? "bottom-start" : "bottom-end";
-const PLACEMENT_RIGHT = isRTL() ? "left-start" : "right-start";
-const PLACEMENT_LEFT = isRTL() ? "right-start" : "left-start";
-const PLACEMENT_TOPCENTER = "top";
-const PLACEMENT_BOTTOMCENTER = "bottom";
-const Default$9 = {
-  autoClose: true,
-  boundary: "clippingParents",
-  display: "dynamic",
-  offset: [0, 2],
-  popperConfig: null,
-  reference: "toggle"
-};
-const DefaultType$9 = {
-  autoClose: "(boolean|string)",
-  boundary: "(string|element)",
-  display: "string",
-  offset: "(array|string|function)",
-  popperConfig: "(null|object|function)",
-  reference: "(string|element|object)"
-};
-class Dropdown extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._popper = null;
-    this._parent = this._element.parentNode;
-    this._menu = SelectorEngine.next(this._element, SELECTOR_MENU)[0] || SelectorEngine.prev(this._element, SELECTOR_MENU)[0] || SelectorEngine.findOne(SELECTOR_MENU, this._parent);
-    this._inNavbar = this._detectNavbar();
-  }
-  // Getters
-  static get Default() {
-    return Default$9;
-  }
-  static get DefaultType() {
-    return DefaultType$9;
-  }
-  static get NAME() {
-    return NAME$a;
-  }
-  // Public
-  toggle() {
-    return this._isShown() ? this.hide() : this.show();
-  }
-  show() {
-    if (isDisabled(this._element) || this._isShown()) {
-      return;
-    }
-    const relatedTarget = {
-      relatedTarget: this._element
-    };
-    const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$5, relatedTarget);
-    if (showEvent.defaultPrevented) {
-      return;
-    }
-    this._createPopper();
-    if ("ontouchstart" in document.documentElement && !this._parent.closest(SELECTOR_NAVBAR_NAV)) {
-      for (const element of [].concat(...document.body.children)) {
-        EventHandler.on(element, "mouseover", noop);
-      }
-    }
-    this._element.focus();
-    this._element.setAttribute("aria-expanded", true);
-    this._menu.classList.add(CLASS_NAME_SHOW$6);
-    this._element.classList.add(CLASS_NAME_SHOW$6);
-    EventHandler.trigger(this._element, EVENT_SHOWN$5, relatedTarget);
-  }
-  hide() {
-    if (isDisabled(this._element) || !this._isShown()) {
-      return;
-    }
-    const relatedTarget = {
-      relatedTarget: this._element
-    };
-    this._completeHide(relatedTarget);
-  }
-  dispose() {
-    if (this._popper) {
-      this._popper.destroy();
-    }
-    super.dispose();
-  }
-  update() {
-    this._inNavbar = this._detectNavbar();
-    if (this._popper) {
-      this._popper.update();
-    }
-  }
-  // Private
-  _completeHide(relatedTarget) {
-    const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$5, relatedTarget);
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    if ("ontouchstart" in document.documentElement) {
-      for (const element of [].concat(...document.body.children)) {
-        EventHandler.off(element, "mouseover", noop);
-      }
-    }
-    if (this._popper) {
-      this._popper.destroy();
-    }
-    this._menu.classList.remove(CLASS_NAME_SHOW$6);
-    this._element.classList.remove(CLASS_NAME_SHOW$6);
-    this._element.setAttribute("aria-expanded", "false");
-    Manipulator.removeDataAttribute(this._menu, "popper");
-    EventHandler.trigger(this._element, EVENT_HIDDEN$5, relatedTarget);
-  }
-  _getConfig(config2) {
-    config2 = super._getConfig(config2);
-    if (typeof config2.reference === "object" && !isElement(config2.reference) && typeof config2.reference.getBoundingClientRect !== "function") {
-      throw new TypeError(`${NAME$a.toUpperCase()}: Option "reference" provided type "object" without a required "getBoundingClientRect" method.`);
-    }
-    return config2;
-  }
-  _createPopper() {
-    if (typeof Popper === "undefined") {
-      throw new TypeError("Bootstrap's dropdowns require Popper (https://popper.js.org)");
-    }
-    let referenceElement = this._element;
-    if (this._config.reference === "parent") {
-      referenceElement = this._parent;
-    } else if (isElement(this._config.reference)) {
-      referenceElement = getElement(this._config.reference);
-    } else if (typeof this._config.reference === "object") {
-      referenceElement = this._config.reference;
-    }
-    const popperConfig = this._getPopperConfig();
-    this._popper = createPopper(referenceElement, this._menu, popperConfig);
-  }
-  _isShown() {
-    return this._menu.classList.contains(CLASS_NAME_SHOW$6);
-  }
-  _getPlacement() {
-    const parentDropdown = this._parent;
-    if (parentDropdown.classList.contains(CLASS_NAME_DROPEND)) {
-      return PLACEMENT_RIGHT;
-    }
-    if (parentDropdown.classList.contains(CLASS_NAME_DROPSTART)) {
-      return PLACEMENT_LEFT;
-    }
-    if (parentDropdown.classList.contains(CLASS_NAME_DROPUP_CENTER)) {
-      return PLACEMENT_TOPCENTER;
-    }
-    if (parentDropdown.classList.contains(CLASS_NAME_DROPDOWN_CENTER)) {
-      return PLACEMENT_BOTTOMCENTER;
-    }
-    const isEnd = getComputedStyle(this._menu).getPropertyValue("--bs-position").trim() === "end";
-    if (parentDropdown.classList.contains(CLASS_NAME_DROPUP)) {
-      return isEnd ? PLACEMENT_TOPEND : PLACEMENT_TOP;
-    }
-    return isEnd ? PLACEMENT_BOTTOMEND : PLACEMENT_BOTTOM;
-  }
-  _detectNavbar() {
-    return this._element.closest(SELECTOR_NAVBAR) !== null;
-  }
-  _getOffset() {
-    const {
-      offset: offset2
-    } = this._config;
-    if (typeof offset2 === "string") {
-      return offset2.split(",").map((value) => Number.parseInt(value, 10));
-    }
-    if (typeof offset2 === "function") {
-      return (popperData) => offset2(popperData, this._element);
-    }
-    return offset2;
-  }
-  _getPopperConfig() {
-    const defaultBsPopperConfig = {
-      placement: this._getPlacement(),
-      modifiers: [{
-        name: "preventOverflow",
-        options: {
-          boundary: this._config.boundary
-        }
-      }, {
-        name: "offset",
-        options: {
-          offset: this._getOffset()
-        }
-      }]
-    };
-    if (this._inNavbar || this._config.display === "static") {
-      Manipulator.setDataAttribute(this._menu, "popper", "static");
-      defaultBsPopperConfig.modifiers = [{
-        name: "applyStyles",
-        enabled: false
-      }];
-    }
-    return {
-      ...defaultBsPopperConfig,
-      ...execute(this._config.popperConfig, [defaultBsPopperConfig])
-    };
-  }
-  _selectMenuItem({
-    key: key2,
-    target
-  }) {
-    const items = SelectorEngine.find(SELECTOR_VISIBLE_ITEMS, this._menu).filter((element) => isVisible(element));
-    if (!items.length) {
-      return;
-    }
-    getNextActiveElement(items, target, key2 === ARROW_DOWN_KEY$1, !items.includes(target)).focus();
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Dropdown.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (typeof data[config2] === "undefined") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2]();
-    });
-  }
-  static clearMenus(event) {
-    if (event.button === RIGHT_MOUSE_BUTTON || event.type === "keyup" && event.key !== TAB_KEY$1) {
-      return;
-    }
-    const openToggles = SelectorEngine.find(SELECTOR_DATA_TOGGLE_SHOWN);
-    for (const toggle of openToggles) {
-      const context = Dropdown.getInstance(toggle);
-      if (!context || context._config.autoClose === false) {
-        continue;
-      }
-      const composedPath = event.composedPath();
-      const isMenuTarget = composedPath.includes(context._menu);
-      if (composedPath.includes(context._element) || context._config.autoClose === "inside" && !isMenuTarget || context._config.autoClose === "outside" && isMenuTarget) {
-        continue;
-      }
-      if (context._menu.contains(event.target) && (event.type === "keyup" && event.key === TAB_KEY$1 || /input|select|option|textarea|form/i.test(event.target.tagName))) {
-        continue;
-      }
-      const relatedTarget = {
-        relatedTarget: context._element
-      };
-      if (event.type === "click") {
-        relatedTarget.clickEvent = event;
-      }
-      context._completeHide(relatedTarget);
-    }
-  }
-  static dataApiKeydownHandler(event) {
-    const isInput = /input|textarea/i.test(event.target.tagName);
-    const isEscapeEvent = event.key === ESCAPE_KEY$2;
-    const isUpOrDownEvent = [ARROW_UP_KEY$1, ARROW_DOWN_KEY$1].includes(event.key);
-    if (!isUpOrDownEvent && !isEscapeEvent) {
-      return;
-    }
-    if (isInput && !isEscapeEvent) {
-      return;
-    }
-    event.preventDefault();
-    const getToggleButton = this.matches(SELECTOR_DATA_TOGGLE$3) ? this : SelectorEngine.prev(this, SELECTOR_DATA_TOGGLE$3)[0] || SelectorEngine.next(this, SELECTOR_DATA_TOGGLE$3)[0] || SelectorEngine.findOne(SELECTOR_DATA_TOGGLE$3, event.delegateTarget.parentNode);
-    const instance = Dropdown.getOrCreateInstance(getToggleButton);
-    if (isUpOrDownEvent) {
-      event.stopPropagation();
-      instance.show();
-      instance._selectMenuItem(event);
-      return;
-    }
-    if (instance._isShown()) {
-      event.stopPropagation();
-      instance.hide();
-      getToggleButton.focus();
-    }
-  }
-}
-EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_DATA_TOGGLE$3, Dropdown.dataApiKeydownHandler);
-EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_MENU, Dropdown.dataApiKeydownHandler);
-EventHandler.on(document, EVENT_CLICK_DATA_API$3, Dropdown.clearMenus);
-EventHandler.on(document, EVENT_KEYUP_DATA_API, Dropdown.clearMenus);
-EventHandler.on(document, EVENT_CLICK_DATA_API$3, SELECTOR_DATA_TOGGLE$3, function(event) {
-  event.preventDefault();
-  Dropdown.getOrCreateInstance(this).toggle();
-});
-defineJQueryPlugin(Dropdown);
-const NAME$9 = "backdrop";
-const CLASS_NAME_FADE$4 = "fade";
-const CLASS_NAME_SHOW$5 = "show";
-const EVENT_MOUSEDOWN = `mousedown.bs.${NAME$9}`;
-const Default$8 = {
-  className: "modal-backdrop",
-  clickCallback: null,
-  isAnimated: false,
-  isVisible: true,
-  // if false, we use the backdrop helper without adding any element to the dom
-  rootElement: "body"
-  // give the choice to place backdrop under different elements
-};
-const DefaultType$8 = {
-  className: "string",
-  clickCallback: "(function|null)",
-  isAnimated: "boolean",
-  isVisible: "boolean",
-  rootElement: "(element|string)"
-};
-class Backdrop extends Config {
-  constructor(config2) {
-    super();
-    this._config = this._getConfig(config2);
-    this._isAppended = false;
-    this._element = null;
-  }
-  // Getters
-  static get Default() {
-    return Default$8;
-  }
-  static get DefaultType() {
-    return DefaultType$8;
-  }
-  static get NAME() {
-    return NAME$9;
-  }
-  // Public
-  show(callback) {
-    if (!this._config.isVisible) {
-      execute(callback);
-      return;
-    }
-    this._append();
-    const element = this._getElement();
-    if (this._config.isAnimated) {
-      reflow(element);
-    }
-    element.classList.add(CLASS_NAME_SHOW$5);
-    this._emulateAnimation(() => {
-      execute(callback);
-    });
-  }
-  hide(callback) {
-    if (!this._config.isVisible) {
-      execute(callback);
-      return;
-    }
-    this._getElement().classList.remove(CLASS_NAME_SHOW$5);
-    this._emulateAnimation(() => {
-      this.dispose();
-      execute(callback);
-    });
-  }
-  dispose() {
-    if (!this._isAppended) {
-      return;
-    }
-    EventHandler.off(this._element, EVENT_MOUSEDOWN);
-    this._element.remove();
-    this._isAppended = false;
-  }
-  // Private
-  _getElement() {
-    if (!this._element) {
-      const backdrop = document.createElement("div");
-      backdrop.className = this._config.className;
-      if (this._config.isAnimated) {
-        backdrop.classList.add(CLASS_NAME_FADE$4);
-      }
-      this._element = backdrop;
-    }
-    return this._element;
-  }
-  _configAfterMerge(config2) {
-    config2.rootElement = getElement(config2.rootElement);
-    return config2;
-  }
-  _append() {
-    if (this._isAppended) {
-      return;
-    }
-    const element = this._getElement();
-    this._config.rootElement.append(element);
-    EventHandler.on(element, EVENT_MOUSEDOWN, () => {
-      execute(this._config.clickCallback);
-    });
-    this._isAppended = true;
-  }
-  _emulateAnimation(callback) {
-    executeAfterTransition(callback, this._getElement(), this._config.isAnimated);
-  }
-}
-const NAME$8 = "focustrap";
-const DATA_KEY$5 = "bs.focustrap";
-const EVENT_KEY$5 = `.${DATA_KEY$5}`;
-const EVENT_FOCUSIN$2 = `focusin${EVENT_KEY$5}`;
-const EVENT_KEYDOWN_TAB = `keydown.tab${EVENT_KEY$5}`;
-const TAB_KEY = "Tab";
-const TAB_NAV_FORWARD = "forward";
-const TAB_NAV_BACKWARD = "backward";
-const Default$7 = {
-  autofocus: true,
-  trapElement: null
-  // The element to trap focus inside of
-};
-const DefaultType$7 = {
-  autofocus: "boolean",
-  trapElement: "element"
-};
-class FocusTrap extends Config {
-  constructor(config2) {
-    super();
-    this._config = this._getConfig(config2);
-    this._isActive = false;
-    this._lastTabNavDirection = null;
-  }
-  // Getters
-  static get Default() {
-    return Default$7;
-  }
-  static get DefaultType() {
-    return DefaultType$7;
-  }
-  static get NAME() {
-    return NAME$8;
-  }
-  // Public
-  activate() {
-    if (this._isActive) {
-      return;
-    }
-    if (this._config.autofocus) {
-      this._config.trapElement.focus();
-    }
-    EventHandler.off(document, EVENT_KEY$5);
-    EventHandler.on(document, EVENT_FOCUSIN$2, (event) => this._handleFocusin(event));
-    EventHandler.on(document, EVENT_KEYDOWN_TAB, (event) => this._handleKeydown(event));
-    this._isActive = true;
-  }
-  deactivate() {
-    if (!this._isActive) {
-      return;
-    }
-    this._isActive = false;
-    EventHandler.off(document, EVENT_KEY$5);
-  }
-  // Private
-  _handleFocusin(event) {
-    const {
-      trapElement
-    } = this._config;
-    if (event.target === document || event.target === trapElement || trapElement.contains(event.target)) {
-      return;
-    }
-    const elements = SelectorEngine.focusableChildren(trapElement);
-    if (elements.length === 0) {
-      trapElement.focus();
-    } else if (this._lastTabNavDirection === TAB_NAV_BACKWARD) {
-      elements[elements.length - 1].focus();
-    } else {
-      elements[0].focus();
-    }
-  }
-  _handleKeydown(event) {
-    if (event.key !== TAB_KEY) {
-      return;
-    }
-    this._lastTabNavDirection = event.shiftKey ? TAB_NAV_BACKWARD : TAB_NAV_FORWARD;
-  }
-}
-const SELECTOR_FIXED_CONTENT = ".fixed-top, .fixed-bottom, .is-fixed, .sticky-top";
-const SELECTOR_STICKY_CONTENT = ".sticky-top";
-const PROPERTY_PADDING = "padding-right";
-const PROPERTY_MARGIN = "margin-right";
-class ScrollBarHelper {
-  constructor() {
-    this._element = document.body;
-  }
-  // Public
-  getWidth() {
-    const documentWidth = document.documentElement.clientWidth;
-    return Math.abs(window.innerWidth - documentWidth);
-  }
-  hide() {
-    const width = this.getWidth();
-    this._disableOverFlow();
-    this._setElementAttributes(this._element, PROPERTY_PADDING, (calculatedValue) => calculatedValue + width);
-    this._setElementAttributes(SELECTOR_FIXED_CONTENT, PROPERTY_PADDING, (calculatedValue) => calculatedValue + width);
-    this._setElementAttributes(SELECTOR_STICKY_CONTENT, PROPERTY_MARGIN, (calculatedValue) => calculatedValue - width);
-  }
-  reset() {
-    this._resetElementAttributes(this._element, "overflow");
-    this._resetElementAttributes(this._element, PROPERTY_PADDING);
-    this._resetElementAttributes(SELECTOR_FIXED_CONTENT, PROPERTY_PADDING);
-    this._resetElementAttributes(SELECTOR_STICKY_CONTENT, PROPERTY_MARGIN);
-  }
-  isOverflowing() {
-    return this.getWidth() > 0;
-  }
-  // Private
-  _disableOverFlow() {
-    this._saveInitialAttribute(this._element, "overflow");
-    this._element.style.overflow = "hidden";
-  }
-  _setElementAttributes(selector, styleProperty, callback) {
-    const scrollbarWidth = this.getWidth();
-    const manipulationCallBack = (element) => {
-      if (element !== this._element && window.innerWidth > element.clientWidth + scrollbarWidth) {
-        return;
-      }
-      this._saveInitialAttribute(element, styleProperty);
-      const calculatedValue = window.getComputedStyle(element).getPropertyValue(styleProperty);
-      element.style.setProperty(styleProperty, `${callback(Number.parseFloat(calculatedValue))}px`);
-    };
-    this._applyManipulationCallback(selector, manipulationCallBack);
-  }
-  _saveInitialAttribute(element, styleProperty) {
-    const actualValue = element.style.getPropertyValue(styleProperty);
-    if (actualValue) {
-      Manipulator.setDataAttribute(element, styleProperty, actualValue);
-    }
-  }
-  _resetElementAttributes(selector, styleProperty) {
-    const manipulationCallBack = (element) => {
-      const value = Manipulator.getDataAttribute(element, styleProperty);
-      if (value === null) {
-        element.style.removeProperty(styleProperty);
-        return;
-      }
-      Manipulator.removeDataAttribute(element, styleProperty);
-      element.style.setProperty(styleProperty, value);
-    };
-    this._applyManipulationCallback(selector, manipulationCallBack);
-  }
-  _applyManipulationCallback(selector, callBack) {
-    if (isElement(selector)) {
-      callBack(selector);
-      return;
-    }
-    for (const sel of SelectorEngine.find(selector, this._element)) {
-      callBack(sel);
-    }
-  }
-}
-const NAME$7 = "modal";
-const DATA_KEY$4 = "bs.modal";
-const EVENT_KEY$4 = `.${DATA_KEY$4}`;
-const DATA_API_KEY$2 = ".data-api";
-const ESCAPE_KEY$1 = "Escape";
-const EVENT_HIDE$4 = `hide${EVENT_KEY$4}`;
-const EVENT_HIDE_PREVENTED$1 = `hidePrevented${EVENT_KEY$4}`;
-const EVENT_HIDDEN$4 = `hidden${EVENT_KEY$4}`;
-const EVENT_SHOW$4 = `show${EVENT_KEY$4}`;
-const EVENT_SHOWN$4 = `shown${EVENT_KEY$4}`;
-const EVENT_RESIZE$1 = `resize${EVENT_KEY$4}`;
-const EVENT_CLICK_DISMISS = `click.dismiss${EVENT_KEY$4}`;
-const EVENT_MOUSEDOWN_DISMISS = `mousedown.dismiss${EVENT_KEY$4}`;
-const EVENT_KEYDOWN_DISMISS$1 = `keydown.dismiss${EVENT_KEY$4}`;
-const EVENT_CLICK_DATA_API$2 = `click${EVENT_KEY$4}${DATA_API_KEY$2}`;
-const CLASS_NAME_OPEN = "modal-open";
-const CLASS_NAME_FADE$3 = "fade";
-const CLASS_NAME_SHOW$4 = "show";
-const CLASS_NAME_STATIC = "modal-static";
-const OPEN_SELECTOR$1 = ".modal.show";
-const SELECTOR_DIALOG = ".modal-dialog";
-const SELECTOR_MODAL_BODY = ".modal-body";
-const SELECTOR_DATA_TOGGLE$2 = '[data-bs-toggle="modal"]';
-const Default$6 = {
-  backdrop: true,
-  focus: true,
-  keyboard: true
-};
-const DefaultType$6 = {
-  backdrop: "(boolean|string)",
-  focus: "boolean",
-  keyboard: "boolean"
-};
-class Modal extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._dialog = SelectorEngine.findOne(SELECTOR_DIALOG, this._element);
-    this._backdrop = this._initializeBackDrop();
-    this._focustrap = this._initializeFocusTrap();
-    this._isShown = false;
-    this._isTransitioning = false;
-    this._scrollBar = new ScrollBarHelper();
-    this._addEventListeners();
-  }
-  // Getters
-  static get Default() {
-    return Default$6;
-  }
-  static get DefaultType() {
-    return DefaultType$6;
-  }
-  static get NAME() {
-    return NAME$7;
-  }
-  // Public
-  toggle(relatedTarget) {
-    return this._isShown ? this.hide() : this.show(relatedTarget);
-  }
-  show(relatedTarget) {
-    if (this._isShown || this._isTransitioning) {
-      return;
-    }
-    const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$4, {
-      relatedTarget
-    });
-    if (showEvent.defaultPrevented) {
-      return;
-    }
-    this._isShown = true;
-    this._isTransitioning = true;
-    this._scrollBar.hide();
-    document.body.classList.add(CLASS_NAME_OPEN);
-    this._adjustDialog();
-    this._backdrop.show(() => this._showElement(relatedTarget));
-  }
-  hide() {
-    if (!this._isShown || this._isTransitioning) {
-      return;
-    }
-    const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$4);
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    this._isShown = false;
-    this._isTransitioning = true;
-    this._focustrap.deactivate();
-    this._element.classList.remove(CLASS_NAME_SHOW$4);
-    this._queueCallback(() => this._hideModal(), this._element, this._isAnimated());
-  }
-  dispose() {
-    EventHandler.off(window, EVENT_KEY$4);
-    EventHandler.off(this._dialog, EVENT_KEY$4);
-    this._backdrop.dispose();
-    this._focustrap.deactivate();
-    super.dispose();
-  }
-  handleUpdate() {
-    this._adjustDialog();
-  }
-  // Private
-  _initializeBackDrop() {
-    return new Backdrop({
-      isVisible: Boolean(this._config.backdrop),
-      // 'static' option will be translated to true, and booleans will keep their value,
-      isAnimated: this._isAnimated()
-    });
-  }
-  _initializeFocusTrap() {
-    return new FocusTrap({
-      trapElement: this._element
-    });
-  }
-  _showElement(relatedTarget) {
-    if (!document.body.contains(this._element)) {
-      document.body.append(this._element);
-    }
-    this._element.style.display = "block";
-    this._element.removeAttribute("aria-hidden");
-    this._element.setAttribute("aria-modal", true);
-    this._element.setAttribute("role", "dialog");
-    this._element.scrollTop = 0;
-    const modalBody = SelectorEngine.findOne(SELECTOR_MODAL_BODY, this._dialog);
-    if (modalBody) {
-      modalBody.scrollTop = 0;
-    }
-    reflow(this._element);
-    this._element.classList.add(CLASS_NAME_SHOW$4);
-    const transitionComplete = () => {
-      if (this._config.focus) {
-        this._focustrap.activate();
-      }
-      this._isTransitioning = false;
-      EventHandler.trigger(this._element, EVENT_SHOWN$4, {
-        relatedTarget
-      });
-    };
-    this._queueCallback(transitionComplete, this._dialog, this._isAnimated());
-  }
-  _addEventListeners() {
-    EventHandler.on(this._element, EVENT_KEYDOWN_DISMISS$1, (event) => {
-      if (event.key !== ESCAPE_KEY$1) {
-        return;
-      }
-      if (this._config.keyboard) {
-        this.hide();
-        return;
-      }
-      this._triggerBackdropTransition();
-    });
-    EventHandler.on(window, EVENT_RESIZE$1, () => {
-      if (this._isShown && !this._isTransitioning) {
-        this._adjustDialog();
-      }
-    });
-    EventHandler.on(this._element, EVENT_MOUSEDOWN_DISMISS, (event) => {
-      EventHandler.one(this._element, EVENT_CLICK_DISMISS, (event2) => {
-        if (this._element !== event.target || this._element !== event2.target) {
-          return;
-        }
-        if (this._config.backdrop === "static") {
-          this._triggerBackdropTransition();
-          return;
-        }
-        if (this._config.backdrop) {
-          this.hide();
-        }
-      });
-    });
-  }
-  _hideModal() {
-    this._element.style.display = "none";
-    this._element.setAttribute("aria-hidden", true);
-    this._element.removeAttribute("aria-modal");
-    this._element.removeAttribute("role");
-    this._isTransitioning = false;
-    this._backdrop.hide(() => {
-      document.body.classList.remove(CLASS_NAME_OPEN);
-      this._resetAdjustments();
-      this._scrollBar.reset();
-      EventHandler.trigger(this._element, EVENT_HIDDEN$4);
-    });
-  }
-  _isAnimated() {
-    return this._element.classList.contains(CLASS_NAME_FADE$3);
-  }
-  _triggerBackdropTransition() {
-    const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED$1);
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    const isModalOverflowing = this._element.scrollHeight > document.documentElement.clientHeight;
-    const initialOverflowY = this._element.style.overflowY;
-    if (initialOverflowY === "hidden" || this._element.classList.contains(CLASS_NAME_STATIC)) {
-      return;
-    }
-    if (!isModalOverflowing) {
-      this._element.style.overflowY = "hidden";
-    }
-    this._element.classList.add(CLASS_NAME_STATIC);
-    this._queueCallback(() => {
-      this._element.classList.remove(CLASS_NAME_STATIC);
-      this._queueCallback(() => {
-        this._element.style.overflowY = initialOverflowY;
-      }, this._dialog);
-    }, this._dialog);
-    this._element.focus();
-  }
-  /**
-   * The following methods are used to handle overflowing modals
-   */
-  _adjustDialog() {
-    const isModalOverflowing = this._element.scrollHeight > document.documentElement.clientHeight;
-    const scrollbarWidth = this._scrollBar.getWidth();
-    const isBodyOverflowing = scrollbarWidth > 0;
-    if (isBodyOverflowing && !isModalOverflowing) {
-      const property = isRTL() ? "paddingLeft" : "paddingRight";
-      this._element.style[property] = `${scrollbarWidth}px`;
-    }
-    if (!isBodyOverflowing && isModalOverflowing) {
-      const property = isRTL() ? "paddingRight" : "paddingLeft";
-      this._element.style[property] = `${scrollbarWidth}px`;
-    }
-  }
-  _resetAdjustments() {
-    this._element.style.paddingLeft = "";
-    this._element.style.paddingRight = "";
-  }
-  // Static
-  static jQueryInterface(config2, relatedTarget) {
-    return this.each(function() {
-      const data = Modal.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (typeof data[config2] === "undefined") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2](relatedTarget);
-    });
-  }
-}
-EventHandler.on(document, EVENT_CLICK_DATA_API$2, SELECTOR_DATA_TOGGLE$2, function(event) {
-  const target = SelectorEngine.getElementFromSelector(this);
-  if (["A", "AREA"].includes(this.tagName)) {
-    event.preventDefault();
-  }
-  EventHandler.one(target, EVENT_SHOW$4, (showEvent) => {
-    if (showEvent.defaultPrevented) {
-      return;
-    }
-    EventHandler.one(target, EVENT_HIDDEN$4, () => {
-      if (isVisible(this)) {
-        this.focus();
-      }
-    });
-  });
-  const alreadyOpen = SelectorEngine.findOne(OPEN_SELECTOR$1);
-  if (alreadyOpen) {
-    Modal.getInstance(alreadyOpen).hide();
-  }
-  const data = Modal.getOrCreateInstance(target);
-  data.toggle(this);
-});
-enableDismissTrigger(Modal);
-defineJQueryPlugin(Modal);
-const NAME$6 = "offcanvas";
-const DATA_KEY$3 = "bs.offcanvas";
-const EVENT_KEY$3 = `.${DATA_KEY$3}`;
-const DATA_API_KEY$1 = ".data-api";
-const EVENT_LOAD_DATA_API$2 = `load${EVENT_KEY$3}${DATA_API_KEY$1}`;
-const ESCAPE_KEY = "Escape";
-const CLASS_NAME_SHOW$3 = "show";
-const CLASS_NAME_SHOWING$1 = "showing";
-const CLASS_NAME_HIDING = "hiding";
-const CLASS_NAME_BACKDROP = "offcanvas-backdrop";
-const OPEN_SELECTOR = ".offcanvas.show";
-const EVENT_SHOW$3 = `show${EVENT_KEY$3}`;
-const EVENT_SHOWN$3 = `shown${EVENT_KEY$3}`;
-const EVENT_HIDE$3 = `hide${EVENT_KEY$3}`;
-const EVENT_HIDE_PREVENTED = `hidePrevented${EVENT_KEY$3}`;
-const EVENT_HIDDEN$3 = `hidden${EVENT_KEY$3}`;
-const EVENT_RESIZE = `resize${EVENT_KEY$3}`;
-const EVENT_CLICK_DATA_API$1 = `click${EVENT_KEY$3}${DATA_API_KEY$1}`;
-const EVENT_KEYDOWN_DISMISS = `keydown.dismiss${EVENT_KEY$3}`;
-const SELECTOR_DATA_TOGGLE$1 = '[data-bs-toggle="offcanvas"]';
-const Default$5 = {
-  backdrop: true,
-  keyboard: true,
-  scroll: false
-};
-const DefaultType$5 = {
-  backdrop: "(boolean|string)",
-  keyboard: "boolean",
-  scroll: "boolean"
-};
-class Offcanvas extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._isShown = false;
-    this._backdrop = this._initializeBackDrop();
-    this._focustrap = this._initializeFocusTrap();
-    this._addEventListeners();
-  }
-  // Getters
-  static get Default() {
-    return Default$5;
-  }
-  static get DefaultType() {
-    return DefaultType$5;
-  }
-  static get NAME() {
-    return NAME$6;
-  }
-  // Public
-  toggle(relatedTarget) {
-    return this._isShown ? this.hide() : this.show(relatedTarget);
-  }
-  show(relatedTarget) {
-    if (this._isShown) {
-      return;
-    }
-    const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$3, {
-      relatedTarget
-    });
-    if (showEvent.defaultPrevented) {
-      return;
-    }
-    this._isShown = true;
-    this._backdrop.show();
-    if (!this._config.scroll) {
-      new ScrollBarHelper().hide();
-    }
-    this._element.setAttribute("aria-modal", true);
-    this._element.setAttribute("role", "dialog");
-    this._element.classList.add(CLASS_NAME_SHOWING$1);
-    const completeCallBack = () => {
-      if (!this._config.scroll || this._config.backdrop) {
-        this._focustrap.activate();
-      }
-      this._element.classList.add(CLASS_NAME_SHOW$3);
-      this._element.classList.remove(CLASS_NAME_SHOWING$1);
-      EventHandler.trigger(this._element, EVENT_SHOWN$3, {
-        relatedTarget
-      });
-    };
-    this._queueCallback(completeCallBack, this._element, true);
-  }
-  hide() {
-    if (!this._isShown) {
-      return;
-    }
-    const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$3);
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    this._focustrap.deactivate();
-    this._element.blur();
-    this._isShown = false;
-    this._element.classList.add(CLASS_NAME_HIDING);
-    this._backdrop.hide();
-    const completeCallback = () => {
-      this._element.classList.remove(CLASS_NAME_SHOW$3, CLASS_NAME_HIDING);
-      this._element.removeAttribute("aria-modal");
-      this._element.removeAttribute("role");
-      if (!this._config.scroll) {
-        new ScrollBarHelper().reset();
-      }
-      EventHandler.trigger(this._element, EVENT_HIDDEN$3);
-    };
-    this._queueCallback(completeCallback, this._element, true);
-  }
-  dispose() {
-    this._backdrop.dispose();
-    this._focustrap.deactivate();
-    super.dispose();
-  }
-  // Private
-  _initializeBackDrop() {
-    const clickCallback = () => {
-      if (this._config.backdrop === "static") {
-        EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED);
-        return;
-      }
-      this.hide();
-    };
-    const isVisible2 = Boolean(this._config.backdrop);
-    return new Backdrop({
-      className: CLASS_NAME_BACKDROP,
-      isVisible: isVisible2,
-      isAnimated: true,
-      rootElement: this._element.parentNode,
-      clickCallback: isVisible2 ? clickCallback : null
-    });
-  }
-  _initializeFocusTrap() {
-    return new FocusTrap({
-      trapElement: this._element
-    });
-  }
-  _addEventListeners() {
-    EventHandler.on(this._element, EVENT_KEYDOWN_DISMISS, (event) => {
-      if (event.key !== ESCAPE_KEY) {
-        return;
-      }
-      if (this._config.keyboard) {
-        this.hide();
-        return;
-      }
-      EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED);
-    });
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Offcanvas.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2](this);
-    });
-  }
-}
-EventHandler.on(document, EVENT_CLICK_DATA_API$1, SELECTOR_DATA_TOGGLE$1, function(event) {
-  const target = SelectorEngine.getElementFromSelector(this);
-  if (["A", "AREA"].includes(this.tagName)) {
-    event.preventDefault();
-  }
-  if (isDisabled(this)) {
-    return;
-  }
-  EventHandler.one(target, EVENT_HIDDEN$3, () => {
-    if (isVisible(this)) {
-      this.focus();
-    }
-  });
-  const alreadyOpen = SelectorEngine.findOne(OPEN_SELECTOR);
-  if (alreadyOpen && alreadyOpen !== target) {
-    Offcanvas.getInstance(alreadyOpen).hide();
-  }
-  const data = Offcanvas.getOrCreateInstance(target);
-  data.toggle(this);
-});
-EventHandler.on(window, EVENT_LOAD_DATA_API$2, () => {
-  for (const selector of SelectorEngine.find(OPEN_SELECTOR)) {
-    Offcanvas.getOrCreateInstance(selector).show();
-  }
-});
-EventHandler.on(window, EVENT_RESIZE, () => {
-  for (const element of SelectorEngine.find("[aria-modal][class*=show][class*=offcanvas-]")) {
-    if (getComputedStyle(element).position !== "fixed") {
-      Offcanvas.getOrCreateInstance(element).hide();
-    }
-  }
-});
-enableDismissTrigger(Offcanvas);
-defineJQueryPlugin(Offcanvas);
-const ARIA_ATTRIBUTE_PATTERN = /^aria-[\w-]*$/i;
-const DefaultAllowlist = {
-  // Global attributes allowed on any supplied element below.
-  "*": ["class", "dir", "id", "lang", "role", ARIA_ATTRIBUTE_PATTERN],
-  a: ["target", "href", "title", "rel"],
-  area: [],
-  b: [],
-  br: [],
-  col: [],
-  code: [],
-  dd: [],
-  div: [],
-  dl: [],
-  dt: [],
-  em: [],
-  hr: [],
-  h1: [],
-  h2: [],
-  h3: [],
-  h4: [],
-  h5: [],
-  h6: [],
-  i: [],
-  img: ["src", "srcset", "alt", "title", "width", "height"],
-  li: [],
-  ol: [],
-  p: [],
-  pre: [],
-  s: [],
-  small: [],
-  span: [],
-  sub: [],
-  sup: [],
-  strong: [],
-  u: [],
-  ul: []
-};
-const uriAttributes = /* @__PURE__ */ new Set(["background", "cite", "href", "itemtype", "longdesc", "poster", "src", "xlink:href"]);
-const SAFE_URL_PATTERN = /^(?!javascript:)(?:[a-z0-9+.-]+:|[^&:/?#]*(?:[/?#]|$))/i;
-const allowedAttribute = (attribute2, allowedAttributeList) => {
-  const attributeName = attribute2.nodeName.toLowerCase();
-  if (allowedAttributeList.includes(attributeName)) {
-    if (uriAttributes.has(attributeName)) {
-      return Boolean(SAFE_URL_PATTERN.test(attribute2.nodeValue));
-    }
-    return true;
-  }
-  return allowedAttributeList.filter((attributeRegex) => attributeRegex instanceof RegExp).some((regex2) => regex2.test(attributeName));
-};
-function sanitizeHtml(unsafeHtml, allowList, sanitizeFunction) {
-  if (!unsafeHtml.length) {
-    return unsafeHtml;
-  }
-  if (sanitizeFunction && typeof sanitizeFunction === "function") {
-    return sanitizeFunction(unsafeHtml);
-  }
-  const domParser = new window.DOMParser();
-  const createdDocument = domParser.parseFromString(unsafeHtml, "text/html");
-  const elements = [].concat(...createdDocument.body.querySelectorAll("*"));
-  for (const element of elements) {
-    const elementName = element.nodeName.toLowerCase();
-    if (!Object.keys(allowList).includes(elementName)) {
-      element.remove();
-      continue;
-    }
-    const attributeList = [].concat(...element.attributes);
-    const allowedAttributes = [].concat(allowList["*"] || [], allowList[elementName] || []);
-    for (const attribute2 of attributeList) {
-      if (!allowedAttribute(attribute2, allowedAttributes)) {
-        element.removeAttribute(attribute2.nodeName);
-      }
-    }
-  }
-  return createdDocument.body.innerHTML;
-}
-const NAME$5 = "TemplateFactory";
-const Default$4 = {
-  allowList: DefaultAllowlist,
-  content: {},
-  // { selector : text ,  selector2 : text2 , }
-  extraClass: "",
-  html: false,
-  sanitize: true,
-  sanitizeFn: null,
-  template: "<div></div>"
-};
-const DefaultType$4 = {
-  allowList: "object",
-  content: "object",
-  extraClass: "(string|function)",
-  html: "boolean",
-  sanitize: "boolean",
-  sanitizeFn: "(null|function)",
-  template: "string"
-};
-const DefaultContentType = {
-  entry: "(string|element|function|null)",
-  selector: "(string|element)"
-};
-class TemplateFactory extends Config {
-  constructor(config2) {
-    super();
-    this._config = this._getConfig(config2);
-  }
-  // Getters
-  static get Default() {
-    return Default$4;
-  }
-  static get DefaultType() {
-    return DefaultType$4;
-  }
-  static get NAME() {
-    return NAME$5;
-  }
-  // Public
-  getContent() {
-    return Object.values(this._config.content).map((config2) => this._resolvePossibleFunction(config2)).filter(Boolean);
-  }
-  hasContent() {
-    return this.getContent().length > 0;
-  }
-  changeContent(content) {
-    this._checkContent(content);
-    this._config.content = {
-      ...this._config.content,
-      ...content
-    };
-    return this;
-  }
-  toHtml() {
-    const templateWrapper = document.createElement("div");
-    templateWrapper.innerHTML = this._maybeSanitize(this._config.template);
-    for (const [selector, text2] of Object.entries(this._config.content)) {
-      this._setContent(templateWrapper, text2, selector);
-    }
-    const template = templateWrapper.children[0];
-    const extraClass = this._resolvePossibleFunction(this._config.extraClass);
-    if (extraClass) {
-      template.classList.add(...extraClass.split(" "));
-    }
-    return template;
-  }
-  // Private
-  _typeCheckConfig(config2) {
-    super._typeCheckConfig(config2);
-    this._checkContent(config2.content);
-  }
-  _checkContent(arg) {
-    for (const [selector, content] of Object.entries(arg)) {
-      super._typeCheckConfig({
-        selector,
-        entry: content
-      }, DefaultContentType);
-    }
-  }
-  _setContent(template, content, selector) {
-    const templateElement = SelectorEngine.findOne(selector, template);
-    if (!templateElement) {
-      return;
-    }
-    content = this._resolvePossibleFunction(content);
-    if (!content) {
-      templateElement.remove();
-      return;
-    }
-    if (isElement(content)) {
-      this._putElementInTemplate(getElement(content), templateElement);
-      return;
-    }
-    if (this._config.html) {
-      templateElement.innerHTML = this._maybeSanitize(content);
-      return;
-    }
-    templateElement.textContent = content;
-  }
-  _maybeSanitize(arg) {
-    return this._config.sanitize ? sanitizeHtml(arg, this._config.allowList, this._config.sanitizeFn) : arg;
-  }
-  _resolvePossibleFunction(arg) {
-    return execute(arg, [this]);
-  }
-  _putElementInTemplate(element, templateElement) {
-    if (this._config.html) {
-      templateElement.innerHTML = "";
-      templateElement.append(element);
-      return;
-    }
-    templateElement.textContent = element.textContent;
-  }
-}
-const NAME$4 = "tooltip";
-const DISALLOWED_ATTRIBUTES = /* @__PURE__ */ new Set(["sanitize", "allowList", "sanitizeFn"]);
-const CLASS_NAME_FADE$2 = "fade";
-const CLASS_NAME_MODAL = "modal";
-const CLASS_NAME_SHOW$2 = "show";
-const SELECTOR_TOOLTIP_INNER = ".tooltip-inner";
-const SELECTOR_MODAL = `.${CLASS_NAME_MODAL}`;
-const EVENT_MODAL_HIDE = "hide.bs.modal";
-const TRIGGER_HOVER = "hover";
-const TRIGGER_FOCUS = "focus";
-const TRIGGER_CLICK = "click";
-const TRIGGER_MANUAL = "manual";
-const EVENT_HIDE$2 = "hide";
-const EVENT_HIDDEN$2 = "hidden";
-const EVENT_SHOW$2 = "show";
-const EVENT_SHOWN$2 = "shown";
-const EVENT_INSERTED = "inserted";
-const EVENT_CLICK$1 = "click";
-const EVENT_FOCUSIN$1 = "focusin";
-const EVENT_FOCUSOUT$1 = "focusout";
-const EVENT_MOUSEENTER = "mouseenter";
-const EVENT_MOUSELEAVE = "mouseleave";
-const AttachmentMap = {
-  AUTO: "auto",
-  TOP: "top",
-  RIGHT: isRTL() ? "left" : "right",
-  BOTTOM: "bottom",
-  LEFT: isRTL() ? "right" : "left"
-};
-const Default$3 = {
-  allowList: DefaultAllowlist,
-  animation: true,
-  boundary: "clippingParents",
-  container: false,
-  customClass: "",
-  delay: 0,
-  fallbackPlacements: ["top", "right", "bottom", "left"],
-  html: false,
-  offset: [0, 6],
-  placement: "top",
-  popperConfig: null,
-  sanitize: true,
-  sanitizeFn: null,
-  selector: false,
-  template: '<div class="tooltip" role="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>',
-  title: "",
-  trigger: "hover focus"
-};
-const DefaultType$3 = {
-  allowList: "object",
-  animation: "boolean",
-  boundary: "(string|element)",
-  container: "(string|element|boolean)",
-  customClass: "(string|function)",
-  delay: "(number|object)",
-  fallbackPlacements: "array",
-  html: "boolean",
-  offset: "(array|string|function)",
-  placement: "(string|function)",
-  popperConfig: "(null|object|function)",
-  sanitize: "boolean",
-  sanitizeFn: "(null|function)",
-  selector: "(string|boolean)",
-  template: "string",
-  title: "(string|element|function)",
-  trigger: "string"
-};
-class Tooltip extends BaseComponent {
-  constructor(element, config2) {
-    if (typeof Popper === "undefined") {
-      throw new TypeError("Bootstrap's tooltips require Popper (https://popper.js.org)");
-    }
-    super(element, config2);
-    this._isEnabled = true;
-    this._timeout = 0;
-    this._isHovered = null;
-    this._activeTrigger = {};
-    this._popper = null;
-    this._templateFactory = null;
-    this._newContent = null;
-    this.tip = null;
-    this._setListeners();
-    if (!this._config.selector) {
-      this._fixTitle();
-    }
-  }
-  // Getters
-  static get Default() {
-    return Default$3;
-  }
-  static get DefaultType() {
-    return DefaultType$3;
-  }
-  static get NAME() {
-    return NAME$4;
-  }
-  // Public
-  enable() {
-    this._isEnabled = true;
-  }
-  disable() {
-    this._isEnabled = false;
-  }
-  toggleEnabled() {
-    this._isEnabled = !this._isEnabled;
-  }
-  toggle() {
-    if (!this._isEnabled) {
-      return;
-    }
-    this._activeTrigger.click = !this._activeTrigger.click;
-    if (this._isShown()) {
-      this._leave();
-      return;
-    }
-    this._enter();
-  }
-  dispose() {
-    clearTimeout(this._timeout);
-    EventHandler.off(this._element.closest(SELECTOR_MODAL), EVENT_MODAL_HIDE, this._hideModalHandler);
-    if (this._element.getAttribute("data-bs-original-title")) {
-      this._element.setAttribute("title", this._element.getAttribute("data-bs-original-title"));
-    }
-    this._disposePopper();
-    super.dispose();
-  }
-  show() {
-    if (this._element.style.display === "none") {
-      throw new Error("Please use show on visible elements");
-    }
-    if (!(this._isWithContent() && this._isEnabled)) {
-      return;
-    }
-    const showEvent = EventHandler.trigger(this._element, this.constructor.eventName(EVENT_SHOW$2));
-    const shadowRoot = findShadowRoot(this._element);
-    const isInTheDom = (shadowRoot || this._element.ownerDocument.documentElement).contains(this._element);
-    if (showEvent.defaultPrevented || !isInTheDom) {
-      return;
-    }
-    this._disposePopper();
-    const tip = this._getTipElement();
-    this._element.setAttribute("aria-describedby", tip.getAttribute("id"));
-    const {
-      container
-    } = this._config;
-    if (!this._element.ownerDocument.documentElement.contains(this.tip)) {
-      container.append(tip);
-      EventHandler.trigger(this._element, this.constructor.eventName(EVENT_INSERTED));
-    }
-    this._popper = this._createPopper(tip);
-    tip.classList.add(CLASS_NAME_SHOW$2);
-    if ("ontouchstart" in document.documentElement) {
-      for (const element of [].concat(...document.body.children)) {
-        EventHandler.on(element, "mouseover", noop);
-      }
-    }
-    const complete = () => {
-      EventHandler.trigger(this._element, this.constructor.eventName(EVENT_SHOWN$2));
-      if (this._isHovered === false) {
-        this._leave();
-      }
-      this._isHovered = false;
-    };
-    this._queueCallback(complete, this.tip, this._isAnimated());
-  }
-  hide() {
-    if (!this._isShown()) {
-      return;
-    }
-    const hideEvent = EventHandler.trigger(this._element, this.constructor.eventName(EVENT_HIDE$2));
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    const tip = this._getTipElement();
-    tip.classList.remove(CLASS_NAME_SHOW$2);
-    if ("ontouchstart" in document.documentElement) {
-      for (const element of [].concat(...document.body.children)) {
-        EventHandler.off(element, "mouseover", noop);
-      }
-    }
-    this._activeTrigger[TRIGGER_CLICK] = false;
-    this._activeTrigger[TRIGGER_FOCUS] = false;
-    this._activeTrigger[TRIGGER_HOVER] = false;
-    this._isHovered = null;
-    const complete = () => {
-      if (this._isWithActiveTrigger()) {
-        return;
-      }
-      if (!this._isHovered) {
-        this._disposePopper();
-      }
-      this._element.removeAttribute("aria-describedby");
-      EventHandler.trigger(this._element, this.constructor.eventName(EVENT_HIDDEN$2));
-    };
-    this._queueCallback(complete, this.tip, this._isAnimated());
-  }
-  update() {
-    if (this._popper) {
-      this._popper.update();
-    }
-  }
-  // Protected
-  _isWithContent() {
-    return Boolean(this._getTitle());
-  }
-  _getTipElement() {
-    if (!this.tip) {
-      this.tip = this._createTipElement(this._newContent || this._getContentForTemplate());
-    }
-    return this.tip;
-  }
-  _createTipElement(content) {
-    const tip = this._getTemplateFactory(content).toHtml();
-    if (!tip) {
-      return null;
-    }
-    tip.classList.remove(CLASS_NAME_FADE$2, CLASS_NAME_SHOW$2);
-    tip.classList.add(`bs-${this.constructor.NAME}-auto`);
-    const tipId = getUID(this.constructor.NAME).toString();
-    tip.setAttribute("id", tipId);
-    if (this._isAnimated()) {
-      tip.classList.add(CLASS_NAME_FADE$2);
-    }
-    return tip;
-  }
-  setContent(content) {
-    this._newContent = content;
-    if (this._isShown()) {
-      this._disposePopper();
-      this.show();
-    }
-  }
-  _getTemplateFactory(content) {
-    if (this._templateFactory) {
-      this._templateFactory.changeContent(content);
-    } else {
-      this._templateFactory = new TemplateFactory({
-        ...this._config,
-        // the `content` var has to be after `this._config`
-        // to override config.content in case of popover
-        content,
-        extraClass: this._resolvePossibleFunction(this._config.customClass)
-      });
-    }
-    return this._templateFactory;
-  }
-  _getContentForTemplate() {
-    return {
-      [SELECTOR_TOOLTIP_INNER]: this._getTitle()
-    };
-  }
-  _getTitle() {
-    return this._resolvePossibleFunction(this._config.title) || this._element.getAttribute("data-bs-original-title");
-  }
-  // Private
-  _initializeOnDelegatedTarget(event) {
-    return this.constructor.getOrCreateInstance(event.delegateTarget, this._getDelegateConfig());
-  }
-  _isAnimated() {
-    return this._config.animation || this.tip && this.tip.classList.contains(CLASS_NAME_FADE$2);
-  }
-  _isShown() {
-    return this.tip && this.tip.classList.contains(CLASS_NAME_SHOW$2);
-  }
-  _createPopper(tip) {
-    const placement = execute(this._config.placement, [this, tip, this._element]);
-    const attachment = AttachmentMap[placement.toUpperCase()];
-    return createPopper(this._element, tip, this._getPopperConfig(attachment));
-  }
-  _getOffset() {
-    const {
-      offset: offset2
-    } = this._config;
-    if (typeof offset2 === "string") {
-      return offset2.split(",").map((value) => Number.parseInt(value, 10));
-    }
-    if (typeof offset2 === "function") {
-      return (popperData) => offset2(popperData, this._element);
-    }
-    return offset2;
-  }
-  _resolvePossibleFunction(arg) {
-    return execute(arg, [this._element]);
-  }
-  _getPopperConfig(attachment) {
-    const defaultBsPopperConfig = {
-      placement: attachment,
-      modifiers: [{
-        name: "flip",
-        options: {
-          fallbackPlacements: this._config.fallbackPlacements
-        }
-      }, {
-        name: "offset",
-        options: {
-          offset: this._getOffset()
-        }
-      }, {
-        name: "preventOverflow",
-        options: {
-          boundary: this._config.boundary
-        }
-      }, {
-        name: "arrow",
-        options: {
-          element: `.${this.constructor.NAME}-arrow`
-        }
-      }, {
-        name: "preSetPlacement",
-        enabled: true,
-        phase: "beforeMain",
-        fn: (data) => {
-          this._getTipElement().setAttribute("data-popper-placement", data.state.placement);
-        }
-      }]
-    };
-    return {
-      ...defaultBsPopperConfig,
-      ...execute(this._config.popperConfig, [defaultBsPopperConfig])
-    };
-  }
-  _setListeners() {
-    const triggers = this._config.trigger.split(" ");
-    for (const trigger of triggers) {
-      if (trigger === "click") {
-        EventHandler.on(this._element, this.constructor.eventName(EVENT_CLICK$1), this._config.selector, (event) => {
-          const context = this._initializeOnDelegatedTarget(event);
-          context.toggle();
-        });
-      } else if (trigger !== TRIGGER_MANUAL) {
-        const eventIn = trigger === TRIGGER_HOVER ? this.constructor.eventName(EVENT_MOUSEENTER) : this.constructor.eventName(EVENT_FOCUSIN$1);
-        const eventOut = trigger === TRIGGER_HOVER ? this.constructor.eventName(EVENT_MOUSELEAVE) : this.constructor.eventName(EVENT_FOCUSOUT$1);
-        EventHandler.on(this._element, eventIn, this._config.selector, (event) => {
-          const context = this._initializeOnDelegatedTarget(event);
-          context._activeTrigger[event.type === "focusin" ? TRIGGER_FOCUS : TRIGGER_HOVER] = true;
-          context._enter();
-        });
-        EventHandler.on(this._element, eventOut, this._config.selector, (event) => {
-          const context = this._initializeOnDelegatedTarget(event);
-          context._activeTrigger[event.type === "focusout" ? TRIGGER_FOCUS : TRIGGER_HOVER] = context._element.contains(event.relatedTarget);
-          context._leave();
-        });
-      }
-    }
-    this._hideModalHandler = () => {
-      if (this._element) {
-        this.hide();
-      }
-    };
-    EventHandler.on(this._element.closest(SELECTOR_MODAL), EVENT_MODAL_HIDE, this._hideModalHandler);
-  }
-  _fixTitle() {
-    const title = this._element.getAttribute("title");
-    if (!title) {
-      return;
-    }
-    if (!this._element.getAttribute("aria-label") && !this._element.textContent.trim()) {
-      this._element.setAttribute("aria-label", title);
-    }
-    this._element.setAttribute("data-bs-original-title", title);
-    this._element.removeAttribute("title");
-  }
-  _enter() {
-    if (this._isShown() || this._isHovered) {
-      this._isHovered = true;
-      return;
-    }
-    this._isHovered = true;
-    this._setTimeout(() => {
-      if (this._isHovered) {
-        this.show();
-      }
-    }, this._config.delay.show);
-  }
-  _leave() {
-    if (this._isWithActiveTrigger()) {
-      return;
-    }
-    this._isHovered = false;
-    this._setTimeout(() => {
-      if (!this._isHovered) {
-        this.hide();
-      }
-    }, this._config.delay.hide);
-  }
-  _setTimeout(handler, timeout) {
-    clearTimeout(this._timeout);
-    this._timeout = setTimeout(handler, timeout);
-  }
-  _isWithActiveTrigger() {
-    return Object.values(this._activeTrigger).includes(true);
-  }
-  _getConfig(config2) {
-    const dataAttributes = Manipulator.getDataAttributes(this._element);
-    for (const dataAttribute of Object.keys(dataAttributes)) {
-      if (DISALLOWED_ATTRIBUTES.has(dataAttribute)) {
-        delete dataAttributes[dataAttribute];
-      }
-    }
-    config2 = {
-      ...dataAttributes,
-      ...typeof config2 === "object" && config2 ? config2 : {}
-    };
-    config2 = this._mergeConfigObj(config2);
-    config2 = this._configAfterMerge(config2);
-    this._typeCheckConfig(config2);
-    return config2;
-  }
-  _configAfterMerge(config2) {
-    config2.container = config2.container === false ? document.body : getElement(config2.container);
-    if (typeof config2.delay === "number") {
-      config2.delay = {
-        show: config2.delay,
-        hide: config2.delay
-      };
-    }
-    if (typeof config2.title === "number") {
-      config2.title = config2.title.toString();
-    }
-    if (typeof config2.content === "number") {
-      config2.content = config2.content.toString();
-    }
-    return config2;
-  }
-  _getDelegateConfig() {
-    const config2 = {};
-    for (const [key2, value] of Object.entries(this._config)) {
-      if (this.constructor.Default[key2] !== value) {
-        config2[key2] = value;
-      }
-    }
-    config2.selector = false;
-    config2.trigger = "manual";
-    return config2;
-  }
-  _disposePopper() {
-    if (this._popper) {
-      this._popper.destroy();
-      this._popper = null;
-    }
-    if (this.tip) {
-      this.tip.remove();
-      this.tip = null;
-    }
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Tooltip.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (typeof data[config2] === "undefined") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2]();
-    });
-  }
-}
-defineJQueryPlugin(Tooltip);
-const NAME$3 = "popover";
-const SELECTOR_TITLE = ".popover-header";
-const SELECTOR_CONTENT = ".popover-body";
-const Default$2 = {
-  ...Tooltip.Default,
-  content: "",
-  offset: [0, 8],
-  placement: "right",
-  template: '<div class="popover" role="tooltip"><div class="popover-arrow"></div><h3 class="popover-header"></h3><div class="popover-body"></div></div>',
-  trigger: "click"
-};
-const DefaultType$2 = {
-  ...Tooltip.DefaultType,
-  content: "(null|string|element|function)"
-};
-class Popover extends Tooltip {
-  // Getters
-  static get Default() {
-    return Default$2;
-  }
-  static get DefaultType() {
-    return DefaultType$2;
-  }
-  static get NAME() {
-    return NAME$3;
-  }
-  // Overrides
-  _isWithContent() {
-    return this._getTitle() || this._getContent();
-  }
-  // Private
-  _getContentForTemplate() {
-    return {
-      [SELECTOR_TITLE]: this._getTitle(),
-      [SELECTOR_CONTENT]: this._getContent()
-    };
-  }
-  _getContent() {
-    return this._resolvePossibleFunction(this._config.content);
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Popover.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (typeof data[config2] === "undefined") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2]();
-    });
-  }
-}
-defineJQueryPlugin(Popover);
-const NAME$2 = "scrollspy";
-const DATA_KEY$2 = "bs.scrollspy";
-const EVENT_KEY$2 = `.${DATA_KEY$2}`;
-const DATA_API_KEY = ".data-api";
-const EVENT_ACTIVATE = `activate${EVENT_KEY$2}`;
-const EVENT_CLICK = `click${EVENT_KEY$2}`;
-const EVENT_LOAD_DATA_API$1 = `load${EVENT_KEY$2}${DATA_API_KEY}`;
-const CLASS_NAME_DROPDOWN_ITEM = "dropdown-item";
-const CLASS_NAME_ACTIVE$1 = "active";
-const SELECTOR_DATA_SPY = '[data-bs-spy="scroll"]';
-const SELECTOR_TARGET_LINKS = "[href]";
-const SELECTOR_NAV_LIST_GROUP = ".nav, .list-group";
-const SELECTOR_NAV_LINKS = ".nav-link";
-const SELECTOR_NAV_ITEMS = ".nav-item";
-const SELECTOR_LIST_ITEMS = ".list-group-item";
-const SELECTOR_LINK_ITEMS = `${SELECTOR_NAV_LINKS}, ${SELECTOR_NAV_ITEMS} > ${SELECTOR_NAV_LINKS}, ${SELECTOR_LIST_ITEMS}`;
-const SELECTOR_DROPDOWN = ".dropdown";
-const SELECTOR_DROPDOWN_TOGGLE$1 = ".dropdown-toggle";
-const Default$1 = {
-  offset: null,
-  // TODO: v6 @deprecated, keep it for backwards compatibility reasons
-  rootMargin: "0px 0px -25%",
-  smoothScroll: false,
-  target: null,
-  threshold: [0.1, 0.5, 1]
-};
-const DefaultType$1 = {
-  offset: "(number|null)",
-  // TODO v6 @deprecated, keep it for backwards compatibility reasons
-  rootMargin: "string",
-  smoothScroll: "boolean",
-  target: "element",
-  threshold: "array"
-};
-class ScrollSpy extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._targetLinks = /* @__PURE__ */ new Map();
-    this._observableSections = /* @__PURE__ */ new Map();
-    this._rootElement = getComputedStyle(this._element).overflowY === "visible" ? null : this._element;
-    this._activeTarget = null;
-    this._observer = null;
-    this._previousScrollData = {
-      visibleEntryTop: 0,
-      parentScrollTop: 0
-    };
-    this.refresh();
-  }
-  // Getters
-  static get Default() {
-    return Default$1;
-  }
-  static get DefaultType() {
-    return DefaultType$1;
-  }
-  static get NAME() {
-    return NAME$2;
-  }
-  // Public
-  refresh() {
-    this._initializeTargetsAndObservables();
-    this._maybeEnableSmoothScroll();
-    if (this._observer) {
-      this._observer.disconnect();
-    } else {
-      this._observer = this._getNewObserver();
-    }
-    for (const section of this._observableSections.values()) {
-      this._observer.observe(section);
-    }
-  }
-  dispose() {
-    this._observer.disconnect();
-    super.dispose();
-  }
-  // Private
-  _configAfterMerge(config2) {
-    config2.target = getElement(config2.target) || document.body;
-    config2.rootMargin = config2.offset ? `${config2.offset}px 0px -30%` : config2.rootMargin;
-    if (typeof config2.threshold === "string") {
-      config2.threshold = config2.threshold.split(",").map((value) => Number.parseFloat(value));
-    }
-    return config2;
-  }
-  _maybeEnableSmoothScroll() {
-    if (!this._config.smoothScroll) {
-      return;
-    }
-    EventHandler.off(this._config.target, EVENT_CLICK);
-    EventHandler.on(this._config.target, EVENT_CLICK, SELECTOR_TARGET_LINKS, (event) => {
-      const observableSection = this._observableSections.get(event.target.hash);
-      if (observableSection) {
-        event.preventDefault();
-        const root2 = this._rootElement || window;
-        const height = observableSection.offsetTop - this._element.offsetTop;
-        if (root2.scrollTo) {
-          root2.scrollTo({
-            top: height,
-            behavior: "smooth"
-          });
-          return;
-        }
-        root2.scrollTop = height;
-      }
-    });
-  }
-  _getNewObserver() {
-    const options = {
-      root: this._rootElement,
-      threshold: this._config.threshold,
-      rootMargin: this._config.rootMargin
-    };
-    return new IntersectionObserver((entries) => this._observerCallback(entries), options);
-  }
-  // The logic of selection
-  _observerCallback(entries) {
-    const targetElement = (entry) => this._targetLinks.get(`#${entry.target.id}`);
-    const activate = (entry) => {
-      this._previousScrollData.visibleEntryTop = entry.target.offsetTop;
-      this._process(targetElement(entry));
-    };
-    const parentScrollTop = (this._rootElement || document.documentElement).scrollTop;
-    const userScrollsDown = parentScrollTop >= this._previousScrollData.parentScrollTop;
-    this._previousScrollData.parentScrollTop = parentScrollTop;
-    for (const entry of entries) {
-      if (!entry.isIntersecting) {
-        this._activeTarget = null;
-        this._clearActiveClass(targetElement(entry));
-        continue;
-      }
-      const entryIsLowerThanPrevious = entry.target.offsetTop >= this._previousScrollData.visibleEntryTop;
-      if (userScrollsDown && entryIsLowerThanPrevious) {
-        activate(entry);
-        if (!parentScrollTop) {
-          return;
-        }
-        continue;
-      }
-      if (!userScrollsDown && !entryIsLowerThanPrevious) {
-        activate(entry);
-      }
-    }
-  }
-  _initializeTargetsAndObservables() {
-    this._targetLinks = /* @__PURE__ */ new Map();
-    this._observableSections = /* @__PURE__ */ new Map();
-    const targetLinks = SelectorEngine.find(SELECTOR_TARGET_LINKS, this._config.target);
-    for (const anchor of targetLinks) {
-      if (!anchor.hash || isDisabled(anchor)) {
-        continue;
-      }
-      const observableSection = SelectorEngine.findOne(decodeURI(anchor.hash), this._element);
-      if (isVisible(observableSection)) {
-        this._targetLinks.set(decodeURI(anchor.hash), anchor);
-        this._observableSections.set(anchor.hash, observableSection);
-      }
-    }
-  }
-  _process(target) {
-    if (this._activeTarget === target) {
-      return;
-    }
-    this._clearActiveClass(this._config.target);
-    this._activeTarget = target;
-    target.classList.add(CLASS_NAME_ACTIVE$1);
-    this._activateParents(target);
-    EventHandler.trigger(this._element, EVENT_ACTIVATE, {
-      relatedTarget: target
-    });
-  }
-  _activateParents(target) {
-    if (target.classList.contains(CLASS_NAME_DROPDOWN_ITEM)) {
-      SelectorEngine.findOne(SELECTOR_DROPDOWN_TOGGLE$1, target.closest(SELECTOR_DROPDOWN)).classList.add(CLASS_NAME_ACTIVE$1);
-      return;
-    }
-    for (const listGroup of SelectorEngine.parents(target, SELECTOR_NAV_LIST_GROUP)) {
-      for (const item of SelectorEngine.prev(listGroup, SELECTOR_LINK_ITEMS)) {
-        item.classList.add(CLASS_NAME_ACTIVE$1);
-      }
-    }
-  }
-  _clearActiveClass(parent) {
-    parent.classList.remove(CLASS_NAME_ACTIVE$1);
-    const activeNodes = SelectorEngine.find(`${SELECTOR_TARGET_LINKS}.${CLASS_NAME_ACTIVE$1}`, parent);
-    for (const node of activeNodes) {
-      node.classList.remove(CLASS_NAME_ACTIVE$1);
-    }
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = ScrollSpy.getOrCreateInstance(this, config2);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2]();
-    });
-  }
-}
-EventHandler.on(window, EVENT_LOAD_DATA_API$1, () => {
-  for (const spy of SelectorEngine.find(SELECTOR_DATA_SPY)) {
-    ScrollSpy.getOrCreateInstance(spy);
-  }
-});
-defineJQueryPlugin(ScrollSpy);
-const NAME$1 = "tab";
-const DATA_KEY$1 = "bs.tab";
-const EVENT_KEY$1 = `.${DATA_KEY$1}`;
-const EVENT_HIDE$1 = `hide${EVENT_KEY$1}`;
-const EVENT_HIDDEN$1 = `hidden${EVENT_KEY$1}`;
-const EVENT_SHOW$1 = `show${EVENT_KEY$1}`;
-const EVENT_SHOWN$1 = `shown${EVENT_KEY$1}`;
-const EVENT_CLICK_DATA_API = `click${EVENT_KEY$1}`;
-const EVENT_KEYDOWN = `keydown${EVENT_KEY$1}`;
-const EVENT_LOAD_DATA_API = `load${EVENT_KEY$1}`;
-const ARROW_LEFT_KEY = "ArrowLeft";
-const ARROW_RIGHT_KEY = "ArrowRight";
-const ARROW_UP_KEY = "ArrowUp";
-const ARROW_DOWN_KEY = "ArrowDown";
-const HOME_KEY = "Home";
-const END_KEY = "End";
-const CLASS_NAME_ACTIVE = "active";
-const CLASS_NAME_FADE$1 = "fade";
-const CLASS_NAME_SHOW$1 = "show";
-const CLASS_DROPDOWN = "dropdown";
-const SELECTOR_DROPDOWN_TOGGLE = ".dropdown-toggle";
-const SELECTOR_DROPDOWN_MENU = ".dropdown-menu";
-const NOT_SELECTOR_DROPDOWN_TOGGLE = `:not(${SELECTOR_DROPDOWN_TOGGLE})`;
-const SELECTOR_TAB_PANEL = '.list-group, .nav, [role="tablist"]';
-const SELECTOR_OUTER = ".nav-item, .list-group-item";
-const SELECTOR_INNER = `.nav-link${NOT_SELECTOR_DROPDOWN_TOGGLE}, .list-group-item${NOT_SELECTOR_DROPDOWN_TOGGLE}, [role="tab"]${NOT_SELECTOR_DROPDOWN_TOGGLE}`;
-const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="tab"], [data-bs-toggle="pill"], [data-bs-toggle="list"]';
-const SELECTOR_INNER_ELEM = `${SELECTOR_INNER}, ${SELECTOR_DATA_TOGGLE}`;
-const SELECTOR_DATA_TOGGLE_ACTIVE = `.${CLASS_NAME_ACTIVE}[data-bs-toggle="tab"], .${CLASS_NAME_ACTIVE}[data-bs-toggle="pill"], .${CLASS_NAME_ACTIVE}[data-bs-toggle="list"]`;
-let Tab$1 = class Tab extends BaseComponent {
-  constructor(element) {
-    super(element);
-    this._parent = this._element.closest(SELECTOR_TAB_PANEL);
-    if (!this._parent) {
-      return;
-    }
-    this._setInitialAttributes(this._parent, this._getChildren());
-    EventHandler.on(this._element, EVENT_KEYDOWN, (event) => this._keydown(event));
-  }
-  // Getters
-  static get NAME() {
-    return NAME$1;
-  }
-  // Public
-  show() {
-    const innerElem = this._element;
-    if (this._elemIsActive(innerElem)) {
-      return;
-    }
-    const active = this._getActiveElem();
-    const hideEvent = active ? EventHandler.trigger(active, EVENT_HIDE$1, {
-      relatedTarget: innerElem
-    }) : null;
-    const showEvent = EventHandler.trigger(innerElem, EVENT_SHOW$1, {
-      relatedTarget: active
-    });
-    if (showEvent.defaultPrevented || hideEvent && hideEvent.defaultPrevented) {
-      return;
-    }
-    this._deactivate(active, innerElem);
-    this._activate(innerElem, active);
-  }
-  // Private
-  _activate(element, relatedElem) {
-    if (!element) {
-      return;
-    }
-    element.classList.add(CLASS_NAME_ACTIVE);
-    this._activate(SelectorEngine.getElementFromSelector(element));
-    const complete = () => {
-      if (element.getAttribute("role") !== "tab") {
-        element.classList.add(CLASS_NAME_SHOW$1);
-        return;
-      }
-      element.removeAttribute("tabindex");
-      element.setAttribute("aria-selected", true);
-      this._toggleDropDown(element, true);
-      EventHandler.trigger(element, EVENT_SHOWN$1, {
-        relatedTarget: relatedElem
-      });
-    };
-    this._queueCallback(complete, element, element.classList.contains(CLASS_NAME_FADE$1));
-  }
-  _deactivate(element, relatedElem) {
-    if (!element) {
-      return;
-    }
-    element.classList.remove(CLASS_NAME_ACTIVE);
-    element.blur();
-    this._deactivate(SelectorEngine.getElementFromSelector(element));
-    const complete = () => {
-      if (element.getAttribute("role") !== "tab") {
-        element.classList.remove(CLASS_NAME_SHOW$1);
-        return;
-      }
-      element.setAttribute("aria-selected", false);
-      element.setAttribute("tabindex", "-1");
-      this._toggleDropDown(element, false);
-      EventHandler.trigger(element, EVENT_HIDDEN$1, {
-        relatedTarget: relatedElem
-      });
-    };
-    this._queueCallback(complete, element, element.classList.contains(CLASS_NAME_FADE$1));
-  }
-  _keydown(event) {
-    if (![ARROW_LEFT_KEY, ARROW_RIGHT_KEY, ARROW_UP_KEY, ARROW_DOWN_KEY, HOME_KEY, END_KEY].includes(event.key)) {
-      return;
-    }
-    event.stopPropagation();
-    event.preventDefault();
-    const children = this._getChildren().filter((element) => !isDisabled(element));
-    let nextActiveElement;
-    if ([HOME_KEY, END_KEY].includes(event.key)) {
-      nextActiveElement = children[event.key === HOME_KEY ? 0 : children.length - 1];
-    } else {
-      const isNext = [ARROW_RIGHT_KEY, ARROW_DOWN_KEY].includes(event.key);
-      nextActiveElement = getNextActiveElement(children, event.target, isNext, true);
-    }
-    if (nextActiveElement) {
-      nextActiveElement.focus({
-        preventScroll: true
-      });
-      Tab.getOrCreateInstance(nextActiveElement).show();
-    }
-  }
-  _getChildren() {
-    return SelectorEngine.find(SELECTOR_INNER_ELEM, this._parent);
-  }
-  _getActiveElem() {
-    return this._getChildren().find((child) => this._elemIsActive(child)) || null;
-  }
-  _setInitialAttributes(parent, children) {
-    this._setAttributeIfNotExists(parent, "role", "tablist");
-    for (const child of children) {
-      this._setInitialAttributesOnChild(child);
-    }
-  }
-  _setInitialAttributesOnChild(child) {
-    child = this._getInnerElement(child);
-    const isActive = this._elemIsActive(child);
-    const outerElem = this._getOuterElement(child);
-    child.setAttribute("aria-selected", isActive);
-    if (outerElem !== child) {
-      this._setAttributeIfNotExists(outerElem, "role", "presentation");
-    }
-    if (!isActive) {
-      child.setAttribute("tabindex", "-1");
-    }
-    this._setAttributeIfNotExists(child, "role", "tab");
-    this._setInitialAttributesOnTargetPanel(child);
-  }
-  _setInitialAttributesOnTargetPanel(child) {
-    const target = SelectorEngine.getElementFromSelector(child);
-    if (!target) {
-      return;
-    }
-    this._setAttributeIfNotExists(target, "role", "tabpanel");
-    if (child.id) {
-      this._setAttributeIfNotExists(target, "aria-labelledby", `${child.id}`);
-    }
-  }
-  _toggleDropDown(element, open) {
-    const outerElem = this._getOuterElement(element);
-    if (!outerElem.classList.contains(CLASS_DROPDOWN)) {
-      return;
-    }
-    const toggle = (selector, className) => {
-      const element2 = SelectorEngine.findOne(selector, outerElem);
-      if (element2) {
-        element2.classList.toggle(className, open);
-      }
-    };
-    toggle(SELECTOR_DROPDOWN_TOGGLE, CLASS_NAME_ACTIVE);
-    toggle(SELECTOR_DROPDOWN_MENU, CLASS_NAME_SHOW$1);
-    outerElem.setAttribute("aria-expanded", open);
-  }
-  _setAttributeIfNotExists(element, attribute2, value) {
-    if (!element.hasAttribute(attribute2)) {
-      element.setAttribute(attribute2, value);
-    }
-  }
-  _elemIsActive(elem) {
-    return elem.classList.contains(CLASS_NAME_ACTIVE);
-  }
-  // Try to get the inner element (usually the .nav-link)
-  _getInnerElement(elem) {
-    return elem.matches(SELECTOR_INNER_ELEM) ? elem : SelectorEngine.findOne(SELECTOR_INNER_ELEM, elem);
-  }
-  // Try to get the outer element (usually the .nav-item)
-  _getOuterElement(elem) {
-    return elem.closest(SELECTOR_OUTER) || elem;
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Tab.getOrCreateInstance(this);
-      if (typeof config2 !== "string") {
-        return;
-      }
-      if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-        throw new TypeError(`No method named "${config2}"`);
-      }
-      data[config2]();
-    });
-  }
-};
-EventHandler.on(document, EVENT_CLICK_DATA_API, SELECTOR_DATA_TOGGLE, function(event) {
-  if (["A", "AREA"].includes(this.tagName)) {
-    event.preventDefault();
-  }
-  if (isDisabled(this)) {
-    return;
-  }
-  Tab$1.getOrCreateInstance(this).show();
-});
-EventHandler.on(window, EVENT_LOAD_DATA_API, () => {
-  for (const element of SelectorEngine.find(SELECTOR_DATA_TOGGLE_ACTIVE)) {
-    Tab$1.getOrCreateInstance(element);
-  }
-});
-defineJQueryPlugin(Tab$1);
-const NAME = "toast";
-const DATA_KEY = "bs.toast";
-const EVENT_KEY = `.${DATA_KEY}`;
-const EVENT_MOUSEOVER = `mouseover${EVENT_KEY}`;
-const EVENT_MOUSEOUT = `mouseout${EVENT_KEY}`;
-const EVENT_FOCUSIN = `focusin${EVENT_KEY}`;
-const EVENT_FOCUSOUT = `focusout${EVENT_KEY}`;
-const EVENT_HIDE = `hide${EVENT_KEY}`;
-const EVENT_HIDDEN = `hidden${EVENT_KEY}`;
-const EVENT_SHOW = `show${EVENT_KEY}`;
-const EVENT_SHOWN = `shown${EVENT_KEY}`;
-const CLASS_NAME_FADE = "fade";
-const CLASS_NAME_HIDE = "hide";
-const CLASS_NAME_SHOW = "show";
-const CLASS_NAME_SHOWING = "showing";
-const DefaultType = {
-  animation: "boolean",
-  autohide: "boolean",
-  delay: "number"
-};
-const Default = {
-  animation: true,
-  autohide: true,
-  delay: 5e3
-};
-class Toast extends BaseComponent {
-  constructor(element, config2) {
-    super(element, config2);
-    this._timeout = null;
-    this._hasMouseInteraction = false;
-    this._hasKeyboardInteraction = false;
-    this._setListeners();
-  }
-  // Getters
-  static get Default() {
-    return Default;
-  }
-  static get DefaultType() {
-    return DefaultType;
-  }
-  static get NAME() {
-    return NAME;
-  }
-  // Public
-  show() {
-    const showEvent = EventHandler.trigger(this._element, EVENT_SHOW);
-    if (showEvent.defaultPrevented) {
-      return;
-    }
-    this._clearTimeout();
-    if (this._config.animation) {
-      this._element.classList.add(CLASS_NAME_FADE);
-    }
-    const complete = () => {
-      this._element.classList.remove(CLASS_NAME_SHOWING);
-      EventHandler.trigger(this._element, EVENT_SHOWN);
-      this._maybeScheduleHide();
-    };
-    this._element.classList.remove(CLASS_NAME_HIDE);
-    reflow(this._element);
-    this._element.classList.add(CLASS_NAME_SHOW, CLASS_NAME_SHOWING);
-    this._queueCallback(complete, this._element, this._config.animation);
-  }
-  hide() {
-    if (!this.isShown()) {
-      return;
-    }
-    const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE);
-    if (hideEvent.defaultPrevented) {
-      return;
-    }
-    const complete = () => {
-      this._element.classList.add(CLASS_NAME_HIDE);
-      this._element.classList.remove(CLASS_NAME_SHOWING, CLASS_NAME_SHOW);
-      EventHandler.trigger(this._element, EVENT_HIDDEN);
-    };
-    this._element.classList.add(CLASS_NAME_SHOWING);
-    this._queueCallback(complete, this._element, this._config.animation);
-  }
-  dispose() {
-    this._clearTimeout();
-    if (this.isShown()) {
-      this._element.classList.remove(CLASS_NAME_SHOW);
-    }
-    super.dispose();
-  }
-  isShown() {
-    return this._element.classList.contains(CLASS_NAME_SHOW);
-  }
-  // Private
-  _maybeScheduleHide() {
-    if (!this._config.autohide) {
-      return;
-    }
-    if (this._hasMouseInteraction || this._hasKeyboardInteraction) {
-      return;
-    }
-    this._timeout = setTimeout(() => {
-      this.hide();
-    }, this._config.delay);
-  }
-  _onInteraction(event, isInteracting) {
-    switch (event.type) {
-      case "mouseover":
-      case "mouseout": {
-        this._hasMouseInteraction = isInteracting;
-        break;
-      }
-      case "focusin":
-      case "focusout": {
-        this._hasKeyboardInteraction = isInteracting;
-        break;
-      }
-    }
-    if (isInteracting) {
-      this._clearTimeout();
-      return;
-    }
-    const nextElement = event.relatedTarget;
-    if (this._element === nextElement || this._element.contains(nextElement)) {
-      return;
-    }
-    this._maybeScheduleHide();
-  }
-  _setListeners() {
-    EventHandler.on(this._element, EVENT_MOUSEOVER, (event) => this._onInteraction(event, true));
-    EventHandler.on(this._element, EVENT_MOUSEOUT, (event) => this._onInteraction(event, false));
-    EventHandler.on(this._element, EVENT_FOCUSIN, (event) => this._onInteraction(event, true));
-    EventHandler.on(this._element, EVENT_FOCUSOUT, (event) => this._onInteraction(event, false));
-  }
-  _clearTimeout() {
-    clearTimeout(this._timeout);
-    this._timeout = null;
-  }
-  // Static
-  static jQueryInterface(config2) {
-    return this.each(function() {
-      const data = Toast.getOrCreateInstance(this, config2);
-      if (typeof config2 === "string") {
-        if (typeof data[config2] === "undefined") {
-          throw new TypeError(`No method named "${config2}"`);
-        }
-        data[config2](this);
-      }
-    });
-  }
-}
-enableDismissTrigger(Toast);
-defineJQueryPlugin(Toast);
 var t$1, r$1, u, i$1, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
 function d(n2, t2) {
   c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
@@ -7674,8 +2626,8 @@ function formatDateTime(date) {
   };
   return new Intl.DateTimeFormat(void 0, options).format(date);
 }
-function formatDuration(start2, end2) {
-  const durationMs = end2.getTime() - start2.getTime();
+function formatDuration(start, end) {
+  const durationMs = end.getTime() - start.getTime();
   const durationSec = durationMs / 1e3;
   return formatTime(durationSec);
 }
@@ -7696,9 +2648,6 @@ const dirname = (path) => {
   }
   return pathparts.join("/");
 };
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 function throttle(func, wait, options) {
   var context, args, result;
   var timeout = null;
@@ -8102,7 +3051,7 @@ const TabPanel = ({
 };
 const Tabs = ({ tabs, type, style }) => {
   return tabs.map((tab, index) => {
-    return m$1` <${Tab2}
+    return m$1` <${Tab}
       type=${type || "tabs"}
       tab=${tab}
       index=${index}
@@ -8110,7 +3059,7 @@ const Tabs = ({ tabs, type, style }) => {
     />`;
   });
 };
-const Tab2 = ({ type, tab, index, style }) => {
+const Tab = ({ type, tab, index, style }) => {
   const tabId = tab.props.id || computeTabId("tabset", index);
   const tabContentsId = computeTabContentsId(tab.props.id, index);
   const isActive = tab.props.selected;
@@ -8945,7 +3894,7 @@ const ANSIDisplay = ({ output, style }) => {
 const kForeground = 0;
 const kBackground = 1;
 const OutputRun = ({ outputRun }) => {
-  const computeStyles2 = (styles) => {
+  const computeStyles = (styles) => {
     let cssProperties = {};
     if (styles) {
       styles.forEach((style) => {
@@ -9041,7 +3990,7 @@ const OutputRun = ({ outputRun }) => {
   };
   const computeCSSProperties = (outputRun2) => {
     return !outputRun2.format ? {} : {
-      ...computeStyles2(outputRun2.format.styles),
+      ...computeStyles(outputRun2.format.styles),
       ...computeForegroundBackgroundColor(
         kForeground,
         outputRun2.format.foregroundColor
@@ -9366,10 +4315,10 @@ Url.prototype.parse = function(url, slashesDenoteHost) {
       this.hostname = this.hostname.substr(1, this.hostname.length - 2);
     }
   }
-  const hash2 = rest.indexOf("#");
-  if (hash2 !== -1) {
-    this.hash = rest.substr(hash2);
-    rest = rest.slice(0, hash2);
+  const hash = rest.indexOf("#");
+  if (hash !== -1) {
+    this.hash = rest.substr(hash);
+    rest = rest.slice(0, hash);
   }
   const qm = rest.indexOf("?");
   if (qm !== -1) {
@@ -9559,28 +4508,28 @@ class EntityDecoder {
    * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  write(str, offset2) {
+  write(str, offset) {
     switch (this.state) {
       case EntityDecoderState.EntityStart: {
-        if (str.charCodeAt(offset2) === CharCodes.NUM) {
+        if (str.charCodeAt(offset) === CharCodes.NUM) {
           this.state = EntityDecoderState.NumericStart;
           this.consumed += 1;
-          return this.stateNumericStart(str, offset2 + 1);
+          return this.stateNumericStart(str, offset + 1);
         }
         this.state = EntityDecoderState.NamedEntity;
-        return this.stateNamedEntity(str, offset2);
+        return this.stateNamedEntity(str, offset);
       }
       case EntityDecoderState.NumericStart: {
-        return this.stateNumericStart(str, offset2);
+        return this.stateNumericStart(str, offset);
       }
       case EntityDecoderState.NumericDecimal: {
-        return this.stateNumericDecimal(str, offset2);
+        return this.stateNumericDecimal(str, offset);
       }
       case EntityDecoderState.NumericHex: {
-        return this.stateNumericHex(str, offset2);
+        return this.stateNumericHex(str, offset);
       }
       case EntityDecoderState.NamedEntity: {
-        return this.stateNamedEntity(str, offset2);
+        return this.stateNamedEntity(str, offset);
       }
     }
   }
@@ -9593,22 +4542,22 @@ class EntityDecoder {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericStart(str, offset2) {
-    if (offset2 >= str.length) {
+  stateNumericStart(str, offset) {
+    if (offset >= str.length) {
       return -1;
     }
-    if ((str.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+    if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
       this.state = EntityDecoderState.NumericHex;
       this.consumed += 1;
-      return this.stateNumericHex(str, offset2 + 1);
+      return this.stateNumericHex(str, offset + 1);
     }
     this.state = EntityDecoderState.NumericDecimal;
-    return this.stateNumericDecimal(str, offset2);
+    return this.stateNumericDecimal(str, offset);
   }
-  addToNumericResult(str, start2, end2, base2) {
-    if (start2 !== end2) {
-      const digitCount = end2 - start2;
-      this.result = this.result * Math.pow(base2, digitCount) + parseInt(str.substr(start2, digitCount), base2);
+  addToNumericResult(str, start, end, base2) {
+    if (start !== end) {
+      const digitCount = end - start;
+      this.result = this.result * Math.pow(base2, digitCount) + parseInt(str.substr(start, digitCount), base2);
       this.consumed += digitCount;
     }
   }
@@ -9621,18 +4570,18 @@ class EntityDecoder {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericHex(str, offset2) {
-    const startIdx = offset2;
-    while (offset2 < str.length) {
-      const char = str.charCodeAt(offset2);
+  stateNumericHex(str, offset) {
+    const startIdx = offset;
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char) || isHexadecimalCharacter(char)) {
-        offset2 += 1;
+        offset += 1;
       } else {
-        this.addToNumericResult(str, startIdx, offset2, 16);
+        this.addToNumericResult(str, startIdx, offset, 16);
         return this.emitNumericEntity(char, 3);
       }
     }
-    this.addToNumericResult(str, startIdx, offset2, 16);
+    this.addToNumericResult(str, startIdx, offset, 16);
     return -1;
   }
   /**
@@ -9644,18 +4593,18 @@ class EntityDecoder {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericDecimal(str, offset2) {
-    const startIdx = offset2;
-    while (offset2 < str.length) {
-      const char = str.charCodeAt(offset2);
+  stateNumericDecimal(str, offset) {
+    const startIdx = offset;
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char)) {
-        offset2 += 1;
+        offset += 1;
       } else {
-        this.addToNumericResult(str, startIdx, offset2, 10);
+        this.addToNumericResult(str, startIdx, offset, 10);
         return this.emitNumericEntity(char, 2);
       }
     }
-    this.addToNumericResult(str, startIdx, offset2, 10);
+    this.addToNumericResult(str, startIdx, offset, 10);
     return -1;
   }
   /**
@@ -9700,12 +4649,12 @@ class EntityDecoder {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNamedEntity(str, offset2) {
+  stateNamedEntity(str, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
     let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-    for (; offset2 < str.length; offset2++, this.excess++) {
-      const char = str.charCodeAt(offset2);
+    for (; offset < str.length; offset++, this.excess++) {
+      const char = str.charCodeAt(offset);
       this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
         return this.result === 0 || // If we are parsing an attribute
@@ -9792,21 +4741,21 @@ function getDecoder(decodeTree) {
   const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint$1(str));
   return function decodeWithTrie(str, decodeMode) {
     let lastIndex = 0;
-    let offset2 = 0;
-    while ((offset2 = str.indexOf("&", offset2)) >= 0) {
-      ret += str.slice(lastIndex, offset2);
+    let offset = 0;
+    while ((offset = str.indexOf("&", offset)) >= 0) {
+      ret += str.slice(lastIndex, offset);
       decoder.startEntity(decodeMode);
       const len = decoder.write(
         str,
         // Skip the "&"
-        offset2 + 1
+        offset + 1
       );
       if (len < 0) {
-        lastIndex = offset2 + decoder.end();
+        lastIndex = offset + decoder.end();
         break;
       }
-      lastIndex = offset2 + len;
-      offset2 = len === 0 ? lastIndex + 1 : lastIndex;
+      lastIndex = offset + len;
+      offset = len === 0 ? lastIndex + 1 : lastIndex;
     }
     const result = ret + str.slice(lastIndex);
     ret = "";
@@ -10060,11 +5009,11 @@ const utils = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePropert
   unescapeAll,
   unescapeMd
 }, Symbol.toStringTag, { value: "Module" }));
-function parseLinkLabel(state, start2, disableNested) {
+function parseLinkLabel(state, start, disableNested) {
   let level, found, marker, prevPos;
   const max2 = state.posMax;
   const oldPos = state.pos;
-  state.pos = start2 + 1;
+  state.pos = start + 1;
   level = 1;
   while (state.pos < max2) {
     marker = state.src.charCodeAt(state.pos);
@@ -10093,9 +5042,9 @@ function parseLinkLabel(state, start2, disableNested) {
   state.pos = oldPos;
   return labelEnd;
 }
-function parseLinkDestination(str, start2, max2) {
+function parseLinkDestination(str, start, max2) {
   let code2;
-  let pos2 = start2;
+  let pos2 = start;
   const result = {
     ok: false,
     pos: 0,
@@ -10113,7 +5062,7 @@ function parseLinkDestination(str, start2, max2) {
       }
       if (code2 === 62) {
         result.pos = pos2 + 1;
-        result.str = unescapeAll(str.slice(start2 + 1, pos2));
+        result.str = unescapeAll(str.slice(start + 1, pos2));
         result.ok = true;
         return result;
       }
@@ -10155,20 +5104,20 @@ function parseLinkDestination(str, start2, max2) {
     }
     pos2++;
   }
-  if (start2 === pos2) {
+  if (start === pos2) {
     return result;
   }
   if (level !== 0) {
     return result;
   }
-  result.str = unescapeAll(str.slice(start2, pos2));
+  result.str = unescapeAll(str.slice(start, pos2));
   result.pos = pos2;
   result.ok = true;
   return result;
 }
-function parseLinkTitle(str, start2, max2, prev_state) {
+function parseLinkTitle(str, start, max2, prev_state) {
   let code2;
-  let pos2 = start2;
+  let pos2 = start;
   const state = {
     // if `true`, this is a valid link title
     ok: false,
@@ -10192,7 +5141,7 @@ function parseLinkTitle(str, start2, max2, prev_state) {
     if (marker !== 34 && marker !== 39 && marker !== 40) {
       return state;
     }
-    start2++;
+    start++;
     pos2++;
     if (marker === 40) {
       marker = 41;
@@ -10203,7 +5152,7 @@ function parseLinkTitle(str, start2, max2, prev_state) {
     code2 = str.charCodeAt(pos2);
     if (code2 === state.marker) {
       state.pos = pos2 + 1;
-      state.str += unescapeAll(str.slice(start2, pos2));
+      state.str += unescapeAll(str.slice(start, pos2));
       state.ok = true;
       return state;
     } else if (code2 === 40 && state.marker === 41) {
@@ -10214,7 +5163,7 @@ function parseLinkTitle(str, start2, max2, prev_state) {
     pos2++;
   }
   state.can_continue = true;
-  state.str += unescapeAll(str.slice(start2, pos2));
+  state.str += unescapeAll(str.slice(start, pos2));
   return state;
 }
 const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -10423,17 +5372,17 @@ Ruler.prototype.__compile__ = function() {
     });
   });
 };
-Ruler.prototype.at = function(name, fn2, options) {
+Ruler.prototype.at = function(name, fn, options) {
   const index = this.__find__(name);
   const opt = options || {};
   if (index === -1) {
     throw new Error("Parser rule not found: " + name);
   }
-  this.__rules__[index].fn = fn2;
+  this.__rules__[index].fn = fn;
   this.__rules__[index].alt = opt.alt || [];
   this.__cache__ = null;
 };
-Ruler.prototype.before = function(beforeName, ruleName, fn2, options) {
+Ruler.prototype.before = function(beforeName, ruleName, fn, options) {
   const index = this.__find__(beforeName);
   const opt = options || {};
   if (index === -1) {
@@ -10442,12 +5391,12 @@ Ruler.prototype.before = function(beforeName, ruleName, fn2, options) {
   this.__rules__.splice(index, 0, {
     name: ruleName,
     enabled: true,
-    fn: fn2,
+    fn,
     alt: opt.alt || []
   });
   this.__cache__ = null;
 };
-Ruler.prototype.after = function(afterName, ruleName, fn2, options) {
+Ruler.prototype.after = function(afterName, ruleName, fn, options) {
   const index = this.__find__(afterName);
   const opt = options || {};
   if (index === -1) {
@@ -10456,17 +5405,17 @@ Ruler.prototype.after = function(afterName, ruleName, fn2, options) {
   this.__rules__.splice(index + 1, 0, {
     name: ruleName,
     enabled: true,
-    fn: fn2,
+    fn,
     alt: opt.alt || []
   });
   this.__cache__ = null;
 };
-Ruler.prototype.push = function(ruleName, fn2, options) {
+Ruler.prototype.push = function(ruleName, fn, options) {
   const opt = options || {};
   this.__rules__.push({
     name: ruleName,
     enabled: true,
-    fn: fn2,
+    fn,
     alt: opt.alt || []
   });
   this.__cache__ = null;
@@ -10994,15 +5943,15 @@ function StateBlock(src, md, env, tokens) {
   this.parentType = "root";
   this.level = 0;
   const s2 = this.src;
-  for (let start2 = 0, pos2 = 0, indent = 0, offset2 = 0, len = s2.length, indent_found = false; pos2 < len; pos2++) {
+  for (let start = 0, pos2 = 0, indent = 0, offset = 0, len = s2.length, indent_found = false; pos2 < len; pos2++) {
     const ch3 = s2.charCodeAt(pos2);
     if (!indent_found) {
       if (isSpace(ch3)) {
         indent++;
         if (ch3 === 9) {
-          offset2 += 4 - offset2 % 4;
+          offset += 4 - offset % 4;
         } else {
-          offset2++;
+          offset++;
         }
         continue;
       } else {
@@ -11013,15 +5962,15 @@ function StateBlock(src, md, env, tokens) {
       if (ch3 !== 10) {
         pos2++;
       }
-      this.bMarks.push(start2);
+      this.bMarks.push(start);
       this.eMarks.push(pos2);
       this.tShift.push(indent);
-      this.sCount.push(offset2);
+      this.sCount.push(offset);
       this.bsCount.push(0);
       indent_found = false;
       indent = 0;
-      offset2 = 0;
-      start2 = pos2 + 1;
+      offset = 0;
+      start = pos2 + 1;
     }
   }
   this.bMarks.push(s2.length);
@@ -11060,11 +6009,11 @@ StateBlock.prototype.skipSpaces = function skipSpaces(pos2) {
   }
   return pos2;
 };
-StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos2, min2) {
-  if (pos2 <= min2) {
+StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos2, min) {
+  if (pos2 <= min) {
     return pos2;
   }
-  while (pos2 > min2) {
+  while (pos2 > min) {
     if (!isSpace(this.src.charCodeAt(--pos2))) {
       return pos2 + 1;
     }
@@ -11079,28 +6028,28 @@ StateBlock.prototype.skipChars = function skipChars(pos2, code2) {
   }
   return pos2;
 };
-StateBlock.prototype.skipCharsBack = function skipCharsBack(pos2, code2, min2) {
-  if (pos2 <= min2) {
+StateBlock.prototype.skipCharsBack = function skipCharsBack(pos2, code2, min) {
+  if (pos2 <= min) {
     return pos2;
   }
-  while (pos2 > min2) {
+  while (pos2 > min) {
     if (code2 !== this.src.charCodeAt(--pos2)) {
       return pos2 + 1;
     }
   }
   return pos2;
 };
-StateBlock.prototype.getLines = function getLines(begin, end2, indent, keepLastLF) {
-  if (begin >= end2) {
+StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
+  if (begin >= end) {
     return "";
   }
-  const queue = new Array(end2 - begin);
-  for (let i = 0, line2 = begin; line2 < end2; line2++, i++) {
+  const queue = new Array(end - begin);
+  for (let i = 0, line2 = begin; line2 < end; line2++, i++) {
     let lineIndent = 0;
     const lineStart = this.bMarks[line2];
     let first = lineStart;
     let last;
-    if (line2 + 1 < end2 || keepLastLF) {
+    if (line2 + 1 < end || keepLastLF) {
       last = this.eMarks[line2] + 1;
     } else {
       last = this.eMarks[line2];
@@ -11458,16 +6407,16 @@ function blockquote(state, startLine, endLine, silent) {
       } else {
         spaceAfterMarker = false;
       }
-      let offset2 = initial;
+      let offset = initial;
       oldBMarks.push(state.bMarks[nextLine]);
       state.bMarks[nextLine] = pos2;
       while (pos2 < max2) {
         const ch3 = state.src.charCodeAt(pos2);
         if (isSpace(ch3)) {
           if (ch3 === 9) {
-            offset2 += 4 - (offset2 + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+            offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
           } else {
-            offset2++;
+            offset++;
           }
         } else {
           break;
@@ -11478,7 +6427,7 @@ function blockquote(state, startLine, endLine, silent) {
       oldBSCount.push(state.bsCount[nextLine]);
       state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
       oldSCount.push(state.sCount[nextLine]);
-      state.sCount[nextLine] = offset2 - initial;
+      state.sCount[nextLine] = offset - initial;
       oldTShift.push(state.tShift[nextLine]);
       state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
       continue;
@@ -11579,9 +6528,9 @@ function skipBulletListMarker(state, startLine) {
   return pos2;
 }
 function skipOrderedListMarker(state, startLine) {
-  const start2 = state.bMarks[startLine] + state.tShift[startLine];
+  const start = state.bMarks[startLine] + state.tShift[startLine];
   const max2 = state.eMarks[startLine];
-  let pos2 = start2;
+  let pos2 = start;
   if (pos2 + 1 >= max2) {
     return -1;
   }
@@ -11595,7 +6544,7 @@ function skipOrderedListMarker(state, startLine) {
     }
     ch3 = state.src.charCodeAt(pos2++);
     if (ch3 >= 48 && ch3 <= 57) {
-      if (pos2 - start2 >= 10) {
+      if (pos2 - start >= 10) {
         return -1;
       }
       continue;
@@ -11624,7 +6573,7 @@ function markTightParagraphs(state, idx) {
   }
 }
 function list(state, startLine, endLine, silent) {
-  let max2, pos2, start2, token2;
+  let max2, pos2, start, token2;
   let nextLine = startLine;
   let tight = true;
   if (state.sCount[nextLine] - state.blkIndent >= 4) {
@@ -11644,8 +6593,8 @@ function list(state, startLine, endLine, silent) {
   let posAfterMarker;
   if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
     isOrdered = true;
-    start2 = state.bMarks[nextLine] + state.tShift[nextLine];
-    markerValue = Number(state.src.slice(start2, posAfterMarker - 1));
+    start = state.bMarks[nextLine] + state.tShift[nextLine];
+    markerValue = Number(state.src.slice(start, posAfterMarker - 1));
     if (isTerminatingParagraph && markerValue !== 1) return false;
   } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
     isOrdered = false;
@@ -11679,13 +6628,13 @@ function list(state, startLine, endLine, silent) {
     pos2 = posAfterMarker;
     max2 = state.eMarks[nextLine];
     const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
-    let offset2 = initial;
+    let offset = initial;
     while (pos2 < max2) {
       const ch3 = state.src.charCodeAt(pos2);
       if (ch3 === 9) {
-        offset2 += 4 - (offset2 + state.bsCount[nextLine]) % 4;
+        offset += 4 - (offset + state.bsCount[nextLine]) % 4;
       } else if (ch3 === 32) {
-        offset2++;
+        offset++;
       } else {
         break;
       }
@@ -11696,7 +6645,7 @@ function list(state, startLine, endLine, silent) {
     if (contentStart >= max2) {
       indentAfterMarker = 1;
     } else {
-      indentAfterMarker = offset2 - initial;
+      indentAfterMarker = offset - initial;
     }
     if (indentAfterMarker > 4) {
       indentAfterMarker = 1;
@@ -11707,7 +6656,7 @@ function list(state, startLine, endLine, silent) {
     const itemLines = [nextLine, 0];
     token2.map = itemLines;
     if (isOrdered) {
-      token2.info = state.src.slice(start2, posAfterMarker - 1);
+      token2.info = state.src.slice(start, posAfterMarker - 1);
     }
     const oldTight = state.tight;
     const oldTShift = state.tShift[nextLine];
@@ -11717,7 +6666,7 @@ function list(state, startLine, endLine, silent) {
     state.blkIndent = indent;
     state.tight = true;
     state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
-    state.sCount[nextLine] = offset2;
+    state.sCount[nextLine] = offset;
     if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
       state.line = Math.min(state.line + 2, endLine);
     } else {
@@ -11760,7 +6709,7 @@ function list(state, startLine, endLine, silent) {
       if (posAfterMarker < 0) {
         break;
       }
-      start2 = state.bMarks[nextLine] + state.tShift[nextLine];
+      start = state.bMarks[nextLine] + state.tShift[nextLine];
     } else {
       posAfterMarker = skipBulletListMarker(state, nextLine);
       if (posAfterMarker < 0) {
@@ -11884,7 +6833,7 @@ function reference(state, startLine, _endLine, silent) {
   pos2 = destRes.pos;
   const destEndPos = pos2;
   const destEndLineNo = nextLine;
-  const start2 = pos2;
+  const start = pos2;
   for (; pos2 < max2; pos2++) {
     const ch3 = str.charCodeAt(pos2);
     if (ch3 === 10) {
@@ -11910,7 +6859,7 @@ function reference(state, startLine, _endLine, silent) {
     titleRes = state.md.helpers.parseLinkTitle(str, pos2, max2, titleRes);
   }
   let title;
-  if (pos2 < max2 && start2 !== pos2 && titleRes.ok) {
+  if (pos2 < max2 && start !== pos2 && titleRes.ok) {
     title = titleRes.str;
     pos2 = titleRes.pos;
   } else {
@@ -12346,15 +7295,15 @@ StateInline.prototype.push = function(type, tag, nesting) {
   this.tokens_meta.push(token_meta);
   return token2;
 };
-StateInline.prototype.scanDelims = function(start2, canSplitWord) {
+StateInline.prototype.scanDelims = function(start, canSplitWord) {
   const max2 = this.posMax;
-  const marker = this.src.charCodeAt(start2);
-  const lastChar = start2 > 0 ? this.src.charCodeAt(start2 - 1) : 32;
-  let pos2 = start2;
+  const marker = this.src.charCodeAt(start);
+  const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
+  let pos2 = start;
   while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
     pos2++;
   }
-  const count = pos2 - start2;
+  const count = pos2 - start;
   const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
   const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
   const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
@@ -12530,15 +7479,15 @@ function backtick(state, silent) {
   if (ch3 !== 96) {
     return false;
   }
-  const start2 = pos2;
+  const start = pos2;
   pos2++;
   const max2 = state.posMax;
   while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
     pos2++;
   }
-  const marker = state.src.slice(start2, pos2);
+  const marker = state.src.slice(start, pos2);
   const openerLength = marker.length;
-  if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start2) {
+  if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
     if (!silent) state.pending += marker;
     state.pos += openerLength;
     return true;
@@ -12568,8 +7517,8 @@ function backtick(state, silent) {
   return true;
 }
 function strikethrough_tokenize(state, silent) {
-  const start2 = state.pos;
-  const marker = state.src.charCodeAt(start2);
+  const start = state.pos;
+  const marker = state.src.charCodeAt(start);
   if (silent) {
     return false;
   }
@@ -12662,8 +7611,8 @@ const r_strikethrough = {
   postProcess: strikethrough_postProcess
 };
 function emphasis_tokenize(state, silent) {
-  const start2 = state.pos;
-  const marker = state.src.charCodeAt(start2);
+  const start = state.pos;
+  const marker = state.src.charCodeAt(start);
   if (silent) {
     return false;
   }
@@ -12750,7 +7699,7 @@ function link(state, silent) {
   let code2, label, res, ref;
   let href = "";
   let title = "";
-  let start2 = state.pos;
+  let start = state.pos;
   let parseReference = true;
   if (state.src.charCodeAt(state.pos) !== 91) {
     return false;
@@ -12775,7 +7724,7 @@ function link(state, silent) {
     if (pos2 >= max2) {
       return false;
     }
-    start2 = pos2;
+    start = pos2;
     res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
     if (res.ok) {
       href = state.md.normalizeLink(res.str);
@@ -12784,7 +7733,7 @@ function link(state, silent) {
       } else {
         href = "";
       }
-      start2 = pos2;
+      start = pos2;
       for (; pos2 < max2; pos2++) {
         code2 = state.src.charCodeAt(pos2);
         if (!isSpace(code2) && code2 !== 10) {
@@ -12792,7 +7741,7 @@ function link(state, silent) {
         }
       }
       res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-      if (pos2 < max2 && start2 !== pos2 && res.ok) {
+      if (pos2 < max2 && start !== pos2 && res.ok) {
         title = res.str;
         pos2 = res.pos;
         for (; pos2 < max2; pos2++) {
@@ -12813,10 +7762,10 @@ function link(state, silent) {
       return false;
     }
     if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-      start2 = pos2 + 1;
+      start = pos2 + 1;
       pos2 = state.md.helpers.parseLinkLabel(state, pos2);
       if (pos2 >= 0) {
-        label = state.src.slice(start2, pos2++);
+        label = state.src.slice(start, pos2++);
       } else {
         pos2 = labelEnd + 1;
       }
@@ -12853,7 +7802,7 @@ function link(state, silent) {
   return true;
 }
 function image(state, silent) {
-  let code2, content, label, pos2, ref, res, title, start2;
+  let code2, content, label, pos2, ref, res, title, start;
   let href = "";
   const oldPos = state.pos;
   const max2 = state.posMax;
@@ -12880,7 +7829,7 @@ function image(state, silent) {
     if (pos2 >= max2) {
       return false;
     }
-    start2 = pos2;
+    start = pos2;
     res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
     if (res.ok) {
       href = state.md.normalizeLink(res.str);
@@ -12890,7 +7839,7 @@ function image(state, silent) {
         href = "";
       }
     }
-    start2 = pos2;
+    start = pos2;
     for (; pos2 < max2; pos2++) {
       code2 = state.src.charCodeAt(pos2);
       if (!isSpace(code2) && code2 !== 10) {
@@ -12898,7 +7847,7 @@ function image(state, silent) {
       }
     }
     res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-    if (pos2 < max2 && start2 !== pos2 && res.ok) {
+    if (pos2 < max2 && start !== pos2 && res.ok) {
       title = res.str;
       pos2 = res.pos;
       for (; pos2 < max2; pos2++) {
@@ -12920,10 +7869,10 @@ function image(state, silent) {
       return false;
     }
     if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-      start2 = pos2 + 1;
+      start = pos2 + 1;
       pos2 = state.md.helpers.parseLinkLabel(state, pos2);
       if (pos2 >= 0) {
-        label = state.src.slice(start2, pos2++);
+        label = state.src.slice(start, pos2++);
       } else {
         pos2 = labelEnd + 1;
       }
@@ -12970,7 +7919,7 @@ function autolink(state, silent) {
   if (state.src.charCodeAt(pos2) !== 60) {
     return false;
   }
-  const start2 = state.pos;
+  const start = state.pos;
   const max2 = state.posMax;
   for (; ; ) {
     if (++pos2 >= max2) return false;
@@ -12978,7 +7927,7 @@ function autolink(state, silent) {
     if (ch3 === 60) return false;
     if (ch3 === 62) break;
   }
-  const url = state.src.slice(start2 + 1, pos2);
+  const url = state.src.slice(start + 1, pos2);
   if (AUTOLINK_RE.test(url)) {
     const fullUrl = state.md.normalizeLink(url);
     if (!state.md.validateLink(fullUrl)) {
@@ -13244,9 +8193,9 @@ ParserInline.prototype.skipToken = function(state) {
 ParserInline.prototype.tokenize = function(state) {
   const rules = this.ruler.getRules("");
   const len = rules.length;
-  const end2 = state.posMax;
+  const end = state.posMax;
   const maxNesting = state.md.options.maxNesting;
-  while (state.pos < end2) {
+  while (state.pos < end) {
     const prevPos = state.pos;
     let ok = false;
     if (state.level < maxNesting) {
@@ -13261,7 +8210,7 @@ ParserInline.prototype.tokenize = function(state) {
       }
     }
     if (ok) {
-      if (state.pos >= end2) {
+      if (state.pos >= end) {
         break;
       }
       continue;
@@ -13511,12 +8460,12 @@ function compile(self2) {
   resetScanCache(self2);
 }
 function Match(self2, shift) {
-  const start2 = self2.__index__;
-  const end2 = self2.__last_index__;
-  const text2 = self2.__text_cache__.slice(start2, end2);
+  const start = self2.__index__;
+  const end = self2.__last_index__;
+  const text2 = self2.__text_cache__.slice(start, end);
   this.schema = self2.__schema__.toLowerCase();
-  this.index = start2 + shift;
-  this.lastIndex = end2 + shift;
+  this.index = start + shift;
+  this.lastIndex = end + shift;
   this.raw = text2;
   this.text = text2;
   this.url = text2;
@@ -14731,8 +9680,8 @@ const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
     </div>
   `;
 };
-const resolveToolInput = (fn2, toolArgs) => {
-  const toolName = fn2;
+const resolveToolInput = (fn, toolArgs) => {
+  const toolName = fn;
   const [inputKey, inputType] = extractInputMetadata(toolName);
   const parseInput = () => {
     if (inputKey) {
@@ -17066,10 +12015,10 @@ function clone(arg) {
   return cloned;
 }
 class DiffContext extends Context {
-  constructor(left2, right2) {
+  constructor(left, right) {
     super();
-    this.left = left2;
-    this.right = right2;
+    this.left = left;
+    this.right = right;
     this.pipe = "diff";
   }
   setResult(result) {
@@ -17086,9 +12035,9 @@ class DiffContext extends Context {
   }
 }
 class PatchContext extends Context {
-  constructor(left2, delta) {
+  constructor(left, delta) {
     super();
-    this.left = left2;
+    this.left = left;
     this.delta = delta;
     this.pipe = "patch";
   }
@@ -17226,30 +12175,30 @@ const objectsDiffFilter = (context) => {
   if (context.leftIsArray || context.leftType !== "object") {
     return;
   }
-  const left2 = context.left;
-  const right2 = context.right;
+  const left = context.left;
+  const right = context.right;
   let name;
   let child;
   const propertyFilter = context.options.propertyFilter;
-  for (name in left2) {
-    if (!Object.prototype.hasOwnProperty.call(left2, name)) {
+  for (name in left) {
+    if (!Object.prototype.hasOwnProperty.call(left, name)) {
       continue;
     }
     if (propertyFilter && !propertyFilter(name, context)) {
       continue;
     }
-    child = new DiffContext(left2[name], right2[name]);
+    child = new DiffContext(left[name], right[name]);
     context.push(child, name);
   }
-  for (name in right2) {
-    if (!Object.prototype.hasOwnProperty.call(right2, name)) {
+  for (name in right) {
+    if (!Object.prototype.hasOwnProperty.call(right, name)) {
       continue;
     }
     if (propertyFilter && !propertyFilter(name, context)) {
       continue;
     }
-    if (typeof left2[name] === "undefined") {
-      child = new DiffContext(void 0, right2[name]);
+    if (typeof left[name] === "undefined") {
+      child = new DiffContext(void 0, right[name]);
       context.push(child, name);
     }
   }
@@ -17810,20 +12759,20 @@ const diffFilter = function textsDiffFilter(context) {
   if (context.leftType !== "string") {
     return;
   }
-  const left2 = context.left;
-  const right2 = context.right;
+  const left = context.left;
+  const right = context.right;
   const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
-  if (left2.length < minLength || right2.length < minLength) {
-    context.setResult([left2, right2]).exit();
+  if (left.length < minLength || right.length < minLength) {
+    context.setResult([left, right]).exit();
     return;
   }
   const diffMatchPatch = getDiffMatchPatch(context.options);
   if (!diffMatchPatch) {
-    context.setResult([left2, right2]).exit();
+    context.setResult([left, right]).exit();
     return;
   }
   const diff2 = diffMatchPatch.diff;
-  context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
+  context.setResult([diff2(left, right), 0, TEXT_DIFF]).exit();
 };
 diffFilter.filterName = "texts";
 const patchFilter = function textsPatchFilter(context) {
@@ -17890,28 +12839,28 @@ class DiffPatcher {
   options(options) {
     return this.processor.options(options);
   }
-  diff(left2, right2) {
-    return this.processor.process(new DiffContext(left2, right2));
+  diff(left, right) {
+    return this.processor.process(new DiffContext(left, right));
   }
-  patch(left2, delta) {
-    return this.processor.process(new PatchContext(left2, delta));
+  patch(left, delta) {
+    return this.processor.process(new PatchContext(left, delta));
   }
   reverse(delta) {
     return this.processor.process(new ReverseContext(delta));
   }
-  unpatch(right2, delta) {
-    return this.patch(right2, this.reverse(delta));
+  unpatch(right, delta) {
+    return this.patch(right, this.reverse(delta));
   }
   clone(value) {
     return clone(value);
   }
 }
 let defaultInstance$1;
-function diff(left2, right2) {
+function diff(left, right) {
   if (!defaultInstance$1) {
     defaultInstance$1 = new DiffPatcher();
   }
-  return defaultInstance$1.diff(left2, right2);
+  return defaultInstance$1.diff(left, right);
 }
 const trimUnderscore = (str) => {
   if (str.substring(0, 1) === "_") {
@@ -17932,11 +12881,11 @@ const arrayKeyToSortNumber = (key2) => {
 };
 const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
 class BaseFormatter {
-  format(delta, left2) {
+  format(delta, left) {
     const context = {};
     this.prepareContext(context);
     const preparedContext = context;
-    this.recurse(preparedContext, delta, left2);
+    this.recurse(preparedContext, delta, left);
     return this.finalize(preparedContext);
   }
   prepareContext(context) {
@@ -17957,9 +12906,9 @@ class BaseFormatter {
       return buffer2.join("");
     }
   }
-  recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
+  recurse(context, delta, left, key2, leftKey, movedFrom, isLast) {
     const useMoveOriginHere = delta && movedFrom;
-    const leftValue = useMoveOriginHere ? movedFrom.value : left2;
+    const leftValue = useMoveOriginHere ? movedFrom.value : left;
     if (typeof delta === "undefined" && typeof key2 === "undefined") {
       return void 0;
     }
@@ -17986,19 +12935,19 @@ class BaseFormatter {
       this.rootEnd(context, type, nodeType);
     }
   }
-  formatDeltaChildren(context, delta, left2) {
-    this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
-      this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+  formatDeltaChildren(context, delta, left) {
+    this.forEachDeltaKey(delta, left, (key2, leftKey, movedFrom, isLast) => {
+      this.recurse(context, delta[key2], left ? left[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
     });
   }
-  forEachDeltaKey(delta, left2, fn2) {
+  forEachDeltaKey(delta, left, fn) {
     const keys = Object.keys(delta);
     const arrayKeys = delta._t === "a";
     const moveDestinations = {};
     let name;
-    if (typeof left2 !== "undefined") {
-      for (name in left2) {
-        if (Object.prototype.hasOwnProperty.call(left2, name)) {
+    if (typeof left !== "undefined") {
+      for (name in left) {
+        if (Object.prototype.hasOwnProperty.call(left, name)) {
           if (typeof delta[name] === "undefined" && (!arrayKeys || typeof delta[`_${name}`] === "undefined")) {
             keys.push(name);
           }
@@ -18012,10 +12961,10 @@ class BaseFormatter {
           const movedDelta = value;
           moveDestinations[`${movedDelta[1]}`] = {
             key: name,
-            value: left2 && left2[parseInt(name.substring(1), 10)]
+            value: left && left[parseInt(name.substring(1), 10)]
           };
           if (this.includeMoveDestinations !== false) {
-            if (typeof left2 === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
+            if (typeof left === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
               keys.push(movedDelta[1].toString());
             }
           }
@@ -18034,7 +12983,7 @@ class BaseFormatter {
       }
       const leftKey = arrayKeys ? parseInt(trimUnderscore(key2), 10) : key2;
       const isLast = index === length - 1;
-      fn2(key2, leftKey, moveDestinations[leftKey], isLast);
+      fn(key2, leftKey, moveDestinations[leftKey], isLast);
     }
   }
   getDeltaType(delta, movedFrom) {
@@ -18136,26 +13085,26 @@ class HtmlFormatter extends BaseFormatter {
   nodeEnd(context) {
     context.out("</li>");
   }
-  format_unchanged(context, delta, left2) {
-    if (typeof left2 === "undefined") {
+  format_unchanged(context, delta, left) {
+    if (typeof left === "undefined") {
       return;
     }
     context.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context, left2);
+    this.formatValue(context, left);
     context.out("</div>");
   }
-  format_movedestination(context, delta, left2) {
-    if (typeof left2 === "undefined") {
+  format_movedestination(context, delta, left) {
+    if (typeof left === "undefined") {
       return;
     }
     context.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context, left2);
+    this.formatValue(context, left);
     context.out("</div>");
   }
-  format_node(context, delta, left2) {
+  format_node(context, delta, left) {
     const nodeType = delta._t === "a" ? "array" : "object";
     context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-    this.formatDeltaChildren(context, delta, left2);
+    this.formatDeltaChildren(context, delta, left);
     context.out("</ul>");
   }
   format_added(context, delta) {
@@ -18221,15 +13170,15 @@ function htmlEscape(text2) {
 const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
   const node = nodeArg || document;
   const getElementText = ({ textContent, innerText }) => textContent || innerText;
-  const eachByQuery = (el, query, fn2) => {
+  const eachByQuery = (el, query, fn) => {
     const elems = el.querySelectorAll(query);
     for (let i = 0, l2 = elems.length; i < l2; i++) {
-      fn2(elems[i]);
+      fn(elems[i]);
     }
   };
-  const eachChildren = ({ children }, fn2) => {
+  const eachChildren = ({ children }, fn) => {
     for (let i = 0, l2 = children.length; i < l2; i++) {
-      fn2(children[i], i);
+      fn(children[i], i);
     }
   };
   eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children, style }) => {
@@ -18260,11 +13209,11 @@ const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
   });
 };
 let defaultInstance;
-function format(delta, left2) {
+function format(delta, left) {
   if (!defaultInstance) {
     defaultInstance = new HtmlFormatter();
   }
-  return defaultInstance.format(delta, left2);
+  return defaultInstance.format(delta, left);
 }
 const StateDiffView = ({ before, after, style }) => {
   const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
@@ -20041,13 +14990,13 @@ class VirtualList extends k$1 {
   componentWillUnmount() {
     window.removeEventListener("resize", this.resize);
   }
-  render({ data, rowMap, renderRow, overscanCount = 10, ...props }, { offset: offset2 = 0, height = 0 }) {
+  render({ data, rowMap, renderRow, overscanCount = 10, ...props }, { offset = 0, height = 0 }) {
     const firstVisibleIdx = rowMap.findIndex((row) => {
-      return row.start + row.height >= offset2;
+      return row.start + row.height >= offset;
     });
     const firstIndex = firstVisibleIdx > -1 ? firstVisibleIdx : 0;
     const lastVisibleIdx = rowMap.findIndex((row) => {
-      return row.start + row.height >= offset2 + height;
+      return row.start + row.height >= offset + height;
     });
     const lastIndex = lastVisibleIdx > -1 ? lastVisibleIdx : rowMap.length - 1;
     const lastRow = rowMap[rowMap.length - 1];
@@ -20056,16 +15005,16 @@ class VirtualList extends k$1 {
     if (overscanCount) {
       visibleRowCount += overscanCount;
     }
-    const start2 = firstVisibleIdx;
-    const end2 = Math.min(data.length, start2 + visibleRowCount);
-    const selection = data.slice(start2, end2);
-    const top2 = firstVisibleIdx !== -1 ? rowMap[firstVisibleIdx].start : 0;
+    const start = firstVisibleIdx;
+    const end = Math.min(data.length, start + visibleRowCount);
+    const selection = data.slice(start, end);
+    const top = firstVisibleIdx !== -1 ? rowMap[firstVisibleIdx].start : 0;
     const rows = m$1`<div onscroll=${this.handleScroll} ...${props}>
       <div style=${`${STYLE_INNER} height:${totalHeight}px;`}>
-        <div style=${`${STYLE_CONTENT} top:${top2}px;`} ref=${this.containerRef}>
+        <div style=${`${STYLE_CONTENT} top:${top}px;`} ref=${this.containerRef}>
           ${selection.map((item, index) => {
-      const component = renderRow(item, start2 + index);
-      return m$1`<div key=${`list-item-${start2 + index}`}>
+      const component = renderRow(item, start + index);
+      return m$1`<div key=${`list-item-${start + index}`}>
               ${component}
             </div>`;
     })}
@@ -20104,11 +15053,11 @@ const SampleList = (props) => {
     return items.reduce((values, current, index) => {
       const height = heightForType(current.type);
       const previous = values.length > 0 ? values[values.length - 1] : void 0;
-      const start2 = previous === void 0 ? 0 : previous.start + previous.height;
+      const start = previous === void 0 ? 0 : previous.start + previous.height;
       values.push({
         index,
         height,
-        start: start2
+        start
       });
       return values;
     }, []);
@@ -20579,8 +15528,8 @@ const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) =>
     return noGrouping(samples, groupByOrder);
   }
 };
-const noGrouping = (samples, order2) => {
-  const counter = getCounter(samples.length, 1, order2);
+const noGrouping = (samples, order) => {
+  const counter = getCounter(samples.length, 1, order);
   return (sample, index) => {
     counter.incrementItem();
     const itemCount = counter.item();
@@ -20595,16 +15544,16 @@ const noGrouping = (samples, order2) => {
     ];
   };
 };
-const groupBySample = (samples, sampleDescriptor, order2) => {
+const groupBySample = (samples, sampleDescriptor, order) => {
   samples = samples.sort((a2, b2) => {
     if (typeof a2.id === "string") {
-      if (order2 === "asc") {
+      if (order === "asc") {
         return String(a2.id).localeCompare(String(b2.id));
       } else {
         return String(b2.id).localeCompare(String(a2.id));
       }
     } else {
-      if (order2 === "asc") {
+      if (order === "asc") {
         return Number(a2.id) - Number(b2.id);
       } else {
         return Number(b2.id) - Number(b2.id);
@@ -20613,7 +15562,7 @@ const groupBySample = (samples, sampleDescriptor, order2) => {
   });
   const groupCount = samples.length / sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
-  const counter = getCounter(itemCount, groupCount, order2);
+  const counter = getCounter(itemCount, groupCount, order);
   return (sample, index, previousSample) => {
     const results = [];
     const lastId = previousSample ? previousSample.id : void 0;
@@ -20639,10 +15588,10 @@ const groupBySample = (samples, sampleDescriptor, order2) => {
     return results;
   };
 };
-const groupByEpoch = (samples, sampleDescriptor, order2) => {
+const groupByEpoch = (samples, sampleDescriptor, order) => {
   const groupCount = sampleDescriptor.epochs;
   const itemCount = samples.length / groupCount;
-  const counter = getCounter(itemCount, groupCount, order2);
+  const counter = getCounter(itemCount, groupCount, order);
   return (sample, index, previousSample) => {
     const results = [];
     const lastEpoch = previousSample ? previousSample.epoch : -1;
@@ -20668,22 +15617,22 @@ const groupByEpoch = (samples, sampleDescriptor, order2) => {
     return results;
   };
 };
-const getCounter = (itemCount, groupCount, order2) => {
-  let itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
-  let groupIndex = order2 !== "desc" ? 0 : groupCount + 1;
+const getCounter = (itemCount, groupCount, order) => {
+  let itemIndex = order !== "desc" ? 0 : itemCount + 1;
+  let groupIndex = order !== "desc" ? 0 : groupCount + 1;
   return {
     resetItem: () => {
-      itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
+      itemIndex = order !== "desc" ? 0 : itemCount + 1;
     },
     incrementItem: () => {
-      if (order2 !== "desc") {
+      if (order !== "desc") {
         itemIndex++;
       } else {
         itemIndex--;
       }
     },
     incrementGroup: () => {
-      if (order2 !== "desc") {
+      if (order !== "desc") {
         groupIndex++;
       } else {
         groupIndex--;
@@ -20764,10 +15713,10 @@ async function eval_log$1(file, headerOnly) {
 async function eval_log_size$1(file) {
   return (await api$1("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
 }
-async function eval_log_bytes$1(file, start2, end2) {
+async function eval_log_bytes$1(file, start, end) {
   return await api_bytes(
     "GET",
-    `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`
+    `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`
   );
 }
 async function eval_log_headers$1(files) {
@@ -22042,8 +16991,8 @@ async function eval_log(file, headerOnly, capabilities) {
 async function eval_log_size(file) {
   return await vscodeClient(kMethodEvalLogSize, [file]);
 }
-async function eval_log_bytes(file, start2, end2) {
-  return await vscodeClient(kMethodEvalLogBytes, [file, start2, end2]);
+async function eval_log_bytes(file, start, end) {
+  return await vscodeClient(kMethodEvalLogBytes, [file, start, end]);
 }
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
@@ -22165,10 +17114,10 @@ var fdeb = new u8([
   0
 ]);
 var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
-var freb = function(eb, start2) {
+var freb = function(eb, start) {
   var b2 = new u16(31);
   for (var i = 0; i < 31; ++i) {
-    b2[i] = start2 += 1 << eb[i - 1];
+    b2[i] = start += 1 << eb[i - 1];
   }
   var r2 = new i32(b2[30]);
   for (var i = 1; i < 30; ++i) {
@@ -22413,15 +17362,15 @@ var inflt = function(dat, st, buf, dict) {
         }
         if (resize)
           cbuf(bt + 131072);
-        var end2 = bt + add2;
+        var end = bt + add2;
         if (bt < dt) {
-          var shift = dl - dt, dend = Math.min(dt, end2);
+          var shift = dl - dt, dend = Math.min(dt, end);
           if (shift + bt < 0)
             err(3);
           for (; bt < dend; ++bt)
             buf[bt] = dict[shift + bt];
         }
-        for (; bt < end2; ++bt)
+        for (; bt < end; ++bt)
           buf[bt] = buf[bt - dt];
       }
     }
@@ -22440,9 +17389,9 @@ var mrg = function(a2, b2) {
     o2[k2] = b2[k2];
   return o2;
 };
-var wcln = function(fn2, fnStr, td2) {
-  var dt = fn2();
-  var st = fn2.toString();
+var wcln = function(fn, fnStr, td2) {
+  var dt = fn();
+  var st = fn.toString();
   var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
   for (var i = 0; i < dt.length; ++i) {
     var v2 = dt[i], k2 = ks[i];
@@ -22677,9 +17626,9 @@ const fetchSize = async (url) => {
   const contentLength = Number(response.headers.get("Content-Length"));
   return contentLength;
 };
-const fetchRange = async (url, start2, end2) => {
+const fetchRange = async (url, start, end) => {
   const response = await fetch(`${url}`, {
-    headers: { Range: `bytes=${start2}-${end2}` }
+    headers: { Range: `bytes=${start}-${end}` }
   });
   const arrayBuffer = await response.arrayBuffer();
   return new Uint8Array(arrayBuffer);
@@ -22697,31 +17646,31 @@ const decompressAsync = async (data, opts) => {
 };
 const parseZipFileEntry = async (file, rawData) => {
   const view = new DataView(rawData.buffer);
-  let offset2 = 0;
-  const signature = view.getUint32(offset2, true);
+  let offset = 0;
+  const signature = view.getUint32(offset, true);
   if (signature !== 67324752) {
     throw new Error(`Invalid ZIP entry signature for ${file}`);
   }
-  offset2 += 4;
-  const versionNeeded = view.getUint16(offset2, true);
-  offset2 += 2;
-  const bitFlag = view.getUint16(offset2, true);
-  offset2 += 2;
-  const compressionMethod = view.getUint16(offset2, true);
-  offset2 += 2;
-  offset2 += 4;
-  const crc32 = view.getUint32(offset2, true);
-  offset2 += 4;
-  const compressedSize = view.getUint32(offset2, true);
-  offset2 += 4;
-  const uncompressedSize = view.getUint32(offset2, true);
-  offset2 += 4;
-  const filenameLength = view.getUint16(offset2, true);
-  offset2 += 2;
-  const extraFieldLength = view.getUint16(offset2, true);
-  offset2 += 2;
-  offset2 += filenameLength + extraFieldLength;
-  const data = rawData.subarray(offset2, offset2 + compressedSize);
+  offset += 4;
+  const versionNeeded = view.getUint16(offset, true);
+  offset += 2;
+  const bitFlag = view.getUint16(offset, true);
+  offset += 2;
+  const compressionMethod = view.getUint16(offset, true);
+  offset += 2;
+  offset += 4;
+  const crc32 = view.getUint32(offset, true);
+  offset += 4;
+  const compressedSize = view.getUint32(offset, true);
+  offset += 4;
+  const uncompressedSize = view.getUint32(offset, true);
+  offset += 4;
+  const filenameLength = view.getUint16(offset, true);
+  offset += 2;
+  const extraFieldLength = view.getUint16(offset, true);
+  offset += 2;
+  offset += filenameLength + extraFieldLength;
+  const data = rawData.subarray(offset, offset + compressedSize);
   return {
     versionNeeded,
     bitFlag,
@@ -22735,26 +17684,26 @@ const parseZipFileEntry = async (file, rawData) => {
   };
 };
 const parseCentralDirectory = (buffer2) => {
-  let offset2 = 0;
+  let offset = 0;
   const view = new DataView(buffer2.buffer);
   const entries = /* @__PURE__ */ new Map();
-  while (offset2 < buffer2.length) {
-    if (view.getUint32(offset2, true) !== 33639248) break;
-    const filenameLength = view.getUint16(offset2 + 28, true);
-    const extraFieldLength = view.getUint16(offset2 + 30, true);
-    const fileCommentLength = view.getUint16(offset2 + 32, true);
+  while (offset < buffer2.length) {
+    if (view.getUint32(offset, true) !== 33639248) break;
+    const filenameLength = view.getUint16(offset + 28, true);
+    const extraFieldLength = view.getUint16(offset + 30, true);
+    const fileCommentLength = view.getUint16(offset + 32, true);
     const filename2 = new TextDecoder().decode(
-      buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength)
+      buffer2.subarray(offset + 46, offset + 46 + filenameLength)
     );
     const entry = {
       filename: filename2,
-      compressionMethod: view.getUint16(offset2 + 10, true),
-      compressedSize: view.getUint32(offset2 + 20, true),
-      uncompressedSize: view.getUint32(offset2 + 24, true),
-      fileOffset: view.getUint32(offset2 + 42, true)
+      compressionMethod: view.getUint16(offset + 10, true),
+      compressedSize: view.getUint32(offset + 20, true),
+      uncompressedSize: view.getUint32(offset + 24, true),
+      fileOffset: view.getUint32(offset + 42, true)
     };
     entries.set(filename2, entry);
-    offset2 += 46 + filenameLength + extraFieldLength + fileCommentLength;
+    offset += 46 + filenameLength + extraFieldLength + fileCommentLength;
   }
   return entries;
 };
@@ -22819,8 +17768,8 @@ function simpleHttpAPI(logInfo) {
     eval_log_size: async (log_file2) => {
       return await fetchSize(log_file2);
     },
-    eval_log_bytes: async (log_file2, start2, end2) => {
-      return await fetchRange(log_file2, start2, end2);
+    eval_log_bytes: async (log_file2, start, end) => {
+      return await fetchRange(log_file2, start, end);
     },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
@@ -23827,7 +18776,6 @@ const CopyButton = ({ value }) => {
     if (iEl.tagName === "BUTTON") {
       iEl = iEl.firstChild;
     }
-    console.log({ iEl });
     if (iEl) {
       if (iEl) {
         iEl.className = `${ApplicationIcons.confirm} primary`;
@@ -23998,6 +18946,7 @@ const Navbar = ({
   evalStats,
   samples,
   showToggle,
+  onToggle,
   status
 }) => {
   const logFileName = file ? filename(file) : "";
@@ -24035,6 +18984,7 @@ const Navbar = ({
     padding: "0rem 0.1rem 0.1rem 0rem",
     display: "flex"
   }}
+                onclick=${onToggle}
               >
                 <i class=${ApplicationIcons.previous}></i>
               </button> ` : ""}
@@ -24350,9 +19300,9 @@ const TaskView = ({
   groupBy,
   groupByOrder,
   showToggle,
+  onToggle,
   refreshLog,
   capabilities,
-  offcanvas,
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
@@ -24600,7 +19550,7 @@ const TaskView = ({
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
     showToggle=${showToggle}
-    offcanvas=${offcanvas}
+    onToggle=${onToggle}
     setSelectedTab=${setSelectedTab}
     workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
@@ -24615,11 +19565,11 @@ const WorkspaceDisplay = ({
   samples,
   status,
   showToggle,
+  onToggle,
   selectedTab,
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition
 }) => {
@@ -24685,8 +19635,7 @@ const WorkspaceDisplay = ({
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
-      offcanvas=${offcanvas}
+      onToggle=${onToggle}
     />    
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
@@ -25311,7 +20260,7 @@ const passFailScoreCategorizer = (values) => {
       text: "Refusal"
     });
   }
-  const order2 = ["C", "P", "I", "N"];
+  const order = ["C", "P", "I", "N"];
   return {
     scoreType: kScoreTypePassFail,
     categories,
@@ -25353,7 +20302,7 @@ const passFailScoreCategorizer = (values) => {
       }
     },
     compare: (a2, b2) => {
-      const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+      const sort = order.indexOf(a2.value) - order.indexOf(b2.value);
       return sort;
     }
   };
@@ -25479,11 +20428,11 @@ const ListView = ({
   const rowMap = T(() => {
     return rows.reduce((values, current, index) => {
       const previous = values.length > 0 ? values[values.length - 1] : void 0;
-      const start2 = previous === void 0 ? 0 : previous.start + previous.height;
+      const start = previous === void 0 ? 0 : previous.start + previous.height;
       values.push({
         index,
         height: current.height,
-        start: start2
+        start
       });
       return values;
     }, []);
@@ -25549,40 +20498,254 @@ const ListView = ({
     onkeydown=${onkeydown}
   />`;
 };
+const Pagination = ({ pageCount, currentPage, onCurrentPage }) => {
+  return m$1`<nav aria-label="Page navigation example">
+    <ul
+      class="pagination"
+      style=${{
+    "--bs-pagination-padding-y": "0",
+    marginBottom: "0",
+    "--bs-pagination-font-size": FontSize.base
+  }}
+    >
+      <${PageText}
+        PageButton
+        text="Previous"
+        onclick=${() => {
+    if (currentPage > 0) {
+      onCurrentPage(currentPage - 1);
+    }
+  }}
+        enabled=${currentPage > 0}
+      />
+      <${PageItems}
+        pageCount=${pageCount}
+        currentPage=${currentPage}
+        onCurrentPage=${onCurrentPage}
+      />
+      <${PageText}
+        PageButton
+        text="Next"
+        onclick=${() => {
+    if (currentPage < pageCount - 1) {
+      onCurrentPage(currentPage + 1);
+    }
+  }}
+        enabled=${currentPage < pageCount - 1}
+      />
+    </ul>
+  </nav>`;
+};
+const PageText = ({ text: text2, onclick, enabled }) => {
+  return m$1`<li class="page-item ${!enabled ? "disabled" : ""}">
+    <a class="page-link" href="#" onclick=${onclick}>${text2}</a>
+  </li>`;
+};
+const PagePlaceholder = () => {
+  return m$1`<li class="page-item">
+    <div class="page-link" style=${{ color: "var(--bs-body-color)" }}>…</div>
+  </li>`;
+};
+const PageNumber = ({ n: n2, currentPage, onCurrentPage }) => {
+  return m$1`<li class="page-item">
+    <a
+      class="page-link ${currentPage === n2 ? "active" : ""}"
+      href="#"
+      onclick=${() => {
+    onCurrentPage(n2);
+  }}
+      >${n2 + 1}</a
+    >
+  </li>`;
+};
+const PageItems = ({ pageCount, currentPage, onCurrentPage }) => {
+  const items = [];
+  if (pageCount < 7) {
+    for (let i = 0; i < pageCount; i++) {
+      items.push(
+        m$1`<${PageNumber}
+          n=${i}
+          currentPage=${currentPage}
+          onCurrentPage=${onCurrentPage}
+        />`
+      );
+    }
+  } else if (currentPage < 5) {
+    for (let i = 0; i < 5; i++) {
+      items.push(
+        m$1`<${PageNumber}
+          n=${i}
+          currentPage=${currentPage}
+          onCurrentPage=${onCurrentPage}
+        />`
+      );
+    }
+    items.push(m$1`<${PagePlaceholder} />`);
+    items.push(
+      m$1`<${PageNumber}
+        n=${pageCount - 1}
+        currentPage=${currentPage}
+        onCurrentPage=${onCurrentPage}
+      />`
+    );
+  } else if (currentPage > pageCount - 5) {
+    items.push(
+      m$1`<${PageNumber}
+        n=${0}
+        currentPage=${currentPage}
+        onCurrentPage=${onCurrentPage}
+      />`
+    );
+    items.push(m$1`<${PagePlaceholder} />`);
+    for (let i = pageCount - 5; i < pageCount; i++) {
+      items.push(
+        m$1`<${PageNumber}
+          n=${i}
+          currentPage=${currentPage}
+          onCurrentPage=${onCurrentPage}
+        />`
+      );
+    }
+  } else {
+    items.push(
+      m$1`<${PageNumber}
+        n=${0}
+        currentPage=${currentPage}
+        onCurrentPage=${onCurrentPage}
+      />`
+    );
+    items.push(m$1`<${PagePlaceholder} />`);
+    for (let i = currentPage; i < currentPage + 3; i++) {
+      items.push(
+        m$1`<${PageNumber}
+          n=${i}
+          currentPage=${currentPage}
+          onCurrentPage=${onCurrentPage}
+        />`
+      );
+    }
+    items.push(m$1`<${PagePlaceholder} />`);
+    items.push(
+      m$1`<${PageNumber}
+        n=${pageCount - 1}
+        currentPage=${currentPage}
+        onCurrentPage=${onCurrentPage}
+      />`
+    );
+  }
+  return items;
+};
+const StatusFooter = ({
+  spinner,
+  spinnerMessage,
+  statusMessages,
+  children
+}) => {
+  return m$1` <div
+    style=${{
+    borderTop: "solid var(--bs-light-border-subtle) 1px",
+    background: "var(--bs-light-bg-subtle)",
+    fontSize: FontSize.smaller,
+    display: "grid",
+    gridTemplateColumns: "1fr max-content 1fr",
+    justifyContent: "end",
+    alignContent: "end",
+    padding: "0.5em 1em",
+    minHeight: "2.5em"
+  }}
+  >
+    <div>
+      ${spinner ? m$1`<${ProgressSpinner} message=${spinnerMessage} />` : ""}
+    </div>
+    <div>${children}</div>
+    <div
+      style=${{
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center"
+  }}
+    >
+      ${statusMessages ? statusMessages.map((msg) => {
+    return m$1`<${StatusMessage} icon=${msg.icon} text=${msg.text} />`;
+  }) : ""}
+    </div>
+  </div>`;
+};
+const StatusMessage = ({ icon, text: text2 }) => {
+  if (icon && !text2) {
+    return m$1`<i class=${icon} />`;
+  } else if (icon && text2) {
+    return m$1`<div
+      style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "0.5em"
+    }}
+    >
+      <i class=${icon} />
+      <div>${text2}</div>
+    </div>`;
+  } else if (text2) {
+    return m$1`<div>${text2}</div>`;
+  }
+  return m$1``;
+};
+const ProgressSpinner = ({ message }) => {
+  const spinner = m$1`<div
+    class="spinner-border"
+    role="status"
+    style=${{
+    "--bs-spinner-width": "0.9rem",
+    "--bs-spinner-height": "0.9rem",
+    "--bs-spinner-border-width": "0.15em",
+    marginTop: ".1em"
+  }}
+  >
+    <span class="visually-hidden">${message}</span>
+  </div>`;
+  if (message) {
+    return m$1` <div
+      style=${{
+      display: "grid",
+      gridTemplateColumns: "max-content max-content",
+      columnGap: "0.5em"
+    }}
+    >
+      ${spinner}
+      <div>${message}</div>
+    </div>`;
+  } else {
+    return spinner;
+  }
+};
+const TaskBar = ({ logDir }) => {
+  return m$1` <div
+    style=${{
+    backgroundColor: "var(--bs-light)",
+    fontSize: FontSize.smaller,
+    display: "flex",
+    alignItems: "center",
+    padding: "1em",
+    borderBottom: "solid var(--bs-light-border-subtle) 1px"
+  }}
+  >
+    <div>Log Directory: ${logDir}</div>
+  </div>`;
+};
 const kRowHeight = 65;
 const TaskList = ({
-  logs,
+  logDir,
+  logCount,
   logHeaders,
-  selectedIndex,
-  onSelectedIndex,
-  onShowLog,
+  page,
+  pageCount,
+  onPageChanged,
+  selectedLogIndex,
+  onSelectedLogIndex,
+  status,
   style
 }) => {
-  const listRef = A();
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const [visibleLogs, setVisibleLogs] = h([]);
-  y(() => {
-    const visible = [];
-    for (const log of logs.files) {
-      const headers = logHeaders[log.name];
-      if (headers) {
-        visible.push(headers);
-      }
-    }
-    setVisibleLogs(visible);
-  }, [logs, logHeaders]);
-  const [rows, setRows] = h([]);
-  y(() => {
-    setRows(
-      visibleLogs.map((visibleLog, index) => {
-        return {
-          item: visibleLog,
-          height: kRowHeight,
-          index
-        };
-      })
-    );
-  }, [visibleLogs]);
   const configStr = (config2, taskArgs) => {
     const hyperparameters = {
       ...config2,
@@ -25593,60 +20756,91 @@ const TaskList = ({
     }).join(", ");
   };
   const renderRow = (row) => {
+    var _a2, _b2, _c, _d;
     return m$1` <div
       style=${{
       display: "grid",
-      gridTemplateColumns: "3fr 1fr",
+      gridTemplateColumns: "10em 25em .5fr 1fr .5fr 1fr",
       width: "100%",
       height: `${row.height}px`,
-      padding: "0.5em"
+      padding: "0.5em",
+      columnGap: "1em",
+      cursor: "pointer"
     }}
       tabindex="0"
     >
-      <div
-        style=${{
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      columnGap: "1em"
-    }}
-      >
+      <div style=${{ fontSize: FontSize.smaller, marginTop: "0.3em" }}>
+        ${new Date(row.item.eval.created).toLocaleString()}
+        <${EvalStatus} logHeader=${row.item} />
+      </div>
+      <div>
         <div
           style=${{
-      gridColumn: "1",
       fontSize: FontSize.large,
       fontWeight: 600
     }}
         >
           ${row.item.eval.task}
         </div>
-        <div style=${{ gridColumn: "2", fontSize: FontSize.base }}>
-          ${new Date(row.item.eval.created).toLocaleString()}
-        </div>
-        <div style=${{ gridColumn: "1/-1", fontSize: FontSize.small }}>
-          ${row.item.eval.model}:
-          ${configStr(row.item.eval.config, row.item.eval.task_args)}
+        <div
+          style=${{
+      fontSize: FontSize.smaller,
+      fontWeight: 400
+    }}
+        >
+          ${row.item.eval.model}
         </div>
       </div>
+      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
+        <div>
+          ${`${row.item.eval.dataset.samples} ${row.item.eval.dataset.samples > 1 ? "Samples" : "Sample"}`}
+        </div>
+        <div>
+          <${Epochs} epochs=${row.item.eval.config.epochs} />
+        </div>
+      </div>
+      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
+        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
+      </div>
+      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
+        ${((_a2 = row.item.results) == null ? void 0 : _a2.scores) && row.item.results.scores.length > 0 ? (_b2 = row.item.results) == null ? void 0 : _b2.scores[0].name : ""}
+      </div>
       <div>
-        <${EvalStatus} logHeader=${row.item} />
+        ${((_c = row.item.results) == null ? void 0 : _c.scores) ? m$1`<${Scores} scores=${(_d = row.item.results) == null ? void 0 : _d.scores} />` : ""}
       </div>
     </div>`;
   };
+  const rows = logHeaders ? logHeaders.map((logHeader, index) => {
+    return {
+      item: logHeader,
+      height: kRowHeight,
+      index
+    };
+  }) : [];
   return m$1`
+    <${TaskBar} logDir=${logDir} />
     <${ListView}
-      ref=${listRef}
       rows=${rows}
       renderer=${renderRow}
-      selectedIndex=${selectedIndex}
-      onSelectedIndex=${onSelectedIndex}
-      onShowItem=${onShowLog}
+      selectedIndex=${selectedLogIndex}
+      onSelectedIndex=${onSelectedLogIndex}
+      onShowItem=${(item) => {
+    onSelectedLogIndex(item.index);
+  }}
       tabIndex="0"
       style=${listStyle}
     />
+    
+    <${StatusFooter} spinner=${status === "loading"} spinnerMessage="Loading..." statusMessages=${[{ text: `${logCount} log files` }]}>
+      <${Pagination}
+        pageCount=${pageCount}
+        currentPage=${page}
+        onCurrentPage=${onPageChanged}
+      />
+    </${StatusFooter}>
   `;
 };
 const EvalStatus = ({ logHeader }) => {
-  var _a2;
   switch (logHeader == null ? void 0 : logHeader.status) {
     case "error":
       return m$1`<${StatusError} message="Error" />`;
@@ -25655,12 +20849,17 @@ const EvalStatus = ({ logHeader }) => {
     case "started":
       return m$1`<${StatusRunning} message="Running" />`;
     default:
-      if ((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) {
-        return m$1`<${Scores} scores=${logHeader.results.scores} />`;
-      } else {
-        return "";
-      }
+      return "";
   }
+};
+const Epochs = ({ epochs }) => {
+  if (!epochs || epochs === 1) {
+    return "";
+  }
+  const epochStr = [];
+  epochStr.push(epochs);
+  epochStr.push(`${epochs > 1 ? "Epochs" : "Epoch"}`);
+  return m$1` <div>${epochStr.join(" ")}</div>`;
 };
 const Scores = ({ scores }) => {
   return m$1`<div
@@ -25673,7 +20872,6 @@ const Scores = ({ scores }) => {
   }}
   >
     ${scores.map((score) => {
-    const name = score.name;
     const reducer = score.reducer;
     return m$1`
         <div
@@ -25684,18 +20882,6 @@ const Scores = ({ scores }) => {
       marginLeft: "1em"
     }}
         >
-          <div
-            style=${{
-      fontSize: FontSize.base,
-      width: "100%",
-      fontWeight: 300,
-      borderBottom: "solid var(--bs-border-color) 1px",
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    }}
-          >
-            ${name}
-          </div>
           ${reducer ? m$1` <div
                 style=${{
       fontSize: FontSize.smaller,
@@ -25782,10 +20968,14 @@ function App({
   const [selectedLogIndex, setSelectedLogIndex] = h(
     (initialState2 == null ? void 0 : initialState2.selectedLogIndex) !== void 0 ? initialState2.selectedLogIndex : -1
   );
-  const [logHeaders, setLogHeaders] = h((initialState2 == null ? void 0 : initialState2.logHeaders) || {});
+  const [logHeaders, setLogHeaders] = h((initialState2 == null ? void 0 : initialState2.logHeaders) || []);
   const [headersLoading, setHeadersLoading] = h(
     (initialState2 == null ? void 0 : initialState2.headersLoading) || false
   );
+  const [logHeaderPage, setLogHeaderPage] = h(
+    (initialState2 == null ? void 0 : initialState2.logHeaderPage) || -1
+  );
+  const [logHeaderPageSize] = h(10);
   const [selectedLog, setSelectedLog] = h(
     (initialState2 == null ? void 0 : initialState2.selectedLog) || {
       contents: void 0,
@@ -25816,7 +21006,7 @@ function App({
   );
   const [status, setStatus] = h(
     (initialState2 == null ? void 0 : initialState2.status) || {
-      loading: true,
+      loading: false,
       error: void 0
     }
   );
@@ -25981,7 +21171,7 @@ function App({
         return true;
       }
     });
-    const { sorted, order: order2 } = sortSamples(sort, filtered, samplesDescriptor);
+    const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
     let grouping = "none";
     if ((samplesDescriptor == null ? void 0 : samplesDescriptor.epochs) > 1) {
       if (byEpoch(sort) || epoch !== "all") {
@@ -25992,7 +21182,7 @@ function App({
     }
     setFilteredSamples(sorted);
     setGroupBy(grouping);
-    setGroupByOrder(order2);
+    setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
   const samplesDescriptor = T(() => {
     var _a3, _b3, _c2, _d2;
@@ -26012,8 +21202,13 @@ function App({
     },
     [selectedSampleTab, showingSampleDialog]
   );
+  const clearSelectedLog = q(() => {
+    setSelectedLog({ contents: void 0, name: void 0 });
+    setSelectedLogIndex(-1);
+  }, [setSelectedLogIndex, setSelectedLog]);
   const mainAppRef = A();
   y(() => {
+    var _a3;
     if (!selectedLog || selectedSampleIndex === -1) {
       setSelectedSample(void 0);
       return;
@@ -26021,7 +21216,7 @@ function App({
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
-    if (!showingSampleDialog && selectedLog.contents.sampleSummaries.length > 1) {
+    if (!showingSampleDialog && ((_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries.length) > 1) {
       return;
     }
     if (selectedSampleIndex < filteredSamples.length) {
@@ -26069,37 +21264,30 @@ function App({
     setSampleError
   ]);
   y(() => {
+    if (logHeaderPage === -1) {
+      return;
+    }
     const loadHeaders = async () => {
-      setHeadersLoading(true);
-      const chunkSize = 8;
-      const fileLists = [];
-      for (let i = 0; i < logs.files.length; i += chunkSize) {
-        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
-        fileLists.push(chunk);
+      if (logHeaderPage < logs.files.length / logHeaderPageSize) {
+        setHeadersLoading(true);
+        const startIndex = logHeaderPage * logHeaderPageSize;
+        const files = logs.files.slice(
+          startIndex,
+          startIndex + logHeaderPageSize
+        );
+        const headers = await api2.get_log_headers(files.map((f2) => f2.name));
+        setLogHeaders(headers);
+        setHeadersLoading(false);
       }
-      try {
-        for (const fileList of fileLists) {
-          const headers = await api2.get_log_headers(fileList);
-          setLogHeaders((prev) => {
-            const updatedHeaders = {};
-            headers.forEach((header, index) => {
-              const logFile = fileList[index];
-              updatedHeaders[logFile] = header;
-            });
-            return { ...prev, ...updatedHeaders };
-          });
-          if (headers.length === chunkSize) {
-            await sleep(5e3);
-          }
-        }
-      } catch (e2) {
-        console.log(e2);
-        setStatus({ loading: false, error: e2 });
-      }
-      setHeadersLoading(false);
     };
     loadHeaders();
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  }, [
+    logs,
+    logHeaderPage,
+    logHeaderPageSize,
+    setLogHeaders,
+    setHeadersLoading
+  ]);
   const resetWorkspace = q(
     /**
      * @param {import("./api/Types.mjs").EvalSummary} log
@@ -26130,7 +21318,8 @@ function App({
   );
   y(() => {
     const loadSpecificLog = async () => {
-      const targetLog = logs.files[selectedLogIndex];
+      const targetLogIndex = logHeaderPage * logHeaderPageSize + selectedLogIndex;
+      const targetLog = logs.files[targetLogIndex];
       if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
         try {
           setStatus({ loading: true, error: void 0 });
@@ -26157,7 +21346,9 @@ function App({
         });
       }
     };
-    loadSpecificLog();
+    if (selectedLogIndex !== -1) {
+      loadSpecificLog();
+    }
   }, [
     selectedLogIndex,
     logs,
@@ -26308,6 +21499,7 @@ function App({
       } else {
         const result = await load();
         setLogs(result);
+        setLogHeaderPage(0);
         const log_file = urlParams.get("log_file");
         if (log_file) {
           const index = result.files.findIndex((val) => {
@@ -26316,8 +21508,6 @@ function App({
           if (index > -1) {
             setSelectedLogIndex(index);
           }
-        } else if (selectedLogIndex === -1) {
-          setSelectedLogIndex(0);
         }
       }
       new ClipboardJS(".clipboard-button,.copy-button");
@@ -26367,10 +21557,15 @@ function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />` : selectedLog.contents === void 0 ? m$1`<${TaskList}
-                logs=${logs}
+                status=${headersLoading ? "loading" : "ok"}
+                logDir=${logs.log_dir}
+                logCount=${logs.files.length}
                 logHeaders=${logHeaders}
-                selectedIndex=${selectedLogIndex}
-                onSelectedIndex=${setSelectedLogIndex}
+                selectedLogIndex=${selectedLogIndex}
+                onSelectedLogIndex=${setSelectedLogIndex}
+                page=${logHeaderPage}
+                pageCount="${Math.ceil(logs.files.length / logHeaderPageSize)}"
+                onPageChanged="${setLogHeaderPage}"
               />` : m$1`<${TaskView}
                 task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
                 logFileName=${selectedLog == null ? void 0 : selectedLog.name}
@@ -26382,6 +21577,7 @@ function App({
                 evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
                 evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
                 showToggle=${showToggle}
+                onToggle=${clearSelectedLog}
                 samples=${filteredSamples}
                 sampleMode=${sampleMode}
                 groupBy=${groupBy}

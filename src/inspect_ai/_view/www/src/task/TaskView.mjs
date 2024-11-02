@@ -51,6 +51,7 @@ import { debounce } from "../utils/sync.mjs";
  * @param {string} props.sampleStatus - whether a sample is loading
  * @param {Error} [props.sampleError] - sample error
  * @param {boolean} props.showToggle - whether to show the toggler
+ * @param {() => void} props.onToggle - the toggle has been activated
  * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
  * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
  * @param {number} props.selectedSampleIndex - the selected sample index
@@ -70,7 +71,6 @@ import { debounce } from "../utils/sync.mjs";
  * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
- * @param {boolean} props.offcanvas - is this off canvas
  * @param {string} props.selectedTab - The selected tab id
  * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
  * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - The initial scroll position for the sample
@@ -95,9 +95,9 @@ export const TaskView = ({
   groupBy,
   groupByOrder,
   showToggle,
+  onToggle,
   refreshLog,
   capabilities,
-  offcanvas,
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
@@ -370,7 +370,7 @@ export const TaskView = ({
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
     showToggle=${showToggle}
-    offcanvas=${offcanvas}
+    onToggle=${onToggle}
     setSelectedTab=${setSelectedTab}
     workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
@@ -386,11 +386,11 @@ const WorkspaceDisplay = ({
   samples,
   status,
   showToggle,
+  onToggle,
   selectedTab,
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
@@ -465,8 +465,7 @@ const WorkspaceDisplay = ({
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
-      offcanvas=${offcanvas}
+      onToggle=${onToggle}
     />    
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
