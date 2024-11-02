@@ -1,19 +1,16 @@
+from .active import display
 from .display import (
     Display,
     TaskCancelled,
     TaskError,
     TaskProfile,
     TaskSuccess,
+)
+from .task_screen import (
     clear_task_screen,
     init_task_screen,
     task_screen,
 )
-from .rich import rich_display
-
-
-def display() -> Display:
-    return rich_display()
-
 
 __all__ = [
     "display",

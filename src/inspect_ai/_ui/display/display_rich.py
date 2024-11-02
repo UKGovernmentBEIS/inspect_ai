@@ -1,14 +1,12 @@
 import asyncio
 import contextlib
 import datetime
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Set
+from typing import Callable, Iterator, Set
 
 import rich
-from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
+from rich.console import Console, Group, RenderableType
 from rich.live import Live
-from rich.markdown import CodeBlock, Markdown
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -17,8 +15,6 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from rich.progress import Progress as RProgress
-from rich.segment import Segment
-from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
@@ -27,7 +23,6 @@ from inspect_ai._util.ansi import no_ansi
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
-from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.registry import is_registry_dict
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log import EvalStats
@@ -36,6 +31,12 @@ from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
+from ..core.rich import (
+    is_vscode_notebook,
+    record_console_input,
+    rich_initialise,
+    rich_theme,
+)
 from .display import (
     Display,
     Progress,
@@ -47,17 +48,6 @@ from .display import (
     TaskScreen,
     TaskSuccess,
 )
-
-
-@dataclass
-class Theme:
-    meta: str = "blue"
-    light: str = "bright_black"
-    metric: str = "green"
-    link: str = "blue"
-    success: str = "green"
-    error: str = "red"
-    warning: str = "orange3"
 
 
 @dataclass
@@ -694,56 +684,6 @@ def task_dict(d: dict[str, str], bold_value: bool = False) -> str:
     )
 
 
-def is_vscode_notebook(console: Console) -> bool:
-    return console.is_jupyter and is_running_in_vscode()
-
-
-def rich_no_color() -> bool:
-    return no_ansi() or not is_running_in_vscode() or is_running_in_jupyterlab()
-
-
-def rich_initialise() -> None:
-    # reflect ansi prefs
-    if no_ansi():
-        rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
-    elif rich_no_color():
-        rich.reconfigure(no_color=True)
-
-    # disable markdown code bock backgrounds (don't work well across light/dark themes)
-    class CustomCodeBlock(CodeBlock):
-        @override
-        def __rich_console__(
-            self, console: Console, options: ConsoleOptions
-        ) -> RenderResult:
-            code = str(self.text).rstrip()
-            syntax = Syntax(
-                code,
-                self.lexer_name,
-                theme=self.theme,
-                word_wrap=True,
-                background_color="#282c34",
-                padding=1,
-            )
-            yield syntax
-
-    Markdown.elements["fence"] = CustomCodeBlock
-    Markdown.elements["code_block"] = CustomCodeBlock
-
-
-def rich_theme() -> Theme:
-    global _theme
-    if _theme is None:
-        _theme = Theme()
-    return _theme
-
-
-def rich_display() -> RichDisplay:
-    global _display
-    if _display is None:
-        _display = RichDisplay()
-    return _display
-
-
 def rich_progress() -> RProgress:
     console = rich.get_console()
     return RProgress(
@@ -757,27 +697,3 @@ def rich_progress() -> RProgress:
         console=console,
         expand=not is_vscode_notebook(console),
     )
-
-
-_theme: Theme | None = None
-_display: RichDisplay | None = None
-
-
-@contextmanager
-def record_console_input() -> Iterator[None]:
-    # monkey patch .input method to record inputs
-    input_original = Console.input
-
-    def input_with_record(self: Console, *args: Any, **kwargs: Any) -> str:
-        result = input_original(self, *args, **kwargs)
-        if self.record:
-            with self._record_buffer_lock:
-                self._record_buffer.append(Segment(result))
-        return result
-
-    Console.input = input_with_record  # type: ignore
-
-    try:
-        yield
-    finally:
-        Console.input = input_original  # type: ignore
