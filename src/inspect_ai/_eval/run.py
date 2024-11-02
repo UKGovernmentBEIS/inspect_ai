@@ -211,6 +211,7 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
 
     with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
         init_task_screen(screen)
+        asyncio.create_task(screen.start())
         asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
         try:
             return await asyncio.gather(*asyncio_tasks)
@@ -225,6 +226,7 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
                     results.append(task.result())
         finally:
             clear_task_screen()
+            await screen.stop()
         return results
 
 
@@ -288,8 +290,9 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
     # with task display
     with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
-        # set screen
+        # start screen
         init_task_screen(screen)
+        asyncio.create_task(screen.start())
 
         # start worker tasks
         workers = [asyncio.create_task(worker()) for _ in range(0, parallel)]
@@ -305,6 +308,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             pass
         finally:
             clear_task_screen()
+            await screen.stop()
 
         # cancel worker tasks
         for w in workers:

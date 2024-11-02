@@ -59,7 +59,13 @@ class TaskSuccess:
 TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 
 
-class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
+class TaskScreen:
+    @abc.abstractmethod
+    async def start(self) -> None: ...
+
+    @abc.abstractmethod
+    async def stop(self) -> None: ...
+
     @abc.abstractmethod
     @contextlib.contextmanager
     def input_screen(
