@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import Callable, Literal
+from typing import Callable, Literal, cast
 
 from typing_extensions import Unpack
 
@@ -28,7 +28,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._view.view import view_notify_eval
+from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
     EvalConfig,
@@ -38,8 +38,9 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
-from inspect_ai.log._log import eval_error
+from inspect_ai.log._log import EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -54,8 +55,9 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
+from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
@@ -63,6 +65,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
@@ -75,7 +78,7 @@ from .images import (
     state_without_base64_images,
     states_with_base64_images,
 )
-from .log import TaskLogger, collect_eval_data, log_plan
+from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
@@ -91,11 +94,12 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 class TaskRunOptions:
     task: Task
     model: Model
-    sandbox: tuple[str, str | None] | None
+    sandbox: SandboxEnvironmentSpec | None
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    tags: list[str] | None = field(default=None)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -112,6 +116,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    tags = options.tags
     score = options.score
     sample_source = options.sample_source
     sample_semaphore = options.sample_semaphore
@@ -126,6 +131,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # establish run_dir for duration of execution
     with set_task_run_dir(task_run_dir(task)):
         # track stats and error
+        results: EvalResults | None = None
+        reductions: list[EvalSampleReductions] | None = None
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
         cancelled = False
@@ -149,7 +156,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             limit=config.limit,
             epochs=epochs,
             log_images=log_images,
-            max_messages=config.max_messages,
+            message_limit=config.message_limit,
+            token_limit=config.token_limit,
         )
 
         # resolve the plan (unroll chains)
@@ -197,13 +205,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             eval_config=config,
             task_args=logger.eval.task_args,
             generate_config=generate_config,
+            tags=tags,
             log_location=log_location,
         )
 
         with display().task(profile) as td:
             try:
-                # log the plan
-                log_plan(logger, plan, generate_config)
+                # start the log
+                log_start(logger, plan, generate_config)
 
                 with td.progress() as p:
                     # forward progress
@@ -267,29 +276,32 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 ]
 
                 if len(completed_scores) > 0:
-                    results = eval_results(
+                    results, reductions = eval_results(
                         samples=profile.samples,
                         scores=completed_scores,
                         reducers=task.epochs_reducer,
                         scorers=scorers,
                         metrics=task.metrics,
                     )
-                    logger.log_results(results)
-                else:
-                    results = EvalResults()
 
                 # collect eval data
-                collect_eval_data(stats, logger)
+                collect_eval_data(stats)
 
                 # display task summary
-                td.complete(TaskSuccess(logger.samples_completed, stats, results))
+                td.complete(
+                    TaskSuccess(
+                        samples_completed=logger.samples_completed,
+                        stats=stats,
+                        results=results or EvalResults(),
+                    )
+                )
 
             except asyncio.CancelledError:
                 # flag as cancelled
                 cancelled = True
 
                 # collect eval data
-                collect_eval_data(stats, logger)
+                collect_eval_data(stats)
 
                 # display task cancelled
                 td.complete(TaskCancelled(logger.samples_completed, stats))
@@ -307,7 +319,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     error = eval_error(ex, type, value, traceback)
 
                     # collect eval data
-                    collect_eval_data(stats, logger)
+                    collect_eval_data(stats)
 
                     # display it
                     td.complete(
@@ -316,11 +328,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # log as appropriate
         if cancelled:
-            eval_log = logger.log_cancelled(stats)
+            eval_log = logger.log_finish("cancelled", stats, results, reductions)
         elif error:
-            eval_log = logger.log_failure(stats, error)
+            eval_log = logger.log_finish("error", stats, results, reductions, error)
         else:
-            eval_log = logger.log_success(stats)
+            eval_log = logger.log_finish("success", stats, results, reductions)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
@@ -341,7 +353,7 @@ async def task_run_sample(
     task_name: str,
     sample: Sample,
     state: TaskState,
-    sandbox: tuple[str, str | None] | None,
+    sandbox: SandboxEnvironmentSpec | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
@@ -362,7 +374,7 @@ async def task_run_sample(
                 progress()
             # log if requested
             if logger:
-                logger.log("sample", previous_sample, False)
+                logger.log_sample(previous_sample, flush=False)
 
             # return score
             if previous_sample.scores:
@@ -385,6 +397,7 @@ async def task_run_sample(
     )
 
     # initialise subtask and scoring context
+    init_sample_model_usage()
     set_sample_state(state)
     init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
@@ -461,8 +474,8 @@ async def task_run_sample(
                 state = state_without_base64_images(state)
 
             # log the sample
-            logger.log_sample(
-                epoch=state.epoch,
+            log_sample(
+                logger=logger,
                 sample=sample,
                 state=state,
                 scores=results,
@@ -477,13 +490,52 @@ async def task_run_sample(
             return None
 
 
+def log_sample(
+    logger: TaskLogger,
+    sample: Sample,
+    state: TaskState,
+    scores: dict[str, SampleScore],
+    error: EvalError | None,
+    log_images: bool,
+) -> None:
+    # sample must have id to be logged
+    id = sample.id
+    if id is None:
+        raise ValueError(
+            f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
+        )
+
+    # construct sample for logging
+    eval_sample = EvalSample(
+        id=id,
+        epoch=state.epoch,
+        input=sample.input,
+        choices=sample.choices,
+        target=sample.target,
+        metadata=state.metadata if state.metadata else {},
+        sandbox=sample.sandbox,
+        files=list(sample.files.keys()) if sample.files else None,
+        setup=sample.setup,
+        messages=state.messages,
+        output=state.output,
+        scores=cast(dict[str, Score], scores),
+        store=dict(state.store.items()),
+        events=transcript().events,
+        model_usage=sample_model_usage(),
+        error=error,
+    )
+
+    logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
+
+
 async def resolve_dataset(
     dataset: Dataset,
     model_name: ModelName,
     limit: int | tuple[int, int] | None,
     epochs: int,
     log_images: bool,
-    max_messages: int | None,
+    message_limit: int | None,
+    token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
     dataset_limit = (
@@ -492,11 +544,6 @@ async def resolve_dataset(
         else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
     )
     dataset = dataset[dataset_limit]
-
-    # add sample ids to dataset if they aren't there (start at 1 not 0)
-    for id, sample in zip(range(dataset_limit.start, dataset_limit.stop), dataset):
-        if sample.id is None:
-            sample.id = id + 1
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []
@@ -520,7 +567,8 @@ async def resolve_dataset(
                 input=sample.input,
                 choices=sample.choices,
                 messages=sample_messages(sample),
-                max_messages=max_messages,
+                message_limit=message_limit,
+                token_limit=token_limit,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )

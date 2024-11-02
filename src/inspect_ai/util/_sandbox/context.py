@@ -28,8 +28,8 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     if not environments:
         raise raise_no_sandbox()
 
-    # For 'default' or None take the first environment
-    if name is None or name == "default":
+    # For None, 'default', or a single environment only take the first environment
+    if name is None or name == "default" or len(environments) == 1:
         return list(environments.values())[0]
     else:
         environment = environments.get(name, None)

@@ -19,8 +19,8 @@ async def image_as_data(image: str) -> tuple[bytes, str]:
         image_base64 = data_uri_to_base64(image)
         image_bytes = base64.b64decode(image_base64)
     else:
-        # guess mime type
-        type, _ = mimetypes.guess_type(image)
+        # guess mime type; need strict=False for webp images
+        type, _ = mimetypes.guess_type(image, strict=False)
         if type:
             mime_type = type
         else:

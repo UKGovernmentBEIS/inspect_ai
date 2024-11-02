@@ -20,7 +20,7 @@ def ensure_entry_points(package: str | None = None) -> None:
         try:
             # if there is a package filter then condition on that
             if package is not None:
-                if ep.dist and ep.dist.name == package:
+                if ep.name and (ep.name == package):
                     ep.load()
                     _inspect_ai_eps_loaded.append(package)
 

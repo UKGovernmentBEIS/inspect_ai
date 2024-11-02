@@ -1,6 +1,7 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
+import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
 
 /**
  * This provides an API implementation that will serve a single
@@ -10,7 +11,7 @@ import { download_file } from "./api-shared.mjs";
  *
  * @param { string } log_dir - The log directory for this API.
  * @param { string } [log_file] - The log file for this API.
- * @returns { any } A Log Viewer API
+ * @returns { import("./Types.mjs").LogViewAPI } A Log Viewer API
  */
 export default function simpleHttpApi(log_dir, log_file) {
   const resolved_log_dir = log_dir.replace(" ", "+");
@@ -88,6 +89,12 @@ function simpleHttpAPI(logInfo) {
       cache.set(response.parsed);
       return response;
     },
+    eval_log_size: async (log_file) => {
+      return await fetchSize(log_file);
+    },
+    eval_log_bytes: async (log_file, start, end) => {
+      return await fetchRange(log_file, start, end);
+    },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
@@ -135,7 +142,6 @@ function simpleHttpAPI(logInfo) {
 async function fetchFile(url, parse, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
-  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {

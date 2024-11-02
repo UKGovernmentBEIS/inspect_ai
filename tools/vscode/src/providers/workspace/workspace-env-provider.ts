@@ -11,7 +11,9 @@ import { workspaceEnvCommands } from "./workspace-env-commands";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { log } from "../../core/log";
 import { existsSync, statSync } from "fs";
-import { toAbsolutePath, workspaceRelativePath } from "../../core/path";
+import { toAbsolutePath, workspacePath, workspaceRelativePath } from "../../core/path";
+import { kInspectEnvValues } from "../inspect/inspect-constants";
+import { join } from "path";
 
 export function activateWorkspaceEnv(): [Command[], WorkspaceEnvManager] {
   // Monitor changes to the file
@@ -77,6 +79,22 @@ export class WorkspaceEnvManager implements Disposable {
         }
       }
     });
+  }
+
+  public getDefaultLogDir() {
+    // See if there is a log dir
+    const envVals = this.getValues();
+    const env_log = envVals[kInspectEnvValues.logDir];
+
+    // If there is a log dir, try to parse and use it
+    try {
+      return Uri.parse(env_log, true);
+    } catch {
+      // This isn't a uri, bud
+      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
+      return Uri.file(logDir);
+    }
+
   }
 
   private readonly onEnvironmentChanged_ =

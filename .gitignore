@@ -163,6 +163,7 @@ cython_debug/
 *.*workspace
 data/datasets/*/hidden
 logs/
+logs-*/
 
 # thumbnails
 .DS_Store
@@ -171,4 +172,7 @@ thumbs.db
 # JS
 node_modules/
 
+# Quarto
 /.luarc.json
+/.Rproj.user
+*.Rproj

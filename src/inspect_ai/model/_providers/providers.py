@@ -165,6 +165,17 @@ def mistral() -> type[ModelAPI]:
     return MistralAPI
 
 
+@modelapi(name="grok")
+def grok() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Grok API")
+
+    # in the clear
+    from .grok import GrokAPI
+
+    return GrokAPI
+
+
 @modelapi(name="together")
 def together() -> type[ModelAPI]:
     # validate

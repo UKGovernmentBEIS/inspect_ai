@@ -1,5 +1,146 @@
 {
   "$defs": {
+    "ApprovalEvent": {
+      "description": "Tool approval.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "approval",
+          "default": "approval",
+          "enum": [
+            "approval"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "call": {
+          "$ref": "#/$defs/ToolCall"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "approver": {
+          "title": "Approver",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "modify",
+            "reject",
+            "escalate",
+            "terminate"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "modified": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "message",
+        "call",
+        "view",
+        "approver",
+        "decision",
+        "modified",
+        "explanation"
+      ],
+      "title": "ApprovalEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ApprovalPolicyConfig": {
+      "properties": {
+        "approvers": {
+          "items": {
+            "$ref": "#/$defs/ApproverPolicyConfig"
+          },
+          "title": "Approvers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "approvers"
+      ],
+      "title": "ApprovalPolicyConfig",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ApproverPolicyConfig": {
+      "additionalProperties": false,
+      "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tools"
+        },
+        "params": {
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "tools",
+        "params"
+      ],
+      "title": "ApproverPolicyConfig",
+      "type": "object"
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -468,6 +609,29 @@
           "default": null,
           "title": "Epochs Reducer"
         },
+        "trace": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace"
+        },
+        "approval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalPolicyConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "fail_on_error": {
           "anyOf": [
             {
@@ -483,7 +647,7 @@
           "default": null,
           "title": "Fail On Error"
         },
-        "max_messages": {
+        "message_limit": {
           "anyOf": [
             {
               "type": "integer"
@@ -493,7 +657,19 @@
             }
           ],
           "default": null,
-          "title": "Max Messages"
+          "title": "Message Limit"
+        },
+        "token_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Limit"
         },
         "max_samples": {
           "anyOf": [
@@ -586,8 +762,11 @@
         "limit",
         "epochs",
         "epochs_reducer",
+        "trace",
+        "approval",
         "fail_on_error",
-        "max_messages",
+        "message_limit",
+        "token_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -636,6 +815,28 @@
           "default": null,
           "title": "Samples"
         },
+        "sample_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Ids"
+        },
         "shuffled": {
           "anyOf": [
             {
@@ -655,6 +856,7 @@
         "name",
         "location",
         "samples",
+        "sample_ids",
         "shuffled"
       ],
       "additionalProperties": false
@@ -683,68 +885,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "EvalEvents": {
-      "properties": {
-        "events": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/SampleInitEvent"
-              },
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/InputEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ErrorEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
-          "title": "Events",
-          "type": "array"
-        },
-        "content": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Content",
-          "type": "object"
-        }
-      },
-      "title": "EvalEvents",
-      "type": "object",
-      "required": [
-        "events",
-        "content"
-      ],
-      "additionalProperties": false
-    },
     "EvalMetric": {
       "properties": {
         "name": {
@@ -763,7 +903,6 @@
           "title": "Value"
         },
         "options": {
-          "default": {},
           "title": "Options",
           "type": "object"
         },
@@ -860,7 +999,6 @@
           "type": "string"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         }
@@ -904,21 +1042,6 @@
           ],
           "default": null,
           "title": "Metadata"
-        },
-        "sample_reductions": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/EvalSampleReductions"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Sample Reductions"
         }
       },
       "title": "EvalResults",
@@ -927,8 +1050,7 @@
         "total_samples",
         "completed_samples",
         "scores",
-        "metadata",
-        "sample_reductions"
+        "metadata"
       ],
       "additionalProperties": false
     },
@@ -1036,31 +1158,13 @@
         "sandbox": {
           "anyOf": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
-              "type": "array"
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sandbox"
+          "default": null
         },
         "files": {
           "anyOf": [
@@ -1132,12 +1236,62 @@
           "type": "object"
         },
         "store": {
-          "default": {},
           "title": "Store",
           "type": "object"
         },
-        "transcript": {
-          "$ref": "#/$defs/EvalEvents"
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
+                "$ref": "#/$defs/InputEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ErrorEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "model_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Model Usage",
+          "type": "object"
         },
         "error": {
           "anyOf": [
@@ -1149,6 +1303,13 @@
             }
           ],
           "default": null
+        },
+        "attachments": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Attachments",
+          "type": "object"
         }
       },
       "required": [
@@ -1165,8 +1326,10 @@
         "scores",
         "metadata",
         "store",
-        "transcript",
-        "error"
+        "events",
+        "model_usage",
+        "error",
+        "attachments"
       ],
       "title": "EvalSample",
       "type": "object",
@@ -1230,7 +1393,6 @@
           "title": "Reducer"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         },
@@ -1238,7 +1400,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/EvalMetric"
           },
-          "default": [],
           "title": "Metrics",
           "type": "object"
         },
@@ -1270,7 +1431,6 @@
     "EvalSpec": {
       "properties": {
         "run_id": {
-          "default": "",
           "title": "Run Id",
           "type": "string"
         },
@@ -1283,7 +1443,6 @@
           "type": "string"
         },
         "task_id": {
-          "default": "",
           "title": "Task Id",
           "type": "string"
         },
@@ -1305,12 +1464,10 @@
           "title": "Task File"
         },
         "task_attribs": {
-          "default": {},
           "title": "Task Attribs",
           "type": "object"
         },
         "task_args": {
-          "default": {},
           "title": "Task Args",
           "type": "object"
         },
@@ -1338,29 +1495,12 @@
           "default": null,
           "title": "Solver Args"
         },
-        "dataset": {
-          "$ref": "#/$defs/EvalDataset"
-        },
-        "sandbox": {
+        "tags": {
           "anyOf": [
             {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
+              "items": {
+                "type": "string"
+              },
               "type": "array"
             },
             {
@@ -1368,7 +1508,21 @@
             }
           ],
           "default": null,
-          "title": "Sandbox"
+          "title": "Tags"
+        },
+        "dataset": {
+          "$ref": "#/$defs/EvalDataset"
+        },
+        "sandbox": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "model": {
           "title": "Model",
@@ -1387,7 +1541,6 @@
           "title": "Model Base Url"
         },
         "model_args": {
-          "default": {},
           "title": "Model Args",
           "type": "object"
         },
@@ -1409,7 +1562,6 @@
           "additionalProperties": {
             "type": "string"
           },
-          "default": {},
           "title": "Packages",
           "type": "object"
         },
@@ -1437,6 +1589,7 @@
         "task_args",
         "solver",
         "solver_args",
+        "tags",
         "dataset",
         "sandbox",
         "model",
@@ -1454,12 +1607,10 @@
     "EvalStats": {
       "properties": {
         "started_at": {
-          "default": "",
           "title": "Started At",
           "type": "string"
         },
         "completed_at": {
-          "default": "",
           "title": "Completed At",
           "type": "string"
         },
@@ -1467,7 +1618,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/ModelUsage"
           },
-          "default": {},
           "title": "Model Usage",
           "type": "object"
         }
@@ -2202,7 +2352,6 @@
     "ModelOutput": {
       "properties": {
         "model": {
-          "default": "",
           "title": "Model",
           "type": "string"
         },
@@ -2302,7 +2451,6 @@
       "additionalProperties": false
     },
     "Sample": {
-      "description": "Sample to be used in an evaluation task.\n\nArgs:\n    input (str | list[ChatMessage]): The input to be submitted to the model.\n    choices (list[str] | None): Optional. List of available answer choices\n       (used only for multiple-choice evals).\n    target (str | list[str]): Optional. Ideal target output. May be a literal value\n        or narrative text to be used by a model grader.\n    id (int | str | None): Optional. Unique identifier for sample.\n    metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.\n    sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment\n      type and optional config file.\n    files (dict[str, str] | None): Optional. Files that go along with the sample (copied to\n      SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).\n    setup (str | None): Optional. Setup script to run for sample (run\n      within default SandboxEnvironment).",
       "properties": {
         "input": {
           "anyOf": [
@@ -2358,7 +2506,6 @@
               "type": "array"
             }
           ],
-          "default": "",
           "title": "Target"
         },
         "id": {
@@ -2391,34 +2538,13 @@
         "sandbox": {
           "anyOf": [
             {
-              "type": "string"
-            },
-            {
-              "maxItems": 2,
-              "minItems": 2,
-              "prefixItems": [
-                {
-                  "type": "string"
-                },
-                {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                }
-              ],
-              "type": "array"
+              "$ref": "#/$defs/SandboxEnvironmentSpec"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sandbox"
+          "default": null
         },
         "files": {
           "anyOf": [
@@ -2619,6 +2745,29 @@
       "title": "SampleScore",
       "type": "object",
       "additionalProperties": false
+    },
+    "SandboxEnvironmentSpec": {
+      "maxItems": 2,
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "title": "Type",
+          "type": "string"
+        },
+        {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Config"
+        }
+      ],
+      "type": "array"
     },
     "Score": {
       "description": "Score generated by a scorer.\n\nArgs:\n   value (Value): Score value.\n   answer (str | None): Answer extracted from model output (optional).\n   explanation (str | None): Explanation of score (optional).\n   metadata (dict[str,Any]): Additional metadata related to the score.",
@@ -2958,6 +3107,9 @@
                 "$ref": "#/$defs/ToolEvent"
               },
               {
+                "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
                 "$ref": "#/$defs/InputEvent"
               },
               {
@@ -3043,6 +3195,30 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ToolCallContent": {
+      "description": "Content to include in tool call view.",
+      "properties": {
+        "format": {
+          "enum": [
+            "text",
+            "markdown"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "content"
+      ],
+      "title": "ToolCallContent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ToolCallError": {
       "properties": {
         "type": {
@@ -3053,6 +3229,7 @@
             "permission",
             "file_not_found",
             "is_a_directory",
+            "approval",
             "unknown"
           ],
           "title": "Type",
@@ -3069,6 +3246,40 @@
       ],
       "title": "ToolCallError",
       "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallView": {
+      "description": "Custom view of a tool call.\n\nBoth `context` and `call` are optional. If `call` is not specified\nthen the view will default to a syntax highlighted Python function call.",
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolCallView",
+      "type": "object",
+      "required": [
+        "context",
+        "call"
+      ],
       "additionalProperties": false
     },
     "ToolEvent": {
@@ -3164,6 +3375,17 @@
           "default": null,
           "title": "Truncated"
         },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -3192,6 +3414,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"
@@ -3229,6 +3454,7 @@
         "arguments",
         "result",
         "truncated",
+        "view",
         "error",
         "events"
       ],
@@ -3567,6 +3793,21 @@
       ],
       "default": null,
       "title": "Samples"
+    },
+    "reductions": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/EvalSampleReductions"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reductions"
     }
   },
   "required": [

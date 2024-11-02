@@ -37,16 +37,16 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
 
     frequency_penalty: float | None
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and Groq only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only."""
 
     presence_penalty: float | None
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI only and Groq only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only."""
 
     logit_bias: dict[int, float] | None
-    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
+    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI and Grok only."""
 
     seed: int | None
-    """Random seed. OpenAI and Mistral only."""
+    """Random seed. OpenAI, Grok, and Mistral only."""
 
     suffix: str | None
     """The suffix that comes after a completion of inserted text. OpenAI only."""
@@ -55,13 +55,13 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
 
     num_choices: int | None
-    """How many chat completion choices to generate for each input message. OpenAI, Google, and TogetherAI only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only."""
+    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, and HuggingFface only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
 
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
@@ -104,13 +104,13 @@ class GenerateConfig(BaseModel):
     """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI and vLLM only."""
 
     frequency_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Groq, and vLLM only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only."""
 
     presence_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Groq, and vLLM only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only."""
 
     logit_bias: dict[int, float] | None = Field(default=None)
-    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI only."""
+    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI, Grok, and Grok only."""
 
     seed: int | None = Field(default=None)
     """Random seed. OpenAI, Mistral, HuggingFace, and vLLM only."""
@@ -122,13 +122,13 @@ class GenerateConfig(BaseModel):
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only."""
 
     num_choices: int | None = Field(default=None)
-    """How many chat completion choices to generate for each input message. OpenAI, Google, TogetherAI, and vLLM only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only."""
 
     logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI, TogetherAI, Huggingface, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only."""
 
     top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Huggingface, and vLLM only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, and vLLM only."""
 
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""

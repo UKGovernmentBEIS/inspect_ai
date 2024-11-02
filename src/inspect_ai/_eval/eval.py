@@ -2,16 +2,27 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._util.config import resolve_args
+from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
+from inspect_ai.approval._apply import init_tool_approval
+from inspect_ai.approval._policy import (
+    ApprovalPolicy,
+    ApprovalPolicyConfig,
+    approval_policies_from_config,
+    config_from_approval_policies,
+)
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
-from inspect_ai.log._file import JSONRecorder
+from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
@@ -21,7 +32,7 @@ from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentType
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -35,18 +46,24 @@ def eval(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    tags: list[str] | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -66,18 +83,28 @@ def eval(
             environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironmentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        model_args (dict[str,Any] | str): Model creation args
+            (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+            (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        tags (list[str] | None): Tags to associate with this evaluation run.
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -88,8 +115,8 @@ def eval(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -98,9 +125,10 @@ def eval(
            run in parallel (default is os.cpu_count())
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
-            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+           even if specified as a filename or URL (defaults to False)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -120,13 +148,19 @@ def eval(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            tags=tags,
+            trace=trace,
+            approval=approval,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -143,18 +177,24 @@ async def eval_async(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    tags: list[str] | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -174,18 +214,28 @@ async def eval_async(
             environment variable.
         model_base_url: (str | None): Base URL for communicating
             with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        model_args (dict[str,Any] | str): Model creation args
+            (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+            (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-            or "critical" (defaults to "info")
+        tags (list[str] | None): Tags to associate with this evaluation run.
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
             (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
             (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -195,19 +245,21 @@ async def eval_async(
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-            in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
+
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -225,16 +277,25 @@ async def eval_async(
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
     _eval_async_running = True
+
+    # resolve model and task args
+    model_args = resolve_args(model_args)
+    task_args = resolve_args(task_args)
+
     try:
-        model, resolved_tasks = eval_init(
+        # intialise eval
+        model, approval, resolved_tasks = eval_init(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
             sandbox=sandbox,
+            trace=trace,
+            approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             **kwargs,
         )
 
@@ -243,10 +304,25 @@ async def eval_async(
             log.warning("No inspect tasks were found at the specified paths.")
             return []
 
+        # apply trace mode constraints
+        if trace:
+            # single task at a time
+            if max_tasks is not None:
+                max_tasks = 1
+
+            # single sample at a time
+            max_samples = 1
+
+            # multiple models not allowed in trace mode
+            if len(model) > 1:
+                raise PrerequisiteError(
+                    "Trace mode cannot be used when evaluating multiple models."
+                )
+
         # resolve recorder
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
         log_dir = absolute_file_path(log_dir)
-        recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
+        recorder = create_recorder_for_format(log_format or DEFAULT_LOG_FORMAT, log_dir)
 
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver
@@ -265,8 +341,11 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
+            trace=trace,
+            approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -300,6 +379,7 @@ async def eval_async(
                         model_args=model_args,
                         epochs_reducer=epochs_reducer,
                         solver=solver,
+                        tags=tags,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -323,6 +403,7 @@ async def eval_async(
                 model_args=model_args,
                 epochs_reducer=epochs_reducer,
                 solver=solver,
+                tags=tags,
                 score=score,
                 **kwargs,
             )
@@ -342,11 +423,15 @@ _eval_async_running = False
 def eval_retry(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    trace: bool | None = None,
+    fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -361,10 +446,13 @@ def eval_retry(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -373,13 +461,19 @@ def eval_retry(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        trace (bool | None): Trace message interactions with evaluated model to terminal.
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.
@@ -397,11 +491,15 @@ def eval_retry(
         eval_retry_async(
             tasks=tasks,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
+            trace=trace,
+            fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
             log_images=log_images,
@@ -417,11 +515,15 @@ def eval_retry(
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    trace: bool | None = None,
+    fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -436,10 +538,13 @@ async def eval_retry_async(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -448,13 +553,19 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        trace (bool | None): Trace message interactions with evaluated model to terminal.
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.
@@ -517,14 +628,17 @@ async def eval_retry_async(
         model_base_url = eval_log.eval.model_base_url
         model_args = eval_log.eval.model_args
         task_args = eval_log.eval.task_args
+        tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
             if eval_log.eval.config.epochs
             else None
         )
-        fail_on_error = eval_log.eval.config.fail_on_error
-        max_messages = eval_log.eval.config.max_messages
+        trace = eval_log.eval.config.trace or trace
+        approval = eval_log.eval.config.approval
+        message_limit = eval_log.eval.config.message_limit
+        token_limit = eval_log.eval.config.token_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -532,6 +646,11 @@ async def eval_retry_async(
             sandbox_cleanup
             if sandbox_cleanup is not None
             else eval_log.eval.config.sandbox_cleanup
+        )
+        fail_on_error = (
+            fail_on_error
+            if fail_on_error is not None
+            else eval_log.eval.config.fail_on_error
         )
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
@@ -561,13 +680,19 @@ async def eval_retry_async(
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
+                tags=tags,
+                trace=trace,
+                approval=approval,
                 log_level=log_level,
+                log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
+                log_format=log_format,
                 limit=limit,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 debug_errors=debug_errors,
-                max_messages=max_messages,
+                message_limit=message_limit,
+                token_limit=token_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -589,15 +714,29 @@ def eval_init(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ResolvedTask]]:
+) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(log_level, max_subprocesses)
+    init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
+
+    # resolve model and task args
+    model_args = resolve_args(model_args)
+    task_args = resolve_args(task_args)
+
+    # resolve model args from environment if not specified
+    if len(model_args) == 0:
+        env_model_args = os.environ.get("INSPECT_EVAL_MODEL_ARGS", None)
+        if env_model_args:
+            args = [arg.strip() for arg in env_model_args.split(" ")]
+            model_args = parse_cli_args(args)
 
     # resolve models
     generate_config = GenerateConfig(**kwargs)
@@ -610,7 +749,12 @@ def eval_init(
         init_active_model(m, generate_config)
         resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
-    return models, resolved_tasks
+    # resolve approval
+    if isinstance(approval, str | ApprovalPolicyConfig):
+        approval = approval_policies_from_config(approval)
+    init_tool_approval(approval)
+
+    return models, approval, resolved_tasks
 
 
 # A list of eval logs is returned from eval(). We've already displayed

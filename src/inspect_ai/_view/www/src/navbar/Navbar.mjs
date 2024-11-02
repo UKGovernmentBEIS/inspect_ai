@@ -9,16 +9,38 @@ import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { CopyButton } from "./../components/CopyButton.mjs";
 import { SecondaryBar } from "./SecondaryBar.mjs";
 
-export const Navbar = ({ file, logs, log, offcanvas }) => {
+/**
+ * Renders the Navbar
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} [props.file] - The file name
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec
+ * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
+ * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {string} [props.status] - the status
+ * @param {boolean} props.offcanvas - Are we in offcanvas mode?
+ * @param {boolean} props.showToggle - Should we show the toggle?
+ *
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const Navbar = ({
+  file,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  showToggle,
+  offcanvas,
+  status,
+}) => {
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
 
-  const task = log?.eval?.task;
-  const model = log?.eval?.model;
-  const results = log?.results;
-  const samples = log?.samples;
-  const status = log?.status;
-  const created = log?.eval?.created;
+  const task = evalSpec?.task;
+  const model = evalSpec?.model;
+  const results = evalResults;
+  const created = evalSpec?.created;
 
   let statusPanel;
   if (status === "success") {
@@ -42,7 +64,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
             minWidth: "250px",
           }}
         >
-          ${logs.files.length > 1 || logs.log_dir
+          ${showToggle
             ? html`<button
                 id="sidebarToggle"
                 class="btn${toggleOffCanClass}"
@@ -151,7 +173,10 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
       >
         ${navbarContents}
         <${SecondaryBar}
-          log=${log}
+          evalSpec=${evalSpec}
+          evalPlan=${evalPlan}
+          evalResults=${evalResults}
+          samples=${samples}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
         />
@@ -171,7 +196,7 @@ const CanceledPanel = ({ sampleCount }) => {
   >
     <i
       class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large }}
+      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
   </div>`;

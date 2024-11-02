@@ -11,7 +11,7 @@ from inspect_ai._display._display import clear_task_screen, init_task_screen
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog
-from inspect_ai.log._log import Recorder
+from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -27,7 +27,7 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.rundir import task_run_dir_switching
-from .task.sandbox import resolve_sandbox_for_task
+from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
 from .task.util import task_run_dir
 
 log = logging.getLogger(__name__)
@@ -42,6 +42,7 @@ async def eval_run(
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
+    tags: list[str] | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -86,9 +87,10 @@ async def eval_run(
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
-                # tasks can provide their epochs, max_messages, and fail_on_error
-                # so broadcast these into the eval config (so long as they aren't
-                # overriding a value specified from eval() or the CLI)
+                # tasks can provide their epochs, message_limit,
+                # token_limit, and fail_on_error so broadcast these
+                # into the eval config (so long as they aren't overriding a
+                # value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
 
@@ -113,17 +115,28 @@ async def eval_run(
                     for reducer in task.epochs_reducer:
                         validate_reducer(task.epochs, reducer)
 
-                # max messages
-                if task_eval_config.max_messages is None:
-                    task_eval_config.max_messages = task.max_messages
+                # sample message limit
+                if task_eval_config.message_limit is None:
+                    task_eval_config.message_limit = task.message_limit
                 else:
-                    task.max_messages = task_eval_config.max_messages
+                    task.message_limit = task_eval_config.message_limit
+
+                # sample token limit
+                if task_eval_config.token_limit is None:
+                    task_eval_config.token_limit = task.token_limit
+                else:
+                    task.token_limit = task_eval_config.token_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
+
+                # add sample ids to dataset if they aren't there (start at 1 not 0)
+                for id, sample in enumerate(task.dataset):
+                    if sample.id is None:
+                        sample.id = id + 1
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -133,6 +146,7 @@ async def eval_run(
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
                     solver=eval_solver_spec,
+                    tags=tags,
                     model=resolved_task.model,
                     dataset=task.dataset,
                     sandbox=resolved_task.sandbox,
@@ -140,6 +154,7 @@ async def eval_run(
                     task_args=resolved_task.task_args,
                     model_args=model_args,
                     eval_config=task_eval_config,
+                    metadata=task.metadata,
                     recorder=recorder,
                 )
 
@@ -153,6 +168,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
+                        tags=tags,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
@@ -169,7 +185,8 @@ async def eval_run(
                 with task_run_dir_switching():
                     return await run_multiple(task_run_options, parallel)
             else:
-                return await run_multiple(task_run_options, parallel)
+                with chdir(run_dir):
+                    return await run_multiple(task_run_options, parallel)
 
         # single mode is for a single task definitions (which
         # could in turn be executed for multiple models)
@@ -301,7 +318,7 @@ async def startup_sandbox_environments(
     tasks: list[ResolvedTask], cleanup: bool
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
-    sandboxenvs: Set[tuple[str, str | None, str]] = set()
+    sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
         for sample in task.task.dataset:
@@ -313,16 +330,16 @@ async def startup_sandbox_environments(
     cleanups: list[tuple[TaskCleanup, str | None, str]] = []
     for sandboxenv in sandboxenvs:
         # find type
-        sandboxenv_type = registry_find_sandboxenv(sandboxenv[0])
+        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
         # run startup
         task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv[2]):
-            await task_init("startup", sandboxenv[1])
+        with chdir(sandboxenv.run_dir):
+            await task_init("startup", sandboxenv.sandbox.config)
 
         # append cleanup method
         task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-        cleanups.append((task_cleanup, sandboxenv[1], sandboxenv[2]))
+        cleanups.append((task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir))
 
     # return shutdown method
     async def shutdown() -> None:

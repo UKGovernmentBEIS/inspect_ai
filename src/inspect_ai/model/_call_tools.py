@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-from dataclasses import dataclass, is_dataclass
+from dataclasses import is_dataclass
 from textwrap import dedent
 from typing import (
     Any,
@@ -9,7 +9,6 @@ from typing import (
     List,
     NamedTuple,
     Type,
-    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -20,17 +19,18 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai.model._trace import trace_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import TOOL_PARALLEL, TOOL_PROMPT, ToolParsingError
-from inspect_ai.tool._tool_call import ToolCallError
-from inspect_ai.tool._tool_info import (
-    ToolParams,
-    parse_docstring,
-    parse_tool_info,
+from inspect_ai.tool._tool import (
+    ToolApprovalError,
+    ToolParsingError,
 )
-from inspect_ai.tool._tool_with import tool_description
+from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_def import ToolDef, tool_defs
+from inspect_ai.tool._tool_info import parse_docstring
+from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util import OutputLimitExceededError
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 from ._generate_config import active_generate_config
@@ -38,7 +38,7 @@ from ._generate_config import active_generate_config
 
 async def call_tools(
     message: ChatMessageAssistant,
-    tools: list[Tool],
+    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
     max_output: int | None = None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
@@ -72,7 +72,7 @@ async def call_tools(
             tool_error: ToolCallError | None = None
             try:
                 with track_store_changes():
-                    result = await call_tool(tdefs, call)
+                    result = await call_tool(tdefs, message.text, call)
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -83,22 +83,30 @@ async def call_tools(
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
             except PermissionError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("permission", err)
             except FileNotFoundError as ex:
                 tool_error = ToolCallError(
                     "file_not_found",
                     f"File '{ex.filename}' was not found.",
                 )
             except IsADirectoryError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("is_a_directory", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("is_a_directory", err)
+            except OutputLimitExceededError as ex:
+                tool_error = ToolCallError(
+                    "output_limit",
+                    f"The tool output limit of {ex.limit_str} was exceeded.",
+                )
+                result = ex.truncated_output or ""
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
+            except ToolApprovalError as ex:
+                tool_error = ToolCallError("approval", ex.message)
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
 
@@ -130,6 +138,7 @@ async def call_tools(
                 arguments=call.arguments,
                 result=content,
                 truncated=truncated,
+                view=tool_call_view(call, tdefs),
                 error=tool_error,
                 events=transcript().events,
             )
@@ -142,12 +151,19 @@ async def call_tools(
                 error=tool_error,
             ), event
 
-        # call tools in parallel
-        tasks = [call_tool_task(call) for call in message.tool_calls]
-        results = await asyncio.gather(*tasks)
+        # call tools in parallel unless disabled by one of the tools
+        if disable_parallel_tools(tdefs):
+            results: list[tuple[ChatMessageTool, ToolEvent]] = []
+            for call in message.tool_calls:
+                task = asyncio.create_task(call_tool_task(call))
+                results.append(await task)
+        else:
+            tasks = [call_tool_task(call) for call in message.tool_calls]
+            results = await asyncio.gather(*tasks)
 
-        # fire tool events for each result
-        for event in [result[1] for result in results]:
+        # trace and fire tool events for each result
+        for tool_message, event in [result for result in results]:
+            trace_tool_mesage(tool_message)
             transcript()._event(event)
 
         # return tool messages
@@ -157,25 +173,7 @@ async def call_tools(
         return []
 
 
-@dataclass
-class ToolDef:
-    name: str
-    """Tool name."""
-
-    description: str
-    """Tool description."""
-
-    parameters: ToolParams
-    """Tool parameters"""
-
-    parallel: bool
-    """Supports parallel execution."""
-
-    tool: Callable[..., Any]
-    """Callable to execute tool."""
-
-
-async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
+async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise ToolParsingError(call.parse_error)
@@ -184,6 +182,15 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
         raise ToolParsingError(f"Tool {call.function} not found")
+
+    # if we have a tool approver, apply it now
+    from inspect_ai.approval._apply import apply_tool_approval
+
+    approved, approval = await apply_tool_approval(message, call, tool_def.viewer)
+    if not approved:
+        raise ToolApprovalError(approval.explanation if approval else None)
+    if approval and approval.modified:
+        call = approval.modified
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -196,102 +203,45 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # call the tool
     result = await tool_def.tool(**arguments)
 
-    # return result + events
+    # return result
     return result
 
 
-def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
-    if len(tools) > 0:
-        if isinstance(tools[0], ToolInfo):
-            return cast(list[ToolInfo], tools)
+def tools_info(
+    tools: list[Tool]
+    | list[ToolDef]
+    | list[ToolInfo]
+    | list[Tool | ToolDef | ToolInfo],
+) -> list[ToolInfo]:
+    tools_info: list[ToolInfo] = []
+    for tool in tools:
+        if isinstance(tool, ToolInfo):
+            tools_info.append(tool)
         else:
-            tdefs = tool_defs(cast(list[Tool], tools))
-            return [
+            if isinstance(tool, Tool):
+                tool = ToolDef(tool)
+            tools_info.append(
                 ToolInfo(
                     name=tool.name,
                     description=tool.description,
                     parameters=tool.parameters,
                 )
-                for tool in tdefs
-            ]
-    else:
-        return []
+            )
+    return tools_info
 
 
-def disable_parallel_tools(tools: list[Tool] | list[ToolInfo]) -> bool:
+def disable_parallel_tools(
+    tools: list[Tool]
+    | list[ToolDef]
+    | list[ToolInfo]
+    | list[Tool | ToolDef | ToolInfo],
+) -> bool:
     for tool in tools:
         if isinstance(tool, Tool):
-            _, _, parallel = tool_registry_info(tool)
-            if not parallel:
-                return True
+            tool = ToolDef(tool)
+        if isinstance(tool, ToolDef) and not tool.parallel:
+            return True
     return False
-
-
-def tool_defs(tools: list[Tool]) -> list[ToolDef]:
-    return [tool_def(tool) for tool in tools]
-
-
-def tool_def(tool: Tool) -> ToolDef:
-    # get tool_info
-    name, prompt, parallel = tool_registry_info(tool)
-    tool_info = parse_tool_info(tool)
-
-    # if there is a description then append any prompt to the
-    # the description (note that 'prompt' has been depreacted
-    # in favor of just providing a description in the doc comment.
-    if tool_info.description:
-        if prompt:
-            tool_info.description = f"{tool_info.description}. {prompt}"
-
-    # if there is no description and there is a prompt, then use
-    # the prompt as the description
-    elif prompt:
-        tool_info.description = prompt
-
-    # no description! we can't proceed without one
-    else:
-        raise ValueError(f"Description not provided for tool function '{name}'")
-
-    # validate that we have types/descriptions for paramters
-    for param_name, param in tool_info.parameters.properties.items():
-
-        def raise_not_provided_error(context: str) -> None:
-            raise ValueError(
-                f"{context} not provided for parameter '{param_name}' of tool function '{name}'."
-            )
-
-        if param.type == "null":
-            raise_not_provided_error("Type annotation")
-        elif not param.description:
-            raise_not_provided_error("Description")
-
-    # see if the user has overriden any of the tool's descriptions
-    desc = tool_description(tool)
-    if desc.name:
-        name = desc.name
-    if desc.description:
-        tool_info.description = desc.description
-    if desc.parameters:
-        for key, description in desc.parameters.items():
-            if key in tool_info.parameters.properties.keys():
-                tool_info.parameters.properties[key].description = description
-
-    # build tool def
-    return ToolDef(
-        name=name,
-        description=tool_info.description,
-        parameters=tool_info.parameters,
-        parallel=parallel,
-        tool=tool,
-    )
-
-
-def tool_registry_info(tool: Tool) -> tuple[str, str | None, bool]:
-    info = registry_info(tool)
-    name = info.name.split("/")[-1]
-    prompt = info.metadata.get(TOOL_PROMPT, None)
-    parallel = info.metadata.get(TOOL_PARALLEL, True)
-    return name, prompt, parallel
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
@@ -307,7 +257,7 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         docstring_info = parse_docstring(docstring, param_name)
 
         # get type hint (fallback to docstring as required)
-        type_hint: Type[Any] | None
+        type_hint: Type[Any] | None = None
         if param_name in type_hints:
             type_hint = type_hints[param_name]
         # as a fallback try to parse it from the docstring
@@ -354,7 +304,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             dataclass_data: dict[str, Any] = {}
             fields = type_hint.__dataclass_fields__  # type: ignore
             for name, field in fields.items():
-                dataclass_data[name] = tool_param(field.type, input.get(name))
+                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
@@ -372,6 +322,14 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return input
     else:
         return input
+
+
+def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
+    tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
+    if tool_def and tool_def.viewer:
+        return tool_def.viewer(call).call
+    else:
+        return None
 
 
 def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:

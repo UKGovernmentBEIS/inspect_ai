@@ -1,18 +1,20 @@
+//@ts-check
+
 import { asyncJsonParse } from "../utils/Json.mjs";
+// @ts-ignore
 import JSON5 from "json5";
 
 import {
   webViewJsonRpcClient,
   kMethodEvalLog,
   kMethodEvalLogs,
+  kMethodEvalLogSize,
+  kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
 } from "./jsonrpc.mjs";
+import { getVscodeApi } from "../utils/vscode.mjs";
 
-const vscodeApi = window.acquireVsCodeApi
-  ? window.acquireVsCodeApi()
-  : undefined;
-
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
 async function client_events() {
   return [];
@@ -40,7 +42,7 @@ async function eval_log(file, headerOnly, capabilities) {
   const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
   if (response) {
     let json;
-    if (capabilities.webWorkers) {
+    if (capabilities?.webWorkers) {
       json = await asyncJsonParse(response);
     } else {
       json = JSON5.parse(response);
@@ -54,6 +56,14 @@ async function eval_log(file, headerOnly, capabilities) {
   }
 }
 
+async function eval_log_size(file) {
+  return await vscodeClient(kMethodEvalLogSize, [file]);
+}
+
+async function eval_log_bytes(file, start, end) {
+  return await vscodeClient(kMethodEvalLogBytes, [file, start, end]);
+}
+
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
@@ -63,8 +73,8 @@ async function eval_log_headers(files) {
   }
 }
 
-async function download_file(logFile) {
-  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+async function download_file() {
+  throw Error("Downloading files is not supported in VS Code");
 }
 
 async function open_log_file(url, log_dir) {
@@ -73,13 +83,16 @@ async function open_log_file(url, log_dir) {
     url: url,
     log_dir: log_dir,
   };
-  vscodeApi.postMessage(msg);
+  getVscodeApi().postMessage(msg);
 }
 
+/** @type {import("./Types.mjs").LogViewAPI} */
 export default {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_size,
+  eval_log_bytes,
   eval_log_headers,
   download_file,
   open_log_file,

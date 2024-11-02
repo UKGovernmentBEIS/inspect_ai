@@ -11,18 +11,17 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { InputEventView } from "./InputEventView.mjs";
+import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 
 /**
  * Renders the TranscriptView component.
  *
- * @param {Object} params - The parameters for the component.
- * @param {string} params.id - The identifier for this view
- * @param {import("../../types/log").Events} params.events - The transcript events to display.
- * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
- * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
- * @param {number} params.depth - The base depth for this transcript view
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The identifier for this view
+ * @param {import("../../types/log").Events} props.events - The transcript events to display.
+ * @param {number} props.depth - The base depth for this transcript view
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ id, events, depth = 0 }) => {
@@ -35,10 +34,10 @@ export const TranscriptView = ({ id, events, depth = 0 }) => {
 /**
  * Renders the Transcript component.
  *
- * @param {Object} params - The parameters for the component.
- * @param {string} params.id - The identifier for this view
- * @param {EventNode[]} params.eventNodes - The transcript events nodes to display.
- * @param {Object} params.style - The transcript style to display.
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The identifier for this view
+ * @param {EventNode[]} props.eventNodes - The transcript events nodes to display.
+ * @param {Object} props.style - The transcript style to display.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptComponent = ({ id, eventNodes, style }) => {
@@ -175,6 +174,13 @@ export const RenderedEventNode = ({ id, node, style }) => {
 
     case "error":
       return html`<${ErrorEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+
+    case "approval":
+      return html`<${ApprovalEventView}
         id=${id}
         event=${node.event}
         style=${style}

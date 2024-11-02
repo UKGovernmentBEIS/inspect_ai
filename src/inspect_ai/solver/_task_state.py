@@ -15,7 +15,9 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
 
 
@@ -134,10 +136,9 @@ class TaskState:
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
         choices: list[str] | None = [],
-        tools: list[Tool] = [],
-        tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
-        max_messages: int | None = None,
+        message_limit: int | None = None,
+        token_limit: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
     ) -> None:
@@ -171,10 +172,10 @@ class TaskState:
         model performance or choose the next step.
         """
 
-        self.tools = tools
+        self._tools: list[Tool] = []
         """Tools available to the model."""
 
-        self.tool_choice = tool_choice
+        self.tool_choice: ToolChoice | None = None
         """Tool choice directive."""
 
         self.output = output if output else ModelOutput(model=str(model), choices=[])
@@ -186,7 +187,10 @@ class TaskState:
         different ways depending on what solvers are used..
         """
 
-        self._max_messages = max_messages
+        self._message_limit = message_limit
+        self._message_limit_exceeded = False
+        self._token_limit = token_limit
+        self._token_limit_exceeded = False
         self._completed = completed
 
         """Store for shared data"""
@@ -251,20 +255,56 @@ class TaskState:
 
     @property
     def max_messages(self) -> int | None:
-        """max_messages before task is marked completed."""
-        return self._max_messages
+        """Deprecated (use message_limit)."""
+        return self.message_limit
 
     @max_messages.setter
     def max_messages(self, messages: int | None) -> None:
-        """Set max_messages before task is marked complete."""
-        self._max_messages = messages
+        """Deprecated (use message_limit)."""
+        self.message_limit = messages
+
+    @property
+    def message_limit(self) -> int | None:
+        """Limit on total messages allowed per conversation."""
+        return self._message_limit
+
+    @message_limit.setter
+    def message_limit(self, messages: int | None) -> None:
+        """Set limit on total messages allowed per conversation."""
+        self._message_limit = messages
+
+    @property
+    def token_limit(self) -> int | None:
+        """Limit on total tokens allowed per conversation."""
+        return self._token_limit
+
+    @token_limit.setter
+    def token_limit(self, tokens: int | None) -> None:
+        """Set limit on total tokens allowed per conversation."""
+        self._token_limit = tokens
 
     @property
     def completed(self) -> bool:
         """Is the task completed."""
+        from inspect_ai.log._transcript import transcript
+
         if self._completed:
             return True
-        elif self._max_messages and len(self.messages) >= self._max_messages:
+        elif self.message_limit and len(self.messages) >= self.message_limit:
+            # log if this is the first time we hit this
+            if not self._message_limit_exceeded:
+                self._message_limit_exceeded = True
+                transcript().info(
+                    f"Sample completed: exceeded message limit ({self.message_limit})"
+                )
+            return True
+        elif self.token_limit and sample_total_tokens() >= self.token_limit:
+            # log if this is the first time we hit this
+            if not self._token_limit_exceeded:
+                self._token_limit_exceeded = True
+                transcript().info(
+                    f"Sample completed: exceeded token limit ({self.token_limit:,})"
+                )
             return True
         else:
             return False
@@ -279,8 +319,10 @@ class TaskState:
         return self._tools
 
     @tools.setter
-    def tools(self, tools: list[Tool]) -> None:
-        self._tools = tools
+    def tools(self, tools: list[Tool | ToolDef]) -> None:
+        self._tools.clear()
+        for tool in tools:
+            self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
 
 
 def sample_state() -> TaskState | None:

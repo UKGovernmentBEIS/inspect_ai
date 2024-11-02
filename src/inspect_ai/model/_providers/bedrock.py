@@ -298,7 +298,7 @@ class MistralChatHandler(BedrockChatHandler):
     ) -> ChatCompletionChoice:
         outputs: list[dict[str, str]] = response.get("outputs", [])
         return ChatCompletionChoice(
-            message=handler.parse_assistent_response(
+            message=handler.parse_assistant_response(
                 response="\n".join([output.get("text", "") for output in outputs]),
                 tools=tools,
             ),
@@ -335,7 +335,7 @@ class BaseLlamaChatHandler(BedrockChatHandler):
         self, response: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
     ) -> ChatCompletionChoice:
         return ChatCompletionChoice(
-            message=handler.parse_assistent_response(
+            message=handler.parse_assistant_response(
                 response.get("generation", ""), tools
             ),
             stop_reason=as_stop_reason(response.get("stop_reason")),

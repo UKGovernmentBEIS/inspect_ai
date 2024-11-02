@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.39
+
+- Fix an issue that would cause view to be unable to display when using VSCode extension with Inpsect version 0.3.42
+
+## 0.3.38
+
+- Improved behavior when previewing json files using the Inspect viewer.
+
+## 0.3.37
+
+This version includes a signficant rework of the overall workflow for interacting with Inspect. Changes include:
+
+- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
+- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
+- New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
+- Support for the new Inspect `eval` log format. More information [here](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format).
+
+## 0.3.36
+
+- Show Inspect version in status bar
+- Release with internal changes to support future log viewing features.
+
 ## 0.3.33
 
 - Fix bug that prevented run, debug buttons from appearing for tasks whose function declarations spanned more than single line.

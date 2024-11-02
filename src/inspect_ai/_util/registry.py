@@ -1,10 +1,11 @@
 import inspect
-from importlib import import_module
-from inspect import get_annotations, getmodule, isclass
+from inspect import get_annotations, isclass
 from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
+
+from inspect_ai._util.package import get_installed_package_name
 
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
@@ -21,13 +22,14 @@ RegistryType = Literal[
     "tool",
     "sandboxenv",
     "score_reducer",
+    "approver",
 ]
 
 
 class RegistryInfo(BaseModel):
     type: RegistryType
     name: str
-    metadata: dict[str, Any] = Field(default={})
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:
@@ -53,8 +55,8 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
-    *args: list[Any],
-    **kwargs: dict[str, Any],
+    *args: Any,
+    **kwargs: Any,
 ) -> None:
     r"""Tag an object w/ registry info.
 
@@ -70,19 +72,11 @@ def registry_tag(
         *args (list[Any]): Creation arguments
         **kwargs (dict[str,Any]): Creation keyword arguments
     """
-    # determine arg names and add them to kwargs
+    # bind arguments to params
     named_params: dict[str, Any] = {}
-    if len(args) > 0:
-        params = list(inspect.signature(type).parameters.keys())
-        for i, arg in enumerate(args):
-            named_params[params[i]] = arg
-    named_params |= kwargs
-
-    # serialise registry objects with RegistryDict
-    for param in named_params.keys():
-        value = named_params[param]
-        if has_registry_params(value):
-            named_params[param] = registry_dict(value)
+    bound_params = inspect.signature(type).bind(*args, **kwargs)
+    for param, value in bound_params.arguments.items():
+        named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -115,7 +109,7 @@ def registry_name(o: object, name: str) -> str:
     This function checks whether the passed object is in a package,
     and if it is, prepends the package name as a namespace
     """
-    package = get_package_name(o)
+    package = get_installed_package_name(o)
     return f"{package}/{name}" if package else name
 
 
@@ -238,7 +232,7 @@ def registry_info(o: object) -> RegistryInfo:
         return cast(RegistryInfo, info)
     else:
         name = getattr(o, "__name__", "unknown")
-        decorator = " @solver " if name == "solve" else ""
+        decorator = " @solver " if name == "solve" else " "
         raise ValueError(
             f"Object '{name}' does not have registry info. Did you forget to add a{decorator}decorator somewhere?"
         )
@@ -277,17 +271,21 @@ def registry_log_name(o: str | object) -> str:
     return name.replace(f"{PKG_NAME}/", "", 1)
 
 
-def registry_unqualified_name(o: object | RegistryInfo) -> str:
+def registry_unqualified_name(o: str | object | RegistryInfo) -> str:
     r"""Unqualified name of object (i.e. without package prefix).
 
     Args:
-        o (object | str): Object or name to get unqualified name for
+        o (str | object | RegistryInfo): string, registry object, or RegistryInfo to get unqualified name for.
 
     Returns:
         Unqualified name of object
     """
-    info = o if isinstance(o, RegistryInfo) else registry_info(o)
-    parts = info.name.split("/")
+    if isinstance(o, str):
+        name = o
+    else:
+        info = o if isinstance(o, RegistryInfo) else registry_info(o)
+        name = info.name
+    parts = name.split("/")
     if len(parts) == 1:
         return parts[0]
     else:
@@ -365,21 +363,6 @@ REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
 
 
-def get_package_name(o: object) -> str | None:
-    module = getmodule(o)
-    package = str(getattr(module, "__package__", ""))
-    if package:
-        package = package.split(".")[0]
-        if package != "None":
-            package_module = import_module(package)
-            if package_module:
-                package_path = getattr(package_module, "__path__", None)
-                if package_path:
-                    return package
-
-    return None
-
-
 class RegistryDict(TypedDict):
     type: RegistryType
     name: str
@@ -390,10 +373,24 @@ def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
     return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
 
 
-def registry_dict(o: object) -> RegistryDict:
-    return dict(
-        type=registry_info(o).type, name=registry_log_name(o), params=registry_params(o)
-    )
+def registry_value(o: object) -> Any:
+    # treat tuple as list
+    if isinstance(o, tuple):
+        o = list(o)
+
+    # recurse through collection types
+    if isinstance(o, list):
+        return [registry_value(x) for x in o]
+    elif isinstance(o, dict):
+        return {k: registry_value(v) for k, v in o.items()}
+    elif has_registry_params(o):
+        return dict(
+            type=registry_info(o).type,
+            name=registry_log_name(o),
+            params=registry_params(o),
+        )
+    else:
+        return o
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

@@ -1,4 +1,6 @@
-# Agents API {#sec-agents-api}
+---
+title: Agents API
+---
 
 ## Overview
 

@@ -2,11 +2,14 @@ import re
 from textwrap import dedent
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._tool import Tool, ToolError, tool
-from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
-from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
+from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
+from inspect_ai.util._store import store
+
+from ..._tool import Tool, ToolError, tool
+from ..._tool_call import ToolCall, ToolCallContent, ToolCallView
+from ..._tool_info import parse_tool_info
+from ..._tool_with import tool_with
 
 
 def web_browser(interactive: bool = True) -> list[Tool]:
@@ -92,7 +95,39 @@ def go_without_interactive_docs(tool: Tool) -> Tool:
     return tool_with(tool, description="\n".join(description_lines))
 
 
-@tool(parallel=False)
+# custom viewer for interactive tool calls that shows a truncated
+# version of current the web accessiblity tree if available
+
+WEB_BROWSER_AT = "web_browser:at"
+
+
+def web_at_viewer(call: ToolCall) -> ToolCallView:
+    # get the web accessiblity tree, if we have it create a view from it
+    web_at = store().get(WEB_BROWSER_AT, "")
+    element_id = call.arguments.get("element_id", 0)
+    if web_at and element_id:
+        lines = web_at.splitlines()
+        pattern = re.compile(rf"^\s+\[{element_id}\] .*$")
+        for i, line in enumerate(lines):
+            if pattern.match(line):
+                snippet = (
+                    lines[0:1]
+                    + ["  ..."]
+                    + lines[max(i - 2, 1) : i]
+                    + [line.replace(" ", "*", 1)]
+                    + lines[i + 1 : min(i + 3, len(lines))]
+                    + ["  ..."]
+                )
+
+                return ToolCallView(
+                    context=ToolCallContent(format="text", content="\n".join(snippet))
+                )
+
+    # no view found
+    return ToolCallView()
+
+
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_click() -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
@@ -127,7 +162,7 @@ def web_browser_click() -> Tool:
     return execute
 
 
-@tool(parallel=False)
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_type_submit() -> Tool:
     """Web Browser tool for typing and submitting input.
 
@@ -165,7 +200,7 @@ def web_browser_type_submit() -> Tool:
     return execute
 
 
-@tool(parallel=False)
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_type() -> Tool:
     """Web Browser tool for typing into inputs.
 
@@ -310,7 +345,11 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
     else:
         response = parse_web_browser_output(result.stdout)
         if "web_at" in response:
-            return str(response.get("web_at")) or "(no web accessiblity tree available)"
+            web_at = (
+                str(response.get("web_at")) or "(no web accessiblity tree available)"
+            )
+            store().set(WEB_BROWSER_AT, web_at)
+            return web_at
         elif "error" in response:
             raise ToolError(str(response.get("error")) or "(unknown error)")
         else:
@@ -325,11 +364,11 @@ async def web_browser_sandbox() -> SandboxEnvironment:
         return sb
     else:
         msg = dedent(f"""
-                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE} image as its default sandbox:
+                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB} image as its default sandbox:
 
                 services:
                   default:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
 
                 Alternatively, this Docker compose file creates a dedicated image for the web browser service:
@@ -341,7 +380,7 @@ async def web_browser_sandbox() -> SandboxEnvironment:
                     command: "tail -f /dev/null"
 
                   web_browser:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
                 """).strip()
         raise PrerequisiteError(msg)

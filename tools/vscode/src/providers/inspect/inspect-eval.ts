@@ -35,8 +35,6 @@ export async function activateEvalManager(
   log.append(`Workspace: ${workspaceId}`);
   log.append(`Resetting Terminal Workspace:`);
 
-  log.append(`new: ${workspaceId}`);
-
   env.delete("INSPECT_WORKSPACE_ID");
   env.append("INSPECT_WORKSPACE_ID", workspaceId);
 

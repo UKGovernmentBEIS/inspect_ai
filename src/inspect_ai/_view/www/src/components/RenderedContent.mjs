@@ -195,6 +195,21 @@ const contentRenderers = {
       };
     },
   },
+  web_browser: {
+    bucket: Buckets.intermediate,
+    canRender: (entry) => {
+      return (
+        typeof entry.value === "string" && entry.name?.startsWith("web_browser")
+      );
+    },
+    render: (_id, entry) => {
+      return {
+        rendered: html`<pre style=${{ whiteSpace: "pre-wrap" }}>
+${entry.value}</pre
+        >`,
+      };
+    },
+  },
   Html: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {

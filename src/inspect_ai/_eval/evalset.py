@@ -1,7 +1,7 @@
 import hashlib
 import logging
 from copy import deepcopy
-from typing import Any, Callable, NamedTuple, Set, cast
+from typing import Any, Callable, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic_core import to_json
@@ -17,6 +17,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
+from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
@@ -32,7 +33,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import SandboxEnvironmentType
 
 from .eval import eval, eval_init
 from .loader import ResolvedTask, resolve_task_args
@@ -51,18 +52,24 @@ def eval_set(
     retry_cleanup: bool | None = None,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
-    sandbox: SandboxEnvironmentSpec | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    tags: list[str] | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -90,21 +97,31 @@ def eval_set(
         retry_cleanup (bool | None): Cleanup failed log files after retries
           (defaults to True)
         model (str | Model | list[str] | list[Model] | None): Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+          evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+          environment variable.
         model_base_url: (str | None): Base URL for communicating
-            with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
-        sandbox (SandboxEnvironmentSpec | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+          with the model API.
+        model_args (dict[str,Any] | str): Model creation args
+          (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+          (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
            evaluating task(s). ptional (uses task solver by default).
+        tags (list[str] | None): Tags to associate with this evaluation run.
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         score (bool): Score output (defaults to True)
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
+        log_format (Literal["eval", "json"] | None): Format for writing
+          log files (defaults to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -115,8 +132,8 @@ def eval_set(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -126,8 +143,9 @@ def eval_set(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
@@ -153,13 +171,19 @@ def eval_set(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            tags=tags,
+            trace=trace,
+            approval=approval,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -209,7 +233,7 @@ def eval_set(
         return logs
 
     # resolve tasks
-    models, resolved_tasks = eval_init(
+    models, _, resolved_tasks = eval_init(
         tasks=tasks,
         model=model,
         model_base_url=model_base_url,
@@ -218,6 +242,7 @@ def eval_set(
         sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         **kwargs,
     )
 

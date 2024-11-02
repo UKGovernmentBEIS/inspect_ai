@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal, Union, overload
+from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
 
 from .._subprocess import ExecResult
 
@@ -110,6 +110,9 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
+        Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, an
+        `OutputLimitExceededError` will be raised.
+
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
           input (str | bytes | None): Standard input (optional).
@@ -127,6 +130,8 @@ class SandboxEnvironment(abc.ABC):
             decoding the command output.
           PermissionError: If the user does not have
             permission to execute the command.
+          OutputLimitExceededError: If an output stream
+            exceeds the 1 MiB limit.
         """
         ...
 
@@ -160,6 +165,8 @@ class SandboxEnvironment(abc.ABC):
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         """Read a file from the sandbox environment.
 
+        File size is limited to 100 MiB.
+
         Args:
           file (str): Path to file (relative file paths will resolve to the
             per-sample working directory).
@@ -176,6 +183,8 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to read from the specified path.
           IsADirectoryError: If the file is a directory.
+          OutputLimitExceededError: If the file size
+            exceeds the 100 MiB limit.
         """
         ...
 
@@ -194,5 +203,30 @@ class SandboxEnvironments:
     """
 
 
-SandboxEnvironmentSpec = str | tuple[str, str | None]
-"""Specification of a SandboxEnvironment (type or tuple with type and config file)."""
+class SandboxEnvironmentSpec(NamedTuple):
+    """Specification of a SandboxEnvironment."""
+
+    type: str
+    config: str | None = None
+
+
+SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
+"""SandboxEnvironmentSpec and str and tuple shorthands for it.
+
+A plain str, e.g. "docker", is equivalent to SandboxEnvironmentSpec("docker")
+A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpec("docker", "compose.yaml")
+"""
+
+
+def resolve_sandbox_environment(
+    sandbox: SandboxEnvironmentType | None,
+) -> SandboxEnvironmentSpec | None:
+    # do the resolution
+    if isinstance(sandbox, str):
+        return SandboxEnvironmentSpec(type=sandbox)
+    elif isinstance(sandbox, SandboxEnvironmentSpec):
+        return sandbox
+    elif isinstance(sandbox, tuple):
+        return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
+    else:
+        return None

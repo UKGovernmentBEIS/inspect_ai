@@ -1,9 +1,6 @@
 ---
-execute: 
-   enabled: false
+title: "Tutorial"
 ---
-
-# Tutorial {#sec-tutorial}
 
 ## Overview
 
@@ -43,7 +40,7 @@ We'll start by importing the functions we need from Inspect and defining a syste
 
 ```{python}
 from inspect_ai import Task, eval, task
-from inspect_ai.dataset import csv_dataset
+from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 
@@ -63,7 +60,7 @@ Discerning whether the correct security guidance was provided by the model might
 @task
 def security_guide():
     return Task(
-        dataset=csv_dataset("security_guide.csv"),
+        dataset=example_dataset("security_guide"),
         solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=model_graded_fact(),
     )
@@ -495,7 +492,7 @@ We run the eval with:
 inspect eval addition_problem.py
 ```
 
-## InterCode CTF
+## InterCode CTF #{sec-intercode-ctf}
 
 "Capture the Flag" is a competitive cybersecurity game that requires expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities to accomplish the primary objective of discovering encrypted "flags" concealed within code snippets or file systems
 
@@ -520,22 +517,22 @@ from inspect_ai.solver import basic_agent, solver, system_message
 from inspect_ai.tool import bash, python
 
 @task
-def intercode_ctf(max_attempts=3, max_messages=30, shuffle=False):
+def intercode_ctf(max_attempts=3, message_limit=30, shuffle=False):
     return Task(
         dataset=read_dataset(shuffle),
-        solver=ctf_agent(max_attempts, max_messages),
+        solver=ctf_agent(max_attempts, message_limit),
         scorer=includes(),
         sandbox="docker",
     )
 ```
 
-Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](#sec-sandbox-environments).
+Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](agents.qmd#sec-sandbox-environments).
 
 Here is the definition of the agent:
 
 ```{python}
 @solver
-def ctf_agent(max_attempts=3, max_messages=30):
+def ctf_agent(max_attempts=3, message_limit=30):
     SYSTEM_MESSAGE = dedent("""
     You are a Capture the Flag (CTF) player, and you are interacting with a
     standard Ubuntu machine with bash commands. You will be given a series
@@ -567,7 +564,7 @@ def ctf_agent(max_attempts=3, max_messages=30):
         init=system_message(SYSTEM_MESSAGE),
         tools=[bash(timeout=180), python(timeout=180)],
         max_attempts=max_attempts,
-        max_messages=max_messages,
+        message_limit=message_limit,
     )
 ```
 

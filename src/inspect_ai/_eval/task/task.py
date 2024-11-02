@@ -14,6 +14,11 @@ from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
+    resolve_sandbox_environment,
+)
 
 from .epochs import Epochs
 
@@ -22,8 +27,9 @@ logger = getLogger(__name__)
 
 class TaskDeprecatedArgs(TypedDict, total=False):
     plan: Plan | Solver | list[Solver]
-    tool_environment: str | tuple[str, str] | None
+    tool_environment: str | SandboxEnvironmentSpec | None
     epochs_reducer: ScoreReducers | None
+    max_messages: int | None
 
 
 class Task:
@@ -39,36 +45,40 @@ class Task:
         metrics (list[Metric] | dict[str, list[Metric]] | None):
           Alternative metrics (overrides the metrics provided by the specified scorer).
         config (GenerateConfig): Model generation config.
-        sandbox (str | tuple[str,str] | None): Sandbox
-           environment type (or optionally a tuple with type and config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
-        max_messages (int | None): Limit on total messages in the conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
           if its anonymous task (e.g. created in a notebook and passed to
           eval() directly)
         version: (int): Version of task (to distinguish evolutions
           of the task spec or breaking changes to it)
+        metadata: (dict[str, Any] | None): Additional metadata to associate with the task.
     """
 
     def __init__(
         self,
-        dataset: Dataset | Sequence[Sample],
+        dataset: Dataset | Sequence[Sample] | None = None,
         solver: Solver | list[Solver] = generate(),
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
-        sandbox: str | tuple[str, str] | None = None,
+        sandbox: SandboxEnvironmentType | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
-        max_messages: int | None = None,
+        message_limit: int | None = None,
+        token_limit: int | None = None,
         name: str | None = None,
         version: int = 0,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         # handle deprecated args
@@ -76,7 +86,7 @@ class Task:
             newarg = ""
             if arg == "tool_environment":
                 newarg = "sandbox"
-                sandbox = cast(str | tuple[str, str] | None, value)
+                sandbox = cast(str | SandboxEnvironmentSpec | None, value)
             elif arg == "epochs_reducer":
                 newarg = "epochs"
                 if isinstance(epochs, int):
@@ -86,6 +96,9 @@ class Task:
             elif arg == "plan":
                 # no deprecation warning (yet) as it would affect 100% of evals in the wild
                 solver = cast(Solver, value)
+            elif arg == "max_messages":
+                # no deprecation warning (yet) as many tasks set this
+                message_limit = int(cast(int, value))
             if newarg:
                 warn_once(
                     logger,
@@ -98,6 +111,9 @@ class Task:
         if epochs is not None and epochs.epochs < 1:
             raise ValueError("epochs must be a positive integer.")
 
+        # resolve dataset (provide empty sample to bootstrap tasks w/o samples,
+        # which could occur for testing or for an interactive mode eval)
+        dataset = dataset or [Sample(input="prompt")]
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
@@ -111,13 +127,15 @@ class Task:
         )
         self.metrics = metrics
         self.config = config
-        self.sandbox = (sandbox, None) if isinstance(sandbox, str) else sandbox
+        self.sandbox = resolve_sandbox_environment(sandbox)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
-        self.max_messages = max_messages
+        self.message_limit = message_limit
+        self.token_limit = token_limit
         self.version = version
         self._name = name
+        self.metadata = metadata
 
     @property
     def name(self) -> str:

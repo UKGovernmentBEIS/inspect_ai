@@ -10,7 +10,18 @@ import { CardHeader } from "../components/Card.mjs";
 
 const kPlanCardBodyId = "task-plan-card-body";
 
-export const PlanCard = ({ log, context }) => {
+/**
+ * Renders the plan card
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The sample
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The task id
+ * @param {import("../types/log").EvalScore[]} [props.scores] - the samples
+ * @param {import("../Types.mjs").RenderContext} props.context - is this off canvas
+ *
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -20,9 +31,9 @@ export const PlanCard = ({ log, context }) => {
       }}>
       
         <${PlanDetailView}
-          evaluation=${log?.eval}
-          plan=${log?.plan}
-          scores=${log?.results?.scores}
+          evaluation=${evalSpec}
+          plan=${evalPlan}
+          scores=${scores}
           context=${context}
         />
       </${CardBody}>
@@ -58,14 +69,19 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
 };
 
 const DatasetDetailView = ({ dataset, context, style }) => {
-  if (!dataset || Object.keys(dataset).length === 0) {
+  // Filter out sample_ids
+  const filtered = Object.fromEntries(
+    Object.entries(dataset).filter(([key]) => key !== "sample_ids"),
+  );
+
+  if (!dataset || Object.keys(filtered).length === 0) {
     return html`<span style=${{ ...planItemStyle, ...style }}
       >No dataset information available</span
     >`;
   }
 
   return html`<${MetaDataView}
-    entries="${dataset}"
+    entries="${filtered}"
     tableOptions="borderless,sm"
     context=${context}
     style=${{ ...planItemStyle, ...style }}
@@ -157,6 +173,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         })
         .join("<br/>\n")}`,
     };
+  }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
   }
 
   if (evaluation?.model) {

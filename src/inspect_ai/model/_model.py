@@ -29,6 +29,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
@@ -46,6 +47,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
+from ._trace import trace_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -159,16 +161,6 @@ class ModelAPI(abc.ABC):
         """Any tool use in a message stream means that tools must be passed."""
         return False
 
-    def provides_event(self) -> bool:
-        """Indicates that this model provider yields a ModelEvent.
-
-        This is done so the code that wraps ModelAPI calls knows that it
-        doesn't need to record a ModelEvent. A model provider would provide
-        its own model events if it wanted to populate the raw request
-        and response fields of the ModelEvent (which only it knows about)
-        """
-        return False
-
 
 class Model:
     """Model interface."""
@@ -198,7 +190,10 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool] | list[ToolInfo] = [],
+        tools: list[Tool]
+        | list[ToolDef]
+        | list[ToolInfo]
+        | list[Tool | ToolDef | ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -209,7 +204,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[Tool] | list[ToolInfo]): Tools available for the
+          tools (list[Tool] | list[ToolDef] | list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -333,7 +328,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    await self._model_transcript(
+                    await self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
@@ -357,7 +352,7 @@ class Model:
                 call = None
 
             # write to transcript
-            await self._model_transcript(
+            await self._record_model_interaction(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -411,7 +406,7 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    async def _model_transcript(
+    async def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
@@ -423,19 +418,20 @@ class Model:
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        if not self.api.provides_event():
-            transcript()._event(
-                ModelEvent(
-                    model=str(self),
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    output=output,
-                    cache=cache,
-                    call=call,
-                )
+        trace_assistant_message(input, output.choices[0].message)
+
+        transcript()._event(
+            ModelEvent(
+                model=str(self),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                cache=cache,
+                call=call,
             )
+        )
 
 
 class ModelName:
@@ -554,6 +550,13 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
+        # verify that model apis are allowed
+        if (
+            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
+            and api_name != "mockllm"
+        ):
+            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
+
         # create the model (init_hooks here in case the model api
         # is being used as a stadalone model interface outside of evals)
         init_hooks()
@@ -723,8 +726,18 @@ def init_model_usage() -> None:
     model_usage_context_var.set({})
 
 
+def init_sample_model_usage() -> None:
+    sample_model_usage_context_var.set({})
+
+
 def record_model_usage(model: str, usage: ModelUsage) -> None:
-    model_usage = model_usage_context_var.get(None)
+    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model, usage, model_usage_context_var.get(None))
+
+
+def set_model_usage(
+    model: str, usage: ModelUsage, model_usage: dict[str, ModelUsage] | None
+) -> None:
     if model_usage is not None:
         total_usage: ModelUsage | None = model_usage.get(model, None)
         if not total_usage:
@@ -750,4 +763,18 @@ def model_usage() -> dict[str, ModelUsage]:
 
 model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "model_usage", default={}
+)
+
+
+def sample_model_usage() -> dict[str, ModelUsage]:
+    return sample_model_usage_context_var.get()
+
+
+def sample_total_tokens() -> int:
+    total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
+    return sum(total_tokens)
+
+
+sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_model_usage", default={}
 )
