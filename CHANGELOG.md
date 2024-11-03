@@ -4,6 +4,7 @@
 
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.
+- [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) local model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
 - Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
 - View: properly render complex score objects in transcript.

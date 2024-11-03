@@ -198,6 +198,17 @@ def ollama() -> type[ModelAPI]:
     return OllamaAPI
 
 
+@modelapi(name="llama-cpp-python")
+def llama_cpp_python() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("llama-cpp-python API")
+
+    # in the clear
+    from .llama_cpp_python import LlamaCppPythonAPI
+
+    return LlamaCppPythonAPI
+
+
 @modelapi(name="azureai")
 def azureai() -> type[ModelAPI]:
     from .azureai import AzureAIAPI

@@ -261,13 +261,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--frequency-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_FREQUENCY_PENALTY",
     )
     @click.option(
         "--presence-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_PRESENCE_PENALTY",
     )
     @click.option(

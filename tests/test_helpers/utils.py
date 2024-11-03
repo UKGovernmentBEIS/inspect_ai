@@ -84,6 +84,12 @@ def skip_if_no_azureai(func):
     return pytest.mark.api(skip_if_env_var("AZURE_API_KEY", exists=False)(func))
 
 
+def skip_if_no_llama_cpp_python(func):
+    return pytest.mark.api(
+        skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
+    )
+
+
 def skip_if_no_vertex(func):
     return pytest.mark.api(skip_if_env_var("ENABLE_VERTEX_TESTS", exists=False)(func))
 
