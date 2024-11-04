@@ -142,7 +142,7 @@ class AzureAIAPI(ModelAPI):
                     total_tokens=response.usage.total_tokens,
                 ),
             ), ModelCall.create(
-                request=request, response=response, filter=image_url_filter
+                request=request, response=response.as_dict(), filter=image_url_filter
             )
         except AzureError as ex:
             self.handle_azure_error(ex)
