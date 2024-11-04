@@ -299,6 +299,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#viewing-logs" id="toc-viewing-logs" class="nav-link" data-scroll-target="#viewing-logs">Viewing Logs</a></li>
   <li><a href="#run-and-debug" id="toc-run-and-debug" class="nav-link" data-scroll-target="#run-and-debug">Run and Debug</a></li>
   <li><a href="#activity-bar" id="toc-activity-bar" class="nav-link" data-scroll-target="#activity-bar">Activity Bar</a></li>
+  <li><a href="#python-environments" id="toc-python-environments" class="nav-link" data-scroll-target="#python-environments">Python Environments</a></li>
   <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -398,6 +399,11 @@ ul.task-list li input[type="checkbox"] {
 <li><p><strong>Logs</strong> lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).</p></li>
 <li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
 </ul>
+</section>
+<section id="python-environments" class="level2">
+<h2 class="anchored" data-anchor-id="python-environments">Python Environments</h2>
+<p>When running and debugging Inspect evaluations, the Inspect extension will attempt to use python environments that it discovers in the task subfolder and its parent folders (all the way to the workspace root). It will use the first environment that it discovers, otherwise it will use the python interpreter configured for the workspace. Note that since the extension will use the sub-environments, Inspect must be installed in any of the environments to be used.</p>
+<p>You can control this behavior with the <code>Use Subdirectory Environments</code>. If you disable this setting, the globally configured interpreter will always be used when running or debugging evaluations, even when environments are present in subdirectories.</p>
 </section>
 <section id="troubleshooting" class="level2">
 <h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
@@ -936,7 +942,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
