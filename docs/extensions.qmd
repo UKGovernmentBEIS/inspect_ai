@@ -185,6 +185,10 @@ The class methods take care of various stages of initialisation, setup, and tear
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
 
+::: {.callout-note appearance="simple"}
+The "default" `SandboxEnvironment` i.e. that named "default" or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
+:::
+
 The `task_cleanup()` has a number of important functions:
 
 1.  There may be global resources that are not tied to samples that need to be cleaned up.

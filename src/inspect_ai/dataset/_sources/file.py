@@ -13,10 +13,15 @@ from .json import json_dataset
 def file_dataset(
     file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
+    auto_id: bool = False,
+    shuffle: bool = False,
+    seed: int | None = None,
+    limit: int | None = None,
     dialect: str = "unix",
     encoding: str = "utf-8",
     name: str | None = None,
     fs_options: dict[str, Any] = {},
+    fieldnames: list[str] | None = None,
 ) -> Dataset:
     """Dataset read from a JSON or CSV file.
 
@@ -32,6 +37,10 @@ def file_dataset(
             stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
             `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
             handle mapping with a custom function that returns one or more samples.
+        auto_id (bool): Assign an auto-incrementing ID for each sample.
+        shuffle (bool): Randomly shuffle the dataset order.
+        seed: (int | None): Seed used for random shuffle.
+        limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
             applies to reading CSV files.
         encoding (str): Text encoding for file (defaults to "utf-8").
@@ -40,6 +49,9 @@ def file_dataset(
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
             if you are accessing a public S3 bucket with no credentials.
+        fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV.
+            If None, the values in the first row of the file will be used as the fieldnames.
+            Useful for files without a header. Only applies to reading CSV files.
 
     Returns:
         Dataset read from JSON or CSV file.
@@ -51,6 +63,10 @@ def file_dataset(
             return json_dataset(
                 json_file=file,
                 sample_fields=sample_fields,
+                auto_id=auto_id,
+                shuffle=shuffle,
+                seed=seed,
+                limit=limit,
                 encoding=encoding,
                 name=name,
                 fs_options=fs_options,
@@ -59,10 +75,15 @@ def file_dataset(
             return csv_dataset(
                 csv_file=file,
                 sample_fields=sample_fields,
+                auto_id=auto_id,
+                shuffle=shuffle,
+                seed=seed,
+                limit=limit,
                 dialect=dialect,
                 encoding=encoding,
                 name=name,
                 fs_options=fs_options,
+                fieldnames=fieldnames,
             )
         case _:
             raise ValueError(f"No dataset reader for file with extension {ext}")

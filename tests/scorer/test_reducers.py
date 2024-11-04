@@ -251,3 +251,14 @@ def test_score_reducer():
 
     log = score(eval_with_reducer(), match(), [mode_score(), mean_score()])
     assert log.eval.config.epochs_reducer == ["mode", "mean"]
+
+
+def test_main_reducer():
+    str_scores = [
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="I"),
+        Score(value="C"),
+        Score(value="C"),
+    ]
+    assert mean_score()(str_scores).value == 0.4
