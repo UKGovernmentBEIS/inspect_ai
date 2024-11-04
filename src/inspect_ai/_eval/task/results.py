@@ -286,16 +286,31 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer(cast(list[Score], scores))
-        reduced_scores.append(
-            SampleScore(
-                sample_id=scores[0].sample_id,
-                value=reduced.value,
-                answer=reduced.answer,
-                explanation=reduced.explanation,
-                metadata=reduced.metadata,
+        if len(scores) > 1:
+            # There are multiple instances of this sample with scors
+            # run the reducer
+            reduced = reducer(cast(list[Score], scores))
+            reduced_scores.append(
+                SampleScore(
+                    sample_id=scores[0].sample_id,
+                    value=reduced.value,
+                    answer=reduced.answer,
+                    explanation=reduced.explanation,
+                    metadata=reduced.metadata,
+                )
             )
-        )
+        else:
+            # There is only a single sample - don't run the reducer
+            # as there is nothing to reduce
+            reduced_scores.append(
+                SampleScore(
+                    sample_id=scores[0].sample_id,
+                    value=scores[0].value,
+                    answer=scores[0].answer,
+                    explanation=scores[0].explanation,
+                    metadata=scores[0].metadata,
+                )
+            )
 
     return reduced_scores
 
