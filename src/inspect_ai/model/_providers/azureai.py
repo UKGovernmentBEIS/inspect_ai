@@ -33,12 +33,10 @@ from .util.chatapi import ChatAPIHandler
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
-AZUREAI_SELF_SIGNED = "AZUREAI_SELF_SIGNED"
 
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
 AZURE_ENDPOINT_URL = "AZURE_ENDPOINT_URL"
-AZURE_SELF_SIGNED = "AZURE_SELF_SIGNED"
 
 
 class AzureAIAPI(ModelAPI):
@@ -57,13 +55,6 @@ class AzureAIAPI(ModelAPI):
             api_key_vars=[AZURE_API_KEY],
             config=config,
         )
-
-        # required for some deployments
-        if (
-            os.getenv(AZURE_SELF_SIGNED, os.getenv(AZUREAI_SELF_SIGNED, None))
-            is not None
-        ):
-            allowSelfSignedHttps(True)
 
         # resolve api_key
         if not self.api_key:
@@ -273,13 +264,3 @@ def chat_completion_choice(
 
 def choice_stop_reason(choice: dict[str, Any]) -> StopReason:
     return as_stop_reason(choice.get("finish_reason", None))
-
-
-def allowSelfSignedHttps(allowed: bool) -> None:
-    # bypass the server certificate verification on client side
-    if (
-        allowed
-        and not os.environ.get("PYTHONHTTPSVERIFY", "")
-        and getattr(ssl, "_create_unverified_context", None)
-    ):
-        ssl._create_default_https_context = ssl._create_unverified_context
