@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.43 (04 November 2024)
 
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.

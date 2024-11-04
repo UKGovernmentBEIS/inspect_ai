@@ -55,14 +55,6 @@ See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluat
 
 ## Log Format {#sec-log-format}
 
-::: {.callout-note appearance="simple"}
-The `.eval` format described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
@@ -181,14 +173,6 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 ### Attachments
 
-::: {.callout-note appearance="simple"}
-Note that the attachments feature described below is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Sample logs often include large pieces of content (e.g. images) that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.
 
 When reading log files, you may want to resolve the attachments so you can get access to the underlying content. You can do this for an `EvalSample` using the `resolve_sample_attachments()` function:
@@ -231,14 +215,6 @@ AWS_DEFAULT_REGION=eu-west-2
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
 ## Log Commands {#sec-log-commands}
-
-::: {.callout-note appearance="simple"}
-The log commands described below are supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
 
