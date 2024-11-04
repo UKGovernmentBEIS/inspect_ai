@@ -20,7 +20,7 @@
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
 - Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
-
+- Don't apply a reducer if there is only a single epoch (previously the reducer would be run against the single epoch value, which had side effects on score values)
 
 ## v0.3.42 (23 October 2024)
 
