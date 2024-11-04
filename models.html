@@ -455,6 +455,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>None required</td>
 </tr>
 <tr class="even">
+<td>llama-cpp-python</td>
+<td><code>pip install openai</code></td>
+<td>None required</td>
+</tr>
+<tr class="odd">
 <td>Vertex</td>
 <td><code>pip install google-cloud-aiplatform</code></td>
 <td>None required</td>
@@ -467,7 +472,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that some providers (<a href="https://docs.x.ai/api/integrations#openai-sdk">Grok</a>, <a href="https://github.com/ollama/ollama/blob/main/docs/openai.md">Ollama</a> and <a href="https://docs.together.ai/docs/openai-api-compatibility">TogetherAI</a>) support the OpenAI Python package as a client, which is why you need to <code>pip install openai</code> for these providers even though you aren’t actually interacting with the OpenAI service when you use them.</p>
+<p>Note that some providers (<a href="https://docs.x.ai/api/integrations#openai-sdk">Grok</a>, <a href="https://github.com/ollama/ollama/blob/main/docs/openai.md">Ollama</a>, <a href="https://llama-cpp-python.readthedocs.io/en/latest/server/">llama-cpp-python</a> and <a href="https://docs.together.ai/docs/openai-api-compatibility">TogetherAI</a>) support the OpenAI Python package as a client, which is why you need to <code>pip install openai</code> for these providers even though you aren’t actually interacting with the OpenAI service when you use them.</p>
 </div>
 </div>
 </div>
@@ -530,31 +535,36 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><a href="https://ollama.com/library">Ollama Models</a></td>
 </tr>
 <tr class="odd">
+<td>llama-cpp-python</td>
+<td><code>llama-cpp-python/llama3</code></td>
+<td><a href="https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server">llama-cpp-python Models</a></td>
+</tr>
+<tr class="even">
 <td>TogetherAI</td>
 <td><code>together/google/gemma-7b-it</code></td>
 <td><a href="https://docs.together.ai/docs/inference-models#chat-models">TogetherAI Models</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>AWS Bedrock</td>
 <td><code>bedrock/meta.llama2-70b-chat-v1</code></td>
 <td><a href="https://aws.amazon.com/bedrock/">AWS Bedrock Models</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Azure AI</td>
 <td><code>azureai/azure-deployment-name</code></td>
 <td><a href="https://ai.azure.com/explore/models">Azure AI Models</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Vertex</td>
 <td><code>vertex/gemini-1.5-flash</code></td>
 <td><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models">Google Models</a></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Groq</td>
 <td><code>groq/mixtral-8x7b-32768</code></td>
 <td><a href="https://console.groq.com/docs/models">Groq Models</a></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Cloudflare</td>
 <td><code>cf/meta/llama-2-7b-chat-fp16</code></td>
 <td><a href="https://developers.cloudflare.com/workers-ai/models/#text-generation">Cloudflare Models</a></td>
@@ -623,18 +633,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>OLLAMA_BASE_URL</code></td>
 </tr>
 <tr class="even">
+<td>llama-cpp-python</td>
+<td><code>LLAMA_CPP_PYTHON_BASE_URL</code></td>
+</tr>
+<tr class="odd">
 <td>AWS Bedrock</td>
 <td><code>BEDROCK_BASE_URL</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Azure AI</td>
 <td><code>AZUREAI_BASE_URL</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Groq</td>
 <td><code>GROQ_BASE_URL</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Cloudflare</td>
 <td><code>CLOUDFLARE_BASE_URL</code></td>
 </tr>
@@ -886,8 +900,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use <code>vllm/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="vllm-server" class="level4">
-<h4 class="anchored" data-anchor-id="vllm-server">vLLM Server</h4>
+<section id="sec-vllm-server" class="level4">
+<h4 class="anchored" data-anchor-id="sec-vllm-server">vLLM Server</h4>
 <p>vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
@@ -975,18 +989,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>AsyncOpenAI</code></td>
 </tr>
 <tr class="even">
-<td>TogetherAI</td>
+<td>llama-cpp-python</td>
 <td><code>AsyncOpenAI</code></td>
 </tr>
 <tr class="odd">
+<td>TogetherAI</td>
+<td><code>AsyncOpenAI</code></td>
+</tr>
+<tr class="even">
 <td>Groq</td>
 <td><code>AsyncGroq</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>AzureAI</td>
 <td>Chat HTTP Post Body</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Cloudflare</td>
 <td>Chat HTTP Post Body</td>
 </tr>
