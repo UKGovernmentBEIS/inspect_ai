@@ -57,7 +57,6 @@ from .._model_output import (
 )
 from .util import (
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
 )
 
