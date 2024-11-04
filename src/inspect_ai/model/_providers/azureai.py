@@ -132,7 +132,7 @@ class AzureAIAPI(ModelAPI):
 
         # prepare request
         request = dict(
-            messages=await chat_request_messages(input),
+            messages=await chat_request_messages(input, handler),
             tools=chat_tools(tools) if len(tools) > 0 else None,
             tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else None,
             **self.completion_params(config),
@@ -238,12 +238,14 @@ class AzureAIAPI(ModelAPI):
 
 
 async def chat_request_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], handler: ChatAPIHandler | None
 ) -> list[ChatRequestMessage]:
-    return [await chat_request_message(message) for message in messages]
+    return [await chat_request_message(message, handler) for message in messages]
 
 
-async def chat_request_message(message: ChatMessage) -> ChatRequestMessage:
+async def chat_request_message(
+    message: ChatMessage, handler: ChatAPIHandler | None
+) -> ChatRequestMessage:
     if isinstance(message, ChatMessageSystem):
         return SystemMessage(content=message.text)
     elif isinstance(message, ChatMessageUser):
@@ -261,10 +263,15 @@ async def chat_request_message(message: ChatMessage) -> ChatRequestMessage:
         )
     else:
         if message.tool_calls:
-            return AssistantMessage(
-                content=message.text or None,
-                tool_calls=[chat_tool_call(call) for call in message.tool_calls],
-            )
+            if handler:
+                return AssistantMessage(
+                    content=handler.assistant_message(message)["content"]
+                )
+            else:
+                return AssistantMessage(
+                    content=message.text or None,
+                    tool_calls=[chat_tool_call(call) for call in message.tool_calls],
+                )
         else:
             return AssistantMessage(content=message.text)
 
