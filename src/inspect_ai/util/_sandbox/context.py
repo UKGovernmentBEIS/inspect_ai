@@ -15,10 +15,13 @@ logger = getLogger(__name__)
 
 
 def sandbox(name: str | None = None) -> SandboxEnvironment:
-    """Get the SandboxEnvironment for the current sample.
+    """Get the specified SandboxEnvironment for the current sample.
 
     Args:
-      name (str | None): Optional sandbox environmnent name.
+      name (str | None): Optional sandbox environment name to resolve. If None, the
+        sandbox environment named 'default' will be returned. If there is no 'default'
+        environment, and there is exactly one environment, that environment will be
+        returned. Otherwise, an error will be raised.
 
     Return:
       SandboxEnvironment instance.
@@ -28,16 +31,27 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     if not environments:
         raise raise_no_sandbox()
 
-    # For None, 'default', or a single environment only take the first environment
-    if name is None or name == "default" or len(environments) == 1:
-        return list(environments.values())[0]
-    else:
-        environment = environments.get(name, None)
-        if not environment:
+    if name is not None:
+        try:
+            return environments[name]
+        except KeyError:
+            env_names = list(environments.keys())
             raise ValueError(
-                f"SandboxEnvironment '{name}' is not a recoginized environment name."
+                f"SandboxEnvironment '{name}' is not a one of the available "
+                f"environments: {env_names}."
             )
-        return environment
+
+    if len(environments) == 1:
+        return list(environments.values())[0]
+    try:
+        return environments["default"]
+    except KeyError:
+        env_names = list(environments.keys())
+        raise ValueError(
+            f"Multiple SandboxEnvironments found: {env_names}, but none were named "
+            "'default'. Please name one of the environments 'default' or explicitly "
+            "specify the environment name to resolve when calling sandbox()."
+        )
 
 
 async def sandbox_with(file: str) -> SandboxEnvironment | None:
