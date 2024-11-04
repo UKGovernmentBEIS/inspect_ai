@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.44 (04 November 2024)
+
+- Revert change to single epoch reducer behavior (regressed some scoring scenarios).
+
 ## v0.3.43 (04 November 2024)
 
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
@@ -20,8 +24,8 @@
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
 - Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
-- Don't apply a reducer if there is only a single epoch (previously the reducer would be run against the single epoch value, which had side effects on score values)
 - Support all JSON and CSV dataset arguments in `file_dataset()` function.
+
 
 ## v0.3.42 (23 October 2024)
 
