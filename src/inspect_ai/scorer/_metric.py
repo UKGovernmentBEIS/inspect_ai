@@ -98,8 +98,10 @@ class Score(BaseModel):
             raise ValueError("This score is not a dictionary")
 
     def _as_scalar(self) -> str | int | float | bool:
-        if isinstance(self.value, str | int | float | bool):
+        if isinstance(self.value, int | float | bool):
             return self.value
+        elif isinstance(self.value, str):
+            return value_to_float()(self.value)
         else:
             raise ValueError("This score is not a scalar")
 
