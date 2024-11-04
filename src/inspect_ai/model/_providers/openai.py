@@ -1,6 +1,5 @@
 import json
 import os
-from copy import copy
 from typing import Any, cast
 
 from openai import (
@@ -30,10 +29,9 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.shared_params.function_definition import FunctionDefinition
-from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
+from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import image_as_data_uri
@@ -42,6 +40,7 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
+from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
@@ -200,7 +199,7 @@ class OpenAIAPI(ModelAPI):
             ), ModelCall.create(
                 request=request,
                 response=response.model_dump(),
-                filter=model_call_filter,
+                filter=image_url_filter,
             )
         except BadRequestError as e:
             return self.handle_bad_request(e)
@@ -422,13 +421,3 @@ async def as_chat_completion_part(
             type="image_url",
             image_url=dict(url=image_url, detail=cast(Any, detail)),
         )
-
-
-def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
-    # remove images from raw api call
-    if key == "image_url" and isinstance(value, dict) and "url" in value:
-        url = str(value.get("url"))
-        if url.startswith("data:"):
-            value = copy(value)
-            value.update(url=BASE_64_DATA_REMOVED)
-    return value

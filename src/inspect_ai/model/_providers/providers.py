@@ -211,6 +211,19 @@ def llama_cpp_python() -> type[ModelAPI]:
 
 @modelapi(name="azureai")
 def azureai() -> type[ModelAPI]:
+    FEATURE = "AzureAI API"
+    PACKAGE = "azure-ai-inference"
+    MIN_VERSION = "1.0.0b5"
+
+    # verify we have the package
+    try:
+        import azure.ai.inference  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
     from .azureai import AzureAIAPI
 
     return AzureAIAPI
