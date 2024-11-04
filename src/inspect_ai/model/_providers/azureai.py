@@ -33,7 +33,6 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.images import image_as_data_uri
-from inspect_ai.model._providers.util.util import parse_tool_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -59,6 +58,9 @@ from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
+from .util.chatapi import ChatAPIHandler
+from .util.llama31 import Llama31Handler
+from .util.util import parse_tool_call
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
@@ -123,6 +125,11 @@ class AzureAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # if its llama then do fake tool calls
+        handler: ChatAPIHandler | None = Llama31Handler() if self.is_llama() else None
+        if handler:
+            input = handler.input_with_tools(input, tools)
+
         # prepare request
         request = dict(
             messages=await chat_request_messages(input),
@@ -131,23 +138,30 @@ class AzureAIAPI(ModelAPI):
             **self.completion_params(config),
         )
 
+        # make call
         try:
             response: ChatCompletions = await self.client.complete(**request)
             return ModelOutput(
                 model=response.model,
-                choices=chat_completion_choices(response.choices),
+                choices=chat_completion_choices(response.choices, tools, handler),
                 usage=ModelUsage(
                     input_tokens=response.usage.prompt_tokens,
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
             ), ModelCall.create(
-                request=request, response=response.as_dict(), filter=image_url_filter
+                request=request
+                | dict(
+                    messages=[message.as_dict() for message in request["messages"]],
+                    tools=[tool.as_dict() for tool in request["tools"]]
+                    if request.get("tools", None) is not None
+                    else None,
+                ),
+                response=response.as_dict(),
+                filter=image_url_filter,
             )
         except AzureError as ex:
-            self.handle_azure_error(ex)
-
-        return ModelOutput.from_content(self.model_name, "foo")
+            return self.handle_azure_error(ex)
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params: dict[str, str | int | float | list[str]] = {}
@@ -195,9 +209,6 @@ class AzureAIAPI(ModelAPI):
             )
         else:
             return False
-
-    # def is_httpx_connection_error(ex: BaseException) -> bool:
-    # return isinstance(ex, ConnectTimeout | ConnectError | ConnectionError | ReadTimeout)
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -307,30 +318,37 @@ def chat_tool_choice(
         return ChatCompletionsToolChoicePreset.REQUIRED
 
 
-def chat_completion_choices(choices: list[ChatChoice]) -> list[ChatCompletionChoice]:
+def chat_completion_choices(
+    choices: list[ChatChoice], tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> list[ChatCompletionChoice]:
     choices = copy(choices)
     choices.sort(key=lambda c: c.index)
-    return [chat_complection_choice(choice) for choice in choices]
+    return [chat_complection_choice(choice, tools, handler) for choice in choices]
 
 
-def chat_complection_choice(choice: ChatChoice) -> ChatCompletionChoice:
+def chat_complection_choice(
+    choice: ChatChoice, tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> ChatCompletionChoice:
     return ChatCompletionChoice(
-        message=ChatMessageAssistant(content="foo"),
+        message=chat_completion_assistant_message(choice.message, tools, handler),
         stop_reason=chat_completion_stop_reason(choice.finish_reason),
     )
 
 
 def chat_completion_assistant_message(
-    response: ChatResponseMessage, tools: list[ToolInfo]
+    response: ChatResponseMessage, tools: list[ToolInfo], handler: ChatAPIHandler | None
 ) -> ChatMessageAssistant:
-    return ChatMessageAssistant(
-        content=response.content,
-        tool_calls=[
-            chat_completion_tool_call(call, tools) for call in response.tool_calls
-        ]
-        if response.tool_calls is not None
-        else None,
-    )
+    if handler:
+        return handler.parse_assistant_response(response.content, tools)
+    else:
+        return ChatMessageAssistant(
+            content=response.content,
+            tool_calls=[
+                chat_completion_tool_call(call, tools) for call in response.tool_calls
+            ]
+            if response.tool_calls is not None
+            else None,
+        )
 
 
 def chat_completion_tool_call(

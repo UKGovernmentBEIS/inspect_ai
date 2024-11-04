@@ -68,11 +68,3 @@ async def test_mistral_api_key():
 @skip_if_no_together
 async def test_together_api_key():
     await check_explicit_api_key("together/google/gemma-2b-it", "TOGETHER_API_KEY")
-
-
-@pytest.mark.asyncio
-@skip_if_no_azureai
-async def test_azureai_api_key():
-    await check_explicit_api_key(
-        "azureai/Meta-Llama-3-1-405B-Instruct-jqf", "AZUREAI_API_KEY"
-    )

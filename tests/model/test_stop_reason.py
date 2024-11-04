@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_azureai,
     skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
