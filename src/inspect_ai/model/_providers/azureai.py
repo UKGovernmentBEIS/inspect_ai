@@ -241,7 +241,7 @@ class AzureAIAPI(ModelAPI):
                 return ModelOutput.from_content(
                     model=self.model_name,
                     content=f"Your request triggered an error: {ex.error}",
-                    stop_reason="unknown",
+                    stop_reason="content_filter",
                 )
 
         raise ex
