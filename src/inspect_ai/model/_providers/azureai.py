@@ -184,10 +184,11 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        # llama2 models have a default max_tokens of 256 (context window is 4096)
-        # https://ai.azure.com/explore/models/Llama-2-70b-chat/version/17/registry/azureml-meta
-        if self.is_llama():
-            return DEFAULT_MAX_TOKENS
+        if self.is_llama3():
+            return 8192  # context window is 128k
+
+        elif self.is_llama():
+            return 2048  # llama2 context window is 4096
 
         # Mistral uses a default of 8192 which is fine, so we don't mess with it
         # see: https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-mistral#request-schema
@@ -221,6 +222,9 @@ class AzureAIAPI(ModelAPI):
     def is_llama(self) -> bool:
         return "llama" in self.model_name.lower()
 
+    def is_llama3(self) -> bool:
+        return "llama-3" in self.model_name.lower()
+
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
@@ -232,6 +236,12 @@ class AzureAIAPI(ModelAPI):
                     model=self.model_name,
                     content=response,
                     stop_reason="model_length",
+                )
+            elif ex.status_code == 400 and ex.error:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=f"Your request triggered an error: {ex.error}",
+                    stop_reason="unknown",
                 )
 
         raise ex
