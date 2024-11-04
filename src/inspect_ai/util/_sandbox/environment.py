@@ -49,7 +49,9 @@ class SandboxEnvironment(abc.ABC):
           metadata (dict[str,str]): Sample `metadata` field
 
         Returns:
-          Dictionary of named sandbox environments.
+          Dictionary of named sandbox environments. The environment which represents
+          the default environment (resolved by `sandbox("default")` or `sandbox()`) must
+          be the first key/value pair in the dictionary.
         """
         return {}
 
