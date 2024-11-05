@@ -249,6 +249,7 @@ def test_eval_set_previous_task_args():
                 tasks=[sleep_for_3_task("foo"), sleep_for_1_task("bar")],
                 log_dir=log_dir,
                 max_tasks=2,
+                model="mockllm/model",
             )
 
         # initial pass
