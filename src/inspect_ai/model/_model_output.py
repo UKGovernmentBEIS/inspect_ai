@@ -24,6 +24,28 @@ class ModelUsage(BaseModel):
     input_tokens_cache_read: int | None = Field(default=None)
     """Number of tokens retrieved from the cache."""
 
+    queue_time: float | None = Field(default=None)
+    """Time spent in the queue."""
+
+    prompt_time: float | None = Field(default=None)
+    """Time spent on processing the input tokens"""
+
+    completion_time: float | None = Field(default=None)
+    """Time spent on generating the output tokens."""
+
+    total_time: float | None = Field(default=None)
+    """Total time spent on the request."""
+
+class ModelTracing(BaseModel):
+
+    system_fingerprint: str | None = Field(default=None)
+    """Fingerprint of the system that generated the completion."""
+
+    request_id: str | None = Field(default=None)
+    """Request ID."""
+
+
+
 
 StopReason = Literal[
     "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
@@ -99,6 +121,9 @@ class ModelOutput(BaseModel):
 
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
+
+    tracing: ModelTracing | None = Field(default=None)
+    """Model tracing information."""
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
