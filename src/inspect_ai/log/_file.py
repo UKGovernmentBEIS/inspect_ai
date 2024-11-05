@@ -21,10 +21,6 @@ from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
 
 
-# TODO: tests on streaming reads
-# TODO: docs on streaming reads
-
-
 class EvalLogInfo(FileInfo):
     task: str
     """Task name."""
