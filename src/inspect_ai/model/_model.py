@@ -215,6 +215,13 @@ class Model:
         Returns:
            ModelOutput
         """
+        # verify that model apis are allowed
+        if (
+            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
+            and ModelName(self).api != "mockllm"
+        ):
+            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
+
         # base config for this model
         base_config = self.config
 
@@ -550,13 +557,6 @@ def get_model(
     # find a matching model type
     modelapi_types = registry_find(match_modelapi_type)
     if len(modelapi_types) > 0:
-        # verify that model apis are allowed
-        if (
-            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
-            and api_name != "mockllm"
-        ):
-            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
-
         # create the model (init_hooks here in case the model api
         # is being used as a stadalone model interface outside of evals)
         init_hooks()
