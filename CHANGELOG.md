@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
-- Files which end with the `.eval` extension will always be treated as eval log files (for the purposes of listing, bundling, and so on).
+- Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
 
 ## v0.3.44 (04 November 2024)
 
