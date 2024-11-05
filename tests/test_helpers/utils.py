@@ -1,10 +1,13 @@
+import contextlib
 import importlib.util
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
 from random import random
-from typing import Sequence
+from types import FrameType
+from typing import Generator, Sequence
 
 import pytest
 
@@ -209,3 +212,18 @@ def ensure_test_package_installed():
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
         )
+
+
+@contextlib.contextmanager
+def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
+    def handler(signum: int, frame: FrameType | None) -> None:
+        raise KeyboardInterrupt
+
+    original_handler = signal.signal(signal.SIGALRM, handler)
+    signal.alarm(seconds)
+
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, original_handler)

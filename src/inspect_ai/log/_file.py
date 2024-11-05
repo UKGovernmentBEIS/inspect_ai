@@ -9,7 +9,7 @@ from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_json
 
-from inspect_ai._util.constants import ALL_LOG_FORMATS
+from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
     file,
@@ -340,9 +340,13 @@ log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
 def is_log_file(file: str, extensions: list[str]) -> bool:
     parts = file.replace("\\", "/").split("/")
     name = parts[-1]
-    return re.match(log_file_pattern, name) is not None and any(
-        [name.endswith(suffix) for suffix in extensions]
-    )
+
+    if name.endswith(f".{EVAL_LOG_FORMAT}"):
+        return True
+    else:
+        return re.match(log_file_pattern, name) is not None and any(
+            [name.endswith(suffix) for suffix in extensions]
+        )
 
 
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
