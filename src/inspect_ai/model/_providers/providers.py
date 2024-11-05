@@ -211,6 +211,15 @@ def llama_cpp_python() -> type[ModelAPI]:
 
 @modelapi(name="azureai")
 def azureai() -> type[ModelAPI]:
+    FEATURE = "AzureAI API"
+    PACKAGE = "azure-ai-inference"
+
+    # verify we have the package
+    try:
+        import azure.ai.inference  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
     from .azureai import AzureAIAPI
 
     return AzureAIAPI

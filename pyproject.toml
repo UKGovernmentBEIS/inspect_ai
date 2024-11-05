@@ -113,6 +113,7 @@ inspect = "inspect_ai._cli.main:main"
 dev = [
     "anthropic", 
     "aioboto3", 
+    "azure-ai-inference",
     "google-cloud-aiplatform",
     "google-generativeai", 
     "groq", 

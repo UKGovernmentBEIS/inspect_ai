@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- AzureAI: Use Model Inference API (preview) for implementation of model client.
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
 - Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
 - Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
