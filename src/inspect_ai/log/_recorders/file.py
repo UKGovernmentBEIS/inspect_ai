@@ -39,7 +39,7 @@ class FileRecorder(Recorder):
 
         # throw if no samples
         if not eval_log.samples:
-            raise ValueError(f"No samples found in log {location}")
+            raise IndexError(f"No samples found in log {location}")
 
         # find the sample
         eval_sample = next(
@@ -51,7 +51,7 @@ class FileRecorder(Recorder):
             None,
         )
         if eval_sample is None:
-            raise ValueError(
+            raise IndexError(
                 f"Sample id {id} for epoch {epoch} not found in log {location}"
             )
         else:
