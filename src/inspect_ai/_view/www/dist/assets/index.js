@@ -20732,7 +20732,7 @@ const TaskBar = ({ logDir }) => {
     <div>Log Directory: ${logDir}</div>
   </div>`;
 };
-const kRowHeight = 65;
+const kRowHeight = 75;
 const TaskList = ({
   logDir,
   logCount,
@@ -20756,15 +20756,15 @@ const TaskList = ({
     }).join(", ");
   };
   const renderRow = (row) => {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2;
     return m$1` <div
       style=${{
       display: "grid",
-      gridTemplateColumns: "10em 25em .5fr 1fr .5fr 1fr",
+      gridTemplateColumns: "10em 17.5em .5fr .75fr 1.25fr",
       width: "100%",
       height: `${row.height}px`,
-      padding: "0.5em",
-      columnGap: "1em",
+      padding: "0.5em 1em",
+      columnGap: "0.5em",
       cursor: "pointer"
     }}
       tabindex="0"
@@ -20776,7 +20776,7 @@ const TaskList = ({
       <div>
         <div
           style=${{
-      fontSize: FontSize.large,
+      fontSize: FontSize.base,
       fontWeight: 600
     }}
         >
@@ -20802,11 +20802,8 @@ const TaskList = ({
       <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
         <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
       </div>
-      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
-        ${((_a2 = row.item.results) == null ? void 0 : _a2.scores) && row.item.results.scores.length > 0 ? (_b2 = row.item.results) == null ? void 0 : _b2.scores[0].name : ""}
-      </div>
       <div>
-        ${((_c = row.item.results) == null ? void 0 : _c.scores) ? m$1`<${Scores} scores=${(_d = row.item.results) == null ? void 0 : _d.scores} />` : ""}
+        ${((_a2 = row.item.results) == null ? void 0 : _a2.scores) ? m$1`<${Scores} scores=${(_b2 = row.item.results) == null ? void 0 : _b2.scores} />` : ""}
       </div>
     </div>`;
   };
@@ -20872,25 +20869,16 @@ const Scores = ({ scores }) => {
   }}
   >
     ${scores.map((score) => {
-    const reducer = score.reducer;
     return m$1`
         <div
           style=${{
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
+      alignItems: "left",
       marginLeft: "1em"
     }}
         >
-          ${reducer ? m$1` <div
-                style=${{
-      fontSize: FontSize.smaller,
-      width: "100%",
-      fontWeight: 300
-    }}
-              >
-                ${reducer}
-              </div>` : ""}
+        <div style=${{ ...TextStyle.secondary, fontSize: FontSize.smaller }}>${score.scorer}</div>
           <div
             style=${{
       fontSize: FontSize.smaller,
@@ -20899,11 +20887,10 @@ const Scores = ({ scores }) => {
       gridGap: "0 0.3rem"
     }}
           >
+            
             ${Object.keys(score.metrics).map((key2) => {
       const metric = score.metrics[key2];
-      return m$1` <div
-                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-                >
+      return m$1` <div>
                   ${metric.name}
                 </div>
                 <div style=${{ fontWeight: "600" }}>
