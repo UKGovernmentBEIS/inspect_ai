@@ -14290,6 +14290,21 @@ body:not([class^="vscode-"]) button {
   --bs-nav-link-color: black;
 }
 
+body:not([class^="vscode-"]) button {
+  --bs-nav-pills-link-active-bg: #e3eaf1;
+  --bs-nav-pills-link-active-color: black;
+  --bs-nav-link-color: black;
+}
+
+.page-link {
+  --bs-pagination-color: black;
+  --bs-pagination-active-color: black;
+  --bs-pagination-active-bg:  #e3eaf1;
+  --bs-pagination-active-border-color: #e3eaf1; 
+  --bs-pagination-disabled-color: gray;
+  --bs-pagination-disabled-bg: white; 
+}
+
 #app {
   height: 100vh;
   overflow-y: hidden;
