@@ -8,6 +8,7 @@ from ._file import (
     list_eval_logs,
     read_eval_log,
     read_eval_log_sample,
+    read_eval_log_samples,
     write_eval_log,
     write_log_dir_manifest,
 )
@@ -85,6 +86,7 @@ __all__ = [
     "list_eval_logs",
     "read_eval_log",
     "read_eval_log_sample",
+    "read_eval_log_samples",
     "condense_sample",
     "resolve_sample_attachments",
     "write_eval_log",

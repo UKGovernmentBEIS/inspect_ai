@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Generator, Literal, cast
 
 import fsspec  # type: ignore
 from fsspec.asyn import AsyncFileSystem  # type: ignore
@@ -242,8 +242,18 @@ def read_eval_log(
         recorder_type = recorder_type_for_format(format)
     log = recorder_type.read_log(log_file, header_only)
 
+    # resolve attachement if requested
     if resolve_attachments and log.samples:
         log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+
+    # provide sample ids if they aren't there
+    if log.eval.dataset.sample_ids is None and log.samples is not None:
+        sample_ids: dict[str | int, None] = {}
+        for sample in log.samples:
+            if sample.id not in sample_ids:
+                sample_ids[sample.id] = None
+        log.eval.dataset.sample_ids = list(sample_ids.keys())
+
     return log
 
 
@@ -291,6 +301,9 @@ def read_eval_log_sample(
 
     Returns:
        EvalSample object read from file.
+
+    Raises:
+       IndexError: If the passed id and epoch are not found.
     """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
@@ -305,6 +318,67 @@ def read_eval_log_sample(
         sample = resolve_sample_attachments(sample)
 
     return sample
+
+
+def read_eval_log_samples(
+    log_file: str | FileInfo,
+    all_samples_required: bool = True,
+    resolve_attachments: bool = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> Generator[EvalSample, None, None]:
+    """Read all samples from an evaluation log incrementally.
+
+    Generator for samples in a log file. Only one sample at a time
+    will be read into memory and yielded to the caller.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       all_samples_required (bool): All samples must be included in
+          the file or an IndexError is thrown.
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       Generator of EvalSample objects in the log file.
+
+    Raises:
+       IndexError: If `all_samples_required` is `True` and one of the target
+          samples does not exist in the log file.
+    """
+    # read header
+    log_header = read_eval_log(log_file, header_only=True)
+
+    # do we have the list of samples?
+    if log_header.eval.dataset.sample_ids is None:
+        raise RuntimeError(
+            "This log file does not include sample_ids "
+            + "(fully reading and re-writing the log will add sample_ids)"
+        )
+
+    # if the status is not success and all_samples_required, this is an error
+    if log_header.status != "success" and all_samples_required:
+        raise RuntimeError(
+            f"This log does not have all samples (status={log_header.status}). "
+            + "Specify all_samples_required=False to read the samples that exist."
+        )
+
+    # loop over samples and epochs
+    for sample_id in log_header.eval.dataset.sample_ids:
+        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
+            try:
+                sample = read_eval_log_sample(
+                    log_file=log_file,
+                    id=sample_id,
+                    epoch=epoch_id,
+                    resolve_attachments=resolve_attachments,
+                    format=format,
+                )
+                yield sample
+            except IndexError:
+                if all_samples_required:
+                    raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

@@ -82,7 +82,7 @@ from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
-from .util import sample_messages, task_run_dir
+from .util import sample_messages, slice_dataset, task_run_dir
 
 py_logger = getLogger(__name__)
 
@@ -538,12 +538,7 @@ async def resolve_dataset(
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
-    dataset_limit = (
-        slice(0, len(dataset))
-        if limit is None
-        else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
-    )
-    dataset = dataset[dataset_limit]
+    dataset = slice_dataset(dataset, limit)
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []

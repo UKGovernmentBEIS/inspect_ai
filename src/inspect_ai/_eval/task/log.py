@@ -3,6 +3,7 @@ from typing import Any, Literal, cast
 
 from shortuuid import uuid
 
+from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.constants import (
     PKG_NAME,
 )
@@ -80,7 +81,10 @@ class TaskLogger:
             )
 
         # ensure that the dataset has sample ids and record them
-        sample_ids = cast(list[int | str], [sample.id for sample in dataset])
+        sample_ids = cast(
+            list[int | str],
+            [sample.id for sample in slice_dataset(dataset, eval_config.limit)],
+        )
 
         # create eval spec
         self.eval = EvalSpec(
