@@ -45,9 +45,3 @@ async def test_together_num_choices() -> None:
 @skip_if_no_vllm
 async def test_vllm_num_choices() -> None:
     await check_num_choices("vllm/EleutherAI/pythia-70m")
-
-
-# @pytest.mark.asyncio
-# @skip_if_no_azureai
-# async def test_azureai_num_choices() -> None:
-#     await check_num_choices(None)

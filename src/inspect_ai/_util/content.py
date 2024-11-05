@@ -21,8 +21,7 @@ class ContentImage(BaseModel):
     detail: Literal["auto", "low", "high"] = Field(default="auto")
     """Specifies the detail level of the image.
 
-    Currently only supported for OpenAI. Learn more in the
-    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+    Currently only supported for OpenAI. Learn more in the    [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
     """
 
 
