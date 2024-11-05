@@ -653,18 +653,27 @@ export function App({
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
-        setSelectedLogIndex(index);
+        selectPageAndLogIndex(index, logs.files);
       } else {
+        
         const result = await loadLogs();
         const idx = result.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
         setLogs(result);
-        setSelectedLogIndex(idx > -1 ? idx : 0);
+        selectPageAndLogIndex(idx, result.files);
       }
     },
     [logs, setSelectedLogIndex, setLogs],
   );
+
+  const selectPageAndLogIndex = useCallback((idx, log_files) => {
+    const page = Math.floor(log_files.length / logHeaderPageSize);
+    const logIndex = idx % logHeaderPageSize;
+    setLogHeaderPage(page);
+    setSelectedLogIndex(logIndex);
+  },[logHeaderPageSize, setLogHeaderPage, setSelectedLogIndex]);
+
 
   const refreshLogList = useCallback(async () => {
     const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
