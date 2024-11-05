@@ -29,6 +29,7 @@ DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_LEVEL_TRANSCRIPT = "info"
 ALL_LOG_FORMATS = ["eval", "json"]
 DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "json"
+EVAL_LOG_FORMAT = "eval"
 LOG_SCHEMA_VERSION = 2
 SCORED_SUFFIX = "-scored"
 SAMPLE_SUBTASK = "sample"
