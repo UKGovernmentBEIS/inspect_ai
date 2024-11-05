@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
+
 ## v0.3.44 (04 November 2024)
 
 - Revert change to single epoch reducer behavior (regressed some scoring scenarios).
