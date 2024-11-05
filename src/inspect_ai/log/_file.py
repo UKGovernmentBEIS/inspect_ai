@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Generator, Literal, cast
 
 import fsspec  # type: ignore
 from fsspec.asyn import AsyncFileSystem  # type: ignore
@@ -305,6 +305,47 @@ def read_eval_log_sample(
         sample = resolve_sample_attachments(sample)
 
     return sample
+
+
+# add the sample ids when reading entire file
+
+
+def read_eval_log_samples(
+    log_file: str | FileInfo,
+    resolve_attachments: bool = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> Generator[EvalSample, None, None]:
+    """Read all eval log samples using a generator for incremental access.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       EvalSample object read from file.
+    """
+    # read header
+    log_header = read_eval_log(log_file, header_only=True)
+
+    # do we have the list of samples?
+    if log_header.eval.dataset.sample_ids is None:
+        raise RuntimeError(
+            "This log file does not include sample_ids (fully reading and re-writing it will add sample_ids)"
+        )
+
+    # loop over samples and epochs
+    for sample_id in log_header.eval.dataset.sample_ids:
+        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
+            yield read_eval_log_sample(
+                log_file=log_file,
+                id=sample_id,
+                epoch=epoch_id,
+                resolve_attachments=resolve_attachments,
+                format=format,
+            )
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
