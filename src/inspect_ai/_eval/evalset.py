@@ -302,10 +302,10 @@ def eval_set(
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
-        log_task_identifers = [log.task_identifier for log in all_logs]
-        all_tasks = [(task_identifer(task), task) for task in resolved_tasks]
+        log_task_identifiers = [log.task_identifier for log in all_logs]
+        all_tasks = [(task_identifier(task), task) for task in resolved_tasks]
         pending_tasks = [
-            task[1] for task in all_tasks if task[0] not in log_task_identifers
+            task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
         task_groups = schedule_pending_tasks(pending_tasks)
 
@@ -335,18 +335,18 @@ def eval_set(
             # retry the failed logs (look them up in resolved_tasks)
             if len(failed_logs) > 0:
                 # schedule the re-execution of the failed tasks
-                failed_task_identifers = [log.task_identifier for log in failed_logs]
+                failed_task_identifiers = [log.task_identifier for log in failed_logs]
                 failed_tasks = [
                     task
                     for task in resolved_tasks
-                    if task_identifer(task) in failed_task_identifers
+                    if task_identifier(task) in failed_task_identifiers
                 ]
                 task_groups = schedule_retry_tasks(failed_tasks)
 
                 # execute task groups (run previous task so we get the samples from the log)
                 def run_previous_tasks(tasks: list[ResolvedTask]) -> list[PreviousTask]:
                     def task_to_failed_log(task: ResolvedTask) -> Log:
-                        resolved_task_identifier = task_identifer(task)
+                        resolved_task_identifier = task_identifier(task)
                         return next(
                             log
                             for log in failed_logs
@@ -449,11 +449,11 @@ class Log(NamedTuple):
 def list_all_eval_logs(log_dir: str) -> list[Log]:
     log_files = list_eval_logs(log_dir)
     log_headers = read_eval_log_headers(log_files)
-    task_identifers = [task_identifer(log_header) for log_header in log_headers]
+    task_identifiers = [task_identifier(log_header) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
         for info, header, task_identifier in zip(
-            log_files, log_headers, task_identifers
+            log_files, log_headers, task_identifiers
         )
     ]
 
@@ -528,13 +528,13 @@ def validate_eval_set_prerequisites(
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
     for task in resolved_tasks:
-        identifer = task_identifer(task)
-        if identifer in task_identifiers:
+        identifier = task_identifier(task)
+        if identifier in task_identifiers:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Solvers passed to tasks should also use the @solver decorator."
             )
         else:
-            task_identifiers.add(identifer)
+            task_identifiers.add(identifier)
 
     # do all logs in the log directory correspond to task identifiers?
     for log in all_logs:
@@ -547,7 +547,7 @@ def validate_eval_set_prerequisites(
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
-def task_identifer(task: ResolvedTask | EvalLog) -> str:
+def task_identifier(task: ResolvedTask | EvalLog) -> str:
     if isinstance(task, ResolvedTask):
         task_file = task.task_file or ""
         task_name = task.task.name
@@ -570,7 +570,7 @@ def task_identifer(task: ResolvedTask | EvalLog) -> str:
         return f"{task_name}#{task_args_hash}/{model}"
 
 
-def task_identifer_without_model(identifier: str) -> str:
+def task_identifier_without_model(identifier: str) -> str:
     parts = identifier.split("/")
     parts = parts[:-2]
     identifier = "/".join(parts)
@@ -610,7 +610,7 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
     # build a map of task identifiers and the models they target
     task_id_model_targets: dict[str, ModelList] = {}
     for pending_task in pending_tasks:
-        task_id = task_identifer_without_model(task_identifer(pending_task))
+        task_id = task_identifier_without_model(task_identifier(pending_task))
         if task_id not in task_id_model_targets:
             task_id_model_targets[task_id] = ModelList([])
         if pending_task.model not in task_id_model_targets[task_id].models:
@@ -639,7 +639,8 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
                     (
                         task
                         for task in pending_tasks
-                        if task_id == task_identifer_without_model(task_identifer(task))
+                        if task_id
+                        == task_identifier_without_model(task_identifier(task))
                     )
                 )
             )
