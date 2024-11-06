@@ -8,6 +8,7 @@
 - Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
 - Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
 - Log model calls when model providers return bad request errors
+- Better lay out large numbers of configuration and parameters when displaying log files.
 
 ## v0.3.44 (04 November 2024)
 
