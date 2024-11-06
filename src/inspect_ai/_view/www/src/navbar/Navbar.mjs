@@ -70,9 +70,6 @@ export const Navbar = ({
                 id="sidebarToggle"
                 class="btn"
                 type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
                 style=${{
                   padding: "0rem 0.1rem 0.1rem 0rem",
                   display: "flex",

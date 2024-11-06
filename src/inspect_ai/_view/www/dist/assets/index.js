@@ -18977,9 +18977,6 @@ const Navbar = ({
                 id="sidebarToggle"
                 class="btn"
                 type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
                 style=${{
     padding: "0rem 0.1rem 0.1rem 0rem",
     display: "flex"
@@ -21018,7 +21015,7 @@ function App({
   const [logHeaderPage, setLogHeaderPage] = h(
     (initialState2 == null ? void 0 : initialState2.logHeaderPage) || -1
   );
-  const [logHeaderPageSize] = h(10);
+  const [logHeaderPageSize] = h((initialState2 == null ? void 0 : initialState2.logHeaderPageSize) || 10);
   const [selectedLog, setSelectedLog] = h(
     (initialState2 == null ? void 0 : initialState2.selectedLog) || {
       contents: void 0,
@@ -21059,7 +21056,6 @@ function App({
       webWorkers: true
     }
   );
-  const [offcanvas, setOffcanvas] = h((initialState2 == null ? void 0 : initialState2.offcanvas) || false);
   const [showFind, setShowFind] = h((initialState2 == null ? void 0 : initialState2.showFind) || false);
   const [filter, setFilter] = h((initialState2 == null ? void 0 : initialState2.filter) || {});
   const [epoch, setEpoch] = h((initialState2 == null ? void 0 : initialState2.epoch) || "all");
@@ -21090,7 +21086,6 @@ function App({
       showingSampleDialog,
       status,
       capabilities,
-      offcanvas,
       showFind,
       filter,
       epoch,
@@ -21101,7 +21096,8 @@ function App({
       groupBy,
       groupByOrder,
       sampleScrollPosition: sampleScrollPosition.current,
-      workspaceTabScrollPosition: workspaceTabScrollPosition.current
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current,
+      logHeaderPageSize
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -21121,7 +21117,6 @@ function App({
     showingSampleDialog,
     status,
     capabilities,
-    offcanvas,
     showFind,
     filter,
     epoch,
@@ -21130,7 +21125,8 @@ function App({
     score,
     filteredSamples,
     groupBy,
-    groupByOrder
+    groupByOrder,
+    logHeaderPageSize
   ]);
   const saveStateRef = A(saveState);
   y(() => {
@@ -21535,7 +21531,6 @@ function App({
           setCapabilities({ downloadFiles: false, webWorkers: false });
         }
       }
-      setOffcanvas(true);
       const logPath = urlParams.get("task_file");
       const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
       const load = resolvedLogPath ? async () => {
@@ -21638,7 +21633,6 @@ function App({
                 sampleError=${sampleError}
                 samplesDescriptor=${samplesDescriptor}
                 refreshLog=${refreshLog}
-                offcanvas=${offcanvas}
                 capabilities=${capabilities}
                 selected=${selectedLogIndex}
                 selectedSample=${selectedSample}
