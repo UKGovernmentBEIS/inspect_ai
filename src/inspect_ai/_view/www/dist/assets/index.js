@@ -24388,29 +24388,34 @@ const WorkSpace = ({
         />`;
       },
       tools: () => {
-        if (evalStatus === "started") {
-          return m$1`<${ToolButton}
-            name=${m$1`Refresh`}
-            icon="${ApplicationIcons.refresh}"
-            onclick="${refreshLog}"
-          />`;
-        }
         if (sampleMode === "single") {
           return "";
         }
-        return m$1`<${SampleTools}
-          epoch=${epoch}
-          epochs=${epochs}
-          setEpoch=${setEpoch}
-          filter=${filter}
-          filterChanged=${setFilter}
-          sort=${sort}
-          setSort=${setSort}
-          score=${score}
-          setScore=${setScore}
-          scores=${scores}
-          sampleDescriptor=${samplesDescriptor}
-        />`;
+        const sampleTools = [
+          m$1`<${SampleTools}
+            epoch=${epoch}
+            epochs=${epochs}
+            setEpoch=${setEpoch}
+            filter=${filter}
+            filterChanged=${setFilter}
+            sort=${sort}
+            setSort=${setSort}
+            score=${score}
+            setScore=${setScore}
+            scores=${scores}
+            sampleDescriptor=${samplesDescriptor}
+          />`
+        ];
+        if (evalStatus === "started") {
+          sampleTools.push(
+            m$1`<${ToolButton}
+              name=${m$1`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${refreshLog}"
+            />`
+          );
+        }
+        return sampleTools;
       }
     };
   }
@@ -25612,29 +25617,13 @@ function App({
      * @param {import("./api/Types.mjs").EvalSummary} log
      */
     (log) => {
-      var _a3, _b3, _c2, _d2;
       const hasSamples = !!log.sampleSummaries && log.sampleSummaries.length > 0;
       const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
       );
-      const scorer = ((_a3 = log.results) == null ? void 0 : _a3.scores[0]) ? {
-        name: (_b3 = log.results) == null ? void 0 : _b3.scores[0].name,
-        scorer: (_c2 = log.results) == null ? void 0 : _c2.scores[0].scorer
-      } : void 0;
-      const scorers = (((_d2 = log.results) == null ? void 0 : _d2.scores) || []).map((score2) => {
-        return {
-          name: score2.name,
-          scorer: score2.scorer
-        };
-      }).reduce((accum, scorer2) => {
-        if (!accum.find((sc) => {
-          return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
-        })) {
-          accum.push(scorer2);
-        }
-        return accum;
-      }, []);
+      const scorer = defaultScorer(log);
+      const scorers = defaultScorers(log);
       setScores(scorers);
       setScore(scorer);
       setEpoch("all");
@@ -25957,6 +25946,44 @@ function App({
     </${AppErrorBoundary}>
   `;
 }
+const defaultScorer = (log) => {
+  var _a2, _b2, _c;
+  const scorer = ((_a2 = log.results) == null ? void 0 : _a2.scores[0]) ? {
+    name: (_b2 = log.results) == null ? void 0 : _b2.scores[0].name,
+    scorer: (_c = log.results) == null ? void 0 : _c.scores[0].scorer
+  } : log.sampleSummaries.length > 0 ? {
+    name: Object.keys(log.sampleSummaries[0].scores)[0],
+    scorer: Object.keys(log.sampleSummaries[0].scores)[0]
+  } : void 0;
+  return scorer;
+};
+const defaultScorers = (log) => {
+  var _a2, _b2;
+  if ((_a2 = log.results) == null ? void 0 : _a2.scores) {
+    return (((_b2 = log.results) == null ? void 0 : _b2.scores) || []).map((score) => {
+      return {
+        name: score.name,
+        scorer: score.scorer
+      };
+    }).reduce((accum, scorer) => {
+      if (!accum.find((sc) => {
+        return scorer.scorer === sc.scorer && scorer.name === sc.name;
+      })) {
+        accum.push(scorer);
+      }
+      return accum;
+    }, []);
+  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
+    return Object.keys(log.sampleSummaries[0].scores).map((key2) => {
+      return {
+        name: key2,
+        scorer: key2
+      };
+    });
+  } else {
+    return [];
+  }
+};
 const vscode = getVscodeApi();
 let initialState = void 0;
 if (vscode) {
