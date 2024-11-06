@@ -20498,6 +20498,61 @@ const ListView = ({
     onkeydown=${onkeydown}
   />`;
 };
+const ColumnListView = ({
+  rows,
+  renderer,
+  columns,
+  columnWidths,
+  selectedIndex,
+  onSelectedIndex,
+  onShowItem,
+  style
+}) => {
+  return m$1`
+    <div style=${{ display: "grid", gridTemplateRows: "max-content 1fr" }}>
+      <div
+        style=${{
+    display: "grid",
+    gridTemplateColumns: columnWidths.join(" "),
+    width: "100%",
+    padding: "0.5em 1em",
+    columnGap: "0.5em",
+    backgroundColor: "var(--bs-light)",
+    borderBottom: "solid var(--bs-light-border-subtle) 1px",
+    fontSize: FontSize.smaller
+  }}
+        tabindex="0"
+      >
+        ${columns.map((col, index) => {
+    if (index < columns.length - 1) {
+      return m$1` <div
+              style=${{ display: "grid", gridTemplateColumns: "1fr 10px" }}
+            >
+              <div>${col}</div>
+              <div
+                style=${{
+        borderRight: "solid var(--bs-dark-border-subtle) 1px",
+        cursor: "pointer"
+      }}
+              ></div>
+            </div>`;
+    } else {
+      return m$1`<div>${col}</div>`;
+    }
+  })}
+      </div>
+      <${ListView}
+        rows=${rows}
+        renderer=${renderer}
+        selectedIndex=${selectedIndex}
+        onSelectedIndex=${onSelectedIndex}
+        onShowItem=${onShowItem}
+        tabIndex="0"
+        style=${style}
+      />
+    </div>
+  `;
+};
 const Pagination = ({ pageCount, currentPage, onCurrentPage }) => {
   return m$1`<nav aria-label="Page navigation example">
     <ul
@@ -20755,14 +20810,16 @@ const TaskList = ({
       return `${param}=${hyperparameters[param]}`;
     }).join(", ");
   };
+  const columns = ["Time", "Task", "Config", "Samples", "Score"];
+  const columnWidths = ["10rem", "17.5rem", ".75fr", ".5fr", "1.25fr"];
   const renderRow = (row) => {
     var _a2, _b2;
     return m$1` <div
       style=${{
       display: "grid",
-      gridTemplateColumns: "10em 17.5em .5fr .75fr 1.25fr",
+      gridTemplateColumns: columnWidths.join(" "),
       width: "100%",
-      height: `${row.height}px`,
+      minHeight: `${row.height}px`,
       padding: "0.5em 1em",
       columnGap: "0.5em",
       cursor: "pointer"
@@ -20792,15 +20849,15 @@ const TaskList = ({
         </div>
       </div>
       <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
+        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
+      </div>
+      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
         <div>
           ${`${row.item.eval.dataset.samples} ${row.item.eval.dataset.samples > 1 ? "Samples" : "Sample"}`}
         </div>
         <div>
           <${Epochs} epochs=${row.item.eval.config.epochs} />
         </div>
-      </div>
-      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
-        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
       </div>
       <div>
         ${((_a2 = row.item.results) == null ? void 0 : _a2.scores) ? m$1`<${Scores} scores=${(_b2 = row.item.results) == null ? void 0 : _b2.scores} />` : ""}
@@ -20816,9 +20873,11 @@ const TaskList = ({
   }) : [];
   return m$1`
     <${TaskBar} logDir=${logDir} />
-    <${ListView}
+    <${ColumnListView}
       rows=${rows}
       renderer=${renderRow}
+      columns=${columns}
+      columnWidths=${columnWidths}
       selectedIndex=${selectedLogIndex}
       onSelectedIndex=${onSelectedLogIndex}
       onShowItem=${(item) => {
@@ -20827,7 +20886,6 @@ const TaskList = ({
       tabIndex="0"
       style=${listStyle}
     />
-    
     <${StatusFooter} spinner=${status === "loading"} spinnerMessage="Loading..." statusMessages=${[{ text: `${logCount} log files` }]}>
       <${Pagination}
         pageCount=${pageCount}
@@ -20864,8 +20922,8 @@ const Scores = ({ scores }) => {
     display: "flex",
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-end",
-    rowGap: "1em"
+    justifyContent: "flex-start",
+    columnGap: "1em"
   }}
   >
     ${scores.map((score) => {
@@ -20874,11 +20932,12 @@ const Scores = ({ scores }) => {
           style=${{
       display: "flex",
       flexDirection: "column",
-      alignItems: "left",
-      marginLeft: "1em"
+      alignItems: "left"
     }}
         >
-        <div style=${{ ...TextStyle.secondary, fontSize: FontSize.smaller }}>${score.scorer}</div>
+          <div style=${{ ...TextStyle.secondary, fontSize: FontSize.smaller }}>
+            ${score.scorer}
+          </div>
           <div
             style=${{
       fontSize: FontSize.smaller,
@@ -20887,12 +20946,9 @@ const Scores = ({ scores }) => {
       gridGap: "0 0.3rem"
     }}
           >
-            
             ${Object.keys(score.metrics).map((key2) => {
       const metric = score.metrics[key2];
-      return m$1` <div>
-                  ${metric.name}
-                </div>
+      return m$1` <div>${metric.name}</div>
                 <div style=${{ fontWeight: "600" }}>
                   ${formatPrettyDecimal(metric.value)}
                 </div>`;
@@ -21414,12 +21470,15 @@ function App({
     },
     [logs, setSelectedLogIndex, setLogs]
   );
-  const selectPageAndLogIndex = q((idx, log_files) => {
-    const page = Math.floor(log_files.length / logHeaderPageSize);
-    const logIndex = idx % logHeaderPageSize;
-    setLogHeaderPage(page);
-    setSelectedLogIndex(logIndex);
-  }, [logHeaderPageSize, setLogHeaderPage, setSelectedLogIndex]);
+  const selectPageAndLogIndex = q(
+    (idx, log_files) => {
+      const page = Math.floor(log_files.length / logHeaderPageSize);
+      const logIndex = idx % logHeaderPageSize;
+      setLogHeaderPage(page);
+      setSelectedLogIndex(logIndex);
+    },
+    [logHeaderPageSize, setLogHeaderPage, setSelectedLogIndex]
+  );
   const refreshLogList = q(async () => {
     const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
     const refreshedLogs = await loadLogs();

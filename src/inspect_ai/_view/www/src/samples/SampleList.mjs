@@ -10,7 +10,7 @@ import { SampleError } from "./SampleError.mjs";
 
 import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
-import { VirtualList } from "../components/VirtualList.mjs";
+import { VirtualList } from "../components/ListView/VirtualList.mjs";
 import { MessageBand } from "../components/MessageBand.mjs";
 import { inputString } from "../utils/Format.mjs";
 

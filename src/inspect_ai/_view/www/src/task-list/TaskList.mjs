@@ -1,7 +1,7 @@
 //@ts-check
 import { html } from "htm/preact";
 
-import { ListView } from "../components/ListView.mjs";
+import { ColumnListView } from "../components/ListView/ColumnListView.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { Pagination } from "../components/Pagination.mjs";
@@ -60,19 +60,22 @@ export const TaskList = ({
       .join(", ");
   };
 
+  const columns = ["Time", "Task", "Config", "Samples", "Score"];
+  const columnWidths = ["10rem", "17.5rem", ".75fr", ".5fr", "1.25fr"];
+
   /**
    * Renders a row based on the item and index.
    *
-   * @param {import("../components/ListView.mjs").Row<import("../types/log").EvalLog>} row - The row to render
+   * @param {import("../components/ListView/Types.mjs").Row<import("../types/log").EvalLog>} row - The row to render
    * @returns {import("preact").JSX.Element} The SampleTranscript component.
    */
   const renderRow = (row) => {
     return html` <div
       style=${{
         display: "grid",
-        gridTemplateColumns: "10em 17.5em .5fr .75fr 1.25fr",
+        gridTemplateColumns: columnWidths.join(" "),
         width: "100%",
-        height: `${row.height}px`,
+        minHeight: `${row.height}px`,
         padding: "0.5em 1em",
         columnGap: "0.5em",
         cursor: "pointer",
@@ -102,15 +105,15 @@ export const TaskList = ({
         </div>
       </div>
       <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
+        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
+      </div>
+      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
         <div>
           ${`${row.item.eval.dataset.samples} ${row.item.eval.dataset.samples > 1 ? "Samples" : "Sample"}`}
         </div>
         <div>
           <${Epochs} epochs=${row.item.eval.config.epochs} />
         </div>
-      </div>
-      <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
-        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
       </div>
       <div>
         ${row.item.results?.scores
@@ -132,9 +135,11 @@ export const TaskList = ({
 
   return html`
     <${TaskBar} logDir=${logDir} />
-    <${ListView}
+    <${ColumnListView}
       rows=${rows}
       renderer=${renderRow}
+      columns=${columns}
+      columnWidths=${columnWidths}
       selectedIndex=${selectedLogIndex}
       onSelectedIndex=${onSelectedLogIndex}
       onShowItem=${(item) => {
@@ -143,7 +148,6 @@ export const TaskList = ({
       tabIndex="0"
       style=${listStyle}
     />
-    
     <${StatusFooter} spinner=${status === "loading"} spinnerMessage="Loading..." statusMessages=${[{ text: `${logCount} log files` }]}>
       <${Pagination}
         pageCount=${pageCount}
@@ -195,8 +199,8 @@ const Scores = ({ scores }) => {
       display: "flex",
       flexDirection: "row",
       flexWrap: "wrap",
-      justifyContent: "flex-end",
-      rowGap: "1em",
+      justifyContent: "flex-start",
+      columnGap: "1em",
     }}
   >
     ${scores.map((score) => {
@@ -206,7 +210,6 @@ const Scores = ({ scores }) => {
             display: "flex",
             flexDirection: "column",
             alignItems: "left",
-            marginLeft: "1em",
           }}
         >
           <div style=${{ ...TextStyle.secondary, fontSize: FontSize.smaller }}>

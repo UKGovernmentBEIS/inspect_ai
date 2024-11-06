@@ -2,7 +2,7 @@
 
 import { html, Component } from "htm/preact";
 import { createRef } from "preact";
-import { throttle } from "../utils/sync.mjs";
+import { throttle } from "../../utils/sync.mjs";
 
 /**
  * @typedef {Object} RowDescriptor
@@ -43,13 +43,16 @@ export class VirtualList extends Component {
    * @private
    */
   resize() {
+    // @ts-ignore
     if (this.state.height !== this.base.offsetHeight) {
+      // @ts-ignore
       this.setState({ height: this.base.offsetHeight });
     }
   }
 
   handleScroll() {
     if (this.base) {
+      // @ts-ignore
       this.setState({ offset: this.base.scrollTop });
     }
     if (this.props.sync) {

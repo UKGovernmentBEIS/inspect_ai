@@ -5,28 +5,11 @@ import { VirtualList } from "./VirtualList.mjs";
 
 /**
  * @template T
- * @typedef {Object} Row extends import("./VirtualList.mjs").RowDescriptor
- * @property {T} item - The index of the current file in the list.
- * @property {number} index - The index of the current file in the list.
- * @property {number} height - The height of the row.
- */
-
-/**
- * @template T
- * @callback Renderer
- * A function that renders a single row in the virtualized list.
- * @param {Row<T>} row - The data item corresponding to the row.
- * @param {number} index - The index of the current row.
- * @returns {import('preact').JSX.Element} A JSX element representing the row.
- */
-
-/**
- * @template T
  * A List View component with keyboard handling and mouse behavior built in
  *
  * @param {Object} props - The component properties.
- * @param {Row<T>[]} props.rows - The row data to be rendered.
- * @param {Renderer<T>} props.renderer - The row data to be rendered.
+ * @param {import("./Types.mjs").Row<T>[]} props.rows - The row data to be rendered.
+ * @param {import("./Types.mjs").Renderer<T>} props.renderer - The row data to be rendered.
  * @param {number} props.selectedIndex - The selected index
  * @param {(index: number) => void} props.onSelectedIndex - Function to set the selected index
  * @param {(item: T) => void} props.onShowItem - Function that will be called when an item should be shown
@@ -96,10 +79,10 @@ export const ListView = ({
    * @template T
    * A List View component with keyboard handling and mouse behavior built in
    *
-   * @param {Renderer<T>} renderer - The component properties.
+   * @param {import("./Types.mjs").Renderer<T>} renderer - The component properties.
    * @param {number} selectedIndex - The selected index
    *
-   * @returns {(row: Row<T>, index: number) => import('preact').JSX.Element} The rendered component.
+   * @returns {(row: import("./Types.mjs").Row<T>, index: number) => import('preact').JSX.Element} The rendered component.
    */
   const withEventHandling = (renderer, selectedIndex) => {
     return (row, index) => {
