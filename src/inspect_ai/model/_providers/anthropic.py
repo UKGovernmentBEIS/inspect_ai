@@ -125,6 +125,17 @@ class AnthropicAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # setup request and response for ModelCall
+        request: dict[str, Any] = {}
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=request,
+                response=response,
+                filter=model_call_filter,
+            )
+
         # generate
         try:
             (
@@ -135,7 +146,7 @@ class AnthropicAPI(ModelAPI):
             ) = await resolve_chat_input(self.model_name, input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
-            request: dict[str, Any] = dict(messages=messages)
+            request = dict(messages=messages)
 
             # system messages and tools
             if system_param is not None:
@@ -156,22 +167,19 @@ class AnthropicAPI(ModelAPI):
             # call model
             message = await self.client.messages.create(**request, stream=False)
 
+            # set response for ModelCall
+            response = message.model_dump()
+
             # extract output
             output = model_output_from_message(message, tools)
 
             # return output and call
-            call = ModelCall.create(
-                request=request,
-                response=message.model_dump(),
-                filter=model_call_filter,
-            )
-
-            return output, call
+            return output, model_call()
 
         except BadRequestError as ex:
             error_output = self.handle_bad_request(ex)
             if error_output is not None:
-                return error_output
+                return error_output, model_call()
             else:
                 raise ex
 

@@ -7,6 +7,7 @@
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
 - Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
 - Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
+- Log model calls when model providers return bad request errors
 
 ## v0.3.44 (04 November 2024)
 
