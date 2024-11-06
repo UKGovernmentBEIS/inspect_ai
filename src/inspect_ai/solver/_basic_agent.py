@@ -54,6 +54,7 @@ def basic_agent(
     max_attempts: int = 1,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
@@ -82,10 +83,11 @@ def basic_agent(
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
-       message_limit (int): Limit on messages in sample before terminating agent.
+       message_limit (int | None): Limit on messages in sample before terminating agent.
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task, 50 will be used as a default.
-       token_limit (int): Limit on tokens used in sample before terminating agent.
+       token_limit (int | None): Limit on tokens used in sample before terminating agent.
+       time_limit (int | None): Limit on time (in seconds) for execution of each sample.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -159,6 +161,9 @@ def basic_agent(
 
             # resolve token limit
             state.token_limit = token_limit or state.token_limit
+
+            # resolve time limit
+            state.time_limit = time_limit or state.time_limit
 
             # track attempts
             attempts = 0

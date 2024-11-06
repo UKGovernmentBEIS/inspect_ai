@@ -55,6 +55,7 @@ class Task:
            eval if a count of samples fails.
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
           if its anonymous task (e.g. created in a notebook and passed to
@@ -76,6 +77,7 @@ class Task:
         fail_on_error: bool | float | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        time_limit: int | None = None,
         name: str | None = None,
         version: int = 0,
         metadata: dict[str, Any] | None = None,
@@ -133,6 +135,7 @@ class Task:
         self.fail_on_error = fail_on_error
         self.message_limit = message_limit
         self.token_limit = token_limit
+        self.time_limit = time_limit
         self.version = version
         self._name = name
         self.metadata = metadata

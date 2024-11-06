@@ -88,7 +88,7 @@ async def eval_run(
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
-                # token_limit, and fail_on_error so broadcast these
+                # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
                 task = resolved_task.task
@@ -126,6 +126,12 @@ async def eval_run(
                     task_eval_config.token_limit = task.token_limit
                 else:
                     task.token_limit = task_eval_config.token_limit
+
+                # sample time limit
+                if task_eval_config.time_limit is None:
+                    task_eval_config.time_limit = task.time_limit
+                else:
+                    task.time_limit = task_eval_config.time_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:

@@ -158,6 +158,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             log_images=log_images,
             message_limit=config.message_limit,
             token_limit=config.token_limit,
+            time_limit=config.time_limit,
         )
 
         # resolve the plan (unroll chains)
@@ -536,6 +537,7 @@ async def resolve_dataset(
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
     dataset = slice_dataset(dataset, limit)
@@ -564,6 +566,7 @@ async def resolve_dataset(
                 messages=sample_messages(sample),
                 message_limit=message_limit,
                 token_limit=token_limit,
+                time_limit=time_limit,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )

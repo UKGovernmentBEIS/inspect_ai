@@ -64,6 +64,7 @@ def eval(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -117,6 +118,7 @@ def eval(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -161,6 +163,7 @@ def eval(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -195,6 +198,7 @@ async def eval_async(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -247,6 +251,7 @@ async def eval_async(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -346,6 +351,7 @@ async def eval_async(
             fail_on_error=fail_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -639,6 +645,7 @@ async def eval_retry_async(
         approval = eval_log.eval.config.approval
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
+        time_limit = eval_log.eval.config.time_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -693,6 +700,7 @@ async def eval_retry_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                time_limit=time_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
