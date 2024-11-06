@@ -68,6 +68,9 @@ export function App({
   );
 
   // Log Headers
+  /**
+   * @type {[ import("./api/Types.mjs").EvalLogHeader[], (newState: import("./api/Types.mjs").EvalLogHeader[]) => void ]}
+   */
   const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || []);
   const [headersLoading, setHeadersLoading] = useState(
     initialState?.headersLoading || false,

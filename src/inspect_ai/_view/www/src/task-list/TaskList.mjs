@@ -105,7 +105,9 @@ export const TaskList = ({
         </div>
       </div>
       <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
-        <pre>${configStr(row.item.eval.config, row.item.eval.task_args)}</pre>
+        <pre style=${{ whiteSpace: "pre-wrap" }}>
+${configStr(row.item.eval.config, row.item.eval.task_args)}</pre
+        >
       </div>
       <div style=${{ fontSize: FontSize.small, marginTop: "0.3em" }}>
         <div>
