@@ -157,6 +157,17 @@ class OpenAIAPI(ModelAPI):
                 **self.completion_params(config, False),
             )
 
+        # setup request and response for ModelCall
+        request: dict[str, Any] = {}
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=request,
+                response=response,
+                filter=image_url_filter,
+            )
+
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
@@ -176,33 +187,32 @@ class OpenAIAPI(ModelAPI):
 
         try:
             # generate completion
-            response: ChatCompletion = await self.client.chat.completions.create(
+            completion: ChatCompletion = await self.client.chat.completions.create(
                 **request
             )
 
+            # save response for model_call
+            response = completion.model_dump()
+
             # parse out choices
-            choices = self._chat_choices_from_response(response, tools)
+            choices = self._chat_choices_from_response(completion, tools)
 
             # return output and call
             return ModelOutput(
-                model=response.model,
+                model=completion.model,
                 choices=choices,
                 usage=(
                     ModelUsage(
-                        input_tokens=response.usage.prompt_tokens,
-                        output_tokens=response.usage.completion_tokens,
-                        total_tokens=response.usage.total_tokens,
+                        input_tokens=completion.usage.prompt_tokens,
+                        output_tokens=completion.usage.completion_tokens,
+                        total_tokens=completion.usage.total_tokens,
                     )
-                    if response.usage
+                    if completion.usage
                     else None
                 ),
-            ), ModelCall.create(
-                request=request,
-                response=response.model_dump(),
-                filter=image_url_filter,
-            )
+            ), model_call()
         except BadRequestError as e:
-            return self.handle_bad_request(e)
+            return self.handle_bad_request(e), model_call()
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
