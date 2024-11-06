@@ -3,15 +3,16 @@ import shutil
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from typing import Tuple
 
 import pytest
 from test_helpers.utils import (
     failing_solver,
+    failing_solver_deterministic, 
     failing_task,
     failing_task_deterministic,
     keyboard_interrupt,
 )
-
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
     ModelList,
@@ -25,7 +26,7 @@ from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model import Model, get_model
-from inspect_ai.scorer._match import includes
+from inspect_ai.scorer._match import includes, match
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
@@ -239,6 +240,61 @@ def test_eval_zero_retries() -> None:
             model="mockllm/model",
         )
         assert not success
+
+
+should_fail = [
+    True,
+    False,
+    True,
+    True,
+    False,
+    True,
+    True,
+    False,
+    True,
+    True,
+    False,
+    True,
+]
+
+
+@task
+def failing_task_many_samples() -> Task:
+    dataset: list[Sample] = []
+    for id in range(0, len(should_fail)):
+        dataset.append(Sample(id=id, input="Say hello", target="hello"))
+    return Task(
+        dataset=dataset,
+        plan=[failing_solver_deterministic(should_fail), generate()],
+        scorer=match(),
+    )
+
+
+def test_retry_tasknames() -> None:
+    with tempfile.TemporaryDirectory() as log_dir:
+        iterate_eval_set(log_dir,1)
+        iterate_eval_set(log_dir,2)
+
+
+def iterate_eval_set(log_dir: str, iteration: int) -> None:
+    task = failing_task_many_samples()
+    _, logs = eval_set(
+        tasks=task,
+        retry_attempts=0,
+        retry_wait=0.1,
+        model="mockllm/model",
+        log_dir=log_dir,
+        fail_on_error=False,
+    )
+
+    assert logs, f"Logs not returned {iteration=}"
+    assert logs[0], f"Eval didn't return a log {iteration=}"
+    assert logs[0].samples, f"Log had no samples {iteration=}"
+    assert should_fail.count(True) == len(
+        [sample for sample in logs[0].samples if sample.error is not None]
+    )
+
+
 
 
 def test_eval_set_previous_task_args():
