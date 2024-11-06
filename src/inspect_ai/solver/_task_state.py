@@ -139,7 +139,6 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
-        time_limit: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
     ) -> None:
@@ -192,7 +191,6 @@ class TaskState:
         self._message_limit_exceeded = False
         self._token_limit = token_limit
         self._token_limit_exceeded = False
-        self.time_limit = time_limit
         self._completed = completed
 
         """Store for shared data"""
