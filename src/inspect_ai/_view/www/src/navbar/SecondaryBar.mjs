@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
+import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
 
 /**
  * Renders the Navbar
@@ -71,6 +72,7 @@ export const SecondaryBar = ({
   }
 
   return html`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
         margin: "0",
@@ -83,13 +85,13 @@ export const SecondaryBar = ({
             return val.size;
           })
           .join(" ")}`,
-        ...style,
       }}
     >
       ${values.map((val) => {
         return val.value;
       })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 
@@ -120,12 +122,24 @@ const ScorerSummary = ({ scorers }) => {
   return Array.from(uniqScorers).join(", ");
 };
 
+/**
+ * A component that displays a summary of parameters.
+ *
+ * @param {Object} props - The component props.
+ * @param {Record<string, any>} props.params - An object containing key-value pairs representing parameters.
+ * @returns {import("preact").JSX.Element | string} The component.
+ */
 const ParamSummary = ({ params }) => {
   if (!params) {
     return "";
   }
   const paraValues = Object.keys(params).map((key) => {
-    return `${key}: ${params[key]}`;
+    const val = params[key];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return html`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}

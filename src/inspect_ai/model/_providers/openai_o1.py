@@ -60,26 +60,32 @@ async def generate_o1(
         messages=chat_messages(input, tools, handler),
         **params,
     )
+    response: dict[str, Any] = {}
+
+    def model_call() -> ModelCall:
+        return ModelCall.create(
+            request=request,
+            response=response,
+        )
+
     try:
-        response: ChatCompletion = await client.chat.completions.create(**request)
+        completion: ChatCompletion = await client.chat.completions.create(**request)
+        response = completion.model_dump()
     except BadRequestError as ex:
-        return handle_bad_request(model, ex)
+        return handle_bad_request(model, ex), model_call()
 
     # return model output
     return ModelOutput(
-        model=response.model,
-        choices=chat_choices_from_response(response, tools, handler),
+        model=completion.model,
+        choices=chat_choices_from_response(completion, tools, handler),
         usage=ModelUsage(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            total_tokens=response.usage.total_tokens,
+            input_tokens=completion.usage.prompt_tokens,
+            output_tokens=completion.usage.completion_tokens,
+            total_tokens=completion.usage.total_tokens,
         )
-        if response.usage
+        if completion.usage
         else None,
-    ), ModelCall.create(
-        request=request,
-        response=response.model_dump(),
-    )
+    ), model_call()
 
 
 def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
