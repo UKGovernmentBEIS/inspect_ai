@@ -14902,7 +14902,13 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
+const ExpandablePanel = ({
+  collapse,
+  border,
+  lines = 15,
+  style,
+  children
+}) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -14910,30 +14916,32 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   y(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
+  const refreshCollapse = q(() => {
+    if (collapse && contentsRef.current) {
+      const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
+      setShowToggle(isScrollable);
+    }
+  }, [collapse, setShowToggle, contentsRef]);
   y(() => {
-    const checkScrollable = () => {
-      if (collapse && contentsRef.current) {
-        const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-        setShowToggle(isScrollable);
-      }
-    };
+    refreshCollapse();
+  }, [children]);
+  y(() => {
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          checkScrollable();
+          refreshCollapse();
         }
       });
     });
     if (contentsRef.current) {
       observerRef.current.observe(contentsRef.current);
     }
-    checkScrollable();
     return () => {
       if (observerRef.current && contentsRef.current) {
         observerRef.current.unobserve(contentsRef.current);
       }
     };
-  }, [collapse, contentsRef, observerRef]);
+  }, [contentsRef, observerRef]);
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
     contentsStyle = {
@@ -14951,7 +14959,7 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   return m$1`<div
       class="expandable-panel"
       ref=${contentsRef}
-      style=${contentsStyle}
+      style=${{ ...contentsStyle, ...style }}
     >
       ${children}
     </div>
@@ -14959,14 +14967,16 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
           collapsed=${collapsed}
           setCollapsed=${setCollapsed}
           border=${!border}
+          style=${style}
         />` : ""}`;
 };
-const MoreToggle = ({ collapsed, border, setCollapsed }) => {
+const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
   const text2 = collapsed ? "more" : "less";
   const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
   const topStyle = {
     display: "flex",
-    marginBottom: "0.5em"
+    marginBottom: "0.5em",
+    ...style
   };
   if (border) {
     topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
@@ -23879,6 +23889,7 @@ const SecondaryBar = ({
     });
   }
   return m$1`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
     margin: "0",
@@ -23888,14 +23899,14 @@ const SecondaryBar = ({
     borderTop: "1px solid var(--bs-border-color)",
     gridTemplateColumns: `${values.map((val) => {
       return val.size;
-    }).join(" ")}`,
-    ...style
+    }).join(" ")}`
   }}
     >
       ${values.map((val) => {
     return val.value;
   })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 const DatasetSummary = ({ dataset, samples, epochs, style }) => {
@@ -23923,7 +23934,12 @@ const ParamSummary = ({ params }) => {
     return "";
   }
   const paraValues = Object.keys(params).map((key2) => {
-    return `${key2}: ${params[key2]}`;
+    const val = params[key2];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key2}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key2}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
