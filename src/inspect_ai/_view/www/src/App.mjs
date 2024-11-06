@@ -860,7 +860,9 @@ export function App({
                 logCount=${logs.files.length}
                 logHeaders=${logHeaders}
                 selectedLogIndex=${selectedLogIndex}
-                onSelectedLogIndex=${setSelectedLogIndex}
+                onSelectedLogIndex=${(idx) => {
+                  setSelectedLogIndex(idx);
+                }}
                 page=${logHeaderPage}
                 pageCount="${Math.ceil(logs.files.length / logHeaderPageSize)}"
                 onPageChanged="${setLogHeaderPage}"

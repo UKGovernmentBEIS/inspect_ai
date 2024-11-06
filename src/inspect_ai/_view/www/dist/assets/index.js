@@ -22351,9 +22351,10 @@ ${configStr(row.item.eval.config, row.item.eval.task_args)}</pre
       columns=${columns}
       columnWidths=${columnWidths}
       selectedIndex=${selectedLogIndex}
-      onSelectedIndex=${onSelectedLogIndex}
-      onShowItem=${(item) => {
-    onSelectedLogIndex(item.index);
+      onSelectedIndex=${(idx) => {
+    onSelectedLogIndex(idx);
+  }}
+      onShowItem=${() => {
   }}
       tabIndex="0"
       style=${listStyle}
@@ -23084,7 +23085,9 @@ function App({
                 logCount=${logs.files.length}
                 logHeaders=${logHeaders}
                 selectedLogIndex=${selectedLogIndex}
-                onSelectedLogIndex=${setSelectedLogIndex}
+                onSelectedLogIndex=${(idx) => {
+    setSelectedLogIndex(idx);
+  }}
                 page=${logHeaderPage}
                 pageCount="${Math.ceil(logs.files.length / logHeaderPageSize)}"
                 onPageChanged="${setLogHeaderPage}"

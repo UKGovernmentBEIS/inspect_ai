@@ -143,10 +143,10 @@ ${configStr(row.item.eval.config, row.item.eval.task_args)}</pre
       columns=${columns}
       columnWidths=${columnWidths}
       selectedIndex=${selectedLogIndex}
-      onSelectedIndex=${onSelectedLogIndex}
-      onShowItem=${(item) => {
-        onSelectedLogIndex(item.index);
+      onSelectedIndex=${(idx) => {
+        onSelectedLogIndex(idx);
       }}
+      onShowItem=${() => {}}
       tabIndex="0"
       style=${listStyle}
     />
