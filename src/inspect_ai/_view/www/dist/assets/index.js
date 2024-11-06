@@ -7959,6 +7959,52 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
     </div>
   `;
 };
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
+};
 const Sidebar = ({
   offcanvas,
   logs,
@@ -8077,10 +8123,20 @@ const Sidebar = ({
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "1em" }}>
+              <div
+                style=${{
+      marginTop: "1em",
+      ...ApplicationStyles.threeLineClamp
+    }}
+              >
                 <small class="mb-1">
                   ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-      return `${key2}: ${hyperparameters[key2]}`;
+      const val = hyperparameters[key2];
+      if (Array.isArray(val) || typeof val === "object") {
+        return `${key2}: ${JSON.stringify(val)}`;
+      } else {
+        return `${key2}: ${val}`;
+      }
     }).join(", ") : ""}
                 </small>
               </div>
@@ -16265,52 +16321,6 @@ const isVscode = () => {
   return !!bodyEl.getAttributeNames().find((attr) => {
     return attr.includes("data-vscode-");
   });
-};
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
