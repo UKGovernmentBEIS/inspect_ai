@@ -30,7 +30,7 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, ModelTracing
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     as_stop_reason,
     environment_prerequisite_error,
@@ -109,20 +109,20 @@ class GroqAPI(ModelAPI):
                     input_tokens=response.usage.prompt_tokens,
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
-                    queue_time=response.usage.queue_time,
-                    prompt_time=response.usage.prompt_time,
-                    completion_time=response.usage.completion_time,
-                    total_time=response.usage.total_time,
                 )
                 if response.usage
                 else None
             ),
-            tracing=(
-                ModelTracing(
-                    system_fingerprint=response.system_fingerprint,
-                    request_id=response.id,
-                )
-            )
+            metadata= {
+                "id": response.id,
+                "system_fingerprint": response.system_fingerprint,
+                "queue_time": response.usage.queue_time,
+                "prompt_time": response.usage.prompt_time,
+                "completion_time": response.usage.completion_time,
+                "total_time": response.usage.total_time,
+                "created": response.created,
+
+            }
         )
 
         # record call
