@@ -1,4 +1,5 @@
 // @ts-check
+import { format, isThisYear, isToday } from "date-fns";
 import { html } from "htm/preact";
 
 /**
@@ -218,7 +219,7 @@ export function formatNumber(num) {
 }
 
 /**
- * Formats a number to a string without trailing zeroes after the decimal point.
+ * Formats date
  *
  * @param {Date} date - The number to format.
  * @returns {string} - The formatted number as a string
@@ -250,4 +251,25 @@ export function formatDuration(start, end) {
   const durationMs = end.getTime() - start.getTime();
   const durationSec = durationMs / 1000;
   return formatTime(durationSec);
+}
+
+/**
+ * Pretty formats dates
+ *
+ * @param {Date} date - The number to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatPrettyDateTime(date) {
+  // For today, just show time
+  if (isToday(date)) {
+    return `Today, ${format(date, "h:mmaaa")}`;
+  }
+
+  // For this year, show month and day
+  if (isThisYear(date)) {
+    return format(date, "MMM d, h:mmaaa");
+  }
+
+  // For other years, include the year
+  return format(date, "MMM d yyyy, h:mmaaa");
 }

@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 
 import { ColumnListView } from "../components/ListView/ColumnListView.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatPrettyDecimal } from "../utils/Format.mjs";
+import { formatPrettyDateTime, formatPrettyDecimal } from "../utils/Format.mjs";
 import { Pagination } from "../components/Pagination.mjs";
 import { StatusFooter } from "../components/StatusFooter.mjs";
 import { TaskBar } from "./TaskBar.mjs";
@@ -83,7 +83,7 @@ export const TaskList = ({
       tabindex="0"
     >
       <div style=${{ fontSize: FontSize.smaller, marginTop: "0.3em" }}>
-        ${new Date(row.item.eval.created).toLocaleString()}
+        ${formatPrettyDateTime(new Date(row.item.eval.created))}
         <${EvalStatus} logHeader=${row.item} />
       </div>
       <div>

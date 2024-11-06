@@ -198,7 +198,7 @@ export function App({
       groupByOrder,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
-      logHeaderPageSize
+      logHeaderPageSize,
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -227,7 +227,7 @@ export function App({
     filteredSamples,
     groupBy,
     groupByOrder,
-    logHeaderPageSize
+    logHeaderPageSize,
   ]);
 
   const saveStateRef = useRef(saveState);

@@ -1016,13 +1016,13 @@ var prism = { exports: {} };
     };
     function matchPattern(pattern, pos2, text2, lookbehind) {
       pattern.lastIndex = pos2;
-      var match2 = pattern.exec(text2);
-      if (match2 && lookbehind && match2[1]) {
-        var lookbehindLength = match2[1].length;
-        match2.index += lookbehindLength;
-        match2[0] = match2[0].slice(lookbehindLength);
+      var match3 = pattern.exec(text2);
+      if (match3 && lookbehind && match3[1]) {
+        var lookbehindLength = match3[1].length;
+        match3.index += lookbehindLength;
+        match3[0] = match3[0].slice(lookbehindLength);
       }
-      return match2;
+      return match3;
     }
     function matchGrammar(text2, tokenList, grammar, startNode, startPos, rematch) {
       for (var token2 in grammar) {
@@ -1057,14 +1057,14 @@ var prism = { exports: {} };
               continue;
             }
             var removeCount = 1;
-            var match2;
+            var match3;
             if (greedy) {
-              match2 = matchPattern(pattern, pos2, text2, lookbehind);
-              if (!match2 || match2.index >= text2.length) {
+              match3 = matchPattern(pattern, pos2, text2, lookbehind);
+              if (!match3 || match3.index >= text2.length) {
                 break;
               }
-              var from = match2.index;
-              var to = match2.index + match2[0].length;
+              var from = match3.index;
+              var to = match3.index + match3[0].length;
               var p2 = pos2;
               p2 += currentNode.value.length;
               while (from >= p2) {
@@ -1082,15 +1082,15 @@ var prism = { exports: {} };
               }
               removeCount--;
               str = text2.slice(pos2, p2);
-              match2.index -= pos2;
+              match3.index -= pos2;
             } else {
-              match2 = matchPattern(pattern, 0, str, lookbehind);
-              if (!match2) {
+              match3 = matchPattern(pattern, 0, str, lookbehind);
+              if (!match3) {
                 continue;
               }
             }
-            var from = match2.index;
-            var matchStr = match2[0];
+            var from = match3.index;
+            var matchStr = match3[0];
             var before = str.slice(0, from);
             var after = str.slice(from + matchStr.length);
             var reach = pos2 + str.length;
@@ -1162,10 +1162,10 @@ var prism = { exports: {} };
       }
       if (!_2.disableWorkerMessageHandler) {
         _self2.addEventListener("message", function(evt) {
-          var message = JSON.parse(evt.data);
-          var lang2 = message.language;
-          var code2 = message.code;
-          var immediateClose = message.immediateClose;
+          var message2 = JSON.parse(evt.data);
+          var lang2 = message2.language;
+          var code2 = message2.code;
+          var immediateClose = message2.immediateClose;
           _self2.postMessage(_2.highlight(code2, _2.languages[lang2], lang2));
           if (immediateClose) {
             _self2.close();
@@ -1621,8 +1621,8 @@ var prism = { exports: {} };
       Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
     }
     var LOADING_MESSAGE = "Loading…";
-    var FAILURE_MESSAGE = function(status, message) {
-      return "✖ Error " + status + " while fetching file: " + message;
+    var FAILURE_MESSAGE = function(status, message2) {
+      return "✖ Error " + status + " while fetching file: " + message2;
     };
     var FAILURE_EMPTY_MESSAGE = "✖ Error: File does not exist or is empty";
     var EXTENSIONS = {
@@ -2532,6 +2532,1461 @@ function C(n2, t2) {
 function D(n2, t2) {
   return "function" == typeof t2 ? t2(n2) : t2;
 }
+const millisecondsInWeek = 6048e5;
+const millisecondsInDay = 864e5;
+const constructFromSymbol = Symbol.for("constructDateFrom");
+function constructFrom(date, value) {
+  if (typeof date === "function") return date(value);
+  if (date && typeof date === "object" && constructFromSymbol in date)
+    return date[constructFromSymbol](value);
+  if (date instanceof Date) return new date.constructor(value);
+  return new Date(value);
+}
+function toDate(argument, context) {
+  return constructFrom(context || argument, argument);
+}
+let defaultOptions$1 = {};
+function getDefaultOptions() {
+  return defaultOptions$1;
+}
+function startOfWeek(date, options) {
+  var _a2, _b2, _c, _d;
+  const defaultOptions2 = getDefaultOptions();
+  const weekStartsOn = (options == null ? void 0 : options.weekStartsOn) ?? ((_b2 = (_a2 = options == null ? void 0 : options.locale) == null ? void 0 : _a2.options) == null ? void 0 : _b2.weekStartsOn) ?? defaultOptions2.weekStartsOn ?? ((_d = (_c = defaultOptions2.locale) == null ? void 0 : _c.options) == null ? void 0 : _d.weekStartsOn) ?? 0;
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const day = _date.getDay();
+  const diff2 = (day < weekStartsOn ? 7 : 0) + day - weekStartsOn;
+  _date.setDate(_date.getDate() - diff2);
+  _date.setHours(0, 0, 0, 0);
+  return _date;
+}
+function startOfISOWeek(date, options) {
+  return startOfWeek(date, { ...options, weekStartsOn: 1 });
+}
+function getISOWeekYear(date, options) {
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const year = _date.getFullYear();
+  const fourthOfJanuaryOfNextYear = constructFrom(_date, 0);
+  fourthOfJanuaryOfNextYear.setFullYear(year + 1, 0, 4);
+  fourthOfJanuaryOfNextYear.setHours(0, 0, 0, 0);
+  const startOfNextYear = startOfISOWeek(fourthOfJanuaryOfNextYear);
+  const fourthOfJanuaryOfThisYear = constructFrom(_date, 0);
+  fourthOfJanuaryOfThisYear.setFullYear(year, 0, 4);
+  fourthOfJanuaryOfThisYear.setHours(0, 0, 0, 0);
+  const startOfThisYear = startOfISOWeek(fourthOfJanuaryOfThisYear);
+  if (_date.getTime() >= startOfNextYear.getTime()) {
+    return year + 1;
+  } else if (_date.getTime() >= startOfThisYear.getTime()) {
+    return year;
+  } else {
+    return year - 1;
+  }
+}
+function getTimezoneOffsetInMilliseconds(date) {
+  const _date = toDate(date);
+  const utcDate = new Date(
+    Date.UTC(
+      _date.getFullYear(),
+      _date.getMonth(),
+      _date.getDate(),
+      _date.getHours(),
+      _date.getMinutes(),
+      _date.getSeconds(),
+      _date.getMilliseconds()
+    )
+  );
+  utcDate.setUTCFullYear(_date.getFullYear());
+  return +date - +utcDate;
+}
+function normalizeDates(context, ...dates) {
+  const normalize3 = constructFrom.bind(
+    null,
+    dates.find((date) => typeof date === "object")
+  );
+  return dates.map(normalize3);
+}
+function startOfDay(date, options) {
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  _date.setHours(0, 0, 0, 0);
+  return _date;
+}
+function differenceInCalendarDays(laterDate, earlierDate, options) {
+  const [laterDate_, earlierDate_] = normalizeDates(
+    options == null ? void 0 : options.in,
+    laterDate,
+    earlierDate
+  );
+  const laterStartOfDay = startOfDay(laterDate_);
+  const earlierStartOfDay = startOfDay(earlierDate_);
+  const laterTimestamp = +laterStartOfDay - getTimezoneOffsetInMilliseconds(laterStartOfDay);
+  const earlierTimestamp = +earlierStartOfDay - getTimezoneOffsetInMilliseconds(earlierStartOfDay);
+  return Math.round((laterTimestamp - earlierTimestamp) / millisecondsInDay);
+}
+function startOfISOWeekYear(date, options) {
+  const year = getISOWeekYear(date, options);
+  const fourthOfJanuary = constructFrom(date, 0);
+  fourthOfJanuary.setFullYear(year, 0, 4);
+  fourthOfJanuary.setHours(0, 0, 0, 0);
+  return startOfISOWeek(fourthOfJanuary);
+}
+function constructNow(date) {
+  return constructFrom(date, Date.now());
+}
+function isSameDay(laterDate, earlierDate, options) {
+  const [dateLeft_, dateRight_] = normalizeDates(
+    options == null ? void 0 : options.in,
+    laterDate,
+    earlierDate
+  );
+  return +startOfDay(dateLeft_) === +startOfDay(dateRight_);
+}
+function isDate(value) {
+  return value instanceof Date || typeof value === "object" && Object.prototype.toString.call(value) === "[object Date]";
+}
+function isValid(date) {
+  return !(!isDate(date) && typeof date !== "number" || isNaN(+toDate(date)));
+}
+function startOfYear(date, options) {
+  const date_ = toDate(date, options == null ? void 0 : options.in);
+  date_.setFullYear(date_.getFullYear(), 0, 1);
+  date_.setHours(0, 0, 0, 0);
+  return date_;
+}
+const formatDistanceLocale = {
+  lessThanXSeconds: {
+    one: "less than a second",
+    other: "less than {{count}} seconds"
+  },
+  xSeconds: {
+    one: "1 second",
+    other: "{{count}} seconds"
+  },
+  halfAMinute: "half a minute",
+  lessThanXMinutes: {
+    one: "less than a minute",
+    other: "less than {{count}} minutes"
+  },
+  xMinutes: {
+    one: "1 minute",
+    other: "{{count}} minutes"
+  },
+  aboutXHours: {
+    one: "about 1 hour",
+    other: "about {{count}} hours"
+  },
+  xHours: {
+    one: "1 hour",
+    other: "{{count}} hours"
+  },
+  xDays: {
+    one: "1 day",
+    other: "{{count}} days"
+  },
+  aboutXWeeks: {
+    one: "about 1 week",
+    other: "about {{count}} weeks"
+  },
+  xWeeks: {
+    one: "1 week",
+    other: "{{count}} weeks"
+  },
+  aboutXMonths: {
+    one: "about 1 month",
+    other: "about {{count}} months"
+  },
+  xMonths: {
+    one: "1 month",
+    other: "{{count}} months"
+  },
+  aboutXYears: {
+    one: "about 1 year",
+    other: "about {{count}} years"
+  },
+  xYears: {
+    one: "1 year",
+    other: "{{count}} years"
+  },
+  overXYears: {
+    one: "over 1 year",
+    other: "over {{count}} years"
+  },
+  almostXYears: {
+    one: "almost 1 year",
+    other: "almost {{count}} years"
+  }
+};
+const formatDistance = (token2, count, options) => {
+  let result;
+  const tokenValue = formatDistanceLocale[token2];
+  if (typeof tokenValue === "string") {
+    result = tokenValue;
+  } else if (count === 1) {
+    result = tokenValue.one;
+  } else {
+    result = tokenValue.other.replace("{{count}}", count.toString());
+  }
+  if (options == null ? void 0 : options.addSuffix) {
+    if (options.comparison && options.comparison > 0) {
+      return "in " + result;
+    } else {
+      return result + " ago";
+    }
+  }
+  return result;
+};
+function buildFormatLongFn(args) {
+  return (options = {}) => {
+    const width = options.width ? String(options.width) : args.defaultWidth;
+    const format2 = args.formats[width] || args.formats[args.defaultWidth];
+    return format2;
+  };
+}
+const dateFormats = {
+  full: "EEEE, MMMM do, y",
+  long: "MMMM do, y",
+  medium: "MMM d, y",
+  short: "MM/dd/yyyy"
+};
+const timeFormats = {
+  full: "h:mm:ss a zzzz",
+  long: "h:mm:ss a z",
+  medium: "h:mm:ss a",
+  short: "h:mm a"
+};
+const dateTimeFormats = {
+  full: "{{date}} 'at' {{time}}",
+  long: "{{date}} 'at' {{time}}",
+  medium: "{{date}}, {{time}}",
+  short: "{{date}}, {{time}}"
+};
+const formatLong = {
+  date: buildFormatLongFn({
+    formats: dateFormats,
+    defaultWidth: "full"
+  }),
+  time: buildFormatLongFn({
+    formats: timeFormats,
+    defaultWidth: "full"
+  }),
+  dateTime: buildFormatLongFn({
+    formats: dateTimeFormats,
+    defaultWidth: "full"
+  })
+};
+const formatRelativeLocale = {
+  lastWeek: "'last' eeee 'at' p",
+  yesterday: "'yesterday at' p",
+  today: "'today at' p",
+  tomorrow: "'tomorrow at' p",
+  nextWeek: "eeee 'at' p",
+  other: "P"
+};
+const formatRelative = (token2, _date, _baseDate, _options) => formatRelativeLocale[token2];
+function buildLocalizeFn(args) {
+  return (value, options) => {
+    const context = (options == null ? void 0 : options.context) ? String(options.context) : "standalone";
+    let valuesArray;
+    if (context === "formatting" && args.formattingValues) {
+      const defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
+      const width = (options == null ? void 0 : options.width) ? String(options.width) : defaultWidth;
+      valuesArray = args.formattingValues[width] || args.formattingValues[defaultWidth];
+    } else {
+      const defaultWidth = args.defaultWidth;
+      const width = (options == null ? void 0 : options.width) ? String(options.width) : args.defaultWidth;
+      valuesArray = args.values[width] || args.values[defaultWidth];
+    }
+    const index = args.argumentCallback ? args.argumentCallback(value) : value;
+    return valuesArray[index];
+  };
+}
+const eraValues = {
+  narrow: ["B", "A"],
+  abbreviated: ["BC", "AD"],
+  wide: ["Before Christ", "Anno Domini"]
+};
+const quarterValues = {
+  narrow: ["1", "2", "3", "4"],
+  abbreviated: ["Q1", "Q2", "Q3", "Q4"],
+  wide: ["1st quarter", "2nd quarter", "3rd quarter", "4th quarter"]
+};
+const monthValues = {
+  narrow: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
+  abbreviated: [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec"
+  ],
+  wide: [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ]
+};
+const dayValues = {
+  narrow: ["S", "M", "T", "W", "T", "F", "S"],
+  short: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
+  abbreviated: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  wide: [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+  ]
+};
+const dayPeriodValues = {
+  narrow: {
+    am: "a",
+    pm: "p",
+    midnight: "mi",
+    noon: "n",
+    morning: "morning",
+    afternoon: "afternoon",
+    evening: "evening",
+    night: "night"
+  },
+  abbreviated: {
+    am: "AM",
+    pm: "PM",
+    midnight: "midnight",
+    noon: "noon",
+    morning: "morning",
+    afternoon: "afternoon",
+    evening: "evening",
+    night: "night"
+  },
+  wide: {
+    am: "a.m.",
+    pm: "p.m.",
+    midnight: "midnight",
+    noon: "noon",
+    morning: "morning",
+    afternoon: "afternoon",
+    evening: "evening",
+    night: "night"
+  }
+};
+const formattingDayPeriodValues = {
+  narrow: {
+    am: "a",
+    pm: "p",
+    midnight: "mi",
+    noon: "n",
+    morning: "in the morning",
+    afternoon: "in the afternoon",
+    evening: "in the evening",
+    night: "at night"
+  },
+  abbreviated: {
+    am: "AM",
+    pm: "PM",
+    midnight: "midnight",
+    noon: "noon",
+    morning: "in the morning",
+    afternoon: "in the afternoon",
+    evening: "in the evening",
+    night: "at night"
+  },
+  wide: {
+    am: "a.m.",
+    pm: "p.m.",
+    midnight: "midnight",
+    noon: "noon",
+    morning: "in the morning",
+    afternoon: "in the afternoon",
+    evening: "in the evening",
+    night: "at night"
+  }
+};
+const ordinalNumber = (dirtyNumber, _options) => {
+  const number = Number(dirtyNumber);
+  const rem100 = number % 100;
+  if (rem100 > 20 || rem100 < 10) {
+    switch (rem100 % 10) {
+      case 1:
+        return number + "st";
+      case 2:
+        return number + "nd";
+      case 3:
+        return number + "rd";
+    }
+  }
+  return number + "th";
+};
+const localize = {
+  ordinalNumber,
+  era: buildLocalizeFn({
+    values: eraValues,
+    defaultWidth: "wide"
+  }),
+  quarter: buildLocalizeFn({
+    values: quarterValues,
+    defaultWidth: "wide",
+    argumentCallback: (quarter) => quarter - 1
+  }),
+  month: buildLocalizeFn({
+    values: monthValues,
+    defaultWidth: "wide"
+  }),
+  day: buildLocalizeFn({
+    values: dayValues,
+    defaultWidth: "wide"
+  }),
+  dayPeriod: buildLocalizeFn({
+    values: dayPeriodValues,
+    defaultWidth: "wide",
+    formattingValues: formattingDayPeriodValues,
+    defaultFormattingWidth: "wide"
+  })
+};
+function buildMatchFn(args) {
+  return (string, options = {}) => {
+    const width = options.width;
+    const matchPattern = width && args.matchPatterns[width] || args.matchPatterns[args.defaultMatchWidth];
+    const matchResult = string.match(matchPattern);
+    if (!matchResult) {
+      return null;
+    }
+    const matchedString = matchResult[0];
+    const parsePatterns = width && args.parsePatterns[width] || args.parsePatterns[args.defaultParseWidth];
+    const key2 = Array.isArray(parsePatterns) ? findIndex(parsePatterns, (pattern) => pattern.test(matchedString)) : (
+      // [TODO] -- I challenge you to fix the type
+      findKey(parsePatterns, (pattern) => pattern.test(matchedString))
+    );
+    let value;
+    value = args.valueCallback ? args.valueCallback(key2) : key2;
+    value = options.valueCallback ? (
+      // [TODO] -- I challenge you to fix the type
+      options.valueCallback(value)
+    ) : value;
+    const rest = string.slice(matchedString.length);
+    return { value, rest };
+  };
+}
+function findKey(object, predicate) {
+  for (const key2 in object) {
+    if (Object.prototype.hasOwnProperty.call(object, key2) && predicate(object[key2])) {
+      return key2;
+    }
+  }
+  return void 0;
+}
+function findIndex(array, predicate) {
+  for (let key2 = 0; key2 < array.length; key2++) {
+    if (predicate(array[key2])) {
+      return key2;
+    }
+  }
+  return void 0;
+}
+function buildMatchPatternFn(args) {
+  return (string, options = {}) => {
+    const matchResult = string.match(args.matchPattern);
+    if (!matchResult) return null;
+    const matchedString = matchResult[0];
+    const parseResult = string.match(args.parsePattern);
+    if (!parseResult) return null;
+    let value = args.valueCallback ? args.valueCallback(parseResult[0]) : parseResult[0];
+    value = options.valueCallback ? options.valueCallback(value) : value;
+    const rest = string.slice(matchedString.length);
+    return { value, rest };
+  };
+}
+const matchOrdinalNumberPattern = /^(\d+)(th|st|nd|rd)?/i;
+const parseOrdinalNumberPattern = /\d+/i;
+const matchEraPatterns = {
+  narrow: /^(b|a)/i,
+  abbreviated: /^(b\.?\s?c\.?|b\.?\s?c\.?\s?e\.?|a\.?\s?d\.?|c\.?\s?e\.?)/i,
+  wide: /^(before christ|before common era|anno domini|common era)/i
+};
+const parseEraPatterns = {
+  any: [/^b/i, /^(a|c)/i]
+};
+const matchQuarterPatterns = {
+  narrow: /^[1234]/i,
+  abbreviated: /^q[1234]/i,
+  wide: /^[1234](th|st|nd|rd)? quarter/i
+};
+const parseQuarterPatterns = {
+  any: [/1/i, /2/i, /3/i, /4/i]
+};
+const matchMonthPatterns = {
+  narrow: /^[jfmasond]/i,
+  abbreviated: /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i,
+  wide: /^(january|february|march|april|may|june|july|august|september|october|november|december)/i
+};
+const parseMonthPatterns = {
+  narrow: [
+    /^j/i,
+    /^f/i,
+    /^m/i,
+    /^a/i,
+    /^m/i,
+    /^j/i,
+    /^j/i,
+    /^a/i,
+    /^s/i,
+    /^o/i,
+    /^n/i,
+    /^d/i
+  ],
+  any: [
+    /^ja/i,
+    /^f/i,
+    /^mar/i,
+    /^ap/i,
+    /^may/i,
+    /^jun/i,
+    /^jul/i,
+    /^au/i,
+    /^s/i,
+    /^o/i,
+    /^n/i,
+    /^d/i
+  ]
+};
+const matchDayPatterns = {
+  narrow: /^[smtwf]/i,
+  short: /^(su|mo|tu|we|th|fr|sa)/i,
+  abbreviated: /^(sun|mon|tue|wed|thu|fri|sat)/i,
+  wide: /^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/i
+};
+const parseDayPatterns = {
+  narrow: [/^s/i, /^m/i, /^t/i, /^w/i, /^t/i, /^f/i, /^s/i],
+  any: [/^su/i, /^m/i, /^tu/i, /^w/i, /^th/i, /^f/i, /^sa/i]
+};
+const matchDayPeriodPatterns = {
+  narrow: /^(a|p|mi|n|(in the|at) (morning|afternoon|evening|night))/i,
+  any: /^([ap]\.?\s?m\.?|midnight|noon|(in the|at) (morning|afternoon|evening|night))/i
+};
+const parseDayPeriodPatterns = {
+  any: {
+    am: /^a/i,
+    pm: /^p/i,
+    midnight: /^mi/i,
+    noon: /^no/i,
+    morning: /morning/i,
+    afternoon: /afternoon/i,
+    evening: /evening/i,
+    night: /night/i
+  }
+};
+const match = {
+  ordinalNumber: buildMatchPatternFn({
+    matchPattern: matchOrdinalNumberPattern,
+    parsePattern: parseOrdinalNumberPattern,
+    valueCallback: (value) => parseInt(value, 10)
+  }),
+  era: buildMatchFn({
+    matchPatterns: matchEraPatterns,
+    defaultMatchWidth: "wide",
+    parsePatterns: parseEraPatterns,
+    defaultParseWidth: "any"
+  }),
+  quarter: buildMatchFn({
+    matchPatterns: matchQuarterPatterns,
+    defaultMatchWidth: "wide",
+    parsePatterns: parseQuarterPatterns,
+    defaultParseWidth: "any",
+    valueCallback: (index) => index + 1
+  }),
+  month: buildMatchFn({
+    matchPatterns: matchMonthPatterns,
+    defaultMatchWidth: "wide",
+    parsePatterns: parseMonthPatterns,
+    defaultParseWidth: "any"
+  }),
+  day: buildMatchFn({
+    matchPatterns: matchDayPatterns,
+    defaultMatchWidth: "wide",
+    parsePatterns: parseDayPatterns,
+    defaultParseWidth: "any"
+  }),
+  dayPeriod: buildMatchFn({
+    matchPatterns: matchDayPeriodPatterns,
+    defaultMatchWidth: "any",
+    parsePatterns: parseDayPeriodPatterns,
+    defaultParseWidth: "any"
+  })
+};
+const enUS = {
+  code: "en-US",
+  formatDistance,
+  formatLong,
+  formatRelative,
+  localize,
+  match,
+  options: {
+    weekStartsOn: 0,
+    firstWeekContainsDate: 1
+  }
+};
+function getDayOfYear(date, options) {
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const diff2 = differenceInCalendarDays(_date, startOfYear(_date));
+  const dayOfYear = diff2 + 1;
+  return dayOfYear;
+}
+function getISOWeek(date, options) {
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const diff2 = +startOfISOWeek(_date) - +startOfISOWeekYear(_date);
+  return Math.round(diff2 / millisecondsInWeek) + 1;
+}
+function getWeekYear(date, options) {
+  var _a2, _b2, _c, _d;
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const year = _date.getFullYear();
+  const defaultOptions2 = getDefaultOptions();
+  const firstWeekContainsDate = (options == null ? void 0 : options.firstWeekContainsDate) ?? ((_b2 = (_a2 = options == null ? void 0 : options.locale) == null ? void 0 : _a2.options) == null ? void 0 : _b2.firstWeekContainsDate) ?? defaultOptions2.firstWeekContainsDate ?? ((_d = (_c = defaultOptions2.locale) == null ? void 0 : _c.options) == null ? void 0 : _d.firstWeekContainsDate) ?? 1;
+  const firstWeekOfNextYear = constructFrom((options == null ? void 0 : options.in) || date, 0);
+  firstWeekOfNextYear.setFullYear(year + 1, 0, firstWeekContainsDate);
+  firstWeekOfNextYear.setHours(0, 0, 0, 0);
+  const startOfNextYear = startOfWeek(firstWeekOfNextYear, options);
+  const firstWeekOfThisYear = constructFrom((options == null ? void 0 : options.in) || date, 0);
+  firstWeekOfThisYear.setFullYear(year, 0, firstWeekContainsDate);
+  firstWeekOfThisYear.setHours(0, 0, 0, 0);
+  const startOfThisYear = startOfWeek(firstWeekOfThisYear, options);
+  if (+_date >= +startOfNextYear) {
+    return year + 1;
+  } else if (+_date >= +startOfThisYear) {
+    return year;
+  } else {
+    return year - 1;
+  }
+}
+function startOfWeekYear(date, options) {
+  var _a2, _b2, _c, _d;
+  const defaultOptions2 = getDefaultOptions();
+  const firstWeekContainsDate = (options == null ? void 0 : options.firstWeekContainsDate) ?? ((_b2 = (_a2 = options == null ? void 0 : options.locale) == null ? void 0 : _a2.options) == null ? void 0 : _b2.firstWeekContainsDate) ?? defaultOptions2.firstWeekContainsDate ?? ((_d = (_c = defaultOptions2.locale) == null ? void 0 : _c.options) == null ? void 0 : _d.firstWeekContainsDate) ?? 1;
+  const year = getWeekYear(date, options);
+  const firstWeek = constructFrom((options == null ? void 0 : options.in) || date, 0);
+  firstWeek.setFullYear(year, 0, firstWeekContainsDate);
+  firstWeek.setHours(0, 0, 0, 0);
+  const _date = startOfWeek(firstWeek, options);
+  return _date;
+}
+function getWeek(date, options) {
+  const _date = toDate(date, options == null ? void 0 : options.in);
+  const diff2 = +startOfWeek(_date, options) - +startOfWeekYear(_date, options);
+  return Math.round(diff2 / millisecondsInWeek) + 1;
+}
+function addLeadingZeros(number, targetLength) {
+  const sign2 = number < 0 ? "-" : "";
+  const output = Math.abs(number).toString().padStart(targetLength, "0");
+  return sign2 + output;
+}
+const lightFormatters = {
+  // Year
+  y(date, token2) {
+    const signedYear = date.getFullYear();
+    const year = signedYear > 0 ? signedYear : 1 - signedYear;
+    return addLeadingZeros(token2 === "yy" ? year % 100 : year, token2.length);
+  },
+  // Month
+  M(date, token2) {
+    const month = date.getMonth();
+    return token2 === "M" ? String(month + 1) : addLeadingZeros(month + 1, 2);
+  },
+  // Day of the month
+  d(date, token2) {
+    return addLeadingZeros(date.getDate(), token2.length);
+  },
+  // AM or PM
+  a(date, token2) {
+    const dayPeriodEnumValue = date.getHours() / 12 >= 1 ? "pm" : "am";
+    switch (token2) {
+      case "a":
+      case "aa":
+        return dayPeriodEnumValue.toUpperCase();
+      case "aaa":
+        return dayPeriodEnumValue;
+      case "aaaaa":
+        return dayPeriodEnumValue[0];
+      case "aaaa":
+      default:
+        return dayPeriodEnumValue === "am" ? "a.m." : "p.m.";
+    }
+  },
+  // Hour [1-12]
+  h(date, token2) {
+    return addLeadingZeros(date.getHours() % 12 || 12, token2.length);
+  },
+  // Hour [0-23]
+  H(date, token2) {
+    return addLeadingZeros(date.getHours(), token2.length);
+  },
+  // Minute
+  m(date, token2) {
+    return addLeadingZeros(date.getMinutes(), token2.length);
+  },
+  // Second
+  s(date, token2) {
+    return addLeadingZeros(date.getSeconds(), token2.length);
+  },
+  // Fraction of second
+  S(date, token2) {
+    const numberOfDigits = token2.length;
+    const milliseconds = date.getMilliseconds();
+    const fractionalSeconds = Math.trunc(
+      milliseconds * Math.pow(10, numberOfDigits - 3)
+    );
+    return addLeadingZeros(fractionalSeconds, token2.length);
+  }
+};
+const dayPeriodEnum = {
+  am: "am",
+  pm: "pm",
+  midnight: "midnight",
+  noon: "noon",
+  morning: "morning",
+  afternoon: "afternoon",
+  evening: "evening",
+  night: "night"
+};
+const formatters = {
+  // Era
+  G: function(date, token2, localize2) {
+    const era = date.getFullYear() > 0 ? 1 : 0;
+    switch (token2) {
+      case "G":
+      case "GG":
+      case "GGG":
+        return localize2.era(era, { width: "abbreviated" });
+      case "GGGGG":
+        return localize2.era(era, { width: "narrow" });
+      case "GGGG":
+      default:
+        return localize2.era(era, { width: "wide" });
+    }
+  },
+  // Year
+  y: function(date, token2, localize2) {
+    if (token2 === "yo") {
+      const signedYear = date.getFullYear();
+      const year = signedYear > 0 ? signedYear : 1 - signedYear;
+      return localize2.ordinalNumber(year, { unit: "year" });
+    }
+    return lightFormatters.y(date, token2);
+  },
+  // Local week-numbering year
+  Y: function(date, token2, localize2, options) {
+    const signedWeekYear = getWeekYear(date, options);
+    const weekYear = signedWeekYear > 0 ? signedWeekYear : 1 - signedWeekYear;
+    if (token2 === "YY") {
+      const twoDigitYear = weekYear % 100;
+      return addLeadingZeros(twoDigitYear, 2);
+    }
+    if (token2 === "Yo") {
+      return localize2.ordinalNumber(weekYear, { unit: "year" });
+    }
+    return addLeadingZeros(weekYear, token2.length);
+  },
+  // ISO week-numbering year
+  R: function(date, token2) {
+    const isoWeekYear = getISOWeekYear(date);
+    return addLeadingZeros(isoWeekYear, token2.length);
+  },
+  // Extended year. This is a single number designating the year of this calendar system.
+  // The main difference between `y` and `u` localizers are B.C. years:
+  // | Year | `y` | `u` |
+  // |------|-----|-----|
+  // | AC 1 |   1 |   1 |
+  // | BC 1 |   1 |   0 |
+  // | BC 2 |   2 |  -1 |
+  // Also `yy` always returns the last two digits of a year,
+  // while `uu` pads single digit years to 2 characters and returns other years unchanged.
+  u: function(date, token2) {
+    const year = date.getFullYear();
+    return addLeadingZeros(year, token2.length);
+  },
+  // Quarter
+  Q: function(date, token2, localize2) {
+    const quarter = Math.ceil((date.getMonth() + 1) / 3);
+    switch (token2) {
+      case "Q":
+        return String(quarter);
+      case "QQ":
+        return addLeadingZeros(quarter, 2);
+      case "Qo":
+        return localize2.ordinalNumber(quarter, { unit: "quarter" });
+      case "QQQ":
+        return localize2.quarter(quarter, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "QQQQQ":
+        return localize2.quarter(quarter, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "QQQQ":
+      default:
+        return localize2.quarter(quarter, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // Stand-alone quarter
+  q: function(date, token2, localize2) {
+    const quarter = Math.ceil((date.getMonth() + 1) / 3);
+    switch (token2) {
+      case "q":
+        return String(quarter);
+      case "qq":
+        return addLeadingZeros(quarter, 2);
+      case "qo":
+        return localize2.ordinalNumber(quarter, { unit: "quarter" });
+      case "qqq":
+        return localize2.quarter(quarter, {
+          width: "abbreviated",
+          context: "standalone"
+        });
+      case "qqqqq":
+        return localize2.quarter(quarter, {
+          width: "narrow",
+          context: "standalone"
+        });
+      case "qqqq":
+      default:
+        return localize2.quarter(quarter, {
+          width: "wide",
+          context: "standalone"
+        });
+    }
+  },
+  // Month
+  M: function(date, token2, localize2) {
+    const month = date.getMonth();
+    switch (token2) {
+      case "M":
+      case "MM":
+        return lightFormatters.M(date, token2);
+      case "Mo":
+        return localize2.ordinalNumber(month + 1, { unit: "month" });
+      case "MMM":
+        return localize2.month(month, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "MMMMM":
+        return localize2.month(month, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "MMMM":
+      default:
+        return localize2.month(month, { width: "wide", context: "formatting" });
+    }
+  },
+  // Stand-alone month
+  L: function(date, token2, localize2) {
+    const month = date.getMonth();
+    switch (token2) {
+      case "L":
+        return String(month + 1);
+      case "LL":
+        return addLeadingZeros(month + 1, 2);
+      case "Lo":
+        return localize2.ordinalNumber(month + 1, { unit: "month" });
+      case "LLL":
+        return localize2.month(month, {
+          width: "abbreviated",
+          context: "standalone"
+        });
+      case "LLLLL":
+        return localize2.month(month, {
+          width: "narrow",
+          context: "standalone"
+        });
+      case "LLLL":
+      default:
+        return localize2.month(month, { width: "wide", context: "standalone" });
+    }
+  },
+  // Local week of year
+  w: function(date, token2, localize2, options) {
+    const week = getWeek(date, options);
+    if (token2 === "wo") {
+      return localize2.ordinalNumber(week, { unit: "week" });
+    }
+    return addLeadingZeros(week, token2.length);
+  },
+  // ISO week of year
+  I: function(date, token2, localize2) {
+    const isoWeek = getISOWeek(date);
+    if (token2 === "Io") {
+      return localize2.ordinalNumber(isoWeek, { unit: "week" });
+    }
+    return addLeadingZeros(isoWeek, token2.length);
+  },
+  // Day of the month
+  d: function(date, token2, localize2) {
+    if (token2 === "do") {
+      return localize2.ordinalNumber(date.getDate(), { unit: "date" });
+    }
+    return lightFormatters.d(date, token2);
+  },
+  // Day of year
+  D: function(date, token2, localize2) {
+    const dayOfYear = getDayOfYear(date);
+    if (token2 === "Do") {
+      return localize2.ordinalNumber(dayOfYear, { unit: "dayOfYear" });
+    }
+    return addLeadingZeros(dayOfYear, token2.length);
+  },
+  // Day of week
+  E: function(date, token2, localize2) {
+    const dayOfWeek = date.getDay();
+    switch (token2) {
+      case "E":
+      case "EE":
+      case "EEE":
+        return localize2.day(dayOfWeek, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "EEEEE":
+        return localize2.day(dayOfWeek, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "EEEEEE":
+        return localize2.day(dayOfWeek, {
+          width: "short",
+          context: "formatting"
+        });
+      case "EEEE":
+      default:
+        return localize2.day(dayOfWeek, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // Local day of week
+  e: function(date, token2, localize2, options) {
+    const dayOfWeek = date.getDay();
+    const localDayOfWeek = (dayOfWeek - options.weekStartsOn + 8) % 7 || 7;
+    switch (token2) {
+      case "e":
+        return String(localDayOfWeek);
+      case "ee":
+        return addLeadingZeros(localDayOfWeek, 2);
+      case "eo":
+        return localize2.ordinalNumber(localDayOfWeek, { unit: "day" });
+      case "eee":
+        return localize2.day(dayOfWeek, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "eeeee":
+        return localize2.day(dayOfWeek, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "eeeeee":
+        return localize2.day(dayOfWeek, {
+          width: "short",
+          context: "formatting"
+        });
+      case "eeee":
+      default:
+        return localize2.day(dayOfWeek, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // Stand-alone local day of week
+  c: function(date, token2, localize2, options) {
+    const dayOfWeek = date.getDay();
+    const localDayOfWeek = (dayOfWeek - options.weekStartsOn + 8) % 7 || 7;
+    switch (token2) {
+      case "c":
+        return String(localDayOfWeek);
+      case "cc":
+        return addLeadingZeros(localDayOfWeek, token2.length);
+      case "co":
+        return localize2.ordinalNumber(localDayOfWeek, { unit: "day" });
+      case "ccc":
+        return localize2.day(dayOfWeek, {
+          width: "abbreviated",
+          context: "standalone"
+        });
+      case "ccccc":
+        return localize2.day(dayOfWeek, {
+          width: "narrow",
+          context: "standalone"
+        });
+      case "cccccc":
+        return localize2.day(dayOfWeek, {
+          width: "short",
+          context: "standalone"
+        });
+      case "cccc":
+      default:
+        return localize2.day(dayOfWeek, {
+          width: "wide",
+          context: "standalone"
+        });
+    }
+  },
+  // ISO day of week
+  i: function(date, token2, localize2) {
+    const dayOfWeek = date.getDay();
+    const isoDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+    switch (token2) {
+      case "i":
+        return String(isoDayOfWeek);
+      case "ii":
+        return addLeadingZeros(isoDayOfWeek, token2.length);
+      case "io":
+        return localize2.ordinalNumber(isoDayOfWeek, { unit: "day" });
+      case "iii":
+        return localize2.day(dayOfWeek, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "iiiii":
+        return localize2.day(dayOfWeek, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "iiiiii":
+        return localize2.day(dayOfWeek, {
+          width: "short",
+          context: "formatting"
+        });
+      case "iiii":
+      default:
+        return localize2.day(dayOfWeek, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // AM or PM
+  a: function(date, token2, localize2) {
+    const hours = date.getHours();
+    const dayPeriodEnumValue = hours / 12 >= 1 ? "pm" : "am";
+    switch (token2) {
+      case "a":
+      case "aa":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "aaa":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "abbreviated",
+          context: "formatting"
+        }).toLowerCase();
+      case "aaaaa":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "aaaa":
+      default:
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // AM, PM, midnight, noon
+  b: function(date, token2, localize2) {
+    const hours = date.getHours();
+    let dayPeriodEnumValue;
+    if (hours === 12) {
+      dayPeriodEnumValue = dayPeriodEnum.noon;
+    } else if (hours === 0) {
+      dayPeriodEnumValue = dayPeriodEnum.midnight;
+    } else {
+      dayPeriodEnumValue = hours / 12 >= 1 ? "pm" : "am";
+    }
+    switch (token2) {
+      case "b":
+      case "bb":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "bbb":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "abbreviated",
+          context: "formatting"
+        }).toLowerCase();
+      case "bbbbb":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "bbbb":
+      default:
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // in the morning, in the afternoon, in the evening, at night
+  B: function(date, token2, localize2) {
+    const hours = date.getHours();
+    let dayPeriodEnumValue;
+    if (hours >= 17) {
+      dayPeriodEnumValue = dayPeriodEnum.evening;
+    } else if (hours >= 12) {
+      dayPeriodEnumValue = dayPeriodEnum.afternoon;
+    } else if (hours >= 4) {
+      dayPeriodEnumValue = dayPeriodEnum.morning;
+    } else {
+      dayPeriodEnumValue = dayPeriodEnum.night;
+    }
+    switch (token2) {
+      case "B":
+      case "BB":
+      case "BBB":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "abbreviated",
+          context: "formatting"
+        });
+      case "BBBBB":
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "narrow",
+          context: "formatting"
+        });
+      case "BBBB":
+      default:
+        return localize2.dayPeriod(dayPeriodEnumValue, {
+          width: "wide",
+          context: "formatting"
+        });
+    }
+  },
+  // Hour [1-12]
+  h: function(date, token2, localize2) {
+    if (token2 === "ho") {
+      let hours = date.getHours() % 12;
+      if (hours === 0) hours = 12;
+      return localize2.ordinalNumber(hours, { unit: "hour" });
+    }
+    return lightFormatters.h(date, token2);
+  },
+  // Hour [0-23]
+  H: function(date, token2, localize2) {
+    if (token2 === "Ho") {
+      return localize2.ordinalNumber(date.getHours(), { unit: "hour" });
+    }
+    return lightFormatters.H(date, token2);
+  },
+  // Hour [0-11]
+  K: function(date, token2, localize2) {
+    const hours = date.getHours() % 12;
+    if (token2 === "Ko") {
+      return localize2.ordinalNumber(hours, { unit: "hour" });
+    }
+    return addLeadingZeros(hours, token2.length);
+  },
+  // Hour [1-24]
+  k: function(date, token2, localize2) {
+    let hours = date.getHours();
+    if (hours === 0) hours = 24;
+    if (token2 === "ko") {
+      return localize2.ordinalNumber(hours, { unit: "hour" });
+    }
+    return addLeadingZeros(hours, token2.length);
+  },
+  // Minute
+  m: function(date, token2, localize2) {
+    if (token2 === "mo") {
+      return localize2.ordinalNumber(date.getMinutes(), { unit: "minute" });
+    }
+    return lightFormatters.m(date, token2);
+  },
+  // Second
+  s: function(date, token2, localize2) {
+    if (token2 === "so") {
+      return localize2.ordinalNumber(date.getSeconds(), { unit: "second" });
+    }
+    return lightFormatters.s(date, token2);
+  },
+  // Fraction of second
+  S: function(date, token2) {
+    return lightFormatters.S(date, token2);
+  },
+  // Timezone (ISO-8601. If offset is 0, output is always `'Z'`)
+  X: function(date, token2, _localize) {
+    const timezoneOffset = date.getTimezoneOffset();
+    if (timezoneOffset === 0) {
+      return "Z";
+    }
+    switch (token2) {
+      case "X":
+        return formatTimezoneWithOptionalMinutes(timezoneOffset);
+      case "XXXX":
+      case "XX":
+        return formatTimezone(timezoneOffset);
+      case "XXXXX":
+      case "XXX":
+      default:
+        return formatTimezone(timezoneOffset, ":");
+    }
+  },
+  // Timezone (ISO-8601. If offset is 0, output is `'+00:00'` or equivalent)
+  x: function(date, token2, _localize) {
+    const timezoneOffset = date.getTimezoneOffset();
+    switch (token2) {
+      case "x":
+        return formatTimezoneWithOptionalMinutes(timezoneOffset);
+      case "xxxx":
+      case "xx":
+        return formatTimezone(timezoneOffset);
+      case "xxxxx":
+      case "xxx":
+      default:
+        return formatTimezone(timezoneOffset, ":");
+    }
+  },
+  // Timezone (GMT)
+  O: function(date, token2, _localize) {
+    const timezoneOffset = date.getTimezoneOffset();
+    switch (token2) {
+      case "O":
+      case "OO":
+      case "OOO":
+        return "GMT" + formatTimezoneShort(timezoneOffset, ":");
+      case "OOOO":
+      default:
+        return "GMT" + formatTimezone(timezoneOffset, ":");
+    }
+  },
+  // Timezone (specific non-location)
+  z: function(date, token2, _localize) {
+    const timezoneOffset = date.getTimezoneOffset();
+    switch (token2) {
+      case "z":
+      case "zz":
+      case "zzz":
+        return "GMT" + formatTimezoneShort(timezoneOffset, ":");
+      case "zzzz":
+      default:
+        return "GMT" + formatTimezone(timezoneOffset, ":");
+    }
+  },
+  // Seconds timestamp
+  t: function(date, token2, _localize) {
+    const timestamp = Math.trunc(+date / 1e3);
+    return addLeadingZeros(timestamp, token2.length);
+  },
+  // Milliseconds timestamp
+  T: function(date, token2, _localize) {
+    return addLeadingZeros(+date, token2.length);
+  }
+};
+function formatTimezoneShort(offset, delimiter2 = "") {
+  const sign2 = offset > 0 ? "-" : "+";
+  const absOffset = Math.abs(offset);
+  const hours = Math.trunc(absOffset / 60);
+  const minutes = absOffset % 60;
+  if (minutes === 0) {
+    return sign2 + String(hours);
+  }
+  return sign2 + String(hours) + delimiter2 + addLeadingZeros(minutes, 2);
+}
+function formatTimezoneWithOptionalMinutes(offset, delimiter2) {
+  if (offset % 60 === 0) {
+    const sign2 = offset > 0 ? "-" : "+";
+    return sign2 + addLeadingZeros(Math.abs(offset) / 60, 2);
+  }
+  return formatTimezone(offset, delimiter2);
+}
+function formatTimezone(offset, delimiter2 = "") {
+  const sign2 = offset > 0 ? "-" : "+";
+  const absOffset = Math.abs(offset);
+  const hours = addLeadingZeros(Math.trunc(absOffset / 60), 2);
+  const minutes = addLeadingZeros(absOffset % 60, 2);
+  return sign2 + hours + delimiter2 + minutes;
+}
+const dateLongFormatter = (pattern, formatLong2) => {
+  switch (pattern) {
+    case "P":
+      return formatLong2.date({ width: "short" });
+    case "PP":
+      return formatLong2.date({ width: "medium" });
+    case "PPP":
+      return formatLong2.date({ width: "long" });
+    case "PPPP":
+    default:
+      return formatLong2.date({ width: "full" });
+  }
+};
+const timeLongFormatter = (pattern, formatLong2) => {
+  switch (pattern) {
+    case "p":
+      return formatLong2.time({ width: "short" });
+    case "pp":
+      return formatLong2.time({ width: "medium" });
+    case "ppp":
+      return formatLong2.time({ width: "long" });
+    case "pppp":
+    default:
+      return formatLong2.time({ width: "full" });
+  }
+};
+const dateTimeLongFormatter = (pattern, formatLong2) => {
+  const matchResult = pattern.match(/(P+)(p+)?/) || [];
+  const datePattern = matchResult[1];
+  const timePattern = matchResult[2];
+  if (!timePattern) {
+    return dateLongFormatter(pattern, formatLong2);
+  }
+  let dateTimeFormat;
+  switch (datePattern) {
+    case "P":
+      dateTimeFormat = formatLong2.dateTime({ width: "short" });
+      break;
+    case "PP":
+      dateTimeFormat = formatLong2.dateTime({ width: "medium" });
+      break;
+    case "PPP":
+      dateTimeFormat = formatLong2.dateTime({ width: "long" });
+      break;
+    case "PPPP":
+    default:
+      dateTimeFormat = formatLong2.dateTime({ width: "full" });
+      break;
+  }
+  return dateTimeFormat.replace("{{date}}", dateLongFormatter(datePattern, formatLong2)).replace("{{time}}", timeLongFormatter(timePattern, formatLong2));
+};
+const longFormatters = {
+  p: timeLongFormatter,
+  P: dateTimeLongFormatter
+};
+const dayOfYearTokenRE = /^D+$/;
+const weekYearTokenRE = /^Y+$/;
+const throwTokens = ["D", "DD", "YY", "YYYY"];
+function isProtectedDayOfYearToken(token2) {
+  return dayOfYearTokenRE.test(token2);
+}
+function isProtectedWeekYearToken(token2) {
+  return weekYearTokenRE.test(token2);
+}
+function warnOrThrowProtectedError(token2, format2, input) {
+  const _message = message(token2, format2, input);
+  console.warn(_message);
+  if (throwTokens.includes(token2)) throw new RangeError(_message);
+}
+function message(token2, format2, input) {
+  const subject = token2[0] === "Y" ? "years" : "days of the month";
+  return `Use \`${token2.toLowerCase()}\` instead of \`${token2}\` (in \`${format2}\`) for formatting ${subject} to the input \`${input}\`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md`;
+}
+const formattingTokensRegExp = /[yYQqMLwIdDecihHKkms]o|(\w)\1*|''|'(''|[^'])+('|$)|./g;
+const longFormattingTokensRegExp = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g;
+const escapedStringRegExp = /^'([^]*?)'?$/;
+const doubleQuoteRegExp = /''/g;
+const unescapedLatinCharacterRegExp = /[a-zA-Z]/;
+function format$2(date, formatStr, options) {
+  var _a2, _b2, _c, _d;
+  const defaultOptions2 = getDefaultOptions();
+  const locale = defaultOptions2.locale ?? enUS;
+  const firstWeekContainsDate = defaultOptions2.firstWeekContainsDate ?? ((_b2 = (_a2 = defaultOptions2.locale) == null ? void 0 : _a2.options) == null ? void 0 : _b2.firstWeekContainsDate) ?? 1;
+  const weekStartsOn = defaultOptions2.weekStartsOn ?? ((_d = (_c = defaultOptions2.locale) == null ? void 0 : _c.options) == null ? void 0 : _d.weekStartsOn) ?? 0;
+  const originalDate = toDate(date, options == null ? void 0 : options.in);
+  if (!isValid(originalDate)) {
+    throw new RangeError("Invalid time value");
+  }
+  let parts = formatStr.match(longFormattingTokensRegExp).map((substring) => {
+    const firstCharacter = substring[0];
+    if (firstCharacter === "p" || firstCharacter === "P") {
+      const longFormatter = longFormatters[firstCharacter];
+      return longFormatter(substring, locale.formatLong);
+    }
+    return substring;
+  }).join("").match(formattingTokensRegExp).map((substring) => {
+    if (substring === "''") {
+      return { isToken: false, value: "'" };
+    }
+    const firstCharacter = substring[0];
+    if (firstCharacter === "'") {
+      return { isToken: false, value: cleanEscapedString(substring) };
+    }
+    if (formatters[firstCharacter]) {
+      return { isToken: true, value: substring };
+    }
+    if (firstCharacter.match(unescapedLatinCharacterRegExp)) {
+      throw new RangeError(
+        "Format string contains an unescaped latin alphabet character `" + firstCharacter + "`"
+      );
+    }
+    return { isToken: false, value: substring };
+  });
+  if (locale.localize.preprocessor) {
+    parts = locale.localize.preprocessor(originalDate, parts);
+  }
+  const formatterOptions = {
+    firstWeekContainsDate,
+    weekStartsOn,
+    locale
+  };
+  return parts.map((part) => {
+    if (!part.isToken) return part.value;
+    const token2 = part.value;
+    if (isProtectedWeekYearToken(token2) || isProtectedDayOfYearToken(token2)) {
+      warnOrThrowProtectedError(token2, formatStr, String(date));
+    }
+    const formatter = formatters[token2[0]];
+    return formatter(originalDate, token2, locale.localize, formatterOptions);
+  }).join("");
+}
+function cleanEscapedString(input) {
+  const matched = input.match(escapedStringRegExp);
+  if (!matched) {
+    return input;
+  }
+  return matched[1].replace(doubleQuoteRegExp, "'");
+}
+function isSameYear(laterDate, earlierDate, options) {
+  const [laterDate_, earlierDate_] = normalizeDates(
+    options == null ? void 0 : options.in,
+    laterDate,
+    earlierDate
+  );
+  return laterDate_.getFullYear() === earlierDate_.getFullYear();
+}
+function isThisYear(date, options) {
+  return isSameYear(
+    constructFrom(date, date),
+    constructNow(date)
+  );
+}
+function isToday(date, options) {
+  return isSameDay(
+    constructFrom(date, date),
+    constructNow(date)
+  );
+}
 const arrayToString = (val) => {
   val = Array.isArray(val) ? val : [val];
   return val.join(", ");
@@ -2631,12 +4086,21 @@ function formatDuration(start, end) {
   const durationSec = durationMs / 1e3;
   return formatTime(durationSec);
 }
+function formatPrettyDateTime(date) {
+  if (isToday(date)) {
+    return `Today, ${format$2(date, "h:mmaaa")}`;
+  }
+  if (isThisYear(date)) {
+    return format$2(date, "MMM d, h:mmaaa");
+  }
+  return format$2(date, "MMM d yyyy, h:mmaaa");
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
-  const match2 = basename.match(/(.*)\.\S+$/);
-  if (match2) {
-    return match2[1];
+  const match3 = basename.match(/(.*)\.\S+$/);
+  if (match3) {
+    return match3[1];
   } else {
     return path;
   }
@@ -2848,7 +4312,7 @@ const ErrorPanel = ({ id, classes, title, error: error2 }) => {
     alignItems: "center",
     justifyContent: "center"
   };
-  const message = error2.message;
+  const message2 = error2.message;
   const stack2 = error2.stack;
   return m$1`
     <div style=${{ overflowY: "auto", height: "100vh" }}>
@@ -2885,7 +4349,7 @@ const ErrorPanel = ({ id, classes, title, error: error2 }) => {
   }}
         >
           <div>
-            Error: ${message || ""}
+            Error: ${message2 || ""}
             ${stack2 && error2.displayStack !== false && m$1`
               <pre
                 style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
@@ -4860,19 +6324,19 @@ const UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
 const ENTITY_RE = /&([a-z#][a-z0-9]{1,31});/gi;
 const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + ENTITY_RE.source, "gi");
 const DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
-function replaceEntityPattern(match2, name) {
+function replaceEntityPattern(match3, name) {
   if (name.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name)) {
     const code2 = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
     if (isValidEntityCode(code2)) {
       return fromCodePoint(code2);
     }
-    return match2;
+    return match3;
   }
-  const decoded = decodeHTML(match2);
-  if (decoded !== match2) {
+  const decoded = decodeHTML(match3);
+  if (decoded !== match3) {
     return decoded;
   }
-  return match2;
+  return match3;
 }
 function unescapeMd(str) {
   if (str.indexOf("\\") < 0) {
@@ -4884,11 +6348,11 @@ function unescapeAll(str) {
   if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) {
     return str;
   }
-  return str.replace(UNESCAPE_ALL_RE, function(match2, escaped, entity2) {
+  return str.replace(UNESCAPE_ALL_RE, function(match3, escaped, entity2) {
     if (escaped) {
       return escaped;
     }
-    return replaceEntityPattern(match2, entity2);
+    return replaceEntityPattern(match3, entity2);
   });
 }
 const HTML_ESCAPE_TEST_RE = /[&<>"]/;
@@ -5672,7 +7136,7 @@ const SCOPED_ABBR = {
   r: "®",
   tm: "™"
 };
-function replaceFn(match2, name) {
+function replaceFn(match3, name) {
   return SCOPED_ABBR[name.toLowerCase()];
 }
 function replace_scoped(inlineTokens) {
@@ -7370,9 +8834,9 @@ function linkify(state, silent) {
   if (state.src.charCodeAt(pos2) !== 58) return false;
   if (state.src.charCodeAt(pos2 + 1) !== 47) return false;
   if (state.src.charCodeAt(pos2 + 2) !== 47) return false;
-  const match2 = state.pending.match(SCHEME_RE);
-  if (!match2) return false;
-  const proto = match2[1];
+  const match3 = state.pending.match(SCHEME_RE);
+  if (!match3) return false;
+  const proto = match3[1];
   const link2 = state.md.linkify.matchAtStart(state.src.slice(pos2 - proto.length));
   if (!link2) return false;
   let url = link2.url;
@@ -7991,17 +9455,17 @@ function html_inline(state, silent) {
   if (ch3 !== 33 && ch3 !== 63 && ch3 !== 47 && !isLetter(ch3)) {
     return false;
   }
-  const match2 = state.src.slice(pos2).match(HTML_TAG_RE);
-  if (!match2) {
+  const match3 = state.src.slice(pos2).match(HTML_TAG_RE);
+  if (!match3) {
     return false;
   }
   if (!silent) {
     const token2 = state.push("html_inline", "", 0);
-    token2.content = match2[0];
+    token2.content = match3[0];
     if (isLinkOpen(token2.content)) state.linkLevel++;
     if (isLinkClose(token2.content)) state.linkLevel--;
   }
-  state.pos += match2[0].length;
+  state.pos += match3[0].length;
   return true;
 }
 const DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
@@ -8013,30 +9477,30 @@ function entity(state, silent) {
   if (pos2 + 1 >= max2) return false;
   const ch3 = state.src.charCodeAt(pos2 + 1);
   if (ch3 === 35) {
-    const match2 = state.src.slice(pos2).match(DIGITAL_RE);
-    if (match2) {
+    const match3 = state.src.slice(pos2).match(DIGITAL_RE);
+    if (match3) {
       if (!silent) {
-        const code2 = match2[1][0].toLowerCase() === "x" ? parseInt(match2[1].slice(1), 16) : parseInt(match2[1], 10);
+        const code2 = match3[1][0].toLowerCase() === "x" ? parseInt(match3[1].slice(1), 16) : parseInt(match3[1], 10);
         const token2 = state.push("text_special", "", 0);
         token2.content = isValidEntityCode(code2) ? fromCodePoint(code2) : fromCodePoint(65533);
-        token2.markup = match2[0];
+        token2.markup = match3[0];
         token2.info = "entity";
       }
-      state.pos += match2[0].length;
+      state.pos += match3[0].length;
       return true;
     }
   } else {
-    const match2 = state.src.slice(pos2).match(NAMED_RE);
-    if (match2) {
-      const decoded = decodeHTML(match2[0]);
-      if (decoded !== match2[0]) {
+    const match3 = state.src.slice(pos2).match(NAMED_RE);
+    if (match3) {
+      const decoded = decodeHTML(match3[0]);
+      if (decoded !== match3[0]) {
         if (!silent) {
           const token2 = state.push("text_special", "", 0);
           token2.content = decoded;
-          token2.markup = match2[0];
+          token2.markup = match3[0];
           token2.info = "entity";
         }
-        state.pos += match2[0].length;
+        state.pos += match3[0].length;
         return true;
       }
     }
@@ -8384,8 +9848,8 @@ function createValidator(re) {
   };
 }
 function createNormalizer() {
-  return function(match2, self2) {
-    self2.normalize(match2);
+  return function(match3, self2) {
+    self2.normalize(match3);
   };
 }
 function compile(self2) {
@@ -8471,9 +9935,9 @@ function Match(self2, shift) {
   this.url = text2;
 }
 function createMatch(self2, shift) {
-  const match2 = new Match(self2, shift);
-  self2.__compiled__[match2.schema].normalize(match2, self2);
-  return match2;
+  const match3 = new Match(self2, shift);
+  self2.__compiled__[match3.schema].normalize(match3, self2);
+  return match3;
 }
 function LinkifyIt(schemas, options) {
   if (!(this instanceof LinkifyIt)) {
@@ -8566,7 +10030,7 @@ LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text2, schema, pos2) {
   }
   return this.__compiled__[schema.toLowerCase()].validate(text2, pos2, this);
 };
-LinkifyIt.prototype.match = function match(text2) {
+LinkifyIt.prototype.match = function match2(text2) {
   const result = [];
   let shift = 0;
   if (this.__index__ >= 0 && this.__text_cache__ === text2) {
@@ -8611,12 +10075,12 @@ LinkifyIt.prototype.tlds = function tlds(list2, keepOld) {
   compile(this);
   return this;
 };
-LinkifyIt.prototype.normalize = function normalize2(match2) {
-  if (!match2.schema) {
-    match2.url = "http://" + match2.url;
+LinkifyIt.prototype.normalize = function normalize2(match3) {
+  if (!match3.schema) {
+    match3.url = "http://" + match3.url;
   }
-  if (match2.schema === "mailto:" && !/^mailto:/i.test(match2.url)) {
-    match2.url = "mailto:" + match2.url;
+  if (match3.schema === "mailto:" && !/^mailto:/i.test(match3.url)) {
+    match3.url = "mailto:" + match3.url;
   }
 };
 LinkifyIt.prototype.onCompile = function onCompile() {
@@ -9246,7 +10710,7 @@ function unescapeCodeHtmlEntities(str) {
   };
   return str.replace(
     /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
-    function(match2, starttag, content, endtag) {
+    function(match3, starttag, content, endtag) {
       return starttag + content.replace(
         /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
         function(entity2) {
@@ -9977,14 +11441,14 @@ const ChatView = ({
   numbered = true
 }) => {
   const resolvedMessages = [];
-  for (const message of messages) {
-    if (message.role === "tool") {
+  for (const message2 of messages) {
+    if (message2.role === "tool") {
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
-        msg.toolMessages.push(message);
+        msg.toolMessages.push(message2);
       }
     } else {
-      resolvedMessages.push({ message, toolMessages: [] });
+      resolvedMessages.push({ message: message2, toolMessages: [] });
     }
   }
   const systemMessages = [];
@@ -10063,22 +11527,22 @@ const normalizeContent = (content) => {
 };
 const ChatMessage = ({
   id,
-  message,
+  message: message2,
   toolMessages,
   indented,
   toolCallStyle
 }) => {
-  const collapse = message.role === "system";
+  const collapse = message2.role === "system";
   return m$1`
     <div
-      class="${message.role}"
+      class="${message2.role}"
       style=${{
     fontSize: FontSize.base,
     fontWeight: "300",
     paddingBottom: ".5em",
     marginLeft: "0",
     marginRight: "0",
-    opacity: message.role === "system" ? "0.7" : "1",
+    opacity: message2.role === "system" ? "0.7" : "1",
     whiteSpace: "normal"
   }}
     >
@@ -10090,14 +11554,14 @@ const ChatMessage = ({
     marginBottom: "0.5em",
     ...TextStyle.label
   }}>
-        <i class="${iconForMsg(message)}"></i>
-        ${message.role}
+        <i class="${iconForMsg(message2)}"></i>
+        ${message2.role}
       </div>
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}
-          message=${message}
+          message=${message2}
           toolMessages=${toolMessages}
           toolCallStyle=${toolCallStyle}
         />
@@ -10106,17 +11570,17 @@ const ChatMessage = ({
     </div>
   `;
 };
-const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
-  if (message.role === "assistant" && message.tool_calls && message.tool_calls.length) {
+const MessageContents = ({ message: message2, toolMessages, toolCallStyle }) => {
+  if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
     const result = [];
-    if (message.content) {
+    if (message2.content) {
       result.push(
         m$1`<div style=${{ marginBottom: "1em" }}>
-          <${MessageContent} contents=${message.content} />
+          <${MessageContent} contents=${message2.content} />
         </div>`
       );
     }
-    const toolCalls = message.tool_calls.map((tool_call, idx) => {
+    const toolCalls = message2.tool_calls.map((tool_call, idx) => {
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
         tool_call.arguments
@@ -10146,7 +11610,7 @@ const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
     }
     return result;
   } else {
-    return m$1`<${MessageContent} contents=${message.content} />`;
+    return m$1`<${MessageContent} contents=${message2.content} />`;
   }
 };
 const iconForMsg = (msg) => {
@@ -10269,9 +11733,9 @@ const ChatMessageRenderer = {
 };
 const ChatSummary = ({ id, messages }) => {
   const summaryMessages = [];
-  for (const message of messages.slice().reverse()) {
-    summaryMessages.unshift(message);
-    if (message.role === "user") {
+  for (const message2 of messages.slice().reverse()) {
+    summaryMessages.unshift(message2);
+    if (message2.role === "user") {
       break;
     }
   }
@@ -10906,7 +12370,7 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
-const MessageBand = ({ message, hidden, setHidden, type }) => {
+const MessageBand = ({ message: message2, hidden, setHidden, type }) => {
   const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
   const color = "var(--bs-" + type === "info" ? "secondary" : "undefined-text-emphasis)";
   return m$1`
@@ -10924,7 +12388,7 @@ const MessageBand = ({ message, hidden, setHidden, type }) => {
   }}
     >
       <i class=${ApplicationIcons.logging[type]} />
-      ${message}
+      ${message2}
       <button
         title="Close"
         style=${{
@@ -11695,10 +13159,10 @@ const system_msg_added_sig = {
     add: ["/messages/1"]
   },
   render: (_changes, resolvedState) => {
-    const message = resolvedState["messages"][0];
+    const message2 = resolvedState["messages"][0];
     return m$1`<${ChatView}
       id="system_msg_event_preview"
-      messages=${[message]}
+      messages=${[message2]}
     />`;
   }
 };
@@ -11728,9 +13192,9 @@ const add_tools = {
 const renderTools = (changes, resolvedState) => {
   const toolIndexes = [];
   for (const change of changes) {
-    const match2 = change.path.match(kToolPattern);
-    if (match2) {
-      toolIndexes.push(match2[1]);
+    const match3 = change.path.match(kToolPattern);
+    if (match3) {
+      toolIndexes.push(match3[1]);
     }
   }
   const toolName = (toolChoice) => {
@@ -12292,7 +13756,7 @@ collectChildrenReverseFilter$1.filterName = "collectChildren";
 const defaultMatch = function(array1, array2, index1, index2) {
   return array1[index1] === array2[index2];
 };
-const lengthMatrix = function(array1, array2, match2, context) {
+const lengthMatrix = function(array1, array2, match3, context) {
   const len1 = array1.length;
   const len2 = array2.length;
   let x, y2;
@@ -12303,10 +13767,10 @@ const lengthMatrix = function(array1, array2, match2, context) {
       matrix[x][y2] = 0;
     }
   }
-  matrix.match = match2;
+  matrix.match = match3;
   for (x = 1; x < len1 + 1; x++) {
     for (y2 = 1; y2 < len2 + 1; y2++) {
-      if (match2(array1, array2, x - 1, y2 - 1, context)) {
+      if (match3(array1, array2, x - 1, y2 - 1, context)) {
         matrix[x][y2] = matrix[x - 1][y2 - 1] + 1;
       } else {
         matrix[x][y2] = Math.max(matrix[x - 1][y2], matrix[x][y2 - 1]);
@@ -12343,9 +13807,9 @@ const backtrack = function(matrix, array1, array2, context) {
   }
   return subsequence;
 };
-const get = function(array1, array2, match2, context) {
+const get = function(array1, array2, match3, context) {
   const innerContext = context || {};
-  const matrix = lengthMatrix(array1, array2, match2 || defaultMatch, innerContext);
+  const matrix = lengthMatrix(array1, array2, match3 || defaultMatch, innerContext);
   return backtrack(matrix, array1, array2, innerContext);
 };
 const lcs = {
@@ -14381,7 +15845,7 @@ function treeifyEvents(events, depth) {
 const SampleTranscript = ({ id, evalEvents }) => {
   return m$1`<${TranscriptView} id=${id} events=${evalEvents} />`;
 };
-const SampleError = ({ message, align, style }) => {
+const SampleError = ({ message: message2, align, style }) => {
   align = align || "center";
   return m$1`<div
     style=${{
@@ -14402,11 +15866,11 @@ const SampleError = ({ message, align, style }) => {
   }}
     />
     <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
-      ${errorType(message)}
+      ${errorType(message2)}
     </div>
   </div>`;
 };
-const FlatSampleError = ({ message, style }) => {
+const FlatSampleError = ({ message: message2, style }) => {
   return m$1`<div
     style=${{
     color: "var(--bs-danger)",
@@ -14431,16 +15895,16 @@ const FlatSampleError = ({ message, style }) => {
     height: FontSize.base
   }}
     >
-      ${errorType(message)}
+      ${errorType(message2)}
     </div>
   </div>`;
 };
-const errorType = (message) => {
-  if (!message) {
+const errorType = (message2) => {
+  if (!message2) {
     return "Error";
   }
-  if (message.includes("(")) {
-    return message.split("(")[0];
+  if (message2.includes("(")) {
+    return message2.split("(")[0];
   }
   return "Error";
 };
@@ -15741,8 +17205,8 @@ async function api$1(method, path, body) {
       raw: text2
     };
   } else if (response.status !== 200) {
-    const message = await response.text() || response.statusText;
-    const error2 = new Error(`Error: ${response.status}: ${message})`);
+    const message2 = await response.text() || response.statusText;
+    const error2 = new Error(`Error: ${response.status}: ${message2})`);
     throw error2;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
@@ -15760,8 +17224,8 @@ async function api_bytes(method, path) {
     const buffer2 = await response.arrayBuffer();
     return new Uint8Array(buffer2);
   } else if (response.status !== 200) {
-    const message = await response.text() || response.statusText;
-    const error2 = new Error(`Error: ${response.status}: ${message})`);
+    const message2 = await response.text() || response.statusText;
+    const error2 = new Error(`Error: ${response.status}: ${message2})`);
     throw error2;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
@@ -16638,8 +18102,8 @@ function formatChar(c2) {
   }
   return c2;
 }
-function syntaxError(message) {
-  const err2 = new SyntaxError(message);
+function syntaxError(message2) {
+  const err2 = new SyntaxError(message2);
   err2.lineNumber = line;
   err2.columnNumber = column;
   return err2;
@@ -16921,8 +18385,8 @@ function jsonRpcPostMessageRequestTransport(target) {
   };
 }
 var kJsonRpcVersion = "2.0";
-function isJsonRpcMessage(message) {
-  var jsMessage = message;
+function isJsonRpcMessage(message2) {
+  var jsMessage = message2;
   return jsMessage.jsonrpc !== void 0 && jsMessage.id !== void 0;
 }
 function asJsonRpcMessage(data) {
@@ -16933,9 +18397,9 @@ function asJsonRpcMessage(data) {
   }
 }
 function asJsonRpcResponse(data) {
-  var message = asJsonRpcMessage(data);
-  if (message) {
-    return message;
+  var message2 = asJsonRpcMessage(data);
+  if (message2) {
+    return message2;
   } else {
     return null;
   }
@@ -17816,8 +19280,8 @@ async function fetchFile(url, parse3, handleError) {
     if (handleError && handleError(response)) {
       return void 0;
     }
-    const message = await response.text() || response.statusText;
-    const error2 = new Error(`${response.status}: ${message})`);
+    const message2 = await response.text() || response.statusText;
+    const error2 = new Error(`${response.status}: ${message2})`);
     throw error2;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);
@@ -18282,7 +19746,7 @@ const DownloadButton = ({ label, fileName, fileContents }) => {
   </button>`;
 };
 const DownloadPanel = ({
-  message,
+  message: message2,
   buttonLabel,
   logFile,
   fileName,
@@ -18296,7 +19760,7 @@ const DownloadPanel = ({
     justifyItems: "center"
   }}
   >
-    <div style=${{ fontSize: FontSize.small }}>${message}</div>
+    <div style=${{ fontSize: FontSize.small }}>${message2}</div>
     <${DownloadButton}
       label=${buttonLabel}
       logFile=${logFile}
@@ -20742,7 +22206,7 @@ const StatusMessage = ({ icon, text: text2 }) => {
   }
   return m$1``;
 };
-const ProgressSpinner = ({ message }) => {
+const ProgressSpinner = ({ message: message2 }) => {
   const spinner = m$1`<div
     class="spinner-border"
     role="status"
@@ -20753,9 +22217,9 @@ const ProgressSpinner = ({ message }) => {
     marginTop: ".1em"
   }}
   >
-    <span class="visually-hidden">${message}</span>
+    <span class="visually-hidden">${message2}</span>
   </div>`;
-  if (message) {
+  if (message2) {
     return m$1` <div
       style=${{
       display: "grid",
@@ -20764,7 +22228,7 @@ const ProgressSpinner = ({ message }) => {
     }}
     >
       ${spinner}
-      <div>${message}</div>
+      <div>${message2}</div>
     </div>`;
   } else {
     return spinner;
@@ -20824,7 +22288,7 @@ const TaskList = ({
       tabindex="0"
     >
       <div style=${{ fontSize: FontSize.smaller, marginTop: "0.3em" }}>
-        ${new Date(row.item.eval.created).toLocaleString()}
+        ${formatPrettyDateTime(new Date(row.item.eval.created))}
         <${EvalStatus} logHeader=${row.item} />
       </div>
       <div>
@@ -20956,7 +22420,7 @@ const Scores = ({ scores }) => {
   })}
   </div>`;
 };
-const StatusCancelled = ({ message }) => {
+const StatusCancelled = ({ message: message2 }) => {
   return m$1`<div
     style=${{
     marginTop: "0.2em",
@@ -20965,10 +22429,10 @@ const StatusCancelled = ({ message }) => {
     ...TextStyle.secondary
   }}
   >
-    ${message}
+    ${message2}
   </div>`;
 };
-const StatusRunning = ({ message }) => {
+const StatusRunning = ({ message: message2 }) => {
   return m$1` <div
     style=${{
     display: "grid",
@@ -20980,10 +22444,10 @@ const StatusRunning = ({ message }) => {
     ...TextStyle.label
   }}
   >
-    <div>${message}</div>
+    <div>${message2}</div>
   </div>`;
 };
-const StatusError = ({ message }) => {
+const StatusError = ({ message: message2 }) => {
   return m$1`<div
     style=${{
     color: "var(--bs-danger)",
@@ -20992,7 +22456,7 @@ const StatusError = ({ message }) => {
     ...TextStyle.label
   }}
   >
-    ${message}
+    ${message2}
   </div>`;
 };
 function App({
