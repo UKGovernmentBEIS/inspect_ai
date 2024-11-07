@@ -6,7 +6,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
 
 from ..core.group import group_events
-from ..widgets.transcript import TranscriptView
+from ..display.textual.widgets.transcript import TranscriptView
 
 # textual console
 # textual run --dev inspect_ai._ui.logview.logview:LogviewApp
