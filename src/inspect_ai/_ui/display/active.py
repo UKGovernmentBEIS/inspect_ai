@@ -4,8 +4,8 @@ import sys
 from inspect_ai._util.ansi import no_ansi
 
 from .display import Display
-from .display_textual import TextualDisplay
 from .rich.rich import RichDisplay
+from .textual.textual import TextualDisplay
 
 
 def display() -> Display:

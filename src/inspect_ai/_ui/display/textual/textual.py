@@ -5,7 +5,14 @@ import rich
 from rich.console import Console
 from typing_extensions import override
 
-from .display import Display, Progress, TaskDisplay, TaskProfile, TaskResult, TaskScreen
+from ..display import (
+    Display,
+    Progress,
+    TaskDisplay,
+    TaskProfile,
+    TaskResult,
+    TaskScreen,
+)
 
 
 class TextualDisplay(Display):
