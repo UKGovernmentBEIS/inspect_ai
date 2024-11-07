@@ -1,5 +1,5 @@
-from inspect_ai._util.display import no_ansi
 from inspect_ai._util.constants import PKG_PATH
+from inspect_ai._util.display import display_type
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import subprocess
 
@@ -31,7 +31,7 @@ async def build_internal_image(image: str) -> None:
             "--tag",
             image,
             "--progress",
-            "plain" if no_ansi() else "auto",
+            "plain" if display_type() == "plain" else "auto",
             INTERNAL_IMAGES[image].as_posix(),
         ],
         capture_output=False,

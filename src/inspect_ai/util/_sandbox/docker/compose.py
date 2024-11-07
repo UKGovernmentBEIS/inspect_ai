@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai._util.display import no_ansi
+from inspect_ai._util.display import display_type
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -250,7 +250,7 @@ async def compose_command(
     env = project.env if (project.env and forward_env) else {}
 
     # ansi (apply global override)
-    if no_ansi():
+    if display_type() == "plain":
         ansi = "never"
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]

@@ -9,7 +9,7 @@ from rich.segment import Segment
 from rich.syntax import Syntax
 from typing_extensions import override
 
-from inspect_ai._util.display import no_ansi, no_display
+from inspect_ai._util.display import display_type
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 
 
@@ -18,18 +18,22 @@ def is_vscode_notebook(console: Console) -> bool:
 
 
 def rich_no_color() -> bool:
-    return no_ansi() or not is_running_in_vscode() or is_running_in_jupyterlab()
+    return (
+        display_type() == "plain"
+        or not is_running_in_vscode()
+        or is_running_in_jupyterlab()
+    )
 
 
 def rich_initialise() -> None:
     # reflect ansi prefs
-    if no_ansi():
+    if display_type() == "plain":
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
     elif rich_no_color():
         rich.reconfigure(no_color=True)
 
     # reflect display == none
-    if no_display():
+    if display_type() == "none":
         rich.reconfigure(quiet=True)
 
     # consistent markdown code bock background

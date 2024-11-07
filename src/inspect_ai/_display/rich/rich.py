@@ -18,8 +18,8 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.display import no_ansi
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
+from inspect_ai._util.display import display_type
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log._transcript import InputEvent, transcript
@@ -121,7 +121,7 @@ class RichDisplay(Display):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # if there is no ansi display than all of the below will
         # be a no-op, so we print a simple text message for the task
-        if no_ansi():
+        if display_type() == "plain":
             rich.get_console().print(task_no_ansi(profile))
 
         # for typechekcer
