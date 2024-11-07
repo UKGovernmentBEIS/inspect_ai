@@ -113,6 +113,16 @@ class GroqAPI(ModelAPI):
                 if response.usage
                 else None
             ),
+            metadata= {
+                "id": response.id,
+                "system_fingerprint": response.system_fingerprint,
+                "queue_time": response.usage.queue_time,
+                "prompt_time": response.usage.prompt_time,
+                "completion_time": response.usage.completion_time,
+                "total_time": response.usage.total_time,
+                "created": response.created,
+
+            }
         )
 
         # record call

@@ -10,7 +10,8 @@
 - Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
 - Log model calls when model providers return bad request errors
 - Better lay out large numbers of configuration and parameters when displaying log files.
-- The log viewer now properly displays sample scores for running tasks
+- The log viewer now properly displays sample scores for running tasks.
+- Add `metadata` field to `ModelOutput` and provide varioius fields for the Groq provider.
 
 ## v0.3.44 (04 November 2024)
 
