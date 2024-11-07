@@ -3,6 +3,7 @@
 ## Unreleased
 
 - AzureAI: Use Model Inference API (preview) for implementation of model client.
+- Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
 - [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
 - Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
