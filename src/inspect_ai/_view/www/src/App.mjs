@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "preact/hooks";
+import { SampleDialog } from "./samples/SampleDialog.mjs";
 
 // Registration component
 import "./Register.mjs";
@@ -69,7 +70,7 @@ export function App({
 
   // Log Headers
   /**
-   * @type {[ import("./api/Types.mjs").EvalLogHeader[], (newState: import("./api/Types.mjs").EvalLogHeader[]) => void ]}
+   * @type {[ import("./api/Types.mjs").EvalLogHeader[], (newState: import("./api/Types.mjs").EvalLogHeader[] | ((prevState: import("./api/Types.mjs").EvalLogHeader[]) => import("./api/Types.mjs").EvalLogHeader[])) => void ]}
    */
   const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || []);
   const [headersLoading, setHeadersLoading] = useState(
@@ -164,7 +165,10 @@ export function App({
    */
   const [score, setScore] = useState(initialState?.score);
 
-  // Re-filter the samples
+  // Filtered samples
+  /**
+   * @type {[ import("./api/Types.mjs").SampleSummary[], (newState: import("./api/Types.mjs").SampleSummary[]) => void ]}
+   */
   const [filteredSamples, setFilteredSamples] = useState(
     initialState?.filteredSamples || [],
   );
@@ -279,7 +283,6 @@ export function App({
     showingSampleDialog,
     status,
     capabilities,
-    offcanvas,
     showFind,
     filter,
     epoch,
@@ -373,6 +376,8 @@ export function App({
 
   // The main application reference
   const mainAppRef = useRef();
+  const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const taskListRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // Loads a sample
   useEffect(() => {
@@ -826,6 +831,55 @@ export function App({
       : selectedLog.contents.sampleSummaries.length === 1
         ? "single"
         : "many";
+
+  const nextSampleIndex = useCallback(() => {
+    if (selectedSampleIndex < filteredSamples.length - 1) {
+      return selectedSampleIndex + 1;
+    } else {
+      return -1;
+    }
+  }, [selectedSampleIndex, filteredSamples]);
+
+  const previousSampleIndex = useCallback(() => {
+    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
+  }, [selectedSampleIndex, filteredSamples]);
+
+  // Manage the next / previous state the selected sample
+  const nextSample = useCallback(() => {
+    const next = nextSampleIndex();
+    if (sampleStatus !== "loading" && next > -1) {
+      setSelectedSampleIndex(next);
+    }
+  }, [selectedSampleIndex, filteredSamples, sampleStatus, nextSampleIndex]);
+
+  const previousSample = useCallback(() => {
+    const prev = previousSampleIndex();
+    if (sampleStatus !== "loading" && prev > -1) {
+      setSelectedSampleIndex(prev);
+    }
+  }, [selectedSampleIndex, filteredSamples, sampleStatus, previousSampleIndex]);
+
+  useEffect(() => {
+    if (showingSampleDialog) {
+      setTimeout(() => {
+        // @ts-ignore
+        sampleDialogRef.current.base.focus();
+      }, 0);
+    } else {
+      setTimeout(() => {
+        if (taskListRef.current) {
+          // TODO: Implement focus handling for the task list
+          // @ts-ignore
+          //taskListRef.current.focus();
+        }
+      }, 0);
+    }
+  }, [showingSampleDialog]);
+
+  const sampleTitle = selectedSample
+    ? `Sample ${selectedSample.id} ${selectedLog.contents?.eval.config.epochs > 1 ? `Epoch ${selectedSample.epoch}` : ""}`
+    : "";
+
   return html`
     <${AppErrorBoundary}>
     <div ref=${mainAppRef} class="app-main-grid" tabIndex="0" onKeyDown=${(
@@ -853,21 +907,44 @@ export function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />`
-          : selectedLog.contents === undefined
-            ? html`<${TaskList}
-                status=${headersLoading ? "loading" : "ok"}
-                logDir=${logs.log_dir}
-                logCount=${logs.files.length}
-                logHeaders=${logHeaders}
-                selectedLogIndex=${selectedLogIndex}
-                onSelectedLogIndex=${(idx) => {
-                  setSelectedLogIndex(idx);
-                }}
-                page=${logHeaderPage}
-                pageCount="${Math.ceil(logs.files.length / logHeaderPageSize)}"
-                onPageChanged="${setLogHeaderPage}"
-              />`
-            : html`<${TaskView}
+          : showingSampleDialog
+            ? html`
+                <${SampleDialog}
+                  id=${selectedSample?.id || ""}
+                  title=${sampleTitle}
+                  ref=${sampleDialogRef}
+                  task_id=${selectedLog?.contents?.eval?.task_id}
+                  sample=${selectedSample}
+                  sampleStatus=${sampleStatus}
+                  sampleError=${sampleError}
+                  sampleDescriptor=${samplesDescriptor}
+                  showingSampleDialog=${showingSampleDialog}
+                  setShowingSampleDialog=${setShowingSampleDialog}
+                  selectedTab=${selectedSampleTab}
+                  setSelectedTab=${setSelectedSampleTab}
+                  nextSample=${nextSample}
+                  prevSample=${previousSample}
+                  context=${context}
+                />
+              `
+            : selectedLog.contents === undefined
+              ? html`<${TaskList}
+                  ref=${taskListRef}
+                  status=${headersLoading ? "loading" : "ok"}
+                  logDir=${logs.log_dir}
+                  logCount=${logs.files.length}
+                  logHeaders=${logHeaders}
+                  selectedLogIndex=${selectedLogIndex}
+                  onSelectedLogIndex=${(idx) => {
+                    setSelectedLogIndex(idx);
+                  }}
+                  page=${logHeaderPage}
+                  pageCount="${Math.ceil(
+                    logs.files.length / logHeaderPageSize,
+                  )}"
+                  onPageChanged="${setLogHeaderPage}"
+                />`
+              : html`<${TaskView}
                 task_id=${selectedLog?.contents?.eval?.task_id}
                 logFileName=${selectedLog?.name}
                 evalStatus=${selectedLog?.contents?.status}

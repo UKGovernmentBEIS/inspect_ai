@@ -77,6 +77,9 @@ import { debounce } from "../utils/sync.mjs";
  * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
  * @param {import("preact/hooks").MutableRef<number>} props.workspaceTabScrollPositionRef - The initial scroll position for the workspace tabs
  * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
+ * @param {(index: number) => void} props.nextSample - the selected tab
+ * @param {(index: number) => void} props.previousSample - function to select a tab
+ * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const TaskView = ({
@@ -101,10 +104,11 @@ export const TaskView = ({
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
-  showingSampleDialog,
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
+  nextSample,
+  previousSample,
   sampleStatus,
   sampleError,
   sort,

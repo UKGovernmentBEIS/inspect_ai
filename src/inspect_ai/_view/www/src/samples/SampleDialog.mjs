@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback, useMemo } from "preact/hooks";
+import { useCallback } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
@@ -11,8 +11,8 @@ import { ErrorPanel } from "../components/ErrorPanel.mjs";
  * Inline Sample Display
  *
  * @param {Object} props - The parameters for the component.
- * @param {string} props.id - The task id
- * @param {string} props.title - The task title
+ * @param {string} props.id - The sample id
+ * @param {string} props.title - The sample title
  * @param {string} props.sampleStatus - the sample status
  * @param {Error} [props.sampleError] - sample error
  * @param {import("../types/log").EvalSample} [props.sample] - the sample
@@ -43,26 +43,24 @@ export const SampleDialog = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
 }) => {
-  const tools = useMemo(() => {
-    const nextTool = {
-      label: "Next Sample",
-      icon: ApplicationIcons.next,
-      onclick: nextSample,
-      enabled: !!nextSample,
-    };
+  const nextTool = {
+    label: "Next Sample",
+    icon: ApplicationIcons.next,
+    onclick: nextSample,
+    enabled: !!nextSample,
+  };
 
-    const prevTool = {
-      label: "Previous Sample",
-      icon: ApplicationIcons.previous,
-      onclick: prevSample,
-      enabled: !!prevSample,
-    };
+  const prevTool = {
+    label: "Previous Sample",
+    icon: ApplicationIcons.previous,
+    onclick: prevSample,
+    enabled: !!prevSample,
+  };
 
-    return {
-      left: [prevTool],
-      right: [nextTool],
-    };
-  }, [prevSample, nextSample]);
+  const tools = {
+    left: [prevTool],
+    right: [nextTool],
+  };
 
   const handleKeyUp = useCallback(
     (e) => {

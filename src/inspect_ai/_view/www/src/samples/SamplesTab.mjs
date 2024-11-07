@@ -1,8 +1,7 @@
 //@ts-check
 import { html } from "htm/preact";
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 
-import { SampleDialog } from "./SampleDialog.mjs";
 import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -23,10 +22,11 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
  * @param {(index: number) => void } props.setSelectedSampleIndex - function to select a sample
- * @param {boolean} props.showingSampleDialog - whether the dialog is showing
  * @param {(showing: boolean) => void } props.setShowingSampleDialog - update whether the dialog is showing
  * @param {string} props.selectedSampleTab - the selected tab
  * @param {(tab: string) => void} props.setSelectedSampleTab - function to select a tab
+ * @param {(index: number) => void} props.nextSample - the selected tab
+ * @param {(index: number) => void} props.previousSample - function to select a tab
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {import("htm/preact").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
@@ -48,18 +48,15 @@ export const SamplesTab = ({
   sampleError,
   selectedSampleIndex,
   setSelectedSampleIndex,
-  showingSampleDialog,
   setShowingSampleDialog,
+  nextSample,
+  previousSample,
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
 }) => {
   const [items, setItems] = useState([]);
-  const [sampleItems, setSampleItems] = useState([]);
-
-  const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   // Shows the sample dialog
   const showSample = useCallback(
@@ -67,24 +64,8 @@ export const SamplesTab = ({
       setSelectedSampleIndex(index);
       setShowingSampleDialog(true);
     },
-    [sampleDialogRef],
+    [setSelectedSampleIndex, setShowingSampleDialog],
   );
-
-  useEffect(() => {
-    if (showingSampleDialog) {
-      setTimeout(() => {
-        // @ts-ignore
-        sampleDialogRef.current.base.focus();
-      }, 0);
-    } else {
-      setTimeout(() => {
-        if (sampleListRef.current) {
-          // @ts-ignore
-          sampleListRef.current.base.focus();
-        }
-      }, 0);
-    }
-  }, [showingSampleDialog]);
 
   useEffect(() => {
     const sampleProcessor = getSampleProcessor(
@@ -104,39 +85,7 @@ export const SamplesTab = ({
     });
 
     setItems(items);
-    setSampleItems(
-      items.filter((item) => {
-        return item.type === "sample";
-      }),
-    );
   }, [samples, groupBy, groupByOrder, sampleDescriptor]);
-
-  const nextSampleIndex = useCallback(() => {
-    if (selectedSampleIndex < sampleItems.length - 1) {
-      return selectedSampleIndex + 1;
-    } else {
-      return -1;
-    }
-  }, [selectedSampleIndex, items]);
-
-  const previousSampleIndex = useCallback(() => {
-    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-  }, [selectedSampleIndex, items]);
-
-  // Manage the next / previous state the selected sample
-  const nextSample = useCallback(() => {
-    const next = nextSampleIndex();
-    if (sampleStatus !== "loading" && next > -1) {
-      setSelectedSampleIndex(next);
-    }
-  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
-
-  const previousSample = useCallback(() => {
-    const prev = previousSampleIndex();
-    if (sampleStatus !== "loading" && prev > -1) {
-      setSelectedSampleIndex(prev);
-    }
-  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
 
   const elements = [];
   if (sampleMode === "single") {
@@ -155,7 +104,6 @@ export const SamplesTab = ({
   } else if (sampleMode === "many") {
     elements.push(
       html`<${SampleList}
-        listRef=${sampleListRef}
         items=${items}
         sampleDescriptor=${sampleDescriptor}
         selectedIndex=${selectedSampleIndex}
@@ -169,37 +117,6 @@ export const SamplesTab = ({
   } else {
     elements.push(html`<${EmptyPanel} />`);
   }
-
-  const title =
-    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
-      ? sampleItems[selectedSampleIndex].label
-      : "";
-  const index =
-    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
-      ? sampleItems[selectedSampleIndex].index
-      : -1;
-  elements.push(html`
-    <${SampleDialog}
-      id=${sample?.id || ""}
-      ref=${sampleDialogRef}
-      task=${task_id}
-      title=${title}
-      index=${index}
-      sample=${sample}
-      sampleStatus=${sampleStatus}
-      sampleError=${sampleError}
-      sampleDescriptor=${sampleDescriptor}
-      showingSampleDialog=${showingSampleDialog}
-      setShowingSampleDialog=${setShowingSampleDialog}
-      selectedTab=${selectedSampleTab}
-      setSelectedTab=${setSelectedSampleTab}
-      nextSample=${nextSample}
-      prevSample=${previousSample}
-      sampleScrollPositionRef=${sampleScrollPositionRef}
-      setSampleScrollPosition=${setSampleScrollPosition}
-    />
-  `);
-
   return elements;
 };
 
