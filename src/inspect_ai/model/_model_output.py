@@ -25,9 +25,6 @@ class ModelUsage(BaseModel):
     """Number of tokens retrieved from the cache."""
 
 
-
-
-
 StopReason = Literal[
     "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
 ]
