@@ -2,13 +2,17 @@
 
 ## Unreleased
 
-- AzureAI: Use Model Inference API (preview) for implementation of model client.
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- AzureAI: Use Model Inference API (preview) for implementation of model client.
+- Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
 - Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
 - Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
 - Log model calls when model providers return bad request errors
+- Better lay out large numbers of configuration and parameters when displaying log files.
+- The log viewer now properly displays sample scores for running tasks.
+- Add `metadata` field to `ModelOutput` and provide varioius fields for the Groq provider.
 
 ## v0.3.44 (04 November 2024)
 

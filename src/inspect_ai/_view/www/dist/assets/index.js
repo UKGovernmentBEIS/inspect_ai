@@ -7959,6 +7959,52 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
     </div>
   `;
 };
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
+};
 const Sidebar = ({
   offcanvas,
   logs,
@@ -8077,10 +8123,20 @@ const Sidebar = ({
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "1em" }}>
+              <div
+                style=${{
+      marginTop: "1em",
+      ...ApplicationStyles.threeLineClamp
+    }}
+              >
                 <small class="mb-1">
                   ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-      return `${key2}: ${hyperparameters[key2]}`;
+      const val = hyperparameters[key2];
+      if (Array.isArray(val) || typeof val === "object") {
+        return `${key2}: ${JSON.stringify(val)}`;
+      } else {
+        return `${key2}: ${val}`;
+      }
     }).join(", ") : ""}
                 </small>
               </div>
@@ -14902,7 +14958,13 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
+const ExpandablePanel = ({
+  collapse,
+  border,
+  lines = 15,
+  style,
+  children
+}) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -14910,30 +14972,32 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   y(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
+  const refreshCollapse = q(() => {
+    if (collapse && contentsRef.current) {
+      const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
+      setShowToggle(isScrollable);
+    }
+  }, [collapse, setShowToggle, contentsRef]);
   y(() => {
-    const checkScrollable = () => {
-      if (collapse && contentsRef.current) {
-        const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-        setShowToggle(isScrollable);
-      }
-    };
+    refreshCollapse();
+  }, [children]);
+  y(() => {
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          checkScrollable();
+          refreshCollapse();
         }
       });
     });
     if (contentsRef.current) {
       observerRef.current.observe(contentsRef.current);
     }
-    checkScrollable();
     return () => {
       if (observerRef.current && contentsRef.current) {
         observerRef.current.unobserve(contentsRef.current);
       }
     };
-  }, [collapse, contentsRef, observerRef]);
+  }, [contentsRef, observerRef]);
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
     contentsStyle = {
@@ -14951,7 +15015,7 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   return m$1`<div
       class="expandable-panel"
       ref=${contentsRef}
-      style=${contentsStyle}
+      style=${{ ...contentsStyle, ...style }}
     >
       ${children}
     </div>
@@ -14959,14 +15023,16 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
           collapsed=${collapsed}
           setCollapsed=${setCollapsed}
           border=${!border}
+          style=${style}
         />` : ""}`;
 };
-const MoreToggle = ({ collapsed, border, setCollapsed }) => {
+const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
   const text2 = collapsed ? "more" : "less";
   const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
   const topStyle = {
     display: "flex",
-    marginBottom: "0.5em"
+    marginBottom: "0.5em",
+    ...style
   };
   if (border) {
     topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
@@ -16255,52 +16321,6 @@ const isVscode = () => {
   return !!bodyEl.getAttributeNames().find((attr) => {
     return attr.includes("data-vscode-");
   });
-};
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
@@ -23879,6 +23899,7 @@ const SecondaryBar = ({
     });
   }
   return m$1`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
     margin: "0",
@@ -23888,14 +23909,14 @@ const SecondaryBar = ({
     borderTop: "1px solid var(--bs-border-color)",
     gridTemplateColumns: `${values.map((val) => {
       return val.size;
-    }).join(" ")}`,
-    ...style
+    }).join(" ")}`
   }}
     >
       ${values.map((val) => {
     return val.value;
   })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 const DatasetSummary = ({ dataset, samples, epochs, style }) => {
@@ -23923,7 +23944,12 @@ const ParamSummary = ({ params }) => {
     return "";
   }
   const paraValues = Object.keys(params).map((key2) => {
-    return `${key2}: ${params[key2]}`;
+    const val = params[key2];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key2}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key2}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
@@ -24362,29 +24388,34 @@ const WorkSpace = ({
         />`;
       },
       tools: () => {
-        if (evalStatus === "started") {
-          return m$1`<${ToolButton}
-            name=${m$1`Refresh`}
-            icon="${ApplicationIcons.refresh}"
-            onclick="${refreshLog}"
-          />`;
-        }
         if (sampleMode === "single") {
           return "";
         }
-        return m$1`<${SampleTools}
-          epoch=${epoch}
-          epochs=${epochs}
-          setEpoch=${setEpoch}
-          filter=${filter}
-          filterChanged=${setFilter}
-          sort=${sort}
-          setSort=${setSort}
-          score=${score}
-          setScore=${setScore}
-          scores=${scores}
-          sampleDescriptor=${samplesDescriptor}
-        />`;
+        const sampleTools = [
+          m$1`<${SampleTools}
+            epoch=${epoch}
+            epochs=${epochs}
+            setEpoch=${setEpoch}
+            filter=${filter}
+            filterChanged=${setFilter}
+            sort=${sort}
+            setSort=${setSort}
+            score=${score}
+            setScore=${setScore}
+            scores=${scores}
+            sampleDescriptor=${samplesDescriptor}
+          />`
+        ];
+        if (evalStatus === "started") {
+          sampleTools.push(
+            m$1`<${ToolButton}
+              name=${m$1`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${refreshLog}"
+            />`
+          );
+        }
+        return sampleTools;
       }
     };
   }
@@ -25586,29 +25617,13 @@ function App({
      * @param {import("./api/Types.mjs").EvalSummary} log
      */
     (log) => {
-      var _a3, _b3, _c2, _d2;
       const hasSamples = !!log.sampleSummaries && log.sampleSummaries.length > 0;
       const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
       );
-      const scorer = ((_a3 = log.results) == null ? void 0 : _a3.scores[0]) ? {
-        name: (_b3 = log.results) == null ? void 0 : _b3.scores[0].name,
-        scorer: (_c2 = log.results) == null ? void 0 : _c2.scores[0].scorer
-      } : void 0;
-      const scorers = (((_d2 = log.results) == null ? void 0 : _d2.scores) || []).map((score2) => {
-        return {
-          name: score2.name,
-          scorer: score2.scorer
-        };
-      }).reduce((accum, scorer2) => {
-        if (!accum.find((sc) => {
-          return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
-        })) {
-          accum.push(scorer2);
-        }
-        return accum;
-      }, []);
+      const scorer = defaultScorer(log);
+      const scorers = defaultScorers(log);
       setScores(scorers);
       setScore(scorer);
       setEpoch("all");
@@ -25931,6 +25946,44 @@ function App({
     </${AppErrorBoundary}>
   `;
 }
+const defaultScorer = (log) => {
+  var _a2, _b2, _c;
+  const scorer = ((_a2 = log.results) == null ? void 0 : _a2.scores[0]) ? {
+    name: (_b2 = log.results) == null ? void 0 : _b2.scores[0].name,
+    scorer: (_c = log.results) == null ? void 0 : _c.scores[0].scorer
+  } : log.sampleSummaries.length > 0 ? {
+    name: Object.keys(log.sampleSummaries[0].scores)[0],
+    scorer: Object.keys(log.sampleSummaries[0].scores)[0]
+  } : void 0;
+  return scorer;
+};
+const defaultScorers = (log) => {
+  var _a2, _b2;
+  if ((_a2 = log.results) == null ? void 0 : _a2.scores) {
+    return (((_b2 = log.results) == null ? void 0 : _b2.scores) || []).map((score) => {
+      return {
+        name: score.name,
+        scorer: score.scorer
+      };
+    }).reduce((accum, scorer) => {
+      if (!accum.find((sc) => {
+        return scorer.scorer === sc.scorer && scorer.name === sc.name;
+      })) {
+        accum.push(scorer);
+      }
+      return accum;
+    }, []);
+  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
+    return Object.keys(log.sampleSummaries[0].scores).map((key2) => {
+      return {
+        name: key2,
+        scorer: key2
+      };
+    });
+  } else {
+    return [];
+  }
+};
 const vscode = getVscodeApi();
 let initialState = void 0;
 if (vscode) {

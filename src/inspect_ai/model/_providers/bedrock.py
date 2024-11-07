@@ -296,7 +296,17 @@ class MistralChatHandler(BedrockChatHandler):
         tools: list[ToolInfo],
         handler: ChatAPIHandler,
     ) -> ChatCompletionChoice:
-        outputs: list[dict[str, str]] = response.get("outputs", [])
+        # 11/6 Bedrock started returning an OAI compatible response for
+        # Mistral large 2407. This will parse that response if the outputs
+        # are omitted
+        def parse_oai_style_outputs(response: dict[str, Any]) -> list[dict[str, str]]:
+            choices = response.get("choices", [])
+            return [{"text": choice["message"]["content"]} for choice in choices]
+
+        outputs: list[dict[str, str]] = response.get(
+            "outputs", parse_oai_style_outputs(response)
+        )
+
         return ChatCompletionChoice(
             message=handler.parse_assistant_response(
                 response="\n".join([output.get("text", "") for output in outputs]),

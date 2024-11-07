@@ -161,31 +161,36 @@ export const WorkSpace = ({
         />`;
       },
       tools: () => {
-        if (evalStatus === "started") {
-          return html`<${ToolButton}
-            name=${html`Refresh`}
-            icon="${ApplicationIcons.refresh}"
-            onclick="${refreshLog}"
-          />`;
-        }
-
         // Don't show tools if there is a single sample
         if (sampleMode === "single") {
           return "";
         }
-        return html`<${SampleTools}
-          epoch=${epoch}
-          epochs=${epochs}
-          setEpoch=${setEpoch}
-          filter=${filter}
-          filterChanged=${setFilter}
-          sort=${sort}
-          setSort=${setSort}
-          score=${score}
-          setScore=${setScore}
-          scores=${scores}
-          sampleDescriptor=${samplesDescriptor}
-        />`;
+        const sampleTools = [
+          html`<${SampleTools}
+            epoch=${epoch}
+            epochs=${epochs}
+            setEpoch=${setEpoch}
+            filter=${filter}
+            filterChanged=${setFilter}
+            sort=${sort}
+            setSort=${setSort}
+            score=${score}
+            setScore=${setScore}
+            scores=${scores}
+            sampleDescriptor=${samplesDescriptor}
+          />`,
+        ];
+        if (evalStatus === "started") {
+          sampleTools.push(
+            html`<${ToolButton}
+              name=${html`Refresh`}
+              icon="${ApplicationIcons.refresh}"
+              onclick="${refreshLog}"
+            />`,
+          );
+        }
+
+        return sampleTools;
       },
     };
   }
