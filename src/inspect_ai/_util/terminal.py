@@ -23,19 +23,18 @@ class TerminalBackground:
 
 
 def detect_terminal_background(
-    default_color: RGB | None = RGB(0, 0, 0),
+    default_color: RGB = RGB(0, 0, 0),
 ) -> TerminalBackground:
     """Query the terminal background color using OSC escape sequence.
 
     Based on https://github.com/Canop/terminal-light/blob/main/src/xterm.rs
 
     The `default_color` parameter ensures that you always get back a color
-    even if an error occurs while querying the terminal (dark terminal
-    is detected in this case). Pass `None` for `default_color` if you
-    want an exception thrown instead.
+    even if when on windows or if an error occurs while querying the terminal
+    (dark terminal is detected in this case).
 
     Args:
-        default_color (Rgb | None): Default color in the case that we
+        default_color (Rgb): Default color in the case that we
           are unable to successfully query for colors.
 
     Returns:
@@ -50,6 +49,10 @@ def detect_terminal_background(
         return TerminalBackground(
             color=color, brightness=brightness, dark=brightness <= 128
         )
+
+    # this does not work on windows so in that case we return the default
+    if sys.platform == "win32":
+        return background_from_color(default_color)
 
     try:
         # Send OSC 11 query for background color
@@ -74,90 +77,15 @@ def detect_terminal_background(
         return background_from_color(color)
 
     except Exception as e:
-        if default_color:
-            logger.debug(
-                "Error attempting to query terminal background color: " + str(e)
-            )
-            return background_from_color(default_color)
-        else:
-            raise
+        logger.debug("Error attempting to query terminal background color: " + str(e))
+        return background_from_color(default_color)
 
 
-def _query(query_str: str, timeout_ms: int) -> str:
-    if sys.platform == "win32":
-        return _windows_query(query_str, timeout_ms)
-    else:
-        return _unix_query(query_str, timeout_ms)
-
-
-if sys.platform == "win32":
-    import ctypes
-    import msvcrt
-    import time
-    from ctypes import wintypes
-
-    # Windows Console API constants
-    ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-    STD_OUTPUT_HANDLE = -11
-    STD_INPUT_HANDLE = -10
-
-    def _windows_query(query_str: str, timeout_ms: int) -> str:
-        """Windows-specific implementation of terminal query"""
-        try:
-            # Enable VT processing if needed
-            _enable_virtual_terminal_processing()
-
-            # Clear input buffer
-            while msvcrt.kbhit():
-                msvcrt.getch()
-
-            # Send query
-            sys.stdout.write(query_str)
-            sys.stdout.flush()
-
-            # Read response with timeout
-            response = ""
-            start_time = time.time()
-            while True:
-                if time.time() - start_time > timeout_ms / 1000.0:
-                    raise RuntimeError("Timeout waiting for terminal query response")
-
-                if msvcrt.kbhit():
-                    char = msvcrt.getwch()
-                    response += char
-                    if char == "\\" or (
-                        len(response) > 1 and response[-2:] == "\x1b\\"
-                    ):
-                        break
-
-                time.sleep(0.01)  # Short sleep to prevent CPU spinning
-
-            return response
-
-        except Exception as e:
-            raise RuntimeError(f"Windows query failed: {str(e)}")
-
-    def _enable_virtual_terminal_processing():
-        """Enable VT processing on Windows"""
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-
-        # Get current console mode
-        mode = wintypes.DWORD()
-        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            raise RuntimeError("Failed to get console mode")
-
-        # Enable VT processing
-        mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
-        if not kernel32.SetConsoleMode(handle, mode):
-            raise RuntimeError("Failed to set console mode")
-
-
-else:
+if sys.platform != "win32":
     import termios
     import tty
 
-    def _unix_query(query_str: str, timeout_ms: int) -> str:
+    def _query(query_str: str, timeout_ms: int) -> str:
         """Send a query to the terminal and wait for response"""
         old_settings = None
 
