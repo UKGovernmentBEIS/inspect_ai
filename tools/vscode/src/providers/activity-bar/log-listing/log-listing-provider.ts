@@ -144,6 +144,15 @@ export async function activateLogListing(
     }
   }));
 
+  // Register copy path command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingCopyLogPath', async (node: LogNode) => {
+    const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
+    if (logUri) {
+      const path = prettyUriPath(logUri);
+      await vscode.env.clipboard.writeText(path);
+    }
+  }));
+
   // refresh when a log in our directory changes
   disposables.push(logsWatcher.onInspectLogCreated((e) => {
     const treeLogDir = treeDataProvider.getLogListing()?.logDir();
