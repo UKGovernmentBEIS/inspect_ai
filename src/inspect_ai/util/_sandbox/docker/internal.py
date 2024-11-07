@@ -1,4 +1,4 @@
-from inspect_ai._util.ansi import no_ansi
+from inspect_ai._util.display import no_ansi
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import subprocess

@@ -1,12 +1,13 @@
 import functools
 import os
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 
 import click
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
+    DEFAULT_DISPLAY,
     DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
@@ -17,6 +18,7 @@ class CommonOptions(TypedDict):
     log_level: str
     log_level_transcript: str
     log_dir: str
+    display: Literal["full", "rich", "plain", "none"]
     no_ansi: bool | None
     debug: bool
     debug_port: int
@@ -62,9 +64,17 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Directory for log files.",
     )
     @click.option(
+        "--display",
+        type=click.Choice(["full", "rich", "plain", "none"], case_sensitive=False),
+        default=DEFAULT_DISPLAY,
+        envvar="INSPECT_DISPLAY",
+        help="Set the display type (defaults to 'full')",
+    )
+    @click.option(
         "--no-ansi",
         type=bool,
         is_flag=True,
+        hidden=True,
         help="Do not print ANSI control characters.",
         envvar="INSPECT_NO_ANSI",
     )
@@ -92,9 +102,11 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptions) -> None:
-    # disable ansi if requested
+    # propagate display
     if options["no_ansi"]:
-        os.environ["INSPECT_NO_ANSI"] = "1"
+        os.environ["INSPECT_DISPLAY"] = "plain"
+    else:
+        os.environ["INSPECT_DISPLAY"] = options["display"].lower().strip()
 
     # attach debugger if requested
     if options["debug"]:

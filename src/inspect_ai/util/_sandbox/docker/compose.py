@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai._util.ansi import no_ansi
+from inspect_ai._util.display import no_ansi
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 

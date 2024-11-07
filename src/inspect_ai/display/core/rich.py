@@ -9,7 +9,7 @@ from rich.segment import Segment
 from rich.syntax import Syntax
 from typing_extensions import override
 
-from inspect_ai._util.display import no_ansi, no_display
+from inspect_ai._util.display import no_ansi
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 
 
@@ -27,10 +27,6 @@ def rich_initialise() -> None:
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
     elif rich_no_color():
         rich.reconfigure(no_color=True)
-
-    # reflect display == none
-    if no_display():
-        rich.reconfigure(quiet=True)
 
     # consistent markdown code bock background
     class CustomCodeBlock(CodeBlock):
