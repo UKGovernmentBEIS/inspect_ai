@@ -26,7 +26,7 @@ class TextualDisplay(Display):
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        yield TextualTaskDisplay()
+        yield TextualTaskDisplay(profile)
 
 
 class TextualProgress(Progress):
@@ -63,6 +63,10 @@ class TextualTaskScreen(TaskScreen):
 
 
 class TextualTaskDisplay(TaskDisplay):
+    def __init__(self, profile: TaskProfile) -> None:
+        self.profile = profile
+        print(f"Task started: {self.profile.name}")
+
     @override
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
@@ -70,4 +74,4 @@ class TextualTaskDisplay(TaskDisplay):
 
     @override
     def complete(self, result: TaskResult) -> None:
-        pass
+        print(f"Task complete: {self.profile.name}")
