@@ -1,9 +1,12 @@
+import asyncio
 import contextlib
 from typing import Iterator
 
 import rich
 from rich.console import Console
 from typing_extensions import override
+
+from inspect_ai._display.textual.app import TaskScreenApp
 
 from ..core.display import (
     Display,
@@ -48,15 +51,15 @@ class TextualProgress(Progress):
 
 class TextualTaskScreen(TaskScreen):
     def __init__(self) -> None:
-        pass
+        self.app = TaskScreenApp()
 
     @override
     async def start(self) -> None:
-        pass
+        asyncio.create_task(self.app.run_async())
 
     @override
     async def stop(self) -> None:
-        pass
+        await self.app.run_action("quit")
 
     @override
     @contextlib.contextmanager
