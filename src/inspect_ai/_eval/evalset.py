@@ -70,6 +70,7 @@ def eval_set(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -134,6 +135,7 @@ def eval_set(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -184,6 +186,7 @@ def eval_set(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

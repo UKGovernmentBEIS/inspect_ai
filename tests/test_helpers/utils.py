@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import importlib.util
 import os
@@ -203,6 +204,15 @@ def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
         plan=[failing_solver_deterministic(should_fail), generate()],
         scorer=match(),
     )
+
+
+@solver
+def sleep_for_solver(seconds: int):
+    async def solve(state: TaskState, generate: Generate):
+        await asyncio.sleep(seconds)
+        return state
+
+    return solve
 
 
 def ensure_test_package_installed():
