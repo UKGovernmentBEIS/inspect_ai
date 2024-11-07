@@ -59,7 +59,7 @@ class TextualTaskScreen(TaskScreen):
 
     @override
     async def stop(self) -> None:
-        await self.app.run_action("quit")
+        self.app.exit()
 
     @override
     @contextlib.contextmanager
