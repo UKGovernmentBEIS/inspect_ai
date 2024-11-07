@@ -39,7 +39,7 @@ Failed samples are *not scored* and a warning indicating that some samples faile
 You can specify `fail_on_error` as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):
 
 | Value                 | Behaviour                                           |
-|-----------------------|-------------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `fail_on_error=True`  | Fail eval immediately on sample errors (default).   |
 | `fail_on_error=False` | Never fail eval on sample errors.                   |
 | `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
@@ -57,7 +57,47 @@ You might choose to do this if you want to tolerate a certain proportion of erro
 
 ## Sample Limits {#sec-sample-limits}
 
-In open-ended model conversations (for example, an agent evalution with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Sometimes models will "give up" but sometimes they won't! For this type of evaluation it's normally a good idea to set a limit on either total messages or total tokens used by the sample.
+In open-ended model conversations (for example, an agent evaluation with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
+
+For this type of evaluation it's normally a good idea to set sample level limits on some combination of total time, total messages, and/or tokens used. Sample limits don't result in errors, but rather an early exit from execution (samples that encounter limits are still scored, albeit nearly always as "incorrect").
+
+### Time Limit
+
+::: {.callout-note appearance="simple"}
+The `time_limit` option described below is supported only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Here we set a `time_limit` of 15 minutes (15 x 60 seconds) for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=3 * 60)]),
+            generate(),
+        ],
+        time_limit=15 * 60,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+Note that we also set a timeout of 3 minutes for the `bash()` command. This isn't required but is often a good idea so that a single wayward bash command doesn't consume the entire `time_limit`.
+
+We can also specify a time limit at the CLI or when calling `eval()`:
+
+``` bash
+inspect eval ctf.py --time-limit 900
+```
+
+Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
 
 ### Message Limit
 
@@ -83,7 +123,7 @@ This sets a limit of 30 total messages in a conversation before the model is for
 
 Note that its also possible for a solver to set the `message_limit` directly on the `TaskState` (this is often done by agent solvers which provide their own generate loop):
 
-```python
+``` python
 @solver
 def agent_loop(message_limit: int = 50):
     async def solve(state: TaskState, generate: Generate):
@@ -114,10 +154,9 @@ def intercode_ctf():
     )
 ```
 
-
 As with `message_limit`, it's also possible for a solver to set the `token_limit` directly on the `TaskState`:
 
-```python
+``` python
 @solver
 def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
     async def solve(state: TaskState, generate: Generate):
@@ -130,9 +169,9 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
 
 ### Limit Checking
 
-How and when are sample limits checked? Limits are checked automatically when you access the `completed` property of `TaskState`. For example, most agents will use `state.completed` as their main loop condition:
+How and when are sample limits checked? Time limits are handled automatically by the code that runs the sample. Message and token limits are checked automatically when you access the `completed` property of `TaskState`. For example, most agents will use `state.completed` as their main loop condition:
 
-```python
+``` python
 while not state.completed:
     # call model
     output = await model.generate(state.messages, state.tools)
@@ -140,6 +179,4 @@ while not state.completed:
     ...
 ```
 
-If you are writing library code that calls a series of solvers in succession you should also check `state.completed` so that limits can be enforced. Note that this is done automatically by the `chain()` function that is used to compose together lists of solvers.
-
-
+If you are writing an agent loop you should check `state.completed` so that message and token limits can be enforced. Library code that calls a series of solvers in succession should also check `state.completed` (note that this is done automatically by the `chain()` function that is used to compose together lists of solvers).

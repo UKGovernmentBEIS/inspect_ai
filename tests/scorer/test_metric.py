@@ -211,50 +211,6 @@ def test_complex_metrics() -> None:
     check_log(log)
 
 
-@metric
-def is_string() -> Metric:
-    """Demonstrates that a string arrives on the scene."""
-
-    def metric(scores: list[Score]) -> float:
-        string_count = 0
-        for s in scores:
-            if isinstance(s.value, str):
-                string_count = string_count + 1
-        return string_count / len(scores)
-
-    return metric
-
-
-@scorer(metrics=[is_string()])
-def string_scorer() -> Scorer:
-    async def score(state: TaskState, target: Target) -> Score:
-        return Score(value="e")
-
-    return score
-
-
-def test_string_score_metric() -> None:
-    def check_log(log):
-        assert (
-            log.results
-            and (list(log.results.scores[0].metrics.keys()) == ["is_string"])
-            and (log.results.scores[0].metrics["is_string"].value == 1.0)
-        )
-
-    task = Task(
-        dataset=[
-            Sample(
-                input="What is the fifth letter of the US alphabet?", target=["e", "E"]
-            )
-        ],
-        scorer=string_scorer(),
-    )
-
-    # normal eval
-    log = eval(tasks=task, model="mockllm/model")[0]
-    check_log(log)
-
-
 def registry_assert(metric: Metric | Callable[..., Metric], name: str) -> None:
     info = registry_info(metric)
     assert info.name == name

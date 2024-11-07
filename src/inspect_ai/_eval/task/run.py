@@ -28,6 +28,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
+from inspect_ai._util.timeouts import timeout
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -64,7 +65,7 @@ from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
-from inspect_ai.solver._task_state import set_sample_state, state_jsonable
+from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
 
@@ -82,7 +83,7 @@ from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
-from .util import sample_messages, task_run_dir
+from .util import sample_messages, slice_dataset, task_run_dir
 
 py_logger = getLogger(__name__)
 
@@ -260,6 +261,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             log_images=log_images,
                             sample_source=sample_source,
                             sample_error=sample_error_handler,
+                            time_limit=config.time_limit,
                             semaphore=sample_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -363,6 +365,7 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: Callable[[BaseException], EvalError],
+    time_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -410,23 +413,36 @@ async def task_run_sample(
         else contextlib.nullcontext()
     )
 
+    # use timeout if provided
+    timeout_cm = timeout(time_limit) if time_limit else contextlib.nullcontext()
+
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
         error: EvalError | None = None
         try:
-            # sample init event (remove file bodies as they have content or absolute paths)
-            event_sample = sample.model_copy(
-                update=dict(files={k: "" for k in sample.files.keys()})
-                if sample.files
-                else None
-            )
-            transcript()._event(
-                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            async with timeout_cm:
+                # sample init event (remove file bodies as they have content or absolute paths)
+                event_sample = sample.model_copy(
+                    update=dict(files={k: "" for k in sample.files.keys()})
+                    if sample.files
+                    else None
+                )
+                transcript()._event(
+                    SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+                )
+
+                # set progress for plan then run it
+                plan.progress = progress
+                state = await plan(state, generate)
+
+        except TimeoutError:
+            # notify the user
+            transcript().info(
+                f"Sample completed: exceeded time limit ({time_limit:,} seconds)"
             )
 
-            # set progress for plan then run it
-            plan.progress = progress
-            state = await plan(state, generate)
+            # capture most recent state for scoring
+            state = sample_state() or state
 
         except asyncio.CancelledError:
             # allow cancelled error to propagate
@@ -538,12 +554,7 @@ async def resolve_dataset(
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
-    dataset_limit = (
-        slice(0, len(dataset))
-        if limit is None
-        else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
-    )
-    dataset = dataset[dataset_limit]
+    dataset = slice_dataset(dataset, limit)
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []

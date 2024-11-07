@@ -82,10 +82,10 @@ def basic_agent(
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
-       message_limit (int): Limit on messages in sample before terminating agent.
+       message_limit (int | None): Limit on messages in sample before terminating agent.
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task, 50 will be used as a default.
-       token_limit (int): Limit on tokens used in sample before terminating agent.
+       token_limit (int | None): Limit on tokens used in sample before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from

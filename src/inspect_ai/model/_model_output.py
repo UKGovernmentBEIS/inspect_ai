@@ -100,6 +100,8 @@ class ModelOutput(BaseModel):
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
 

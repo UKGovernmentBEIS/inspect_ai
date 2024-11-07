@@ -2,8 +2,27 @@
 
 ## Unreleased
 
+- [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
+- [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- AzureAI: Use Model Inference API (preview) for implementation of model client.
+- Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
+- Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
+- Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
+- Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
+- Log model calls when model providers return bad request errors
+- Better lay out large numbers of configuration and parameters when displaying log files.
+- The log viewer now properly displays sample scores for running tasks.
+- Add `metadata` field to `ModelOutput` and provide varioius fields for the Groq provider.
+
+## v0.3.44 (04 November 2024)
+
+- Revert change to single epoch reducer behavior (regressed some scoring scenarios).
+
+## v0.3.43 (04 November 2024)
+
 - New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.
+- [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) local model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
 - Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
 - View: properly render complex score objects in transcript.
@@ -17,9 +36,9 @@
 - Implement `read_eval_log_sample()` for JSON log files.
 - Log the list of dataset sample IDs.
 - Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
-- Fix an issue which forced all values passed to a custom metric to a float value (#775)
 - Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
+- Support all JSON and CSV dataset arguments in `file_dataset()` function.
 
 
 ## v0.3.42 (23 October 2024)

@@ -137,6 +137,19 @@ class GoogleAPI(ModelAPI):
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
 
+        # response for ModelCall
+        response: AsyncGenerateContentResponse | None = None
+
+        def model_call() -> ModelCall:
+            return build_model_call(
+                contents=contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                response=response,
+            )
+
         # cast to AsyncGenerateContentResponse since we passed stream=False
         try:
             response = cast(
@@ -150,7 +163,7 @@ class GoogleAPI(ModelAPI):
                 ),
             )
         except InvalidArgument as ex:
-            return self.handle_invalid_argument(ex)
+            return self.handle_invalid_argument(ex), model_call()
 
         # build output
         output = ModelOutput(
@@ -163,18 +176,8 @@ class GoogleAPI(ModelAPI):
             ),
         )
 
-        # build call
-        call = model_call(
-            contents=contents,
-            safety_settings=self.safety_settings,
-            generation_config=parameters,
-            tools=gemini_tools,
-            tool_config=gemini_tool_config,
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call()
 
     def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput:
         if "size exceeds the limit" in ex.message.lower():
@@ -197,13 +200,13 @@ class GoogleAPI(ModelAPI):
         return self.model_name
 
 
-def model_call(
+def build_model_call(
     contents: list[ContentDict],
     generation_config: GenerationConfig,
     safety_settings: SafetySettingDict,
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
-    response: AsyncGenerateContentResponse,
+    response: AsyncGenerateContentResponse | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
@@ -217,7 +220,7 @@ def model_call(
             if tool_config is not None
             else None,
         ),
-        response=response.to_dict(),
+        response=response.to_dict() if response is not None else {},
         filter=model_call_filter,
     )
 

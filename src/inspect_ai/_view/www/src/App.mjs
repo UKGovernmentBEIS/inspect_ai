@@ -455,29 +455,8 @@ export function App({
       );
 
       // Select the default scorer to use
-      const scorer = log.results?.scores[0]
-        ? {
-            name: log.results?.scores[0].name,
-            scorer: log.results?.scores[0].scorer,
-          }
-        : undefined;
-      const scorers = (log.results?.scores || [])
-        .map((score) => {
-          return {
-            name: score.name,
-            scorer: score.scorer,
-          };
-        })
-        .reduce((accum, scorer) => {
-          if (
-            !accum.find((sc) => {
-              return scorer.scorer === sc.scorer && scorer.name === sc.name;
-            })
-          ) {
-            accum.push(scorer);
-          }
-          return accum;
-        }, []);
+      const scorer = defaultScorer(log);
+      const scorers = defaultScorers(log);
 
       // Reset state
       setScores(scorers);
@@ -880,3 +859,62 @@ export function App({
     </${AppErrorBoundary}>
   `;
 }
+
+/**
+ * Determines the default scorer for a log
+ *
+ * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @returns {{name: string, scorer: string} | undefined} A scorer object with name and scorer properties, or undefined
+ */
+const defaultScorer = (log) => {
+  // Select the default scorer to use
+  const scorer = log.results?.scores[0]
+    ? {
+        name: log.results?.scores[0].name,
+        scorer: log.results?.scores[0].scorer,
+      }
+    : log.sampleSummaries.length > 0
+      ? {
+          name: Object.keys(log.sampleSummaries[0].scores)[0],
+          scorer: Object.keys(log.sampleSummaries[0].scores)[0],
+        }
+      : undefined;
+  return scorer;
+};
+
+/**
+ * Determines the default scorers for a log
+ *
+ * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @returns {Array<{name: string, scorer: string}>} An array of scorer objects with name and scorer properties, or an empty array if no scorers are found.
+ */
+const defaultScorers = (log) => {
+  if (log.results?.scores) {
+    return (log.results?.scores || [])
+      .map((score) => {
+        return {
+          name: score.name,
+          scorer: score.scorer,
+        };
+      })
+      .reduce((accum, scorer) => {
+        if (
+          !accum.find((sc) => {
+            return scorer.scorer === sc.scorer && scorer.name === sc.name;
+          })
+        ) {
+          accum.push(scorer);
+        }
+        return accum;
+      }, []);
+  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
+    return Object.keys(log.sampleSummaries[0].scores).map((key) => {
+      return {
+        name: key,
+        scorer: key,
+      };
+    });
+  } else {
+    return [];
+  }
+};

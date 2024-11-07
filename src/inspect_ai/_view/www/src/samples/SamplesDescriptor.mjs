@@ -151,7 +151,6 @@ export const createsSamplesDescriptor = (
     }
     return undefined;
   };
-
   const uniqScoreValues = [
     ...new Set(
       samples

@@ -55,7 +55,11 @@ class LogHandler(RichHandler):
     @override
     def emit(self, record: LogRecord) -> None:
         # demote httpx and return notifications to log_level http
-        if record.name == "httpx" or "Retrying request" in record.getMessage():
+        if (
+            record.name == "httpx"
+            or "http" in record.name
+            or "Retrying request" in record.getMessage()
+        ):
             record.levelno = HTTP
             record.levelname = HTTP_LOG_LEVEL
 

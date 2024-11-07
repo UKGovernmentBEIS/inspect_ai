@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.40
+
+- When running and debuggin Inspect evals, the extension will by default use any environments present in the task folder or parent folders (up to the workspace). To always use the workspace environment, change the 'Use Subdirectory Environments` setting.
+
 ## 0.3.39
 
 - Fix an issue that would cause view to be unable to display when using VSCode extension with Inpsect version 0.3.42

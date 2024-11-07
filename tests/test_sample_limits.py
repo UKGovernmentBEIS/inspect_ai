@@ -1,6 +1,6 @@
 from random import randint
 
-from test_helpers.utils import skip_if_no_openai
+from test_helpers.utils import skip_if_no_openai, sleep_for_solver
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -55,6 +55,11 @@ def test_token_limit_complete():
     check_info_event(log, "exceeded token limit")
 
 
+def test_time_limit():
+    log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
+    check_info_event(log, "exceeded time limit")
+
+
 def check_info_event(log: EvalLog, content: str) -> None:
     event = find_info_event(log)
     assert event
@@ -64,11 +69,7 @@ def check_info_event(log: EvalLog, content: str) -> None:
 def find_info_event(log: EvalLog) -> InfoEvent | None:
     if log.samples:
         return next(
-            (
-                event
-                for event in log.samples[0].transcript.events
-                if isinstance(event, InfoEvent)
-            ),
+            (event for event in log.samples[0].events if isinstance(event, InfoEvent)),
             None,
         )
     else:

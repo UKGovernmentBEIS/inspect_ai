@@ -200,6 +200,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
+        "--time-limit",
+        type=int,
+        help="Limit on total execution time for each sample.",
+        envvar="INSPECT_EVAL_TIME_LIMIT",
+    )
+    @click.option(
         "--fail-on-error",
         type=float,
         is_flag=False,
@@ -261,13 +267,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--frequency-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_FREQUENCY_PENALTY",
     )
     @click.option(
         "--presence-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_PRESENCE_PENALTY",
     )
     @click.option(
@@ -410,6 +416,7 @@ def eval_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -455,6 +462,7 @@ def eval_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -560,6 +568,7 @@ def eval_set_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -607,6 +616,7 @@ def eval_set_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -656,6 +666,7 @@ def eval_exec(
     limit: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -730,6 +741,7 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

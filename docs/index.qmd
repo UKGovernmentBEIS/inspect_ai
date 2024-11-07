@@ -76,7 +76,7 @@ $ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
 ```
 :::
 
-In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and Cloudflare, as well as local models with Ollama.
+In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and Cloudflare, as well as local models with Ollama or llama-cpp-python.
 
 ## Hello, Inspect {#sec-hello-inspect}
 

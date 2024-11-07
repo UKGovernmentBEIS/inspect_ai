@@ -4,6 +4,7 @@ import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 import { ProgressBar } from "../components/ProgressBar.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 
 export const Sidebar = ({
   offcanvas,
@@ -137,12 +138,22 @@ export const Sidebar = ({
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "1em" }}>
+              <div
+                style=${{
+                  marginTop: "1em",
+                  ...ApplicationStyles.threeLineClamp,
+                }}
+              >
                 <small class="mb-1">
                   ${hyperparameters
                     ? Object.keys(hyperparameters)
                         .map((key) => {
-                          return `${key}: ${hyperparameters[key]}`;
+                          const val = hyperparameters[key];
+                          if (Array.isArray(val) || typeof val === "object") {
+                            return `${key}: ${JSON.stringify(val)}`;
+                          } else {
+                            return `${key}: ${val}`;
+                          }
                         })
                         .join(", ")
                     : ""}
