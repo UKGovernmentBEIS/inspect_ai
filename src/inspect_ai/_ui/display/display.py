@@ -58,6 +58,12 @@ class TaskSuccess:
 TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 
 
+@dataclass
+class TaskWithResult:
+    profile: TaskProfile
+    result: TaskResult | None
+
+
 class TaskScreen:
     @abc.abstractmethod
     async def start(self) -> None: ...
