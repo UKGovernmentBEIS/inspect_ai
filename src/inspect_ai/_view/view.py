@@ -6,7 +6,7 @@ from typing import Any
 
 import psutil
 
-from inspect_ai._display.active import display
+from inspect_ai._display import display
 from inspect_ai._util.constants import (
     DEFAULT_SERVER_HOST,
     DEFAULT_VIEW_PORT,

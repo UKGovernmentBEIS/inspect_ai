@@ -8,14 +8,14 @@ from rich.text import Text
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 
-from ..core.rich import rich_theme
-from ..display import (
+from ..core.display import (
     TaskCancelled,
     TaskError,
     TaskProfile,
     TaskSuccess,
     TaskWithResult,
 )
+from ..core.rich import rich_theme
 from .config import task_config
 from .panel import task_panel
 

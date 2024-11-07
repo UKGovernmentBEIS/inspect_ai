@@ -7,8 +7,8 @@ from rich.text import Text
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
 
+from ..core.display import TaskProfile
 from ..core.rich import is_vscode_notebook, rich_theme
-from ..display import TaskProfile
 
 
 def task_panel(

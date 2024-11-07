@@ -1,7 +1,7 @@
 from inspect_ai._util.registry import is_registry_dict
 
+from ..core.display import TaskProfile
 from ..core.rich import rich_theme
-from ..display import TaskProfile
 
 
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:

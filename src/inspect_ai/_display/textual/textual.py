@@ -5,7 +5,7 @@ import rich
 from rich.console import Console
 from typing_extensions import override
 
-from ..display import (
+from ..core.display import (
     Display,
     Progress,
     TaskDisplay,

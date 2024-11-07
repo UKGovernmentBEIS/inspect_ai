@@ -4,7 +4,7 @@ import os
 import click
 from typing_extensions import Unpack
 
-from inspect_ai._display.active import display
+from inspect_ai._display import display
 from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score

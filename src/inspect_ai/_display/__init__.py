@@ -1,25 +1,25 @@
-from .active import display
-from .display import (
+from .core.active import display
+from .core.display import (
     Display,
+    Progress,
     TaskCancelled,
     TaskError,
     TaskProfile,
+    TaskResult,
+    TaskScreen,
     TaskSuccess,
-)
-from .task_screen import (
-    clear_task_screen,
-    init_task_screen,
-    task_screen,
+    TaskWithResult,
 )
 
 __all__ = [
     "display",
     "Display",
+    "Progress",
     "TaskCancelled",
     "TaskError",
     "TaskProfile",
+    "TaskResult",
+    "TaskScreen",
+    "TaskWithResult",
     "TaskSuccess",
-    "task_screen",
-    "clear_task_screen",
-    "init_task_screen",
 ]
