@@ -3,7 +3,7 @@ from typing import Callable
 from rich.progress import Progress as RProgress
 from typing_extensions import override
 
-from inspect_ai._ui.display.display import Progress
+from ..display import Progress
 
 # Note that use of rich progress seems to result in an extra
 # empty cell after execution, see: https://github.com/Textualize/rich/issues/3274

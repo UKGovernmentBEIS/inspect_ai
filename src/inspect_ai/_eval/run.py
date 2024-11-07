@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable, Set, cast
 from shortuuid import uuid
 from typing_extensions import Unpack
 
-from inspect_ai._ui.display import clear_task_screen, display, init_task_screen
+from inspect_ai._display import clear_task_screen, display, init_task_screen
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog

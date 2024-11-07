@@ -9,7 +9,7 @@ from typing import Callable, Literal, cast
 
 from typing_extensions import Unpack
 
-from inspect_ai._ui.display import (
+from inspect_ai._display import (
     TaskCancelled,
     TaskError,
     TaskProfile,

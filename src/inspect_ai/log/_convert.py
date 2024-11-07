@@ -27,7 +27,7 @@ def convert_eval_logs(
         overwrite (bool): Overwrite existing log files (defaults to `False`,
           raising an error if the output file path already exists).
     """
-    from inspect_ai._ui.display import display
+    from inspect_ai._display.active import display
 
     # confirm that path exists
     fs = filesystem(path)

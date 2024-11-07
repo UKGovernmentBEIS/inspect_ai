@@ -2,7 +2,7 @@ import asyncio
 from copy import deepcopy
 from typing import Callable, cast
 
-from inspect_ai._ui.display import display
+from inspect_ai._display.active import display
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create

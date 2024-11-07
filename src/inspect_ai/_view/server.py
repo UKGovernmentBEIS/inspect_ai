@@ -12,7 +12,7 @@ from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
 
-from inspect_ai._ui.display import display
+from inspect_ai._display.active import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (

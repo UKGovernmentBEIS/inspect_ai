@@ -53,7 +53,7 @@ def bundle_log_dir(
             f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
         )
 
-    from inspect_ai._ui.display import display
+    from inspect_ai._display.active import display
 
     display().print(f"Creating view bundle in '{output_dir}'")
     with display().progress(total=500) as p:
