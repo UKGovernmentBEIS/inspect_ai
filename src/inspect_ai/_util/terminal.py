@@ -1,3 +1,4 @@
+import functools
 import re
 import select
 import sys
@@ -22,6 +23,7 @@ class TerminalBackground:
     dark: bool
 
 
+@functools.cache
 def detect_terminal_background(
     default_color: RGB = RGB(0, 0, 0),
 ) -> TerminalBackground:
@@ -133,18 +135,3 @@ if sys.platform != "win32":
         """Disable raw mode for the terminal"""
         fd = sys.stdin.fileno()
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-
-# Example usage
-if __name__ == "__main__":
-    try:
-        background = detect_terminal_background()
-        color = background.color
-        print(f"Terminal background color: RGB({color.r}, {color.g}, {color.b})")
-
-        # Simple light/dark detection
-        print(
-            f"Terminal appears to be in {'dark' if background.dark else 'light'} mode"
-        )
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
