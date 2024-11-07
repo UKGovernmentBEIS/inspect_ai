@@ -1,4 +1,3 @@
-import asyncio
 import shutil
 import tempfile
 from copy import deepcopy
@@ -10,6 +9,7 @@ from test_helpers.utils import (
     failing_task,
     failing_task_deterministic,
     keyboard_interrupt,
+    sleep_for_solver,
 )
 
 from inspect_ai import Task, task
@@ -26,7 +26,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model import Model, get_model
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.solver import generate
 
 
 def test_eval_set() -> None:
@@ -280,12 +280,3 @@ def sleep_for_3_task(task_arg: str):
     return Task(
         solver=[sleep_for_solver(3)],
     )
-
-
-@solver
-def sleep_for_solver(seconds: int):
-    async def solve(state: TaskState, generate: Generate):
-        await asyncio.sleep(seconds)
-        return state
-
-    return solve
