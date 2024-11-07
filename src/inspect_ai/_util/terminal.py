@@ -29,7 +29,8 @@ def detect_terminal_background(
 ) -> TerminalBackground:
     """Query the terminal background color using OSC escape sequence.
 
-    Based on https://github.com/Canop/terminal-light/blob/main/src/xterm.rs
+    Based on https://dystroy.org/blog/terminal-light/#detect-whether-the-terminal-is-dark-or-light
+    and https://github.com/Canop/terminal-light/blob/main/src/xterm.rs
 
     The `default_color` parameter ensures that you always get back a color
     even if when on windows or if an error occurs while querying the terminal
