@@ -29,7 +29,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
 
-from ....core.group import EventGroup
+from ...core.group import EventGroup
 
 
 class TranscriptView(ScrollableContainer):

@@ -1,6 +1,7 @@
-from inspect_ai._ui.core.rich import rich_theme
-from inspect_ai._ui.display.display import TaskProfile
 from inspect_ai._util.registry import is_registry_dict
+
+from ..core.rich import rich_theme
+from ..display import TaskProfile
 
 
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:

@@ -26,7 +26,7 @@ from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
-from ...core.rich import (
+from ..core.rich import (
     is_vscode_notebook,
     record_console_input,
     rich_initialise,

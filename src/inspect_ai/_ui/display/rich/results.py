@@ -5,17 +5,17 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from inspect_ai._ui.core.rich import rich_theme
-from inspect_ai._ui.display.display import (
+from inspect_ai.log import EvalStats
+from inspect_ai.log._log import rich_traceback
+
+from ..core.rich import rich_theme
+from ..display import (
     TaskCancelled,
     TaskError,
     TaskProfile,
     TaskSuccess,
     TaskWithResult,
 )
-from inspect_ai.log import EvalStats
-from inspect_ai.log._log import rich_traceback
-
 from .config import task_config
 from .panel import task_panel
 

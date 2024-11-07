@@ -4,10 +4,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from inspect_ai._ui.core.rich import is_vscode_notebook, rich_theme
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
 
+from ..core.rich import is_vscode_notebook, rich_theme
 from ..display import TaskProfile
 
 
