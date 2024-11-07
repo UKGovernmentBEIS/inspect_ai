@@ -94,7 +94,7 @@ Note that we also set a timeout of 3 minutes for the `bash()` command. This isn'
 We can also specify a time limit at the CLI or when calling `eval()`:
 
 ``` bash
-inspect eval ctf.py --time-limit 9000
+inspect eval ctf.py --time-limit 900
 ```
 
 Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
