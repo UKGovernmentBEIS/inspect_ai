@@ -7,7 +7,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
-from inspect_ai._display.core.task_screen import (
+from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
