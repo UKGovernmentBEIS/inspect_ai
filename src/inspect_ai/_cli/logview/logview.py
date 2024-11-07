@@ -1,12 +1,11 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 
+from inspect_ai._ui.display.core.group import group_events
+from inspect_ai._ui.display.core.rich import rich_initialise
+from inspect_ai._ui.display.textual.widgets.transcript import TranscriptView
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
-
-from ..display.core.group import group_events
-from ..display.core.rich import rich_initialise
-from ..display.textual.widgets.transcript import TranscriptView
 
 # textual console
 # textual run --dev inspect_ai._ui.logview.logview:LogviewApp
