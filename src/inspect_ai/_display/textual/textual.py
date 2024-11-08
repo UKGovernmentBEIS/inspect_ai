@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from typing import Iterator
 

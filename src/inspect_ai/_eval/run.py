@@ -232,7 +232,7 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
             # cancel tasks on exit if specified
             if screen.cancel_on_exit():
 
-                def on_screen_done(task: asyncio.Task) -> None:
+                def on_screen_done(task: asyncio.Task[Any]) -> None:
                     for t in asyncio_tasks:
                         if not t.done():
                             t.cancel()
