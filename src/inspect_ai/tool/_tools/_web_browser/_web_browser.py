@@ -330,13 +330,39 @@ def web_browser_refresh() -> Tool:
     return execute
 
 
-WEB_CLIENT_SCRIPT = "/app/web_browser/web_client.py"
+WEB_CLIENT_REQUEST = "/app/web_browser/web_client.py"
+WEB_CLIENT_NEW_SESSION = "/app/web_browser/web_client_new_session.py"
+BROWSER_SESSION_ID = "BROWSER_SESSION_ID"
 
 
 async def web_browser_cmd(cmd: str, *args: str) -> str:
-    result = await (await web_browser_sandbox()).exec(
-        ["python3", WEB_CLIENT_SCRIPT, cmd] + list(args)
-    )
+    sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
+    session_flag = ""
+    if sandbox_env:
+        browser_session = store().get(BROWSER_SESSION_ID, "")
+        if not browser_session:
+            result = await sandbox_env.exec(["python3", WEB_CLIENT_NEW_SESSION])
+
+            if not result.success:
+                raise RuntimeError(
+                    f"Error creating new web browser session: {result.stderr}"
+                    )
+
+            browser_session = result.stdout.strip('\n')
+            store().set(BROWSER_SESSION_ID, browser_session)
+
+        session_flag = f"--session_name={browser_session}"
+
+    else:
+        sandbox_env = await web_browser_sandbox()
+
+    arg_list = None
+    if session_flag:
+        arg_list = ["python3", WEB_CLIENT_REQUEST, session_flag, cmd] + list(args)
+    else:
+        arg_list = ["python3", WEB_CLIENT_REQUEST, cmd] + list(args)
+    
+    result = await sandbox_env.exec(arg_list)
     if not result.success:
         raise RuntimeError(
             f"Error executing web browser command {cmd}({', '.join(args)}): {result.stderr}"
@@ -358,7 +384,7 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
 
 
 async def web_browser_sandbox() -> SandboxEnvironment:
-    sb = await sandbox_with(WEB_CLIENT_SCRIPT)
+    sb = await sandbox_with(WEB_CLIENT_REQUEST)
     if sb:
         return sb
     else:
