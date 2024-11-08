@@ -25,7 +25,7 @@ def rich_no_color() -> bool:
     )
 
 
-def rich_initialise() -> None:
+def rich_initialise(dark: bool) -> None:
     # reflect ansi prefs
     if display_type() == "plain":
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
@@ -48,7 +48,7 @@ def rich_initialise() -> None:
                 self.lexer_name,
                 theme=self.theme,
                 word_wrap=True,
-                background_color="#282c34",
+                background_color="#282c34" if dark else "rgb(240,240,240)",
                 padding=1,
             )
             yield syntax

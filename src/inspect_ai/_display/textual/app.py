@@ -19,7 +19,7 @@ class TaskScreenApp(App[None]):
         self.dark = detect_terminal_background().dark
 
         # enable rich hooks
-        rich_initialise()
+        rich_initialise(self.dark)
 
     def compose(self) -> ComposeResult:
         yield Header(classes="header")

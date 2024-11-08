@@ -21,6 +21,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.display import display_type
 from inspect_ai._util.logger import http_rate_limit_count
+from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
@@ -62,7 +63,7 @@ class RichDisplay(Display):
         self.parallel = False
         self.live: Live | None = None
         self.timer_handle: asyncio.TimerHandle | None = None
-        rich_initialise()
+        rich_initialise(detect_terminal_background().dark)
 
     @override
     def print(self, message: str) -> None:

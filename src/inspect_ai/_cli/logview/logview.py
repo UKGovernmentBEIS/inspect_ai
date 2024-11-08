@@ -4,6 +4,7 @@ from textual.widgets import Footer, Header
 from inspect_ai._display.core.group import group_events
 from inspect_ai._display.core.rich import rich_initialise
 from inspect_ai._display.textual.widgets.transcript import TranscriptView
+from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._file import list_eval_logs, read_eval_log, read_eval_log_sample
 
@@ -31,8 +32,11 @@ class LogviewApp(App[None]):
         # call super
         super().__init__()
 
+        # dynamically enable dark mode or light mode
+        self.dark = detect_terminal_background().dark
+
         # enable rich hooks
-        rich_initialise()
+        rich_initialise(self.dark)
 
         # enable resolution of default log file for dev/debug
         if not log_file:
