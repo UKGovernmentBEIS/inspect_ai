@@ -29,9 +29,10 @@ def looping_solver():
 
 
 @scorer(metrics=[mean()])
-def slow_scorer() -> Scorer:
+def slow_scorer(seconds: int | None = 10) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        await asyncio.sleep(10)
+        if seconds is not None:
+            await asyncio.sleep(seconds)
 
         return Score(value=1)
 
@@ -76,7 +77,47 @@ def test_time_limit():
 
 
 def test_time_limit_scorer():
-    log = eval(Task(model="mockllm/model", scorer=slow_scorer()), time_limit=2)[0]
+    log = eval(
+        Task(scorer=slow_scorer()),
+        model="mockllm/model",
+        time_limit=2,
+    )[0]
+    assert log.status == "error"
+
+
+def test_solver_scorer_combined_timeout():
+    log = eval(
+        Task(solver=sleep_for_solver(1), scorer=slow_scorer(1)),
+        model="mockllm/model",
+        time_limit=3,
+    )[0]
+    assert log.status == "success"
+
+
+def test_solver_scorer_combined_timeout_exceeded():
+    log = eval(
+        Task(solver=sleep_for_solver(1), scorer=slow_scorer(3)),
+        model="mockllm/model",
+        time_limit=3,
+    )[0]
+    assert log.status == "error"
+
+
+def test_solver_timeout_scored():
+    log = eval(
+        Task(solver=sleep_for_solver(2), scorer=slow_scorer(None)),
+        model="mockllm/model",
+        time_limit=1,
+    )[0]
+    assert log.status == "success"
+
+
+def test_solver_timeout_not_scored():
+    log = eval(
+        Task(solver=sleep_for_solver(3), scorer=slow_scorer(2)),
+        model="mockllm/model",
+        time_limit=2,
+    )[0]
     assert log.status == "error"
 
 
