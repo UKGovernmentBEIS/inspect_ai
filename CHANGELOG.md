@@ -4,6 +4,7 @@
 
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
 - AzureAI: Use Model Inference API (preview) for implementation of model client.
 - Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
 - Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
