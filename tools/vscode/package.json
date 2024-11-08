@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.40",
+  "version": "0.3.41",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -140,6 +140,11 @@
         "title": "Delete Log File...",
         "enablement": "workspaceFolderCount != 0"
       },
+      {
+        "command": "inspect.logListingCopyLogPath",
+        "title": "Copy Path",
+        "enablement": "workspaceFolderCount != 0"
+      },      
       {
         "command": "inspect.logListingReveal",
         "title": "Reveal Log Listing",
@@ -359,8 +364,13 @@
           "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local\\+json/"
         },
         {
+          "command": "inspect.logListingCopyLogPath",
+          "group": "1_copycommands",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
+        },
+        {
           "command": "inspect.logListingDeleteLogFile",
-          "group": "1_modification",
+          "group": "2_modification",
           "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
         }
       ],

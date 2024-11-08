@@ -1,8 +1,12 @@
 # Changelog
 
+## 0.3.41
+
+- Add `Copy Path` context menu to activity bar logs panel
+
 ## 0.3.40
 
-- When running and debuggin Inspect evals, the extension will by default use any environments present in the task folder or parent folders (up to the workspace). To always use the workspace environment, change the 'Use Subdirectory Environments` setting.
+- When running and debugging Inspect evals, the extension will by default use any environments present in the task folder or parent folders (up to the workspace). To always use the workspace environment, change the 'Use Subdirectory Environments` setting.
 
 ## 0.3.39
 
