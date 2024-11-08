@@ -318,12 +318,22 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
     # with task display
     with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
-        # start screen
+        # init screen
         init_task_screen(screen)
-        asyncio.create_task(screen.start())
 
         # start worker tasks
         workers = [asyncio.create_task(worker()) for _ in range(0, parallel)]
+
+        # start screen task and propagate cancel if required
+        screen_task = asyncio.create_task(screen.start())
+        if screen.cancel_on_exit():
+
+            def on_screen_done(task: asyncio.Task[Any]) -> None:
+                for t in workers:
+                    if not t.done():
+                        t.cancel()
+
+            screen_task.add_done_callback(on_screen_done)
 
         # enque initial set of tasks
         for _ in range(0, parallel):
@@ -340,7 +350,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
         # cancel worker tasks
         for w in workers:
-            w.cancel()
+            if not w.done():
+                w.cancel()
 
         return results
 
