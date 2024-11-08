@@ -1,11 +1,15 @@
 import json
 import os
-from typing import Any
+from typing import Any, Literal
 
 from mistralai import (
+    ContentChunk,
     FunctionCall,
     FunctionName,
+    ImageURL,
+    ImageURLChunk,
     Mistral,
+    TextChunk,
 )
 from mistralai.models import (
     AssistantMessage as MistralAssistantMessage,
@@ -33,9 +37,15 @@ from typing_extensions import override
 from inspect_ai._util.constants import (
     DEFAULT_TIMEOUT,
 )
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
@@ -113,7 +123,7 @@ class MistralAPI(ModelAPI):
         # build request
         request: dict[str, Any] = dict(
             model=self.model_name,
-            messages=[mistral_chat_message(message) for message in input],
+            messages=[await mistral_chat_message(message) for message in input],
             tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
             tool_choice=(
                 mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
@@ -207,7 +217,7 @@ def mistral_chat_tool_choice(
         return "none"
 
 
-def mistral_chat_message(
+async def mistral_chat_message(
     message: ChatMessage,
 ) -> (
     MistralSystemMessage
@@ -218,7 +228,7 @@ def mistral_chat_message(
     if message.role == "assistant" and message.tool_calls:
         return MistralAssistantMessage(
             role=message.role,
-            content=message.text,
+            content=await mistral_message_content(message.content),
             tool_calls=[mistral_tool_call(call) for call in message.tool_calls],
         )
     elif message.role == "tool":
@@ -230,11 +240,50 @@ def mistral_chat_message(
             ),
         )
     elif message.role == "user":
-        return MistralUserMessage(content=message.text)
+        return MistralUserMessage(
+            content=await mistral_message_content(message.content)
+        )
     elif message.role == "system":
-        return MistralSystemMessage(content=message.text)
+        return MistralSystemMessage(
+            content=mistral_system_message_content(message.content)
+        )
     elif message.role == "assistant":
-        return MistralAssistantMessage(content=message.text)
+        return MistralAssistantMessage(
+            content=await mistral_message_content(message.content)
+        )
+
+
+async def mistral_message_content(
+    content: str | list[Content],
+) -> str | list[ContentChunk]:
+    if isinstance(content, str):
+        return content
+    else:
+        return [await mistral_content_chunk(c) for c in content]
+
+
+def mistral_system_message_content(
+    content: str | list[Content],
+) -> str | list[TextChunk]:
+    if isinstance(content, str):
+        return content
+    else:
+        return [TextChunk(text=c.text) for c in content if isinstance(c, ContentText)]
+
+
+async def mistral_content_chunk(content: Content) -> ContentChunk:
+    if isinstance(content, ContentText):
+        return TextChunk(text=content.text)
+    else:
+        # resolve image to url
+        image_url = content.image
+        if not is_data_uri(image_url):
+            image_url = await image_as_data_uri(image_url)
+
+        # return chunk
+        return ImageURLChunk(
+            image_url=ImageURL(url=content.image, detail=content.detail)
+        )
 
 
 def mistral_tool_call(tool_call: ToolCall) -> MistralToolCall:
@@ -273,9 +322,7 @@ def completion_choice(
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
-        completion = message.content or ""
-        if isinstance(completion, list):
-            completion = " ".join(completion)
+        completion = completion_content(message.content or "")
         return ChatCompletionChoice(
             message=ChatMessageAssistant(
                 content=completion,
@@ -294,6 +341,28 @@ def completion_choice(
         raise ValueError(
             f"Mistral did not return a message in Completion Choice: {choice.model_dump_json(indent=2, exclude_none=True)}"
         )
+
+
+def completion_content(content: str | list[ContentChunk]) -> str | list[Content]:
+    if isinstance(content, str):
+        return content
+    else:
+        return [completion_content_chunk(c) for c in content]
+
+
+def completion_content_chunk(content: ContentChunk) -> Content:
+    if isinstance(content, TextChunk):
+        return ContentText(text=content.text)
+    else:
+        if isinstance(content.image_url, str):
+            return ContentImage(image=content.image_url)
+        else:
+            match content.image_url.detail:
+                case "low" | "high":
+                    detail: Literal["auto", "low", "high"] = content.image_url.detail
+                case _:
+                    detail = "auto"
+            return ContentImage(image=content.image_url.url, detail=detail)
 
 
 def completion_choices_from_response(
