@@ -81,8 +81,10 @@ def test_time_limit_scorer():
         Task(scorer=slow_scorer()),
         model="mockllm/model",
         time_limit=2,
+        fail_on_error=False,
     )[0]
-    assert log.status == "error"
+    assert log.status == "success"
+    check_info_event(log, "exceeded time limit")
 
 
 def test_solver_scorer_combined_timeout():
@@ -99,8 +101,10 @@ def test_solver_scorer_combined_timeout_exceeded():
         Task(solver=sleep_for_solver(1), scorer=slow_scorer(3)),
         model="mockllm/model",
         time_limit=3,
+        fail_on_error=False,
     )[0]
-    assert log.status == "error"
+    assert log.status == "success"
+    check_info_event(log, "exceeded time limit")
 
 
 def test_solver_timeout_scored():

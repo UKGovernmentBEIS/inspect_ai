@@ -507,7 +507,7 @@ async def task_run_sample(
             # note timeout
             if isinstance(ex, TimeoutError):
                 transcript().info(
-                    f"Unable to score sample due to exceeding time limit ({time_limit:,} seconds)"
+                    f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)"
                 )
 
             # handle error (this will throw if we've exceeded the limit)
