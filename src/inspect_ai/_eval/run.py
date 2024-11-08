@@ -221,23 +221,41 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
 
     with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
         init_task_screen(screen)
-        asyncio.create_task(screen.start())
-        asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
+
         try:
-            return await asyncio.gather(*asyncio_tasks)
-        except asyncio.CancelledError:
-            results: list[EvalLog] = []
-            for task in asyncio_tasks:
-                if task.done():
-                    results.append(task.result())
-                else:
-                    task.cancel()
-                    await task
-                    results.append(task.result())
+            # create sample coroutines
+            asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
+
+            # start the screen
+            screen_task = asyncio.create_task(screen.start())
+
+            # cancel tasks on exit if specified
+            if screen.cancel_on_exit():
+
+                def on_screen_done(task: asyncio.Task) -> None:
+                    for t in asyncio_tasks:
+                        if not t.done():
+                            t.cancel()
+
+                screen_task.add_done_callback(on_screen_done)
+
+            try:
+                return await asyncio.gather(*asyncio_tasks)
+            except asyncio.CancelledError:
+                results: list[EvalLog] = []
+                for task in asyncio_tasks:
+                    if task.done():
+                        results.append(task.result())
+                    else:
+                        task.cancel()
+                        await task
+                        results.append(task.result())
+
+                return results
+
         finally:
             clear_task_screen()
             await screen.stop()
-        return results
 
 
 # multiple mode -- run multiple logical tasks (requires some smart

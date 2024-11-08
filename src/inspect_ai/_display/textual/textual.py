@@ -55,11 +55,15 @@ class TextualTaskScreen(TaskScreen):
 
     @override
     async def start(self) -> None:
-        asyncio.create_task(self.app.run_async())
+        await self.app.run_async()
 
     @override
     async def stop(self) -> None:
         self.app.exit()
+
+    @override
+    def cancel_on_exit(self) -> bool:
+        return True
 
     @override
     @contextlib.contextmanager

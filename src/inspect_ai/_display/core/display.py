@@ -71,6 +71,9 @@ class TaskScreen:
     @abc.abstractmethod
     async def stop(self) -> None: ...
 
+    def cancel_on_exit(self) -> bool:
+        return False
+
     @abc.abstractmethod
     @contextlib.contextmanager
     def input_screen(
