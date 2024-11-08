@@ -455,27 +455,55 @@ async def task_run_sample(
             # fire error event
             transcript()._event(ErrorEvent(error=error))
 
-        # score it
-        results: dict[str, SampleScore] = {}
-        if scorers and error is None:
-            for scorer in scorers:
-                scorer_name = unique_scorer_name(scorer, list(results.keys()))
-                with transcript().step(name=scorer_name, type="scorer"):
-                    score_result = (
-                        await scorer(state, Target(sample.target)) if scorer else None
-                    )
-                    if score_result is not None:
-                        sample_score = SampleScore(
-                            sample_id=sample.id,
-                            value=score_result.value,
-                            answer=score_result.answer,
-                            explanation=score_result.explanation,
-                            metadata=score_result.metadata,
-                        )
-                        transcript()._event(
-                            ScoreEvent(score=score_result, target=sample.target)
-                        )
-                        results[scorer_name] = sample_score
+        # score it (fresh timeout for scoring, if we don't do this then either
+        # scoring is subject to no timeouts OR a timed out sample won't have
+        # any time left to do the scoring. note that timeouts which occur duing
+        # scoring are treated as ordinary sample errors (w/ a log message indicating
+        # that a timeout occurred)
+        timeout_cm = timeout(time_limit) if time_limit else contextlib.nullcontext()
+        try:
+            # timeout during scoring will result in an ordinary sample error
+            async with timeout_cm:
+                results: dict[str, SampleScore] = {}
+                if scorers and error is None:
+                    for scorer in scorers:
+                        scorer_name = unique_scorer_name(scorer, list(results.keys()))
+                        with transcript().step(name=scorer_name, type="scorer"):
+                            score_result = (
+                                await scorer(state, Target(sample.target))
+                                if scorer
+                                else None
+                            )
+                            if score_result is not None:
+                                sample_score = SampleScore(
+                                    sample_id=sample.id,
+                                    value=score_result.value,
+                                    answer=score_result.answer,
+                                    explanation=score_result.explanation,
+                                    metadata=score_result.metadata,
+                                )
+                                transcript()._event(
+                                    ScoreEvent(score=score_result, target=sample.target)
+                                )
+                                results[scorer_name] = sample_score
+
+        except asyncio.CancelledError:
+            # allow cancelled error to propagate
+            raise
+
+        except BaseException as ex:
+            # note timeout
+            if isinstance(ex, TimeoutError):
+                transcript().info(
+                    f"Unable to score sample due to exceeding time limit ({time_limit:,} seconds)"
+                )
+
+            # handle error (this will throw if we've exceeded the limit)
+            error = sample_error(ex)
+
+            # fire error event
+            transcript()._event(ErrorEvent(error=error))
+
         progress()
 
         # log it

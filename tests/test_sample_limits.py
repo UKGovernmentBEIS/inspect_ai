@@ -1,3 +1,4 @@
+import asyncio
 from random import randint
 
 from test_helpers.utils import skip_if_no_openai, sleep_for_solver
@@ -7,6 +8,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import InfoEvent
 from inspect_ai.scorer import match
+from inspect_ai.scorer._metric import Score
+from inspect_ai.scorer._metrics import mean
+from inspect_ai.scorer._scorer import Scorer, scorer
+from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 
 
@@ -21,6 +26,16 @@ def looping_solver():
         return state
 
     return solve
+
+
+@scorer(metrics=[mean()])
+def slow_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await asyncio.sleep(10)
+
+        return Score(value=1)
+
+    return score
 
 
 def test_message_limit_complete():
@@ -58,6 +73,11 @@ def test_token_limit_complete():
 def test_time_limit():
     log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
     check_info_event(log, "exceeded time limit")
+
+
+def test_time_limit_scorer():
+    log = eval(Task(model="mockllm/model", scorer=slow_scorer()), time_limit=2)[0]
+    assert log.status == "error"
 
 
 def check_info_event(log: EvalLog, content: str) -> None:
