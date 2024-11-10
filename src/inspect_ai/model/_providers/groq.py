@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 
 from groq import (
     AsyncGroq,
@@ -213,10 +213,7 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         content = (
             message.content
             if isinstance(message.content, str)
-            else [
-                await as_chat_completion_part(content)
-                for content in message.content
-            ]
+            else [await as_chat_completion_part(content) for content in message.content]
         )
         return ChatCompletionUserMessageParam(role="user", content=content)
 
@@ -262,7 +259,9 @@ async def as_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail=cast(Literal["auto", "low", "high"], detail)
+            ),
         )
 
 
