@@ -28,7 +28,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._util.timeouts import timeout
+from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -414,7 +414,9 @@ async def task_run_sample(
     )
 
     # use timeout if provided
-    timeout_cm = timeout(time_limit) if time_limit else contextlib.nullcontext()
+    timeout_cm = (
+        timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
+    )
 
     # solver loop
     async with semaphore_cm, sandboxenv_cm:
@@ -455,27 +457,65 @@ async def task_run_sample(
             # fire error event
             transcript()._event(ErrorEvent(error=error))
 
-        # score it
-        results: dict[str, SampleScore] = {}
-        if scorers and error is None:
-            for scorer in scorers:
-                scorer_name = unique_scorer_name(scorer, list(results.keys()))
-                with transcript().step(name=scorer_name, type="scorer"):
-                    score_result = (
-                        await scorer(state, Target(sample.target)) if scorer else None
-                    )
-                    if score_result is not None:
-                        sample_score = SampleScore(
-                            sample_id=sample.id,
-                            value=score_result.value,
-                            answer=score_result.answer,
-                            explanation=score_result.explanation,
-                            metadata=score_result.metadata,
-                        )
-                        transcript()._event(
-                            ScoreEvent(score=score_result, target=sample.target)
-                        )
-                        results[scorer_name] = sample_score
+        # set timeout for scoring. if the original timeout was never hit
+        # then just create a new timeout_cm targeting the original
+        # timeout time. if the original timeout was hit we still want
+        # to provide an opportunity for scoring, but we don't necessarily
+        # want to wait the full timeout again (especially in the case where
+        # the cause of the timeout is a hung container and scoring requires
+        # interacting with the container). as a middle ground we use half
+        # of the original timeout value for scoring.
+        if isinstance(timeout_cm, Timeout):
+            if not timeout_cm.expired():
+                timeout_cm = timeout_at(timeout_cm.when())
+            else:
+                assert time_limit
+                timeout_cm = timeout(time_limit / 2)
+
+        # scoring
+        try:
+            # timeout during scoring will result in an ordinary sample error
+            async with timeout_cm:
+                results: dict[str, SampleScore] = {}
+                if scorers and error is None:
+                    for scorer in scorers:
+                        scorer_name = unique_scorer_name(scorer, list(results.keys()))
+                        with transcript().step(name=scorer_name, type="scorer"):
+                            score_result = (
+                                await scorer(state, Target(sample.target))
+                                if scorer
+                                else None
+                            )
+                            if score_result is not None:
+                                sample_score = SampleScore(
+                                    sample_id=sample.id,
+                                    value=score_result.value,
+                                    answer=score_result.answer,
+                                    explanation=score_result.explanation,
+                                    metadata=score_result.metadata,
+                                )
+                                transcript()._event(
+                                    ScoreEvent(score=score_result, target=sample.target)
+                                )
+                                results[scorer_name] = sample_score
+
+        except asyncio.CancelledError:
+            # allow cancelled error to propagate
+            raise
+
+        except BaseException as ex:
+            # note timeout
+            if isinstance(ex, TimeoutError):
+                transcript().info(
+                    f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)"
+                )
+
+            # handle error (this will throw if we've exceeded the limit)
+            error = sample_error(ex)
+
+            # fire error event
+            transcript()._event(ErrorEvent(error=error))
+
         progress()
 
         # log it
