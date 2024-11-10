@@ -17,11 +17,6 @@ from ..core.display import (
     TaskScreen,
 )
 
-# TODO: test for return value
-# TODO: test for error
-# TODO: see how prequisite error maps through
-# TODO: map app exit to worker.cancel
-
 
 class TextualDisplay(Display):
     @override
