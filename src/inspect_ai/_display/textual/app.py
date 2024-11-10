@@ -13,20 +13,22 @@ from ..core.rich import rich_initialise
 
 
 class TaskScreenApp(App[TR]):
-    TITLE = "Inspect Eval"
     CSS_PATH = "app.tcss"
     BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
 
-    def __init__(self, main: Coroutine[Any, Any, TR]) -> None:
+    def __init__(self, title: str, main: Coroutine[Any, Any, TR]) -> None:
         # call super
         super().__init__()
+
+        # title
+        self.title = title
 
         # worker
         self.worker: Worker[TR] = self.run_worker(
             main, start=False, exit_on_error=False
         )
 
-        # error
+        # error state
         self.error: BaseException | None = None
 
         # dynamically enable dark mode or light mode

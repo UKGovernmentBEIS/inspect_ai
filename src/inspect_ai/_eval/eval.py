@@ -141,7 +141,8 @@ def eval(
     platform_init()
 
     return display().run_task_app(
-        eval_async(
+        title="inspect eval",
+        main=eval_async(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
@@ -172,7 +173,7 @@ def eval(
             log_buffer=log_buffer,
             score=score,
             **kwargs,
-        )
+        ),
     )
 
 
@@ -494,7 +495,8 @@ def eval_retry(
     platform_init()
 
     return display().run_task_app(
-        eval_retry_async(
+        title="inspect eval-retry",
+        main=eval_retry_async(
             tasks=tasks,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -514,7 +516,7 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             max_connections=max_connections,
-        )
+        ),
     )
 
 

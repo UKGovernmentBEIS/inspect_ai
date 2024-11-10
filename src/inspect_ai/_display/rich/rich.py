@@ -77,7 +77,7 @@ class RichDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
+    def run_task_app(self, title: str, main: Coroutine[Any, Any, TR]) -> TR:
         return asyncio.run(main)
 
     @override

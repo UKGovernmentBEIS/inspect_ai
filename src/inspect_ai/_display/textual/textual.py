@@ -29,9 +29,9 @@ class TextualDisplay(Display):
         yield TextualProgress()
 
     @override
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
+    def run_task_app(self, title: str, main: Coroutine[Any, Any, TR]) -> TR:
         # create and run the app
-        app = TaskScreenApp[TR](main)
+        app = TaskScreenApp[TR](title, main)
         app.run()
 
         # check result (raise error if required)
