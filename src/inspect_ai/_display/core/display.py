@@ -2,7 +2,7 @@ import abc
 import contextlib
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Iterator, Type, Union
+from typing import Any, Coroutine, Iterator, Type, TypeVar, Union
 
 from rich.console import Console
 
@@ -64,6 +64,9 @@ class TaskWithResult:
     result: TaskResult | None
 
 
+TR = TypeVar("TR")
+
+
 class TaskScreen:
     @abc.abstractmethod
     async def start(self) -> None: ...
@@ -100,6 +103,9 @@ class Display(abc.ABC):
     @abc.abstractmethod
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
+
+    @abc.abstractmethod
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
 
     @abc.abstractmethod
     @contextlib.contextmanager

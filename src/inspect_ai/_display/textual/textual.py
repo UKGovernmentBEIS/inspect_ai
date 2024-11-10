@@ -1,5 +1,5 @@
 import contextlib
-from typing import Iterator
+from typing import Any, Coroutine, Iterator
 
 import rich
 from rich.console import Console
@@ -8,6 +8,7 @@ from typing_extensions import override
 from inspect_ai._display.textual.app import TaskScreenApp
 
 from ..core.display import (
+    TR,
     Display,
     Progress,
     TaskDisplay,
@@ -15,6 +16,11 @@ from ..core.display import (
     TaskResult,
     TaskScreen,
 )
+
+# TODO: test for return value
+# TODO: test for error
+# TODO: see how prequisite error maps through
+# TODO: map app exit to worker.cancel
 
 
 class TextualDisplay(Display):
@@ -26,6 +32,19 @@ class TextualDisplay(Display):
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]:
         yield TextualProgress()
+
+    @override
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
+        # create and run the app
+        app = TaskScreenApp[TR](main)
+        app.run()
+
+        # check result (raise error if required)
+        result = app.result()
+        if isinstance(result, BaseException):
+            raise result
+        else:
+            return result
 
     @override
     @contextlib.contextmanager
@@ -49,20 +68,15 @@ class TextualProgress(Progress):
 
 
 class TextualTaskScreen(TaskScreen):
-    def __init__(self) -> None:
-        self.app = TaskScreenApp()
+    def __init__(self) -> None: ...
 
     @override
     async def start(self) -> None:
-        await self.app.run_async()
+        pass
 
     @override
     async def stop(self) -> None:
-        self.app.exit()
-
-    @override
-    def cancel_on_exit(self) -> bool:
-        return True
+        pass
 
     @override
     @contextlib.contextmanager

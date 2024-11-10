@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Callable, Iterator
+from typing import Any, Callable, Coroutine, Iterator
 
 import rich
 from rich.console import Console, Group, RenderableType
@@ -28,6 +28,7 @@ from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
 from ..core.display import (
+    TR,
     Display,
     Progress,
     TaskCancelled,
@@ -74,6 +75,10 @@ class RichDisplay(Display):
     def progress(self, total: int) -> Iterator[Progress]:
         with rich_progress() as progress:
             yield RichProgress(total, progress)
+
+    @override
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
+        return asyncio.run(main)
 
     @override
     @contextlib.contextmanager
