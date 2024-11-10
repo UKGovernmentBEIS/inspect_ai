@@ -3,8 +3,8 @@ from contextvars import ContextVar
 
 from inspect_ai._util.display import display_type
 
-from ..rich.rich import RichDisplay
-from ..textual.textual import TextualDisplay
+from ..rich.display import RichDisplay
+from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
 
 

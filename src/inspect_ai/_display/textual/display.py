@@ -5,8 +5,6 @@ import rich
 from rich.console import Console
 from typing_extensions import override
 
-from inspect_ai._display.textual.app import TaskScreenApp
-
 from ..core.display import (
     TR,
     Display,
@@ -15,10 +13,16 @@ from ..core.display import (
     TaskProfile,
     TaskResult,
     TaskScreen,
+    TaskWithResult,
 )
+from ..core.results import tasks_results
+from .app import TaskScreenApp
 
 
 class TextualDisplay(Display):
+    def __init__(self) -> None:
+        self.results: list[TaskWithResult] = []
+
     @override
     def print(self, message: str) -> None:
         pass
@@ -34,12 +38,18 @@ class TextualDisplay(Display):
         app = TaskScreenApp[TR](title, main)
         app.run()
 
-        # check result (raise error if required)
+        # print tasks
+        rich.print(tasks_results(self.results))
+
+        # collect result
         result = app.result()
+
+        # raise error as required
         if isinstance(result, BaseException):
             raise result
-        else:
-            return result
+
+        # return result
+        return result
 
     @override
     @contextlib.contextmanager
@@ -49,7 +59,7 @@ class TextualDisplay(Display):
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        yield TextualTaskDisplay(profile)
+        yield TextualTaskDisplay(profile, self.results)
 
 
 class TextualProgress(Progress):
@@ -85,9 +95,9 @@ class TextualTaskScreen(TaskScreen):
 
 
 class TextualTaskDisplay(TaskDisplay):
-    def __init__(self, profile: TaskProfile) -> None:
+    def __init__(self, profile: TaskProfile, results: list[TaskWithResult]) -> None:
         self.profile = profile
-        print(f"Task started: {self.profile.name}")
+        self.results = results
 
     @override
     @contextlib.contextmanager
@@ -96,4 +106,4 @@ class TextualTaskDisplay(TaskDisplay):
 
     @override
     def complete(self, result: TaskResult) -> None:
-        print(f"Task complete: {self.profile.name}")
+        self.results.append(TaskWithResult(self.profile, result))

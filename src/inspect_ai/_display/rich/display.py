@@ -27,6 +27,7 @@ from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
+from ..core.config import task_config
 from ..core.display import (
     TR,
     Display,
@@ -39,16 +40,15 @@ from ..core.display import (
     TaskScreen,
     TaskWithResult,
 )
+from ..core.panel import task_panel, task_title
+from ..core.results import task_dict, tasks_results
 from ..core.rich import (
     is_vscode_notebook,
     record_console_input,
     rich_initialise,
     rich_theme,
 )
-from .config import task_config
-from .panel import task_panel, task_title
 from .progress import RichProgress
-from .results import task_dict, tasks_results
 
 
 @dataclass
