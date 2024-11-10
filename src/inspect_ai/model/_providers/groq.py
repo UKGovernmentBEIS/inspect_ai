@@ -9,6 +9,9 @@ from groq import (
 from groq.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartParam,
+    ChatCompletionContentPartTextParam,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
     ChatCompletionSystemMessageParam,
@@ -18,6 +21,9 @@ from groq.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import Content
+from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.url import is_data_uri, is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -204,7 +210,15 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         return ChatCompletionSystemMessageParam(role="system", content=message.text)
 
     elif isinstance(message, ChatMessageUser):
-        return ChatCompletionUserMessageParam(role="user", content=message.text)
+        content = (
+            message.content
+            if isinstance(message.content, str)
+            else [
+                await as_chat_completion_part(content)
+                for content in message.content
+            ]
+        )
+        return ChatCompletionUserMessageParam(role="user", content=content)
 
     elif isinstance(message, ChatMessageAssistant):
         return ChatCompletionAssistantMessageParam(
@@ -227,6 +241,28 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
             role="tool",
             content=message.text,
             tool_call_id=str(message.tool_call_id),
+        )
+
+
+async def as_chat_completion_part(
+    content: Content,
+) -> ChatCompletionContentPartParam:
+    if content.type == "text":
+        return ChatCompletionContentPartTextParam(type="text", text=content.text)
+    else:
+        # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
+        image_url, detail = (
+            (content.image, "auto")
+            if isinstance(content.image, str)
+            else (content.image, content.detail)
+        )
+
+        if not is_http_url(image_url) and not is_data_uri(image_url):
+            image_url = await image_as_data_uri(image_url)
+
+        return ChatCompletionContentPartImageParam(
+            type="image_url",
+            image_url=dict(url=image_url, detail=detail),
         )
 
 
