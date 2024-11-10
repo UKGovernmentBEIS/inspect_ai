@@ -16,7 +16,7 @@ from .._registry import modelapi
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
     PACKAGE = "groq"
-    MIN_VERSION = "0.1.0"
+    MIN_VERSION = "0.11.0"
 
     # verify we have the package
     try:
