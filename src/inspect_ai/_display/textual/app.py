@@ -1,15 +1,17 @@
 from asyncio import CancelledError
 from typing import Any, Coroutine
 
+import rich
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
-from inspect_ai._display.core.display import TR
 from inspect_ai._util.terminal import detect_terminal_background
 
+from ..core.display import TR
 from ..core.rich import rich_initialise
+from .widgets.log import Log
 
 
 class TaskScreenApp(App[TR]):
@@ -48,9 +50,11 @@ class TaskScreenApp(App[TR]):
     def compose(self) -> ComposeResult:
         yield Header(classes="header")
         yield Footer()
+        yield Log()
 
     def on_mount(self) -> None:
         self.workers.start_all()
+        self.begin_capture_print(self.query_one(Log))
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:
