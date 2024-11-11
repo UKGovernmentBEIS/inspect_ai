@@ -6,7 +6,6 @@ TabPane {
 }
 
 LogView {
-  overflow-x: hidden;
   scrollbar-size-vertical: 1;
 }
 

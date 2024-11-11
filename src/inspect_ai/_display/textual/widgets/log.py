@@ -4,7 +4,8 @@ from textual.widgets import RichLog
 
 class LogView(RichLog):
     def __init__(self) -> None:
-        return super().__init__()
+        super().__init__()
+        self.show_horizontal_scrollbar = False
 
     def write_ansi(self, text: str) -> None:
         # process line by line

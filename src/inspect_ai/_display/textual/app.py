@@ -3,7 +3,7 @@ from typing import Any, Coroutine
 
 from textual.app import App, ComposeResult
 from textual.events import Print
-from textual.widgets import Footer, Header, TabbedContent, TabPane
+from textual.widgets import TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
@@ -11,6 +11,8 @@ from inspect_ai._util.terminal import detect_terminal_background
 
 from ..core.display import TR
 from ..core.rich import rich_initialise
+from .widgets.footer import TaskScreenFooter
+from .widgets.header import TaskScreenHeader
 from .widgets.log import LogView
 from .widgets.samples import SamplesView
 from .widgets.tasks import TasksView
@@ -53,8 +55,8 @@ class TaskScreenApp(App[TR]):
             return RuntimeError("No application result available")
 
     def compose(self) -> ComposeResult:
-        yield Header(classes="header")
-        yield Footer()
+        yield TaskScreenHeader()
+        yield TaskScreenFooter()
 
         with TabbedContent(initial="log"):
             with TabPane("Tasks", id="tasks"):
