@@ -2,6 +2,7 @@ from asyncio import CancelledError
 from typing import Any, Coroutine
 
 from textual.app import App, ComposeResult
+from textual.events import Print
 from textual.widgets import Footer, Header
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
@@ -32,6 +33,9 @@ class TaskScreenApp(App[TR]):
         # error state
         self.error: BaseException | None = None
 
+        # captured print output
+        self.output: list[str] = []
+
         # dynamically enable dark mode or light mode
         self.dark = detect_terminal_background().dark
 
@@ -53,7 +57,16 @@ class TaskScreenApp(App[TR]):
 
     def on_mount(self) -> None:
         self.workers.start_all()
-        self.begin_capture_print(self.query_one(Log))
+        self.begin_capture_print(self)
+
+        print("who be the mack?")
+
+    def on_print(self, event: Print) -> None:
+        text = event.text
+        if text.endswith("\n"):
+            text = text[:-1]
+        self.output.append(text)
+        self.query_one(Log).write(text)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:

@@ -38,6 +38,9 @@ class TextualDisplay(Display):
         app = TaskScreenApp[TR](title, main)
         app.run()
 
+        # print output
+        print("\n".join(app.output))
+
         # print tasks
         rich.print(tasks_results(self.results))
 
