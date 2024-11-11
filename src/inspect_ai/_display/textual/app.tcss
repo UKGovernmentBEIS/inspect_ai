@@ -1,0 +1,12 @@
+
+
+
+TabPane {
+    padding: 0;
+}
+
+LogView {
+  overflow-x: hidden;
+  scrollbar-size-vertical: 1;
+}
+

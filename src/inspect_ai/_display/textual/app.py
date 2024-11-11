@@ -69,11 +69,16 @@ class TaskScreenApp(App[TR]):
         self.begin_capture_print(self)
 
     def on_print(self, event: Print) -> None:
+        # remove trailing newline
         text = event.text
         if text.endswith("\n"):
             text = text[:-1]
+
+        # track output (for printing at the end)
         self.output.append(text)
-        self.query_one(LogView).write(text)
+
+        # write to log view
+        self.query_one(LogView).write_ansi(text)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:
