@@ -33,6 +33,7 @@ class SampleSummary(BaseModel):
     input: str | list[ChatMessage]
     target: str | list[str]
     scores: dict[str, Score] | None
+    error: str | None
 
 
 class LogStart(BaseModel):
@@ -266,6 +267,7 @@ class EvalRecorder(FileRecorder):
                     input=text_inputs(sample.input),
                     target=sample.target,
                     scores=sample.scores,
+                    error=sample.error.message if sample.error is not None else None,
                 )
             )
         log.samples.clear()

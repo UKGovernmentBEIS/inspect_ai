@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The log viewer now properly displays sample errors in the sample list for `eval` format log files.
+
 ## v0.3.45 (11 November 2024)
 
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
