@@ -9,7 +9,7 @@ from dm_env import specs
 class MockEnvironment(dm_env.Environment):
     """A Mock DM environment."""
 
-    def __init__(self):
+    def __init__(self, context):
         """Initializes the environment."""
         super().__init__()
         self._last_command = ""

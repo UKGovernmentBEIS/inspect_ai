@@ -21,7 +21,6 @@ from inspect_ai.solver._solver import SolverSpec
 from .common import (
     CommonOptions,
     common_options,
-    log_images_flag,
     process_common_options,
 )
 from .util import parse_cli_args, parse_cli_config, parse_sandbox
@@ -231,9 +230,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-images/--no-log-images",
         type=bool,
-        default=False,
+        default=True,
         is_flag=True,
-        callback=log_images_flag,
         help=LOG_IMAGES_HELP,
     )
     @click.option(
@@ -713,7 +711,7 @@ def eval_exec(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = True if log_images else None
+    log_images = False if log_images is False else None
     trace = True if trace else None
     score = False if no_score else True
 
@@ -862,9 +860,8 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-images/--no-log-images",
     type=bool,
-    default=False,
+    default=True,
     is_flag=True,
-    callback=log_images_flag,
     help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
 )

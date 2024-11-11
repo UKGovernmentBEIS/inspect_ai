@@ -4,7 +4,10 @@ from absl.testing import parameterized
 
 class TestPlaywrightCrawler(parameterized.TestCase):
     def setUp(self):
-        self._crawler = playwright_crawler.PlaywrightCrawler()
+        self._browser = playwright_crawler.PlaywrightBrowser()
+        self._crawler = playwright_crawler.PlaywrightCrawler(
+            self._browser.get_new_context()
+        )
 
     def test_go_to_page_changes_url(self):
         self.assertEqual(self._crawler.url, "about:blank")
@@ -31,7 +34,6 @@ class TestPlaywrightCrawler(parameterized.TestCase):
         at_update = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
         nodes = at_update.splitlines()
         self.assertEqual(len(nodes), 3)
-        print(nodes)
         self.assertTrue(
             nodes[0].startswith(
                 '[5] RootWebArea "Example Domain" [focused: True, url: https://www.example.com/]'

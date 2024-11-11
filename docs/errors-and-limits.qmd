@@ -63,14 +63,6 @@ For this type of evaluation it's normally a good idea to set sample level limits
 
 ### Time Limit
 
-::: {.callout-note appearance="simple"}
-The `time_limit` option described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Here we set a `time_limit` of 15 minutes (15 x 60 seconds) for each sample within a task:
 
 ``` python

@@ -3,6 +3,7 @@
 
 import enum
 from asyncio import events, exceptions, tasks
+from contextlib import _AsyncGeneratorContextManager
 from types import TracebackType
 from typing import Any, Optional, Type, final
 
@@ -22,7 +23,7 @@ class _State(enum.Enum):
 
 
 @final
-class Timeout:
+class Timeout(_AsyncGeneratorContextManager["Timeout"]):
     """Asynchronous context manager for cancelling overdue coroutines.
 
     Use `timeout()` or `timeout_at()` rather than instantiating this class directly.

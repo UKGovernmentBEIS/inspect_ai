@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## Unreleased 
+
+- [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
+- Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
+- The log viewer now properly displays sample errors in the sample list for `eval` format log files.
+- Improve path handling when using `inspect log convert` to convert a single log file.
+- Web browser tool: Subtasks now each have independent web browser sessions.
+
+## v0.3.45 (11 November 2024)
 
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.

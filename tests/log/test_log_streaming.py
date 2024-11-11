@@ -50,7 +50,13 @@ def test_read_eval_log_samples_with_error():
         )
 
     with tempfile.TemporaryDirectory() as log_dir:
-        eval(failing_task(), model="mockllm/model", log_format="eval", log_dir=log_dir)
+        eval(
+            failing_task(),
+            model="mockllm/model",
+            log_format="eval",
+            log_dir=log_dir,
+            max_samples=1,
+        )
         log_file = list_eval_logs(log_dir)[0]
 
         # we expect a runtime error when we know the second sample failed
