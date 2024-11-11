@@ -59,8 +59,6 @@ class TaskScreenApp(App[TR]):
         self.workers.start_all()
         self.begin_capture_print(self)
 
-        print("who be the mack?")
-
     def on_print(self, event: Print) -> None:
         text = event.text
         if text.endswith("\n"):
