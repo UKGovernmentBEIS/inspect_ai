@@ -90,6 +90,7 @@ export const clientApi = (api) => {
               target: sample.target,
               scores: sample.scores,
               metadata: sample.metadata,
+              error: sample.error?.message,
             };
           })
         : [];
