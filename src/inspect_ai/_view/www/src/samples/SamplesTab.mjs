@@ -30,6 +30,8 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @param {(tab: string) => void} props.setSelectedSampleTab - function to select a tab
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
+ * @param {number} props.sampleScrollPosition - the sample scroll position
+ * @param {(position: number) => void} props.setSampleScrollPosition - sets the sample scroll position
  * @param {any} props.sort - the selected sort
  *
  * @returns {import("preact").JSX.Element[]} The TranscriptView component.
@@ -51,6 +53,8 @@ export const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context,
 }) => {
   const [items, setItems] = useState([]);
@@ -195,6 +199,8 @@ export const SamplesTab = ({
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
+      sampleScrollPosition=${sampleScrollPosition}
+      setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
 

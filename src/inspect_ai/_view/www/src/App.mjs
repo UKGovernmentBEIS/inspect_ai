@@ -102,6 +102,14 @@ export function App({
   const [selectedSampleTab, setSelectedSampleTab] = useState(
     initialState?.selectedSampleTab,
   );
+  const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
+  const setSampleScrollPosition = useCallback((position) => {
+    sampleScrollPosition.current = position;
+    setUpdateState((prev) => {
+      return prev + 1;
+    });
+  }, []);
+  const [updateState, setUpdateState] = useState(0);
 
   const loadingSampleIndexRef = useRef(null);
 
@@ -201,6 +209,7 @@ export function App({
       filteredSamples,
       groupBy,
       groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current,
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -230,6 +239,7 @@ export function App({
     filteredSamples,
     groupBy,
     groupByOrder,
+    updateState,
   ]);
 
   const handleSampleShowingDialog = useCallback(
@@ -365,6 +375,7 @@ export function App({
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
 
+          setSampleScrollPosition(0);
           setSelectedSample(sample);
 
           refreshSampleTab(sample);
@@ -375,7 +386,10 @@ export function App({
         .catch((e) => {
           setSampleStatus("error");
           setSampleError(e);
+
+          setSampleScrollPosition(0);
           setSelectedSample(undefined);
+
           loadingSampleIndexRef.current = null;
         });
     }
@@ -852,6 +866,8 @@ export function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
+              sampleScrollPosition=${sampleScrollPosition.current}
+              setSampleScrollPosition=${setSampleScrollPosition}
             />`
       }
     </div>

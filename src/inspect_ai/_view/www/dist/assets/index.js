@@ -16195,9 +16195,21 @@ const LargeModal = (props) => {
     visible,
     onHide,
     showProgress,
-    children
+    children,
+    initialScrollPosition,
+    setInitialScrollPosition
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
+  const scrollRef = A();
+  y(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== initialScrollPosition) {
+          scrollRef.current.scrollTop = initialScrollPosition;
+        }
+      }, 0);
+    }
+  }, [initialScrollPosition]);
   const headerEls = [];
   headerEls.push(
     m$1`<div
@@ -16289,7 +16301,20 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
-        <div class="modal-body">${children}</div>
+        <div
+          class="modal-body"
+          ref=${scrollRef}
+          onscroll=${() => {
+    if (scrollRef.current) {
+      throttle(
+        setInitialScrollPosition(scrollRef.current.scrollTop),
+        1e3
+      );
+    }
+  }}
+        >
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>
@@ -20022,6 +20047,8 @@ const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context
 }) => {
   const tools = T(() => {
@@ -20073,6 +20100,8 @@ const SampleDialog = ({
     setShowingSampleDialog(false);
   }}
       showProgress=${sampleStatus === "loading"}
+      initialScrollPosition=${sampleScrollPosition}
+      setInitialScrollPosition=${setSampleScrollPosition}
     >
         ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
                 id=${id}
@@ -20500,6 +20529,8 @@ const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context
 }) => {
   const [items, setItems] = h([]);
@@ -20627,6 +20658,8 @@ const SamplesTab = ({
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
+      sampleScrollPosition=${sampleScrollPosition}
+      setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
   return elements;
@@ -24347,7 +24380,9 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext
+  renderContext,
+  sampleScrollPosition,
+  setSampleScrollPosition
 }) => {
   const divRef = A(
     /** @type {HTMLElement|null} */
@@ -24389,6 +24424,8 @@ const WorkSpace = ({
           sort=${sort}
           epoch=${epoch}
           context=${renderContext}
+          sampleScrollPosition=${sampleScrollPosition}
+          setSampleScrollPosition=${setSampleScrollPosition}
         />`;
       },
       tools: () => {
@@ -25378,6 +25415,14 @@ function App({
   const [selectedSampleTab, setSelectedSampleTab] = h(
     initialState2 == null ? void 0 : initialState2.selectedSampleTab
   );
+  const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
+  const setSampleScrollPosition = q((position) => {
+    sampleScrollPosition.current = position;
+    setUpdateState((prev) => {
+      return prev + 1;
+    });
+  }, []);
+  const [updateState, setUpdateState] = h(0);
   const loadingSampleIndexRef = A(null);
   const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
@@ -25439,7 +25484,8 @@ function App({
       score,
       filteredSamples,
       groupBy,
-      groupByOrder
+      groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -25468,7 +25514,8 @@ function App({
     score,
     filteredSamples,
     groupBy,
-    groupByOrder
+    groupByOrder,
+    updateState
   ]);
   const handleSampleShowingDialog = q(
     (show) => {
@@ -25563,6 +25610,7 @@ function App({
         );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
+        setSampleScrollPosition(0);
         setSelectedSample(sample);
         refreshSampleTab(sample);
         setSampleStatus("ok");
@@ -25570,6 +25618,7 @@ function App({
       }).catch((e2) => {
         setSampleStatus("error");
         setSampleError(e2);
+        setSampleScrollPosition(0);
         setSelectedSample(void 0);
         loadingSampleIndexRef.current = null;
       });
@@ -25944,6 +25993,8 @@ function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
+              sampleScrollPosition=${sampleScrollPosition.current}
+              setSampleScrollPosition=${setSampleScrollPosition}
             />`}
     </div>
     ${afterBodyElements}

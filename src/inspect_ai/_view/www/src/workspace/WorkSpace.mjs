@@ -66,6 +66,8 @@ import {
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {string} props.selectedTab - The selected tab id
  * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
+ * @param {number} props.sampleScrollPosition - The initial scroll position for the sample
+ * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
@@ -110,6 +112,8 @@ export const WorkSpace = ({
   selectedTab,
   setSelectedTab,
   renderContext,
+  sampleScrollPosition,
+  setSampleScrollPosition,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
 
@@ -158,6 +162,8 @@ export const WorkSpace = ({
           sort=${sort}
           epoch=${epoch}
           context=${renderContext}
+          sampleScrollPosition=${sampleScrollPosition}
+          setSampleScrollPosition=${setSampleScrollPosition}
         />`;
       },
       tools: () => {

@@ -1,7 +1,9 @@
 import { html } from "htm/preact";
+import { useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
+import { throttle } from "../utils/sync.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -15,12 +17,26 @@ export const LargeModal = (props) => {
     onHide,
     showProgress,
     children,
+    initialScrollPosition,
+    setInitialScrollPosition,
   } = props;
 
   // The footer
   const modalFooter = footer
     ? html`<div class="modal-footer">${footer}</div>`
     : "";
+
+  const scrollRef = useRef();
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== initialScrollPosition) {
+          scrollRef.current.scrollTop = initialScrollPosition;
+        }
+      }, 0);
+    }
+  }, [initialScrollPosition]);
 
   // Capture header elements
   const headerEls = [];
@@ -124,7 +140,20 @@ export const LargeModal = (props) => {
             backgroundColor: "var(--bs-body-bg)",
           }}
         />
-        <div class="modal-body">${children}</div>
+        <div
+          class="modal-body"
+          ref=${scrollRef}
+          onscroll=${() => {
+            if (scrollRef.current) {
+              throttle(
+                setInitialScrollPosition(scrollRef.current.scrollTop),
+                1000,
+              );
+            }
+          }}
+        >
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>
