@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.45 (11 November 2024)
 
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
 - [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.

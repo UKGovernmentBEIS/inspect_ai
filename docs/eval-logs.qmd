@@ -174,14 +174,6 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 ### Streaming
 
-::: {.callout-note appearance="simple"}
-The `read_eval_log_samples()` function described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 If you are working with log files that are too large to comfortably fit in memory, we recommend the following options and workflow to stream them rather than loading them into memory all at once :
 
 1.  Use the `.eval` log file format which supports compression and incremental access to samples (see details on this in the [Log Format] section above). If you have existing `.json` files you can easily batch convert them to `.eval` using the [Log Commands](#converting-logs) described below.
