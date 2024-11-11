@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased 
+
+- [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
+- Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
+
 ## v0.3.45 (11 November 2024)
 
 - [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
