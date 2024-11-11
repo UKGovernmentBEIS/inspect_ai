@@ -25,7 +25,7 @@ class TextualDisplay(Display):
 
     @override
     def print(self, message: str) -> None:
-        pass
+        rich.get_console().print(message, markup=False, highlight=False)
 
     @override
     @contextlib.contextmanager
