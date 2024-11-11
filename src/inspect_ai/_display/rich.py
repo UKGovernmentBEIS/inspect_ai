@@ -540,7 +540,7 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
             config_print.append(
                 f"{name}: {','.join([approver['name'] for approver in value['approvers']])}"
             )
-        elif name not in ["limit", "model", "log_images"]:
+        elif name not in ["limit", "model"]:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:

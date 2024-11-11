@@ -258,7 +258,6 @@ async def eval_async(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
-
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)

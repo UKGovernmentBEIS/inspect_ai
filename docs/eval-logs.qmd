@@ -68,7 +68,7 @@ Both formats are fully supported by the [Log File API](#sec-log-file-api) and [L
 
 ### Format Option
 
-Inspect currently defaults to using `.json` format, but will soon switch to `.eval` as the default because of its size and speed advantages. You can control the log format globally in your `.env` file:
+The PyPI version of Inspect currently defaults to using the `.json` format, whereas the development version on GitHub currently defaults to `.eval` because of its size and speed advantages. You can explicitly control the log format globally in your `.env` file:
 
 ``` {.bash filename=".env"}
 INSPECT_LOG_FORMAT=eval
@@ -90,26 +90,14 @@ If you do need to interact with the underlying JSON (e.g., when reading logs fro
 
 ## Image Logging
 
-If you are doing a multi-modal evaluation with images, there are some special considerations regarding whether full copies of the images are included in the log:
+When running the development version of Insepct from GitHub, full base64 encoded copies of images are included in the log file by default (the PyPI version currently still defaults to not logging images for the `.json` format).
 
-1.  When using the higher-performance `eval` log format described above, base64 encoded versions of images are *included* in logs by default.
+Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
-2.  When using the `json` log format, base64 encoded versions of images are *excluded* by default. This is because very large (\>100MB) `json` log files can easily overwhelm Inspect View, and evaluations with images often exceed this threshold.
-
-You can customise this behaviour using the `--log-images/--no-log-images` flag. For example:
+ You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
 ``` bash
-# does not log images (default behavior for 'json')
-inspect eval images.py
-
-# logs images (override default for 'json')
-inspect eval images.py --log-images
-
-# logs images (default behavior for 'eval')
-inspect eval images.py --log-format eval   
-
-# does not log images (override default) 
-inspect eval images.py --log-format eval --no-log-images
+inspect eval images.py --log-format=json --no-log-images
 ```
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
