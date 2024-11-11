@@ -1,7 +1,6 @@
 from asyncio import CancelledError
 from typing import Any, Coroutine
 
-import rich
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header
 from textual.worker import Worker, WorkerState
