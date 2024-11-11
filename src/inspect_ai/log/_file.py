@@ -348,7 +348,7 @@ def read_eval_log_samples(
           samples does not exist in the log file.
     """
     # read header
-    log_header = read_eval_log(log_file, header_only=True)
+    log_header = read_eval_log(log_file, header_only=True, format=format)
 
     # do we have the list of samples?
     if log_header.eval.dataset.sample_ids is None:
