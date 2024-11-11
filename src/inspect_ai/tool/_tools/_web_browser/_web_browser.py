@@ -346,9 +346,9 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
             if not result.success:
                 raise RuntimeError(
                     f"Error creating new web browser session: {result.stderr}"
-                    )
+                )
 
-            browser_session = result.stdout.strip('\n')
+            browser_session = result.stdout.strip("\n")
             store().set(BROWSER_SESSION_ID, browser_session)
 
         session_flag = f"--session_name={browser_session}"
@@ -361,7 +361,7 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
         arg_list = ["python3", WEB_CLIENT_REQUEST, session_flag, cmd] + list(args)
     else:
         arg_list = ["python3", WEB_CLIENT_REQUEST, cmd] + list(args)
-    
+
     result = await sandbox_env.exec(arg_list)
     if not result.success:
         raise RuntimeError(
