@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.33",
+  "version": "0.3.41",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -31,17 +31,48 @@
   "activationEvents": [
     "onWebviewPanel:inspect.logview",
     "onWebviewPanel:inspect_ai.task-configuration",
+    "onWebviewPanel:inspect_ai.logs-view",
     "onWebviewPanel:inspect_ai.env-configuration-view",
+    "onWebviewPanel:inspect_ai.task-outline-view",
+    "onLanguage:eval",
+    "workspaceContains:**/*.eval",
     "onLanguage:python",
-    "workspaceContains:*.py",
-    "workspaceContains:*.ipynb"
+    "workspaceContains:**/*.py",
+    "workspaceContains:**/*.ipynb"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "eval-log",
+        "aliases": [
+          "Eval Log"
+        ],
+        "extensions": [
+          ".eval"
+        ],
+        "icon": {
+          "light": "./assets/icon/eval.svg",
+          "dark": "./assets/icon/eval.svg"
+        }
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "inspect-ai.log-editor",
+        "displayName": "Inspect Log Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.eval"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
-        "command": "inspect.showLogview",
-        "title": "Show Logs",
+        "command": "inspect.inspectView",
+        "title": "Inspect View...",
         "icon": "$(code-oss)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
@@ -77,6 +108,46 @@
         "command": "inspect.taskOutlineTree",
         "title": "Show as Tree",
         "icon": "$(list-tree)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListing",
+        "title": "Log Listing...",
+        "icon": "$(root-folder-opened)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingRefresh",
+        "title": "Refresh Log Listing",
+        "icon": "$(refresh)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingRevealInExplorer",
+        "title": "Reveal in Explorer",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingOpenInJSONEditor",
+        "title": "Open in JSON Editor",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingDeleteLogFile",
+        "title": "Delete Log File...",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingCopyLogPath",
+        "title": "Copy Path",
+        "enablement": "workspaceFolderCount != 0"
+      },      
+      {
+        "command": "inspect.logListingReveal",
+        "title": "Reveal Log Listing",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"
       },
@@ -133,8 +204,8 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
-        "command": "inspect.openInInspectView",
-        "title": "Open with Inspect View",
+        "command": "inspect.openLogViewer",
+        "title": "Open in Inspect Log Viewer",
         "enablement": "workspaceFolderCount != 0"
       }
     ],
@@ -150,32 +221,16 @@
         "key": "ctrl+shift+t",
         "mac": "cmd+shift+t",
         "when": "inspect_ai.activeTask"
-      },
-      {
-        "command": "inspect.showLogview",
-        "key": "ctrl+shift+l",
-        "mac": "cmd+shift+l"
       }
     ],
     "configuration": {
       "title": "Inspect AI",
       "properties": {
-        "inspect_ai.openLogView": {
+        "inspect_ai.notifyEvalComplete": {
           "type": "boolean",
           "default": true,
-          "description": "Open the Inspect log view when evaluations in the workspace complete."
-        },
-        "inspect_ai.logViewType": {
-          "type": "string",
-          "default": "html",
-          "enum": [
-            "html",
-            "text"
-          ],
-          "markdownEnumDescriptions": [
-            "Use `inspect view` to display evaluation log files.",
-            "Use a text editor to display evaluation log files."
-          ]
+          "markdownDescription": "Show a notification with a **View Log** button when evals complete.",
+          "order": 1
         },
         "inspect_ai.taskListView": {
           "type": "string",
@@ -184,12 +239,20 @@
             "tree",
             "list"
           ],
-          "description": "Display task outline as a tree or list."
+          "description": "Display task outline as a tree or list.",
+          "order": 4
         },
         "inspect_ai.debugSingleSample": {
           "type": "boolean",
           "default": true,
-          "description": "Limit evaluation to one sample when debugging."
+          "description": "Limit evaluation to one sample when debugging.",
+          "order": 5
+        },
+        "inspect_ai.useSubdirectoryEnvironments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run and debug inspect commands using subdirectory environments when present.",
+          "order": 2
         }
       }
     },
@@ -211,15 +274,21 @@
           "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
         },
         {
-          "type": "webview",
-          "id": "inspect_ai.task-configuration",
-          "name": "Task",
-          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false"
-        },
-        {
           "id": "inspect_ai.task-outline-view",
           "name": "Tasks",
           "when": "workspaceFolderCount != 0"
+        },
+        {
+          "id": "inspect_ai.logs-view",
+          "name": "Logs",
+          "when": "workspaceFolderCount != 0"
+        },
+        {
+          "type": "webview",
+          "id": "inspect_ai.task-configuration",
+          "name": "Task",
+          "when": "workspaceFolderCount != 0 && inspect_ai.task-outline-view.noInspect == false",
+          "collapsed": true
         }
       ]
     },
@@ -246,8 +315,13 @@
           "when": "view == inspect_ai.task-outline-view && config.inspect_ai.taskListView == 'list'"
         },
         {
-          "command": "inspect.showLogview",
-          "when": "view == inspect_ai.task-outline-view",
+          "command": "inspect.logListingRefresh",
+          "when": "view == inspect_ai.logs-view",
+          "group": "navigation"
+        },
+        {
+          "command": "inspect.logListing",
+          "when": "view == inspect_ai.logs-view",
           "group": "navigation"
         },
         {
@@ -263,9 +337,9 @@
       ],
       "explorer/context": [
         {
-          "command": "inspect.openInInspectView",
+          "command": "inspect.openLogViewer",
           "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.json$/"
+          "when": "resourceFilename =~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}[:-]\\d{2}[:-]\\d{2}.*\\.json$/"
         }
       ],
       "view/item/context": [
@@ -278,9 +352,37 @@
           "command": "inspect.runSelectedTask",
           "group": "inline",
           "when": "view == inspect_ai.task-outline-view && viewItem == runnable"
+        },
+        {
+          "command": "inspect.logListingRevealInExplorer",
+          "group": "navigation",
+          "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local/"
+        },
+        {
+          "command": "inspect.logListingOpenInJSONEditor",
+          "group": "navigation@100",
+          "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local\\+json/"
+        },
+        {
+          "command": "inspect.logListingCopyLogPath",
+          "group": "1_copycommands",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
+        },
+        {
+          "command": "inspect.logListingDeleteLogFile",
+          "group": "2_modification",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
         }
       ],
       "commandPalette": [
+        {
+          "command": "inspect.logListingRefresh",
+          "when": "false"
+        },
+        {
+          "command": "inspect.logListingReveal",
+          "when": "false"
+        },
         {
           "command": "inspect.debugSelectedTask",
           "when": "false"
@@ -324,6 +426,10 @@
         {
           "command": "inspect.debugActiveTask",
           "when": "false"
+        },
+        {
+          "command": "inspect.openLogViewer",
+          "when": "false"
         }
       ]
     }
@@ -340,10 +446,13 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/async-lock": "^1.4.2",
+    "@types/date-fns": "^2.6.3",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
     "@types/vscode": "1.85",
+    "@types/yaml": "^1.9.7",
     "@typescript-eslint/eslint-plugin": "^7.4.0",
     "@typescript-eslint/parser": "^7.4.0",
     "@vscode/test-cli": "^0.0.8",
@@ -362,7 +471,10 @@
     "@microsoft/fast-components": "^2.30.6",
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",
+    "async-lock": "^1.4.1",
+    "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
-    "semver": "^7.6.0"
+    "semver": "^7.6.0",
+    "yaml": "^2.6.0"
   }
 }

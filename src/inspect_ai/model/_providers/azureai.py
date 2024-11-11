@@ -1,16 +1,51 @@
+import json
 import os
-import ssl
-from copy import deepcopy
+from copy import copy
 from typing import Any
 
-import httpx
+from azure.ai.inference.aio import ChatCompletionsClient
+from azure.ai.inference.models import (
+    AssistantMessage,
+    ChatChoice,
+    ChatCompletions,
+    ChatCompletionsNamedToolChoice,
+    ChatCompletionsNamedToolChoiceFunction,
+    ChatCompletionsToolCall,
+    ChatCompletionsToolChoicePreset,
+    ChatCompletionsToolDefinition,
+    ChatRequestMessage,
+    ChatResponseMessage,
+    CompletionsFinishReason,
+    ContentItem,
+    FunctionCall,
+    FunctionDefinition,
+    ImageContentItem,
+    ImageUrl,
+    SystemMessage,
+    TextContentItem,
+    ToolMessage,
+    UserMessage,
+)
+from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import AzureError, HttpResponseError
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.images import image_as_data_uri
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_choice import ToolFunction
 
-from .._chat_message import ChatMessage
+from .._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from .._generate_config import GenerateConfig
+from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
@@ -20,25 +55,21 @@ from .._model_output import (
     StopReason,
 )
 from .util import (
-    Llama31Handler,
-    as_stop_reason,
-    chat_api_input,
-    chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler
+from .util.llama31 import Llama31Handler
+from .util.util import parse_tool_call
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
+AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
 AZUREAI_BASE_URL = "AZUREAI_BASE_URL"
 AZUREAI_ENDPOINT_URL = "AZUREAI_ENDPOINT_URL"
-AZUREAI_SELF_SIGNED = "AZUREAI_SELF_SIGNED"
 
 # legacy vars for migration
 AZURE_API_KEY = "AZURE_API_KEY"
 AZURE_ENDPOINT_URL = "AZURE_ENDPOINT_URL"
-AZURE_SELF_SIGNED = "AZURE_SELF_SIGNED"
 
 
 class AzureAIAPI(ModelAPI):
@@ -54,16 +85,9 @@ class AzureAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[AZURE_API_KEY],
+            api_key_vars=[AZURE_API_KEY, AZUREAI_ENDPOINT_KEY],
             config=config,
         )
-
-        # required for some deployments
-        if (
-            os.getenv(AZURE_SELF_SIGNED, os.getenv(AZUREAI_SELF_SIGNED, None))
-            is not None
-        ):
-            allowSelfSignedHttps(True)
 
         # resolve api_key
         if not self.api_key:
@@ -87,8 +111,12 @@ class AzureAIAPI(ModelAPI):
         self.endpoint_url = endpoint_url
 
         # create client
-        self.client = httpx.AsyncClient()
-        self.model_args = model_args
+        self.client = ChatCompletionsClient(
+            endpoint=self.endpoint_url,
+            credential=AzureKeyCredential(self.api_key),
+            model=self.model_name,
+            model_extras=model_args,
+        )
 
     async def generate(
         self,
@@ -97,116 +125,70 @@ class AzureAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        # There are two different model APIs on Azure AI. The first is associated
-        # with 'realtime' deployments of llama (and maps closely to other llama
-        # inference apis):
-        # https://ai.azure.com/explore/models/Llama-2-70b-chat/version/17/registry/azureml-meta
-        # other models use a more standard chat completions API:
-        # https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-mistral#request-schema
+        # if its llama then do fake tool calls
+        handler: ChatAPIHandler | None = Llama31Handler() if self.is_llama() else None
+        if handler:
+            input = handler.input_with_tools(input, tools)
 
-        # base parameters shared by both endpoints
-        parameters = deepcopy(self.model_args)
-        if config.temperature is not None:
-            parameters["temperature"] = config.temperature
-        if config.top_p is not None:
-            parameters["top_p"] = config.top_p
-
-        # JSON payload and endpoint for Llama realtime API
-        if self.is_llama_score_api():
-            # additional parameters
-            if config.top_k is not None:
-                parameters["top_k"] = config.top_k
-            if (
-                config.temperature is not None
-                or config.top_p is not None
-                or config.top_k is not None
-            ):
-                parameters["do_sample"] = True
-
-            # API docs say its 'max_new_tokens' and that seems to work
-            # 'max_tokens' also seems to work but stick w/ api docs
-            if config.max_tokens is not None:
-                parameters["max_new_tokens"] = config.max_tokens
-
-            # build payload
-            json = dict(
-                input_data=dict(
-                    input_string=chat_api_input(input, tools, self.chat_api_handler()),
-                    parameters=parameters,
-                )
-            )
-
-            # endpoint
-            endpoint_url = self.endpoint_url
-
-        # standard chat completions JSON payload (Mistral or Llama not at '/score')
-        else:
-            # additional parameters
-            if config.max_tokens is not None:
-                parameters["max_tokens"] = config.max_tokens
-            if config.num_choices:
-                parameters["n"] = config.num_choices
-
-            # request payload
-            json = (
-                dict(messages=chat_api_input(input, tools, self.chat_api_handler()))
-                | parameters
-            )
-
-            # endpoint
-            endpoint_url = f"{self.endpoint_url}/v1/chat/completions"
-
-        # call model
-        try:
-            response = await chat_api_request(
-                self.client,
-                model_name=self.model_name,
-                url=endpoint_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "azureml-model-deployment": self.model_name,
-                },
-                json=json,
-                config=config,
-            )
-        except httpx.HTTPStatusError as ex:
-            if ex.response.status_code == 400:
-                return self.handle_bad_request(ex)
-            else:
-                raise ex
-
-        # record call
-        call = ModelCall.create(
-            request=dict(model_name=self.model_name, **json), response=response
+        # prepare request
+        request = dict(
+            messages=await chat_request_messages(input, handler),
+            tools=chat_tools(tools) if len(tools) > 0 else None,
+            tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else None,
+            **self.completion_params(config),
         )
 
-        # return result
-        if self.is_llama_score_api():
-            return ModelOutput.from_content(
-                model=self.model_name, content=response["output"]
-            ), call
-        else:
-            model = response.get("model", "")
-            choices = chat_completion_choices(
-                response["choices"], tools, self.chat_api_handler()
+        # make call
+        try:
+            response: ChatCompletions = await self.client.complete(**request)
+            return ModelOutput(
+                model=response.model,
+                choices=chat_completion_choices(response.choices, tools, handler),
+                usage=ModelUsage(
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
+                ),
+            ), ModelCall.create(
+                request=request
+                | dict(
+                    messages=[message.as_dict() for message in request["messages"]],
+                    tools=[tool.as_dict() for tool in request["tools"]]
+                    if request.get("tools", None) is not None
+                    else None,
+                ),
+                response=response.as_dict(),
+                filter=image_url_filter,
             )
-            model_usage = response.get("usage", None)
-            if model_usage:
-                usage = ModelUsage(
-                    input_tokens=model_usage.get("prompt_tokens", 0),
-                    output_tokens=model_usage.get("completion_tokens", 0),
-                    total_tokens=model_usage.get("total_tokens", 0),
-                )
-            else:
-                usage = None
-            return ModelOutput(model=model, choices=choices, usage=usage), call
+        except AzureError as ex:
+            return self.handle_azure_error(ex)
+
+    def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
+        params: dict[str, str | int | float | list[str]] = {}
+        if config.frequency_penalty is not None:
+            params["frequency_penalty"] = config.frequency_penalty
+        if config.presence_penalty is not None:
+            params["presence_penalty"] = config.presence_penalty
+        if config.temperature is not None:
+            params["temperature"] = config.temperature
+        if config.top_p is not None:
+            params["top_p"] = config.top_p
+        if config.max_tokens is not None:
+            params["max_tokens"] = config.max_tokens
+        if config.stop_seqs is not None:
+            params["stop"] = config.stop_seqs
+        if config.seed is not None:
+            params["seed"] = config.seed
+
+        return params
 
     @override
     def max_tokens(self) -> int | None:
-        # llama2 models have a default max_tokens of 256 (context window is 4096)
-        # https://ai.azure.com/explore/models/Llama-2-70b-chat/version/17/registry/azureml-meta
-        if self.is_llama():
-            return DEFAULT_MAX_TOKENS
+        if self.is_llama3():
+            return 8192  # context window is 128k
+
+        elif self.is_llama():
+            return 2048  # llama2 context window is 4096
 
         # Mistral uses a default of 8192 which is fine, so we don't mess with it
         # see: https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-mistral#request-schema
@@ -219,7 +201,15 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+        if isinstance(ex, HttpResponseError):
+            return (
+                ex.status_code == 408
+                or ex.status_code == 409
+                or ex.status_code == 429
+                or ex.status_code == 500
+            )
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -232,54 +222,173 @@ class AzureAIAPI(ModelAPI):
     def is_llama(self) -> bool:
         return "llama" in self.model_name.lower()
 
-    def is_llama_score_api(self) -> bool:
-        return self.endpoint_url.endswith("/score") and self.is_llama()
+    def is_llama3(self) -> bool:
+        return "llama-3" in self.model_name.lower()
 
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
-    def chat_api_handler(self) -> ChatAPIHandler:
-        if "llama" in self.model_name.lower():
-            return Llama31Handler()
-        else:
-            return ChatAPIHandler()
+    def handle_azure_error(self, ex: AzureError) -> ModelOutput:
+        if isinstance(ex, HttpResponseError):
+            response = str(ex.message)
+            if "maximum context length" in response.lower():
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=response,
+                    stop_reason="model_length",
+                )
+            elif ex.status_code == 400 and ex.error:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=f"Your request triggered an error: {ex.error}",
+                    stop_reason="content_filter",
+                )
 
-    def handle_bad_request(self, ex: httpx.HTTPStatusError) -> ModelOutput:
-        if "maximum context length" in ex.response.text.lower():
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content=ex.response.text,
-                stop_reason="model_length",
+        raise ex
+
+
+async def chat_request_messages(
+    messages: list[ChatMessage], handler: ChatAPIHandler | None
+) -> list[ChatRequestMessage]:
+    return [await chat_request_message(message, handler) for message in messages]
+
+
+async def chat_request_message(
+    message: ChatMessage, handler: ChatAPIHandler | None
+) -> ChatRequestMessage:
+    if isinstance(message, ChatMessageSystem):
+        return SystemMessage(content=message.text)
+    elif isinstance(message, ChatMessageUser):
+        return UserMessage(
+            content=message.content
+            if isinstance(message.content, str)
+            else [await chat_content_item(item) for item in message.content]
+        )
+    elif isinstance(message, ChatMessageTool):
+        return ToolMessage(
+            content=(
+                f"Error: {message.error.message}" if message.error else message.text
+            ),
+            tool_call_id=str(message.tool_call_id),
+        )
+    else:
+        if message.tool_calls:
+            if handler:
+                return AssistantMessage(
+                    content=handler.assistant_message(message)["content"]
+                )
+            else:
+                return AssistantMessage(
+                    content=message.text or None,
+                    tool_calls=[chat_tool_call(call) for call in message.tool_calls],
+                )
+        else:
+            return AssistantMessage(content=message.text)
+
+
+async def chat_content_item(content: Content) -> ContentItem:
+    if isinstance(content, ContentText):
+        return TextContentItem(text=content.text)
+    else:
+        return ImageContentItem(
+            image_url=ImageUrl(
+                url=await image_as_data_uri(content.image), detail=content.detail
             )
-        else:
-            raise ex
+        )
 
 
-def chat_completion_choices(
-    choices: list[dict[str, Any]], tools: list[ToolInfo], handler: ChatAPIHandler
-) -> list[ChatCompletionChoice]:
-    return [chat_completion_choice(choice, tools, handler) for choice in choices]
-
-
-def chat_completion_choice(
-    choice: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
-) -> ChatCompletionChoice:
-    content = choice["message"]["content"]
-    return ChatCompletionChoice(
-        message=handler.parse_assistant_response(content, tools),
-        stop_reason=choice_stop_reason(choice),
+def chat_tool_call(tool_call: ToolCall) -> ChatCompletionsToolCall:
+    return ChatCompletionsToolCall(
+        id=tool_call.id,
+        function=FunctionCall(
+            name=tool_call.function, arguments=json.dumps(tool_call.arguments)
+        ),
     )
 
 
-def choice_stop_reason(choice: dict[str, Any]) -> StopReason:
-    return as_stop_reason(choice.get("finish_reason", None))
+def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionsToolDefinition]:
+    return [chat_tool_definition(tool) for tool in tools]
 
 
-def allowSelfSignedHttps(allowed: bool) -> None:
-    # bypass the server certificate verification on client side
-    if (
-        allowed
-        and not os.environ.get("PYTHONHTTPSVERIFY", "")
-        and getattr(ssl, "_create_unverified_context", None)
-    ):
-        ssl._create_default_https_context = ssl._create_unverified_context
+def chat_tool_definition(tool: ToolInfo) -> ChatCompletionsToolDefinition:
+    return ChatCompletionsToolDefinition(
+        function=FunctionDefinition(
+            name=tool.name,
+            description=tool.description,
+            parameters=tool.parameters.model_dump(exclude_none=True),
+        )
+    )
+
+
+def chat_tool_choice(
+    tool_choice: ToolChoice,
+) -> str | ChatCompletionsToolChoicePreset | ChatCompletionsNamedToolChoice:
+    if isinstance(tool_choice, ToolFunction):
+        return ChatCompletionsNamedToolChoice(
+            function=ChatCompletionsNamedToolChoiceFunction(name=tool_choice.name)
+        )
+    elif tool_choice == "auto":
+        return ChatCompletionsToolChoicePreset.AUTO
+    elif tool_choice == "none":
+        return ChatCompletionsToolChoicePreset.NONE
+    elif tool_choice == "any":
+        return ChatCompletionsToolChoicePreset.REQUIRED
+
+
+def chat_completion_choices(
+    choices: list[ChatChoice], tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> list[ChatCompletionChoice]:
+    choices = copy(choices)
+    choices.sort(key=lambda c: c.index)
+    return [chat_complection_choice(choice, tools, handler) for choice in choices]
+
+
+def chat_complection_choice(
+    choice: ChatChoice, tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> ChatCompletionChoice:
+    return ChatCompletionChoice(
+        message=chat_completion_assistant_message(choice.message, tools, handler),
+        stop_reason=chat_completion_stop_reason(choice.finish_reason),
+    )
+
+
+def chat_completion_assistant_message(
+    response: ChatResponseMessage, tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> ChatMessageAssistant:
+    if handler:
+        return handler.parse_assistant_response(response.content, tools)
+    else:
+        return ChatMessageAssistant(
+            content=response.content,
+            tool_calls=[
+                chat_completion_tool_call(call, tools) for call in response.tool_calls
+            ]
+            if response.tool_calls is not None
+            else None,
+        )
+
+
+def chat_completion_tool_call(
+    tool_call: ChatCompletionsToolCall, tools: list[ToolInfo]
+) -> ToolCall:
+    return parse_tool_call(
+        tool_call.id, tool_call.function.name, tool_call.function.arguments, tools
+    )
+
+
+def chat_completion_stop_reason(reason: str) -> StopReason:
+    match reason:
+        case CompletionsFinishReason.STOPPED:
+            return "stop"
+
+        case CompletionsFinishReason.TOKEN_LIMIT_REACHED:
+            return "max_tokens"
+
+        case CompletionsFinishReason.CONTENT_FILTERED:
+            return "content_filter"
+
+        case CompletionsFinishReason.TOOL_CALLS:
+            return "tool_calls"
+
+        case _:
+            return "unknown"

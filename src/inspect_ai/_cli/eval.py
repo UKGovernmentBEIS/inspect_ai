@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 
 import click
 from typing_extensions import Unpack
@@ -8,8 +8,6 @@ from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
-    DEFAULT_LOG_BUFFER_LOCAL,
-    DEFAULT_LOG_BUFFER_REMOTE,
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_RETRIES,
 )
@@ -20,8 +18,12 @@ from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
-from .common import CommonOptions, common_options, resolve_common_options
-from .util import parse_cli_args, parse_sandbox
+from .common import (
+    CommonOptions,
+    common_options,
+    process_common_options,
+)
+from .util import parse_cli_args, parse_cli_config, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
 MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
@@ -35,7 +37,7 @@ NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (in
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
-LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
+LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )
@@ -67,11 +69,23 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="One or more native model arguments (e.g. -M arg=value)",
     )
     @click.option(
+        "--model-config",
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_CONFIG",
+        help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
         "-T",
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_TASK_ARGS",
         help="One or more task arguments (e.g. -T arg=value)",
+    )
+    @click.option(
+        "--task-config",
+        type=str,
+        envvar="INSPECT_EVAL_TASK_CONFIG",
+        help="YAML or JSON config file with task arguments.",
     )
     @click.option(
         "--solver",
@@ -85,6 +99,18 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_SOLVER_ARGS",
         help="One or more solver arguments (e.g. -S arg=value)",
+    )
+    @click.option(
+        "--solver-config",
+        type=str,
+        envvar="INSPECT_EVAL_SOLVER_CONFIG",
+        help="YAML or JSON config file with solver arguments.",
+    )
+    @click.option(
+        "--tags",
+        type=str,
+        help="Tags to associate with this evaluation run.",
+        envvar="INSPECT_EVAL_TAGS",
     )
     @click.option(
         "--trace",
@@ -173,6 +199,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
+        "--time-limit",
+        type=int,
+        help="Limit on total execution time for each sample.",
+        envvar="INSPECT_EVAL_TIME_LIMIT",
+    )
+    @click.option(
         "--fail-on-error",
         type=float,
         is_flag=False,
@@ -198,7 +230,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-images/--no-log-images",
         type=bool,
-        default=False,
+        default=True,
         is_flag=True,
         help=LOG_IMAGES_HELP,
     )
@@ -233,23 +265,26 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--frequency-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI and Groq only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_FREQUENCY_PENALTY",
     )
     @click.option(
         "--presence-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI and Groq only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_PRESENCE_PENALTY",
     )
     @click.option(
         "--logit-bias",
         type=str,
-        help='Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10")',
+        help='Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI, Grok, and Grok only.',
         envvar="INSPECT_EVAL_LOGIT_BIAS",
     )
     @click.option(
-        "--seed", type=int, help="Random seed. OpenAI only.", envvar="INSPECT_EVAL_SEED"
+        "--seed",
+        type=int,
+        help="Random seed. OpenAI, Mistral, HuggingFace, and vLLM only.",
+        envvar="INSPECT_EVAL_SEED",
     )
     @click.option(
         "--stop-seqs",
@@ -278,26 +313,26 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--top-k",
         type=int,
-        help="Randomly sample the next word from the top_k most likely next words. GDM only.",
+        help="Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_K",
     )
     @click.option(
         "--num-choices",
         type=int,
-        help="How many chat completion choices to generate for each input message.",
+        help="How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.",
         envvar="INSPECT_EVAL_NUM_CHOICES",
     )
     @click.option(
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, TogetherAI, and Huggingface only.",
+        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI and Huggingface only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
@@ -320,6 +355,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
+    @click.option(
+        "--log-format",
+        type=click.Choice(["eval", "json"], case_sensitive=False),
+        envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
+        help="Format for writing log files.",
+    )
     @common_options
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
@@ -337,8 +378,12 @@ def eval_command(
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
+    tags: str | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -369,6 +414,7 @@ def eval_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -378,27 +424,33 @@ def eval_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    log_format: Literal["eval", "json"] | None,
+    **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # exec eval
     eval_exec(
         tasks=tasks,
         solver=solver,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
+        log_format=log_format,
         model=model,
         model_base_url=model_base_url,
         m=m,
+        model_config=model_config,
         t=t,
+        task_config=task_config,
         s=s,
+        solver_config=solver_config,
+        tags=tags,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -408,12 +460,13 @@ def eval_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -479,8 +532,12 @@ def eval_set_command(
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
+    tags: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -509,6 +566,7 @@ def eval_set_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -520,27 +578,33 @@ def eval_set_command(
     no_score: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    log_format: Literal["eval", "json"] | None,
+    **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # exec eval
     success = eval_exec(
         tasks=tasks,
         solver=solver,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
+        log_format=log_format,
         model=model,
         model_base_url=model_base_url,
         m=m,
+        model_config=model_config,
         t=t,
+        task_config=task_config,
         s=s,
+        solver_config=solver_config,
+        tags=tags,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -550,12 +614,13 @@ def eval_set_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -580,11 +645,16 @@ def eval_exec(
     log_level: str,
     log_level_transcript: str,
     log_dir: str,
+    log_format: Literal["eval", "json"] | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
+    model_config: str | None,
     t: tuple[str] | None,
+    task_config: str | None,
     s: tuple[str] | None,
+    solver_config: str | None,
+    tags: str | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -594,6 +664,7 @@ def eval_exec(
     limit: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -614,9 +685,12 @@ def eval_exec(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
-    task_args = parse_cli_args(t)
-    solver_args = parse_cli_args(s)
-    model_args = parse_cli_args(m)
+    task_args = parse_cli_config(t, task_config)
+    solver_args = parse_cli_config(s, solver_config)
+    model_args = parse_cli_config(m, model_config)
+
+    # parse tags
+    eval_tags = parse_comma_separated(tags)
 
     # resolve epochs
     eval_epochs = (
@@ -637,7 +711,7 @@ def eval_exec(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = True if log_images else None
+    log_images = False if log_images is False else None
     trace = True if trace else None
     score = False if no_score else True
 
@@ -650,6 +724,7 @@ def eval_exec(
             model_args=model_args,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
+            tags=eval_tags,
             trace=trace,
             approval=approval,
             sandbox=parse_sandbox(sandbox),
@@ -657,12 +732,14 @@ def eval_exec(
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=eval_limit,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -783,7 +860,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-images/--no-log-images",
     type=bool,
-    default=False,
+    default=True,
     is_flag=True,
     help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
@@ -825,11 +902,11 @@ def eval_retry_command(
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
@@ -851,16 +928,16 @@ def eval_retry_command(
     # retry
     eval_retry(
         retry_log_files,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
         fail_on_error=fail_on_error,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

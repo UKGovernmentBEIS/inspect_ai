@@ -815,6 +815,28 @@
           "default": null,
           "title": "Samples"
         },
+        "sample_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Ids"
+        },
         "shuffled": {
           "anyOf": [
             {
@@ -834,6 +856,7 @@
         "name",
         "location",
         "samples",
+        "sample_ids",
         "shuffled"
       ],
       "additionalProperties": false
@@ -860,71 +883,6 @@
       ],
       "title": "EvalError",
       "type": "object",
-      "additionalProperties": false
-    },
-    "EvalEvents": {
-      "properties": {
-        "events": {
-          "items": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/SampleInitEvent"
-              },
-              {
-                "$ref": "#/$defs/StateEvent"
-              },
-              {
-                "$ref": "#/$defs/StoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ModelEvent"
-              },
-              {
-                "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/ApprovalEvent"
-              },
-              {
-                "$ref": "#/$defs/InputEvent"
-              },
-              {
-                "$ref": "#/$defs/ScoreEvent"
-              },
-              {
-                "$ref": "#/$defs/ErrorEvent"
-              },
-              {
-                "$ref": "#/$defs/LoggerEvent"
-              },
-              {
-                "$ref": "#/$defs/InfoEvent"
-              },
-              {
-                "$ref": "#/$defs/StepEvent"
-              },
-              {
-                "$ref": "#/$defs/SubtaskEvent"
-              }
-            ]
-          },
-          "title": "Events",
-          "type": "array"
-        },
-        "content": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Content",
-          "type": "object"
-        }
-      },
-      "title": "EvalEvents",
-      "type": "object",
-      "required": [
-        "events",
-        "content"
-      ],
       "additionalProperties": false
     },
     "EvalMetric": {
@@ -1084,21 +1042,6 @@
           ],
           "default": null,
           "title": "Metadata"
-        },
-        "sample_reductions": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/EvalSampleReductions"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Sample Reductions"
         }
       },
       "title": "EvalResults",
@@ -1107,8 +1050,7 @@
         "total_samples",
         "completed_samples",
         "scores",
-        "metadata",
-        "sample_reductions"
+        "metadata"
       ],
       "additionalProperties": false
     },
@@ -1297,8 +1239,52 @@
           "title": "Store",
           "type": "object"
         },
-        "transcript": {
-          "$ref": "#/$defs/EvalEvents"
+        "events": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/StateEvent"
+              },
+              {
+                "$ref": "#/$defs/StoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ModelEvent"
+              },
+              {
+                "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
+                "$ref": "#/$defs/InputEvent"
+              },
+              {
+                "$ref": "#/$defs/ScoreEvent"
+              },
+              {
+                "$ref": "#/$defs/ErrorEvent"
+              },
+              {
+                "$ref": "#/$defs/LoggerEvent"
+              },
+              {
+                "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/StepEvent"
+              },
+              {
+                "$ref": "#/$defs/SubtaskEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
         },
         "model_usage": {
           "additionalProperties": {
@@ -1317,6 +1303,13 @@
             }
           ],
           "default": null
+        },
+        "attachments": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Attachments",
+          "type": "object"
         }
       },
       "required": [
@@ -1333,9 +1326,10 @@
         "scores",
         "metadata",
         "store",
-        "transcript",
+        "events",
         "model_usage",
-        "error"
+        "error",
+        "attachments"
       ],
       "title": "EvalSample",
       "type": "object",
@@ -1501,6 +1495,21 @@
           "default": null,
           "title": "Solver Args"
         },
+        "tags": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tags"
+        },
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
         },
@@ -1580,6 +1589,7 @@
         "task_args",
         "solver",
         "solver_args",
+        "tags",
         "dataset",
         "sandbox",
         "model",
@@ -3365,6 +3375,17 @@
           "default": null,
           "title": "Truncated"
         },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -3433,6 +3454,7 @@
         "arguments",
         "result",
         "truncated",
+        "view",
         "error",
         "events"
       ],
@@ -3771,6 +3793,21 @@
       ],
       "default": null,
       "title": "Samples"
+    },
+    "reductions": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/EvalSampleReductions"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reductions"
     }
   },
   "required": [

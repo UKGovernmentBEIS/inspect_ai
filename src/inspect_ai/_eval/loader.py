@@ -99,7 +99,7 @@ def resolve_tasks(
         loaded_tasks_args: list[dict[str, Any]] = []
         for previous_task in previous_tasks:
             if isinstance(previous_task.task, Task):
-                loaded_task_args = task_args
+                loaded_task_args = previous_task.task_args
                 loaded_task = previous_task.task
             else:
                 loaded_task_args = previous_task.task_args

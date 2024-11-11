@@ -31,6 +31,7 @@ class TaskProfile:
     eval_config: EvalConfig
     task_args: dict[str, Any]
     generate_config: GenerateConfig
+    tags: list[str] | None
     log_location: str
 
 

@@ -77,8 +77,8 @@ export function spawnPython(
   args: string[],
   cwd: AbsolutePath,
   io?: {
-    stdout?: (data: Buffer | string) => void;
-    stderr?: (data: Buffer | string) => void;
+    stdout?: (data: string) => void;
+    stderr?: (data: string) => void;
   },
   lifecycle?: {
     onError?: (error: Error) => void;
@@ -89,7 +89,7 @@ export function spawnPython(
   if (execCommand) {
     const cmd = execCommand[0];
     args = [...execCommand.slice(1), ...args];
-    return spawnProcess(cmd, args, cwd, io, lifecycle);
+    return spawnProcess(cmd, args, { cwd: cwd.path }, io, lifecycle);
   } else {
     throw new Error("No active Python interpreter available.");
   }

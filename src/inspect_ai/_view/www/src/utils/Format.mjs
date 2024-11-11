@@ -16,11 +16,11 @@ export const arrayToString = (val) => {
  * Gets a string for a sample input.
  *
  * @param {(string|Array.<import("../types/log").ChatMessageUser | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageTool>)} input - The input to process. Can be a string or an array of objects containing a content string.
- * @returns {(string | string[])} - The processed string or an array of strings.
+ * @returns {(string[])} - The processed string or an array of strings.
  */
 export const inputString = (input) => {
   if (typeof input === "string") {
-    return input;
+    return [input];
   } else {
     return input.map((inp) => {
       if (typeof inp === "string") {

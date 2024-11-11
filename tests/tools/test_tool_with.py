@@ -1,7 +1,6 @@
 from test_helpers.tools import addition
 
-from inspect_ai.model._call_tools import tool_def
-from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.tool import ToolDef, tool_with
 
 NAME = "my_addition"
 DESCRIPTION = "my description"
@@ -17,7 +16,7 @@ def test_tool_with():
         parameters={"x": X_DESCRIPTION, "y": Y_DESCRIPTION},
     )
 
-    tdef = tool_def(tool)
+    tdef = ToolDef(tool)
 
     assert tdef.name == NAME
     assert tdef.description == DESCRIPTION

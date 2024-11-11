@@ -1,18 +1,80 @@
 # Changelog
 
-## Unreleased
+## Unreleased 
 
+- [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
+- Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
+- The log viewer now properly displays sample errors in the sample list for `eval` format log files.
+- Improve path handling when using `inspect log convert` to convert a single log file.
+
+## v0.3.45 (11 November 2024)
+
+- [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) option for specifying a maximum execution time for samples.
+- [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
+- Groq: Support for multi-modal models (requires v0.11.0 of groq package).
+- AzureAI: Use Model Inference API (preview) for implementation of model client.
+- Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
+- Apply standard sample error handling (fail-on-error, etc.) when running scorers.
+- Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
+- Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
+- Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
+- Log model calls when model providers return bad request errors
+- Better lay out large numbers of configuration and parameters when displaying log files.
+- The log viewer now properly displays sample scores for running tasks.
+- Add `metadata` field to `ModelOutput` and provide varioius fields for the Groq provider.
+
+## v0.3.44 (04 November 2024)
+
+- Revert change to single epoch reducer behavior (regressed some scoring scenarios).
+
+## v0.3.43 (04 November 2024)
+
+- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
+- [Grok](https://docs.x.ai/) model provider.
+- [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) local model provider.
+- Extensions: correctly load extensions in packages where package name differs from dist name.
+- Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
+- View: properly render complex score objects in transcript.
+- Write custom tool call views into transcript for use by Inspect View.
+- Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
+- OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already interally validate).
+- Mistral: fix bug where base_url was not respected when passing both an api_key and base_url.
+- Don't include package scope for task name part of log files.
+- Improve performance of write_file for Docker sandboxes.
+- Use user_data_dir rather than user_runtime_dir for view notifications.
+- Implement `read_eval_log_sample()` for JSON log files.
+- Log the list of dataset sample IDs.
+- Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
+- Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
+- Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
+- Support all JSON and CSV dataset arguments in `file_dataset()` function.
+
+
+## v0.3.42 (23 October 2024)
+
+- [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- Added `--tags` option to eval for tagging evaluation runs.
+- Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
 - Cleanup Docker Containers immediately for samples with errors.
+- Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
 - Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
 - Anthropic: ensure that we never send empty text content to the API.
 - Google: compatibility with google-generativeai v0.8.3
 - Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
+- OpenAI: Remove tool call id in user message reporting tool calls to o1- models.
 - Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
-- Requirements: require semver>=3.0.0
+- Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
+- Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.
+- Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.
+- Added `include_history` option to model graded scorers to optionally include the full chat history in the presented question.
 - Added `delimiter` option to `csv_dataset()` (defaults to ",")
+- Improve answer detection in multiple choice scorer.
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Capture `list` and `dict` of registry objects when logging `plan`.
 - Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
 - Correct directory handling for tasks that are imported as local (non-package) modules.
+- Basic agent: terminate agent loop when the context window is exceeded.
 - Call tools sequentially when they have opted out of parallel calling.
 - Inspect view bundle: support for bundling directories with nested subdirectories.
 - Bugfix: strip protocol prefix when resolving eval event content

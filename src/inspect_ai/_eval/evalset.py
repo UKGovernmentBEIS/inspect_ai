@@ -1,7 +1,7 @@
 import hashlib
 import logging
 from copy import deepcopy
-from typing import Any, Callable, NamedTuple, Set, cast
+from typing import Any, Callable, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic_core import to_json
@@ -52,22 +52,25 @@ def eval_set(
     retry_cleanup: bool | None = None,
     model: str | Model | list[str] | list[Model] | None = None,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    task_args: dict[str, Any] = dict(),
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    tags: list[str] | None = None,
     trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -95,18 +98,21 @@ def eval_set(
         retry_cleanup (bool | None): Cleanup failed log files after retries
           (defaults to True)
         model (str | Model | list[str] | list[Model] | None): Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+          evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+          environment variable.
         model_base_url: (str | None): Base URL for communicating
-            with the model API.
-        model_args (dict[str,Any]): Model creation parameters
-        task_args (dict[str,Any]): Task arguments
+          with the model API.
+        model_args (dict[str,Any] | str): Model creation args
+          (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+          (as a dictionary or as a path to a JSON or YAML config file)
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
            evaluating task(s). ptional (uses task solver by default).
+        tags (list[str] | None): Tags to associate with this evaluation run.
         trace: (bool | None): Trace message interactions with evaluated model to terminal.
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
@@ -115,6 +121,8 @@ def eval_set(
         log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
           "info", "warning", "error", or "critical" (defaults to "warning")
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
+        log_format (Literal["eval", "json"] | None): Format for writing
+          log files (defaults to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -127,6 +135,7 @@ def eval_set(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -136,8 +145,9 @@ def eval_set(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file
-            (defaults to 10 for local filesystems and 100 for remote filesystems)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
@@ -163,17 +173,20 @@ def eval_set(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            tags=tags,
             trace=trace,
             approval=approval,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -292,10 +305,10 @@ def eval_set(
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
         # for those that haven't run, schedule them into models => tasks groups
-        log_task_identifers = [log.task_identifier for log in all_logs]
-        all_tasks = [(task_identifer(task), task) for task in resolved_tasks]
+        log_task_identifiers = [log.task_identifier for log in all_logs]
+        all_tasks = [(task_identifier(task), task) for task in resolved_tasks]
         pending_tasks = [
-            task[1] for task in all_tasks if task[0] not in log_task_identifers
+            task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
         task_groups = schedule_pending_tasks(pending_tasks)
 
@@ -325,18 +338,18 @@ def eval_set(
             # retry the failed logs (look them up in resolved_tasks)
             if len(failed_logs) > 0:
                 # schedule the re-execution of the failed tasks
-                failed_task_identifers = [log.task_identifier for log in failed_logs]
+                failed_task_identifiers = [log.task_identifier for log in failed_logs]
                 failed_tasks = [
                     task
                     for task in resolved_tasks
-                    if task_identifer(task) in failed_task_identifers
+                    if task_identifier(task) in failed_task_identifiers
                 ]
                 task_groups = schedule_retry_tasks(failed_tasks)
 
                 # execute task groups (run previous task so we get the samples from the log)
                 def run_previous_tasks(tasks: list[ResolvedTask]) -> list[PreviousTask]:
                     def task_to_failed_log(task: ResolvedTask) -> Log:
-                        resolved_task_identifier = task_identifer(task)
+                        resolved_task_identifier = task_identifier(task)
                         return next(
                             log
                             for log in failed_logs
@@ -439,11 +452,11 @@ class Log(NamedTuple):
 def list_all_eval_logs(log_dir: str) -> list[Log]:
     log_files = list_eval_logs(log_dir)
     log_headers = read_eval_log_headers(log_files)
-    task_identifers = [task_identifer(log_header) for log_header in log_headers]
+    task_identifiers = [task_identifier(log_header) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
         for info, header, task_identifier in zip(
-            log_files, log_headers, task_identifers
+            log_files, log_headers, task_identifiers
         )
     ]
 
@@ -518,13 +531,13 @@ def validate_eval_set_prerequisites(
     # do all resolved tasks have unique identfiers?
     task_identifiers: Set[str] = set()
     for task in resolved_tasks:
-        identifer = task_identifer(task)
-        if identifer in task_identifiers:
+        identifier = task_identifier(task)
+        if identifier in task_identifiers:
             raise PrerequisiteError(
                 f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Solvers passed to tasks should also use the @solver decorator."
             )
         else:
-            task_identifiers.add(identifer)
+            task_identifiers.add(identifier)
 
     # do all logs in the log directory correspond to task identifiers?
     for log in all_logs:
@@ -537,7 +550,7 @@ def validate_eval_set_prerequisites(
 
 
 # yield a unique identifier for a task (used to pair resolved tasks to log files)
-def task_identifer(task: ResolvedTask | EvalLog) -> str:
+def task_identifier(task: ResolvedTask | EvalLog) -> str:
     if isinstance(task, ResolvedTask):
         task_file = task.task_file or ""
         task_name = task.task.name
@@ -560,7 +573,7 @@ def task_identifer(task: ResolvedTask | EvalLog) -> str:
         return f"{task_name}#{task_args_hash}/{model}"
 
 
-def task_identifer_without_model(identifier: str) -> str:
+def task_identifier_without_model(identifier: str) -> str:
     parts = identifier.split("/")
     parts = parts[:-2]
     identifier = "/".join(parts)
@@ -600,7 +613,7 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
     # build a map of task identifiers and the models they target
     task_id_model_targets: dict[str, ModelList] = {}
     for pending_task in pending_tasks:
-        task_id = task_identifer_without_model(task_identifer(pending_task))
+        task_id = task_identifier_without_model(task_identifier(pending_task))
         if task_id not in task_id_model_targets:
             task_id_model_targets[task_id] = ModelList([])
         if pending_task.model not in task_id_model_targets[task_id].models:
@@ -629,7 +642,8 @@ def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]
                     (
                         task
                         for task in pending_tasks
-                        if task_id == task_identifer_without_model(task_identifer(task))
+                        if task_id
+                        == task_identifier_without_model(task_identifier(task))
                     )
                 )
             )

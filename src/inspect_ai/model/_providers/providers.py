@@ -16,7 +16,7 @@ from .._registry import modelapi
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
     PACKAGE = "groq"
-    MIN_VERSION = "0.1.0"
+    MIN_VERSION = "0.11.0"
 
     # verify we have the package
     try:
@@ -148,7 +148,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.1.0"
+    MIN_VERSION = "1.2.0"
 
     # verify we have the package
     try:
@@ -163,6 +163,17 @@ def mistral() -> type[ModelAPI]:
     from .mistral import MistralAPI
 
     return MistralAPI
+
+
+@modelapi(name="grok")
+def grok() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Grok API")
+
+    # in the clear
+    from .grok import GrokAPI
+
+    return GrokAPI
 
 
 @modelapi(name="together")
@@ -187,8 +198,28 @@ def ollama() -> type[ModelAPI]:
     return OllamaAPI
 
 
+@modelapi(name="llama-cpp-python")
+def llama_cpp_python() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("llama-cpp-python API")
+
+    # in the clear
+    from .llama_cpp_python import LlamaCppPythonAPI
+
+    return LlamaCppPythonAPI
+
+
 @modelapi(name="azureai")
 def azureai() -> type[ModelAPI]:
+    FEATURE = "AzureAI API"
+    PACKAGE = "azure-ai-inference"
+
+    # verify we have the package
+    try:
+        import azure.ai.inference  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
     from .azureai import AzureAIAPI
 
     return AzureAIAPI

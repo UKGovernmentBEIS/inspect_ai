@@ -18,6 +18,8 @@ class SandboxEnvironment:
             decoding the command output.
           PermissionError: If the user does not have
             permission to execute the command.
+          OutputLimitExceededError: If an output stream
+            exceeds the 1 MiB limit.
         """
         ...
 
@@ -45,6 +47,8 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to read from the specified path.
           IsADirectoryError: If the file is a directory.
+          OutputLimitExceededError: If the file size
+            exceeds the 100 MiB limit.
         """
         ...
 ```

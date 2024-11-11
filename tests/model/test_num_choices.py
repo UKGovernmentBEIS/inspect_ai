@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import (
     skip_if_github_action,
+    skip_if_no_grok,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_no_vllm,
@@ -28,6 +29,11 @@ async def test_openai_num_choices() -> None:
     await check_num_choices("openai/gpt-3.5-turbo")
 
 
+@skip_if_no_grok
+async def test_grok_num_choices() -> None:
+    await check_num_choices("grok/grok-beta")
+
+
 @pytest.mark.asyncio
 @skip_if_no_together
 async def test_together_num_choices() -> None:
@@ -39,9 +45,3 @@ async def test_together_num_choices() -> None:
 @skip_if_no_vllm
 async def test_vllm_num_choices() -> None:
     await check_num_choices("vllm/EleutherAI/pythia-70m")
-
-
-# @pytest.mark.asyncio
-# @skip_if_no_azureai
-# async def test_azureai_num_choices() -> None:
-#     await check_num_choices(None)

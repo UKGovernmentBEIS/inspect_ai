@@ -55,8 +55,8 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
-    *args: list[Any],
-    **kwargs: dict[str, Any],
+    *args: Any,
+    **kwargs: Any,
 ) -> None:
     r"""Tag an object w/ registry info.
 
@@ -72,19 +72,11 @@ def registry_tag(
         *args (list[Any]): Creation arguments
         **kwargs (dict[str,Any]): Creation keyword arguments
     """
-    # determine arg names and add them to kwargs
+    # bind arguments to params
     named_params: dict[str, Any] = {}
-    if len(args) > 0:
-        params = list(inspect.signature(type).parameters.keys())
-        for i, arg in enumerate(args):
-            named_params[params[i]] = arg
-    named_params |= kwargs
-
-    # serialise registry objects with RegistryDict
-    for param in named_params.keys():
-        value = named_params[param]
-        if has_registry_params(value):
-            named_params[param] = registry_dict(value)
+    bound_params = inspect.signature(type).bind(*args, **kwargs)
+    for param, value in bound_params.arguments.items():
+        named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -279,17 +271,21 @@ def registry_log_name(o: str | object) -> str:
     return name.replace(f"{PKG_NAME}/", "", 1)
 
 
-def registry_unqualified_name(o: object | RegistryInfo) -> str:
+def registry_unqualified_name(o: str | object | RegistryInfo) -> str:
     r"""Unqualified name of object (i.e. without package prefix).
 
     Args:
-        o (object | str): Object or name to get unqualified name for
+        o (str | object | RegistryInfo): string, registry object, or RegistryInfo to get unqualified name for.
 
     Returns:
         Unqualified name of object
     """
-    info = o if isinstance(o, RegistryInfo) else registry_info(o)
-    parts = info.name.split("/")
+    if isinstance(o, str):
+        name = o
+    else:
+        info = o if isinstance(o, RegistryInfo) else registry_info(o)
+        name = info.name
+    parts = name.split("/")
     if len(parts) == 1:
         return parts[0]
     else:
@@ -377,10 +373,24 @@ def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
     return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
 
 
-def registry_dict(o: object) -> RegistryDict:
-    return dict(
-        type=registry_info(o).type, name=registry_log_name(o), params=registry_params(o)
-    )
+def registry_value(o: object) -> Any:
+    # treat tuple as list
+    if isinstance(o, tuple):
+        o = list(o)
+
+    # recurse through collection types
+    if isinstance(o, list):
+        return [registry_value(x) for x in o]
+    elif isinstance(o, dict):
+        return {k: registry_value(v) for k, v in o.items()}
+    elif has_registry_params(o):
+        return dict(
+            type=registry_info(o).type,
+            name=registry_log_name(o),
+            params=registry_params(o),
+        )
+    else:
+        return o
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:

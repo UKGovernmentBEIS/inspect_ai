@@ -77,15 +77,15 @@ def basic_agent(
     Args:
        init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
-       tools (list[Tool] | Solver | None): Tools available for the agent. Either a
+       tools (list[Tool | ToolDef] | Solver | None): Tools available for the agent. Either a
          list of tools or a Solver that can yield dynamic tools per-sample.
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
-       message_limit (int): Limit on messages in sample before terminating agent.
+       message_limit (int | None): Limit on messages in sample before terminating agent.
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task, 50 will be used as a default.
-       token_limit (int): Limit on tokens used in sample before terminating agent.
+       token_limit (int | None): Limit on tokens used in sample before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -171,6 +171,13 @@ def basic_agent(
                 )
                 state.messages.append(state.output.message)
 
+                # check for context window overflow
+                if state.output.stop_reason == "model_length":
+                    from inspect_ai.log._transcript import transcript
+
+                    transcript().info("Agent terminated: model context window exceeded")
+                    break
+
                 # resolve tools calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
@@ -198,9 +205,8 @@ def basic_agent(
                                 ChatMessageUser(content=incorrect_message)
                             )
 
-                # no tool calls: model gave up without submitting, urge the
-                # model to continue unless it exceeded its context window
-                elif state.output.stop_reason != "model_length":
+                # no tool calls, urge the model to continue
+                else:
                     state.messages.append(ChatMessageUser(content=continue_message))
 
             return state

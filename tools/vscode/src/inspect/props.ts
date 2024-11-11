@@ -6,13 +6,14 @@ import { AbsolutePath, toAbsolutePath } from "../core/path";
 import { Disposable } from "vscode";
 import { runProcess } from "../core/process";
 import { join } from "path";
-import { userRuntimeDir } from "../core/appdirs";
+import { userDataDir, userRuntimeDir } from "../core/appdirs";
 import { kInspectChangeEvalSignalVersion } from "../providers/inspect/inspect-constants";
 import { existsSync } from "fs";
 
 const kPythonPackageName = "inspect_ai";
 
 export interface VersionDescriptor {
+  raw: string;
   version: SemVer,
   isDeveloperBuild: boolean
 }
@@ -96,6 +97,7 @@ export function inspectVersionDescriptor(): VersionDescriptor | null {
         if (parsedVersion) {
           const isDeveloperVersion = version.version.indexOf('.dev') > -1;
           const inspectVersion = {
+            raw: version.version,
             version: parsedVersion,
             isDeveloperBuild: isDeveloperVersion
           };
@@ -180,18 +182,16 @@ export function inspectBinPath(): AbsolutePath | null {
   }
 }
 
-export function inspectLastEvalPath(): AbsolutePath | null {
+export function inspectLastEvalPaths(): AbsolutePath[]  {
   const descriptor = inspectVersionDescriptor();
   const fileName =
     descriptor && descriptor.version.compare(kInspectChangeEvalSignalVersion) < 0
       ? "last-eval"
       : "last-eval-result";
-  const lastEvalFile = join(
-    userRuntimeDir(kPythonPackageName),
-    "view",
-    fileName
-  );
-  return toAbsolutePath(lastEvalFile);
+  
+  return [userRuntimeDir(kPythonPackageName), userDataDir(kPythonPackageName)]
+    .map(dir => join(dir, "view", fileName))
+    .map(toAbsolutePath);
 }
 
 function inspectFileName(): string {

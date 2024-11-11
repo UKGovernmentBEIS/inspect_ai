@@ -122,7 +122,7 @@ async def score_async(
             epochs_reducer = reducers_from_log(log)
 
         # compute metrics
-        log.results = eval_results(
+        log.results, log.reductions = eval_results(
             len(log.samples), scores, epochs_reducer, scorers, log_metrics
         )
 
@@ -163,7 +163,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
             if sample.scores is not None
         ]
 
-        log.results = eval_results(
+        log.results, log.reductions = eval_results(
             log.results.total_samples if log.results else 0,
             sample_scores,
             task.epochs_reducer,

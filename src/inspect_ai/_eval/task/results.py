@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, cast
+from typing import Any, Tuple, cast
 
 from inspect_ai._util.registry import (
     registry_info,
@@ -31,9 +31,10 @@ def eval_results(
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scorers: list[Scorer] | None,
     metrics: list[Metric] | dict[str, list[Metric]] | None,
-) -> EvalResults:
+) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
+    reductions = None
 
     # record scorer
     if scorers:
@@ -122,9 +123,9 @@ def eval_results(
                     )
             # build results
         results.scores = result_scores
-        results.sample_reductions = sample_reductions
+        reductions = sample_reductions
 
-    return results
+    return results, reductions
 
 
 def resolve_reducer(

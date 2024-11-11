@@ -1,4 +1,6 @@
-# Agents {#sec-agents}
+---
+title: Agents 
+---
 
 ## Overview
 
@@ -346,7 +348,7 @@ The following instance methods are available to tools that need to interact with
 
 {{< include _sandboxenv-interface.md >}}
 
-The sandbox is also available to custom [scorers](#sec-sandbox-access).
+The sandbox is also available to custom scorers.
 
 ### Environment Binding
 
@@ -378,8 +380,6 @@ By default, any `Dockerfile` and/or `compose.yaml` file within the task director
 ``` python
 sandbox=("docker", "attacker-compose.yaml")
 ```
-
-The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically).
 
 ### Per Sample Setup
 

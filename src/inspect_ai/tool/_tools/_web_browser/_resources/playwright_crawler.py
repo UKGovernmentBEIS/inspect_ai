@@ -9,6 +9,7 @@ import enum
 import logging
 import re
 import time
+from os import getenv
 from typing import Any, Literal
 
 import accessibility_node as at
@@ -61,6 +62,7 @@ class PlaywrightBrowser:
             permissions=["geolocation"],
             timezone_id="Europe/London",
             viewport={"width": self.WIDTH, "height": self.HEIGHT},
+            ignore_https_errors=getenv("IGNORE_HTTPS_ERRORS", "") != "",
         )
 
     def close(self):

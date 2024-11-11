@@ -2,8 +2,8 @@ from logging import getLogger
 from typing import (
     Any,
     Callable,
+    ParamSpec,
     Protocol,
-    TypeVar,
     Union,
     cast,
     overload,
@@ -187,15 +187,10 @@ class Metric(Protocol):
     def __call__(self, scores: list[Score]) -> Value: ...
 
 
-MetricType = TypeVar("MetricType", Callable[..., Metric], type[Metric])
-r"""Metric type.
-Valid metric types include:
- - Functions that return a Metric
- - Classes derived from Metric
-"""
+P = ParamSpec("P")
 
 
-def metric_register(metric: MetricType, name: str = "") -> MetricType:
+def metric_register(metric: Callable[P, Metric], name: str = "") -> Callable[P, Metric]:
     r"""Register a function or class as a metric.
 
     Args:
@@ -229,19 +224,17 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
 
 
 @overload
-def metric(name: str) -> Callable[..., MetricType]: ...
+def metric(name: str) -> Callable[[Callable[P, Metric]], Callable[P, Metric]]: ...
 
 
 @overload
 # type: ignore
-def metric(name: Callable[..., Metric]) -> Callable[..., Metric]: ...
+def metric(name: Callable[P, Metric]) -> Callable[P, Metric]: ...
 
 
-@overload
-def metric(name: type[Metric]) -> type[Metric]: ...
-
-
-def metric(name: str | MetricType) -> Callable[..., MetricType] | MetricType:
+def metric(
+    name: str | Callable[P, Metric],
+) -> Callable[[Callable[P, Metric]], Callable[P, Metric]] | Callable[P, Metric]:
     r"""Decorator for registering metrics.
 
     Args:
@@ -257,13 +250,13 @@ def metric(name: str | MetricType) -> Callable[..., MetricType] | MetricType:
     #  (b) Ensure that instances of Metric created by MetricType also
     #      carry registry info.
     def create_metric_wrapper(
-        metric_type: MetricType, name: str | None = None
-    ) -> MetricType:
+        metric_type: Callable[P, Metric], name: str | None = None
+    ) -> Callable[P, Metric]:
         metric_name = registry_name(
             metric_type, name if name else getattr(metric_type, "__name__")
         )
 
-        def metric_wrapper(*args: Any, **kwargs: Any) -> Metric:
+        def metric_wrapper(*args: P.args, **kwargs: P.kwargs) -> Metric:
             metric = metric_type(*args, **kwargs)
             registry_tag(
                 metric_type,
@@ -274,12 +267,12 @@ def metric(name: str | MetricType) -> Callable[..., MetricType] | MetricType:
             )
             return metric
 
-        return metric_register(cast(MetricType, metric_wrapper), metric_name)
+        return metric_register(cast(Callable[P, Metric], metric_wrapper), metric_name)
 
     # for decorators with an explicit name, one more wrapper for the name
     if isinstance(name, str):
 
-        def wrapper(metric_type: MetricType) -> MetricType:
+        def wrapper(metric_type: Callable[P, Metric]) -> Callable[P, Metric]:
             return create_metric_wrapper(metric_type, name)
 
         return wrapper

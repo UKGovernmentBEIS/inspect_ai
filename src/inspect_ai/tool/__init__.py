@@ -10,7 +10,9 @@ from ._tool_call import (
     ToolCallViewer,
 )
 from ._tool_choice import ToolChoice, ToolFunction
-from ._tool_info import ToolInfo, ToolParam, ToolParams
+from ._tool_def import ToolDef
+from ._tool_info import ToolInfo
+from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._execute import bash, python
 from ._tools._web_browser import web_browser
@@ -35,6 +37,7 @@ __all__ = [
     "ToolCallView",
     "ToolCallViewer",
     "ToolChoice",
+    "ToolDef",
     "ToolFunction",
     "ToolInfo",
     "ToolParam",

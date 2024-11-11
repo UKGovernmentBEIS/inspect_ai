@@ -100,6 +100,8 @@ class ModelOutput(BaseModel):
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
 
+    metadata: dict[str, Any] | None = Field(default=None)
+
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
 
@@ -161,6 +163,7 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
+        tool_call_id: str | None = None,
         content: str | None = None,
     ) -> "ModelOutput":
         """
@@ -170,6 +173,7 @@ class ModelOutput(BaseModel):
             model: model name
             tool_name: The name of the tool.
             tool_arguments: The arguments passed to the tool.
+            tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
 
         Returns:
@@ -177,6 +181,9 @@ class ModelOutput(BaseModel):
         """
         if content is None:
             content = f"tool call for tool {tool_name}"
+
+        if tool_call_id is None:
+            tool_call_id = f"for_tool_call_{uuid.uuid4()}"
 
         return ModelOutput(
             model=model,
@@ -187,7 +194,7 @@ class ModelOutput(BaseModel):
                         source="generate",
                         tool_calls=[
                             ToolCall(
-                                id=f"for_tool_call_{uuid.uuid4()}",
+                                id=tool_call_id,
                                 function=tool_name,
                                 arguments=tool_arguments,
                                 type="function",

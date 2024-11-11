@@ -11,7 +11,7 @@ from inspect_ai._display._display import clear_task_screen, init_task_screen
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog
-from inspect_ai.log._log import Recorder
+from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -42,6 +42,7 @@ async def eval_run(
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
+    tags: list[str] | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -87,7 +88,7 @@ async def eval_run(
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
-                # token_limit, and fail_on_error so broadcast these
+                # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
                 task = resolved_task.task
@@ -126,11 +127,22 @@ async def eval_run(
                 else:
                     task.token_limit = task_eval_config.token_limit
 
+                # sample time limit
+                if task_eval_config.time_limit is None:
+                    task_eval_config.time_limit = task.time_limit
+                else:
+                    task.time_limit = task_eval_config.time_limit
+
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
+
+                # add sample ids to dataset if they aren't there (start at 1 not 0)
+                for id, sample in enumerate(task.dataset):
+                    if sample.id is None:
+                        sample.id = id + 1
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -140,6 +152,7 @@ async def eval_run(
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
                     solver=eval_solver_spec,
+                    tags=tags,
                     model=resolved_task.model,
                     dataset=task.dataset,
                     sandbox=resolved_task.sandbox,
@@ -161,6 +174,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         solver=eval_solver,
+                        tags=tags,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

@@ -153,7 +153,14 @@ def _cache_key(entry: CacheEntry) -> str:
 
     base_string = "|".join([str(component) for component in components])
 
+    logger.debug(_cache_key_debug_string([str(component) for component in components]))
+
     return md5(base_string.encode("utf-8")).hexdigest()
+
+
+def _cache_key_debug_string(components: list[str]) -> str:
+    components_str = "\n".join(f"  - {component}" for component in components)
+    return f"Computed cache key from components:\n{components_str}"
 
 
 def _cache_expiry(policy: CachePolicy) -> datetime | None:

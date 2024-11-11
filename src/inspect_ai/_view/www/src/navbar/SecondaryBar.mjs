@@ -2,9 +2,30 @@ import { html } from "htm/preact";
 
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset } from "../utils/Format.mjs";
+import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
 
-export const SecondaryBar = ({ log, status, style }) => {
-  if (!log || status !== "success") {
+/**
+ * Renders the Navbar
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
+ * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
+ * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {string} [props.status] - the status
+ * @param {Map<string, string>} [props.style] - is this off canvas
+ *
+ * @returns {import("preact").JSX.Element | string} The TranscriptView component.
+ */
+export const SecondaryBar = ({
+  evalSpec,
+  evalPlan,
+  evalResults,
+  samples,
+  status,
+  style,
+}) => {
+  if (!evalSpec || status !== "success") {
     return "";
   }
 
@@ -12,10 +33,10 @@ export const SecondaryBar = ({ log, status, style }) => {
     flexShrink: "0",
   };
 
-  const epochs = log.eval.config.epochs || 1;
+  const epochs = evalSpec.config.epochs || 1;
   const hyperparameters = {
-    ...log.plan.config,
-    ...log.eval.task_args,
+    ...evalPlan?.config,
+    ...evalSpec.task_args,
   };
 
   const hasConfig = Object.keys(hyperparameters).length > 0;
@@ -25,19 +46,19 @@ export const SecondaryBar = ({ log, status, style }) => {
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="Dataset" style=${staticColStyle}>
     <${DatasetSummary}
-      dataset=${log.eval?.dataset}
-      samples=${log.samples}
+      dataset=${evalSpec.dataset}
+      samples=${samples}
       epochs=${epochs} />
   </${LabeledValue}>
 `,
   });
 
-  const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
+  const label = evalResults?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
     <${ScorerSummary} 
-      scorers=${log?.results?.scores} />
+      scorers=${evalResults?.scores} />
   </${LabeledValue}>`,
   });
 
@@ -51,6 +72,7 @@ export const SecondaryBar = ({ log, status, style }) => {
   }
 
   return html`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
         margin: "0",
@@ -63,13 +85,13 @@ export const SecondaryBar = ({ log, status, style }) => {
             return val.size;
           })
           .join(" ")}`,
-        ...style,
       }}
     >
       ${values.map((val) => {
         return val.value;
       })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 
@@ -100,12 +122,24 @@ const ScorerSummary = ({ scorers }) => {
   return Array.from(uniqScorers).join(", ");
 };
 
+/**
+ * A component that displays a summary of parameters.
+ *
+ * @param {Object} props - The component props.
+ * @param {Record<string, any>} props.params - An object containing key-value pairs representing parameters.
+ * @returns {import("preact").JSX.Element | string} The component.
+ */
 const ParamSummary = ({ params }) => {
   if (!params) {
     return "";
   }
   const paraValues = Object.keys(params).map((key) => {
-    return `${key}: ${params[key]}`;
+    const val = params[key];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return html`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}

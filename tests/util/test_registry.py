@@ -3,9 +3,9 @@ from typing import cast
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     registry_create_from_dict,
-    registry_dict,
     registry_info,
     registry_lookup,
+    registry_value,
 )
 from inspect_ai.scorer import Metric, Score, metric
 from inspect_ai.solver import Plan, Solver, solver, use_tools
@@ -35,7 +35,7 @@ def test_registry_dict() -> None:
         return use_tools(tool)
 
     mysolver = create_solver(bash(timeout=10))
-    solver_dict = registry_dict(mysolver)
+    solver_dict = registry_value(mysolver)
     assert solver_dict["type"] == "solver"
     assert solver_dict["params"]["tool"]["type"] == "tool"
 

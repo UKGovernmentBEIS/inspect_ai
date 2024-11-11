@@ -1,8 +1,6 @@
-import { MessageItem, Uri, window, workspace } from "vscode";
+import { commands, MessageItem, Uri, window, workspace } from "vscode";
 
-import { InspectLogviewManager } from "./logview-manager";
 import { workspacePath } from "../../core/path";
-import { showError } from "../../components/error";
 import { TerminalLink, TerminalLinkContext } from "vscode";
 import { existsSync } from "fs";
 import { basename } from "path";
@@ -13,7 +11,7 @@ interface LogViewTerminalLink extends TerminalLink {
   data: string;
 }
 
-export const logviewTerminalLinkProvider = (manager: InspectLogviewManager) => {
+export const logviewTerminalLinkProvider = () => {
   return {
     provideTerminalLinks: (
       context: TerminalLinkContext,
@@ -46,9 +44,9 @@ export const logviewTerminalLinkProvider = (manager: InspectLogviewManager) => {
       // Resolve the clicked link into a complete Uri to the file
       const logUri = await resolveLogFile(link.data);
       if (logUri) {
-        manager.showLogFile(logUri, "activate").catch(async (err: Error) => {
-          await showError("Failed to preview log file - failed to start Inspect View", err);
-        });
+
+        await commands.executeCommand("inspect.openLogViewer", logUri);
+
       } else {
         // Since we couldn't resolve the log file, just let the user know
         const close: MessageItem = { title: "Close" };
