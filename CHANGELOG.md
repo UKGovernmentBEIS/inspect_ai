@@ -6,6 +6,7 @@
 - Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
 - The log viewer now properly displays sample errors in the sample list for `eval` format log files.
 - Improve path handling when using `inspect log convert` to convert a single log file.
+- Web browser tool: Subtasks now each have independent web browser sessions.
 
 ## v0.3.45 (11 November 2024)
 
