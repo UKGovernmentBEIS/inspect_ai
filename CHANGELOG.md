@@ -7,6 +7,7 @@
 - The log viewer now properly displays sample errors in the sample list for `eval` format log files.
 - Improve path handling when using `inspect log convert` to convert a single log file.
 - Web browser tool: Subtasks now each have independent web browser sessions.
+- Anthropic: Ensure that assistant messages created in generate never have empty content lists.
 
 ## v0.3.45 (11 November 2024)
 

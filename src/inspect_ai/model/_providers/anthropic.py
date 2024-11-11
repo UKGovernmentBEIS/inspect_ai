@@ -516,6 +516,11 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
                 )
             )
 
+    # if content is empty that is going to result in an error when we replay
+    # this message to claude, so in that case insert a NO_CONTENT message
+    if len(content) == 0:
+        content = [ContentText(text=NO_CONTENT)]
+
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
