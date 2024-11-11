@@ -19543,7 +19543,9 @@ const SampleError = ({ message, align, style }) => {
     height: FontSize.small
   }}
     />
-    <div>${errorType(message)}</div>
+    <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
+      ${errorType(message)}
+    </div>
   </div>`;
 };
 const FlatSampleError = ({ message, style }) => {
@@ -20461,7 +20463,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sample.error ? m$1`<${SampleError} message=${sample.error.message} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError} message=${sample.error} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
@@ -23207,13 +23209,15 @@ const clientApi = (api2) => {
     } else {
       const logContents = await get_log(log_file);
       const sampleSummaries = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample) => {
+        var _a3;
         return {
           id: sample.id,
           epoch: sample.epoch,
           input: sample.input,
           target: sample.target,
           scores: sample.scores,
-          metadata: sample.metadata
+          metadata: sample.metadata,
+          error: (_a3 = sample.error) == null ? void 0 : _a3.message
         };
       }) : [];
       const parsed = logContents.parsed;

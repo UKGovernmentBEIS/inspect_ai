@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 
 /**
  * Component to display a styled error message.
@@ -34,7 +35,9 @@ export const SampleError = ({ message, align, style }) => {
         height: FontSize.small,
       }}
     />
-    <div>${errorType(message)}</div>
+    <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
+      ${errorType(message)}
+    </div>
   </div>`;
 };
 
