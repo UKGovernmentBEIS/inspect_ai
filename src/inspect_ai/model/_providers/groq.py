@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, Dict, Iterable, List, Literal, Optional, cast
 
 from groq import (
     AsyncGroq,
@@ -210,7 +210,7 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         return ChatCompletionSystemMessageParam(role="system", content=message.text)
 
     elif isinstance(message, ChatMessageUser):
-        content = (
+        content: str | Iterable[ChatCompletionContentPartParam] = (
             message.content
             if isinstance(message.content, str)
             else [await as_chat_completion_part(content) for content in message.content]
