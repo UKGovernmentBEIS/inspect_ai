@@ -97,15 +97,16 @@ class RichDisplay(Display):
                 ) as live,
             ):
                 # save reference to live
-                self.live = live
+                with RichTaskScreen(live) as task_screen:
+                    self.live = live
 
-                # enque a display update
-                self.timer_handle = asyncio.get_event_loop().call_later(
-                    1, self._update_display
-                )
+                    # enque a display update
+                    self.timer_handle = asyncio.get_event_loop().call_later(
+                        1, self._update_display
+                    )
 
-                # yield
-                yield RichTaskScreen(live)
+                    # yield
+                    yield task_screen
 
                 # render task results (re-enable live if necessary)
                 if not live.is_started:
@@ -165,17 +166,13 @@ class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         self.theme = rich_theme()
         self.live = live
-
-    @override
-    async def start(self) -> None:
         status_text = "Working" if trace_enabled() else "Task running"
         self.status = self.live.console.status(
             f"[{self.theme.meta} bold]{status_text}...[/{self.theme.meta} bold]",
             spinner="clock",
         )
 
-    @override
-    async def stop(self) -> None:
+    def __exit__(self, *excinfo: Any) -> None:
         self.status.stop()
 
     @override

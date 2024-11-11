@@ -57,7 +57,8 @@ class TextualDisplay(Display):
     @override
     @contextlib.contextmanager
     def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
-        yield TextualTaskScreen()
+        with TextualTaskScreen() as task_screen:
+            yield task_screen
 
     @override
     @contextlib.contextmanager
@@ -76,14 +77,10 @@ class TextualProgress(Progress):
 
 
 class TextualTaskScreen(TaskScreen):
-    def __init__(self) -> None: ...
+    def __init__(self) -> None:
+        super().__init__()
 
-    @override
-    async def start(self) -> None:
-        pass
-
-    @override
-    async def stop(self) -> None:
+    def __exit__(self, *excinfo: Any) -> None:
         pass
 
     @override

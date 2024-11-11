@@ -67,16 +67,7 @@ class TaskWithResult:
 TR = TypeVar("TR")
 
 
-class TaskScreen:
-    @abc.abstractmethod
-    async def start(self) -> None: ...
-
-    @abc.abstractmethod
-    async def stop(self) -> None: ...
-
-    def cancel_on_exit(self) -> bool:
-        return False
-
+class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     @abc.abstractmethod
     @contextlib.contextmanager
     def input_screen(
