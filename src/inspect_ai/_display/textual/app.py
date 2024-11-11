@@ -3,7 +3,7 @@ from typing import Any, Coroutine
 
 from textual.app import App, ComposeResult
 from textual.events import Print
-from textual.widgets import Footer, Header
+from textual.widgets import Footer, Header, TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
@@ -11,7 +11,9 @@ from inspect_ai._util.terminal import detect_terminal_background
 
 from ..core.display import TR
 from ..core.rich import rich_initialise
-from .widgets.log import Log
+from .widgets.log import LogView
+from .widgets.samples import SamplesView
+from .widgets.tasks import TasksView
 
 
 class TaskScreenApp(App[TR]):
@@ -53,7 +55,14 @@ class TaskScreenApp(App[TR]):
     def compose(self) -> ComposeResult:
         yield Header(classes="header")
         yield Footer()
-        yield Log()
+
+        with TabbedContent(initial="log"):
+            with TabPane("Tasks", id="tasks"):
+                yield TasksView()
+            with TabPane("Samples", id="samples"):
+                yield SamplesView()
+            with TabPane("Log", id="log"):
+                yield LogView()
 
     def on_mount(self) -> None:
         self.workers.start_all()
@@ -64,7 +73,7 @@ class TaskScreenApp(App[TR]):
         if text.endswith("\n"):
             text = text[:-1]
         self.output.append(text)
-        self.query_one(Log).write(text)
+        self.query_one(LogView).write(text)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:
