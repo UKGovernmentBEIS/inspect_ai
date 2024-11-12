@@ -35,24 +35,22 @@ class TextualDisplay(Display):
     @override
     def run_task_app(self, title: str, main: Coroutine[Any, Any, TR]) -> TR:
         # create and run the app
-        app = TaskScreenApp[TR](title, main)
-        app.run()
+        app = TaskScreenApp[TR](title)
+        result = app.run_app(main)
 
         # print output
-        print("\n".join(app.output))
+        print("\n".join(result.output))
 
         # print tasks
         rich.print(tasks_results(self.results))
 
-        # collect result
-        result = app.result()
-
         # raise error as required
-        if isinstance(result, BaseException):
-            raise result
+        if isinstance(result.value, BaseException):
+            raise result.value
 
-        # return result
-        return result
+        # success! return value
+        else:
+            return result.value
 
     @override
     @contextlib.contextmanager

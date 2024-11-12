@@ -1,5 +1,5 @@
 from asyncio import CancelledError
-from typing import Any, Coroutine
+from typing import Any, Coroutine, Generic, NamedTuple
 
 from textual.app import App, ComposeResult
 from textual.events import Print
@@ -18,26 +18,24 @@ from .widgets.samples import SamplesView
 from .widgets.tasks import TasksView
 
 
+class TaskScreenResult(Generic[TR]):
+    def __init__(self, value: TR | BaseException, output: list[str]) -> None:
+        self.value = value
+        self.output = output
+
+
 class TaskScreenApp(App[TR]):
     CSS_PATH = "app.tcss"
     BINDINGS = [("d", "toggle_dark", "Toggle dark mode")]
 
-    def __init__(self, title: str, main: Coroutine[Any, Any, TR]) -> None:
+    def __init__(self, title: str) -> None:
         # call super
         super().__init__()
 
-        # title
+        # initialise members
         self.title = title
-
-        # worker
-        self.worker: Worker[TR] = self.run_worker(
-            main, start=False, exit_on_error=False
-        )
-
-        # error state
+        self.worker: Worker[TR] | None = None
         self.error: BaseException | None = None
-
-        # captured print output
         self.output: list[str] = []
 
         # dynamically enable dark mode or light mode
@@ -46,13 +44,23 @@ class TaskScreenApp(App[TR]):
         # enable rich hooks
         rich_initialise(self.dark)
 
-    def result(self) -> TR | BaseException:
+    def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
+        # create the worker
+        self.worker = self.run_worker(main, start=False, exit_on_error=False)
+
+        # run the app
+        self.run()
+
+        # determine result value
         if self.return_value is not None:
-            return self.return_value
+            value: TR | BaseException = self.return_value
         elif self.error is not None:
-            return self.error
+            value = self.error
         else:
-            return RuntimeError("No application result available")
+            value = RuntimeError("No application result available")
+
+        # return result w/ output
+        return TaskScreenResult(value=value, output=self.output)
 
     def compose(self) -> ComposeResult:
         yield TaskScreenHeader()
@@ -70,7 +78,7 @@ class TaskScreenApp(App[TR]):
         self.workers.start_all()
         self.begin_capture_print(self)
         header = self.query_one(TaskScreenHeader)
-        header.title = "inspect eval"
+        header.title = self.title
 
     def on_print(self, event: Print) -> None:
         # remove trailing newline
@@ -86,17 +94,17 @@ class TaskScreenApp(App[TR]):
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:
-            self.error = self.worker.error
+            self.error = event.worker.error
             self.exit(None, 1)
         elif event.worker.state == WorkerState.CANCELLED:
             self.error = CancelledError()
             self.exit(None, 1)
         elif event.worker.state == WorkerState.SUCCESS:
-            self.exit(self.worker.result)
+            self.exit(event.worker.result)
 
     @override
     async def action_quit(self) -> None:
-        if self.worker.is_running:
+        if self.worker and self.worker.is_running:
             self.worker.cancel()
 
     def action_toggle_dark(self) -> None:
