@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased 
+## v0.3.46 (12 November 2024) 
 
 - [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
 - Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
