@@ -1,16 +1,30 @@
 from rich.text import Text
+from textual.reactive import reactive
 from textual.widgets import RichLog
 
 
 class LogView(RichLog):
+    # enable tab container to print our unread count
+    unread: reactive[int | None] = reactive(None)
+
     def __init__(self) -> None:
         super().__init__()
+        self.active = False
         self.show_horizontal_scrollbar = False
+
+    def notify_active(self, active: bool) -> None:
+        self.active = active
+        if self.active:
+            self.unread = None
 
     def write_ansi(self, text: str) -> None:
         # process line by line
         for line in text.splitlines():
             self.write_ansi_line(line)
+
+        # tick unread if we aren't active
+        if not self.active:
+            self.unread = (self.unread or 0) + 1
 
     def write_ansi_line(self, line: str) -> None:
         # tweak rich console lines with path at end to not go under the scrollbar

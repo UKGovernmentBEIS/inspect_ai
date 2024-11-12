@@ -4,6 +4,7 @@ from typing import Any, Coroutine, Generic, Iterator
 
 import rich
 from rich.console import Console
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.events import Print
 from textual.widgets import TabbedContent, TabPane
@@ -84,17 +85,31 @@ class TaskScreenApp(App[TR]):
         # return result w/ output
         return TaskScreenResult(value=value, tasks=self._tasks, output=self._output)
 
+    # exit the app when the worker terminates
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker.state == WorkerState.ERROR:
+            self._error = event.worker.error
+            self.exit(None, 1)
+        elif event.worker.state == WorkerState.CANCELLED:
+            self._error = CancelledError()
+            self.exit(None, 1)
+        elif event.worker.state == WorkerState.SUCCESS:
+            self.exit(event.worker.result)
+
+    # notification that a new top level set of tasks are being run
     def task_screen(self, total_tasks: int, parallel: bool) -> TaskScreen:
         return TextualTaskScreen()
 
+    # notification that a task is running and requires display
     def task_display(self, profile: TaskProfile) -> TaskDisplay:
         return TextualTaskDisplay(profile, self._tasks)
 
+    # compose use
     def compose(self) -> ComposeResult:
         yield TaskScreenHeader()
         yield TaskScreenFooter()
 
-        with TabbedContent(initial="log"):
+        with TabbedContent(id="tabs", initial="tasks"):
             with TabPane("Tasks", id="tasks"):
                 yield TasksView()
             with TabPane("Samples", id="samples"):
@@ -103,11 +118,39 @@ class TaskScreenApp(App[TR]):
                 yield LogView()
 
     def on_mount(self) -> None:
-        self.workers.start_all()
-        self.begin_capture_print(self)
+        # set title
         header = self.query_one(TaskScreenHeader)
         header.title = self._title
 
+        # start the eval worker
+        self.workers.start_all()
+
+        # capture stdout/stderr (works w/ on_print)
+        self.begin_capture_print(self)
+
+        # handle log unread
+        self.handle_log_unread()
+
+    # track and display log unread state
+    def handle_log_unread(self) -> None:
+        # unread management
+        tabs = self.query_one(TabbedContent)
+        log_tab = tabs.get_tab("log")
+        log_view = self.query_one(LogView)
+
+        def set_unread(unread: int | None) -> None:
+            if unread is not None:
+                log_tab.label = Text.from_markup(f"Log ({unread})")
+            else:
+                log_tab.label = Text.from_markup("Log")
+
+        def set_active_tab(active: str) -> None:
+            log_view.notify_active(active == "log")
+
+        self.watch(log_view, "unread", set_unread)
+        self.watch(tabs, "active", set_active_tab)
+
+    # capture output and route to log view and our buffer
     def on_print(self, event: Print) -> None:
         # remove trailing newline
         text = event.text
@@ -120,21 +163,13 @@ class TaskScreenApp(App[TR]):
         # write to log view
         self.query_one(LogView).write_ansi(text)
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.worker.state == WorkerState.ERROR:
-            self._error = event.worker.error
-            self.exit(None, 1)
-        elif event.worker.state == WorkerState.CANCELLED:
-            self._error = CancelledError()
-            self.exit(None, 1)
-        elif event.worker.state == WorkerState.SUCCESS:
-            self.exit(event.worker.result)
-
+    # map ctrl+c to cancelling the worker
     @override
     async def action_quit(self) -> None:
         if self._worker and self._worker.is_running:
             self._worker.cancel()
 
+    # shortcut keys for switching tabs
     def action_show_tasks(self) -> None:
         self.switch_tab("tasks")
 
