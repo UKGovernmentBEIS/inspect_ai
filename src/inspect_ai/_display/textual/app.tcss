@@ -6,7 +6,7 @@ TabPane {
 }
 
 LogView {
-  scrollbar-size-horizontal: 0;
+  scrollbar-size-horizontal: 1;
   scrollbar-size-vertical: 1;
 }
 
