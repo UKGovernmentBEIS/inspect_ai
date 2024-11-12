@@ -59,7 +59,7 @@ def detect_terminal_background(
 
     try:
         # Send OSC 11 query for background color
-        response = _query("\x1b]11;?\x07", 100)
+        response = _query("\x1b]11;?\x07", 500)
 
         # Parse the response
         # Expected format: ]11;rgb:RRRR/GGGG/BBBB
