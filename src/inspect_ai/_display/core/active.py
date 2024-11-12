@@ -1,6 +1,8 @@
 import sys
 from contextvars import ContextVar
 
+import rich
+
 from inspect_ai._util.display import display_type
 
 from ..rich.display import RichDisplay
@@ -11,7 +13,11 @@ from .display import Display, TaskScreen
 def display() -> Display:
     global _active_display
     if _active_display is None:
-        if display_type() == "full" and sys.stdout.isatty():
+        if (
+            display_type() == "full"
+            and sys.stdout.isatty()
+            and not rich.get_console().is_jupyter
+        ):
             _active_display = TextualDisplay()
         else:
             _active_display = RichDisplay()
