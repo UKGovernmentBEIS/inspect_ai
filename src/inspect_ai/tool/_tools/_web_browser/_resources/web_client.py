@@ -11,7 +11,7 @@ _WORLD_NAME = "WebBrowser"
 _SESSION_FLAG = "--session_name="
 
 
-def parse_args(cli_args: list[str]) -> (str, str):
+def parse_args(cli_args: list[str]) -> tuple[str, str]:
     if not cli_args:
         return _WORLD_NAME, ""
 
