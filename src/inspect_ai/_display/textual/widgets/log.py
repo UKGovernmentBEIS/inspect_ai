@@ -15,7 +15,7 @@ class LogView(RichLog):
     def write_ansi_line(self, line: str) -> None:
         # tweak rich console lines with path at end to not go under the scrollbar
         # (remove two inner spaces and add a space at the end)
-        if "2m1786" in line:
+        if "[2m" in line:
             chars = list(line)
             removed = 0
             for i in range(len(chars) - 1, -1, -1):
