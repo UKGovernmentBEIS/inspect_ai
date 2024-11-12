@@ -68,7 +68,7 @@ Both formats are fully supported by the [Log File API](#sec-log-file-api) and [L
 
 ### Format Option
 
-The PyPI version of Inspect currently defaults to using the `.json` format, whereas the development version on GitHub currently defaults to `.eval` because of its size and speed advantages. You can explicitly control the log format globally in your `.env` file:
+Beginning with Inspect v0.3.46, `.eval` is the default log file format. You can explicitly control the global log format default in your `.env` file:
 
 ``` {.bash filename=".env"}
 INSPECT_LOG_FORMAT=eval
@@ -90,9 +90,7 @@ If you do need to interact with the underlying JSON (e.g., when reading logs fro
 
 ## Image Logging
 
-When running the development version of Insepct from GitHub, full base64 encoded copies of images are included in the log file by default (the PyPI version currently still defaults to not logging images for the `.json` format).
-
-Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
+By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
  You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
