@@ -50,11 +50,15 @@ class EnvironmentSpec:
 class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
     """Runs the environment as a gRPC EnvironmentServicer."""
 
-    def __init__(self, env_type: Type[dm_env.Environment]) -> None:
+    def __init__(
+        self, env_type: Type[dm_env.Environment], headless: bool = True
+    ) -> None:
         """Initializes the environment.
 
         Args:
           env_type: A dm_env class to serve.
+          headless (bool): If True, web browser uses headless mode. If False, uses headful mode.
+                           Defaults to True.
         """
         self._env_type = env_type
         self._envs: dict[str, dm_env.Environment] = {}
@@ -63,6 +67,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         self._browser: playwright_crawler.PlaywrightBrowser = None
         self._lock = threading.Lock()
         self._num_worlds = 0
+        self._headless = headless
 
     def Process(
         self,
@@ -154,7 +159,9 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         world_name = _DEFAULT_WORLD_NAME
         with self._lock:
             if self._browser is None:
-                self._browser = playwright_crawler.PlaywrightBrowser()
+                self._browser = playwright_crawler.PlaywrightBrowser(
+                    headless=self._headless
+                )
             else:
                 world_name += f"_{self._num_worlds}"
             self._num_worlds += 1

@@ -1,6 +1,7 @@
 """Simple script to run and test the RPC server."""
 
 from concurrent import futures
+import os
 
 import dm_env_servicer
 import grpc
@@ -27,7 +28,14 @@ def main():
         futures.ThreadPoolExecutor(max_workers=1),
         options=options,
     )
-    env_service = dm_env_servicer.EnvironmentService(web_environment.WebEnvironment)
+
+    # Read the HEADLESS environment variable to use headless or headful web browser.
+    # Defaults to true.
+    HEADLESS = os.getenv("HEADLESS", "True").lower() == "true"
+
+    env_service = dm_env_servicer.EnvironmentService(
+        web_environment.WebEnvironment, headless=HEADLESS
+    )
     dm_env_rpc_pb2_grpc.add_EnvironmentServicer_to_server(env_service, grpc_server)
 
     grpc_server.add_secure_port(

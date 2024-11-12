@@ -41,15 +41,24 @@ class PlaywrightBrowser:
     HEIGHT = 1080
     _playwright_api = None
 
-    def __init__(self):
-        """Creates the browser."""
+    def __init__(self, headless: bool):
+        """
+        Creates the browser.
+
+        Args:
+            headless (bool): Defaults to True.
+                             If True, uses headless mode.
+                             If False, uses headful mode.
+        """
         if PlaywrightBrowser._playwright_api is None:
             PlaywrightBrowser._playwright_api = sync_playwright().start()
 
-        logging.info("Starting chromium in headless mode.")
+        logging.info(
+            f"Starting chromium in {'headless' if headless else 'headful'} mode."
+        )
 
         self._browser = PlaywrightBrowser._playwright_api.chromium.launch(
-            headless=True,
+            headless=headless,
             # Required for Gmail signup see
             # https://stackoverflow.com/questions/65139098/how-to-login-to-google-account-with-playwright
             args=["--disable-blink-features=AutomationControlled"],
