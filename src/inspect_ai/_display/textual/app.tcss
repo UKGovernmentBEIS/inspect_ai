@@ -1,12 +1,26 @@
 
 
 
+ContentTab {
+  height: 1;
+  padding: 0 1 0 2; 
+}
+
+ContentTabs {
+  height: 2;
+}
+
+ContentTabs #tabs-list {
+  min-height: 1;
+}
+
 TabPane {
-    padding: 0 0 0 0;
+  padding: 0 0 0 0;
 }
 
 LogView {
   scrollbar-size-horizontal: 1;
   scrollbar-size-vertical: 1;
+  scrollbar-gutter: stable;
 }
 
