@@ -1,4 +1,11 @@
 services:
   default:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
+    build:
+      context: ../../src/inspect_ai/tool/_tools/_web_browser/_resources
+      dockerfile: Dockerfile
+    ports:
+      - "5900:5900"
+    environment:
+      - HEADLESS=False
+      - DISPLAY=:99
+      - VNC_PASSWORD=...
