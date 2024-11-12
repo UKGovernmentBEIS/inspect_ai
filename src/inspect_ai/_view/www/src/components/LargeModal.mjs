@@ -1,9 +1,9 @@
 import { html } from "htm/preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
-import { throttle } from "../utils/sync.mjs";
+import { debounce } from "../utils/sync.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -26,8 +26,9 @@ export const LargeModal = (props) => {
     ? html`<div class="modal-footer">${footer}</div>`
     : "";
 
+  // Support restoring the scroll position
+  // but only do this for the first time that the children are set
   const scrollRef = useRef();
-
   useEffect(() => {
     if (scrollRef.current) {
       setTimeout(() => {
@@ -36,7 +37,14 @@ export const LargeModal = (props) => {
         }
       }, 0);
     }
-  }, [initialScrollPosition]);
+  });
+
+  const onScroll = useCallback(
+    debounce((e) => {
+      setInitialScrollPosition(e.srcElement.scrollTop);
+    }, 100),
+    [setInitialScrollPosition],
+  );
 
   // Capture header elements
   const headerEls = [];
@@ -140,18 +148,7 @@ export const LargeModal = (props) => {
             backgroundColor: "var(--bs-body-bg)",
           }}
         />
-        <div
-          class="modal-body"
-          ref=${scrollRef}
-          onscroll=${() => {
-            if (scrollRef.current) {
-              throttle(
-                setInitialScrollPosition(scrollRef.current.scrollTop),
-                1000,
-              );
-            }
-          }}
-        >
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
         </div>
         ${modalFooter}

@@ -19,7 +19,7 @@ import {
 // Registration component
 import "./Register.mjs";
 
-import { sleep } from "./utils/sync.mjs";
+import { debounce, sleep } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -103,15 +103,21 @@ export function App({
     initialState?.selectedSampleTab,
   );
   const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
-  const setSampleScrollPosition = useCallback((position) => {
-    sampleScrollPosition.current = position;
-    setUpdateState((prev) => {
+  const setSampleScrollPosition = useCallback(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      flushInitialState();
+    }, 250),
+    [],
+  );
+  const loadingSampleIndexRef = useRef(null);
+
+  const [updateInitialState, setUpdateInitialState] = useState(0);
+  const flushInitialState = useCallback(() => {
+    setUpdateInitialState((prev) => {
       return prev + 1;
     });
-  }, []);
-  const [updateState, setUpdateState] = useState(0);
-
-  const loadingSampleIndexRef = useRef(null);
+  }, [setUpdateInitialState]);
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(
     initialState?.showingSampleDialog,
@@ -239,7 +245,7 @@ export function App({
     filteredSamples,
     groupBy,
     groupByOrder,
-    updateState,
+    updateInitialState,
   ]);
 
   const handleSampleShowingDialog = useCallback(
@@ -375,7 +381,8 @@ export function App({
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
 
-          setSampleScrollPosition(0);
+          sampleScrollPosition.current = 0;
+          flushInitialState();
           setSelectedSample(sample);
 
           refreshSampleTab(sample);
@@ -387,7 +394,8 @@ export function App({
           setSampleStatus("error");
           setSampleError(e);
 
-          setSampleScrollPosition(0);
+          sampleScrollPosition.current = 0;
+          flushInitialState();
           setSelectedSample(undefined);
 
           loadingSampleIndexRef.current = null;

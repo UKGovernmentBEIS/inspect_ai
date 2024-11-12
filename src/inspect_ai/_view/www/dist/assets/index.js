@@ -3581,7 +3581,7 @@ function orderModifiers(modifiers) {
     }));
   }, []);
 }
-function debounce(fn2) {
+function debounce$1(fn2) {
   var pending;
   return function() {
     if (!pending) {
@@ -3702,7 +3702,7 @@ function popperGenerator(generatorOptions) {
       },
       // Async and optimistically optimized update – it will not be executed if
       // not necessary (debounced to run at most once-per-tick)
-      update: debounce(function() {
+      update: debounce$1(function() {
         return new Promise(function(resolve) {
           instance.forceUpdate();
           resolve(state);
@@ -7709,6 +7709,36 @@ function throttle(func, wait, options) {
       if (!timeout) context = args = null;
     } else if (!timeout && options.trailing !== false) {
       timeout = setTimeout(later, remaining);
+    }
+    return result;
+  };
+}
+function debounce(func, wait, options = {}) {
+  let timeout, context, args, result;
+  let lastCallTime = null;
+  const later = () => {
+    const last = Date.now() - lastCallTime;
+    if (last < wait && last >= 0) {
+      timeout = setTimeout(later, wait - last);
+    } else {
+      timeout = null;
+      if (!options.leading) {
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      }
+    }
+  };
+  return function() {
+    context = this;
+    args = arguments;
+    lastCallTime = Date.now();
+    const callNow = options.leading && !timeout;
+    if (!timeout) {
+      timeout = setTimeout(later, wait);
+    }
+    if (callNow) {
+      result = func.apply(context, args);
+      context = args = null;
     }
     return result;
   };
@@ -16209,7 +16239,13 @@ const LargeModal = (props) => {
         }
       }, 0);
     }
-  }, [initialScrollPosition]);
+  });
+  const onScroll = q(
+    debounce((e2) => {
+      setInitialScrollPosition(e2.srcElement.scrollTop);
+    }, 100),
+    [setInitialScrollPosition]
+  );
   const headerEls = [];
   headerEls.push(
     m$1`<div
@@ -16301,18 +16337,7 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
-        <div
-          class="modal-body"
-          ref=${scrollRef}
-          onscroll=${() => {
-    if (scrollRef.current) {
-      throttle(
-        setInitialScrollPosition(scrollRef.current.scrollTop),
-        1e3
-      );
-    }
-  }}
-        >
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
         </div>
         ${modalFooter}
@@ -25416,14 +25441,20 @@ function App({
     initialState2 == null ? void 0 : initialState2.selectedSampleTab
   );
   const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
-  const setSampleScrollPosition = q((position) => {
-    sampleScrollPosition.current = position;
-    setUpdateState((prev) => {
+  const setSampleScrollPosition = q(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      flushInitialState();
+    }, 250),
+    []
+  );
+  const loadingSampleIndexRef = A(null);
+  const [updateInitialState, setUpdateInitialState] = h(0);
+  const flushInitialState = q(() => {
+    setUpdateInitialState((prev) => {
       return prev + 1;
     });
-  }, []);
-  const [updateState, setUpdateState] = h(0);
-  const loadingSampleIndexRef = A(null);
+  }, [setUpdateInitialState]);
   const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
   );
@@ -25515,7 +25546,7 @@ function App({
     filteredSamples,
     groupBy,
     groupByOrder,
-    updateState
+    updateInitialState
   ]);
   const handleSampleShowingDialog = q(
     (show) => {
@@ -25610,7 +25641,8 @@ function App({
         );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
-        setSampleScrollPosition(0);
+        sampleScrollPosition.current = 0;
+        flushInitialState();
         setSelectedSample(sample);
         refreshSampleTab(sample);
         setSampleStatus("ok");
@@ -25618,7 +25650,8 @@ function App({
       }).catch((e2) => {
         setSampleStatus("error");
         setSampleError(e2);
-        setSampleScrollPosition(0);
+        sampleScrollPosition.current = 0;
+        flushInitialState();
         setSelectedSample(void 0);
         loadingSampleIndexRef.current = null;
       });
