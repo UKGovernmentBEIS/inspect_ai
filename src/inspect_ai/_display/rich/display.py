@@ -7,12 +7,6 @@ import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import (
-    BarColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from rich.progress import Progress as RProgress
 from rich.table import Table
 from rich.text import Text
@@ -41,6 +35,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.panel import task_panel, task_title
+from ..core.progress import RichProgress, rich_progress
 from ..core.results import task_dict, tasks_results
 from ..core.rich import (
     is_vscode_notebook,
@@ -48,7 +43,6 @@ from ..core.rich import (
     rich_initialise,
     rich_theme,
 )
-from .progress import RichProgress
 
 
 @dataclass
@@ -366,18 +360,3 @@ def live_task_footer() -> tuple[RenderableType, RenderableType]:
 
 def task_http_rate_limits() -> str:
     return f"HTTP rate limits: {http_rate_limit_count():,}"
-
-
-def rich_progress() -> RProgress:
-    console = rich.get_console()
-    return RProgress(
-        TextColumn("{task.fields[status]}"),
-        TextColumn("{task.description}"),
-        TextColumn("{task.fields[model]}"),
-        BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        transient=True,
-        console=console,
-        expand=not is_vscode_notebook(console),
-    )

@@ -1,6 +1,9 @@
+import contextlib
 from asyncio import CancelledError
-from typing import Any, Coroutine, Generic, NamedTuple
+from typing import Any, Coroutine, Generic, Iterator
 
+import rich
+from rich.console import Console
 from textual.app import App, ComposeResult
 from textual.events import Print
 from textual.widgets import TabbedContent, TabPane
@@ -9,7 +12,15 @@ from typing_extensions import override
 
 from inspect_ai._util.terminal import detect_terminal_background
 
-from ..core.display import TR
+from ..core.display import (
+    TR,
+    Progress,
+    TaskDisplay,
+    TaskProfile,
+    TaskResult,
+    TaskScreen,
+    TaskWithResult,
+)
 from ..core.rich import rich_initialise
 from .widgets.footer import TaskScreenFooter
 from .widgets.header import TaskScreenHeader
@@ -19,8 +30,14 @@ from .widgets.tasks import TasksView
 
 
 class TaskScreenResult(Generic[TR]):
-    def __init__(self, value: TR | BaseException, output: list[str]) -> None:
+    def __init__(
+        self,
+        value: TR | BaseException,
+        tasks: list[TaskWithResult],
+        output: list[str],
+    ) -> None:
         self.value = value
+        self.tasks = tasks
         self.output = output
 
 
@@ -36,6 +53,7 @@ class TaskScreenApp(App[TR]):
         self.title = title
         self.worker: Worker[TR] | None = None
         self.error: BaseException | None = None
+        self.tasks: list[TaskWithResult] = []
         self.output: list[str] = []
 
         # dynamically enable dark mode or light mode
@@ -60,7 +78,13 @@ class TaskScreenApp(App[TR]):
             value = RuntimeError("No application result available")
 
         # return result w/ output
-        return TaskScreenResult(value=value, output=self.output)
+        return TaskScreenResult(value=value, tasks=self.tasks, output=self.output)
+
+    def task_screen(self, total_tasks: int, parallel: bool) -> TaskScreen:
+        return TextualTaskScreen()
+
+    def task_display(self, profile: TaskProfile) -> TaskDisplay:
+        return TextualTaskDisplay(profile, self.tasks)
 
     def compose(self) -> ComposeResult:
         yield TaskScreenHeader()
@@ -109,3 +133,43 @@ class TaskScreenApp(App[TR]):
 
     def action_toggle_dark(self) -> None:
         self.dark = not self.dark
+
+
+class TextualTaskScreen(TaskScreen):
+    def __exit__(self, *excinfo: Any) -> None:
+        pass
+
+    @override
+    @contextlib.contextmanager
+    def input_screen(
+        self,
+        header: str | None = None,
+        transient: bool | None = None,
+        width: int | None = None,
+    ) -> Iterator[Console]:
+        yield rich.get_console()
+
+
+class TextualTaskDisplay(TaskDisplay):
+    def __init__(self, profile: TaskProfile, results: list[TaskWithResult]) -> None:
+        self.profile = profile
+        self.results = results
+
+    @override
+    @contextlib.contextmanager
+    def progress(self) -> Iterator[Progress]:
+        yield TextualProgress()
+
+    @override
+    def complete(self, result: TaskResult) -> None:
+        self.results.append(TaskWithResult(self.profile, result))
+
+
+class TextualProgress(Progress):
+    @override
+    def update(self, n: int = 1) -> None:
+        pass
+
+    @override
+    def complete(self) -> None:
+        pass
