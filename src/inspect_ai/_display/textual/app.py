@@ -69,6 +69,8 @@ class TaskScreenApp(App[TR]):
     def on_mount(self) -> None:
         self.workers.start_all()
         self.begin_capture_print(self)
+        header = self.query_one(TaskScreenHeader)
+        header.title = "inspect eval"
 
     def on_print(self, event: Print) -> None:
         # remove trailing newline
