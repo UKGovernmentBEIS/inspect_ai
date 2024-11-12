@@ -294,7 +294,7 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
-    output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
+    output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
     with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size}"])
     assert "limit of 1 MiB was exceeded" in str(e_info.value)
@@ -304,7 +304,7 @@ async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
-    output_size = 1024**2 + 1024  # 1 MiB + 1 KiB
+    output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
     with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size} 1>&2"])
     assert "limit of 1 MiB was exceeded" in str(e_info.value)
