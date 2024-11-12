@@ -8,6 +8,7 @@
 - Improve path handling when using `inspect log convert` to convert a single log file.
 - Web browser tool: Subtasks now each have independent web browser sessions.
 - Anthropic: Ensure that assistant messages created in generate never have empty content lists.
+- Increase sandbox `exec()` output limit from 1 MiB to 10 MiB.
 
 ## v0.3.45 (11 November 2024)
 
