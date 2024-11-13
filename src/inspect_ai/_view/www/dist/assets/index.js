@@ -3581,7 +3581,7 @@ function orderModifiers(modifiers) {
     }));
   }, []);
 }
-function debounce(fn2) {
+function debounce$1(fn2) {
   var pending;
   return function() {
     if (!pending) {
@@ -3702,7 +3702,7 @@ function popperGenerator(generatorOptions) {
       },
       // Async and optimistically optimized update – it will not be executed if
       // not necessary (debounced to run at most once-per-tick)
-      update: debounce(function() {
+      update: debounce$1(function() {
         return new Promise(function(resolve) {
           instance.forceUpdate();
           resolve(state);
@@ -7713,6 +7713,36 @@ function throttle(func, wait, options) {
     return result;
   };
 }
+function debounce(func, wait, options = {}) {
+  let timeout, context, args, result;
+  let lastCallTime = null;
+  const later = () => {
+    const last = Date.now() - lastCallTime;
+    if (last < wait && last >= 0) {
+      timeout = setTimeout(later, wait - last);
+    } else {
+      timeout = null;
+      if (!options.leading) {
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      }
+    }
+  };
+  return function() {
+    context = this;
+    args = arguments;
+    lastCallTime = Date.now();
+    const callNow = options.leading && !timeout;
+    if (!timeout) {
+      timeout = setTimeout(later, wait);
+    }
+    if (callNow) {
+      result = func.apply(context, args);
+      context = args = null;
+    }
+    return result;
+  };
+}
 const clearDocumentSelection = () => {
   const sel = window.getSelection();
   if (sel) {
@@ -8428,17 +8458,35 @@ const TabPanel = ({
   style,
   scrollable,
   classes,
+  scrollPosition,
+  setScrollPosition,
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
+  const tabContentsRef = A();
+  y(() => {
+    setTimeout(() => {
+      if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+        tabContentsRef.current.scrollTop = scrollPosition;
+      }
+    }, 0);
+  });
+  const onScroll = q(
+    debounce((e2) => {
+      setScrollPosition(e2.srcElement.scrollTop);
+    }, 100),
+    [setScrollPosition]
+  );
   return m$1`<div
     id="${tabContentsId}"
+    ref=${tabContentsRef}
     class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
     style=${{
     flex: "1",
     overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
     ...style
   }}
+    onscroll=${onScroll}
   >
     ${children}
   </div>`;
@@ -16195,9 +16243,27 @@ const LargeModal = (props) => {
     visible,
     onHide,
     showProgress,
-    children
+    children,
+    initialScrollPosition,
+    setInitialScrollPosition
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
+  const scrollRef = A();
+  y(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== initialScrollPosition) {
+          scrollRef.current.scrollTop = initialScrollPosition;
+        }
+      }, 0);
+    }
+  });
+  const onScroll = q(
+    debounce((e2) => {
+      setInitialScrollPosition(e2.srcElement.scrollTop);
+    }, 100),
+    [setInitialScrollPosition]
+  );
   const headerEls = [];
   headerEls.push(
     m$1`<div
@@ -16289,7 +16355,9 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
-        <div class="modal-body">${children}</div>
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>
@@ -20022,6 +20090,8 @@ const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context
 }) => {
   const tools = T(() => {
@@ -20073,6 +20143,8 @@ const SampleDialog = ({
     setShowingSampleDialog(false);
   }}
       showProgress=${sampleStatus === "loading"}
+      initialScrollPosition=${sampleScrollPosition}
+      setInitialScrollPosition=${setSampleScrollPosition}
     >
         ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
                 id=${id}
@@ -20500,6 +20572,8 @@ const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context
 }) => {
   const [items, setItems] = h([]);
@@ -20627,6 +20701,8 @@ const SamplesTab = ({
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
+      sampleScrollPosition=${sampleScrollPosition}
+      setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
   return elements;
@@ -24347,7 +24423,11 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext
+  renderContext,
+  sampleScrollPosition,
+  setSampleScrollPosition,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition
 }) => {
   const divRef = A(
     /** @type {HTMLElement|null} */
@@ -24389,6 +24469,8 @@ const WorkSpace = ({
           sort=${sort}
           epoch=${epoch}
           context=${renderContext}
+          sampleScrollPosition=${sampleScrollPosition}
+          setSampleScrollPosition=${setSampleScrollPosition}
         />`;
       },
       tools: () => {
@@ -24526,6 +24608,8 @@ const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
+    workspaceTabScrollPosition=${workspaceTabScrollPosition}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 const WorkspaceDisplay = ({
@@ -24540,7 +24624,9 @@ const WorkspaceDisplay = ({
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas
+  offcanvas,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition
 }) => {
   if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
@@ -24613,7 +24699,12 @@ const WorkspaceDisplay = ({
         setSelectedTab(id);
       }}
                 selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
+                scrollable=${!!tab.scrollable}
+                scrollPosition=${workspaceTabScrollPosition[tab.id]}
+                setScrollPosition=${(position) => {
+        setWorkspaceTabScrollPosition(tab.id, position);
+      }}
+                >
                   ${tab.content()}
                 </${TabPanel}>`;
     })}
@@ -25378,7 +25469,34 @@ function App({
   const [selectedSampleTab, setSelectedSampleTab] = h(
     initialState2 == null ? void 0 : initialState2.selectedSampleTab
   );
+  const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
+  const setSampleScrollPosition = q(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      flushInitialState();
+    }, 250),
+    []
+  );
   const loadingSampleIndexRef = A(null);
+  const workspaceTabScrollPosition = A(
+    (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
+  );
+  const setWorkspaceTabScrollPosition = q(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position
+      };
+      flushInitialState();
+    }, 250),
+    []
+  );
+  const [updateInitialState, setUpdateInitialState] = h(0);
+  const flushInitialState = q(() => {
+    setUpdateInitialState((prev) => {
+      return prev + 1;
+    });
+  }, [setUpdateInitialState]);
   const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
   );
@@ -25439,7 +25557,9 @@ function App({
       score,
       filteredSamples,
       groupBy,
-      groupByOrder
+      groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -25468,7 +25588,8 @@ function App({
     score,
     filteredSamples,
     groupBy,
-    groupByOrder
+    groupByOrder,
+    updateInitialState
   ]);
   const handleSampleShowingDialog = q(
     (show) => {
@@ -25563,6 +25684,8 @@ function App({
         );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
+        sampleScrollPosition.current = 0;
+        flushInitialState();
         setSelectedSample(sample);
         refreshSampleTab(sample);
         setSampleStatus("ok");
@@ -25570,6 +25693,8 @@ function App({
       }).catch((e2) => {
         setSampleStatus("error");
         setSampleError(e2);
+        sampleScrollPosition.current = 0;
+        flushInitialState();
         setSelectedSample(void 0);
         loadingSampleIndexRef.current = null;
       });
@@ -25640,6 +25765,7 @@ function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab]
   );
@@ -25944,6 +26070,10 @@ function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
+              sampleScrollPosition=${sampleScrollPosition.current}
+              setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`}
     </div>
     ${afterBodyElements}

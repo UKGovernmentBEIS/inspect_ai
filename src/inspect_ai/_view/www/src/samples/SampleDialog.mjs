@@ -23,6 +23,8 @@ import { ErrorPanel } from "../components/ErrorPanel.mjs";
  * @param {(showing: boolean) => void} props.setShowingSampleDialog - function to set whether the dialog is showing
  * @param {() => void} [props.nextSample] - function to move to next sample
  * @param {() => void} [props.prevSample] - function to move to previous sample
+ * @param {number} props.sampleScrollPosition - the sample scroll position
+ * @param {(position: number) => void} props.setSampleScrollPosition - set the sample scroll position
  * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
@@ -39,6 +41,8 @@ export const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
+  sampleScrollPosition,
+  setSampleScrollPosition,
   context,
 }) => {
   const tools = useMemo(() => {
@@ -95,6 +99,8 @@ export const SampleDialog = ({
         setShowingSampleDialog(false);
       }}
       showProgress=${sampleStatus === "loading"}
+      initialScrollPosition=${sampleScrollPosition}
+      setInitialScrollPosition=${setSampleScrollPosition}
     >
         ${
           sampleError

@@ -1,5 +1,7 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { useCallback, useEffect, useRef } from "preact/hooks";
+import { debounce } from "../utils/sync.mjs";
 
 // styles: { tabSet:{}, tabBody: {}}
 export const TabSet = ({ id, type, classes, tools, styles, children }) => {
@@ -38,12 +40,34 @@ export const TabPanel = ({
   style,
   scrollable,
   classes,
+  scrollPosition,
+  setScrollPosition,
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
+  const tabContentsRef = useRef();
+  useEffect(() => {
+    setTimeout(() => {
+      if (
+        scrollPosition !== undefined &&
+        tabContentsRef.current &&
+        tabContentsRef.current.scrollTop !== scrollPosition
+      ) {
+        tabContentsRef.current.scrollTop = scrollPosition;
+      }
+    }, 0);
+  });
+
+  const onScroll = useCallback(
+    debounce((e) => {
+      setScrollPosition(e.srcElement.scrollTop);
+    }, 100),
+    [setScrollPosition],
+  );
 
   return html`<div
     id="${tabContentsId}"
+    ref=${tabContentsRef}
     class="tab-pane show${selected ? " active" : ""}${classes
       ? ` ${classes}`
       : ""}"
@@ -52,6 +76,7 @@ export const TabPanel = ({
       overflowY: scrollable === undefined || scrollable ? "auto" : "hidden",
       ...style,
     }}
+    onscroll=${onScroll}
   >
     ${children}
   </div>`;
