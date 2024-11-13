@@ -8458,17 +8458,35 @@ const TabPanel = ({
   style,
   scrollable,
   classes,
+  scrollPosition,
+  setScrollPosition,
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
+  const tabContentsRef = A();
+  y(() => {
+    setTimeout(() => {
+      if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+        tabContentsRef.current.scrollTop = scrollPosition;
+      }
+    }, 0);
+  });
+  const onScroll = q(
+    debounce((e2) => {
+      setScrollPosition(e2.srcElement.scrollTop);
+    }, 100),
+    [setScrollPosition]
+  );
   return m$1`<div
     id="${tabContentsId}"
+    ref=${tabContentsRef}
     class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
     style=${{
     flex: "1",
     overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
     ...style
   }}
+    onscroll=${onScroll}
   >
     ${children}
   </div>`;
@@ -24407,7 +24425,9 @@ const WorkSpace = ({
   setSelectedTab,
   renderContext,
   sampleScrollPosition,
-  setSampleScrollPosition
+  setSampleScrollPosition,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition
 }) => {
   const divRef = A(
     /** @type {HTMLElement|null} */
@@ -24588,6 +24608,8 @@ const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
+    workspaceTabScrollPosition=${workspaceTabScrollPosition}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 const WorkspaceDisplay = ({
@@ -24602,7 +24624,9 @@ const WorkspaceDisplay = ({
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas
+  offcanvas,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition
 }) => {
   if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
@@ -24675,7 +24699,12 @@ const WorkspaceDisplay = ({
         setSelectedTab(id);
       }}
                 selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
+                scrollable=${!!tab.scrollable}
+                scrollPosition=${workspaceTabScrollPosition[tab.id]}
+                setScrollPosition=${(position) => {
+        setWorkspaceTabScrollPosition(tab.id, position);
+      }}
+                >
                   ${tab.content()}
                 </${TabPanel}>`;
     })}
@@ -25449,6 +25478,19 @@ function App({
     []
   );
   const loadingSampleIndexRef = A(null);
+  const workspaceTabScrollPosition = A(
+    (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
+  );
+  const setWorkspaceTabScrollPosition = q(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position
+      };
+      flushInitialState();
+    }, 250),
+    []
+  );
   const [updateInitialState, setUpdateInitialState] = h(0);
   const flushInitialState = q(() => {
     setUpdateInitialState((prev) => {
@@ -25516,7 +25558,8 @@ function App({
       filteredSamples,
       groupBy,
       groupByOrder,
-      sampleScrollPosition: sampleScrollPosition.current
+      sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -25722,6 +25765,7 @@ function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab]
   );
@@ -26028,6 +26072,8 @@ function App({
               renderContext=${context}
               sampleScrollPosition=${sampleScrollPosition.current}
               setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`}
     </div>
     ${afterBodyElements}

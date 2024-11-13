@@ -112,6 +112,20 @@ export function App({
   );
   const loadingSampleIndexRef = useRef(null);
 
+  const workspaceTabScrollPosition = useRef(
+    initialState?.workspaceTabScrollPosition || {},
+  );
+  const setWorkspaceTabScrollPosition = useCallback(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position,
+      };
+      flushInitialState();
+    }, 250),
+    [],
+  );
+
   const [updateInitialState, setUpdateInitialState] = useState(0);
   const flushInitialState = useCallback(() => {
     setUpdateInitialState((prev) => {
@@ -216,6 +230,7 @@ export function App({
       groupBy,
       groupByOrder,
       sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current,
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -496,6 +511,8 @@ export function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab],
   );
@@ -876,6 +893,8 @@ export function App({
               renderContext=${context}
               sampleScrollPosition=${sampleScrollPosition.current}
               setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`
       }
     </div>

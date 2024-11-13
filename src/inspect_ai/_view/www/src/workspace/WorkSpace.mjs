@@ -68,6 +68,8 @@ import {
  * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
  * @param {number} props.sampleScrollPosition - The initial scroll position for the sample
  * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
+ * @param {number} props.workspaceTabScrollPosition - The initial scroll position for the workspace tabs
+ * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
  * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
@@ -114,6 +116,8 @@ export const WorkSpace = ({
   renderContext,
   sampleScrollPosition,
   setSampleScrollPosition,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
 
@@ -317,6 +321,8 @@ export const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
+    workspaceTabScrollPosition=${workspaceTabScrollPosition}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 
@@ -333,6 +339,8 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   offcanvas,
+  workspaceTabScrollPosition,
+  setWorkspaceTabScrollPosition,
 }) => {
   if (evalSpec === undefined) {
     return html`<${EmptyPanel} />`;
@@ -410,7 +418,12 @@ const WorkspaceDisplay = ({
                   setSelectedTab(id);
                 }}
                 selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
+                scrollable=${!!tab.scrollable}
+                scrollPosition=${workspaceTabScrollPosition[tab.id]}
+                setScrollPosition=${(position) => {
+                  setWorkspaceTabScrollPosition(tab.id, position);
+                }}
+                >
                   ${tab.content()}
                 </${TabPanel}>`;
               })}
