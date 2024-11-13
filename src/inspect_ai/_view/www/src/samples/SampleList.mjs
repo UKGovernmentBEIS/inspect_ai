@@ -1,6 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback, useState } from "preact/hooks";
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo,  useCallback, useRef, useState } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
@@ -20,12 +19,10 @@ const kSeparatorHeight = 24;
 // Convert samples to a datastructure which contemplates grouping, etc...
 export const SampleList = (props) => {
   const {
-    listRef,
     items,
     sampleDescriptor,
     style,
     selectedIndex,
-    setSelectedIndex,
     selectedScore,
     nextSample,
     prevSample,
@@ -40,6 +37,8 @@ export const SampleList = (props) => {
   useEffect(() => {
     setHidden(false);
   }, [items]);
+
+  const listRef = useRef();
 
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
@@ -57,16 +56,23 @@ export const SampleList = (props) => {
         index,
         height,
         start,
+        type: current.type,
       });
       return values;
     }, []);
   }, [items]);
 
+  const sampleRows = useMemo(() => {
+    return rowMap.filter((i) => {
+      return i.type === "sample";
+    });
+  }, [rowMap]);
+
   useEffect(() => {
-    const listEl = listRef.current;
+    const listEl = listRef?.current;
     if (listEl) {
       // Decide if we need to scroll the element into position
-      const selected = rowMap[selectedIndex];
+      const selected = sampleRows[selectedIndex];
       if (selected) {
         const itemTop = selected.start;
         const itemBottom = selected.start + selected.height;
@@ -103,7 +109,6 @@ export const SampleList = (props) => {
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
           selected=${selectedIndex === item.index}
-          setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
         />

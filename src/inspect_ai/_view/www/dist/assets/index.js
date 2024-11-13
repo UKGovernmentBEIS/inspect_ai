@@ -16490,12 +16490,10 @@ const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
   const {
-    listRef,
     items,
     sampleDescriptor,
     style,
     selectedIndex,
-    setSelectedIndex,
     selectedScore,
     nextSample,
     prevSample,
@@ -16508,6 +16506,7 @@ const SampleList = (props) => {
   y(() => {
     setHidden(false);
   }, [items]);
+  const listRef = A();
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
   };
@@ -16519,15 +16518,21 @@ const SampleList = (props) => {
       values.push({
         index,
         height,
-        start
+        start,
+        type: current.type
       });
       return values;
     }, []);
   }, [items]);
+  const sampleRows = T(() => {
+    return rowMap.filter((i) => {
+      return i.type === "sample";
+    });
+  }, [rowMap]);
   y(() => {
-    const listEl = listRef.current;
+    const listEl = listRef == null ? void 0 : listRef.current;
     if (listEl) {
-      const selected = rowMap[selectedIndex];
+      const selected = sampleRows[selectedIndex];
       if (selected) {
         const itemTop = selected.start;
         const itemBottom = selected.start + selected.height;
@@ -16557,7 +16562,6 @@ const SampleList = (props) => {
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
           selected=${selectedIndex === item.index}
-          setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
         />
@@ -16897,7 +16901,6 @@ const SamplesTab = ({
         items=${items}
         sampleDescriptor=${sampleDescriptor}
         selectedIndex=${selectedSampleIndex}
-        setSelectedIndex=${setSelectedSampleIndex}
         selectedScore=${selectedScore}
         nextSample=${nextSample}
         prevSample=${previousSample}
