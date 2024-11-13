@@ -105,7 +105,8 @@ class TaskScreenApp(App[TR]):
             self.exit(event.worker.result)
 
     # notification that a new top level set of tasks are being run
-    def task_screen(self, total_tasks: int, parallel: bool) -> TaskScreen:
+    @contextlib.contextmanager
+    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
         # reset state
         self._tasks = []
         self._total_tasks = total_tasks
@@ -119,10 +120,17 @@ class TaskScreenApp(App[TR]):
         # update display
         self.update_display()
 
-        return TextualTaskScreen()
+        try:
+            yield TextualTaskScreen()
+        finally:
+            self._tasks = []
+            self._total_tasks = 0
+            self._parallel = False
+            self.update_display()
 
     # notification that a task is running and requires display
-    def task_display(self, profile: TaskProfile) -> TaskDisplay:
+    @contextlib.contextmanager
+    def task_display(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # create and track task
         task = TaskWithResult(profile, None)
         self._app_tasks.append(task)
@@ -131,7 +139,10 @@ class TaskScreenApp(App[TR]):
         # update display
         self.update_display()
 
-        return TextualTaskDisplay(task)
+        try:
+            yield TextualTaskDisplay(task)
+        finally:
+            pass
 
     # compose use
     def compose(self) -> ComposeResult:

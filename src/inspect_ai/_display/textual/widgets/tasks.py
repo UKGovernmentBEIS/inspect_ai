@@ -2,7 +2,7 @@ from typing import cast
 
 from rich.console import RenderableType
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, ScrollableContainer
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -35,7 +35,7 @@ class TasksView(Container):
     def compose(self) -> ComposeResult:
         yield Static(id="tasks-config")
         yield Static(id="tasks-targets")
-        yield Static(id="tasks-progress")
+        yield ScrollableContainer(id="tasks-progress")
         yield Static(id="tasks-resources")
         yield Static(id="tasks-rate-limits")
 

@@ -51,9 +51,11 @@ class TextualDisplay(Display):
     @override
     @contextlib.contextmanager
     def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
-        yield self.app.task_screen(total_tasks, parallel)
+        with self.app.task_screen(total_tasks, parallel) as task_screen:
+            yield task_screen
 
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        yield self.app.task_display(profile)
+        with self.app.task_display(profile) as task_display:
+            yield task_display
