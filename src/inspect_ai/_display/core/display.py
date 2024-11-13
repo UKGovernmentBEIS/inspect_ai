@@ -2,7 +2,16 @@ import abc
 import contextlib
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Coroutine, Iterator, Type, TypeVar, Union
+from typing import (
+    Any,
+    Coroutine,
+    Iterator,
+    Protocol,
+    Type,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 from rich.console import Console
 
@@ -10,11 +19,10 @@ from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
 
 
-class Progress(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class Progress(Protocol):
     def update(self, n: int = 1) -> None: ...
 
-    @abc.abstractmethod
     def complete(self) -> None: ...
 
 
@@ -78,30 +86,25 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     ) -> Iterator[Console]: ...
 
 
-class TaskDisplay(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class TaskDisplay(Protocol):
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]: ...
 
-    @abc.abstractmethod
     def complete(self, result: TaskResult) -> None: ...
 
 
-class Display(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class Display(Protocol):
     def print(self, message: str) -> None: ...
 
-    @abc.abstractmethod
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
 
-    @abc.abstractmethod
     def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
 
-    @abc.abstractmethod
     @contextlib.contextmanager
     def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]: ...
 
-    @abc.abstractmethod
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
