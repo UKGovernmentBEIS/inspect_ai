@@ -30,10 +30,7 @@ def task_panel(
     table.add_column(justify="right")
 
     # main progress and task info
-    table.add_row(
-        body,
-        Text(task_targets(profile), style=theme.meta),
-    )
+    table.add_row(body, task_targets(profile))
 
     # footer if specified
     if footer:
@@ -90,6 +87,7 @@ def task_title(profile: TaskProfile, show_model: bool) -> str:
     return title
 
 
-def task_targets(profile: TaskProfile) -> str:
+def task_targets(profile: TaskProfile) -> RenderableType:
+    theme = rich_theme()
     targets = [f"dataset: {profile.dataset}", f"scorer: {profile.scorer}"]
-    return "   " + "\n   ".join(targets)
+    return Text("\n".join(targets), style=theme.meta)

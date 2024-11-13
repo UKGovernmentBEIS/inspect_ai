@@ -31,3 +31,10 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
         return f"[{theme.light}]{values}[/{theme.light}]"
     else:
         return ""
+
+
+def task_dict(d: dict[str, str], bold_value: bool = False) -> str:
+    slot1, slot2 = ("", "[/bold]") if bold_value else ("[/bold]", "")
+    return "  ".join(
+        [f"[bold]{key}:{slot1} {value}{slot2}" for key, value in d.items()]
+    )

@@ -7,12 +7,13 @@ from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.events import Print
-from textual.widgets import TabbedContent, TabPane
+from textual.widgets import Footer, TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
 from inspect_ai._util.terminal import detect_terminal_background
 
+from ..core.config import task_config
 from ..core.display import (
     TR,
     Progress,
@@ -22,13 +23,13 @@ from ..core.display import (
     TaskScreen,
     TaskWithResult,
 )
-from ..core.panel import task_title, tasks_title
+from ..core.footer import task_footer
+from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import rich_initialise
-from .widgets.footer import TaskScreenFooter
-from .widgets.header import TaskScreenHeader
 from .widgets.log import LogView
 from .widgets.samples import SamplesView
 from .widgets.tasks import TasksView
+from .widgets.titlebar import Titlebar
 
 
 class TaskScreenResult(Generic[TR]):
@@ -134,8 +135,8 @@ class TaskScreenApp(App[TR]):
 
     # compose use
     def compose(self) -> ComposeResult:
-        yield TaskScreenHeader()
-        yield TaskScreenFooter()
+        yield Titlebar()
+        yield Footer(show_command_palette=False)
 
         with TabbedContent(id="tabs", initial="tasks"):
             with TabPane("Tasks", id="tasks"):
@@ -161,6 +162,7 @@ class TaskScreenApp(App[TR]):
     # update dynamic parts of display
     def update_display(self) -> None:
         self.update_title()
+        self.update_tasks()
 
     # update the header title
     def update_title(self) -> None:
@@ -175,9 +177,24 @@ class TaskScreenApp(App[TR]):
             title = ""
 
         # set if required
-        header = self.query_one(TaskScreenHeader)
+        header = self.query_one(Titlebar)
         if header.title != title:
             header.title = title
+
+    def update_tasks(self) -> None:
+        tasks = self.query_one(TasksView)
+        if len(self._tasks) > 0:
+            tasks.config = task_config(
+                self._tasks[0].profile, generate_config=not self._parallel
+            )
+            if not self._parallel:
+                tasks.targets = task_targets(self._tasks[0].profile)
+            else:
+                tasks.targets = ""
+        else:
+            tasks.config = ""
+            tasks.targets = ""
+        tasks.footer = task_footer()
 
     # track and display log unread state
     def handle_log_unread(self) -> None:

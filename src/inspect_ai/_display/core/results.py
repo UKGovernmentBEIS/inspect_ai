@@ -8,7 +8,7 @@ from rich.text import Text
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 
-from .config import task_config
+from .config import task_config, task_dict
 from .display import (
     TaskCancelled,
     TaskError,
@@ -178,10 +178,3 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
         )
 
     return message
-
-
-def task_dict(d: dict[str, str], bold_value: bool = False) -> str:
-    slot1, slot2 = ("", "[/bold]") if bold_value else ("[/bold]", "")
-    return "  ".join(
-        [f"[bold]{key}:{slot1} {value}{slot2}" for key, value in d.items()]
-    )

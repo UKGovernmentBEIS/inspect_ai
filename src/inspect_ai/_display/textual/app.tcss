@@ -1,5 +1,5 @@
 
-TaskScreenHeader {
+Titlebar {
   color: $accent;
   text-style: bold;
 }

@@ -14,11 +14,9 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.display import display_type
-from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log._transcript import InputEvent, transcript
-from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._trace import trace_enabled
 
 from ..core.config import task_config
@@ -34,9 +32,10 @@ from ..core.display import (
     TaskScreen,
     TaskWithResult,
 )
+from ..core.footer import task_footer
 from ..core.panel import task_panel, task_title, tasks_title
 from ..core.progress import RichProgress, rich_progress
-from ..core.results import task_dict, tasks_results
+from ..core.results import tasks_results
 from ..core.rich import (
     is_vscode_notebook,
     record_console_input,
@@ -294,7 +293,7 @@ def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> Renderable
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
         body=Group(*body),
-        footer=live_task_footer(),
+        footer=task_footer(),
         log_location=None,
     )
 
@@ -318,7 +317,7 @@ def tasks_live_status(
     footer_table = Table.grid(expand=True)
     footer_table.add_column()
     footer_table.add_column(justify="right")
-    footer = live_task_footer()
+    footer = task_footer()
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
@@ -340,23 +339,3 @@ def task_no_ansi(profile: TaskProfile) -> str:
     if config:
         message = f"{message} (config: {config})"
     return f"{message}...\n"
-
-
-def task_resources() -> str:
-    resources: dict[str, str] = {}
-    for model, resource in concurrency_status().items():
-        resources[model] = f"{resource[0]}/{resource[1]}"
-    return task_dict(resources)
-
-
-@throttle(1)
-def live_task_footer() -> tuple[RenderableType, RenderableType]:
-    theme = rich_theme()
-    return (
-        f"[{theme.light}]{task_resources()}[/{theme.light}]",
-        Text(task_http_rate_limits(), style=theme.light),
-    )
-
-
-def task_http_rate_limits() -> str:
-    return f"HTTP rate limits: {http_rate_limit_count():,}"

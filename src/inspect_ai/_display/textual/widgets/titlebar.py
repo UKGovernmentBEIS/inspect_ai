@@ -8,9 +8,9 @@ from textual.reactive import Reactive
 from textual.widget import Widget
 
 
-class TaskScreenHeader(Widget):
+class Titlebar(Widget):
     DEFAULT_CSS = """
-    TaskScreenHeader {
+    Titlebar {
         dock: top;
         width: 100%;
         background: $foreground 5%;
@@ -38,7 +38,7 @@ class TaskScreenHeader(Widget):
         super().__init__(name=name, id=id, classes=classes)
 
     def compose(self) -> Iterator[Widget]:
-        yield TaskScreenHeaderTitle()
+        yield TitlebarTitle()
 
     @property
     def title(self) -> str:
@@ -56,15 +56,15 @@ class TaskScreenHeader(Widget):
     def sub_title(self, sub_title: str) -> None:
         self._header_title().sub_text = sub_title
 
-    def _header_title(self) -> TaskScreenHeaderTitle:
-        return self.query_one(TaskScreenHeaderTitle)
+    def _header_title(self) -> TitlebarTitle:
+        return self.query_one(TitlebarTitle)
 
 
-class TaskScreenHeaderTitle(Widget):
+class TitlebarTitle(Widget):
     """Display the title / subtitle in the header."""
 
     DEFAULT_CSS = """
-    TaskScreenHeaderTitle {
+    TitlebarTitle {
         content-align: center middle;
         width: 100%;
     }
