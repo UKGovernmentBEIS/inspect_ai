@@ -323,9 +323,10 @@ def tasks_live_status(
     footer_table.add_row(footer[0], footer[1])
 
     # create panel w/ title
+    theme = rich_theme()
     panel = Panel(
         Group(config, progress, footer_table, fit=False),
-        title=tasks_title(completed, total_tasks),
+        title=f"[bold][{theme.meta}]{tasks_title(completed, total_tasks)}[/{theme.meta}][/bold]",
         title_align="left",
         width=width,
         expand=True,

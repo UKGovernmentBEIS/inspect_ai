@@ -77,8 +77,7 @@ def task_panel(
 
 
 def tasks_title(completed: int, total: int) -> str:
-    theme = rich_theme()
-    return f"[bold][{theme.meta}]eval: {completed}/{total} tasks complete[/{theme.meta}][/bold]"
+    return f"{completed}/{total} tasks complete"
 
 
 def task_title(profile: TaskProfile, show_model: bool) -> str:

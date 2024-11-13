@@ -60,10 +60,13 @@ class TaskScreenApp(App[TR]):
         self._error: BaseException | None = None
         self._output: list[str] = []
 
-        # tasks
+        # task screen
         self._total_tasks = 0
         self._parallel = False
         self._tasks: list[TaskWithResult] = []
+
+        # all tasks processed by app
+        self._app_tasks: list[TaskWithResult] = []
 
         # dynamically enable dark mode or light mode
         self.dark = detect_terminal_background().dark
@@ -87,7 +90,7 @@ class TaskScreenApp(App[TR]):
             value = RuntimeError("No application result available")
 
         # return result w/ output
-        return TaskScreenResult(value=value, tasks=self._tasks, output=self._output)
+        return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)
 
     # exit the app when the worker terminates
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -102,24 +105,30 @@ class TaskScreenApp(App[TR]):
 
     # notification that a new top level set of tasks are being run
     def task_screen(self, total_tasks: int, parallel: bool) -> TaskScreen:
+        # reset state
         self._tasks = []
         self._total_tasks = total_tasks
         self._parallel = parallel
+
+        # dynamic tab caption for task(s)
+        tabs = self.query_one(TabbedContent)
+        tasks_tab = tabs.get_tab("tasks")
+        tasks_tab.label = Text.from_markup("Tasks" if total_tasks > 1 else "Task")
+
+        # update display
+        self.update_display()
+
         return TextualTaskScreen()
 
     # notification that a task is running and requires display
     def task_display(self, profile: TaskProfile) -> TaskDisplay:
         # create and track task
         task = TaskWithResult(profile, None)
+        self._app_tasks.append(task)
         self._tasks.append(task)
 
-        # update caption
-        header = self.query_one(TaskScreenHeader)
-        if self._parallel:
-            completed = sum(1 for task in self._tasks if task.result is not None)
-            header.title = tasks_title(completed, self._total_tasks)
-        else:
-            header.title = task_title(task.profile, show_model=len(self._tasks) == 1)
+        # update display
+        self.update_display()
 
         return TextualTaskDisplay(task)
 
@@ -145,6 +154,30 @@ class TaskScreenApp(App[TR]):
 
         # handle log unread
         self.handle_log_unread()
+
+        # update display every second
+        self.set_interval(1, self.update_display)
+
+    # update dynamic parts of display
+    def update_display(self) -> None:
+        self.update_title()
+
+    # update the header title
+    def update_title(self) -> None:
+        # determine title
+        if len(self._tasks) > 0:
+            if self._parallel:
+                completed = sum(1 for task in self._tasks if task.result is not None)
+                title = f"inspect eval - {tasks_title(completed, self._total_tasks)}"
+            else:
+                title = f"inspect eval - {task_title(self._tasks[0].profile, show_model=len(self._tasks) == 1)}"
+        else:
+            title = ""
+
+        # set if required
+        header = self.query_one(TaskScreenHeader)
+        if header.title != title:
+            header.title = title
 
     # track and display log unread state
     def handle_log_unread(self) -> None:
