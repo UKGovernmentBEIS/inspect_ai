@@ -215,13 +215,6 @@ class Model:
         Returns:
            ModelOutput
         """
-        # verify that model apis are allowed
-        if (
-            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
-            and ModelName(self).api != "mockllm"
-        ):
-            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
-
         # base config for this model
         base_config = self.config
 
@@ -346,6 +339,9 @@ class Model:
                     )
                     return existing
 
+            # verify that model apis are allowed
+            self.verify_model_apis()
+
             result = await self.api.generate(
                 input=input,
                 tools=tools,
@@ -387,6 +383,14 @@ class Model:
 
         # return results
         return model_output
+
+    # function to verify that its okay to call model apis
+    def verify_model_apis(self) -> None:
+        if (
+            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
+            and ModelName(self).api != "mockllm"
+        ):
+            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
 
     # semaphore for model generate requests. these can be shared across
     # instances of Model.  This is so that each distinct model endpoint/account
