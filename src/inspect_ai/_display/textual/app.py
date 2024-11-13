@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.events import Print
-from textual.widgets import Footer, TabbedContent, TabPane
+from textual.widgets import Footer, ProgressBar, TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
@@ -112,6 +112,10 @@ class TaskScreenApp(App[TR]):
         self._total_tasks = total_tasks
         self._parallel = parallel
 
+        # clear existing task progress
+        tasks_view = self.query_one(TasksView)
+        tasks_view.clear_tasks()
+
         # dynamic tab caption for task(s)
         tabs = self.query_one(TabbedContent)
         tasks_tab = tabs.get_tab("tasks")
@@ -126,7 +130,6 @@ class TaskScreenApp(App[TR]):
             self._tasks = []
             self._total_tasks = 0
             self._parallel = False
-            self.update_display()
 
     # notification that a task is running and requires display
     @contextlib.contextmanager
@@ -136,11 +139,16 @@ class TaskScreenApp(App[TR]):
         self._app_tasks.append(task)
         self._tasks.append(task)
 
+        # create progress and add to tasks pane
+        tasks_view = self.query_one(TasksView)
+        progress = ProgressBar(total=profile.steps, show_eta=False)
+        tasks_view.add_task(progress)
+
         # update display
         self.update_display()
 
         try:
-            yield TextualTaskDisplay(task)
+            yield TextualTaskDisplay(task, progress)
         finally:
             pass
 
@@ -275,24 +283,30 @@ class TextualTaskScreen(TaskScreen):
 
 
 class TextualTaskDisplay(TaskDisplay):
-    def __init__(self, task: TaskWithResult) -> None:
+    def __init__(self, task: TaskWithResult, progress_bar: ProgressBar) -> None:
         self.task = task
+        self.p = TextualProgress(progress_bar)
 
     @override
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
-        yield TextualProgress()
+        yield self.p
 
     @override
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
+        self.p.complete()
 
 
 class TextualProgress(Progress):
+    def __init__(self, progress_bar: ProgressBar) -> None:
+        self.progress_bar = progress_bar
+
     @override
     def update(self, n: int = 1) -> None:
-        pass
+        self.progress_bar.update(advance=n)
 
     @override
     def complete(self) -> None:
-        pass
+        if self.progress_bar.total is not None:
+            self.progress_bar.update(progress=self.progress_bar.total)
