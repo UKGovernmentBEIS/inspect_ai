@@ -1,12 +1,18 @@
 # Changelog
 
-## Unreleased 
+## Unreleased
+
+- Ensure that the scorer is only run once for basic_agent with max_attempts = 1.
+
+## v0.3.46 (12 November 2024) 
 
 - [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
 - Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
 - The log viewer now properly displays sample errors in the sample list for `eval` format log files.
 - Improve path handling when using `inspect log convert` to convert a single log file.
 - Web browser tool: Subtasks now each have independent web browser sessions.
+- Anthropic: Ensure that assistant messages created in generate never have empty content lists.
+- Increase sandbox `exec()` output limit from 1 MiB to 10 MiB.
 
 ## v0.3.45 (11 November 2024)
 

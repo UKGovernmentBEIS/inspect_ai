@@ -169,7 +169,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
 
     def _handle_join_world_request(
         self, request: dm_env_rpc_pb2.JoinWorldRequest
-    ) -> (dm_env_rpc_pb2.JoinWorldResponse, str):
+    ) -> tuple[dm_env_rpc_pb2.JoinWorldResponse, str]:
         """Handles join_world requests."""
         self._validate_settings(request.settings, [])
         response = dm_env_rpc_pb2.JoinWorldResponse()
