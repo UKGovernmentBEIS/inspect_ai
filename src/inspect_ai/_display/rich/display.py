@@ -34,7 +34,7 @@ from ..core.display import (
     TaskScreen,
     TaskWithResult,
 )
-from ..core.panel import task_panel, task_title
+from ..core.panel import task_panel, task_title, tasks_title
 from ..core.progress import RichProgress, rich_progress
 from ..core.results import task_dict, tasks_results
 from ..core.rich import (
@@ -71,7 +71,7 @@ class RichDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, title: str, main: Coroutine[Any, Any, TR]) -> TR:
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
         return asyncio.run(main)
 
     @override
@@ -303,7 +303,6 @@ def tasks_live_status(
     total_tasks: int, tasks: list[TaskStatus], progress: RProgress
 ) -> RenderableType:
     # rendering context
-    theme = rich_theme()
     console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
@@ -326,7 +325,7 @@ def tasks_live_status(
     # create panel w/ title
     panel = Panel(
         Group(config, progress, footer_table, fit=False),
-        title=f"[bold][{theme.meta}]eval: {completed}/{total_tasks} tasks complete[/{theme.meta}][/bold]",
+        title=tasks_title(completed, total_tasks),
         title_align="left",
         width=width,
         expand=True,

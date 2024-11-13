@@ -141,7 +141,6 @@ def eval(
     platform_init()
 
     return display().run_task_app(
-        title="inspect eval",
         main=eval_async(
             tasks=tasks,
             model=model,
@@ -494,7 +493,6 @@ def eval_retry(
     platform_init()
 
     return display().run_task_app(
-        title="inspect eval-retry",
         main=eval_retry_async(
             tasks=tasks,
             log_level=log_level,

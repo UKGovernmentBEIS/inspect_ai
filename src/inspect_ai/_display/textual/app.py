@@ -22,6 +22,7 @@ from ..core.display import (
     TaskScreen,
     TaskWithResult,
 )
+from ..core.panel import task_title, tasks_title
 from ..core.rich import rich_initialise
 from .widgets.footer import TaskScreenFooter
 from .widgets.header import TaskScreenHeader
@@ -50,16 +51,19 @@ class TaskScreenApp(App[TR]):
         ("l", "show_log", "Log messages"),
     ]
 
-    def __init__(self, title: str) -> None:
+    def __init__(self) -> None:
         # call super
         super().__init__()
 
-        # initialise members
-        self._title = title
+        # worker and output
         self._worker: Worker[TR] | None = None
         self._error: BaseException | None = None
-        self._tasks: list[TaskWithResult] = []
         self._output: list[str] = []
+
+        # tasks
+        self._total_tasks = 0
+        self._parallel = False
+        self._tasks: list[TaskWithResult] = []
 
         # dynamically enable dark mode or light mode
         self.dark = detect_terminal_background().dark
@@ -98,11 +102,26 @@ class TaskScreenApp(App[TR]):
 
     # notification that a new top level set of tasks are being run
     def task_screen(self, total_tasks: int, parallel: bool) -> TaskScreen:
+        self._tasks = []
+        self._total_tasks = total_tasks
+        self._parallel = parallel
         return TextualTaskScreen()
 
     # notification that a task is running and requires display
     def task_display(self, profile: TaskProfile) -> TaskDisplay:
-        return TextualTaskDisplay(profile, self._tasks)
+        # create and track task
+        task = TaskWithResult(profile, None)
+        self._tasks.append(task)
+
+        # update caption
+        header = self.query_one(TaskScreenHeader)
+        if self._parallel:
+            completed = sum(1 for task in self._tasks if task.result is not None)
+            header.title = tasks_title(completed, self._total_tasks)
+        else:
+            header.title = task_title(task.profile, show_model=len(self._tasks) == 1)
+
+        return TextualTaskDisplay(task)
 
     # compose use
     def compose(self) -> ComposeResult:
@@ -118,10 +137,6 @@ class TaskScreenApp(App[TR]):
                 yield LogView()
 
     def on_mount(self) -> None:
-        # set title
-        header = self.query_one(TaskScreenHeader)
-        header.title = self._title
-
         # start the eval worker
         self.workers.start_all()
 
@@ -199,9 +214,8 @@ class TextualTaskScreen(TaskScreen):
 
 
 class TextualTaskDisplay(TaskDisplay):
-    def __init__(self, profile: TaskProfile, results: list[TaskWithResult]) -> None:
-        self.profile = profile
-        self.results = results
+    def __init__(self, task: TaskWithResult) -> None:
+        self.task = task
 
     @override
     @contextlib.contextmanager
@@ -210,7 +224,7 @@ class TextualTaskDisplay(TaskDisplay):
 
     @override
     def complete(self, result: TaskResult) -> None:
-        self.results.append(TaskWithResult(self.profile, result))
+        self.task.result = result
 
 
 class TextualProgress(Progress):

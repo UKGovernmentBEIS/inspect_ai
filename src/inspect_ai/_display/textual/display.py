@@ -29,9 +29,9 @@ class TextualDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, title: str, main: Coroutine[Any, Any, TR]) -> TR:
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
         # create and run the app
-        self.app = TaskScreenApp[TR](title)
+        self.app = TaskScreenApp[TR]()
         result = self.app.run_app(main)
 
         # print output

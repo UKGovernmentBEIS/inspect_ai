@@ -76,6 +76,11 @@ def task_panel(
     return panel
 
 
+def tasks_title(completed: int, total: int) -> str:
+    theme = rich_theme()
+    return f"[bold][{theme.meta}]eval: {completed}/{total} tasks complete[/{theme.meta}][/bold]"
+
+
 def task_title(profile: TaskProfile, show_model: bool) -> str:
     eval_epochs = profile.eval_config.epochs or 1
     epochs = f" x {profile.eval_config.epochs}" if eval_epochs > 1 else ""
