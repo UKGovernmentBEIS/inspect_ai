@@ -1,5 +1,5 @@
 from logging import getLogger
-from typing import cast
+from typing import Callable, cast
 
 from typing_extensions import TypedDict, Unpack
 
@@ -7,7 +7,7 @@ from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import get_model
-from inspect_ai.scorer._metric import ValueToFloat, value_to_float
+from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
@@ -55,7 +55,8 @@ def basic_agent(
     message_limit: int | None = None,
     token_limit: int | None = None,
     score_value: ValueToFloat | None = None,
-    incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
+    incorrect_message: str
+    | Callable[[TaskState, Score], str] = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
@@ -88,8 +89,8 @@ def basic_agent(
        token_limit (int | None): Limit on tokens used in sample before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
-       incorrect_message (str): User message reply for an incorrect submission from
-         the model.
+       incorrect_message (str | | Callable[[TaskState, Score], str]): User message reply for an
+         incorrect submission from the model.
        continue_message (str): User message to urge the model to continue when it
          doesn't make a tool call.
        submit_name (str): Name for tool used to make submissions
@@ -196,14 +197,19 @@ def basic_agent(
                             break
 
                         # exit if the submission is successful
-                        answer_scores = await score(state)
-                        if score_value_fn(answer_scores[0].value) == 1.0:
+                        answer_score = (await score(state))[0]
+                        if score_value_fn(answer_score.value) == 1.0:
                             break
 
                         # otherwise notify the model that it was incorrect and continue
                         else:
+                            response_message = (
+                                incorrect_message(state, answer_score)
+                                if callable(incorrect_message)
+                                else incorrect_message
+                            )
                             state.messages.append(
-                                ChatMessageUser(content=incorrect_message)
+                                ChatMessageUser(content=response_message)
                             )
 
                 # no tool calls, urge the model to continue
