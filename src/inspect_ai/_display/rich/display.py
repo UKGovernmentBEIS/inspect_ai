@@ -24,9 +24,7 @@ from ..core.display import (
     TR,
     Display,
     Progress,
-    TaskCancelled,
     TaskDisplay,
-    TaskError,
     TaskProfile,
     TaskResult,
     TaskScreen,
@@ -34,7 +32,13 @@ from ..core.display import (
 )
 from ..core.footer import task_footer
 from ..core.panel import task_panel, task_title, tasks_title
-from ..core.progress import RichProgress, rich_progress
+from ..core.progress import (
+    RichProgress,
+    progress_description,
+    progress_model_name,
+    rich_progress,
+    progress_status_icon,
+)
 from ..core.results import tasks_results
 from ..core.rich import (
     is_vscode_notebook,
@@ -244,24 +248,12 @@ class RichTaskDisplay(TaskDisplay):
         show_name: bool,
         on_update: Callable[[], None] | None = None,
     ) -> None:
-        theme = rich_theme()
         self.status = status
-        model = Text(str(self.status.profile.model))
-        model.truncate(25, overflow="ellipsis")
-        description = Text(f"{self.status.profile.name} " if show_name else "")
-        if show_name:
-            description.truncate(20, overflow="ellipsis")
+        model = progress_model_name(self.status.profile.model)
+        description = progress_description(self.status.profile)
 
         def task_status() -> str:
-            if self.status.result:
-                if isinstance(self.status.result, TaskError):
-                    return f"[{theme.error}]✗[{theme.error}]"
-                elif isinstance(self.status.result, TaskCancelled):
-                    return f"[{theme.error}]✗[{theme.error}]"
-                else:
-                    return f"[{theme.success}]✔[{theme.success}]"
-            else:
-                return f"[{theme.meta}]⠿[{theme.meta}]"
+            return progress_status_icon(self.status.result)
 
         self.p = RichProgress(
             total=self.status.profile.steps,

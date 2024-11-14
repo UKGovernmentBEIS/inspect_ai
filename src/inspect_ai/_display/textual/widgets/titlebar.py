@@ -14,7 +14,7 @@ class Titlebar(Widget):
         dock: top;
         width: 100%;
         background: $foreground 5%;
-        color: $text;
+        color: $accent;
         height: 1;
     }
     """

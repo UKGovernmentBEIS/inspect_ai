@@ -3,8 +3,9 @@ from typing import Iterator, cast
 
 from rich.console import RenderableType
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.containers import Container, ScrollableContainer
 from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
 from typing_extensions import override
 
@@ -13,6 +14,11 @@ from ...core.display import (
     TaskDisplay,
     TaskResult,
     TaskWithResult,
+)
+from ...core.progress import (
+    progress_description,
+    progress_model_name,
+    progress_status_icon,
 )
 
 
@@ -44,6 +50,7 @@ class TasksView(Container):
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         task_display = TaskProgressView(task)
         self.tasks.mount(task_display)
+        self.tasks.scroll_to_widget(task_display)
         return task_display
 
     def clear_tasks(self) -> None:
@@ -75,10 +82,19 @@ class TasksView(Container):
         return cast(ScrollableContainer, self.query_one("#tasks-progress"))
 
 
-class TaskProgressView(Horizontal):
+class TaskProgressView(Widget):
     DEFAULT_CSS = """
     TaskProgressView {
+        color: $text-muted;
         height: auto;
+        width: 1fr;
+        layout: grid;
+        grid-size: 4 1;
+        grid-columns: auto auto auto 1fr;
+        grid-gutter: 1
+    }
+    TaskProgressView Bar {
+        width: 1fr;
     }
     """
 
@@ -89,6 +105,9 @@ class TaskProgressView(Horizontal):
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
+        yield TaskStatusIcon()
+        yield Static(progress_description(self.t.profile))
+        yield Static(progress_model_name(self.t.profile.model))
         yield self.progress_bar
 
     @contextlib.contextmanager
@@ -97,7 +116,18 @@ class TaskProgressView(Horizontal):
 
     def complete(self, result: TaskResult) -> None:
         self.t.result = result
+        self.query_one(TaskStatusIcon).result = result
         self.task_progress.complete()
+
+
+class TaskStatusIcon(Static):
+    result: reactive[TaskResult | None] = reactive(None)
+
+    def __init__(self) -> None:
+        super().__init__(progress_status_icon(None))
+
+    def watch_result(self, new_result: TaskResult | None) -> None:
+        self.update(progress_status_icon(new_result))
 
 
 class TaskProgress(Progress):

@@ -8,10 +8,13 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from rich.progress import Progress as RProgress
+from rich.text import Text
 from typing_extensions import override
 
-from .display import Progress
-from .rich import is_vscode_notebook
+from inspect_ai.model._model import ModelName
+
+from .display import Progress, TaskCancelled, TaskError, TaskProfile, TaskResult
+from .rich import is_vscode_notebook, rich_theme
 
 # Note that use of rich progress seems to result in an extra
 # empty cell after execution, see: https://github.com/Textualize/rich/issues/3274
@@ -66,3 +69,28 @@ def rich_progress() -> RProgress:
         console=console,
         expand=not is_vscode_notebook(console),
     )
+
+
+def progress_model_name(model_name: ModelName) -> Text:
+    model = Text(str(model_name))
+    model.truncate(25, overflow="ellipsis")
+    return model
+
+
+def progress_description(profile: TaskProfile) -> Text:
+    description = Text(profile.name)
+    description.truncate(20, overflow="ellipsis")
+    return description
+
+
+def progress_status_icon(result: TaskResult | None) -> str:
+    theme = rich_theme()
+    if result:
+        if isinstance(result, TaskError):
+            return f"[{theme.error}]✗[{theme.error}]"
+        elif isinstance(result, TaskCancelled):
+            return f"[{theme.error}]✗[{theme.error}]"
+        else:
+            return f"[{theme.success}]✔[{theme.success}]"
+    else:
+        return f"[{theme.meta}]⠿[{theme.meta}]"
