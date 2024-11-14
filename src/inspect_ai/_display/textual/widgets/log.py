@@ -4,6 +4,14 @@ from textual.widgets import RichLog
 
 
 class LogView(RichLog):
+    DEFAULT_CSS = """
+    LogView {
+        scrollbar-size-horizontal: 1;
+        scrollbar-size-vertical: 1;
+        scrollbar-gutter: stable;
+    }
+    """
+
     # enable tab container to print our unread count
     unread: reactive[int | None] = reactive(None)
 

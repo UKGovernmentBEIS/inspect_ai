@@ -16,9 +16,3 @@ TabPane {
   padding: 0 0 0 0;
 }
 
-LogView {
-  scrollbar-size-horizontal: 1;
-  scrollbar-size-vertical: 1;
-  scrollbar-gutter: stable;
-}
-
