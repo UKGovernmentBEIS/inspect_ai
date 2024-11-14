@@ -111,16 +111,17 @@ class TaskScreenApp(App[TR]):
         self._parallel = parallel
 
         # clear existing task progress
-        tasks_view = self.query_one(TasksView)
-        tasks_view.clear_tasks()
+        with self.batch_update():
+            tasks_view = self.query_one(TasksView)
+            tasks_view.clear_tasks()
 
-        # dynamic tab caption for task(s)
-        tabs = self.query_one(TabbedContent)
-        tasks_tab = tabs.get_tab("tasks")
-        tasks_tab.label = Text.from_markup("Tasks" if total_tasks > 1 else "Task")
+            # dynamic tab caption for task(s)
+            tabs = self.query_one(TabbedContent)
+            tasks_tab = tabs.get_tab("tasks")
+            tasks_tab.label = Text.from_markup("Tasks" if total_tasks > 1 else "Task")
 
-        # update display
-        self.update_display()
+            # update display
+            self.update_display()
 
         try:
             yield TextualTaskScreen()
@@ -140,6 +141,7 @@ class TaskScreenApp(App[TR]):
         # update display
         self.update_display()
 
+        # add task
         try:
             yield self.query_one(TasksView).add_task(task)
         finally:
