@@ -27,6 +27,12 @@ class Progress(Protocol):
 
 
 @dataclass
+class TaskSpec:
+    name: str
+    model: ModelName
+
+
+@dataclass
 class TaskProfile:
     name: str
     file: str | None
@@ -104,7 +110,9 @@ class Display(Protocol):
     def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
 
     @contextlib.contextmanager
-    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]: ...
+    def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> Iterator[TaskScreen]: ...
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...

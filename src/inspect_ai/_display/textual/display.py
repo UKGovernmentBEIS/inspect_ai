@@ -11,6 +11,7 @@ from ..core.display import (
     TaskDisplay,
     TaskProfile,
     TaskScreen,
+    TaskSpec,
 )
 from ..core.progress import RichProgress, rich_progress
 from ..core.results import tasks_results
@@ -50,8 +51,10 @@ class TextualDisplay(Display):
 
     @override
     @contextlib.contextmanager
-    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
-        with self.app.task_screen(total_tasks, parallel) as task_screen:
+    def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> Iterator[TaskScreen]:
+        with self.app.task_screen(tasks, parallel) as task_screen:
             yield task_screen
 
     @override

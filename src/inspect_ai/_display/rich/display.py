@@ -27,6 +27,7 @@ from ..core.display import (
     TaskProfile,
     TaskResult,
     TaskScreen,
+    TaskSpec,
     TaskWithResult,
 )
 from ..core.footer import task_footer
@@ -78,8 +79,10 @@ class RichDisplay(Display):
 
     @override
     @contextlib.contextmanager
-    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
-        self.total_tasks = total_tasks
+    def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> Iterator[TaskScreen]:
+        self.total_tasks = len(tasks)
         self.tasks = []
         self.progress_ui = rich_progress()
         self.parallel = parallel

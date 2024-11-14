@@ -15,9 +15,12 @@ from ...core.display import (
     Progress,
     TaskDisplay,
     TaskResult,
+    TaskSpec,
     TaskWithResult,
 )
 from ...core.progress import (
+    MAX_DESCRIPTION_WIDTH,
+    MAX_MODEL_NAME_WIDTH,
     progress_description,
     progress_model_name,
     progress_status_icon,
@@ -44,14 +47,30 @@ class TasksView(Container):
     config: reactive[RenderableType] = reactive("")
     targets: reactive[RenderableType] = reactive("")
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.description_width = MAX_DESCRIPTION_WIDTH
+        self.model_name_width = MAX_MODEL_NAME_WIDTH
+
+    def init_tasks(self, tasks: list[TaskSpec]) -> None:
+        # clear existing tasks
+        self.tasks.remove_children()
+
+        # compute the column widths by looking all of the tasks
+        self.description_width = min(
+            max([len(task.name) for task in tasks]), MAX_DESCRIPTION_WIDTH
+        )
+        self.model_name_width = min(
+            max([len(str(task.model)) for task in tasks]), MAX_MODEL_NAME_WIDTH
+        )
+
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
-        task_display = TaskProgressView(task)
+        task_display = TaskProgressView(
+            task, self.description_width, self.model_name_width
+        )
         self.tasks.mount(task_display)
         self.tasks.scroll_to_widget(task_display)
         return task_display
-
-    def clear_tasks(self) -> None:
-        self.tasks.remove_children()
 
     def compose(self) -> ComposeResult:
         yield Static(id="tasks-config")
@@ -87,16 +106,24 @@ class TaskProgressView(Widget):
     }
     """
 
-    def __init__(self, task: TaskWithResult) -> None:
+    def __init__(
+        self, task: TaskWithResult, description_width: int, model_name_width: int
+    ) -> None:
         super().__init__()
         self.t = task
+        self.description_width = description_width
+        self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
         yield TaskStatusIcon()
-        yield Static(progress_description(self.t.profile))
-        yield Static(progress_model_name(self.t.profile.model))
+        yield Static(
+            progress_description(self.t.profile, self.description_width, pad=True)
+        )
+        yield Static(
+            progress_model_name(self.t.profile.model, self.model_name_width, pad=True)
+        )
         yield self.progress_bar
         yield TaskTime()
 

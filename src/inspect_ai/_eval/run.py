@@ -11,11 +11,13 @@ from inspect_ai._display.core.active import (
     clear_task_screen,
     init_task_screen,
 )
+from inspect_ai._display.core.display import TaskSpec
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
+from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -219,7 +221,7 @@ async def eval_run(
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
 
-    with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
+    with display().task_screen(task_specs(tasks), parallel=False) as screen:
         init_task_screen(screen)
         asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
 
@@ -298,7 +300,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
+    with display().task_screen(task_specs(tasks), parallel=True) as screen:
         # init screen
         init_task_screen(screen)
 
@@ -364,3 +366,7 @@ async def startup_sandbox_environments(
                 )
 
     return shutdown
+
+
+def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
+    return [TaskSpec(task.task.name, ModelName(task.model)) for task in tasks]

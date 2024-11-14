@@ -19,6 +19,7 @@ from ..core.display import (
     TaskDisplay,
     TaskProfile,
     TaskScreen,
+    TaskSpec,
     TaskWithResult,
 )
 from ..core.footer import task_footer
@@ -100,21 +101,25 @@ class TaskScreenApp(App[TR]):
 
     # notification that a new top level set of tasks are being run
     @contextlib.contextmanager
-    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]:
+    def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> Iterator[TaskScreen]:
         # reset state
         self._tasks = []
-        self._total_tasks = total_tasks
+        self._total_tasks = len(tasks)
         self._parallel = parallel
 
         # clear existing task progress
         with self.batch_update():
             tasks_view = self.query_one(TasksView)
-            tasks_view.clear_tasks()
+            tasks_view.init_tasks(tasks)
 
             # dynamic tab caption for task(s)
             tabs = self.query_one(TabbedContent)
             tasks_tab = tabs.get_tab("tasks")
-            tasks_tab.label = Text.from_markup("Tasks" if total_tasks > 1 else "Task")
+            tasks_tab.label = Text.from_markup(
+                "Tasks" if self._total_tasks > 1 else "Task"
+            )
 
             # update display
             self.update_display()

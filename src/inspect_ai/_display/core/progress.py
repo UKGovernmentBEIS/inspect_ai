@@ -71,15 +71,23 @@ def rich_progress() -> RProgress:
     )
 
 
-def progress_model_name(model_name: ModelName) -> Text:
+MAX_MODEL_NAME_WIDTH = 25
+MAX_DESCRIPTION_WIDTH = 25
+
+
+def progress_model_name(
+    model_name: ModelName, max_width: int = MAX_MODEL_NAME_WIDTH, pad: bool = False
+) -> Text:
     model = Text(str(model_name))
-    model.truncate(25, overflow="ellipsis")
+    model.truncate(max_width, overflow="ellipsis", pad=pad)
     return model
 
 
-def progress_description(profile: TaskProfile) -> Text:
+def progress_description(
+    profile: TaskProfile, max_width: int = MAX_DESCRIPTION_WIDTH, pad: bool = False
+) -> Text:
     description = Text(profile.name)
-    description.truncate(20, overflow="ellipsis")
+    description.truncate(max_width, overflow="ellipsis", pad=pad)
     return description
 
 
