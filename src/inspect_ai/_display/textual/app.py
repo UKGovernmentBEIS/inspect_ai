@@ -12,6 +12,7 @@ from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
 from inspect_ai._util.terminal import detect_terminal_background
+from inspect_ai.log._samples import active_samples
 
 from ..core.config import task_config
 from ..core.display import (
@@ -178,6 +179,7 @@ class TaskScreenApp(App[TR]):
     def update_display(self) -> None:
         self.update_title()
         self.update_tasks()
+        self.update_samples()
         self.update_footer()
 
     # update the header title
@@ -210,6 +212,10 @@ class TaskScreenApp(App[TR]):
         else:
             tasks.config = ""
             tasks.targets = ""
+
+    def update_samples(self) -> None:
+        samples_view = self.query_one(SamplesView)
+        samples_view.set_samples(active_samples())
 
     def update_footer(self) -> None:
         left, right = task_footer()
