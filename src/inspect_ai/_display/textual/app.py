@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.events import Print
-from textual.widgets import Footer, TabbedContent, TabPane
+from textual.widgets import TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
@@ -24,10 +24,11 @@ from ..core.display import (
 from ..core.footer import task_footer
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import rich_initialise
+from .widgets.footer import AppFooter
 from .widgets.log import LogView
 from .widgets.samples import SamplesView
 from .widgets.tasks import TasksView
-from .widgets.titlebar import Titlebar
+from .widgets.titlebar import AppTitlebar
 
 
 class TaskScreenResult(Generic[TR]):
@@ -144,8 +145,8 @@ class TaskScreenApp(App[TR]):
 
     # compose use
     def compose(self) -> ComposeResult:
-        yield Titlebar()
-        yield Footer(show_command_palette=False)
+        yield AppTitlebar()
+        yield AppFooter()
 
         with TabbedContent(id="tabs", initial="tasks"):
             with TabPane("Tasks", id="tasks"):
@@ -172,6 +173,7 @@ class TaskScreenApp(App[TR]):
     def update_display(self) -> None:
         self.update_title()
         self.update_tasks()
+        self.update_footer()
 
     # update the header title
     def update_title(self) -> None:
@@ -186,7 +188,7 @@ class TaskScreenApp(App[TR]):
             title = ""
 
         # set if required
-        header = self.query_one(Titlebar)
+        header = self.query_one(AppTitlebar)
         if header.title != title:
             header.title = title
 
@@ -203,7 +205,12 @@ class TaskScreenApp(App[TR]):
         else:
             tasks.config = ""
             tasks.targets = ""
-        tasks.footer = task_footer()
+
+    def update_footer(self) -> None:
+        left, right = task_footer()
+        footer = self.query_one(AppFooter)
+        footer.left = left
+        footer.right = right
 
     # track and display log unread state
     def handle_log_unread(self) -> None:

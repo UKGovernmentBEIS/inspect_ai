@@ -8,14 +8,15 @@ from textual.reactive import Reactive
 from textual.widget import Widget
 
 
-class Titlebar(Widget):
+class AppTitlebar(Widget):
     DEFAULT_CSS = """
-    Titlebar {
+    AppTitlebar {
         dock: top;
         width: 100%;
         background: $foreground 5%;
         color: $accent;
         height: 1;
+        text-style: bold;
     }
     """
 
@@ -38,7 +39,7 @@ class Titlebar(Widget):
         super().__init__(name=name, id=id, classes=classes)
 
     def compose(self) -> Iterator[Widget]:
-        yield TitlebarTitle()
+        yield AppTitlebarTitle()
 
     @property
     def title(self) -> str:
@@ -56,15 +57,15 @@ class Titlebar(Widget):
     def sub_title(self, sub_title: str) -> None:
         self._header_title().sub_text = sub_title
 
-    def _header_title(self) -> TitlebarTitle:
-        return self.query_one(TitlebarTitle)
+    def _header_title(self) -> AppTitlebarTitle:
+        return self.query_one(AppTitlebarTitle)
 
 
-class TitlebarTitle(Widget):
+class AppTitlebarTitle(Widget):
     """Display the title / subtitle in the header."""
 
     DEFAULT_CSS = """
-    TitlebarTitle {
+    AppTitlebarTitle {
         content-align: center middle;
         width: 100%;
     }
