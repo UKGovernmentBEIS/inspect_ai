@@ -13,7 +13,7 @@ class AppTitlebar(Widget):
     AppTitlebar {
         dock: top;
         width: 100%;
-        background: $foreground 5%;
+        background: $panel;
         color: $accent;
         height: 1;
         text-style: bold;
