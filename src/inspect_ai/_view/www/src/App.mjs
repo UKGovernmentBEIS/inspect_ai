@@ -19,7 +19,7 @@ import {
 // Registration component
 import "./Register.mjs";
 
-import { sleep } from "./utils/sync.mjs";
+import { debounce, sleep } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -102,8 +102,36 @@ export function App({
   const [selectedSampleTab, setSelectedSampleTab] = useState(
     initialState?.selectedSampleTab,
   );
-
+  const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
+  const setSampleScrollPosition = useCallback(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      flushInitialState();
+    }, 250),
+    [],
+  );
   const loadingSampleIndexRef = useRef(null);
+
+  const workspaceTabScrollPosition = useRef(
+    initialState?.workspaceTabScrollPosition || {},
+  );
+  const setWorkspaceTabScrollPosition = useCallback(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position,
+      };
+      flushInitialState();
+    }, 250),
+    [],
+  );
+
+  const [updateInitialState, setUpdateInitialState] = useState(0);
+  const flushInitialState = useCallback(() => {
+    setUpdateInitialState((prev) => {
+      return prev + 1;
+    });
+  }, [setUpdateInitialState]);
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(
     initialState?.showingSampleDialog,
@@ -201,6 +229,8 @@ export function App({
       filteredSamples,
       groupBy,
       groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current,
     };
     if (saveInitialState) {
       saveInitialState(state);
@@ -230,6 +260,7 @@ export function App({
     filteredSamples,
     groupBy,
     groupByOrder,
+    updateInitialState,
   ]);
 
   const handleSampleShowingDialog = useCallback(
@@ -365,6 +396,8 @@ export function App({
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
 
+          sampleScrollPosition.current = 0;
+          flushInitialState();
           setSelectedSample(sample);
 
           refreshSampleTab(sample);
@@ -375,7 +408,11 @@ export function App({
         .catch((e) => {
           setSampleStatus("error");
           setSampleError(e);
+
+          sampleScrollPosition.current = 0;
+          flushInitialState();
           setSelectedSample(undefined);
+
           loadingSampleIndexRef.current = null;
         });
     }
@@ -474,6 +511,8 @@ export function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab],
   );
@@ -852,6 +891,10 @@ export function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
+              sampleScrollPosition=${sampleScrollPosition.current}
+              setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`
       }
     </div>

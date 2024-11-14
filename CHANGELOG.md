@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Ensure that the scorer is only run once for basic_agent with max_attempts = 1.
+
 ## v0.3.46 (12 November 2024) 
 
 - [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
