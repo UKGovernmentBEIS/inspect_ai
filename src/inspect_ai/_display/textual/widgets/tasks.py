@@ -3,7 +3,7 @@ from typing import Iterator, cast
 
 from rich.console import RenderableType
 from textual.app import ComposeResult
-from textual.containers import Container, ScrollableContainer
+from textual.containers import Container, Horizontal, ScrollableContainer
 from textual.reactive import reactive
 from textual.widgets import ProgressBar, Static
 from typing_extensions import override
@@ -42,9 +42,9 @@ class TasksView(Container):
     footer: reactive[tuple[RenderableType, RenderableType]] = reactive(("", ""))
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
-        progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
-        self.tasks.mount(progress_bar)
-        return TextualTaskDisplay(task, progress_bar)
+        task_display = TaskProgressView(task)
+        self.tasks.mount(task_display)
+        return task_display
 
     def clear_tasks(self) -> None:
         self.tasks.remove_children()
@@ -75,23 +75,32 @@ class TasksView(Container):
         return cast(ScrollableContainer, self.query_one("#tasks-progress"))
 
 
-class TextualTaskDisplay(TaskDisplay):
-    def __init__(self, task: TaskWithResult, progress_bar: ProgressBar) -> None:
-        self.task = task
-        self.p = TextualProgress(progress_bar)
+class TaskProgressView(Horizontal):
+    DEFAULT_CSS = """
+    TaskProgressView {
+        height: auto;
+    }
+    """
 
-    @override
+    def __init__(self, task: TaskWithResult) -> None:
+        super().__init__()
+        self.t = task
+        self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
+        self.task_progress = TaskProgress(self.progress_bar)
+
+    def compose(self) -> ComposeResult:
+        yield self.progress_bar
+
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
-        yield self.p
+        yield self.task_progress
 
-    @override
     def complete(self, result: TaskResult) -> None:
-        self.task.result = result
-        self.p.complete()
+        self.t.result = result
+        self.task_progress.complete()
 
 
-class TextualProgress(Progress):
+class TaskProgress(Progress):
     def __init__(self, progress_bar: ProgressBar) -> None:
         self.progress_bar = progress_bar
 
