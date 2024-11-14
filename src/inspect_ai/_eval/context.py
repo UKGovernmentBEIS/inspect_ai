@@ -1,6 +1,7 @@
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.hooks import init_hooks
 from inspect_ai._util.logger import init_http_rate_limit_count, init_logger
+from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
 from inspect_ai.model._model import init_active_model, init_model_usage
 from inspect_ai.util._concurrency import init_concurrency
@@ -21,6 +22,7 @@ def init_eval_context(
     init_http_rate_limit_count()
     init_hooks()
     init_trace(trace)
+    init_active_samples()
 
 
 def init_task_context(model: Model, config: GenerateConfig = GenerateConfig()) -> None:

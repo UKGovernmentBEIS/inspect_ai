@@ -42,6 +42,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import EvalSampleReductions, eval_error
+from inspect_ai.log._samples import ActiveSample, active_sample
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -402,7 +403,7 @@ async def task_run_sample(
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
 
@@ -418,8 +419,13 @@ async def task_run_sample(
         timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
     )
 
+    # track active sample
+    active_sample_cm = active_sample(
+        ActiveSample(task_name, str(state.model), sample, sample_transcript)
+    )
+
     # solver loop
-    async with semaphore_cm, sandboxenv_cm:
+    async with semaphore_cm, sandboxenv_cm, active_sample_cm:
         error: EvalError | None = None
         try:
             async with timeout_cm:
