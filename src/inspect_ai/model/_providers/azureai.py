@@ -109,14 +109,8 @@ class AzureAIAPI(ModelAPI):
         if not endpoint_url:
             raise environment_prerequisite_error("AzureAI", AZUREAI_BASE_URL)
         self.endpoint_url = endpoint_url
+        self.model_args = model_args
 
-        # create client
-        self.client = ChatCompletionsClient(
-            endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
-            model=self.model_name,
-            model_extras=model_args,
-        )
 
     async def generate(
         self,
@@ -125,6 +119,14 @@ class AzureAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # create client
+        # Note the client needs to be generated for each call to prevent issues with async
+        client = ChatCompletionsClient(
+            endpoint=self.endpoint_url,
+            credential=AzureKeyCredential(self.api_key),
+            model=self.model_name,
+            model_extras=self.model_args,
+        )
         # if its llama then do fake tool calls
         handler: ChatAPIHandler | None = Llama31Handler() if self.is_llama() else None
         if handler:
@@ -140,7 +142,7 @@ class AzureAIAPI(ModelAPI):
 
         # make call
         try:
-            response: ChatCompletions = await self.client.complete(**request)
+            response: ChatCompletions = await client.complete(**request)
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(response.choices, tools, handler),
@@ -162,6 +164,8 @@ class AzureAIAPI(ModelAPI):
             )
         except AzureError as ex:
             return self.handle_azure_error(ex)
+        finally:
+            await client.close()
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params: dict[str, str | int | float | list[str]] = {}
