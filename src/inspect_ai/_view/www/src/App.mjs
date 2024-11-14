@@ -103,35 +103,10 @@ export function App({
     initialState?.selectedSampleTab,
   );
   const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
-  const setSampleScrollPosition = useCallback(
-    debounce((position) => {
-      sampleScrollPosition.current = position;
-      flushInitialState();
-    }, 250),
-    [],
-  );
   const loadingSampleIndexRef = useRef(null);
-
   const workspaceTabScrollPosition = useRef(
     initialState?.workspaceTabScrollPosition || {},
   );
-  const setWorkspaceTabScrollPosition = useCallback(
-    debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position,
-      };
-      flushInitialState();
-    }, 250),
-    [],
-  );
-
-  const [updateInitialState, setUpdateInitialState] = useState(0);
-  const flushInitialState = useCallback(() => {
-    setUpdateInitialState((prev) => {
-      return prev + 1;
-    });
-  }, [setUpdateInitialState]);
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(
     initialState?.showingSampleDialog,
@@ -201,9 +176,7 @@ export function App({
     },
   };
 
-  // Save state when it changes, so that we can restore it later
-  //
-  useEffect(() => {
+  const saveState = useCallback(() => {
     const state = {
       logs,
       selectedLogIndex,
@@ -260,7 +233,56 @@ export function App({
     filteredSamples,
     groupBy,
     groupByOrder,
-    updateInitialState,
+  ]);
+
+  const setSampleScrollPosition = useCallback(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      saveState();
+    }, 250),
+    [saveState],
+  );
+
+  const setWorkspaceTabScrollPosition = useCallback(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position,
+      };
+      saveState();
+    }, 250),
+    [saveState],
+  );
+
+  // Save state when it changes, so that we can restore it later
+  //
+  useEffect(() => {
+    saveState();
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder,
   ]);
 
   const handleSampleShowingDialog = useCallback(
@@ -397,7 +419,6 @@ export function App({
           sample.attachments = {};
 
           sampleScrollPosition.current = 0;
-          flushInitialState();
           setSelectedSample(sample);
 
           refreshSampleTab(sample);
@@ -410,7 +431,6 @@ export function App({
           setSampleError(e);
 
           sampleScrollPosition.current = 0;
-          flushInitialState();
           setSelectedSample(undefined);
 
           loadingSampleIndexRef.current = null;
