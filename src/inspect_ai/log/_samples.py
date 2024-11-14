@@ -2,6 +2,8 @@ import contextlib
 from time import monotonic
 from typing import AsyncGenerator
 
+from shortuuid import uuid
+
 from inspect_ai.dataset._dataset import Sample
 
 from ._transcript import Transcript
@@ -11,6 +13,7 @@ class ActiveSample:
     def __init__(
         self, task: str, model: str, sample: Sample, transcript: Transcript
     ) -> None:
+        self.id = uuid()
         self.started = monotonic()
         self.task = task
         self.model = model
