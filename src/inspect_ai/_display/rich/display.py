@@ -9,7 +9,6 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.progress import Progress as RProgress
 from rich.table import Table
-from rich.text import Text
 from typing_extensions import override
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
@@ -36,8 +35,8 @@ from ..core.progress import (
     RichProgress,
     progress_description,
     progress_model_name,
-    rich_progress,
     progress_status_icon,
+    rich_progress,
 )
 from ..core.results import tasks_results
 from ..core.rich import (

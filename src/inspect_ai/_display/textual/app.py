@@ -44,11 +44,6 @@ class TaskScreenResult(Generic[TR]):
 
 class TaskScreenApp(App[TR]):
     CSS_PATH = "app.tcss"
-    BINDINGS = [
-        ("t", "show_tasks", "Task list"),
-        ("s", "show_samples", "Running samples"),
-        ("l", "show_log", "Log messages"),
-    ]
 
     def __init__(self) -> None:
         # call super
@@ -247,19 +242,6 @@ class TaskScreenApp(App[TR]):
     async def action_quit(self) -> None:
         if self._worker and self._worker.is_running:
             self._worker.cancel()
-
-    # shortcut keys for switching tabs
-    def action_show_tasks(self) -> None:
-        self.switch_tab("tasks")
-
-    def action_show_samples(self) -> None:
-        self.switch_tab("samples")
-
-    def action_show_log(self) -> None:
-        self.switch_tab("log")
-
-    def switch_tab(self, id: str) -> None:
-        self.query_one(TabbedContent).active = id
 
 
 class TextualTaskScreen(TaskScreen):
