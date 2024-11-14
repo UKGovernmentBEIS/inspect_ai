@@ -201,7 +201,7 @@ class TaskScreenApp(App[TR]):
             if not self._parallel:
                 tasks.targets = task_targets(self._tasks[0].profile)
             else:
-                tasks.targets = ""
+                tasks.targets = " \n "
         else:
             tasks.config = ""
             tasks.targets = ""
