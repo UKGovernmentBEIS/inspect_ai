@@ -1,7 +1,5 @@
-import abc
 import base64
-import json
-from typing import Any, Literal, cast
+from typing import Any, Literal, Tuple, cast
 
 from typing_extensions import override
 
@@ -55,10 +53,6 @@ from .._model_output import (
     ModelUsage,
 )
 from .util import (
-    ChatAPIHandler,
-    ChatAPIMessage,
-    as_stop_reason,
-    chat_api_input,
     model_base_url,
 )
 
@@ -73,8 +67,7 @@ class BedrockAPI(ModelAPI):
     ):
         super().__init__(
             model_name=model_name,
-            base_url=base_url,
-            # api_key_vars=[ANTHROPIC_API_KEY],
+            base_url=model_base_url(base_url, "BEDROCK_BASE_URL"),
             config=config,
         )
 
@@ -84,12 +77,7 @@ class BedrockAPI(ModelAPI):
 
             verify_required_version("Bedrock API", "aioboto3", "13.0.0")
 
-            # properties for the client
-            self.model_name = model_name
-            self.base_url = model_base_url(base_url, "BEDROCK_BASE_URL")
-            self.config = config
-
-            # Create a shared session to be used by the handler
+            # Create a shared session to be used when generating
             self.session = aioboto3.Session()
 
         except ImportError:
@@ -107,7 +95,7 @@ class BedrockAPI(ModelAPI):
         elif "mistral-large" in self.model_name:
             return 8192
 
-        # Not sure what do to about other model types... (there aren't currently any others)
+        # Other models will just the default
         else:
             return DEFAULT_MAX_TOKENS
 
@@ -115,6 +103,7 @@ class BedrockAPI(ModelAPI):
     def is_rate_limit(self, ex: BaseException) -> bool:
         from botocore.exceptions import ClientError
 
+        # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
             if ex.response["Error"]["Code"] == "ThrottlingException":
                 return True
@@ -123,12 +112,10 @@ class BedrockAPI(ModelAPI):
 
     @override
     def collapse_user_messages(self) -> bool:
-        """Collapse consecutive user messages into a single message."""
         return True
 
     @override
     def collapse_assistant_messages(self) -> bool:
-        """Collapse consecutive assistant messages into a single message."""
         return True
 
     async def generate(
@@ -158,30 +145,17 @@ class BedrockAPI(ModelAPI):
             # TODO cleanup
             # TODO Talk to JJ about max_tokens (when passing a value larger than their max of 4096, they throw)
 
-            # Split up system messages and input messages
-            system_messages: list[ChatMessage] = []
-            non_system_messages: list[ChatMessage] = []
-            for message in input:
-                if message.role == "system":
-                    system_messages.append(message)
-                else:
-                    non_system_messages.append(message)
-
-            # input messages
-            messages: list[Message] = await as_converse_chat_messages(
-                non_system_messages
-            )
-
-            # system messages
-            system: list[SystemContent] = as_converse_system_messages(system_messages)
-
-            # tools
+            # Process the tools
             resolved_tools = converse_tools(tools)
             tool_config = None
             if resolved_tools is not None:
                 choice = converse_tool_choice(tool_choice)
                 tool_config = ToolConfig(tools=resolved_tools, toolChoice=choice)
 
+            # Resolve the input messages into converse messages
+            system, messages = await converse_messages(input)
+
+            # Make the request
             request = ClientConverseRequest(
                 modelId=self.model_name,
                 messages=messages,
@@ -213,6 +187,27 @@ class BedrockAPI(ModelAPI):
 
         # return
         return output, call
+
+
+async def converse_messages(
+    messages: list[ChatMessage],
+) -> Tuple[list[SystemContent], list[Message]]:
+    # Split up system messages and input messages
+    system_messages: list[ChatMessage] = []
+    non_system_messages: list[ChatMessage] = []
+    for message in messages:
+        if message.role == "system":
+            system_messages.append(message)
+        else:
+            non_system_messages.append(message)
+
+    # input messages
+    non_system: list[Message] = await as_converse_chat_messages(non_system_messages)
+
+    # system messages
+    system: list[SystemContent] = as_converse_system_messages(system_messages)
+
+    return system, non_system
 
 
 def model_output_from_response(
@@ -404,7 +399,27 @@ def collapse_consecutive_messages(messages: list[Message]) -> list[Message]:
     for message in messages[1:]:
         last_message = collapsed_messages[-1]
         if message.role == last_message.role:
-            last_message.content.extend(message.content)
+            last_content = last_message.content[-1]
+            if last_content.toolResult is not None:
+                # Special case tool results since conversation blocks and tool result
+                # blocks cannot be provided in the same turn. If the last block was a
+                # tool result, we'll need to merge the subsequent blocks into the content
+                # itself
+                for c in message.content:
+                    if (
+                        c.text is not None
+                        or c.image is not None
+                        or c.document is not None
+                    ):
+                        last_content.toolResult.content.append(
+                            ToolResultContent(
+                                text=c.text, image=c.image, document=c.document
+                            )
+                        )
+                    else:
+                        last_message.content.extend(message.content)
+            else:
+                last_message.content.extend(message.content)
         else:
             collapsed_messages.append(message)
 
