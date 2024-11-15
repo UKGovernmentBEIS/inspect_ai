@@ -189,9 +189,9 @@ class TaskScreenApp(App[TR]):
         if len(self._tasks) > 0:
             if self._parallel:
                 completed = sum(1 for task in self._tasks if task.result is not None)
-                title = f"inspect eval - {tasks_title(completed, self._total_tasks)}"
+                title = f"{tasks_title(completed, self._total_tasks)}"
             else:
-                title = f"inspect eval - {task_title(self._tasks[0].profile, show_model=len(self._tasks) == 1)}"
+                title = f"{task_title(self._tasks[0].profile, show_model=len(self._tasks) == 1)}"
         else:
             title = ""
 
