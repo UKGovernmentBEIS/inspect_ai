@@ -87,7 +87,7 @@ There are several options available for customising the behaviour of the basic a
 | `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
 | `token_limit` | `int` | Limit on in conversation before terminating agent. |
 | `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
-| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. |
+| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
 | `continue_message` | `str` | User message to urge the model to continue when it doesn't make a tool call. |
 | `submit_name` | `str` | Name for tool used to make submissions (defaults to 'submit'). |
 | `submit_description` | `str` | Description of submit tool (defaults to 'Submit an answer for evaluation') |
