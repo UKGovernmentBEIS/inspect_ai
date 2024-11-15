@@ -3,6 +3,7 @@ from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 MARKDOWN_CODE_THEME = "vscode"
@@ -57,6 +58,10 @@ def transcript_panel(
         highlight=True,
         expand=True,
     )
+
+
+def transcript_separator(title: str) -> RenderableType:
+    return Rule(title=title, style="blue bold", align="center", end="\n\n")
 
 
 LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")

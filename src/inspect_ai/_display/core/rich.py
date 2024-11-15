@@ -49,7 +49,7 @@ def rich_initialise(dark: bool) -> None:
                 theme=self.theme,
                 word_wrap=True,
                 background_color="#282c34" if dark else "rgb(240,240,240)",
-                padding=1,
+                padding=0,
             )
             yield syntax
 

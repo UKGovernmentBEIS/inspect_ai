@@ -1,8 +1,8 @@
-from typing import Any, Callable, NamedTuple, Type
+from typing import Any, Callable, NamedTuple, Sequence, Type
 
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
-from rich.panel import Panel
+from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -10,7 +10,11 @@ from textual.widgets import Static
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.transcript import transcript_markdown, transcript_panel
+from inspect_ai._util.transcript import (
+    MARKDOWN_CODE_THEME,
+    transcript_markdown,
+    transcript_separator,
+)
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import (
     ApprovalEvent,
@@ -30,65 +34,51 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
 
-from ...core.group import EventGroup, group_events
-
-# TODO: padding around code blocks (white)
-# TODO: don't draw boxes around steps (flatten?)
-
 
 class TranscriptView(ScrollableContainer):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
+        self._events: list[Event] = []
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        if sample is None:
-            self._sample = None
-            self.remove_children()
-        elif (
-            self._sample is None
-            or sample.id != self._sample.id
-            or sample.transcript.last_modified != self._sample.transcript.last_modified
-        ):
-            self._sample = sample
-            await self._render_sample(sample)
-
-    async def _render_sample(self, sample: ActiveSample) -> None:
-        # create event groups
-        event_groups = group_events(sample.transcript.events)
-
-        # create widgets
-        panels = [event_group_panel(group) for group in event_groups]
-        widgets = [
-            Static(Group(panel, Text())) for panel in panels if panel is not None
-        ]
-        async with self.batch():
-            await self.remove_children()
-            await self.mount_all(widgets)
+        # update existing
+        if sample is not None is not None and (sample == self._sample):
+            append_events = sample.transcript.events[
+                len(self._sample.transcript.events) :
+            ]
+            self._events.extend(append_events)
+            await self.mount_all(
+                [Static(widget) for widget in self._widgets_for_events(append_events)]
+            )
             self.scroll_end()
+        # new sample
+        else:
+            self._sample = sample
+            async with self.batch():
+                await self.remove_children()
+                if sample is not None:
+                    self._events = list(sample.transcript.events)
+                    await self.mount_all(
+                        [
+                            Static(widget)
+                            for widget in self._widgets_for_events(self._events)
+                        ]
+                    )
+                else:
+                    self._events = []
 
-
-def event_group_panel(group: EventGroup) -> Panel | None:
-    # get display
-    display = render_event(group.event)
-    if display is None:
-        return None
-
-    # content group
-    content: list[RenderableType] = []
-    if display.content:
-        content.append(display.content)
-
-    # resolve child groups
-    if group.groups:
-        for child_group in group.groups:
-            child_panel = event_group_panel(child_group)
-            if child_panel:
-                content.append(Text())
-                content.append(child_panel)
-
-    # create panel
-    return transcript_panel(title=display.title, content=content, level=group.level)
+    def _widgets_for_events(self, events: Sequence[Event]) -> list[RenderableType]:
+        widgets: list[RenderableType] = []
+        for event in events:
+            display = render_event(event)
+            if display and display.content:
+                widgets.append(transcript_separator(display.title))
+                if isinstance(display.content, Markdown):
+                    display.content.code_theme = MARKDOWN_CODE_THEME
+                widgets.append(display.content)
+                widgets.append(Text(" "))
+        return widgets
 
 
 class EventDisplay(NamedTuple):
@@ -123,7 +113,7 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         if isinstance(sample.input, str)
         else sample.input
     )
-    content: list[RenderableType] = [Text()]
+    content: list[RenderableType] = []
     for message in messages:
         content.extend(render_message(message))
 
@@ -133,8 +123,6 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         content.append(Text("Target", style="bold"))
         content.append(Text())
         content.append(str(sample.target).strip())
-
-    content.append(Text())
 
     return EventDisplay("sample init", Group(*content))
 
@@ -301,17 +289,3 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (LoggerEvent, render_logger_event),
     (ErrorEvent, render_error_event),
 ]
-
-# | SampleInitEvent [DONE]
-# | StateEvent
-# | StoreEvent      [DONE]
-# | ModelEvent      [DONE]
-# | ToolEvent       [DONE]
-# | ApprovalEvent   [DONE]
-# | InputEvent      [DONE]
-# | ScoreEvent      [DONE]
-# | ErrorEvent      [DONE]
-# | LoggerEvent     [DONE]
-# | InfoEvent       [DONE]
-# | StepEvent       [DONE]
-# | SubtaskEvent    [DONE]

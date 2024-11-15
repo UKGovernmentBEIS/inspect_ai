@@ -20,7 +20,7 @@ class EventGroup:
 
 def group_events(events: Sequence[Event], level: int = 1) -> list[EventGroup]:
     """Transform ordinary list of events into list of event groups."""
-    # groups are eitehr plain events (some of which can have sub-events)
+    # groups are either plain events (some of which can have sub-events)
     # and higher level steps (e.g. solvers/scorers) that contain events
     event_groups: list[EventGroup] = []
 

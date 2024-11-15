@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from asyncio import CancelledError
 from typing import Any, Coroutine, Generic, Iterator
@@ -36,7 +37,7 @@ from .widgets.titlebar import AppTitlebar
 class TaskScreenResult(Generic[TR]):
     def __init__(
         self,
-        value: TR | BaseException,
+        value: TR | BaseException | None,
         tasks: list[TaskWithResult],
         output: list[str],
     ) -> None:
@@ -84,7 +85,7 @@ class TaskScreenApp(App[TR]):
         elif self._error is not None:
             value = self._error
         else:
-            value = RuntimeError("No application result available")
+            value = asyncio.CancelledError()
 
         # return result w/ output
         return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)
