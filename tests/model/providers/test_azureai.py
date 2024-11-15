@@ -1,6 +1,7 @@
 import pytest
-from test_helpers.utils import skip_if_no_azureai
 from test_helpers.tasks import minimal_task
+from test_helpers.utils import skip_if_no_azureai
+
 from inspect_ai import eval_async
 from inspect_ai.model import GenerateConfig, get_model
 
@@ -20,11 +21,13 @@ model = get_model(
 
 message = "This is a test string. What are you?"
 
+
 @pytest.mark.asyncio
 @skip_if_no_azureai
 async def test_azureai_api() -> None:
     response = await model.generate(input=message)
     assert len(response.completion) >= 1
+
 
 @pytest.mark.asyncio
 @skip_if_no_azureai

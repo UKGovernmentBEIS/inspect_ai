@@ -111,7 +111,6 @@ class AzureAIAPI(ModelAPI):
         self.endpoint_url = endpoint_url
         self.model_args = model_args
 
-
     async def generate(
         self,
         input: list[ChatMessage],
