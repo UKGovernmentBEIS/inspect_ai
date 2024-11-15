@@ -291,7 +291,7 @@ async def as_converse_chat_messages(
         converse_message = await converse_chat_message(message)
         if converse_message is not None:
             result.extend(converse_message)
-    return result
+    return collapse_consecutive_messages(result)
 
 
 async def converse_chat_message(
@@ -300,10 +300,7 @@ async def converse_chat_message(
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
     if isinstance(message, ChatMessageUser):
-        content = await converse_contents(message.content)
-        if len(content) == 0:
-            return None
-        return [Message(role="user", content=content)]
+        return [Message(role="user", content=await converse_contents(message.content))]
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls:
             results: list[Message] = []
@@ -319,10 +316,11 @@ async def converse_chat_message(
                 results.append(m)
             return results
         else:
-            content = await converse_contents(message.content)
-            if len(content) == 0:
-                return None
-            return [Message(role="assistant", content=content)]
+            return [
+                Message(
+                    role="assistant", content=await converse_contents(message.content)
+                )
+            ]
     elif isinstance(message, ChatMessageTool):
         if message.tool_call_id is None:
             raise ValueError(
@@ -395,6 +393,22 @@ async def converse_contents(content: list[Content] | str) -> list[MessageContent
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
         return result
+
+
+def collapse_consecutive_messages(messages: list[Message]) -> list[Message]:
+    if not messages:
+        return []
+
+    collapsed_messages = [messages[0]]
+
+    for message in messages[1:]:
+        last_message = collapsed_messages[-1]
+        if message.role == last_message.role:
+            last_message.content.extend(message.content)
+        else:
+            collapsed_messages.append(message)
+
+    return collapsed_messages
 
 
 def converse_image_type(type: str) -> ImageFormat:
