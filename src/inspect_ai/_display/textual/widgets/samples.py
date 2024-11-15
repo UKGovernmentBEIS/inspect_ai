@@ -31,13 +31,27 @@ class SamplesView(Widget):
         yield Static("Foobar")
 
     def set_samples(self, samples: list[ActiveSample]) -> None:
-        self.samples = samples.copy()
+        # check for a highlighted sample (make sure we don't remove it)
         options = self.query_one(OptionList)
         highlighted_id = (
             options.get_option_at_index(options.highlighted).id
             if options.highlighted is not None
             else None
         )
+        highlighted_sample = (
+            sample_for_id(self.samples, highlighted_id)
+            if highlighted_id is not None
+            else None
+        )
+
+        # assign the new samples
+        self.samples = samples.copy()
+
+        #  add the highlighted sample if its no longer in the list
+        if highlighted_sample and (highlighted_sample not in self.samples):
+            self.samples.append(highlighted_sample)
+
+        # rebuild the list
         options.clear_options()
         options.add_options(
             [
@@ -45,10 +59,20 @@ class SamplesView(Widget):
                 for sample in self.samples
             ]
         )
+
+        # re-select the highlighted sample
         if highlighted_id is not None:
-            index = sample_index_for_id(samples, highlighted_id)
+            index = sample_index_for_id(self.samples, highlighted_id)
             if index != -1:
                 options.highlighted = index
+
+
+def sample_for_id(samples: list[ActiveSample], id: str) -> ActiveSample | None:
+    index = sample_index_for_id(samples, id)
+    if index != -1:
+        return samples[index]
+    else:
+        return None
 
 
 def sample_index_for_id(samples: list[ActiveSample], id: str) -> int:
