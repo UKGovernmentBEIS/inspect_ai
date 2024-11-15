@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Ensure that the scorer is only run once for basic_agent with max_attempts = 1.
+- AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
 - Basic agent: Support custom function for incorrect_message reply to model.
 
 ## v0.3.46 (12 November 2024) 
