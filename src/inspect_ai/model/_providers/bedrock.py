@@ -126,6 +126,7 @@ class BedrockAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         from botocore.config import Config
+        from botocore.exceptions import ClientError
 
         # The bedrock client
         async with self.session.client(
@@ -152,24 +153,42 @@ class BedrockAPI(ModelAPI):
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
-            # Make the request
-            request = ClientConverseRequest(
-                modelId=self.model_name,
-                messages=messages,
-                system=system,
-                inferenceConfig=InferenceConfig(
-                    maxTokens=config.max_tokens,
-                    temperature=config.temperature,
-                    topP=config.top_p,
-                    stopSequences=config.stop_seqs,
-                ),
-                additionalModelRequestFields={"top_k": config.top_k},
-                toolConfig=tool_config,
-            )
+            try:
+                # Make the request
+                request = ClientConverseRequest(
+                    modelId=self.model_name,
+                    messages=messages,
+                    system=system,
+                    inferenceConfig=InferenceConfig(
+                        maxTokens=config.max_tokens,
+                        temperature=config.temperature,
+                        topP=config.top_p,
+                        stopSequences=config.stop_seqs,
+                    ),
+                    additionalModelRequestFields={"top_k": config.top_k},
+                    toolConfig=tool_config,
+                )
 
-            # Process the reponse
-            response = await client.converse(**request.model_dump(exclude_none=True))
-            converse_response = Response(**response)
+                # Process the reponse
+                response = await client.converse(
+                    **request.model_dump(exclude_none=True)
+                )
+                converse_response = Response(**response)
+
+            except ClientError as ex:
+                # Look for an explicit validation exception
+                if (
+                    ex.response["Error"]["Code"] == "ValidationException"
+                    and "Too many input tokens" in ex.response["Error"]["Message"]
+                ):
+                    response = ex.response["Error"]["Message"]
+                    return ModelOutput.from_content(
+                        model=self.model_name,
+                        content=response,
+                        stop_reason="model_length",
+                    )
+                else:
+                    raise ex
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
@@ -188,7 +207,7 @@ class BedrockAPI(ModelAPI):
 
 async def converse_messages(
     messages: list[ChatMessage],
-) -> Tuple[list[SystemContent], list[Message]]:
+) -> Tuple[list[SystemContent] | None, list[Message]]:
     # Split up system messages and input messages
     system_messages: list[ChatMessage] = []
     non_system_messages: list[ChatMessage] = []
@@ -204,7 +223,7 @@ async def converse_messages(
     # system messages
     system: list[SystemContent] = as_converse_system_messages(system_messages)
 
-    return system, non_system
+    return system if len(system) > 0 else None, non_system
 
 
 def model_output_from_response(
@@ -260,7 +279,9 @@ def model_output_from_response(
 
 def message_stop_reason(
     reason: StopReason,
-) -> Literal["stop", "tool_calls", "max_tokens", "unknown"]:
+) -> Literal[
+    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+]:
     match reason:
         case "end_turn" | "stop_sequence":
             return "stop"
@@ -268,12 +289,16 @@ def message_stop_reason(
             return "tool_calls"
         case "max_tokens":
             return reason
+        case "content_filtered":
+            return "content_filter"
+        case "guardrail_intervened":
+            return "content_filter"
         case _:
             return "unknown"
 
 
 def as_converse_system_messages(messages: list[ChatMessage]) -> list[SystemContent]:
-    return [SystemContent(text=message.text) for message in messages]
+    return [SystemContent(text=message.text) for message in messages if message.text]
 
 
 async def as_converse_chat_messages(
