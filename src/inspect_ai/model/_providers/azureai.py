@@ -118,14 +118,6 @@ class AzureAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        # create client
-        # Note the client needs to be generated for each call to prevent issues with async
-        client = ChatCompletionsClient(
-            endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
-            model=self.model_name,
-            model_extras=self.model_args,
-        )
         # if its llama then do fake tool calls
         handler: ChatAPIHandler | None = Llama31Handler() if self.is_llama() else None
         if handler:
@@ -137,6 +129,17 @@ class AzureAIAPI(ModelAPI):
             tools=chat_tools(tools) if len(tools) > 0 else None,
             tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else None,
             **self.completion_params(config),
+        )
+
+        # create client (note the client needs to be created and closed
+        # with each call so it can be cleaned up and not end up on another
+        # event loop in a subsequent pass of eval)
+        assert self.api_key
+        client = ChatCompletionsClient(
+            endpoint=self.endpoint_url,
+            credential=AzureKeyCredential(self.api_key),
+            model=self.model_name,
+            model_extras=self.model_args,
         )
 
         # make call
