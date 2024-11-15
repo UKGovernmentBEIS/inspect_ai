@@ -37,7 +37,7 @@ from .widgets.titlebar import AppTitlebar
 class TaskScreenResult(Generic[TR]):
     def __init__(
         self,
-        value: TR | BaseException | None,
+        value: TR | BaseException,
         tasks: list[TaskWithResult],
         output: list[str],
     ) -> None:
