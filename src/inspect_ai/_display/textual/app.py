@@ -123,6 +123,9 @@ class TaskScreenApp(App[TR]):
         # update display
         self.update_display()
 
+        # force repaint
+        self.refresh(repaint=True)
+
         try:
             yield TextualTaskScreen()
         finally:
