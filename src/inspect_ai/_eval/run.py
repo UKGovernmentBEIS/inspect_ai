@@ -14,6 +14,7 @@ from inspect_ai._display.core.active import (
 from inspect_ai._display.core.display import TaskSpec
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
@@ -369,4 +370,7 @@ async def startup_sandbox_environments(
 
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
-    return [TaskSpec(task.task.name, ModelName(task.model)) for task in tasks]
+    return [
+        TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
+        for task in tasks
+    ]

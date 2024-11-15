@@ -423,7 +423,7 @@ async def task_run_sample(
     # track active sample
     active_sample_cm = active_sample(
         ActiveSample(
-            registry_unqualified_name(task_name),
+            task_name,
             str(state.model),
             sample,
             sample_transcript,

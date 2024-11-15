@@ -49,9 +49,7 @@ class TranscriptView(ScrollableContainer):
             and (sample.id == self._sample.id)
         ):
             scrolled_to_bottom = abs(self.scroll_y - self.max_scroll_y) <= 3
-            append_events = sample.transcript.events[
-                len(self._sample.transcript.events) :
-            ]
+            append_events = sample.transcript.events[len(self._events) :]
             self._events.extend(append_events)
             await self.mount_all(
                 [Static(widget) for widget in self._widgets_for_events(append_events)]
