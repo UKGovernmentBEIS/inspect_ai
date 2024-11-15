@@ -127,6 +127,7 @@ class BedrockAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         from botocore.config import Config
 
+        # The bedrock client
         async with self.session.client(
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
@@ -141,10 +142,6 @@ class BedrockAPI(ModelAPI):
                 ),
             ),
         ) as client:
-            # TODO test with various models
-            # TODO cleanup
-            # TODO Talk to JJ about max_tokens (when passing a value larger than their max of 4096, they throw)
-
             # Process the tools
             resolved_tools = converse_tools(tools)
             tool_config = None
@@ -170,11 +167,11 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            # make the request
+            # Process the reponse
             response = await client.converse(**request.model_dump(exclude_none=True))
             converse_response = Response(**response)
 
-        # process the response
+        # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
 
         # record call
@@ -217,6 +214,7 @@ def model_output_from_response(
     content: list[Content] = []
     tool_calls: list[ToolCall] = []
 
+    # process the content in the response message
     for c in response.output.message.content:
         if c.text is not None:
             content.append(ContentText(type="text", text=c.text))
@@ -295,9 +293,11 @@ async def converse_chat_message(
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
     if isinstance(message, ChatMessageUser):
+        # Simple user message
         return [Message(role="user", content=await converse_contents(message.content))]
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls:
+            # The assistant is calling tools, process those
             results: list[Message] = []
             for tool_call in message.tool_calls:
                 tool_use = ToolUse(
@@ -311,12 +311,14 @@ async def converse_chat_message(
                 results.append(m)
             return results
         else:
+            # Simple assistant message
             return [
                 Message(
                     role="assistant", content=await converse_contents(message.content)
                 )
             ]
     elif isinstance(message, ChatMessageTool):
+        # Process tool message
         if message.tool_call_id is None:
             raise ValueError(
                 "Tool call is missing a tool call id, which is required for Converse API"
@@ -330,6 +332,7 @@ async def converse_chat_message(
             "success" if message.error is None else "error"
         )
 
+        # process the tool response content
         tool_result_content: list[ToolResultContent] = []
         if isinstance(message.content, str):
             tool_result_content.append(ToolResultContent(text=message.content))
@@ -352,6 +355,7 @@ async def converse_chat_message(
                         "Unsupported tool content type in Bedrock provider."
                     )
 
+        # return the tool result
         tool_result = ToolResult(
             toolUseId=message.tool_call_id,
             status=status,
