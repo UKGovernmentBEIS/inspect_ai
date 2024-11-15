@@ -27,7 +27,6 @@ from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
-    registry_unqualified_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
