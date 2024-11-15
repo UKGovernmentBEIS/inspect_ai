@@ -48,7 +48,7 @@ class TranscriptView(ScrollableContainer):
             and self._sample is not None
             and (sample.id == self._sample.id)
         ):
-            scrolled_to_bottom = abs(self.scroll_y - self.max_scroll_y) <= 10
+            scrolled_to_bottom = abs(self.scroll_y - self.max_scroll_y) <= 20
             append_events = sample.transcript.events[len(self._events) :]
             self._events.extend(append_events)
             await self.mount_all(
