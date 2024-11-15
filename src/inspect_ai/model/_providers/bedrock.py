@@ -1,6 +1,7 @@
 import abc
+import base64
 import json
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from typing_extensions import override
 
@@ -9,27 +10,57 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
     DEFAULT_TIMEOUT,
 )
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.images import image_as_data
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.model._providers.util.converse_model import (
+    ClientConverseRequest,
+    Image,
+    ImageFormat,
+    ImageSource,
+    InferenceConfig,
+    Message,
+    MessageContent,
+    Response,
+    StopReason,
+    SystemContent,
+    Tool,
+    ToolConfig,
+    ToolResult,
+    ToolResultContent,
+    ToolSpec,
+    ToolUse,
+)
+from inspect_ai.model._providers.util.converse_model import (
+    ToolChoice as ConverseToolChoice,
+)
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_choice import ToolFunction
 
 from .._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+)
 from .util import (
     ChatAPIHandler,
     ChatAPIMessage,
-    Llama31Handler,
     as_stop_reason,
     chat_api_input,
     model_base_url,
 )
-
-ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 
 class BedrockAPI(ModelAPI):
@@ -43,80 +74,10 @@ class BedrockAPI(ModelAPI):
         super().__init__(
             model_name=model_name,
             base_url=base_url,
-            api_key_vars=[ANTHROPIC_API_KEY],
+            # api_key_vars=[ANTHROPIC_API_KEY],
             config=config,
         )
 
-        # we can optionally proxy to another ModelAPI
-        self.model_api: ModelAPI | None = None
-
-        base_url = model_base_url(base_url, "BEDROCK_BASE_URL")
-
-        # delegate to AnthropicAPI for anthropic models
-        if is_anthropic(model_name):
-            from .anthropic import AnthropicAPI
-
-            self.model_api = AnthropicAPI(
-                model_name=model_name,
-                base_url=base_url,
-                config=config,
-                bedrock=True,
-                **model_args,
-            )
-        elif is_mistral(model_name):
-            self.handler: BedrockChatHandler = MistralChatHandler(
-                model_name, base_url, config
-            )
-        elif is_llama2(model_name):
-            self.handler = Llama2ChatHandler(model_name, base_url, config)
-        elif is_llama3(model_name):
-            self.handler = Llama3ChatHandler(model_name, base_url, config)
-        else:
-            raise ValueError(f"Unsupported Bedrock model: {model_name}")
-
-    async def generate(
-        self,
-        input: list[ChatMessage],
-        tools: list[ToolInfo],
-        tool_choice: ToolChoice,
-        config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        if self.model_api:
-            return await self.model_api.generate(input, tools, tool_choice, config)
-        else:
-            return await self.handler.generate(input, tools, tool_choice, config)
-
-    @override
-    def max_tokens(self) -> int | None:
-        if self.model_api:
-            return self.model_api.max_tokens()
-        else:
-            return self.handler.max_tokens()
-
-    @override
-    def connection_key(self) -> str:
-        return self.model_name
-
-    @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        if self.model_api:
-            return self.model_api.is_rate_limit(ex)
-        else:
-            return self.handler.is_rate_limit(ex)
-
-    @override
-    def collapse_user_messages(self) -> bool:
-        if self.model_api:
-            return self.model_api.collapse_user_messages()
-        else:
-            return super().collapse_user_messages()
-
-
-# https://docs.aws.amazon.com/bedrock/latest/userguide/inference-invoke.html
-class BedrockChatHandler(abc.ABC):
-    def __init__(
-        self, model_name: str, base_url: str | None, config: GenerateConfig
-    ) -> None:
         # import aioboto3 on demand
         try:
             import aioboto3
@@ -125,7 +86,7 @@ class BedrockChatHandler(abc.ABC):
 
             # properties for the client
             self.model_name = model_name
-            self.base_url = base_url
+            self.base_url = model_base_url(base_url, "BEDROCK_BASE_URL")
             self.config = config
 
             # Create a shared session to be used by the handler
@@ -133,6 +94,42 @@ class BedrockChatHandler(abc.ABC):
 
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
+
+    @override
+    def connection_key(self) -> str:
+        return self.model_name
+
+    @override
+    def max_tokens(self) -> int | None:
+        if "llama3" in self.model_name or "claude3" in self.model_name:
+            return 4096
+
+        elif "mistral-large" in self.model_name:
+            return 8192
+
+        # Not sure what do to about other model types... (there aren't currently any others)
+        else:
+            return DEFAULT_MAX_TOKENS
+
+    @override
+    def is_rate_limit(self, ex: BaseException) -> bool:
+        from botocore.exceptions import ClientError
+
+        if isinstance(ex, ClientError):
+            if ex.response["Error"]["Code"] == "ThrottlingException":
+                return True
+
+        return super().is_rate_limit(ex)
+
+    @override
+    def collapse_user_messages(self) -> bool:
+        """Collapse consecutive user messages into a single message."""
+        return True
+
+    @override
+    def collapse_assistant_messages(self) -> bool:
+        """Collapse consecutive assistant messages into a single message."""
+        return True
 
     async def generate(
         self,
@@ -143,17 +140,6 @@ class BedrockChatHandler(abc.ABC):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         from botocore.config import Config
 
-        formatted_input_with_tools: list[ChatAPIMessage] = chat_api_input(
-            input, tools, self.chat_api_handler()
-        )
-        body = self.request_body(formatted_input_with_tools, config)
-
-        if config.temperature is not None:
-            body["temperature"] = config.temperature
-        if config.top_p is not None:
-            body["top_p"] = config.top_p
-
-        # Use the session to create the client
         async with self.session.client(
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
@@ -168,264 +154,307 @@ class BedrockChatHandler(abc.ABC):
                 ),
             ),
         ) as client:
-            try:
-                response = await client.invoke_model(
-                    body=json.dumps(body),
-                    modelId=self.model_name,
-                    accept="application/json",
-                    contentType="application/json",
-                )
-            except Exception as ex:
-                return self.handle_generate_exception(ex)
+            # TODO test with various models
+            # TODO cleanup
+            # TODO Talk to JJ about max_tokens (when passing a value larger than their max of 4096, they throw)
 
-            response_body = json.loads(await response["body"].read())
+            # Split up system messages and input messages
+            system_messages: list[ChatMessage] = []
+            non_system_messages: list[ChatMessage] = []
+            for message in input:
+                if message.role == "system":
+                    system_messages.append(message)
+                else:
+                    non_system_messages.append(message)
 
-        choice = self.completion_choice(response_body, tools, self.chat_api_handler())
-        output = ModelOutput(
-            model=self.model_name,
-            choices=[choice],
-            usage=self.model_usage(response_body),
-        )
+            # input messages
+            messages: list[Message] = await as_converse_chat_messages(
+                non_system_messages
+            )
+
+            # system messages
+            system: list[SystemContent] = as_converse_system_messages(system_messages)
+
+            # tools
+            resolved_tools = converse_tools(tools)
+            tool_config = None
+            if resolved_tools is not None:
+                choice = converse_tool_choice(tool_choice)
+                tool_config = ToolConfig(tools=resolved_tools, toolChoice=choice)
+
+            request = ClientConverseRequest(
+                modelId=self.model_name,
+                messages=messages,
+                system=system,
+                inferenceConfig=InferenceConfig(
+                    maxTokens=config.max_tokens,
+                    temperature=config.temperature,
+                    topP=config.top_p,
+                    stopSequences=config.stop_seqs,
+                ),
+                additionalModelRequestFields={"top_k": config.top_k},
+                toolConfig=tool_config,
+            )
+
+            # make the request
+            response = await client.converse(**request.model_dump(exclude_none=True))
+            converse_response = Response(**response)
+
+        # process the response
+        output = model_output_from_response(self.model_name, converse_response, tools)
 
         # record call
         call = ModelCall.create(
-            request=dict(modelId=self.model_name, **body), response=response_body
+            request=replace_bytes_with_placeholder(
+                request.model_dump(exclude_none=True)
+            ),
+            response=response,
         )
 
         # return
         return output, call
 
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        from boto3.exceptions import RetriesExceededError
-        from botocore.exceptions import ClientError
 
-        if isinstance(ex, ClientError):
-            if ex.response["Error"]["Code"] == "LimitExceededException":
-                return True
-        elif isinstance(ex, RetriesExceededError):
-            return True
+def model_output_from_response(
+    model: str, response: Response, tools: list[ToolInfo]
+) -> ModelOutput:
+    # extract content and tool calls
+    content: list[Content] = []
+    tool_calls: list[ToolCall] = []
 
-        return False
-
-    def handle_generate_exception(self, ex: Exception) -> ModelOutput:
-        error = str(ex)
-        if "maximum context length" in error:
-            # see if we can narrow down to just the error message
-            content = error
-            response = getattr(ex, "response", None)
-            if isinstance(response, dict) and "Error" in response:
-                error_dict = cast(dict[str, Any], response.get("Error"))
-                content = error_dict["Message"]
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content=content,
-                stop_reason="model_length",
+    for c in response.output.message.content:
+        if c.text is not None:
+            content.append(ContentText(type="text", text=c.text))
+        elif c.image is not None:
+            base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
+            content.append(ContentImage(image=base64_image))
+        elif c.toolUse is not None:
+            tool_calls.append(
+                ToolCall(
+                    id=c.toolUse.toolUseId,
+                    type="function",
+                    function=c.toolUse.name,
+                    arguments=cast(dict[str, Any], c.toolUse.input or {}),
+                )
             )
         else:
-            raise ex
+            raise ValueError("Unexpected message response in Bedrock provider")
 
-    @abc.abstractmethod
-    def request_body(
-        self,
-        input: list[ChatAPIMessage],
-        config: GenerateConfig,
-    ) -> dict[str, Any]: ...
+    # resolve choice
+    choice = ChatCompletionChoice(
+        message=ChatMessageAssistant(
+            content=content, tool_calls=tool_calls, source="generate"
+        ),
+        stop_reason=message_stop_reason(response.stopReason),
+    )
 
-    @abc.abstractmethod
-    def completion_choice(
-        self,
-        response: dict[str, Any],
-        tools: list[ToolInfo],
-        handler: ChatAPIHandler,
-    ) -> ChatCompletionChoice: ...
+    # Compute usage
+    input_tokens = response.usage.inputTokens
+    output_tokens = response.usage.outputTokens
+    total_tokens = input_tokens + output_tokens
 
-    def chat_api_handler(self) -> ChatAPIHandler:
-        if "llama" in self.model_name.lower():
-            return Llama31Handler()
+    # return ModelOutput
+    return ModelOutput(
+        model=model,
+        choices=[choice],
+        usage=ModelUsage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+        ),
+    )
+
+
+def message_stop_reason(
+    reason: StopReason,
+) -> Literal["stop", "tool_calls", "max_tokens", "unknown"]:
+    match reason:
+        case "end_turn" | "stop_sequence":
+            return "stop"
+        case "tool_use":
+            return "tool_calls"
+        case "max_tokens":
+            return reason
+        case _:
+            return "unknown"
+
+
+def as_converse_system_messages(messages: list[ChatMessage]) -> list[SystemContent]:
+    return [SystemContent(text=message.text) for message in messages]
+
+
+async def as_converse_chat_messages(
+    messages: list[ChatMessage],
+) -> list[Message]:
+    result: list[Message] = []
+    for message in messages:
+        converse_message = await converse_chat_message(message)
+        if converse_message is not None:
+            result.extend(converse_message)
+    return result
+
+
+async def converse_chat_message(
+    message: ChatMessage,
+) -> list[Message] | None:
+    if isinstance(message, ChatMessageSystem):
+        raise ValueError("System messages should be processed separately for Converse")
+    if isinstance(message, ChatMessageUser):
+        content = await converse_contents(message.content)
+        if len(content) == 0:
+            return None
+        return [Message(role="user", content=content)]
+    elif isinstance(message, ChatMessageAssistant):
+        if message.tool_calls:
+            results: list[Message] = []
+            for tool_call in message.tool_calls:
+                tool_use = ToolUse(
+                    toolUseId=tool_call.id,
+                    name=tool_call.function,
+                    input=tool_call.arguments,
+                )
+                m = Message(
+                    role="assistant", content=[MessageContent(toolUse=tool_use)]
+                )
+                results.append(m)
+            return results
         else:
-            return ChatAPIHandler()
+            content = await converse_contents(message.content)
+            if len(content) == 0:
+                return None
+            return [Message(role="assistant", content=content)]
+    elif isinstance(message, ChatMessageTool):
+        if message.tool_call_id is None:
+            raise ValueError(
+                "Tool call is missing a tool call id, which is required for Converse API"
+            )
+        if message.function is None:
+            raise ValueError(
+                "Tool call is missing a function, which is required for Converse API"
+            )
 
-    # optional hook to provide a system message folding template
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"{system}\n\n{user}"
+        status: Literal["success", "error"] = (
+            "success" if message.error is None else "error"
+        )
 
-    # optional hook to extract model usage
-    def model_usage(self, response: dict[str, Any]) -> ModelUsage | None:
+        tool_result_content: list[ToolResultContent] = []
+        if isinstance(message.content, str):
+            tool_result_content.append(ToolResultContent(text=message.content))
+        else:
+            for c in message.content:
+                if c.type == "text":
+                    tool_result_content.append(ToolResultContent(text=c.text))
+                elif c.type == "image":
+                    image_data, image_type = await image_as_data(c.image)
+                    tool_result_content.append(
+                        ToolResultContent(
+                            image=Image(
+                                format=converse_image_type(image_type),
+                                source=ImageSource(bytes=image_data),
+                            )
+                        )
+                    )
+                else:
+                    raise ValueError(
+                        "Unsupported tool content type in Bedrock provider."
+                    )
+
+        tool_result = ToolResult(
+            toolUseId=message.tool_call_id,
+            status=status,
+            content=tool_result_content,
+        )
+        return [
+            Message(
+                role="user",
+                content=[MessageContent(toolResult=tool_result)],
+            )
+        ]
+    else:
+        raise ValueError(f"Unexpected message role {message.role}")
+
+
+async def converse_contents(content: list[Content] | str) -> list[MessageContent]:
+    if isinstance(content, str):
+        return [MessageContent(text=content)]
+    else:
+        result: list[MessageContent] = []
+        for c in content:
+            if c.type == "image":
+                image_data, image_type = await image_as_data(c.image)
+                result.append(
+                    MessageContent(
+                        image=Image(
+                            format=converse_image_type(image_type),
+                            source=ImageSource(bytes=image_data),
+                        )
+                    )
+                )
+            elif c.type == "text":
+                result.append(MessageContent(text=c.text))
+            else:
+                raise RuntimeError(f"Unsupported content type {c.type}")
+        return result
+
+
+def converse_image_type(type: str) -> ImageFormat:
+    match type:
+        case "image/png":
+            return "png"
+        case "image/gif":
+            return "gif"
+        case "image/png":
+            return "png"
+        case "image/webp":
+            return "webp"
+        case _:
+            raise ValueError(
+                f"Image mime type {type} is not supported for Bedrock Converse models."
+            )
+
+
+def converse_tools(tools: list[ToolInfo]) -> list[Tool] | None:
+    if len(tools) == 0:
         return None
 
-    # optional hook to set max_tokens
-    def max_tokens(self) -> int | None:
-        return DEFAULT_MAX_TOKENS
-
-    def custom_remove_end_token(self, prompt: str) -> str:
-        return remove_end_token(prompt)
-
-    @abc.abstractmethod
-    def chat_message_str(self, message: ChatAPIMessage) -> str:
-        pass
-
-
-# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-mistral.html
-class MistralChatHandler(BedrockChatHandler):
-    @override
-    def request_body(
-        self,
-        input: list[ChatAPIMessage],
-        config: GenerateConfig,
-    ) -> dict[str, Any]:
-        # https://docs.mistral.ai/models/#chat-template
-        # https://community.aws/content/2dFNOnLVQRhyrOrMsloofnW0ckZ/how-to-prompt-mistral-ai-models-and-why
-
-        # build prompt
-        prompt = "<s>" + " ".join([self.chat_message_str(message) for message in input])
-
-        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
-        if config.stop_seqs is not None:
-            body["stop"] = config.stop_seqs
-        if config.max_tokens is not None:
-            body["max_tokens"] = config.max_tokens
-        if config.top_k is not None:
-            body["top_k"] = config.top_k
-
-        return body
-
-    @override
-    def completion_choice(
-        self,
-        response: dict[str, Any],
-        tools: list[ToolInfo],
-        handler: ChatAPIHandler,
-    ) -> ChatCompletionChoice:
-        # 11/6 Bedrock started returning an OAI compatible response for
-        # Mistral large 2407. This will parse that response if the outputs
-        # are omitted
-        def parse_oai_style_outputs(response: dict[str, Any]) -> list[dict[str, str]]:
-            choices = response.get("choices", [])
-            return [{"text": choice["message"]["content"]} for choice in choices]
-
-        outputs: list[dict[str, str]] = response.get(
-            "outputs", parse_oai_style_outputs(response)
+    result = []
+    for tool in tools:
+        tool_spec = ToolSpec(
+            name=tool.name,
+            description=tool.description,
+            inputSchema={"json": tool.parameters.model_dump(exclude_none=True)},
         )
-
-        return ChatCompletionChoice(
-            message=handler.parse_assistant_response(
-                response="\n".join([output.get("text", "") for output in outputs]),
-                tools=tools,
-            ),
-            stop_reason=as_stop_reason(response.get("stop_reason")),
-        )
-
-    def chat_message_str(self, message: ChatAPIMessage) -> str:
-        role = message["role"]
-        content = message["content"]
-        if role in ("user", "system"):
-            return f"[INST] {content} [/INST] "
-        elif role == "assistant":
-            return f"{content}</s>"
-        elif role == "tool":
-            return ""
-        return f"{content}"
+        result.append(Tool(toolSpec=tool_spec))
+    return result
 
 
-class BaseLlamaChatHandler(BedrockChatHandler):
-    @override
-    def request_body(
-        self,
-        input: list[ChatAPIMessage],
-        config: GenerateConfig,
-    ) -> dict[str, Any]:
-        prompt = " ".join([self.chat_message_str(message) for message in input])
-        body: dict[str, Any] = dict(prompt=self.custom_remove_end_token(prompt))
-        if config.max_tokens:
-            body["max_gen_len"] = config.max_tokens
-        return body
-
-    @override
-    def completion_choice(
-        self, response: dict[str, Any], tools: list[ToolInfo], handler: ChatAPIHandler
-    ) -> ChatCompletionChoice:
-        return ChatCompletionChoice(
-            message=handler.parse_assistant_response(
-                response.get("generation", ""), tools
-            ),
-            stop_reason=as_stop_reason(response.get("stop_reason")),
-        )
-
-    @override
-    def model_usage(self, response: dict[str, Any]) -> ModelUsage | None:
-        input_tokens = cast(int, response.get("prompt_token_count", 0))
-        output_tokens = cast(int, response.get("generation_token_count", 0))
-        if input_tokens or output_tokens:
-            return ModelUsage(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=input_tokens + output_tokens,
+def converse_tool_choice(
+    tool_choice: ToolChoice,
+) -> ConverseToolChoice | None:
+    match tool_choice:
+        case "auto":
+            return ConverseToolChoice(auto={})
+        case "any":
+            return ConverseToolChoice(any={})
+        case "none":
+            return ConverseToolChoice(auto={})
+        case ToolFunction(name=name):
+            return ConverseToolChoice(tool={"name": name})
+        case _:
+            raise ValueError(
+                f"Tool choice {tool_choice} is not supported for Bedrock Converse models."
             )
-        else:
-            return None
 
 
-# https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-meta.html
-class Llama2ChatHandler(BaseLlamaChatHandler):
-    @override
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"<SYS>\n{system}\n<</SYS>\n\n{user}"
-
-    def chat_message_str(self, message: ChatAPIMessage) -> str:
-        role = message["role"]
-        content = message["content"]
-        if role in ("user", "system"):
-            return f"<s>[INST] {content} [/INST] "
-        elif role == "assistant":
-            return f"{content} </s>"
-        elif role == "tool":
-            return ""
-        return f"{content}"
-
-
-class Llama3ChatHandler(BaseLlamaChatHandler):
-    @override
-    def custom_remove_end_token(self, prompt: str) -> str:
-        return remove_end_token(prompt, end_token="<|end_of_text|>")
-
-    @override
-    def fold_system_message(self, user: str, system: str) -> str:
-        return f"<|start_header_id|>system<|end_header_id|>\n{system}\n<|eot_id|>\n<|start_header_id|>user<|end_header_id|>\n\n{user}<|eot_id|>"
-
-    def chat_message_str(self, message: ChatAPIMessage) -> str:
-        role = message["role"]
-        content = message["content"]
-        if role == "user":
-            return f"<|start_header_id|>user<|end_header_id|>{content}<|eot_id|>"
-        if role == "system":
-            return f"<|start_header_id|>system<|end_header_id|>{content}<|eot_id|>"
-        if role == "assistant":
-            return f"<|start_header_id|>assistant<|end_header_id|>{content}<|eot_id|>"
-
-        elif role == "tool":
-            return f"<|start_header_id|>assistant<|end_header_id|>Tool Response: {content}<|eot_id|>"
-        return f"{content}"
-
-
-def is_anthropic(model_name: str) -> bool:
-    return model_name.startswith("anthropic.")
-
-
-def is_mistral(model_name: str) -> bool:
-    return model_name.startswith("mistral.")
-
-
-def is_llama2(model_name: str) -> bool:
-    return model_name.startswith("meta.llama2")
-
-
-def is_llama3(model_name: str) -> bool:
-    return model_name.startswith("meta.llama3")
-
-
-def remove_end_token(prompt: str, end_token: str = "</s>") -> str:
-    # pull off </s> at end so putting words in mouth is supported
-    if prompt.endswith(end_token):
-        index = prompt.rfind(end_token)
-        prompt = prompt[:index]
-    return prompt
+def replace_bytes_with_placeholder(data: Any, placeholder: Any = "<bytes>") -> Any:
+    if isinstance(data, bytes):
+        return placeholder
+    elif isinstance(data, dict):
+        return {
+            k: replace_bytes_with_placeholder(v, placeholder) for k, v in data.items()
+        }
+    elif isinstance(data, list):
+        return [replace_bytes_with_placeholder(item, placeholder) for item in data]
+    elif isinstance(data, tuple):
+        return tuple(replace_bytes_with_placeholder(item, placeholder) for item in data)
+    return data
