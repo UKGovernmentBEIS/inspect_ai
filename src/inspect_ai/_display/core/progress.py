@@ -11,6 +11,7 @@ from rich.progress import Progress as RProgress
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._model import ModelName
 
 from .display import Progress, TaskCancelled, TaskError, TaskProfile, TaskResult
@@ -86,7 +87,7 @@ def progress_model_name(
 def progress_description(
     profile: TaskProfile, max_width: int = MAX_DESCRIPTION_WIDTH, pad: bool = False
 ) -> Text:
-    description = Text(profile.name)
+    description = Text(registry_unqualified_name(profile.name))
     description.truncate(max_width, overflow="ellipsis", pad=pad)
     return description
 

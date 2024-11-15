@@ -8,6 +8,7 @@ from textual.widgets.option_list import Option
 from inspect_ai._display.core.progress import progress_time
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._display.textual.widgets.transcript import TranscriptView
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 
 
@@ -74,7 +75,7 @@ class SamplesView(Widget):
             table.add_column()
             table.add_column(justify="right")
             table.add_column()
-            task_name = Text(sample.task)
+            task_name = Text(registry_unqualified_name(sample.task))
             task_name.truncate(20, overflow="ellipsis", pad=True)
             task_time = Text.from_markup(
                 f"[{theme.light}]{progress_time(sample.execution_time)}[/{theme.light}]"
