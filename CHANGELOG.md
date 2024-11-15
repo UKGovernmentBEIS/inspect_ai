@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Ensure that the scorer is only run once for basic_agent with max_attempts = 1.
+- Support custom incorrect messages in basic_agent
 
 ## v0.3.46 (12 November 2024) 
 
