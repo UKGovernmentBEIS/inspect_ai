@@ -158,8 +158,8 @@ def test_basic_agent_retries_with_custom_incorrect_message():
 
         return score
 
-    def custom_incorrect_message(state: TaskState, score: Score):
-        return f"Your response to the input '{state.input}' was incorrect: {score.explanation}"
+    def custom_incorrect_message(state: TaskState, scores: list[Score]):
+        return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
 
     addition_task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],

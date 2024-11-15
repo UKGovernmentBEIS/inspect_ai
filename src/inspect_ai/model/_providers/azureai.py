@@ -109,14 +109,7 @@ class AzureAIAPI(ModelAPI):
         if not endpoint_url:
             raise environment_prerequisite_error("AzureAI", AZUREAI_BASE_URL)
         self.endpoint_url = endpoint_url
-
-        # create client
-        self.client = ChatCompletionsClient(
-            endpoint=self.endpoint_url,
-            credential=AzureKeyCredential(self.api_key),
-            model=self.model_name,
-            model_extras=model_args,
-        )
+        self.model_args = model_args
 
     async def generate(
         self,
@@ -138,9 +131,20 @@ class AzureAIAPI(ModelAPI):
             **self.completion_params(config),
         )
 
+        # create client (note the client needs to be created and closed
+        # with each call so it can be cleaned up and not end up on another
+        # event loop in a subsequent pass of eval)
+        assert self.api_key
+        client = ChatCompletionsClient(
+            endpoint=self.endpoint_url,
+            credential=AzureKeyCredential(self.api_key),
+            model=self.model_name,
+            model_extras=self.model_args,
+        )
+
         # make call
         try:
-            response: ChatCompletions = await self.client.complete(**request)
+            response: ChatCompletions = await client.complete(**request)
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(response.choices, tools, handler),
@@ -162,6 +166,8 @@ class AzureAIAPI(ModelAPI):
             )
         except AzureError as ex:
             return self.handle_azure_error(ex)
+        finally:
+            await client.close()
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params: dict[str, str | int | float | list[str]] = {}
