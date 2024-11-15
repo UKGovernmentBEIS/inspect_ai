@@ -1,9 +1,9 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
-from inspect_ai.model import ModelOutput, get_model
-from inspect_ai.scorer import includes
-from inspect_ai.solver import Solver, basic_agent, solver, system_message
+from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
+from inspect_ai.solver import Solver, TaskState, basic_agent, solver, system_message
 from inspect_ai.tool import Tool, tool
 
 
@@ -67,6 +67,20 @@ def run_basic_agent(
     return eval(task, model=model)[0]
 
 
+def mockllm_model(answers: list[str]):
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": answer},
+            )
+            for answer in answers
+        ],
+    )
+
+
 def test_basic_agent_solver():
     @solver
     def addition_tool() -> Solver:
@@ -108,19 +122,6 @@ def test_basic_agent_retries():
             scorer=includes(),
         )
 
-    def mockllm_model(answers: list[str]):
-        return get_model(
-            "mockllm/model",
-            custom_outputs=[
-                ModelOutput.for_tool_call(
-                    model="mockllm/model",
-                    tool_name="submit",
-                    tool_arguments={"answer": answer},
-                )
-                for answer in answers
-            ],
-        )
-
     # incorrect answer with no retries
     log = eval(addition_task(1), mockllm_model(["5"]))[0]
     assert log.results.scores[0].metrics["accuracy"].value == 0
@@ -132,3 +133,51 @@ def test_basic_agent_retries():
         1 for event in log.samples[0].transcript.events if event.event == "model"
     )
     assert model_events == 3
+
+
+def test_basic_agent_retries_with_custom_incorrect_message():
+    @scorer(metrics=[accuracy()])
+    def compare_quantities():
+        async def score(state: TaskState, target: Target) -> Score:
+            answer = float(state.output.completion)
+            target_value = float(target.text)
+            if answer == target_value:
+                return Score(value=1.0, answer=state.output.completion)
+            elif answer > target_value:
+                return Score(
+                    value=0.0,
+                    answer=state.output.completion,
+                    explanation="Answer is too high",
+                )
+            else:
+                return Score(
+                    value=0.0,
+                    answer=state.output.completion,
+                    explanation="Answer is too low",
+                )
+
+        return score
+
+    def custom_incorrect_message(state: TaskState, scores: list[Score]):
+        return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=basic_agent(
+            tools=[addition()],
+            max_attempts=3,
+            message_limit=30,
+            incorrect_message=custom_incorrect_message,
+        ),
+        scorer=compare_quantities(),
+    )
+    log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+    user_msgs = [
+        m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
+    ]
+    assert user_msgs == [
+        "What is 1 + 1?",
+        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too high",
+        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too low",
+    ]

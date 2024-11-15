@@ -25470,33 +25470,10 @@ function App({
     initialState2 == null ? void 0 : initialState2.selectedSampleTab
   );
   const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
-  const setSampleScrollPosition = q(
-    debounce((position) => {
-      sampleScrollPosition.current = position;
-      flushInitialState();
-    }, 250),
-    []
-  );
   const loadingSampleIndexRef = A(null);
   const workspaceTabScrollPosition = A(
     (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
   );
-  const setWorkspaceTabScrollPosition = q(
-    debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position
-      };
-      flushInitialState();
-    }, 250),
-    []
-  );
-  const [updateInitialState, setUpdateInitialState] = h(0);
-  const flushInitialState = q(() => {
-    setUpdateInitialState((prev) => {
-      return prev + 1;
-    });
-  }, [setUpdateInitialState]);
   const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
   );
@@ -25532,7 +25509,7 @@ function App({
       afterBodyElements.push(el);
     }
   };
-  y(() => {
+  const saveState = q(() => {
     const state = {
       logs,
       selectedLogIndex,
@@ -25588,8 +25565,52 @@ function App({
     score,
     filteredSamples,
     groupBy,
-    groupByOrder,
-    updateInitialState
+    groupByOrder
+  ]);
+  const setSampleScrollPosition = q(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      saveState();
+    }, 250),
+    [saveState]
+  );
+  const setWorkspaceTabScrollPosition = q(
+    debounce((tab, position) => {
+      workspaceTabScrollPosition.current = {
+        ...workspaceTabScrollPosition.current,
+        [tab]: position
+      };
+      saveState();
+    }, 250),
+    [saveState]
+  );
+  y(() => {
+    saveState();
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder
   ]);
   const handleSampleShowingDialog = q(
     (show) => {
@@ -25685,7 +25706,6 @@ function App({
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
         sampleScrollPosition.current = 0;
-        flushInitialState();
         setSelectedSample(sample);
         refreshSampleTab(sample);
         setSampleStatus("ok");
@@ -25694,7 +25714,6 @@ function App({
         setSampleStatus("error");
         setSampleError(e2);
         sampleScrollPosition.current = 0;
-        flushInitialState();
         setSelectedSample(void 0);
         loadingSampleIndexRef.current = null;
       });
