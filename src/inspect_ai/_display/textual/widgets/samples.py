@@ -1,8 +1,12 @@
+from rich.table import Table
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 
+from inspect_ai._display.core.progress import progress_time
+from inspect_ai._display.core.rich import rich_theme
 from inspect_ai.log._samples import ActiveSample
 
 
@@ -32,10 +36,10 @@ class SamplesView(Widget):
 
     def set_samples(self, samples: list[ActiveSample]) -> None:
         # check for a highlighted sample (make sure we don't remove it)
-        options = self.query_one(OptionList)
+        option_list = self.query_one(OptionList)
         highlighted_id = (
-            options.get_option_at_index(options.highlighted).id
-            if options.highlighted is not None
+            option_list.get_option_at_index(option_list.highlighted).id
+            if option_list.highlighted is not None
             else None
         )
         highlighted_sample = (
@@ -47,24 +51,37 @@ class SamplesView(Widget):
         # assign the new samples
         self.samples = samples.copy()
 
-        #  add the highlighted sample if its no longer in the list
+        # add the highlighted sample if its no longer in the list
         if highlighted_sample and (highlighted_sample not in self.samples):
             self.samples.append(highlighted_sample)
 
+        # sort the samples by execution time
+        self.samples.sort(key=lambda sample: sample.execution_time, reverse=True)
+
         # rebuild the list
-        options.clear_options()
-        options.add_options(
-            [
-                Option(f"{sample.task}: {sample.sample.id}", id=sample.id)
-                for sample in self.samples
-            ]
-        )
+        theme = rich_theme()
+        option_list.clear_options()
+        options: list[Option] = []
+        for sample in self.samples:
+            table = Table.grid(expand=True)
+            table.add_column()
+            table.add_column(justify="right")
+            table.add_column()
+            task_name = Text(sample.task)
+            task_name.truncate(20, overflow="ellipsis", pad=True)
+            task_time = Text.from_markup(
+                f"[{theme.light}]{progress_time(sample.execution_time)}[/{theme.light}]"
+            )
+            table.add_row(task_name, task_time, " ")
+            options.append(Option(table, id=sample.id))
+        option_list.add_options(options)
 
         # re-select the highlighted sample
         if highlighted_id is not None:
             index = sample_index_for_id(self.samples, highlighted_id)
             if index != -1:
-                options.highlighted = index
+                option_list.highlighted = index
+                option_list.scroll_to_highlight()
 
 
 def sample_for_id(samples: list[ActiveSample], id: str) -> ActiveSample | None:

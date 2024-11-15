@@ -15,16 +15,15 @@ class ActiveSample:
     ) -> None:
         self.id = uuid()
         self.started = monotonic()
+        self.completed: float | None = None
         self.task = task
         self.model = model
         self.sample = sample
         self.transcript = transcript
 
-    started: float
-    task: str
-    model: str
-    sample: Sample
-    transcript: Transcript
+    @property
+    def execution_time(self) -> float:
+        return (self.completed or monotonic()) - self.started
 
 
 def init_active_samples() -> None:
@@ -37,6 +36,7 @@ async def active_sample(sample: ActiveSample) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
+        sample.completed = monotonic()
         _active_samples.remove(sample)
 
 

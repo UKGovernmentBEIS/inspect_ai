@@ -24,6 +24,7 @@ from ...core.progress import (
     progress_description,
     progress_model_name,
     progress_status_icon,
+    progress_time,
 )
 
 
@@ -172,9 +173,7 @@ class TaskTime(Static):
         self.time = monotonic() - self.start_time
 
     def watch_time(self, time: float) -> None:
-        minutes, seconds = divmod(time, 60)
-        hours, minutes = divmod(minutes, 60)
-        self.update(f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}")
+        self.update(progress_time(time))
 
 
 class TaskProgress(Progress):

@@ -102,3 +102,9 @@ def progress_status_icon(result: TaskResult | None) -> str:
             return f"[{theme.success}]✔[{theme.success}]"
     else:
         return f"[{theme.meta}]⠿[{theme.meta}]"
+
+
+def progress_time(time: float) -> str:
+    minutes, seconds = divmod(time, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}"
