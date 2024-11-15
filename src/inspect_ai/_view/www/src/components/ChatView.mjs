@@ -146,6 +146,15 @@ const normalizeContent = (content) => {
   }
 };
 
+/**
+ *
+ * @param {Object} props
+ * @param {string} props.id - The ID for the chat view.
+ * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../types/log").ChatMessageTool} props.toolMessage - The tool output message
+ * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @returns {import("preact").JSX.Element} The component.
+ */
 const ChatMessage = ({ id, message, toolMessage, indented }) => {
   const collapse = message.role === "system";
   return html`
@@ -185,10 +194,20 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
   `;
 };
 
+/**
+ *
+ * @param {Object} props
+ * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../types/log").ChatMessageTool} props.toolMessage - The tool output message
+ * @returns {import("preact").JSX.Element | import("preact").JSX.Element[]} The component.
+ */
 const MessageContents = ({ message, toolMessage }) => {
-  if (message.tool_calls && message.tool_calls.length) {
+  if (
+    message.role === "assistant" &&
+    message.tool_calls &&
+    message.tool_calls.length
+  ) {
     const result = [];
-
     // If the message contains content, render that.
     if (message.content) {
       result.push(
@@ -239,13 +258,20 @@ export const iconForMsg = (msg) => {
   }
 };
 
+/**
+ *
+ * @param {import("../types/log").ChatMessageTool} toolMessage - The tool output message
+ * @returns {Array<{type: string, content: import("../types/log").Content3}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
+ */
 const resolveToolMessage = (toolMessage) => {
   if (!toolMessage) {
     return undefined;
   }
 
   const content =
-    toolMessage.error?.message || toolMessage.tool_error || toolMessage.content;
+    toolMessage.error !== null
+      ? toolMessage.error.message
+      : toolMessage.content;
   if (typeof content === "string") {
     return [
       {

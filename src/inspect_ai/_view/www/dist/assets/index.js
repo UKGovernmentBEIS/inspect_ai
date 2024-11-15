@@ -15476,7 +15476,7 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
   `;
 };
 const MessageContents = ({ message, toolMessage }) => {
-  if (message.tool_calls && message.tool_calls.length) {
+  if (message.role === "assistant" && message.tool_calls && message.tool_calls.length) {
     const result = [];
     if (message.content) {
       result.push(
@@ -15520,11 +15520,10 @@ const iconForMsg = (msg) => {
   }
 };
 const resolveToolMessage = (toolMessage) => {
-  var _a2;
   if (!toolMessage) {
     return void 0;
   }
-  const content = ((_a2 = toolMessage.error) == null ? void 0 : _a2.message) || toolMessage.tool_error || toolMessage.content;
+  const content = toolMessage.error !== null ? toolMessage.error.message : toolMessage.content;
   if (typeof content === "string") {
     return [
       {
