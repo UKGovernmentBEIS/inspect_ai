@@ -48,6 +48,7 @@ class TranscriptView(ScrollableContainer):
             and self._sample is not None
             and (sample.id == self._sample.id)
         ):
+            scrolled_to_bottom = abs(self.scroll_y - self.max_scroll_y) <= 3
             append_events = sample.transcript.events[
                 len(self._sample.transcript.events) :
             ]
@@ -55,7 +56,8 @@ class TranscriptView(ScrollableContainer):
             await self.mount_all(
                 [Static(widget) for widget in self._widgets_for_events(append_events)]
             )
-            self.scroll_end()
+            if scrolled_to_bottom:
+                self.scroll_end()
         # new sample
         else:
             self._sample = sample
@@ -69,6 +71,7 @@ class TranscriptView(ScrollableContainer):
                             for widget in self._widgets_for_events(self._events)
                         ]
                     )
+                    self.scroll_end(animate=False)
                 else:
                     self._events = []
 
