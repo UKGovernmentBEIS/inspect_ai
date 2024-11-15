@@ -43,7 +43,11 @@ class TranscriptView(ScrollableContainer):
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         # update existing
-        if sample is not None is not None and (sample == self._sample):
+        if (
+            sample is not None
+            and self._sample is not None
+            and (sample.id == self._sample.id)
+        ):
             append_events = sample.transcript.events[
                 len(self._sample.transcript.events) :
             ]

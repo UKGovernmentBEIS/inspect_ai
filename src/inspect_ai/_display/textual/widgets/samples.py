@@ -99,10 +99,6 @@ class SamplesView(Widget):
                 sample = sample_for_id(self.samples, highlighted_id)
                 if sample:
                     await transcript_view.sync_sample(sample)
-                    return
-
-        # no sample to sync
-        await transcript_view.sync_sample(None)
 
 
 def sample_for_id(samples: list[ActiveSample], id: str) -> ActiveSample | None:
