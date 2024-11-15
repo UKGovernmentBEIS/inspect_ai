@@ -31,7 +31,7 @@ class LogView(RichLog):
             self.write_ansi_line(line)
 
         # tick unread if we aren't active
-        if not self.active:
+        if not self.active and len(text.strip()) > 0:
             self.unread = (self.unread or 0) + 1
 
     def write_ansi_line(self, line: str) -> None:

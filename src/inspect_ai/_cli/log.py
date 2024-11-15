@@ -19,8 +19,6 @@ from inspect_ai.log._file import (
     read_eval_log_headers,
 )
 
-from .logview.logview import LogviewApp
-
 
 @click.group("log")
 def log_command() -> None:
@@ -170,16 +168,6 @@ def headers(files: tuple[str]) -> None:
     """Print log file headers as JSON."""
     headers = read_eval_log_headers(list(files))
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
-
-
-@log_command.command("view", hidden=True)
-@click.argument("log-file", type=str, required=False)
-@click.option("--sample", type=str)
-@click.option("--epoch", type=int, default=1)
-def view_command(log_file: str | None, sample: str | None, epoch: int) -> None:
-    """View a log in the terminal."""
-    app = LogviewApp(log_file, sample, epoch)
-    app.run()
 
 
 @log_command.command("schema")

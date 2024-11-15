@@ -125,7 +125,7 @@ def subtask(
                     name=subtask_name,
                     input=log_input,
                     result=result,
-                    events=transcript().events,
+                    events=list(transcript().events),
                     type=type,
                 )
 

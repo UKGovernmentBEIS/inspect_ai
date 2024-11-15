@@ -27,6 +27,7 @@ from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
+    registry_unqualified_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
@@ -421,7 +422,12 @@ async def task_run_sample(
 
     # track active sample
     active_sample_cm = active_sample(
-        ActiveSample(task_name, str(state.model), sample, sample_transcript)
+        ActiveSample(
+            registry_unqualified_name(task_name),
+            str(state.model),
+            sample,
+            sample_transcript,
+        )
     )
 
     # solver loop
@@ -582,7 +588,7 @@ def log_sample(
         output=state.output,
         scores=cast(dict[str, Score], scores),
         store=dict(state.store.items()),
-        events=transcript().events,
+        events=list(transcript().events),
         model_usage=sample_model_usage(),
         error=error,
     )

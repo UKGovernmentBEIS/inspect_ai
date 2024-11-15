@@ -140,7 +140,7 @@ async def call_tools(
                 truncated=truncated,
                 view=tool_call_view(call, tdefs),
                 error=tool_error,
-                events=transcript().events,
+                events=list(transcript().events),
             )
 
             # return message and event

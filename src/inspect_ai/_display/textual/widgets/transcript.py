@@ -11,6 +11,7 @@ from textual.widgets import Static
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.transcript import transcript_markdown, transcript_panel
+from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import (
     ApprovalEvent,
     ErrorEvent,
@@ -29,16 +30,42 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
 
-from ...core.group import EventGroup
+from ...core.group import EventGroup, group_events
+
+# TODO: padding around code blocks (white)
+# TODO: don't draw boxes around steps (flatten?)
 
 
 class TranscriptView(ScrollableContainer):
-    def __init__(self, event_groups: list[EventGroup]) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self._sample: ActiveSample | None = None
+
+    async def sync_sample(self, sample: ActiveSample | None) -> None:
+        if sample is None:
+            self._sample = None
+            self.remove_children()
+        elif (
+            self._sample is None
+            or sample.id != self._sample.id
+            or sample.transcript.last_modified != self._sample.transcript.last_modified
+        ):
+            self._sample = sample
+            await self._render_sample(sample)
+
+    async def _render_sample(self, sample: ActiveSample) -> None:
+        # create event groups
+        event_groups = group_events(sample.transcript.events)
+
+        # create widgets
         panels = [event_group_panel(group) for group in event_groups]
         widgets = [
             Static(Group(panel, Text())) for panel in panels if panel is not None
         ]
-        super().__init__(*widgets)
+        async with self.batch():
+            await self.remove_children()
+            await self.mount_all(widgets)
+            self.scroll_end()
 
 
 def event_group_panel(group: EventGroup) -> Panel | None:

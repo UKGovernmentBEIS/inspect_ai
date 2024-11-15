@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Sequence
 
 from inspect_ai.log._transcript import Event, StepEvent, SubtaskEvent, ToolEvent
 
@@ -17,7 +18,7 @@ class EventGroup:
     groups: list["EventGroup"] | None = None
 
 
-def group_events(events: list[Event], level: int = 1) -> list[EventGroup]:
+def group_events(events: Sequence[Event], level: int = 1) -> list[EventGroup]:
     """Transform ordinary list of events into list of event groups."""
     # groups are eitehr plain events (some of which can have sub-events)
     # and higher level steps (e.g. solvers/scorers) that contain events
