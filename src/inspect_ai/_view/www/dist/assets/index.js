@@ -15359,10 +15359,10 @@ const ChatView = ({
     if (message.role === "tool") {
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
-        msg.toolOutput = message;
+        msg.toolMessages.push(message);
       }
     } else {
-      resolvedMessages.push({ message });
+      resolvedMessages.push({ message, toolMessages: [] });
     }
   }
   const systemMessages = [];
@@ -15410,7 +15410,7 @@ const ChatView = ({
             <${ChatMessage}
               id=${`${id}-chat-messages`}
               message=${msg.message}
-              toolMessage=${msg.toolOutput}
+              toolMessages=${msg.toolMessages}
               indented=${indented}
             />
           </div>`;
@@ -15418,7 +15418,7 @@ const ChatView = ({
       return m$1` <${ChatMessage}
             id=${`${id}-chat-messages`}
             message=${msg.message}
-            toolMessage=${msg.toolOutput}
+            toolMessages=${msg.toolMessages}
             indented=${indented}
           />`;
     }
@@ -15437,7 +15437,7 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessage, indented }) => {
+const ChatMessage = ({ id, message, toolMessages, indented }) => {
   const collapse = message.role === "system";
   return m$1`
     <div
@@ -15468,15 +15468,15 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
         <${MessageContents}
           key=${`${id}-contents`}
           message=${message}
-          toolMessage=${toolMessage}
+          toolMessages=${toolMessages}
         />
       </${ExpandablePanel}>
       </div>
     </div>
   `;
 };
-const MessageContents = ({ message, toolMessage }) => {
-  if (message.tool_calls && message.tool_calls.length) {
+const MessageContents = ({ message, toolMessages }) => {
+  if (message.role === "assistant" && message.tool_calls && message.tool_calls.length) {
     const result = [];
     if (message.content) {
       result.push(
@@ -15485,11 +15485,19 @@ const MessageContents = ({ message, toolMessage }) => {
         </div>`
       );
     }
-    const toolCalls = message.tool_calls.map((tool_call) => {
+    const toolCalls = message.tool_calls.map((tool_call, idx) => {
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
         tool_call.arguments
       );
+      let toolMessage;
+      if (tool_call.id) {
+        toolMessage = toolMessages.find((msg) => {
+          return msg.tool_call_id === tool_call.id;
+        });
+      } else {
+        toolMessage = toolMessages[idx];
+      }
       const resolvedToolOutput = resolveToolMessage(toolMessage);
       return m$1`<${ToolCallView}
         functionCall=${functionCall}
@@ -15520,11 +15528,10 @@ const iconForMsg = (msg) => {
   }
 };
 const resolveToolMessage = (toolMessage) => {
-  var _a2;
   if (!toolMessage) {
     return void 0;
   }
-  const content = ((_a2 = toolMessage.error) == null ? void 0 : _a2.message) || toolMessage.tool_error || toolMessage.content;
+  const content = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
   if (typeof content === "string") {
     return [
       {
