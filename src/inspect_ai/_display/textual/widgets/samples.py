@@ -20,7 +20,7 @@ class SamplesView(Widget):
         padding: 0 1 0 1;
         layout: grid;
         grid-size: 2 1;
-        grid-columns: 32 1fr;
+        grid-columns: 30 1fr;
     }
     SamplesView OptionList {
         height: 100%;
@@ -76,13 +76,13 @@ class SamplesView(Widget):
             table.add_column(justify="right")
             table.add_column()
             task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
-            task_name.truncate(20, overflow="ellipsis", pad=True)
+            task_name.truncate(18, overflow="ellipsis", pad=True)
             task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
             table.add_row(task_name, task_time, " ")
             sample_id = Text.from_markup(
                 f"[{theme.light}]id: {sample.sample.id}[/{theme.light}]"
             )
-            sample_id.truncate(20, overflow="ellipsis", pad=True)
+            sample_id.truncate(18, overflow="ellipsis", pad=True)
             sample_epoch = Text.from_markup(
                 f"[{theme.light}]epoch: {sample.epoch:.0f}[/{theme.light}]"
             )
