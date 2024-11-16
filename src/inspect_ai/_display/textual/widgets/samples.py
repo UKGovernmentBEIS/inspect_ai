@@ -3,7 +3,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import OptionList
-from textual.widgets.option_list import Option
+from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._display.core.progress import progress_time
 from inspect_ai._display.core.rich import rich_theme
@@ -20,7 +20,7 @@ class SamplesView(Widget):
         padding: 0 1 0 1;
         layout: grid;
         grid-size: 2 1;
-        grid-columns: 30 1fr;
+        grid-columns: 32 1fr;
     }
     SamplesView OptionList {
         height: 100%;
@@ -69,19 +69,31 @@ class SamplesView(Widget):
         # rebuild the list
         theme = rich_theme()
         option_list.clear_options()
-        options: list[Option] = []
+        options: list[Option | Separator] = []
         for sample in self.samples:
             table = Table.grid(expand=True)
             table.add_column()
             table.add_column(justify="right")
             table.add_column()
-            task_name = Text(registry_unqualified_name(sample.task))
+            task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(20, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(
-                f"[{theme.light}]{progress_time(sample.execution_time)}[/{theme.light}]"
-            )
+            task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
             table.add_row(task_name, task_time, " ")
+            sample_id = Text.from_markup(
+                f"[{theme.light}]id: {sample.sample.id}[/{theme.light}]"
+            )
+            sample_id.truncate(20, overflow="ellipsis", pad=True)
+            sample_epoch = Text.from_markup(
+                f"[{theme.light}]epoch: {sample.epoch:.0f}[/{theme.light}]"
+            )
+            table.add_row(
+                sample_id,
+                sample_epoch,
+                " ",
+            )
             options.append(Option(table, id=sample.id))
+            options.append(Separator())
+
         option_list.add_options(options)
 
         # re-select the highlighted sample

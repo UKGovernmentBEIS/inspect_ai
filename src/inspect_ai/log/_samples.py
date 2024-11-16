@@ -11,7 +11,7 @@ from ._transcript import Transcript
 
 class ActiveSample:
     def __init__(
-        self, task: str, model: str, sample: Sample, transcript: Transcript
+        self, task: str, model: str, sample: Sample, epoch: int, transcript: Transcript
     ) -> None:
         self.id = uuid()
         self.started = monotonic()
@@ -19,6 +19,7 @@ class ActiveSample:
         self.task = task
         self.model = model
         self.sample = sample
+        self.epoch = epoch
         self.transcript = transcript
 
     @property

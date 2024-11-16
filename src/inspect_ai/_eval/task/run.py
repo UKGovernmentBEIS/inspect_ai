@@ -428,6 +428,7 @@ async def task_run_sample(
                 task_name,
                 str(state.model),
                 sample,
+                state.epoch,
                 sample_transcript,
             )
         ),
