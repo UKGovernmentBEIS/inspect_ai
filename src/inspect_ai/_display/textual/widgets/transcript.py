@@ -55,12 +55,13 @@ class TranscriptView(ScrollableContainer):
             or len(sample.transcript.events) != self._sample_events
         ):
             # update (scrolling to end if we are already close to it)
-            scroll_to_end = abs(self.scroll_y - self.max_scroll_y) <= 20
+            new_sample = sample.id != self._sample_id
+            scroll_to_end = new_sample or abs(self.scroll_y - self.max_scroll_y) <= 20
             async with self.batch():
                 await self.remove_children()
                 await self.mount_all(self._widgets_for_events(sample.transcript.events))
             if scroll_to_end:
-                self.scroll_end(animate=sample.id == self._sample_id)
+                self.scroll_end(animate=not new_sample)
 
             # set members
             self._sample_id = sample.id
