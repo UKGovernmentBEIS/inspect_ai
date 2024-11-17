@@ -671,6 +671,18 @@
           "default": null,
           "title": "Token Limit"
         },
+        "time_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Limit"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -767,6 +779,7 @@
         "fail_on_error",
         "message_limit",
         "token_limit",
+        "time_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -2374,6 +2387,18 @@
           ],
           "default": null
         },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
         "error": {
           "anyOf": [
             {
@@ -2393,6 +2418,7 @@
         "model",
         "choices",
         "usage",
+        "metadata",
         "error"
       ],
       "additionalProperties": false
@@ -3198,6 +3224,18 @@
     "ToolCallContent": {
       "description": "Content to include in tool call view.",
       "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
         "format": {
           "enum": [
             "text",
@@ -3212,6 +3250,7 @@
         }
       },
       "required": [
+        "title",
         "format",
         "content"
       ],
@@ -3229,6 +3268,7 @@
             "permission",
             "file_not_found",
             "is_a_directory",
+            "output_limit",
             "approval",
             "unknown"
           ],
