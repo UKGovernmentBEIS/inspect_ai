@@ -173,7 +173,7 @@ class TaskScreenApp(App[TR]):
         self.handle_log_unread()
 
         # update display every second
-        self.set_interval(1, self.update_display)
+        self.set_interval(2, self.update_display)
 
     # update dynamic parts of display
     def update_display(self) -> None:
