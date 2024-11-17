@@ -25,6 +25,15 @@ class SamplesView(Widget):
         height: 100%;
         scrollbar-size-vertical: 1;
     }
+    SamplesView OptionList:focus > .option-list--option-highlighted {
+        background: $accent 20%;
+    }
+
+    SamplesView OptionList > .option-list--option-highlighted {
+        background: $accent 20%;
+        text-style: none;
+    }
+
     SamplesView TranscriptView {
         scrollbar-size-vertical: 1;
     }
@@ -74,14 +83,18 @@ class SamplesView(Widget):
             table.add_column(justify="right")
             table.add_column()
             task_name = Text.from_markup(
-                f"{registry_unqualified_name(sample.task)}", style="bold"
+                f"{registry_unqualified_name(sample.task)}", style="black"
             )
             task_name.truncate(18, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
+            task_time = Text.from_markup(
+                f"{progress_time(sample.execution_time)}", style="black"
+            )
             table.add_row(task_name, task_time, " ")
-            sample_id = Text.from_markup(f"id: {sample.sample.id}")
+            sample_id = Text.from_markup(f"id: {sample.sample.id}", style="dim black")
             sample_id.truncate(18, overflow="ellipsis", pad=True)
-            sample_epoch = Text.from_markup(f"epoch: {sample.epoch:.0f}")
+            sample_epoch = Text.from_markup(
+                f"epoch: {sample.epoch:.0f}", style="dim black"
+            )
             table.add_row(
                 sample_id,
                 sample_epoch,
