@@ -27,11 +27,11 @@ class SamplesView(Widget):
         margin-bottom: 1;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
-        background: $accent 20%;
+        background: $accent 40%;
     }
 
     SamplesView OptionList > .option-list--option-highlighted {
-        background: $accent 20%;
+        background: $accent 40%;
         text-style: none;
     }
 

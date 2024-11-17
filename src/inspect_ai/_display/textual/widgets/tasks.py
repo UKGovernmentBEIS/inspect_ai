@@ -1,15 +1,15 @@
 import contextlib
-from datetime import datetime
 from typing import Iterator, cast
 
 from rich.console import RenderableType
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
 from textual.reactive import reactive
-from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
 from typing_extensions import override
+
+from inspect_ai._display.textual.widgets.clock import Clock
 
 from ...core.display import (
     Progress,
@@ -24,7 +24,6 @@ from ...core.progress import (
     progress_description,
     progress_model_name,
     progress_status_icon,
-    progress_time,
 )
 
 
@@ -130,7 +129,7 @@ class TaskProgressView(Widget):
             progress_model_name(self.t.profile.model, self.model_name_width, pad=True)
         )
         yield self.progress_bar
-        yield TaskTime()
+        yield Clock()
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
@@ -139,7 +138,7 @@ class TaskProgressView(Widget):
     def complete(self, result: TaskResult) -> None:
         self.t.result = result
         self.query_one(TaskStatusIcon).result = result
-        self.query_one(TaskTime).complete()
+        self.query_one(Clock).complete()
         self.task_progress.complete()
 
 
@@ -151,31 +150,6 @@ class TaskStatusIcon(Static):
 
     def watch_result(self, new_result: TaskResult | None) -> None:
         self.update(progress_status_icon(new_result))
-
-
-class TaskTime(Static):
-    DEFAULT_CSS = """
-    TaskTime {
-        color: $accent-lighten-3;
-    }
-    """
-
-    start_time: reactive[float] = reactive(datetime.now().timestamp)
-    time = reactive(0.0)
-    timer: Timer | None = None
-
-    def complete(self) -> None:
-        if self.timer:
-            self.timer.stop()
-
-    def on_mount(self) -> None:
-        self.timer = self.set_interval(1, self.update_time)
-
-    def update_time(self) -> None:
-        self.time = datetime.now().timestamp() - self.start_time
-
-    def watch_time(self, time: float) -> None:
-        self.update(progress_time(time))
 
 
 class TaskProgress(Progress):
