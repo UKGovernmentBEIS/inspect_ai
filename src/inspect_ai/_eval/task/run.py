@@ -262,6 +262,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             log_images=log_images,
                             sample_source=sample_source,
                             sample_error=sample_error_handler,
+                            fails_on_error=(
+                                config.fail_on_error is None
+                                or config.fail_on_error is True
+                            ),
                             time_limit=config.time_limit,
                             semaphore=sample_semaphore,
                         )
@@ -366,6 +370,7 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: Callable[[BaseException], EvalError],
+    fails_on_error: bool,
     time_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
@@ -429,6 +434,7 @@ async def task_run_sample(
                 str(state.model),
                 sample,
                 state.epoch,
+                fails_on_error,
                 sample_transcript,
             )
         ),

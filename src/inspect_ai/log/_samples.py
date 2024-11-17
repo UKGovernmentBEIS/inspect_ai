@@ -11,7 +11,13 @@ from ._transcript import Transcript
 
 class ActiveSample:
     def __init__(
-        self, task: str, model: str, sample: Sample, epoch: int, transcript: Transcript
+        self,
+        task: str,
+        model: str,
+        sample: Sample,
+        epoch: int,
+        fails_on_error: bool,
+        transcript: Transcript,
     ) -> None:
         self.id = uuid()
         self.started = datetime.now().timestamp()
@@ -20,6 +26,7 @@ class ActiveSample:
         self.model = model
         self.sample = sample
         self.epoch = epoch
+        self.fails_on_error = fails_on_error
         self.transcript = transcript
 
     @property

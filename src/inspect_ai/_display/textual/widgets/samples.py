@@ -1,8 +1,11 @@
+from typing import cast
+
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.containers import Horizontal
 from textual.widget import Widget
-from textual.widgets import OptionList
+from textual.widgets import Button, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._display.core.progress import progress_time
@@ -18,13 +21,16 @@ class SamplesView(Widget):
         height: 1fr;
         padding: 0 1 0 1;
         layout: grid;
-        grid-size: 2 1;
+        grid-size: 2 2;
+        grid-rows: 1fr auto;
         grid-columns: 30 1fr;
+        grid-gutter: 1;
     }
     SamplesView OptionList {
         height: 100%;
         scrollbar-size-vertical: 1;
         margin-bottom: 1;
+        row-span: 2;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
         background: $accent 40%;
@@ -36,9 +42,19 @@ class SamplesView(Widget):
     }
 
     SamplesView TranscriptView {
-        margin-left: 1;
         scrollbar-size-vertical: 1;
         scrollbar-gutter: stable;
+    }
+    SamplesView Button {
+        margin-bottom: 1;
+        margin-right: 2;
+        min-width: 24;
+    }
+    SamplesView #cancel-score-output {
+        color: $accent-darken-3;
+    }
+    SamplesView #cancel-raise-error {
+        color: $warning-darken-3;
     }
     """
 
@@ -49,6 +65,17 @@ class SamplesView(Widget):
     def compose(self) -> ComposeResult:
         yield OptionList()
         yield TranscriptView()
+        with Horizontal(id="button-bar"):
+            yield Button(
+                Text("Cancel (Score Output)"),
+                id="cancel-score-output",
+                tooltip="Cancel the sample and score whatever output has been generated so far.",
+            )
+            yield Button(
+                Text("Cancel (Raise Error)"),
+                id="cancel-raise-error",
+                tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
+            )
 
     def on_mount(self) -> None:
         self.watch(self.query_one(OptionList), "highlighted", self.set_highlighted)
@@ -125,6 +152,10 @@ class SamplesView(Widget):
             if highlighted_id is not None:
                 sample = sample_for_id(self.samples, highlighted_id)
                 if sample:
+                    cancel_with_error = cast(
+                        Button, self.query_one("#cancel-raise-error")
+                    )
+                    cancel_with_error.display = not sample.fails_on_error
                     await transcript_view.sync_sample(sample)
 
 
