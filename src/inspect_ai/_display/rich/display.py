@@ -80,7 +80,7 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
-        yield None
+        yield
 
     @override
     @contextlib.contextmanager
