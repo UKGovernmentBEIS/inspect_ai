@@ -19,7 +19,20 @@ def transcript_code_theme(dark: bool | None = None) -> str:
 
 
 def transcript_markdown(content: str) -> Markdown:
-    return Markdown(content, code_theme=transcript_code_theme())
+    code_theme = transcript_code_theme()
+    return Markdown(
+        content,
+        code_theme=code_theme,
+        inline_code_lexer="python",
+        inline_code_theme=code_theme,
+    )
+
+
+def set_transcript_markdown_options(markdown: Markdown) -> None:
+    code_theme = transcript_code_theme()
+    markdown.code_theme = code_theme
+    markdown.inline_code_lexer = "python"
+    markdown.inline_code_theme = code_theme
 
 
 def transcript_panel(
@@ -56,7 +69,7 @@ def transcript_panel(
     # use xcode theme for markdown code
     for c in content:
         if isinstance(c, Markdown):
-            c.code_theme = transcript_code_theme()
+            set_transcript_markdown_options(c)
 
     return Panel(
         Group(*content),

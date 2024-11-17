@@ -1,6 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
+from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.util._trace import trace_enabled, trace_panel
 
 from ._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageTool
@@ -40,11 +41,13 @@ def trace_assistant_message(
         for m in messages_preceding_assistant(input):
             trace_panel(
                 title=m.role.capitalize(),
-                content=m.text,
+                content=transcript_markdown(m.text),
             )
 
         # start with assistant content
-        content: list[RenderableType] = [message.text] if message.text else []
+        content: list[RenderableType] = (
+            [transcript_markdown(message.text)] if message.text else []
+        )
 
         # print tool calls
         if message.tool_calls:
