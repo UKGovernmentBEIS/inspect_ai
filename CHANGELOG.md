@@ -4,6 +4,8 @@
 
 - Basic agent: Ensure that the scorer is only run once when max_attempts = 1.
 - Basic agent: Support custom function for incorrect_message reply to model.
+- Tool calling: Execute multiple tool calls serially (models seem to assume that multiple calls are executed this way rather than in parallel).
+- Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.
 - AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
 
 ## v0.3.46 (12 November 2024) 
