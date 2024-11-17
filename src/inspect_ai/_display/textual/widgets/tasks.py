@@ -40,10 +40,12 @@ class TasksView(Container):
     #tasks-progress {
         column-span: 2;
         scrollbar-size-vertical: 1;
+        margin-top: 1;
         margin-bottom: 1;
     }
     #tasks-targets {
         text-align: right;
+        color: $text-muted;
     }
     """
 
