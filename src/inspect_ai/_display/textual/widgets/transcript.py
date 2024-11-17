@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Callable, NamedTuple, Sequence, Type
 
 from pydantic_core import to_json
@@ -6,7 +7,8 @@ from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
-from textual.widgets import Static
+from textual.widget import Widget
+from textual.widgets import LoadingIndicator, Static
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
@@ -38,52 +40,62 @@ from inspect_ai.tool._tool import ToolResult
 class TranscriptView(ScrollableContainer):
     def __init__(self) -> None:
         super().__init__()
-        self._sample: ActiveSample | None = None
-        self._events: list[Event] = []
+        self._sample_id: str | None = None
+        self._sample_events: int | None = None
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        # update existing
-        if (
-            sample is not None
-            and self._sample is not None
-            and (sample.id == self._sample.id)
+        # if sample is none then reset
+        if sample is None:
+            self._sample_id = None
+            self._sample_events = None
+            await self.remove_children()
+
+        # if we have either a new sample or a new event count then proceed
+        elif (
+            sample.id != self._sample_id
+            or len(sample.transcript.events) != self._sample_events
         ):
-            scrolled_to_bottom = abs(self.scroll_y - self.max_scroll_y) <= 20
-            append_events = sample.transcript.events[len(self._events) :]
-            self._events.extend(append_events)
-            await self.mount_all(
-                [Static(widget) for widget in self._widgets_for_events(append_events)]
-            )
-            if scrolled_to_bottom:
-                self.scroll_end()
-        # new sample
-        else:
-            self._sample = sample
+            # update (scrolling to end if we are already close to it)
+            scroll_to_end = abs(self.scroll_y - self.max_scroll_y) <= 20
             async with self.batch():
                 await self.remove_children()
-                if sample is not None:
-                    self._events = list(sample.transcript.events)
-                    await self.mount_all(
-                        [
-                            Static(widget)
-                            for widget in self._widgets_for_events(self._events)
-                        ]
-                    )
-                    self.scroll_end(animate=False)
-                else:
-                    self._events = []
+                await self.mount_all(self._widgets_for_events(sample.transcript.events))
+            if scroll_to_end:
+                self.scroll_end(animate=sample.id == self._sample_id)
 
-    def _widgets_for_events(self, events: Sequence[Event]) -> list[RenderableType]:
-        widgets: list[RenderableType] = []
+            # set members
+            self._sample_id = sample.id
+            self._sample_events = len(sample.transcript.events)
+
+    def _widgets_for_events(self, events: Sequence[Event]) -> list[Widget]:
+        widgets: list[Widget] = []
         for event in events:
             display = render_event(event)
             if display and display.content:
-                widgets.append(transcript_separator(display.title))
+                widgets.append(Static(transcript_separator(display.title)))
                 if isinstance(display.content, Markdown):
                     set_transcript_markdown_options(display.content)
-                widgets.append(display.content)
-                widgets.append(Text(" "))
+                widgets.append(Static(display.content))
+                if event.pending:
+                    widgets.append(EventLoadingIndicator())
+
+                widgets.append(Static(Text(" ")))
         return widgets
+
+
+class EventLoadingIndicator(LoadingIndicator):
+    DEFAULT_CSS = """
+    EventLoadingIndicator {
+        width: 100%;
+        height: 1;
+        content-align: left middle;
+        color: $accent;
+        text-style: not reverse;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
 
 
 class EventDisplay(NamedTuple):
@@ -147,7 +159,7 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
 
     # display assistant message (note that we don't render tool calls
     # because they will be handled as part of render_tool)
-    if event.output.message.text:
+    if event.output.message:
         append_message(event.output.message)
 
     return EventDisplay(f"model: {event.model}", Group(*content))

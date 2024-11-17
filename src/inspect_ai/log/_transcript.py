@@ -43,6 +43,9 @@ class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
+    pending: bool | None = Field(default=None)
+    """Is this event pending?"""
+
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.astimezone().isoformat()

@@ -187,6 +187,7 @@ export type Answer = string | null;
 export type Explanation = string | null;
 export type Metadata5 = {} | null;
 export type Timestamp = string;
+export type Pending = boolean | null;
 export type Event = "sample_init";
 export type Input1 =
   | string
@@ -206,15 +207,18 @@ export type Files1 = {
 export type Setup1 = string | null;
 export type JsonValue = unknown;
 export type Timestamp1 = string;
+export type Pending1 = boolean | null;
 export type Event1 = "state";
 export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
 export type Path = string;
 export type From = string | null;
 export type Changes = JsonChange[];
 export type Timestamp2 = string;
+export type Pending2 = boolean | null;
 export type Event2 = "store";
 export type Changes1 = JsonChange[];
 export type Timestamp3 = string;
+export type Pending3 = boolean | null;
 export type Event3 = "model";
 export type Model2 = string;
 export type Input2 = (
@@ -248,6 +252,7 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name6 = string;
 export type Cache = ("read" | "write") | null;
 export type Timestamp4 = string;
+export type Pending4 = boolean | null;
 export type Event4 = "tool";
 export type Type7 = "function";
 export type Id3 = string;
@@ -258,6 +263,7 @@ export type Title = string | null;
 export type Format = "text" | "markdown";
 export type Content5 = string;
 export type Timestamp5 = string;
+export type Pending5 = boolean | null;
 export type Event5 = "approval";
 export type Message2 = string;
 export type Approver = string;
@@ -269,15 +275,19 @@ export type Decision =
   | "terminate";
 export type Explanation1 = string | null;
 export type Timestamp6 = string;
+export type Pending6 = boolean | null;
 export type Event6 = "input";
 export type Input3 = string;
 export type InputAnsi = string;
 export type Timestamp7 = string;
+export type Pending7 = boolean | null;
 export type Event7 = "score";
 export type Target2 = string | string[] | null;
 export type Timestamp8 = string;
+export type Pending8 = boolean | null;
 export type Event8 = "error";
 export type Timestamp9 = string;
+export type Pending9 = boolean | null;
 export type Event9 = "logger";
 export type Name7 = string | null;
 export type Level =
@@ -294,13 +304,16 @@ export type Filename = string;
 export type Module = string;
 export type Lineno = number;
 export type Timestamp10 = string;
+export type Pending10 = boolean | null;
 export type Event10 = "info";
 export type Timestamp11 = string;
+export type Pending11 = boolean | null;
 export type Event11 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
 export type Name8 = string;
 export type Timestamp12 = string;
+export type Pending12 = boolean | null;
 export type Event12 = "subtask";
 export type Name9 = string;
 export type Type9 = string | null;
@@ -663,6 +676,7 @@ export interface Store {}
  */
 export interface SampleInitEvent {
   timestamp: Timestamp;
+  pending: Pending;
   event: Event;
   sample: Sample;
   state: JsonValue;
@@ -682,6 +696,7 @@ export interface Sample {
  */
 export interface StateEvent {
   timestamp: Timestamp1;
+  pending: Pending1;
   event: Event1;
   changes: Changes;
 }
@@ -704,6 +719,7 @@ export interface JsonChange {
  */
 export interface StoreEvent {
   timestamp: Timestamp2;
+  pending: Pending2;
   event: Event2;
   changes: Changes1;
 }
@@ -712,6 +728,7 @@ export interface StoreEvent {
  */
 export interface ModelEvent {
   timestamp: Timestamp3;
+  pending: Pending3;
   event: Event3;
   model: Model2;
   input: Input2;
@@ -828,6 +845,7 @@ export interface Response {
  */
 export interface ToolEvent {
   timestamp: Timestamp4;
+  pending: Pending4;
   event: Event4;
   type: Type7;
   id: Id3;
@@ -855,6 +873,7 @@ export interface ToolCallContent {
  */
 export interface ApprovalEvent {
   timestamp: Timestamp5;
+  pending: Pending5;
   event: Event5;
   message: Message2;
   call: ToolCall;
@@ -879,6 +898,7 @@ export interface ToolCallView {
  */
 export interface InputEvent {
   timestamp: Timestamp6;
+  pending: Pending6;
   event: Event6;
   input: Input3;
   input_ansi: InputAnsi;
@@ -888,6 +908,7 @@ export interface InputEvent {
  */
 export interface ScoreEvent {
   timestamp: Timestamp7;
+  pending: Pending7;
   event: Event7;
   score: Score;
   target: Target2;
@@ -897,6 +918,7 @@ export interface ScoreEvent {
  */
 export interface ErrorEvent {
   timestamp: Timestamp8;
+  pending: Pending8;
   event: Event8;
   error: EvalError;
 }
@@ -905,6 +927,7 @@ export interface ErrorEvent {
  */
 export interface LoggerEvent {
   timestamp: Timestamp9;
+  pending: Pending9;
   event: Event9;
   message: LoggingMessage;
 }
@@ -922,6 +945,7 @@ export interface LoggingMessage {
  */
 export interface InfoEvent {
   timestamp: Timestamp10;
+  pending: Pending10;
   event: Event10;
   data: JsonValue;
 }
@@ -930,6 +954,7 @@ export interface InfoEvent {
  */
 export interface StepEvent {
   timestamp: Timestamp11;
+  pending: Pending11;
   event: Event11;
   action: Action;
   type: Type8;
@@ -940,6 +965,7 @@ export interface StepEvent {
  */
 export interface SubtaskEvent {
   timestamp: Timestamp12;
+  pending: Pending12;
   event: Event12;
   name: Name9;
   type: Type9;
