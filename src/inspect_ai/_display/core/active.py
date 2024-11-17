@@ -12,8 +12,9 @@ from ..textual.display import TextualDisplay
 from .display import TR, Display, TaskScreen
 
 
-def run_task_app(main: Coroutine[Any, Any, TR]) -> TR:
-    enable_full_display()
+def run_task_app(main: Coroutine[Any, Any, TR], enable_full: bool = True) -> TR:
+    if enable_full:
+        enable_full_display()
     return display().run_task_app(main)
 
 

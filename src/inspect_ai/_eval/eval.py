@@ -142,7 +142,7 @@ def eval(
     platform_init()
 
     # resolve eval trace
-    max_tasks, max_samples = eval_trace(trace, max_tasks, max_samples, model)
+    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples, model)
 
     return run_task_app(
         main=eval_async(
@@ -177,6 +177,7 @@ def eval(
             score=score,
             **kwargs,
         ),
+        enable_full=approval is None,
     )
 
 
@@ -497,7 +498,7 @@ def eval_retry(
     platform_init()
 
     # resolve eval trace
-    max_tasks, max_samples = eval_trace(trace, max_tasks, max_samples)
+    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples)
 
     return run_task_app(
         main=eval_retry_async(
@@ -765,7 +766,7 @@ def eval_init(
     return models, approval, resolved_tasks
 
 
-def eval_trace(
+def init_eval_trace(
     trace: bool | None,
     max_tasks: int | None,
     max_samples: int | None,
