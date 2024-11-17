@@ -347,7 +347,7 @@ async def startup_sandbox_environments(
 
         # run startup
         task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv.run_dir):
+        with chdir(sandboxenv.run_dir), display().suspend_task_app():
             await task_init("startup", sandboxenv.sandbox.config)
 
         # append cleanup method

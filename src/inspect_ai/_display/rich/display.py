@@ -79,6 +79,11 @@ class RichDisplay(Display):
 
     @override
     @contextlib.contextmanager
+    def suspend_task_app(self) -> Iterator[None]:
+        yield None
+
+    @override
+    @contextlib.contextmanager
     def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
     ) -> Iterator[TaskScreen]:

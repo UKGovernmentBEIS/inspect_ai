@@ -51,6 +51,12 @@ class TextualDisplay(Display):
 
     @override
     @contextlib.contextmanager
+    def suspend_task_app(self) -> Iterator[None]:
+        with self.app.suspend():
+            yield
+
+    @override
+    @contextlib.contextmanager
     def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
     ) -> Iterator[TaskScreen]:

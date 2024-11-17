@@ -110,6 +110,9 @@ class Display(Protocol):
     def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
 
     @contextlib.contextmanager
+    def suspend_task_app(self) -> Iterator[None]: ...
+
+    @contextlib.contextmanager
     def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
     ) -> Iterator[TaskScreen]: ...
