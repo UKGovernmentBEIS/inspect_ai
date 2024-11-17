@@ -11,7 +11,7 @@ from textual.widgets import Static
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.transcript import (
-    MARKDOWN_CODE_THEME,
+    transcript_code_theme,
     transcript_markdown,
     transcript_separator,
 )
@@ -80,7 +80,7 @@ class TranscriptView(ScrollableContainer):
             if display and display.content:
                 widgets.append(transcript_separator(display.title))
                 if isinstance(display.content, Markdown):
-                    display.content.code_theme = MARKDOWN_CODE_THEME
+                    display.content.code_theme = transcript_code_theme()
                 widgets.append(display.content)
                 widgets.append(Text(" "))
         return widgets

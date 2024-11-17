@@ -11,6 +11,7 @@ from typing_extensions import override
 
 from inspect_ai._util.display import display_type
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
+from inspect_ai._util.transcript import transcript_code_theme
 
 
 def is_vscode_notebook(console: Console) -> bool:
@@ -46,7 +47,7 @@ def rich_initialise(dark: bool) -> None:
             syntax = Syntax(
                 code,
                 self.lexer_name,
-                theme=self.theme,
+                theme=transcript_code_theme(dark),
                 word_wrap=True,
                 background_color="#282c34" if dark else "rgb(240,240,240)",
                 padding=0,

@@ -1,3 +1,5 @@
+import functools
+
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
@@ -6,11 +8,18 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-MARKDOWN_CODE_THEME = "vscode"
+from inspect_ai._util.terminal import detect_terminal_background
+
+
+@functools.cache
+def transcript_code_theme(dark: bool | None) -> str:
+    if dark is None:
+        dark = detect_terminal_background().dark
+    return "github-dark" if dark else "vscode"
 
 
 def transcript_markdown(content: str) -> Markdown:
-    return Markdown(content, code_theme=MARKDOWN_CODE_THEME)
+    return Markdown(content, code_theme=transcript_code_theme())
 
 
 def transcript_panel(
@@ -47,7 +56,7 @@ def transcript_panel(
     # use xcode theme for markdown code
     for c in content:
         if isinstance(c, Markdown):
-            c.code_theme = MARKDOWN_CODE_THEME
+            c.code_theme = transcript_code_theme()
 
     return Panel(
         Group(*content),
