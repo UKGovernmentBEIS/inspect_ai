@@ -2,7 +2,6 @@ import contextlib
 from contextvars import ContextVar
 from datetime import datetime
 from logging import getLogger
-from time import monotonic
 from typing import (
     Any,
     Iterator,
@@ -308,7 +307,6 @@ class Transcript:
     def __init__(self, name: str = "") -> None:
         self.name = name
         self._events: list[Event] = []
-        self._last_modified = monotonic()
 
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -340,13 +338,8 @@ class Transcript:
     def events(self) -> Sequence[Event]:
         return self._events
 
-    @property
-    def last_modified(self) -> float:
-        return self._last_modified
-
     def _event(self, event: Event) -> None:
         self._events.append(event)
-        self._last_modified = monotonic()
 
 
 def transcript() -> Transcript:

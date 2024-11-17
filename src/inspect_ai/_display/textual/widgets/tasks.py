@@ -1,5 +1,5 @@
 import contextlib
-from time import monotonic
+from datetime import datetime
 from typing import Iterator, cast
 
 from rich.console import RenderableType
@@ -160,7 +160,7 @@ class TaskTime(Static):
     }
     """
 
-    start_time: reactive[float] = reactive(monotonic)
+    start_time: reactive[float] = reactive(datetime.now().timestamp)
     time = reactive(0.0)
     timer: Timer | None = None
 
@@ -172,7 +172,7 @@ class TaskTime(Static):
         self.timer = self.set_interval(1, self.update_time)
 
     def update_time(self) -> None:
-        self.time = monotonic() - self.start_time
+        self.time = datetime.now().timestamp() - self.start_time
 
     def watch_time(self, time: float) -> None:
         self.update(progress_time(time))

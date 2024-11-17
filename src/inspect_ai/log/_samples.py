@@ -1,5 +1,5 @@
 import contextlib
-from time import monotonic
+from datetime import datetime
 from typing import AsyncGenerator
 
 from shortuuid import uuid
@@ -14,7 +14,7 @@ class ActiveSample:
         self, task: str, model: str, sample: Sample, epoch: int, transcript: Transcript
     ) -> None:
         self.id = uuid()
-        self.started = monotonic()
+        self.started = datetime.now().timestamp()
         self.completed: float | None = None
         self.task = task
         self.model = model
@@ -24,7 +24,10 @@ class ActiveSample:
 
     @property
     def execution_time(self) -> float:
-        return (self.completed or monotonic()) - self.started
+        completed = (
+            self.completed if self.completed is not None else datetime.now().timestamp()
+        )
+        return completed - self.started
 
 
 def init_active_samples() -> None:
@@ -37,7 +40,7 @@ async def active_sample(sample: ActiveSample) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
-        sample.completed = monotonic()
+        sample.completed = datetime.now().timestamp()
         _active_samples.remove(sample)
 
 
