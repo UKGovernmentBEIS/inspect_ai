@@ -36,7 +36,8 @@ class TextualDisplay(Display):
         result = self.app.run_app(main)
 
         # print output
-        print("\n".join(result.output))
+        if result.output:
+            print("\n".join(result.output))
 
         # print tasks
         rich.print(tasks_results(result.tasks))
