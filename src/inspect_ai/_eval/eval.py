@@ -33,6 +33,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._trace import init_trace
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -139,6 +140,9 @@ def eval(
     """
     # standard platform init for top level entry points
     platform_init()
+
+    # resolve trace
+    max_tasks, max_samples = eval_trace(trace, max_tasks, max_samples, model)
 
     return display().run_task_app(
         main=eval_async(
@@ -295,7 +299,6 @@ async def eval_async(
             model_args=model_args,
             task_args=task_args,
             sandbox=sandbox,
-            trace=trace,
             approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
@@ -490,7 +493,11 @@ def eval_retry(
     Returns:
         List of EvalLog (one for each task)
     """
+    # standard platform init for top level entry points
     platform_init()
+
+    # resolve trace
+    max_tasks, max_samples = eval_trace(trace, max_tasks, max_samples)
 
     return display().run_task_app(
         main=eval_retry_async(
@@ -503,7 +510,6 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
-            trace=trace,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
@@ -527,7 +533,6 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
-    trace: bool | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -558,7 +563,6 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
-        trace (bool | None): Trace message interactions with evaluated model to terminal.
         fail_on_error (bool | float | None): `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
@@ -640,7 +644,6 @@ async def eval_retry_async(
             if eval_log.eval.config.epochs
             else None
         )
-        trace = eval_log.eval.config.trace or trace
         approval = eval_log.eval.config.approval
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
@@ -687,7 +690,6 @@ async def eval_retry_async(
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
                 tags=tags,
-                trace=trace,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -724,7 +726,6 @@ def eval_init(
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
-    trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
@@ -732,7 +733,7 @@ def eval_init(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
+    init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
     # resolve model and task args
     model_args = resolve_args(model_args)
@@ -762,6 +763,33 @@ def eval_init(
     init_tool_approval(approval)
 
     return models, approval, resolved_tasks
+
+
+def eval_trace(
+    trace: bool | None,
+    max_tasks: int | None,
+    max_samples: int | None,
+    model: Any = None,
+) -> tuple[int | None, int | None]:
+    # init trace setting
+    init_trace(trace)
+
+    # adapt task/samples as required
+    if trace:
+        # single task at a time
+        if max_tasks is not None:
+            max_tasks = 1
+
+        # single sample at a time
+        max_samples = 1
+
+        # multiple models not allowed in trace mode
+        if isinstance(model, list) and len(model) > 1:
+            raise PrerequisiteError(
+                "Trace mode cannot be used when evaluating multiple models."
+            )
+
+    return max_tasks, max_samples
 
 
 # A list of eval logs is returned from eval(). We've already displayed

@@ -4,6 +4,7 @@ from contextvars import ContextVar
 import rich
 
 from inspect_ai._util.display import display_type
+from inspect_ai.util._trace import trace_enabled
 
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
@@ -16,6 +17,7 @@ def display() -> Display:
         if (
             display_type() == "full"
             and sys.stdout.isatty()
+            and not trace_enabled()
             and not rich.get_console().is_jupyter
         ):
             _active_display = TextualDisplay()

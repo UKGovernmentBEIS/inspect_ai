@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from asyncio import CancelledError
 from typing import Any, Coroutine, Generic, Iterator
