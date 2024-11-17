@@ -5,13 +5,13 @@ from pydantic import BaseModel, Field
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
 
-Role = Literal["user", "assistant"]
-ImageFormat = Literal["png", "jpeg", "gif", "webp"]
-DocumentFormat = Literal[
+ConverseRole = Literal["user", "assistant"]
+ConverseImageFormat = Literal["png", "jpeg", "gif", "webp"]
+ConverseDocumentFormat = Literal[
     "pdf", "csv", "doc", "docx", "xls", "xlsx", "html", "txt", "md"
 ]
-ToolResultStatus = Literal["success", "error"]
-StopReason = Literal[
+ConverseToolResultStatus = Literal["success", "error"]
+ConverseStopReason = Literal[
     "end_turn",
     "tool_use",
     "max_tokens",
@@ -19,139 +19,139 @@ StopReason = Literal[
     "guardrail_intervened",
     "content_filtered",
 ]
-GuardContentQualifier = Literal["grounding_source", "query", "guard_content"]
-FilterType = Literal[
+ConverseGuardContentQualifier = Literal["grounding_source", "query", "guard_content"]
+ConverseFilterType = Literal[
     "INSULTS", "HATE", "SEXUAL", "VIOLENCE", "MISCONDUCT", "PROMPT_ATTACK"
 ]
-FilterConfidence = Literal["NONE", "LOW", "MEDIUM", "HIGH"]
-FilterStrength = Literal["NONE", "LOW", "MEDIUM", "HIGH"]
+ConverseFilterConfidence = Literal["NONE", "LOW", "MEDIUM", "HIGH"]
+ConverseFilterStrength = Literal["NONE", "LOW", "MEDIUM", "HIGH"]
 
 
-class ImageSource(BaseModel):
+class ConverseImageSource(BaseModel):
     bytes: bytes
 
 
-class DocumentSource(BaseModel):
+class ConverseDocumentSource(BaseModel):
     bytes: bytes
 
 
-class Image(BaseModel):
-    format: ImageFormat
-    source: ImageSource
+class ConverseImage(BaseModel):
+    format: ConverseImageFormat
+    source: ConverseImageSource
 
 
-class Document(BaseModel):
-    format: DocumentFormat
+class ConverseDocument(BaseModel):
+    format: ConverseDocumentFormat
     name: str
-    source: DocumentSource
+    source: ConverseDocumentSource
 
 
-class ToolUse(BaseModel):
+class ConverseToolUse(BaseModel):
     toolUseId: str
     name: str
     input: Union[dict[str, Any], list[Any], int, float, str, bool, None]
 
 
-class ToolResultContent(BaseModel):
+class ConverseToolResultContent(BaseModel):
     json_content: Union[dict[str, Any], list[Any], int, float, str, bool, None] = Field(
         default=None, alias="json"
     )
     text: str | None = None
-    image: Image | None = None
-    document: Document | None = None
+    image: ConverseImage | None = None
+    document: ConverseDocument | None = None
 
 
-class ToolResult(BaseModel):
+class ConverseToolResult(BaseModel):
     toolUseId: str
-    content: list[ToolResultContent]
-    status: ToolResultStatus
+    content: list[ConverseToolResultContent]
+    status: ConverseToolResultStatus
 
 
-class GuardContentText(BaseModel):
+class ConverseGuardContentText(BaseModel):
     text: str
-    qualifiers: list[GuardContentQualifier]
+    qualifiers: list[ConverseGuardContentQualifier]
 
 
-class GuardContent(BaseModel):
-    text: GuardContentText
+class ConverseGuardContent(BaseModel):
+    text: ConverseGuardContentText
 
 
-class MessageContent(BaseModel):
+class ConverseMessageContent(BaseModel):
     text: str | None = None
-    image: Image | None = None
-    document: Document | None = None
-    toolUse: ToolUse | None = None
-    toolResult: ToolResult | None = None
-    guardContent: GuardContent | None = None
+    image: ConverseImage | None = None
+    document: ConverseDocument | None = None
+    toolUse: ConverseToolUse | None = None
+    toolResult: ConverseToolResult | None = None
+    guardContent: ConverseGuardContent | None = None
 
 
-class Message(BaseModel):
-    role: Role
-    content: list[MessageContent]
+class ConverseMessage(BaseModel):
+    role: ConverseRole
+    content: list[ConverseMessageContent]
 
 
-class Output(BaseModel):
-    message: Message
+class ConverseOutput(BaseModel):
+    message: ConverseMessage
 
 
-class Usage(BaseModel):
+class ConverseUsage(BaseModel):
     inputTokens: int
     outputTokens: int
     totalTokens: int
 
 
-class Metrics(BaseModel):
+class ConverseMetrics(BaseModel):
     latencyMs: int
 
 
-class TraceGuardrailFilter(BaseModel):
-    type: FilterType
-    confidence: FilterConfidence
-    filterStrength: FilterStrength
+class ConverseTraceGuardrailFilter(BaseModel):
+    type: ConverseFilterType
+    confidence: ConverseFilterConfidence
+    filterStrength: ConverseFilterStrength
     action: str
 
 
-class AdditionalModelResponseFields(BaseModel):
+class ConverseAdditionalModelResponseFields(BaseModel):
     value: Union[dict[str, Any], list[Any], int, float, str, bool, None]
 
 
-class Response(BaseModel):
-    output: Output
-    stopReason: StopReason
-    usage: Usage
-    metrics: Metrics
-    additionalModelResponseFields: AdditionalModelResponseFields | None = None
+class ConverseResponse(BaseModel):
+    output: ConverseOutput
+    stopReason: ConverseStopReason
+    usage: ConverseUsage
+    metrics: ConverseMetrics
+    additionalModelResponseFields: ConverseAdditionalModelResponseFields | None = None
     trace: dict[str, Any] | None = None
 
 
 # Model for Bedrock Converse API (Request)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
-class Source(BaseModel):
+class ConverseSource(BaseModel):
     bytes: bytes
 
 
-class Content(BaseModel):
+class ConverseContent(BaseModel):
     text: str | None = None
-    image: Image | None = None
-    document: Document | None = None
-    toolUse: ToolUse | None = None
-    toolResult: ToolResult | None = None
-    guardContent: GuardContent | None = None
+    image: ConverseImage | None = None
+    document: ConverseDocument | None = None
+    toolUse: ConverseToolUse | None = None
+    toolResult: ConverseToolResult | None = None
+    guardContent: ConverseGuardContent | None = None
 
 
-class SystemContent(BaseModel):
+class ConverseSystemContent(BaseModel):
     text: str | None = None
-    guardContent: GuardContent | None = None
+    guardContent: ConverseGuardContent | None = None
 
 
-class InferenceConfig(BaseModel):
+class ConverseInferenceConfig(BaseModel):
     maxTokens: int | None = None
     temperature: float | None = None
     topP: float | None = None
     stopSequences: list[str] | None = None
 
 
-class ToolSpec(BaseModel):
+class ConverseToolSpec(BaseModel):
     name: str
     description: str | None = None
     inputSchema: (
@@ -159,38 +159,38 @@ class ToolSpec(BaseModel):
     ) = None
 
 
-class Tool(BaseModel):
-    toolSpec: ToolSpec
+class ConverseTool(BaseModel):
+    toolSpec: ConverseToolSpec
 
 
-class ToolChoice(BaseModel):
+class ConverseToolChoice(BaseModel):
     auto: dict[str, Any] | None = None
     any: dict[str, Any] | None = None
     tool: dict[str, str] | None = None
 
 
-class ToolConfig(BaseModel):
-    tools: list[Tool] | None = None
-    toolChoice: ToolChoice | None = None
+class ConverseToolConfig(BaseModel):
+    tools: list[ConverseTool] | None = None
+    toolChoice: ConverseToolChoice | None = None
 
 
-class GuardrailConfig(BaseModel):
+class ConverseGuardrailConfig(BaseModel):
     guardrailIdentifier: str | None = None
     guardrailVersion: str | None = None
     trace: str | None = None
 
 
-class PromptVariable(BaseModel):
+class ConversePromptVariable(BaseModel):
     text: str
 
 
-class ClientConverseRequest(BaseModel):
+class ConverseClientConverseRequest(BaseModel):
     modelId: str
-    messages: list[Message]
-    system: list[SystemContent] | None = None
-    inferenceConfig: InferenceConfig | None = None
-    toolConfig: ToolConfig | None = None
-    guardrailConfig: GuardrailConfig | None = None
+    messages: list[ConverseMessage]
+    system: list[ConverseSystemContent] | None = None
+    inferenceConfig: ConverseInferenceConfig | None = None
+    toolConfig: ConverseToolConfig | None = None
+    guardrailConfig: ConverseGuardrailConfig | None = None
     additionalModelRequestFields: (
         Union[dict[str, Any], list[Any], int, float, str, bool, None] | None
     ) = None

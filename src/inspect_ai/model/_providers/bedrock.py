@@ -13,25 +13,25 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import image_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._providers.util.converse_model import (
-    ClientConverseRequest,
-    Image,
-    ImageFormat,
-    ImageSource,
-    InferenceConfig,
-    Message,
-    MessageContent,
-    Response,
-    StopReason,
-    SystemContent,
-    Tool,
-    ToolConfig,
-    ToolResult,
-    ToolResultContent,
-    ToolSpec,
-    ToolUse,
+    ConverseClientConverseRequest,
+    ConverseImage,
+    ConverseImageFormat,
+    ConverseImageSource,
+    ConverseInferenceConfig,
+    ConverseMessage,
+    ConverseMessageContent,
+    ConverseResponse,
+    ConverseStopReason,
+    ConverseSystemContent,
+    ConverseTool,
+    ConverseToolConfig,
+    ConverseToolResult,
+    ConverseToolResultContent,
+    ConverseToolSpec,
+    ConverseToolUse,
 )
 from inspect_ai.model._providers.util.converse_model import (
-    ToolChoice as ConverseToolChoice,
+    ConverseToolChoice as ConverseToolChoice,
 )
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -148,18 +148,20 @@ class BedrockAPI(ModelAPI):
             tool_config = None
             if resolved_tools is not None:
                 choice = converse_tool_choice(tool_choice)
-                tool_config = ToolConfig(tools=resolved_tools, toolChoice=choice)
+                tool_config = ConverseToolConfig(
+                    tools=resolved_tools, toolChoice=choice
+                )
 
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
             try:
                 # Make the request
-                request = ClientConverseRequest(
+                request = ConverseClientConverseRequest(
                     modelId=self.model_name,
                     messages=messages,
                     system=system,
-                    inferenceConfig=InferenceConfig(
+                    inferenceConfig=ConverseInferenceConfig(
                         maxTokens=config.max_tokens,
                         temperature=config.temperature,
                         topP=config.top_p,
@@ -173,7 +175,7 @@ class BedrockAPI(ModelAPI):
                 response = await client.converse(
                     **request.model_dump(exclude_none=True)
                 )
-                converse_response = Response(**response)
+                converse_response = ConverseResponse(**response)
 
             except ClientError as ex:
                 # Look for an explicit validation exception
@@ -207,7 +209,7 @@ class BedrockAPI(ModelAPI):
 
 async def converse_messages(
     messages: list[ChatMessage],
-) -> Tuple[list[SystemContent] | None, list[Message]]:
+) -> Tuple[list[ConverseSystemContent] | None, list[ConverseMessage]]:
     # Split up system messages and input messages
     system_messages: list[ChatMessage] = []
     non_system_messages: list[ChatMessage] = []
@@ -218,16 +220,18 @@ async def converse_messages(
             non_system_messages.append(message)
 
     # input messages
-    non_system: list[Message] = await as_converse_chat_messages(non_system_messages)
+    non_system: list[ConverseMessage] = await as_converse_chat_messages(
+        non_system_messages
+    )
 
     # system messages
-    system: list[SystemContent] = as_converse_system_messages(system_messages)
+    system: list[ConverseSystemContent] = as_converse_system_messages(system_messages)
 
     return system if len(system) > 0 else None, non_system
 
 
 def model_output_from_response(
-    model: str, response: Response, tools: list[ToolInfo]
+    model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
     # extract content and tool calls
     content: list[Content] = []
@@ -278,7 +282,7 @@ def model_output_from_response(
 
 
 def message_stop_reason(
-    reason: StopReason,
+    reason: ConverseStopReason,
 ) -> Literal[
     "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
 ]:
@@ -297,14 +301,18 @@ def message_stop_reason(
             return "unknown"
 
 
-def as_converse_system_messages(messages: list[ChatMessage]) -> list[SystemContent]:
-    return [SystemContent(text=message.text) for message in messages if message.text]
+def as_converse_system_messages(
+    messages: list[ChatMessage],
+) -> list[ConverseSystemContent]:
+    return [
+        ConverseSystemContent(text=message.text) for message in messages if message.text
+    ]
 
 
 async def as_converse_chat_messages(
     messages: list[ChatMessage],
-) -> list[Message]:
-    result: list[Message] = []
+) -> list[ConverseMessage]:
+    result: list[ConverseMessage] = []
     for message in messages:
         converse_message = await converse_chat_message(message)
         if converse_message is not None:
@@ -314,31 +322,35 @@ async def as_converse_chat_messages(
 
 async def converse_chat_message(
     message: ChatMessage,
-) -> list[Message] | None:
+) -> list[ConverseMessage] | None:
     if isinstance(message, ChatMessageSystem):
         raise ValueError("System messages should be processed separately for Converse")
     if isinstance(message, ChatMessageUser):
         # Simple user message
-        return [Message(role="user", content=await converse_contents(message.content))]
+        return [
+            ConverseMessage(
+                role="user", content=await converse_contents(message.content)
+            )
+        ]
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls:
             # The assistant is calling tools, process those
-            results: list[Message] = []
+            results: list[ConverseMessage] = []
             for tool_call in message.tool_calls:
-                tool_use = ToolUse(
+                tool_use = ConverseToolUse(
                     toolUseId=tool_call.id,
                     name=tool_call.function,
                     input=tool_call.arguments,
                 )
-                m = Message(
-                    role="assistant", content=[MessageContent(toolUse=tool_use)]
+                m = ConverseMessage(
+                    role="assistant", content=[ConverseMessageContent(toolUse=tool_use)]
                 )
                 results.append(m)
             return results
         else:
             # Simple assistant message
             return [
-                Message(
+                ConverseMessage(
                     role="assistant", content=await converse_contents(message.content)
                 )
             ]
@@ -358,20 +370,20 @@ async def converse_chat_message(
         )
 
         # process the tool response content
-        tool_result_content: list[ToolResultContent] = []
+        tool_result_content: list[ConverseToolResultContent] = []
         if isinstance(message.content, str):
-            tool_result_content.append(ToolResultContent(text=message.content))
+            tool_result_content.append(ConverseToolResultContent(text=message.content))
         else:
             for c in message.content:
                 if c.type == "text":
-                    tool_result_content.append(ToolResultContent(text=c.text))
+                    tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
                     image_data, image_type = await image_as_data(c.image)
                     tool_result_content.append(
-                        ToolResultContent(
-                            image=Image(
+                        ConverseToolResultContent(
+                            image=ConverseImage(
                                 format=converse_image_type(image_type),
-                                source=ImageSource(bytes=image_data),
+                                source=ConverseImageSource(bytes=image_data),
                             )
                         )
                     )
@@ -381,45 +393,49 @@ async def converse_chat_message(
                     )
 
         # return the tool result
-        tool_result = ToolResult(
+        tool_result = ConverseToolResult(
             toolUseId=message.tool_call_id,
             status=status,
             content=tool_result_content,
         )
         return [
-            Message(
+            ConverseMessage(
                 role="user",
-                content=[MessageContent(toolResult=tool_result)],
+                content=[ConverseMessageContent(toolResult=tool_result)],
             )
         ]
     else:
         raise ValueError(f"Unexpected message role {message.role}")
 
 
-async def converse_contents(content: list[Content] | str) -> list[MessageContent]:
+async def converse_contents(
+    content: list[Content] | str,
+) -> list[ConverseMessageContent]:
     if isinstance(content, str):
-        return [MessageContent(text=content)]
+        return [ConverseMessageContent(text=content)]
     else:
-        result: list[MessageContent] = []
+        result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
                 image_data, image_type = await image_as_data(c.image)
                 result.append(
-                    MessageContent(
-                        image=Image(
+                    ConverseMessageContent(
+                        image=ConverseImage(
                             format=converse_image_type(image_type),
-                            source=ImageSource(bytes=image_data),
+                            source=ConverseImageSource(bytes=image_data),
                         )
                     )
                 )
             elif c.type == "text":
-                result.append(MessageContent(text=c.text))
+                result.append(ConverseMessageContent(text=c.text))
             else:
                 raise RuntimeError(f"Unsupported content type {c.type}")
         return result
 
 
-def collapse_consecutive_messages(messages: list[Message]) -> list[Message]:
+def collapse_consecutive_messages(
+    messages: list[ConverseMessage],
+) -> list[ConverseMessage]:
     if not messages:
         return []
 
@@ -441,7 +457,7 @@ def collapse_consecutive_messages(messages: list[Message]) -> list[Message]:
                         or c.document is not None
                     ):
                         last_content.toolResult.content.append(
-                            ToolResultContent(
+                            ConverseToolResultContent(
                                 text=c.text, image=c.image, document=c.document
                             )
                         )
@@ -455,7 +471,7 @@ def collapse_consecutive_messages(messages: list[Message]) -> list[Message]:
     return collapsed_messages
 
 
-def converse_image_type(type: str) -> ImageFormat:
+def converse_image_type(type: str) -> ConverseImageFormat:
     match type:
         case "image/png":
             return "png"
@@ -471,18 +487,18 @@ def converse_image_type(type: str) -> ImageFormat:
             )
 
 
-def converse_tools(tools: list[ToolInfo]) -> list[Tool] | None:
+def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
     if len(tools) == 0:
         return None
 
     result = []
     for tool in tools:
-        tool_spec = ToolSpec(
+        tool_spec = ConverseToolSpec(
             name=tool.name,
             description=tool.description,
             inputSchema={"json": tool.parameters.model_dump(exclude_none=True)},
         )
-        result.append(Tool(toolSpec=tool_spec))
+        result.append(ConverseTool(toolSpec=tool_spec))
     return result
 
 
