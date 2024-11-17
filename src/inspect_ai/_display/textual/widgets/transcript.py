@@ -70,15 +70,17 @@ class TranscriptView(ScrollableContainer):
         widgets: list[Widget] = []
         for event in events:
             display = render_event(event)
-            if display and display.content:
-                widgets.append(Static(transcript_separator(display.title)))
-                if isinstance(display.content, Markdown):
-                    set_transcript_markdown_options(display.content)
-                widgets.append(Static(display.content))
-                if event.pending:
-                    widgets.append(EventLoadingIndicator())
+            if display:
+                for d in display:
+                    if d.content:
+                        widgets.append(Static(transcript_separator(d.title)))
+                        if isinstance(d.content, Markdown):
+                            set_transcript_markdown_options(d.content)
+                        widgets.append(Static(d.content))
+                        if event.pending:
+                            widgets.append(EventLoadingIndicator())
 
-                widgets.append(Static(Text(" ")))
+                        widgets.append(Static(Text(" ")))
         return widgets
 
 
@@ -107,13 +109,13 @@ class EventDisplay(NamedTuple):
     """Optional custom content to display."""
 
 
-def render_event(event: Event) -> EventDisplay | None:
+def render_event(event: Event) -> list[EventDisplay] | None:
     # see if we have a renderer
     for event_type, renderer in _renderers:
         if isinstance(event, event_type):
             display = renderer(event)
-            if display:
-                return display
+            if display is not None:
+                return display if isinstance(display, list) else [display]
 
     # no renderer
     return None
@@ -164,7 +166,13 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     return EventDisplay(f"model: {event.model}", Group(*content))
 
 
-def render_tool_event(event: ToolEvent) -> EventDisplay:
+def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
+    # render sub-events
+    display: list[EventDisplay] = []
+    if event.events:
+        for e in event.events:
+            display.extend(render_event(e) or [])
+
     # render the call
     content: list[RenderableType] = []
     if event.view:
@@ -193,7 +201,7 @@ def render_tool_event(event: ToolEvent) -> EventDisplay:
     if result:
         content.append(transcript_markdown(str(result)))
 
-    return EventDisplay("tool call", Group(*content))
+    return display + [EventDisplay("tool call", Group(*content))]
 
 
 def render_step_event(event: StepEvent) -> EventDisplay:
@@ -227,12 +235,18 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
     return EventDisplay("score", table)
 
 
-def render_subtask_event(event: SubtaskEvent) -> EventDisplay:
+def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
+    # render sub-events
+    display: list[EventDisplay] = []
+    if event.events:
+        for e in event.events:
+            display.extend(render_event(e) or [])
+
     content: list[RenderableType] = [render_function_call(event.name, event.input)]
     content.append(Text())
     content.append(render_as_json(event.result))
 
-    return EventDisplay(f"subtask: {event.name}", Group(*content))
+    return display + [EventDisplay(f"subtask: {event.name}", Group(*content))]
 
 
 def render_input_event(event: InputEvent) -> EventDisplay:
@@ -294,7 +308,7 @@ def step_title(event: StepEvent) -> str:
     return f"{event.type or 'step'}: {event.name}"
 
 
-EventRenderer = Callable[[Any], EventDisplay | None]
+EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
