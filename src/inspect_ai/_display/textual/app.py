@@ -85,7 +85,7 @@ class TaskScreenApp(App[TR]):
         elif self._error is not None:
             value = self._error
         else:
-            value = asyncio.CancelledError()
+            raise RuntimeError("No result value for eval application.")
 
         # return result w/ output
         return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)

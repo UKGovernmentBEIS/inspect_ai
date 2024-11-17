@@ -12,7 +12,7 @@ from inspect_ai._util.terminal import detect_terminal_background
 
 
 @functools.cache
-def transcript_code_theme(dark: bool | None) -> str:
+def transcript_code_theme(dark: bool | None = None) -> str:
     if dark is None:
         dark = detect_terminal_background().dark
     return "github-dark" if dark else "vscode"
