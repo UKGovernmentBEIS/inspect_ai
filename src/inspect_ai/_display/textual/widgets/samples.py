@@ -24,6 +24,7 @@ class SamplesView(Widget):
     SamplesView OptionList {
         height: 100%;
         scrollbar-size-vertical: 1;
+        margin-bottom: 1;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
         background: $accent 20%;
@@ -35,7 +36,9 @@ class SamplesView(Widget):
     }
 
     SamplesView TranscriptView {
+        margin-left: 1;
         scrollbar-size-vertical: 1;
+        scrollbar-gutter: stable;
     }
     """
 
