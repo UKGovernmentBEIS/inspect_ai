@@ -157,6 +157,8 @@ def render_tool_event(event: ToolEvent) -> EventDisplay:
     # render the call
     content: list[RenderableType] = []
     if event.view:
+        if event.view.title:
+            content.append(Text.from_markup(f"[bold]{event.view.title}[/bold]\n"))
         if event.view.format == "markdown":
             content.append(transcript_markdown(event.view.content))
         else:
