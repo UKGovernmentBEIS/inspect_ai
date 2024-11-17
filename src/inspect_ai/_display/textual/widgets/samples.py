@@ -67,7 +67,6 @@ class SamplesView(Widget):
         self.samples.sort(key=lambda sample: sample.execution_time, reverse=True)
 
         # rebuild the list
-        theme = rich_theme()
         option_list.clear_options()
         options: list[Option | Separator] = []
         for sample in self.samples:
@@ -75,17 +74,15 @@ class SamplesView(Widget):
             table.add_column()
             table.add_column(justify="right")
             table.add_column()
-            task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
+            task_name = Text.from_markup(
+                f"{registry_unqualified_name(sample.task)}", style="bold"
+            )
             task_name.truncate(18, overflow="ellipsis", pad=True)
             task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
             table.add_row(task_name, task_time, " ")
-            sample_id = Text.from_markup(
-                f"[{theme.light}]id: {sample.sample.id}[/{theme.light}]"
-            )
+            sample_id = Text.from_markup(f"id: {sample.sample.id}")
             sample_id.truncate(18, overflow="ellipsis", pad=True)
-            sample_epoch = Text.from_markup(
-                f"[{theme.light}]epoch: {sample.epoch:.0f}[/{theme.light}]"
-            )
+            sample_epoch = Text.from_markup(f"epoch: {sample.epoch:.0f}")
             table.add_row(
                 sample_id,
                 sample_epoch,
