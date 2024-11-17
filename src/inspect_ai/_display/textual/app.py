@@ -13,6 +13,7 @@ from typing_extensions import override
 
 from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai.log._samples import active_samples
+from inspect_ai.log._transcript import InputEvent, transcript
 
 from ..core.config import task_config
 from ..core.display import (
@@ -25,7 +26,7 @@ from ..core.display import (
 )
 from ..core.footer import task_footer
 from ..core.panel import task_targets, task_title, tasks_title
-from ..core.rich import rich_initialise
+from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .widgets.footer import AppFooter
 from .widgets.log import LogView
 from .widgets.samples import SamplesView
@@ -89,6 +90,14 @@ class TaskScreenApp(App[TR]):
         # return result w/ output
         return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)
 
+    @contextlib.contextmanager
+    def suspend_app(self) -> Iterator[None]:
+        with self.app.suspend():
+            try:
+                yield
+            finally:
+                self.app.refresh(repaint=True)
+
     # exit the app when the worker terminates
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if event.worker.state == WorkerState.ERROR:
@@ -126,7 +135,7 @@ class TaskScreenApp(App[TR]):
         self.refresh(repaint=True)
 
         try:
-            yield TextualTaskScreen()
+            yield TextualTaskScreen(self)
         finally:
             self._tasks = []
             self._total_tasks = 0
@@ -262,7 +271,10 @@ class TaskScreenApp(App[TR]):
             self._worker.cancel()
 
 
-class TextualTaskScreen(TaskScreen):
+class TextualTaskScreen(TaskScreen, Generic[TR]):
+    def __init__(self, app: TaskScreenApp[TR]) -> None:
+        self.app = app
+
     def __exit__(self, *excinfo: Any) -> None:
         pass
 
@@ -274,4 +286,40 @@ class TextualTaskScreen(TaskScreen):
         transient: bool | None = None,
         width: int | None = None,
     ) -> Iterator[Console]:
-        yield rich.get_console()
+        with self.app.suspend_app():
+            # get rich console
+            console = rich.get_console()
+
+            # set width
+            old_width: int | None = None
+            if width:
+                old_width = console.width
+                console.width = min(old_width, width)
+
+            # record console activity for event
+            console.record = True
+
+            try:
+                # print header if requested
+                if header:
+                    style = f"{rich_theme().meta} bold"
+                    console.rule(f"[{style}]{header}[/{style}]", style="black")
+                    console.print("")
+
+                # yield the console
+                with record_console_input():
+                    yield console
+
+            finally:
+                # capture recording then yield input event
+                input = console.export_text(clear=False, styles=False)
+                input_ansi = console.export_text(clear=True, styles=True)
+                console.record = False
+                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+
+                # print one blank line
+                console.print("")
+
+                # reset width
+                if old_width:
+                    console.width = old_width
