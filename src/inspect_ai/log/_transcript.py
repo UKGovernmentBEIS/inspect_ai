@@ -133,20 +133,33 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
-    result: ToolResult
+    view: ToolCallContent | None = Field(default=None)
+    """Custom view of tool call input."""
+
+    result: ToolResult = Field(default_factory=str)
     """Function return value."""
 
     truncated: tuple[int, int] | None = Field(default=None)
     """Bytes truncated (from,to) if truncation occurred"""
 
-    view: ToolCallContent | None = Field(default=None)
-    """Custom view of tool call output."""
-
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
+
+    def set_result(
+        self,
+        result: ToolResult,
+        truncated: tuple[int, int] | None,
+        error: ToolCallError | None,
+        events: list["Event"],
+    ) -> None:
+        self.result = result
+        self.truncated = truncated
+        self.error = error
+        self.events = events
+        self.pending = None
 
 
 class ApprovalEvent(BaseEvent):

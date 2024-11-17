@@ -189,7 +189,9 @@ def render_tool_event(event: ToolEvent) -> EventDisplay:
         )
     else:
         result = event.result
-    content.append(transcript_markdown(str(result)))
+
+    if result:
+        content.append(transcript_markdown(str(result)))
 
     return EventDisplay("tool call", Group(*content))
 
