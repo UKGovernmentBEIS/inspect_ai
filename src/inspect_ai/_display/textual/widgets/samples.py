@@ -93,12 +93,14 @@ class SamplesView(Widget):
 
         option_list.add_options(options)
 
-        # re-select the highlighted sample
-        if highlighted_id is not None:
-            index = sample_index_for_id(self.samples, highlighted_id)
-            if index != -1:
-                option_list.highlighted = index
-                option_list.scroll_to_highlight()
+        # select sample (re-select the highlighted sample if there is one)
+        if len(self.samples) > 0:
+            if highlighted_id is not None:
+                index = sample_index_for_id(self.samples, highlighted_id)
+            else:
+                index = 0
+            option_list.highlighted = index
+            option_list.scroll_to_highlight()
 
     async def set_highlighted(self, highlighted: int | None) -> None:
         option_list = self.query_one(OptionList)
