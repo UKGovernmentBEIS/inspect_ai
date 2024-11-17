@@ -157,8 +157,8 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     # content
     content: list[RenderableType] = []
 
-    def append_message(message: ChatMessage) -> None:
-        content.extend(render_message(message))
+    def append_message(message: ChatMessage, text: str | None = None) -> None:
+        content.extend(render_message(message, text))
 
     # render preceding messages
     preceding = messages_preceding_assistant(event.input)
@@ -168,8 +168,10 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
 
     # display assistant message (note that we don't render tool calls
     # because they will be handled as part of render_tool)
-    if event.output.message:
+    if event.output.message and event.output.message.text:
         append_message(event.output.message)
+    elif event.pending:
+        append_message(event.output.message, "_Generating..._")
 
     return EventDisplay(f"model: {event.model}", Group(*content))
 
@@ -205,6 +207,10 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         )
     else:
         result = event.result
+
+    # provide result for pending
+    if not result and event.pending:
+        result = "_Executing..._"
 
     if result:
         content.append(transcript_markdown(str(result)))
@@ -302,13 +308,16 @@ def render_as_json(json: Any) -> RenderableType:
     )
 
 
-def render_message(message: ChatMessage) -> list[RenderableType]:
+def render_message(
+    message: ChatMessage, text: str | None = None
+) -> list[RenderableType]:
     content: list[RenderableType] = [
         Text(message.role.capitalize(), style="bold"),
         Text(),
     ]
-    if message.text:
-        content.extend([transcript_markdown(message.text.strip())])
+    text = text or message.text
+    if text:
+        content.extend([transcript_markdown(text.strip())])
     return content
 
 
