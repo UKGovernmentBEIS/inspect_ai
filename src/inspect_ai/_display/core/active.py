@@ -1,14 +1,20 @@
 import sys
 from contextvars import ContextVar
+from typing import Any, Coroutine
 
 import rich
 
-from inspect_ai._util.display import display_type
+from inspect_ai._util.display import display_type, enable_full_display
 from inspect_ai.util._trace import trace_enabled
 
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
-from .display import Display, TaskScreen
+from .display import TR, Display, TaskScreen
+
+
+def run_task_app(main: Coroutine[Any, Any, TR]) -> TR:
+    enable_full_display()
+    return display().run_task_app(main)
 
 
 def display() -> Display:

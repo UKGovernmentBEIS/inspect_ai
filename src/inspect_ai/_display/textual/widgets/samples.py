@@ -6,7 +6,6 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._display.core.progress import progress_time
-from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._display.textual.widgets.transcript import TranscriptView
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
