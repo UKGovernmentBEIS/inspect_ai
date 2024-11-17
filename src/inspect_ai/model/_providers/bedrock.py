@@ -341,7 +341,10 @@ class BedrockAPI(ModelAPI):
                         topP=config.top_p,
                         stopSequences=config.stop_seqs,
                     ),
-                    additionalModelRequestFields={"top_k": config.top_k},
+                    additionalModelRequestFields={
+                        "top_k": config.top_k,
+                        **config.model_config,
+                    },
                     toolConfig=tool_config,
                 )
 
