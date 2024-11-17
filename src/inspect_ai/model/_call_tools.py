@@ -152,7 +152,7 @@ async def call_tools(
             ), event
 
         # call tools
-        results: list[tuple[ChatMessageTool, ToolEvent]] = []
+        tool_messages: list[ChatMessageTool] = []
         for call in message.tool_calls:
             # create pending tool event and add it to the transcript
             event = ToolEvent(
@@ -166,21 +166,22 @@ async def call_tools(
 
             # execute the tool call
             task = asyncio.create_task(call_tool_task(call))
-            tool_message, result = await task
+            tool_message, result_event = await task
+            tool_messages.append(tool_message)
 
             # trace if we are tracing
             trace_tool_mesage(tool_message)
 
             # update the event with the results
             event.set_result(
-                result=result.result,
-                truncated=result.truncated,
-                error=result.error,
-                events=result.events,
+                result=result_event.result,
+                truncated=result_event.truncated,
+                error=result_event.error,
+                events=result_event.events,
             )
 
         # return tool messages
-        return [result[0] for result in results]
+        return tool_messages
 
     else:
         return []
