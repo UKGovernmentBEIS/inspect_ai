@@ -5,7 +5,7 @@ from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
-from textual.containers import ScrollableContainer
+from textual.containers import HorizontalGroup, ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import LoadingIndicator, Static
 
@@ -34,6 +34,8 @@ from inspect_ai.log._transcript import (
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
+
+from .clock import Clock
 
 
 class TranscriptView(ScrollableContainer):
@@ -79,7 +81,12 @@ class TranscriptView(ScrollableContainer):
                             set_transcript_markdown_options(d.content)
                         widgets.append(Static(d.content))
                         if event.pending:
-                            widgets.append(EventLoadingIndicator())
+                            widgets.append(
+                                HorizontalGroup(
+                                    EventLoadingIndicator(),
+                                    Clock(start_time=event.timestamp.timestamp()),
+                                )
+                            )
 
                         widgets.append(Static(Text(" ")))
         return widgets
@@ -88,11 +95,11 @@ class TranscriptView(ScrollableContainer):
 class EventLoadingIndicator(LoadingIndicator):
     DEFAULT_CSS = """
     EventLoadingIndicator {
-        width: 100%;
+        width: auto;
         height: 1;
-        content-align: left middle;
         color: $accent;
         text-style: not reverse;
+        margin-right: 1;
     }
     """
 

@@ -15,7 +15,7 @@ class Clock(Static):
     """
 
     start_time: reactive[float] = reactive(datetime.now().timestamp)
-    time = reactive(0.0)
+    time: reactive[float] = reactive(datetime.now().timestamp)
     timer: Timer | None = None
 
     def __init__(
@@ -23,6 +23,7 @@ class Clock(Static):
     ) -> None:
         super().__init__()
         self.start_time = start_time
+        self.time = datetime.now().timestamp()
         self.interval = interval
 
     def complete(self) -> None:
@@ -30,6 +31,7 @@ class Clock(Static):
             self.timer.stop()
 
     def on_mount(self) -> None:
+        self.update_time()
         self.timer = self.set_interval(self.interval, self.update_time)
 
     def on_unmount(self) -> None:
