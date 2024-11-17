@@ -255,6 +255,10 @@ async def compose_command(
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]
 
+    # quiet if display is none
+    if display_type() == "none":
+        compose_command = compose_command + ["--progress", "quiet"]
+
     # add project scope
     compose_command = compose_command + ["--project-name", project.name]
 
