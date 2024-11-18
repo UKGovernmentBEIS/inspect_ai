@@ -87,6 +87,23 @@ export const SampleDialog = ({
     [prevSample, nextSample],
   );
 
+  const children = useMemo(() => {
+    return sampleError
+        ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
+        : html`<${SampleDisplay}
+            id=${id}
+            sample=${sample}
+            sampleDescriptor=${sampleDescriptor}
+            selectedTab=${selectedTab}
+            setSelectedTab=${setSelectedTab}
+            context=${context}
+          />`;
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, context, sampleError]);
+
+  const onHide = useCallback(() => {
+    setShowingSampleDialog(false);
+  }, [setShowingSampleDialog])
+
   // Provide the dialog
   return html`
     <${LargeModal} 
@@ -95,24 +112,11 @@ export const SampleDialog = ({
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
       visible=${showingSampleDialog}
-      onHide=${() => {
-        setShowingSampleDialog(false);
-      }}
+      onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
       initialScrollPosition=${sampleScrollPosition}
       setInitialScrollPosition=${setSampleScrollPosition}
     >
-        ${
-          sampleError
-            ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
-            : html`<${SampleDisplay}
-                id=${id}
-                sample=${sample}
-                sampleDescriptor=${sampleDescriptor}
-                selectedTab=${selectedTab}
-                setSelectedTab=${setSelectedTab}
-                context=${context}
-              />`
-        }
+        ${children}
     </${LargeModal}>`;
 };
