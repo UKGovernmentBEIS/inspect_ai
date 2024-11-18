@@ -16251,7 +16251,7 @@ const LargeModal = (props) => {
     onHide,
     showProgress,
     children,
-    initialScrollPosition,
+    initialScrollPositionRef,
     setInitialScrollPosition
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
@@ -16259,12 +16259,12 @@ const LargeModal = (props) => {
   y(() => {
     if (scrollRef.current) {
       setTimeout(() => {
-        if (scrollRef.current.scrollTop !== initialScrollPosition) {
-          scrollRef.current.scrollTop = initialScrollPosition;
+        if (scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
+          scrollRef.current.scrollTop = initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current;
         }
       }, 0);
     }
-  });
+  }, []);
   const onScroll = q(
     debounce((e2) => {
       setInitialScrollPosition(e2.srcElement.scrollTop);
@@ -20097,7 +20097,7 @@ const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
   context
 }) => {
@@ -20141,14 +20141,22 @@ const SampleDialog = ({
   );
   const children = T(() => {
     return sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
-            id=${id}
-            sample=${sample}
-            sampleDescriptor=${sampleDescriptor}
-            selectedTab=${selectedTab}
-            setSelectedTab=${setSelectedTab}
-            context=${context}
-          />`;
-  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, context, sampleError]);
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+          context=${context}
+        />`;
+  }, [
+    id,
+    sample,
+    sampleDescriptor,
+    selectedTab,
+    setSelectedTab,
+    context,
+    sampleError
+  ]);
   const onHide = q(() => {
     setShowingSampleDialog(false);
   }, [setShowingSampleDialog]);
@@ -20161,7 +20169,7 @@ const SampleDialog = ({
       visible=${showingSampleDialog}
       onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
-      initialScrollPosition=${sampleScrollPosition}
+      initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
     >
         ${children}
@@ -20583,7 +20591,7 @@ const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
   context
 }) => {
@@ -20712,7 +20720,7 @@ const SamplesTab = ({
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
-      sampleScrollPosition=${sampleScrollPosition}
+      sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
@@ -24435,9 +24443,9 @@ const WorkSpace = ({
   selectedTab,
   setSelectedTab,
   renderContext,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
-  workspaceTabScrollPosition,
+  workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition
 }) => {
   const divRef = A(
@@ -24452,160 +24460,201 @@ const WorkSpace = ({
       divRef.current.scrollTop = 0;
     }
   }, [divRef, task_id]);
-  const resolvedTabs = {};
-  if (evalStatus !== "error" && sampleMode !== "none") {
-    resolvedTabs.samples = {
-      id: kEvalWorkspaceTabId,
-      scrollable: samples.length === 1,
-      label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
-      content: () => {
-        return m$1` <${SamplesTab}
-          task_id=${task_id}
-          selectedScore=${score}
-          sample=${selectedSample}
-          sampleStatus=${sampleStatus}
-          sampleError=${sampleError}
-          showingSampleDialog=${showingSampleDialog}
-          setShowingSampleDialog=${setShowingSampleDialog}
-          samples=${samples}
-          sampleMode=${sampleMode}
-          groupBy=${groupBy}
-          groupByOrder=${groupByOrder}
-          selectedSampleIndex=${selectedSampleIndex}
-          setSelectedSampleIndex=${setSelectedSampleIndex}
-          sampleDescriptor=${samplesDescriptor}
-          selectedSampleTab=${selectedSampleTab}
-          setSelectedSampleTab=${setSelectedSampleTab}
-          filter=${filter}
-          sort=${sort}
-          epoch=${epoch}
-          context=${renderContext}
-          sampleScrollPosition=${sampleScrollPosition}
-          setSampleScrollPosition=${setSampleScrollPosition}
-        />`;
-      },
-      tools: () => {
-        if (sampleMode === "single") {
-          return "";
-        }
-        const sampleTools = [
-          m$1`<${SampleTools}
-            epoch=${epoch}
-            epochs=${epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
+  const resolvedTabs = T(() => {
+    const resolvedTabs2 = {};
+    if (evalStatus !== "error" && sampleMode !== "none") {
+      resolvedTabs2.samples = {
+        id: kEvalWorkspaceTabId,
+        scrollable: samples.length === 1,
+        label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
+        content: () => {
+          return m$1` <${SamplesTab}
+            task_id=${task_id}
+            selectedScore=${score}
+            sample=${selectedSample}
+            sampleStatus=${sampleStatus}
+            sampleError=${sampleError}
+            showingSampleDialog=${showingSampleDialog}
+            setShowingSampleDialog=${setShowingSampleDialog}
+            samples=${samples}
+            sampleMode=${sampleMode}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
             sampleDescriptor=${samplesDescriptor}
+            selectedSampleTab=${selectedSampleTab}
+            setSelectedSampleTab=${setSelectedSampleTab}
+            filter=${filter}
+            sort=${sort}
+            epoch=${epoch}
+            context=${renderContext}
+            sampleScrollPositionRef=${sampleScrollPositionRef}
+            setSampleScrollPosition=${setSampleScrollPosition}
+          />`;
+        },
+        tools: () => {
+          if (sampleMode === "single") {
+            return "";
+          }
+          const sampleTools = [
+            m$1`<${SampleTools}
+              epoch=${epoch}
+              epochs=${epochs}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              filterChanged=${setFilter}
+              sort=${sort}
+              setSort=${setSort}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              sampleDescriptor=${samplesDescriptor}
+            />`
+          ];
+          if (evalStatus === "started") {
+            sampleTools.push(
+              m$1`<${ToolButton}
+                name=${m$1`Refresh`}
+                icon="${ApplicationIcons.refresh}"
+                onclick="${refreshLog}"
+              />`
+            );
+          }
+          return sampleTools;
+        }
+      };
+    }
+    resolvedTabs2.config = {
+      id: kInfoWorkspaceTabId,
+      label: "Info",
+      scrollable: true,
+      content: () => {
+        var _a2;
+        const infoCards = [];
+        infoCards.push([
+          m$1`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults == null ? void 0 : evalResults.scores}
+            context=${renderContext}
           />`
-        ];
-        if (evalStatus === "started") {
-          sampleTools.push(
-            m$1`<${ToolButton}
-              name=${m$1`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${refreshLog}"
+        ]);
+        if (evalStatus !== "started") {
+          infoCards.push(
+            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
+          );
+        }
+        if (evalStatus === "error" && evalError) {
+          infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
+        }
+        const warnings = [];
+        if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
+          warnings.push(
+            m$1`<${WarningBand}
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }
-        return sampleTools;
+        return m$1` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
+        </div>`;
       }
     };
-  }
-  resolvedTabs.config = {
-    id: kInfoWorkspaceTabId,
-    label: "Info",
-    scrollable: true,
-    content: () => {
-      var _a2;
-      const infoCards = [];
-      infoCards.push([
-        m$1`<${PlanCard}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          scores=${evalResults == null ? void 0 : evalResults.scores}
-          context=${renderContext}
-        />`
-      ]);
-      if (evalStatus !== "started") {
-        infoCards.push(
-          m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-        );
-      }
-      if (evalStatus === "error" && evalError) {
-        infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
-      }
-      const warnings = [];
-      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
-        warnings.push(
-          m$1`<${WarningBand}
-            message="Unable to display samples (this evaluation log may be too large)."
+    resolvedTabs2.json = {
+      id: kJsonWorkspaceTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats
+        };
+        const json = JSON.stringify(evalHeader, null, 2);
+        return m$1`<${JsonTab}
+          logFileName=${logFileName}
+          json=${json}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonWorkspaceTabId}
+        />`;
+      },
+      tools: () => {
+        return [
+          m$1`<${ToolButton}
+            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
           />`
-        );
+        ];
       }
-      return m$1` <div style=${{ width: "100%" }}>
-        ${warnings}
-        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
-        </div>
-      </div>`;
-    }
-  };
-  resolvedTabs.json = {
-    id: kJsonWorkspaceTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const evalHeader = {
-        version: evalVersion,
-        status: evalStatus,
-        eval: evalSpec,
-        plan: evalPlan,
-        error: evalError,
-        results: evalResults,
-        stats: evalStats
-      };
-      const json = JSON.stringify(evalHeader, null, 2);
-      return m$1`<${JsonTab}
-        logFileName=${logFileName}
-        json=${json}
-        capabilities=${capabilities}
-        selected=${selectedTab === kJsonWorkspaceTabId}
-      />`;
-    },
-    tools: () => {
-      return [
-        m$1`<${ToolButton}
-          name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-          icon="${ApplicationIcons.copy}"
-          classes="task-btn-json-copy clipboard-button"
-          data-clipboard-target="#task-json-contents"
-          onclick="${copyFeedback}"
-        />`
-      ];
-    }
-  };
-  const copyFeedback = (e2) => {
-    const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
-    const iconEl = e2.currentTarget.querySelector("i.bi");
-    if (textEl) {
-      const oldText = textEl.innerText;
-      const oldIconClz = iconEl.className;
-      textEl.innerText = "Copied!";
-      iconEl.className = `${ApplicationIcons.confirm}`;
-      setTimeout(() => {
-        window.getSelection().removeAllRanges();
-      }, 50);
-      setTimeout(() => {
-        textEl.innerText = oldText;
-        iconEl.className = oldIconClz;
-      }, 1250);
-    }
-  };
+    };
+    const copyFeedback = (e2) => {
+      const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
+      const iconEl = e2.currentTarget.querySelector("i.bi");
+      if (textEl) {
+        const oldText = textEl.innerText;
+        const oldIconClz = iconEl.className;
+        textEl.innerText = "Copied!";
+        iconEl.className = `${ApplicationIcons.confirm}`;
+        setTimeout(() => {
+          window.getSelection().removeAllRanges();
+        }, 50);
+        setTimeout(() => {
+          textEl.innerText = oldText;
+          iconEl.className = oldIconClz;
+        }, 1250);
+      }
+    };
+    return resolvedTabs2;
+  }, [
+    evalStatus,
+    sampleMode,
+    samples,
+    task_id,
+    score,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
+    groupBy,
+    groupByOrder,
+    selectedSampleIndex,
+    setSelectedSampleIndex,
+    samplesDescriptor,
+    selectedSampleTab,
+    setSelectedSampleTab,
+    filter,
+    sort,
+    epoch,
+    renderContext,
+    sampleScrollPositionRef,
+    setSampleScrollPosition,
+    epochs,
+    setEpoch,
+    setFilter,
+    setSort,
+    setScore,
+    scores,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    evalError,
+    logFileName,
+    capabilities,
+    selectedTab
+  ]);
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
@@ -24619,7 +24668,7 @@ const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    workspaceTabScrollPosition=${workspaceTabScrollPosition}
+    workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
@@ -24636,7 +24685,7 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   offcanvas,
-  workspaceTabScrollPosition,
+  workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition
 }) => {
   if (evalSpec === void 0) {
@@ -24711,7 +24760,7 @@ const WorkspaceDisplay = ({
       }}
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPosition[tab.id]}
+                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
                 setScrollPosition=${(position) => {
         setWorkspaceTabScrollPosition(tab.id, position);
       }}
@@ -25449,7 +25498,7 @@ function App({
   saveInitialState = void 0,
   pollForLogs = true
 }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const [logs, setLogs] = h(
     (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
   );
@@ -25515,11 +25564,14 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    }
-  };
+  const context = T(
+    () => ({
+      afterBody: (el) => {
+        afterBodyElements.push(el);
+      }
+    }),
+    []
+  );
   const saveState = q(() => {
     const state = {
       logs,
@@ -25667,13 +25719,16 @@ function App({
     setGroupBy(grouping);
     setGroupByOrder(order2);
   }, [selectedLog, filter, sort, epoch]);
-  const samplesDescriptor = createsSamplesDescriptor(
-    scores,
-    (_a2 = selectedLog.contents) == null ? void 0 : _a2.sampleSummaries,
-    ((_d = (_c = (_b2 = selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-    context,
-    score
-  );
+  const samplesDescriptor = T(() => {
+    var _a3, _b3, _c2, _d2;
+    return createsSamplesDescriptor(
+      scores,
+      (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
+      context,
+      score
+    );
+  }, [selectedLog, scores, score]);
   const refreshSampleTab = q(
     (sample) => {
       if (selectedSampleTab === void 0) {
@@ -26036,7 +26091,7 @@ function App({
     }
   }, [showFind, setShowFind]);
   const showToggle = logs.files.length > 1 || logs.log_dir;
-  const sampleMode = ((_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
+  const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -26059,15 +26114,15 @@ function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />` : m$1`<${WorkSpace}
-              task_id=${(_g = (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval) == null ? void 0 : _g.task_id}
+              task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
               logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-              evalStatus=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.status}
-              evalError=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.error}
-              evalVersion=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.version}
-              evalSpec=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval}
-              evalPlan=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.plan}
-              evalStats=${(_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.stats}
-              evalResults=${(_n = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _n.results}
+              evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
+              evalError=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error}
+              evalVersion=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version}
+              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
+              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
+              evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
+              evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
               sampleMode=${sampleMode}
@@ -26091,7 +26146,7 @@ function App({
               setSelectedSampleTab=${setSelectedSampleTab}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_q = (_p = (_o = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _o.eval) == null ? void 0 : _p.config) == null ? void 0 : _q.epochs}
+              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
@@ -26100,9 +26155,9 @@ function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              sampleScrollPosition=${sampleScrollPosition.current}
+              sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
               setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`}
     </div>
