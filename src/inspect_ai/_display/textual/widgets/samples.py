@@ -5,7 +5,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widget import Widget
-from textual.widgets import Button, OptionList, Static
+from textual.widgets import Button, OptionList
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._display.core.progress import progress_time
@@ -45,17 +45,6 @@ class SamplesView(Widget):
         scrollbar-size-vertical: 1;
         scrollbar-gutter: stable;
     }
-    SamplesView Button {
-        margin-bottom: 1;
-        margin-right: 2;
-        min-width: 24;
-    }
-    SamplesView #cancel-score-output {
-        color: $accent-darken-3;
-    }
-    SamplesView #cancel-raise-error {
-        color: $warning-darken-3;
-    }
     """
 
     def __init__(self) -> None:
@@ -65,17 +54,7 @@ class SamplesView(Widget):
     def compose(self) -> ComposeResult:
         yield OptionList()
         yield TranscriptView()
-        with Horizontal(id="button-bar"):
-            yield Button(
-                Text("Cancel (Score Output)"),
-                id="cancel-score-output",
-                tooltip="Cancel the sample and score whatever output has been generated so far.",
-            )
-            yield Button(
-                Text("Cancel (Raise Error)"),
-                id="cancel-raise-error",
-                tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
-            )
+        yield SampleToolbar()
 
     def on_mount(self) -> None:
         self.watch(self.query_one(OptionList), "highlighted", self.set_highlighted)
@@ -145,18 +124,59 @@ class SamplesView(Widget):
             option_list.scroll_to_highlight()
 
     async def set_highlighted(self, highlighted: int | None) -> None:
+        # alias widgets
         option_list = self.query_one(OptionList)
         transcript_view = self.query_one(TranscriptView)
+        sample_toolbar = self.query_one(SampleToolbar)
+
+        # look for a highlighted sample to sync
         if highlighted is not None:
             highlighted_id = option_list.get_option_at_index(highlighted).id
             if highlighted_id is not None:
                 sample = sample_for_id(self.samples, highlighted_id)
                 if sample:
-                    cancel_with_error = cast(
-                        Button, self.query_one("#cancel-raise-error")
-                    )
-                    cancel_with_error.display = not sample.fails_on_error
+                    await sample_toolbar.sync_sample(sample)
                     await transcript_view.sync_sample(sample)
+                    return
+
+
+class SampleToolbar(Horizontal):
+    DEFAULT_CSS = """
+    SampleToolbar Button {
+        margin-bottom: 1;
+        margin-right: 2;
+        min-width: 24;
+    }
+    SampleToolbar #cancel-score-output {
+        color: $accent-darken-3;
+    }
+    SampleToolbar #cancel-raise-error {
+        color: $warning-darken-3;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def compose(self) -> ComposeResult:
+        yield Button(
+            Text("Cancel (Score Output)"),
+            id="cancel-score-output",
+            tooltip="Cancel the sample and score whatever output has been generated so far.",
+        )
+        yield Button(
+            Text("Cancel (Raise Error)"),
+            id="cancel-raise-error",
+            tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
+        )
+
+    async def sync_sample(self, sample: ActiveSample | None) -> None:
+        cancel_with_error = cast(Button, self.query_one("#cancel-raise-error"))
+        if sample:
+            self.display = True
+            cancel_with_error.display = not sample.fails_on_error
+        else:
+            self.display = False
 
 
 def sample_for_id(samples: list[ActiveSample], id: str) -> ActiveSample | None:
