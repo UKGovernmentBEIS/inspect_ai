@@ -702,10 +702,11 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
-
+.vscode-dark pre[class*="language-"].tool-output,
 .vscode-dark .tool-output {
   background-color: #333333;
 }
