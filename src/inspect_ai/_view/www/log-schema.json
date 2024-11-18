@@ -1259,6 +1259,9 @@
                 "$ref": "#/$defs/SampleInitEvent"
               },
               {
+                "$ref": "#/$defs/SampleLimitEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -2648,6 +2651,69 @@
       "type": "object",
       "additionalProperties": false
     },
+    "SampleLimitEvent": {
+      "description": "The sample was unable to finish processing due to a limit",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "sample_limit",
+          "default": "sample_limit",
+          "enum": [
+            "sample_limit"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "message",
+            "time",
+            "token",
+            "context"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "type",
+        "limit",
+        "message"
+      ],
+      "title": "SampleLimitEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "SampleScore": {
       "description": "Score for a Sample\n\nArgs:\n   sample_id: (str | int | None) Unique id of a sample",
       "properties": {
@@ -3121,6 +3187,9 @@
                 "$ref": "#/$defs/SampleInitEvent"
               },
               {
+                "$ref": "#/$defs/SampleLimitEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -3442,6 +3511,9 @@
             "anyOf": [
               {
                 "$ref": "#/$defs/SampleInitEvent"
+              },
+              {
+                "$ref": "#/$defs/SampleLimitEvent"
               },
               {
                 "$ref": "#/$defs/StateEvent"
