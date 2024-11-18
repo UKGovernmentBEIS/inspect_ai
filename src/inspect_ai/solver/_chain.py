@@ -9,7 +9,7 @@ from ._task_state import TaskState
 def chain(*solvers: Solver | list[Solver]) -> Solver:
     """Compose a solver from multiple other solvers.
 
-    Solvers are executed in turn, and a sovler step event
+    Solvers are executed in turn, and a solver step event
     is added to the transcript for each. If a solver returns
     a state with `completed=True`, the chain is terminated
     early.
