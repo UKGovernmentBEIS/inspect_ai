@@ -286,7 +286,7 @@ class TaskState:
     @property
     def completed(self) -> bool:
         """Is the task completed."""
-        from inspect_ai.log._transcript import transcript
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
         if self._completed:
             return True
@@ -294,16 +294,24 @@ class TaskState:
             # log if this is the first time we hit this
             if not self._message_limit_exceeded:
                 self._message_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded message limit ({self.message_limit})"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="message",
+                        limit=self.message_limit,
+                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
+                    )
                 )
             return True
         elif self.token_limit and sample_total_tokens() >= self.token_limit:
             # log if this is the first time we hit this
             if not self._token_limit_exceeded:
                 self._token_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded token limit ({self.token_limit:,})"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="token",
+                        limit=self.token_limit,
+                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
+                    )
                 )
             return True
         else:

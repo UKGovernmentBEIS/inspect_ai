@@ -45,6 +45,7 @@ from inspect_ai.log._log import EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
+    SampleLimitEvent,
     ScoreEvent,
     transcript,
 )
@@ -439,8 +440,12 @@ async def task_run_sample(
 
         except TimeoutError:
             # notify the user
-            transcript().info(
-                f"Sample completed: exceeded time limit ({time_limit:,} seconds)"
+            transcript()._event(
+                SampleLimitEvent(
+                    type="time",
+                    limit=time_limit,
+                    message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                )
             )
 
             # capture most recent state for scoring
@@ -506,8 +511,12 @@ async def task_run_sample(
         except BaseException as ex:
             # note timeout
             if isinstance(ex, TimeoutError):
-                transcript().info(
-                    f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="time",
+                        limit=time_limit,
+                        message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                    )
                 )
 
             # handle error (this will throw if we've exceeded the limit)
