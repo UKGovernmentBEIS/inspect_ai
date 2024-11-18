@@ -138,7 +138,7 @@ class TaskProgressView(Widget):
     def complete(self, result: TaskResult) -> None:
         self.t.result = result
         self.query_one(TaskStatusIcon).result = result
-        self.query_one(Clock).complete()
+        self.query_one(Clock).stop()
         self.task_progress.complete()
 
 

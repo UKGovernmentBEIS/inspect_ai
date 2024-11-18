@@ -5,9 +5,9 @@ from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
-from textual.containers import HorizontalGroup, ScrollableContainer
+from textual.containers import ScrollableContainer
 from textual.widget import Widget
-from textual.widgets import LoadingIndicator, Static
+from textual.widgets import Static
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
@@ -34,8 +34,6 @@ from inspect_ai.log._transcript import (
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
-
-from .clock import Clock
 
 
 class TranscriptView(ScrollableContainer):
@@ -80,31 +78,8 @@ class TranscriptView(ScrollableContainer):
                         if isinstance(d.content, Markdown):
                             set_transcript_markdown_options(d.content)
                         widgets.append(Static(d.content))
-                        if event.pending:
-                            widgets.append(
-                                HorizontalGroup(
-                                    EventLoadingIndicator(),
-                                    Clock(start_time=event.timestamp.timestamp()),
-                                )
-                            )
-
                         widgets.append(Static(Text(" ")))
         return widgets
-
-
-class EventLoadingIndicator(LoadingIndicator):
-    DEFAULT_CSS = """
-    EventLoadingIndicator {
-        width: auto;
-        height: 1;
-        color: $accent;
-        text-style: not reverse;
-        margin-right: 1;
-    }
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
 
 
 class EventDisplay(NamedTuple):
@@ -170,8 +145,6 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     # because they will be handled as part of render_tool)
     if event.output.message and event.output.message.text:
         append_message(event.output.message)
-    elif event.pending:
-        append_message(event.output.message, "_Generating..._")
 
     return EventDisplay(f"model: {event.model}", Group(*content))
 
@@ -207,10 +180,6 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         )
     else:
         result = event.result
-
-    # provide result for pending
-    if not result and event.pending:
-        result = "_Executing..._"
 
     if result:
         content.append(transcript_markdown(str(result)))

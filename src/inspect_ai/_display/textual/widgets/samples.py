@@ -3,15 +3,17 @@ from typing import cast
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, HorizontalGroup, VerticalGroup
 from textual.widget import Widget
-from textual.widgets import Button, OptionList
+from textual.widgets import Button, LoadingIndicator, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
-from inspect_ai._display.core.progress import progress_time
-from inspect_ai._display.textual.widgets.transcript import TranscriptView
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
+
+from ...core.progress import progress_time
+from .clock import Clock
+from .transcript import TranscriptView
 
 
 class SamplesView(Widget):
@@ -145,7 +147,7 @@ class SampleToolbar(Horizontal):
     SampleToolbar Button {
         margin-bottom: 1;
         margin-right: 2;
-        min-width: 24;
+        min-width: 20;
     }
     SampleToolbar #cancel-score-output {
         color: $accent-darken-3;
@@ -159,24 +161,72 @@ class SampleToolbar(Horizontal):
         super().__init__()
 
     def compose(self) -> ComposeResult:
+        with VerticalGroup(id="pending-status"):
+            yield Static("Executing...", id="pending-caption")
+            yield HorizontalGroup(EventLoadingIndicator(), Clock())
         yield Button(
-            Text("Cancel (Score Output)"),
+            Text("Cancel (Score)"),
             id="cancel-score-output",
             tooltip="Cancel the sample and score whatever output has been generated so far.",
         )
         yield Button(
-            Text("Cancel (Raise Error)"),
+            Text("Cancel (Error)"),
             id="cancel-raise-error",
             tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
         )
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
+        from inspect_ai.log._transcript import ModelEvent
+
+        pending_status = self.query_one("#pending-status")
+        clock = self.query_one(Clock)
         cancel_with_error = cast(Button, self.query_one("#cancel-raise-error"))
-        if sample:
+        if sample and not sample.completed:
+            # update visibility and button status
             self.display = True
             cancel_with_error.display = not sample.fails_on_error
+
+            # if we have a pending event then start the clock and show pending status
+            last_event = (
+                sample.transcript.events[-1]
+                if len(sample.transcript.events) > 0
+                else None
+            )
+            if last_event and last_event.pending:
+                pending_status.display = True
+                pending_caption = cast(Static, self.query_one("#pending-caption"))
+                pending_caption_text = (
+                    "Generating..."
+                    if isinstance(last_event, ModelEvent)
+                    else "Executing..."
+                )
+                pending_caption.update(
+                    Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
+                )
+                clock.start(last_event.timestamp.timestamp())
+            else:
+                pending_status.display = False
+                clock.stop()
+
         else:
             self.display = False
+            pending_status.display = False
+            clock.stop()
+
+
+class EventLoadingIndicator(LoadingIndicator):
+    DEFAULT_CSS = """
+    EventLoadingIndicator {
+        width: auto;
+        height: 1;
+        color: $accent;
+        text-style: not reverse;
+        margin-right: 1;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
 
 
 def sample_for_id(samples: list[ActiveSample], id: str) -> ActiveSample | None:

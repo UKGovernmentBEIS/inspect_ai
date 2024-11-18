@@ -14,31 +14,42 @@ class Clock(Static):
     }
     """
 
-    start_time: reactive[float] = reactive(datetime.now().timestamp)
     time: reactive[float] = reactive(datetime.now().timestamp)
     timer: Timer | None = None
 
-    def __init__(
-        self, start_time: float = datetime.now().timestamp(), interval: int = 1
-    ) -> None:
+    def __init__(self, interval: int = 1) -> None:
         super().__init__()
-        self.start_time = start_time
+        self.start_time: float | None = None
         self.time = datetime.now().timestamp()
         self.interval = interval
 
-    def complete(self) -> None:
+    def start(self, start_time: float) -> None:
+        if start_time != self.start_time:
+            self.stop()
+            self.start_time = start_time
+            self.update_time()
+            self.timer = self.set_interval(self.interval, self.update_time)
+
+    def stop(self) -> None:
+        self.start_time = None
         if self.timer:
             self.timer.stop()
-
-    def on_mount(self) -> None:
-        self.update_time()
-        self.timer = self.set_interval(self.interval, self.update_time)
+            self.timer = None
 
     def on_unmount(self) -> None:
-        self.complete()
+        self.stop()
+
+    def watch_start_time(self, start_time: float | None) -> None:
+        if start_time is not None:
+            if self.timer is None:
+                self.timer = self.set_interval(self.interval, self.update_time)
+            self.update(progress_time(start_time))
+        else:
+            self.stop()
 
     def update_time(self) -> None:
-        self.time = datetime.now().timestamp() - self.start_time
+        if self.start_time is not None:
+            self.time = datetime.now().timestamp() - self.start_time
 
     def watch_time(self, time: float) -> None:
         self.update(progress_time(time))
