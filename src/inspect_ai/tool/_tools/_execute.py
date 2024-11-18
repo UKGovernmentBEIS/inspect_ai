@@ -7,7 +7,8 @@ from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 # custom viewer for bash and python code blocks
 def code_viewer(language: str, code_param: str) -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        code = tool_call.arguments.get(code_param, tool_call.function).strip()
+        code = tool_call.arguments.get(code_param, None)
+        code = (code or tool_call.function).strip()
         call = ToolCallContent(
             format="markdown",
             content=f"{language}\n\n```{language}\n" + code + "\n```\n",

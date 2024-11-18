@@ -1,3 +1,4 @@
+import functools
 import json
 from copy import copy
 from typing import Any, cast
@@ -211,8 +212,31 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[VertexContent]:
     # (if there is no first user message then prepend one)
     prepend_system_messages(chat_messages, system_messages)
 
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(consective_tool_message_reducer, chat_messages, [])
+
     # return messages
     return chat_messages
+
+
+def consective_tool_message_reducer(
+    messages: list[VertexContent],
+    message: VertexContent,
+) -> list[VertexContent]:
+    if (
+        message["role"] == "function"
+        and len(messages) > 0
+        and messages[-1]["role"] == "function"
+    ):
+        messages[-1] = VertexContent(
+            role="function", parts=messages[-1]["parts"] + message["parts"]
+        )
+    else:
+        messages.append(message)
+    return messages
+
+
+NO_CONTENT = "(no content)"
 
 
 async def content_dict(
@@ -220,31 +244,39 @@ async def content_dict(
 ) -> VertexContent:
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
-            parts = [Part.from_text(message.content)]
+            parts = [Part.from_text(message.content or NO_CONTENT)]
         else:
             parts = [await content_part(content) for content in message.content]
 
         return VertexContent(role="user", parts=parts)
     elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[Part] = []
         if message.tool_calls is not None:
-            content_parts = [
-                # For some reason there's no `Parts.from_function_call`
-                # function, but there's a generic `from_dict` instead
-                Part.from_dict(
-                    {
-                        "function_call": {
-                            "name": tool_call.function,
-                            "args": tool_call.arguments,
+            content_parts.extend(
+                [
+                    # For some reason there's no `Parts.from_function_call`
+                    # function, but there's a generic `from_dict` instead
+                    Part.from_dict(
+                        {
+                            "function_call": {
+                                "name": tool_call.function,
+                                "args": tool_call.arguments,
+                            }
                         }
-                    }
-                )
-                for tool_call in message.tool_calls
-            ]
-            if message.content:
-                content_parts.append(Part.from_text(message.content))
-            return VertexContent(role="model", parts=content_parts)
+                    )
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        if isinstance(message.content, str):
+            content_parts.append(Part.from_text(message.content or NO_CONTENT))
         else:
-            return VertexContent(role="model", parts=[Part.from_text(message.content)])
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        return VertexContent(role="model", parts=content_parts)
+
     elif isinstance(message, ChatMessageTool):
         return VertexContent(
             role="function",
@@ -265,9 +297,9 @@ async def content_dict(
 
 async def content_part(content: Content | str) -> Part:
     if isinstance(content, str):
-        return Part.from_text(content)
+        return Part.from_text(content or NO_CONTENT)
     elif isinstance(content, ContentText):
-        return Part.from_text(content.text)
+        return Part.from_text(content.text or NO_CONTENT)
     else:
         image_bytes, mime_type = await image_as_data(content.image)
         return Part.from_image(image=Image.from_bytes(data=image_bytes))
