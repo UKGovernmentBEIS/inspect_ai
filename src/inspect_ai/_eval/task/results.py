@@ -1,3 +1,4 @@
+import fnmatch
 import re
 from collections import defaultdict
 from copy import deepcopy
@@ -230,7 +231,41 @@ def scorers_from_metric_dict(
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
-    for metric_key, metric_list in metrics.items():
+
+    # Expand any metric keys
+    resolved_metrics: dict[str, list[Metric]] = {}
+
+    # Use the first key to determine the structure of the value
+    base_score = scores[0]
+    if isinstance(base_score.value, dict):
+        # the value is a dictionary, so go through the dictionary
+        # and 'expand' any metric globs into their literal values
+        # and apply matching metrics to those keys
+        for metric_key, metric_list in metrics.items():
+            # compile the key as a glob into a regex and use that to match keys
+            key_glob_re = re.compile(fnmatch.translate(metric_key))
+
+            for score_key in base_score.value.keys():
+                if key_glob_re.match(score_key):
+                    # The key matched, so either create a new entry for it and add metrics
+                    # or add metrics to the existing key
+                    resolved_metrics[score_key] = (
+                        resolved_metrics[score_key]
+                        if score_key in resolved_metrics
+                        else []
+                    )
+                    for metric in metric_list:
+                        # TODO: Need to ensure that this function isn't already in the list
+                        # (use the function name - but how!?)
+                        if metric not in resolved_metrics[score_key]:
+                            resolved_metrics[score_key].append(metric)
+    else:
+        # this value isn't a dictionary (unexpected)
+        raise TypeError(
+            "A dictionary of metrics was specified for a non-dictionary score. Dictionaries of metrics are only valid when the score value is a dictionary."
+        )
+
+    for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
         metric_scores: list[Score] = []
         for score in scores:
@@ -246,7 +281,7 @@ def scorers_from_metric_dict(
                     )
             else:
                 raise TypeError(
-                    "dictionary of metrics specific for a non-dictionary score"
+                    "A dictionary of metrics specified for a non-dictionary score"
                 )
 
         result_metrics: dict[str, EvalMetric] = {}
