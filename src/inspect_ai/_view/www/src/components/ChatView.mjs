@@ -30,7 +30,7 @@ export const ChatView = ({
   // can use to lookup the tool responses
 
   /**
-   * @type {Array<{message: import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser, toolOutput?: import("../types/log").ChatMessageTool}>}
+   * @type {Array<{message: import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser, toolMessages?: import("../types/log").ChatMessageTool[]}>}
    */
   const resolvedMessages = [];
   for (const message of messages) {
@@ -38,10 +38,10 @@ export const ChatView = ({
       // Add this tool message onto the previous message
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
-        msg.toolOutput = message;
+        msg.toolMessages.push(message);
       }
     } else {
-      resolvedMessages.push({ message });
+      resolvedMessages.push({ message, toolMessages: [] });
     }
   }
 
@@ -110,7 +110,7 @@ export const ChatView = ({
             <${ChatMessage}
               id=${`${id}-chat-messages`}
               message=${msg.message}
-              toolMessage=${msg.toolOutput}
+              toolMessages=${msg.toolMessages}
               indented=${indented}
             />
           </div>`;
@@ -118,7 +118,7 @@ export const ChatView = ({
           return html` <${ChatMessage}
             id=${`${id}-chat-messages`}
             message=${msg.message}
-            toolMessage=${msg.toolOutput}
+            toolMessages=${msg.toolMessages}
             indented=${indented}
           />`;
         }
@@ -146,7 +146,16 @@ const normalizeContent = (content) => {
   }
 };
 
-const ChatMessage = ({ id, message, toolMessage, indented }) => {
+/**
+ *
+ * @param {Object} props
+ * @param {string} props.id - The ID for the chat view.
+ * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
+ * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @returns {import("preact").JSX.Element} The component.
+ */
+const ChatMessage = ({ id, message, toolMessages, indented }) => {
   const collapse = message.role === "system";
   return html`
     <div
@@ -177,7 +186,7 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
         <${MessageContents}
           key=${`${id}-contents`}
           message=${message}
-          toolMessage=${toolMessage}
+          toolMessages=${toolMessages}
         />
       </${ExpandablePanel}>
       </div>
@@ -185,10 +194,20 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
   `;
 };
 
-const MessageContents = ({ message, toolMessage }) => {
-  if (message.tool_calls && message.tool_calls.length) {
+/**
+ *
+ * @param {Object} props
+ * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
+ * @returns {import("preact").JSX.Element | import("preact").JSX.Element[]} The component.
+ */
+const MessageContents = ({ message, toolMessages }) => {
+  if (
+    message.role === "assistant" &&
+    message.tool_calls &&
+    message.tool_calls.length
+  ) {
     const result = [];
-
     // If the message contains content, render that.
     if (message.content) {
       result.push(
@@ -199,12 +218,21 @@ const MessageContents = ({ message, toolMessage }) => {
     }
 
     // Render the tool calls made by this message
-    const toolCalls = message.tool_calls.map((tool_call) => {
+    const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
         tool_call.arguments,
       );
+
+      let toolMessage;
+      if (tool_call.id) {
+        toolMessage = toolMessages.find((msg) => {
+          return msg.tool_call_id === tool_call.id;
+        });
+      } else {
+        toolMessage = toolMessages[idx];
+      }
 
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
@@ -239,13 +267,20 @@ export const iconForMsg = (msg) => {
   }
 };
 
+/**
+ *
+ * @param {import("../types/log").ChatMessageTool} toolMessage - The tool output message
+ * @returns {Array<{type: string, content: import("../types/log").Content3}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
+ */
 const resolveToolMessage = (toolMessage) => {
   if (!toolMessage) {
     return undefined;
   }
 
   const content =
-    toolMessage.error?.message || toolMessage.tool_error || toolMessage.content;
+    toolMessage.error !== null && toolMessage.error
+      ? toolMessage.error.message
+      : toolMessage.content;
   if (typeof content === "string") {
     return [
       {

@@ -22,7 +22,7 @@ import { FontSize } from "../appearance/Fonts.mjs";
 /**
  * Resolves the input and metadata for a given tool call.
  * @param { string } fn - The tool call function name
- * @param { Record<string, unknown> } toolArgs - The tool call arguments
+ * @param { import("../types/log").Arguments } toolArgs - The tool call arguments
  *
  * @returns {ToolCallResult}  An object containing the following properties:
  */
