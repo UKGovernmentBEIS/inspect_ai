@@ -170,11 +170,14 @@ export function App({
   const afterBodyElements = [];
 
   /** @type {import("./Types.mjs").RenderContext} */
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    },
-  };
+  const context = useMemo(
+    () => ({
+      afterBody: (el) => {
+        afterBodyElements.push(el);
+      },
+    }),
+    [],
+  );
 
   const saveState = useCallback(() => {
     const state = {
@@ -338,13 +341,15 @@ export function App({
     setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
 
-  const samplesDescriptor = createsSamplesDescriptor(
-    scores,
-    selectedLog.contents?.sampleSummaries,
-    selectedLog.contents?.eval?.config?.epochs || 1,
-    context,
-    score,
-  );
+  const samplesDescriptor = useMemo(() => {
+    return createsSamplesDescriptor(
+      scores,
+      selectedLog.contents?.sampleSummaries,
+      selectedLog.contents?.eval?.config?.epochs || 1,
+      context,
+      score,
+    );
+  }, [selectedLog, scores, score]);
 
   const refreshSampleTab = useCallback(
     (sample) => {
@@ -911,9 +916,9 @@ export function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              sampleScrollPosition=${sampleScrollPosition.current}
+              sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
               setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`
       }

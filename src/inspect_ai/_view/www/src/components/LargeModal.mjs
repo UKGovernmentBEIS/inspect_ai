@@ -17,7 +17,7 @@ export const LargeModal = (props) => {
     onHide,
     showProgress,
     children,
-    initialScrollPosition,
+    initialScrollPositionRef,
     setInitialScrollPosition,
   } = props;
 
@@ -32,12 +32,12 @@ export const LargeModal = (props) => {
   useEffect(() => {
     if (scrollRef.current) {
       setTimeout(() => {
-        if (scrollRef.current.scrollTop !== initialScrollPosition) {
-          scrollRef.current.scrollTop = initialScrollPosition;
+        if (scrollRef.current.scrollTop !== initialScrollPositionRef?.current) {
+          scrollRef.current.scrollTop = initialScrollPositionRef?.current;
         }
       }, 0);
     }
-  });
+  }, []);
 
   const onScroll = useCallback(
     debounce((e) => {

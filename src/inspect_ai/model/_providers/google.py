@@ -1,3 +1,4 @@
+import functools
 import json
 from copy import copy
 from typing import Any, cast
@@ -264,8 +265,31 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentDict]:
     # (if there is no first user message then prepend one)
     prepend_system_messages(chat_messages, system_messages)
 
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(consective_tool_message_reducer, chat_messages, [])
+
     # return messages
     return chat_messages
+
+
+def consective_tool_message_reducer(
+    messages: list[ContentDict],
+    message: ContentDict,
+) -> list[ContentDict]:
+    if (
+        message["role"] == "function"
+        and len(messages) > 0
+        and messages[-1]["role"] == "function"
+    ):
+        messages[-1] = ContentDict(
+            role="function", parts=messages[-1]["parts"] + message["parts"]
+        )
+    else:
+        messages.append(message)
+    return messages
+
+
+NO_CONTENT = "(no content)"
 
 
 async def content_dict(
@@ -275,27 +299,38 @@ async def content_dict(
         return ContentDict(
             role="user",
             parts=(
-                [PartDict(text=message.content)]
+                [PartDict(text=message.content or NO_CONTENT)]
                 if isinstance(message.content, str)
                 else [await content_part(content) for content in message.content]
             ),
         )
     elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[Part] = []
+        # tool call parts
         if message.tool_calls is not None:
-            content_parts = [
-                Part(
-                    function_call=FunctionCall(
-                        name=tool_call.function,
-                        args=dict_to_struct(tool_call.arguments),
+            content_parts.extend(
+                [
+                    Part(
+                        function_call=FunctionCall(
+                            name=tool_call.function,
+                            args=dict_to_struct(tool_call.arguments),
+                        )
                     )
-                )
-                for tool_call in message.tool_calls
-            ]
-            if message.content:
-                content_parts.append(Part(text=message.content))
-            return ContentDict(role="model", parts=content_parts)
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        # content parts
+        if isinstance(message.content, str):
+            content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            return ContentDict(role="model", parts=[Part(text=message.content)])
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        # return parts
+        return ContentDict(role="model", parts=content_parts)
+
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
             name=message.tool_call_id,
@@ -321,9 +356,9 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
 
 async def content_part(content: Content | str) -> PartDict:
     if isinstance(content, str):
-        return PartDict(text=content)
+        return PartDict(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
-        return PartDict(text=content.text)
+        return PartDict(text=content.text or NO_CONTENT)
     else:
         return PartDict(inline_data=await chat_content_image_to_blob(content))
 

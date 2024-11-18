@@ -80,15 +80,15 @@ function C$1(n2) {
     return C$1(n2);
   }
 }
-function M(n2) {
-  (!n2.__d && (n2.__d = true) && i$2.push(n2) && !P$1.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(P$1);
+function S(n2) {
+  (!n2.__d && (n2.__d = true) && i$2.push(n2) && !M.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(M);
 }
-function P$1() {
+function M() {
   var n2, u2, t2, o2, r2, e2, c2, s2;
   for (i$2.sort(f$1); n2 = i$2.shift(); ) n2.__d && (u2 = i$2.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x$1(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$2.length > u2 && i$2.sort(f$1));
-  P$1.__r = 0;
+  M.__r = 0;
 }
-function S(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
+function P$1(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   var a2, p2, y2, d2, w2, _2 = t2 && t2.__k || v$1, g2 = l2.length;
   for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
@@ -157,33 +157,33 @@ function F(n2) {
   };
 }
 function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
-  var a2, h2, v2, p2, w2, _2, g2, m2, x, C2, M2, P2, $2, I2, H, L2, T2 = u2.type;
+  var a2, h2, v2, p2, w2, _2, g2, m2, x, C2, S2, M2, $2, I2, H, L2, T2 = u2.type;
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
   n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], M2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, M2) : (u2.__c = h2 = new k$1(m2, M2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
-      if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, M2) || u2.__v === t2.__v)) {
+      if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, S2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, S2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
           n3 && (n3.__ = u2);
-        }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
+        }), M2 = 0; M2 < h2._sb.length; M2++) h2.__h.push(h2._sb[M2]);
         h2._sb = [], h2.__h.length && f2.push(h2);
         break n;
       }
-      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, M2), x && null != h2.componentDidUpdate && h2.__h.push(function() {
+      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, S2), x && null != h2.componentDidUpdate && h2.__h.push(function() {
         h2.componentDidUpdate(p2, w2, _2);
       });
     }
-    if (h2.context = M2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x) {
+    if (h2.context = S2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x) {
       for (h2.state = h2.__s, h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), H = 0; H < h2._sb.length; H++) h2.__h.push(h2._sb[H]);
       h2._sb = [];
     } else do {
       h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
     } while (h2.__d && ++I2 < 25);
-    h2.state = h2.__s, null != h2.getChildContext && (i = d$1(d$1({}, i), h2.getChildContext())), x && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), S(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
+    h2.state = h2.__s, null != h2.getChildContext && (i = d$1(d$1({}, i), h2.getChildContext())), x && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), P$1(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
   } catch (n3) {
     if (u2.__v = null, c2 || null != r2) {
-      for (u2.__u |= c2 ? 160 : 32; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
+      for (u2.__u |= c2 ? 160 : 128; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
       r2[r2.indexOf(e2)] = null, u2.__e = e2;
     } else u2.__e = t2.__e, u2.__k = t2.__k;
     l$1.__e(n3, u2, t2);
@@ -227,7 +227,7 @@ function z$1(u2, t2, i, o2, r2, f2, e2, c2, s2) {
     }
     for (a2 in k2) _2 = k2[a2], "children" == a2 ? d2 = _2 : "dangerouslySetInnerHTML" == a2 ? v2 = _2 : "value" == a2 ? g2 = _2 : "checked" == a2 ? m2 = _2 : c2 && "function" != typeof _2 || b2[a2] === _2 || A$1(u2, a2, _2, b2[a2], r2);
     if (v2) c2 || p2 && (v2.__html === p2.__html || v2.__html === u2.innerHTML) || (u2.innerHTML = v2.__html), t2.__k = [];
-    else if (p2 && (u2.innerHTML = ""), S(u2, y$1(d2) ? d2 : [d2], t2, i, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i.__k && x$1(i, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
+    else if (p2 && (u2.innerHTML = ""), P$1(u2, y$1(d2) ? d2 : [d2], t2, i, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i.__k && x$1(i, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
     c2 || (a2 = "value", "progress" === C2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === C2 && !g2 || "option" === C2 && g2 !== b2[a2]) && A$1(u2, a2, g2, b2[a2], r2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && A$1(u2, a2, m2, b2[a2], r2));
   }
   return u2;
@@ -271,12 +271,12 @@ n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
   throw n2;
 } }, u$1 = 0, k$1.prototype.setState = function(n2, l2) {
   var u2;
-  u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = d$1({}, this.state), "function" == typeof n2 && (n2 = n2(d$1({}, u2), this.props)), n2 && d$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M(this));
+  u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = d$1({}, this.state), "function" == typeof n2 && (n2 = n2(d$1({}, u2), this.props)), n2 && d$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), S(this));
 }, k$1.prototype.forceUpdate = function(n2) {
-  this.__v && (this.__e = true, n2 && this.__h.push(n2), M(this));
+  this.__v && (this.__e = true, n2 && this.__h.push(n2), S(this));
 }, k$1.prototype.render = b, i$2 = [], r$2 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, f$1 = function(n2, l2) {
   return n2.__v.__b - l2.__v.__b;
-}, P$1.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
+}, M.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
 var n$1 = function(t2, s2, r2, e2) {
   var u2;
   s2[0] = 0;
@@ -16251,7 +16251,7 @@ const LargeModal = (props) => {
     onHide,
     showProgress,
     children,
-    initialScrollPosition,
+    initialScrollPositionRef,
     setInitialScrollPosition
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
@@ -16259,12 +16259,12 @@ const LargeModal = (props) => {
   y(() => {
     if (scrollRef.current) {
       setTimeout(() => {
-        if (scrollRef.current.scrollTop !== initialScrollPosition) {
-          scrollRef.current.scrollTop = initialScrollPosition;
+        if (scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
+          scrollRef.current.scrollTop = initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current;
         }
       }, 0);
     }
-  });
+  }, []);
   const onScroll = q(
     debounce((e2) => {
       setInitialScrollPosition(e2.srcElement.scrollTop);
@@ -20097,7 +20097,7 @@ const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
   context
 }) => {
@@ -20139,6 +20139,27 @@ const SampleDialog = ({
     },
     [prevSample, nextSample]
   );
+  const children = T(() => {
+    return sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+          context=${context}
+        />`;
+  }, [
+    id,
+    sample,
+    sampleDescriptor,
+    selectedTab,
+    setSelectedTab,
+    context,
+    sampleError
+  ]);
+  const onHide = q(() => {
+    setShowingSampleDialog(false);
+  }, [setShowingSampleDialog]);
   return m$1`
     <${LargeModal} 
       id=${id} 
@@ -20146,21 +20167,12 @@ const SampleDialog = ({
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
       visible=${showingSampleDialog}
-      onHide=${() => {
-    setShowingSampleDialog(false);
-  }}
+      onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
-      initialScrollPosition=${sampleScrollPosition}
+      initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
     >
-        ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
-                id=${id}
-                sample=${sample}
-                sampleDescriptor=${sampleDescriptor}
-                selectedTab=${selectedTab}
-                setSelectedTab=${setSelectedTab}
-                context=${context}
-              />`}
+        ${children}
     </${LargeModal}>`;
 };
 const STYLE_INNER = "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -20579,7 +20591,7 @@ const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
   context
 }) => {
@@ -20708,7 +20720,7 @@ const SamplesTab = ({
       nextSample=${nextSample}
       prevSample=${previousSample}
       context=${context}
-      sampleScrollPosition=${sampleScrollPosition}
+      sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
@@ -24431,9 +24443,9 @@ const WorkSpace = ({
   selectedTab,
   setSelectedTab,
   renderContext,
-  sampleScrollPosition,
+  sampleScrollPositionRef,
   setSampleScrollPosition,
-  workspaceTabScrollPosition,
+  workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition
 }) => {
   const divRef = A(
@@ -24448,160 +24460,201 @@ const WorkSpace = ({
       divRef.current.scrollTop = 0;
     }
   }, [divRef, task_id]);
-  const resolvedTabs = {};
-  if (evalStatus !== "error" && sampleMode !== "none") {
-    resolvedTabs.samples = {
-      id: kEvalWorkspaceTabId,
-      scrollable: samples.length === 1,
-      label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
-      content: () => {
-        return m$1` <${SamplesTab}
-          task_id=${task_id}
-          selectedScore=${score}
-          sample=${selectedSample}
-          sampleStatus=${sampleStatus}
-          sampleError=${sampleError}
-          showingSampleDialog=${showingSampleDialog}
-          setShowingSampleDialog=${setShowingSampleDialog}
-          samples=${samples}
-          sampleMode=${sampleMode}
-          groupBy=${groupBy}
-          groupByOrder=${groupByOrder}
-          selectedSampleIndex=${selectedSampleIndex}
-          setSelectedSampleIndex=${setSelectedSampleIndex}
-          sampleDescriptor=${samplesDescriptor}
-          selectedSampleTab=${selectedSampleTab}
-          setSelectedSampleTab=${setSelectedSampleTab}
-          filter=${filter}
-          sort=${sort}
-          epoch=${epoch}
-          context=${renderContext}
-          sampleScrollPosition=${sampleScrollPosition}
-          setSampleScrollPosition=${setSampleScrollPosition}
-        />`;
-      },
-      tools: () => {
-        if (sampleMode === "single") {
-          return "";
-        }
-        const sampleTools = [
-          m$1`<${SampleTools}
-            epoch=${epoch}
-            epochs=${epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
+  const resolvedTabs = T(() => {
+    const resolvedTabs2 = {};
+    if (evalStatus !== "error" && sampleMode !== "none") {
+      resolvedTabs2.samples = {
+        id: kEvalWorkspaceTabId,
+        scrollable: samples.length === 1,
+        label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
+        content: () => {
+          return m$1` <${SamplesTab}
+            task_id=${task_id}
+            selectedScore=${score}
+            sample=${selectedSample}
+            sampleStatus=${sampleStatus}
+            sampleError=${sampleError}
+            showingSampleDialog=${showingSampleDialog}
+            setShowingSampleDialog=${setShowingSampleDialog}
+            samples=${samples}
+            sampleMode=${sampleMode}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
             sampleDescriptor=${samplesDescriptor}
+            selectedSampleTab=${selectedSampleTab}
+            setSelectedSampleTab=${setSelectedSampleTab}
+            filter=${filter}
+            sort=${sort}
+            epoch=${epoch}
+            context=${renderContext}
+            sampleScrollPositionRef=${sampleScrollPositionRef}
+            setSampleScrollPosition=${setSampleScrollPosition}
+          />`;
+        },
+        tools: () => {
+          if (sampleMode === "single") {
+            return "";
+          }
+          const sampleTools = [
+            m$1`<${SampleTools}
+              epoch=${epoch}
+              epochs=${epochs}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              filterChanged=${setFilter}
+              sort=${sort}
+              setSort=${setSort}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              sampleDescriptor=${samplesDescriptor}
+            />`
+          ];
+          if (evalStatus === "started") {
+            sampleTools.push(
+              m$1`<${ToolButton}
+                name=${m$1`Refresh`}
+                icon="${ApplicationIcons.refresh}"
+                onclick="${refreshLog}"
+              />`
+            );
+          }
+          return sampleTools;
+        }
+      };
+    }
+    resolvedTabs2.config = {
+      id: kInfoWorkspaceTabId,
+      label: "Info",
+      scrollable: true,
+      content: () => {
+        var _a2;
+        const infoCards = [];
+        infoCards.push([
+          m$1`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults == null ? void 0 : evalResults.scores}
+            context=${renderContext}
           />`
-        ];
-        if (evalStatus === "started") {
-          sampleTools.push(
-            m$1`<${ToolButton}
-              name=${m$1`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${refreshLog}"
+        ]);
+        if (evalStatus !== "started") {
+          infoCards.push(
+            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
+          );
+        }
+        if (evalStatus === "error" && evalError) {
+          infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
+        }
+        const warnings = [];
+        if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
+          warnings.push(
+            m$1`<${WarningBand}
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }
-        return sampleTools;
+        return m$1` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
+        </div>`;
       }
     };
-  }
-  resolvedTabs.config = {
-    id: kInfoWorkspaceTabId,
-    label: "Info",
-    scrollable: true,
-    content: () => {
-      var _a2;
-      const infoCards = [];
-      infoCards.push([
-        m$1`<${PlanCard}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          scores=${evalResults == null ? void 0 : evalResults.scores}
-          context=${renderContext}
-        />`
-      ]);
-      if (evalStatus !== "started") {
-        infoCards.push(
-          m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-        );
-      }
-      if (evalStatus === "error" && evalError) {
-        infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
-      }
-      const warnings = [];
-      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
-        warnings.push(
-          m$1`<${WarningBand}
-            message="Unable to display samples (this evaluation log may be too large)."
+    resolvedTabs2.json = {
+      id: kJsonWorkspaceTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats
+        };
+        const json = JSON.stringify(evalHeader, null, 2);
+        return m$1`<${JsonTab}
+          logFileName=${logFileName}
+          json=${json}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonWorkspaceTabId}
+        />`;
+      },
+      tools: () => {
+        return [
+          m$1`<${ToolButton}
+            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
           />`
-        );
+        ];
       }
-      return m$1` <div style=${{ width: "100%" }}>
-        ${warnings}
-        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
-        </div>
-      </div>`;
-    }
-  };
-  resolvedTabs.json = {
-    id: kJsonWorkspaceTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const evalHeader = {
-        version: evalVersion,
-        status: evalStatus,
-        eval: evalSpec,
-        plan: evalPlan,
-        error: evalError,
-        results: evalResults,
-        stats: evalStats
-      };
-      const json = JSON.stringify(evalHeader, null, 2);
-      return m$1`<${JsonTab}
-        logFileName=${logFileName}
-        json=${json}
-        capabilities=${capabilities}
-        selected=${selectedTab === kJsonWorkspaceTabId}
-      />`;
-    },
-    tools: () => {
-      return [
-        m$1`<${ToolButton}
-          name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-          icon="${ApplicationIcons.copy}"
-          classes="task-btn-json-copy clipboard-button"
-          data-clipboard-target="#task-json-contents"
-          onclick="${copyFeedback}"
-        />`
-      ];
-    }
-  };
-  const copyFeedback = (e2) => {
-    const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
-    const iconEl = e2.currentTarget.querySelector("i.bi");
-    if (textEl) {
-      const oldText = textEl.innerText;
-      const oldIconClz = iconEl.className;
-      textEl.innerText = "Copied!";
-      iconEl.className = `${ApplicationIcons.confirm}`;
-      setTimeout(() => {
-        window.getSelection().removeAllRanges();
-      }, 50);
-      setTimeout(() => {
-        textEl.innerText = oldText;
-        iconEl.className = oldIconClz;
-      }, 1250);
-    }
-  };
+    };
+    const copyFeedback = (e2) => {
+      const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
+      const iconEl = e2.currentTarget.querySelector("i.bi");
+      if (textEl) {
+        const oldText = textEl.innerText;
+        const oldIconClz = iconEl.className;
+        textEl.innerText = "Copied!";
+        iconEl.className = `${ApplicationIcons.confirm}`;
+        setTimeout(() => {
+          window.getSelection().removeAllRanges();
+        }, 50);
+        setTimeout(() => {
+          textEl.innerText = oldText;
+          iconEl.className = oldIconClz;
+        }, 1250);
+      }
+    };
+    return resolvedTabs2;
+  }, [
+    evalStatus,
+    sampleMode,
+    samples,
+    task_id,
+    score,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
+    groupBy,
+    groupByOrder,
+    selectedSampleIndex,
+    setSelectedSampleIndex,
+    samplesDescriptor,
+    selectedSampleTab,
+    setSelectedSampleTab,
+    filter,
+    sort,
+    epoch,
+    renderContext,
+    sampleScrollPositionRef,
+    setSampleScrollPosition,
+    epochs,
+    setEpoch,
+    setFilter,
+    setSort,
+    setScore,
+    scores,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    evalError,
+    logFileName,
+    capabilities,
+    selectedTab
+  ]);
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
@@ -24615,7 +24668,7 @@ const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    workspaceTabScrollPosition=${workspaceTabScrollPosition}
+    workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
@@ -24632,7 +24685,7 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   offcanvas,
-  workspaceTabScrollPosition,
+  workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition
 }) => {
   if (evalSpec === void 0) {
@@ -24707,7 +24760,7 @@ const WorkspaceDisplay = ({
       }}
                 selected=${selectedTab === tab.id}
                 scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPosition[tab.id]}
+                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
                 setScrollPosition=${(position) => {
         setWorkspaceTabScrollPosition(tab.id, position);
       }}
@@ -25445,7 +25498,7 @@ function App({
   saveInitialState = void 0,
   pollForLogs = true
 }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const [logs, setLogs] = h(
     (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
   );
@@ -25511,11 +25564,14 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    }
-  };
+  const context = T(
+    () => ({
+      afterBody: (el) => {
+        afterBodyElements.push(el);
+      }
+    }),
+    []
+  );
   const saveState = q(() => {
     const state = {
       logs,
@@ -25663,13 +25719,16 @@ function App({
     setGroupBy(grouping);
     setGroupByOrder(order2);
   }, [selectedLog, filter, sort, epoch]);
-  const samplesDescriptor = createsSamplesDescriptor(
-    scores,
-    (_a2 = selectedLog.contents) == null ? void 0 : _a2.sampleSummaries,
-    ((_d = (_c = (_b2 = selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-    context,
-    score
-  );
+  const samplesDescriptor = T(() => {
+    var _a3, _b3, _c2, _d2;
+    return createsSamplesDescriptor(
+      scores,
+      (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
+      context,
+      score
+    );
+  }, [selectedLog, scores, score]);
   const refreshSampleTab = q(
     (sample) => {
       if (selectedSampleTab === void 0) {
@@ -26032,7 +26091,7 @@ function App({
     }
   }, [showFind, setShowFind]);
   const showToggle = logs.files.length > 1 || logs.log_dir;
-  const sampleMode = ((_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
+  const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -26055,15 +26114,15 @@ function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />` : m$1`<${WorkSpace}
-              task_id=${(_g = (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval) == null ? void 0 : _g.task_id}
+              task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
               logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-              evalStatus=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.status}
-              evalError=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.error}
-              evalVersion=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.version}
-              evalSpec=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval}
-              evalPlan=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.plan}
-              evalStats=${(_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.stats}
-              evalResults=${(_n = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _n.results}
+              evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
+              evalError=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error}
+              evalVersion=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version}
+              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
+              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
+              evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
+              evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
               sampleMode=${sampleMode}
@@ -26087,7 +26146,7 @@ function App({
               setSelectedSampleTab=${setSelectedSampleTab}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_q = (_p = (_o = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _o.eval) == null ? void 0 : _p.config) == null ? void 0 : _q.epochs}
+              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
@@ -26096,9 +26155,9 @@ function App({
               setScore=${setScore}
               scores=${scores}
               renderContext=${context}
-              sampleScrollPosition=${sampleScrollPosition.current}
+              sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPosition=${workspaceTabScrollPosition.current}
+              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
               setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`}
     </div>
