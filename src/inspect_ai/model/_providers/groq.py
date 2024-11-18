@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, Dict, Iterable, List, Literal, Optional, cast
+import httpx
 
 from groq import (
     AsyncGroq,
@@ -79,6 +80,7 @@ class GroqAPI(ModelAPI):
             ),
             timeout=config.timeout if config.timeout is not None else 60.0,
             **model_args,
+            http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None))
         )
 
     async def generate(
