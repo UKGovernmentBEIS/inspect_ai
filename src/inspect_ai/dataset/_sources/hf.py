@@ -75,14 +75,17 @@ def hf_dataset(
     data_to_sample = record_to_sample_fn(sample_fields)
 
     # load the dataset as a list of dicts
-    dataset = datasets.load_dataset(  # type: ignore
-        path=path,
-        name=name,
-        data_dir=data_dir,
-        split=split,
-        trust_remote_code=trust,
-        **kwargs,
-    )
+    from inspect_ai._display.core.active import display
+
+    with display().suspend_task_app():
+        dataset = datasets.load_dataset(  # type: ignore
+            path=path,
+            name=name,
+            data_dir=data_dir,
+            split=split,
+            trust_remote_code=trust,
+            **kwargs,
+        )
 
     # shuffle if requested
     if shuffle:
