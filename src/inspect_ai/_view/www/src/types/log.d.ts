@@ -38,6 +38,7 @@ export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
+export type TimeLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -138,6 +139,7 @@ export type Type4 =
   | "permission"
   | "file_not_found"
   | "is_a_directory"
+  | "output_limit"
   | "approval"
   | "unknown";
 export type Message1 = string;
@@ -168,6 +170,7 @@ export type Logprob2 = number;
 export type Bytes1 = number[] | null;
 export type Content4 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
+export type Metadata4 = {} | null;
 export type Error = string | null;
 export type Scores1 = {
   [k: string]: Score;
@@ -182,7 +185,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata4 = {} | null;
+export type Metadata5 = {} | null;
 export type Timestamp = string;
 export type Event = "sample_init";
 export type Input1 =
@@ -196,7 +199,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata6 = {} | null;
+export type Metadata7 = {} | null;
 export type Files1 = {
   [k: string]: string;
 } | null;
@@ -251,6 +254,7 @@ export type Id3 = string;
 export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
+export type Title = string | null;
 export type Format = "text" | "markdown";
 export type Content5 = string;
 export type Timestamp5 = string;
@@ -358,7 +362,7 @@ export type Value2 =
     };
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
-export type Metadata7 = {} | null;
+export type Metadata8 = {} | null;
 export type SampleId = string | number | null;
 export type Samples2 = SampleScore[];
 
@@ -414,6 +418,7 @@ export interface EvalConfig {
   fail_on_error: FailOnError;
   message_limit: MessageLimit;
   token_limit: TokenLimit;
+  time_limit: TimeLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
@@ -549,7 +554,7 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata5;
+  metadata: Metadata6;
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
@@ -605,6 +610,7 @@ export interface ModelOutput {
   model: Model1;
   choices: Choices1;
   usage: ModelUsage1 | null;
+  metadata: Metadata4;
   error: Error;
 }
 export interface ChatCompletionChoice {
@@ -648,9 +654,9 @@ export interface Score {
   value: Value1;
   answer: Answer;
   explanation: Explanation;
-  metadata: Metadata4;
+  metadata: Metadata5;
 }
-export interface Metadata5 {}
+export interface Metadata6 {}
 export interface Store {}
 /**
  * Beginning of processing a Sample.
@@ -666,7 +672,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id2;
-  metadata: Metadata6;
+  metadata: Metadata7;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
@@ -840,6 +846,7 @@ export interface Arguments1 {
  * Content to include in tool call view.
  */
 export interface ToolCallContent {
+  title: Title;
   format: Format;
   content: Content5;
 }
@@ -965,6 +972,6 @@ export interface SampleScore {
   value: Value2;
   answer: Answer1;
   explanation: Explanation2;
-  metadata: Metadata7;
+  metadata: Metadata8;
   sample_id: SampleId;
 }

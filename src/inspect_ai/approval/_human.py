@@ -40,6 +40,10 @@ def human_approver(
             message = message if not trace_enabled() else ""
 
             def add_view_content(view_content: ToolCallContent) -> None:
+                if view_content.title:
+                    renderables.append(
+                        Text.from_markup(f"[bold]{view_content.title}[/bold]\n")
+                    )
                 if view_content.format == "markdown":
                     renderables.append(Markdown(view_content.content))
                 else:

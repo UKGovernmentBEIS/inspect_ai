@@ -42,6 +42,9 @@ class ToolCallError:
 class ToolCallContent(BaseModel):
     """Content to include in tool call view."""
 
+    title: str | None = Field(default=None)
+    """Optional (plain text) title for tool call content."""
+
     format: Literal["text", "markdown"]
     """Format."""
 

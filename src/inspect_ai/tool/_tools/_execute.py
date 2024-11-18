@@ -10,8 +10,9 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
         code = tool_call.arguments.get(code_param, None)
         code = (code or tool_call.function).strip()
         call = ToolCallContent(
+            title=language,
             format="markdown",
-            content=f"{language}\n\n```{language}\n" + code + "\n```\n",
+            content=f"```{language}\n" + code + "\n```\n",
         )
         return ToolCallView(call=call)
 
