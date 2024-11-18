@@ -211,6 +211,34 @@ def test_complex_metrics() -> None:
     check_log(log)
 
 
+@scorer(
+    metrics=[
+        {"*": [mean()]},
+    ]
+)
+def wildcard_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"one": 1, "two": 2, "three": 3})
+
+    return score
+
+
+def test_wildcard() -> None:
+    def check_log(log):
+        assert len(log.results.scores) == 4
+        assert log.results.scores[1].name == "one"
+        assert log.results.scores[1].metrics["mean"].value == 1
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=wildcard_scorer(),
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
 def registry_assert(metric: Metric | Callable[..., Metric], name: str) -> None:
     info = registry_info(metric)
     assert info.name == name
