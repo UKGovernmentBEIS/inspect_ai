@@ -159,6 +159,7 @@ class SampleToolbar(Horizontal):
 
     def __init__(self) -> None:
         super().__init__()
+        self.sample: ActiveSample | None = None
 
     def compose(self) -> ComposeResult:
         with VerticalGroup(id="pending-status"):
@@ -175,8 +176,18 @@ class SampleToolbar(Horizontal):
             tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
         )
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self.sample:
+            if event.button.id == "cancel-score-output":
+                self.sample.interrupt("score")
+            elif event.button.id == "cancel-raise-error":
+                self.sample.interrupt("error")
+
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         from inspect_ai.log._transcript import ModelEvent
+
+        # track the sample
+        self.sample = sample
 
         pending_status = self.query_one("#pending-status")
         clock = self.query_one(Clock)

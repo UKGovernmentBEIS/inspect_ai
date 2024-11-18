@@ -424,6 +424,12 @@ async def task_run_sample(
         timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
     )
 
+    # helper to handle exceptions (will throw if we've exceeded the limit)
+    def handle_error(ex: BaseException) -> EvalError:
+        err = sample_error(ex)
+        transcript()._event(ErrorEvent(error=err))
+        return err
+
     # solver loop
     async with (
         semaphore_cm,
@@ -437,7 +443,7 @@ async def task_run_sample(
                 fails_on_error,
                 sample_transcript,
             )
-        ),
+        ) as active,
     ):
         error: EvalError | None = None
         try:
@@ -465,16 +471,27 @@ async def task_run_sample(
             # capture most recent state for scoring
             state = sample_state() or state
 
-        except asyncio.CancelledError:
-            # allow cancelled error to propagate
-            raise
+        except asyncio.CancelledError as ex:
+            if active.interrupt_action:
+                # notify the user
+                transcript().info(
+                    f"Sample completed: interrupted by operator (action={active.interrupt_action}))"
+                )
+
+                # handle the action
+                match active.interrupt_action:
+                    case "score":
+                        # continue to scoring (capture the most recent state)
+                        state = sample_state() or state
+                    case "error":
+                        # default error handling
+                        error = handle_error(ex)
+
+            else:
+                raise
 
         except BaseException as ex:
-            # handle error (this will throw if we've exceeded the limit)
-            error = sample_error(ex)
-
-            # fire error event
-            transcript()._event(ErrorEvent(error=error))
+            error = handle_error(ex)
 
         # set timeout for scoring. if the original timeout was never hit
         # then just create a new timeout_cm targeting the original
@@ -519,7 +536,12 @@ async def task_run_sample(
                                 results[scorer_name] = sample_score
 
         except asyncio.CancelledError:
-            # allow cancelled error to propagate
+            if active.interrupt_action:
+                # note interrupt
+                transcript().info(
+                    f"Unable to score sample due to operator interruption: (action={active.interrupt_action})"
+                )
+
             raise
 
         except BaseException as ex:
@@ -530,10 +552,7 @@ async def task_run_sample(
                 )
 
             # handle error (this will throw if we've exceeded the limit)
-            error = sample_error(ex)
-
-            # fire error event
-            transcript()._event(ErrorEvent(error=error))
+            error = handle_error(ex)
 
         progress()
 
