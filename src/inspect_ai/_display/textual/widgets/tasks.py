@@ -1,4 +1,5 @@
 import contextlib
+from datetime import datetime
 from typing import Iterator, cast
 
 from rich.console import RenderableType
@@ -130,6 +131,9 @@ class TaskProgressView(Widget):
         )
         yield self.progress_bar
         yield Clock()
+
+    def on_mount(self) -> None:
+        self.query_one(Clock).start(datetime.now().timestamp())
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
