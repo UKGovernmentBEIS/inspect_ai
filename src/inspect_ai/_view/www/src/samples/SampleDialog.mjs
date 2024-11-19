@@ -1,11 +1,12 @@
 import { html } from "htm/preact";
-import { useCallback, useMemo } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
 
 import { SampleDisplay } from "./SampleDisplay.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { sampleLimitMessage } from "./SampleLimit.mjs";
 
 /**
  * Inline Sample Display
@@ -45,6 +46,11 @@ export const SampleDialog = ({
   setSampleScrollPosition,
   context,
 }) => {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [sample]);
+
   const tools = useMemo(() => {
     const nextTool = {
       label: "Next Sample",
@@ -124,6 +130,9 @@ export const SampleDialog = ({
       showProgress=${sampleStatus === "loading"}
       initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
+      warning=${sampleLimitMessage(sample?.limit?.type)}
+      warningHidden=${hidden}
+      setWarningHidden=${setHidden}
     >
         ${children}
     </${LargeModal}>`;

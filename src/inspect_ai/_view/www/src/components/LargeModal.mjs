@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "preact/hooks";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
 import { debounce } from "../utils/sync.mjs";
+import { WarningBand } from "./WarningBand.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -19,6 +20,9 @@ export const LargeModal = (props) => {
     children,
     initialScrollPositionRef,
     setInitialScrollPosition,
+    warning,
+    warningHidden,
+    setWarningHidden,
   } = props;
 
   // The footer
@@ -148,6 +152,14 @@ export const LargeModal = (props) => {
             backgroundColor: "var(--bs-body-bg)",
           }}
         />
+
+        ${warning
+          ? html`<${WarningBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+            />`
+          : ""}
         <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
         </div>

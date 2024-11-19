@@ -7970,7 +7970,8 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    ...containerStyle
+    ...containerStyle,
+    background: "#ffffff00"
   };
   const progressBarStyle = {
     width: "5%",
@@ -16246,6 +16247,43 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
+const WarningBand = ({ message, hidden, setHidden }) => {
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color: "var(--bs-warning-text-emphasis)",
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-warning-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const LargeModal = (props) => {
   const {
     id,
@@ -16259,7 +16297,10 @@ const LargeModal = (props) => {
     showProgress,
     children,
     initialScrollPositionRef,
-    setInitialScrollPosition
+    setInitialScrollPosition,
+    warning,
+    warningHidden,
+    setWarningHidden
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const scrollRef = A();
@@ -16369,6 +16410,12 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
+
+        ${warning ? m$1`<${WarningBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+            />` : ""}
         <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
         </div>
@@ -19509,6 +19556,7 @@ const RenderedEventNode = ({ id, node, style }) => {
         style=${style}
       />`;
     case "sample_limit":
+      console.log("sample_limit");
       return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
@@ -19764,6 +19812,22 @@ const kEpochDescVal = "epoch-desc";
 const kScoreAscVal = "score-asc";
 const kScoreDescVal = "score-desc";
 const kDefaultSort = kSampleAscVal;
+const sampleLimitMessage = (type) => {
+  switch (type) {
+    case "operator":
+      return "Sample terminated due to operator limit.";
+    case "message":
+      return "Sample terminated due to message limit.";
+    case "time":
+      return "Sample terminated due to time limit.";
+    case "token":
+      return "Sample terminated due to token limit.";
+    case "context":
+      return "Sample terminated due to context limit.";
+    default:
+      return void 0;
+  }
+};
 const InlineSampleDisplay = ({
   id,
   sample,
@@ -19774,16 +19838,24 @@ const InlineSampleDisplay = ({
   setSelectedTab,
   context
 }) => {
-  return m$1`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
-  >
+  var _a2;
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [sample]);
+  return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
       containerStyle=${{
     background: "var(--bs-body-bg)"
   }}
     />
-    <div style=${{ height: "1em" }} />
+    ${(sample == null ? void 0 : sample.limit) ? m$1`<${WarningBand}
+          message=${sampleLimitMessage((_a2 = sample == null ? void 0 : sample.limit) == null ? void 0 : _a2.type)}
+          hidden=${hidden}
+          setHidden=${setHidden}
+        />` : ""}
+    <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError ? m$1`<${ErrorPanel}
           title="Unable to load sample"
           error=${sampleError}
@@ -20150,6 +20222,11 @@ const SampleDialog = ({
   setSampleScrollPosition,
   context
 }) => {
+  var _a2;
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [sample]);
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
@@ -20220,6 +20297,9 @@ const SampleDialog = ({
       showProgress=${sampleStatus === "loading"}
       initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
+      warning=${sampleLimitMessage((_a2 = sample == null ? void 0 : sample.limit) == null ? void 0 : _a2.type)}
+      warningHidden=${hidden}
+      setWarningHidden=${setHidden}
     >
         ${children}
     </${LargeModal}>`;
@@ -20294,44 +20374,6 @@ class VirtualList extends k$1 {
     return rows;
   }
 }
-const WarningBand = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    alignItems: "center",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    color: "var(--bs-warning-text-emphasis)",
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    color: "var(--bs-warning-text-emphasis)",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
-};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -20350,6 +20392,10 @@ const SampleList = (props) => {
   if (items.length === 0) {
     return m$1`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [items]);
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
   };
@@ -20495,7 +20541,11 @@ const SampleList = (props) => {
   const percentError = errorCount / sampleCount * 100;
   const percentLimit = limitCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
+  const warningRow = warningMessage ? m$1`<${WarningBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+      />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -20672,7 +20722,6 @@ const SamplesTab = ({
   y(() => {
     if (showingSampleDialog) {
       setTimeout(() => {
-        sampleDialogRef.current.base.focus();
       }, 0);
     } else {
       setTimeout(() => {
@@ -24512,6 +24561,10 @@ const WorkSpace = ({
   if (!evalSpec) {
     return "";
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [logFileName]);
   y(() => {
     if (divRef.current) {
       divRef.current.scrollTop = 0;
@@ -24610,6 +24663,8 @@ const WorkSpace = ({
           warnings.push(
             m$1`<${WarningBand}
               message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
             />`
           );
         }

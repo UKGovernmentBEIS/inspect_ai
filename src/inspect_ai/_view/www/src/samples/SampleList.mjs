@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { useEffect, useMemo } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
@@ -35,6 +35,11 @@ export const SampleList = (props) => {
   if (items.length === 0) {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [items]);
 
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
@@ -211,7 +216,11 @@ export const SampleList = (props) => {
         : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningBand} message=${warningMessage} />`
+    ? html`<${WarningBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+      />`
     : "";
 
   return html` <div

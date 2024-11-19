@@ -1,4 +1,5 @@
 import { html } from "htm/preact";
+import { useEffect, useState } from "preact/hooks";
 
 import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -35,6 +36,8 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants.mjs";
+import { WarningBand } from "../components/WarningBand.mjs";
+import { sampleLimitMessage } from "./SampleLimit.mjs";
 
 /**
  * Inline Sample Display
@@ -60,16 +63,26 @@ export const InlineSampleDisplay = ({
   setSelectedTab,
   context,
 }) => {
-  return html`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
-  >
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [sample]);
+
+  return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
       containerStyle=${{
         background: "var(--bs-body-bg)",
       }}
     />
-    <div style=${{ height: "1em" }} />
+    ${sample?.limit
+      ? html`<${WarningBand}
+          message=${sampleLimitMessage(sample?.limit?.type)}
+          hidden=${hidden}
+          setHidden=${setHidden}
+        />`
+      : ""}
+    <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError
       ? html`<${ErrorPanel}
           title="Unable to load sample"

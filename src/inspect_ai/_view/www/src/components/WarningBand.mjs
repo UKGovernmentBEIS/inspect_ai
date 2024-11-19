@@ -1,13 +1,10 @@
 import { html } from "htm/preact";
-import { useState } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
-export const WarningBand = ({ message }) => {
-  const [hidden, setHidden] = useState(false);
-
+export const WarningBand = ({ message, hidden, setHidden }) => {
   return html`
     <div
       style=${{
