@@ -17,7 +17,7 @@ from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs
+from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
@@ -31,7 +31,7 @@ from .loader import (
     solver_from_spec,
 )
 from .task.log import TaskLogger
-from .task.run import TaskRunOptions, create_sample_semaphore, task_run
+from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
 from .task.util import task_run_dir
@@ -57,14 +57,6 @@ async def eval_run(
     run_dir = task_run_dir(tasks[0].task)
     multiple_run_dirs = any([task_run_dir(task.task) != run_dir for task in tasks])
     has_sandbox = next((task.has_sandbox for task in tasks), None)
-
-    # if we have a sandbox then we need to enforce sample concurrency at
-    # this level of the eval (so we don't explode the # of sandboxes)
-    sample_semaphore: asyncio.Semaphore | None = (
-        create_sample_semaphore(eval_config, GenerateConfig(**kwargs))
-        if has_sandbox
-        else None
-    )
 
     # get cwd before switching to task dir
     eval_wd = os.getcwd()
@@ -184,7 +176,6 @@ async def eval_run(
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
-                        sample_semaphore=sample_semaphore,
                         kwargs=kwargs,
                     )
                 )
