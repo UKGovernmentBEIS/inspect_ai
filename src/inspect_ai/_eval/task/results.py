@@ -1,3 +1,4 @@
+import fnmatch
 import re
 from collections import defaultdict
 from copy import deepcopy
@@ -230,7 +231,11 @@ def scorers_from_metric_dict(
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
-    for metric_key, metric_list in metrics.items():
+
+    # Expand any metric keys
+    resolved_metrics = resolve_glob_metric_keys(metrics, scores[0])
+
+    for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
         metric_scores: list[Score] = []
         for score in scores:
@@ -246,7 +251,7 @@ def scorers_from_metric_dict(
                     )
             else:
                 raise TypeError(
-                    "dictionary of metrics specific for a non-dictionary score"
+                    "A dictionary of metrics specified for a non-dictionary score"
                 )
 
         result_metrics: dict[str, EvalMetric] = {}
@@ -272,6 +277,43 @@ def scorers_from_metric_dict(
             )
         )
     return results
+
+
+def resolve_glob_metric_keys(
+    metrics: dict[str, list[Metric]], base_score: Score
+) -> dict[str, list[Metric]]:
+    if not isinstance(base_score.value, dict):
+        # this value isn't a dictionary (unexpected)
+        raise TypeError(
+            "A dictionary of metrics was specified for a non-dictionary score. Dictionaries of metrics are only valid when the score value is a dictionary."
+        )
+
+    # Expand any metric keys
+    resolved_metrics: dict[str, list[Metric]] = {}
+
+    # the value is a dictionary, so go through the dictionary
+    # and expand any metric globs into their literal values
+    # and apply matching metrics to those keys
+    for metric_key, metric_list in metrics.items():
+        # compile the key as a glob into a regex and use that to match keys
+        key_glob_re = re.compile(fnmatch.translate(metric_key))
+
+        for score_key in base_score.value.keys():
+            if key_glob_re.match(score_key):
+                # The key matched, so either create a new entry for it and add metrics
+                # or add metrics to the existing key
+                resolved_metrics.setdefault(score_key, [])
+                existing_metric_names = {
+                    registry_log_name(m) for m in resolved_metrics[score_key]
+                }
+
+                # Add metrics that aren't already in the list
+                for metric in metric_list:
+                    metric_name = registry_log_name(metric)
+                    if metric_name not in existing_metric_names:
+                        resolved_metrics[score_key].append(metric)
+                        existing_metric_names.add(metric_name)
+    return resolved_metrics
 
 
 def reduce_scores(

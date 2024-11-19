@@ -14612,7 +14612,7 @@ MarkdownIt.prototype.renderInline = function(src, env) {
   return this.renderer.render(this.parseInline(src, env), this.options, env);
 };
 const MarkdownDiv = (props) => {
-  const { markdown, style } = props;
+  const { markdown, style, contentRef } = props;
   const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
   const protectedText = protectMarkdown(preRendered);
@@ -14631,6 +14631,7 @@ const MarkdownDiv = (props) => {
   const withCode = unescapeCodeHtmlEntities(unescaped);
   const markup = { __html: withCode };
   return m$1`<div
+    ref=${contentRef}
     dangerouslySetInnerHTML=${markup}
     style=${style}
     class="${props.class ? `${props.class} ` : ""}markdown-content"
@@ -15131,6 +15132,7 @@ const ToolCallView = ({
   functionCall,
   input,
   inputType,
+  view,
   output,
   mode
 }) => {
@@ -15144,10 +15146,17 @@ const ToolCallView = ({
   const codeIndent = mode === "compact" ? "" : "";
   return m$1`<div>
     ${icon}
-    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    ${!view || view.title ? m$1`<code style=${{ fontSize: FontSize.small }}
+          >${(view == null ? void 0 : view.title) || functionCall}</code
+        >` : ""}
     <div>
       <div style=${{ marginLeft: `${codeIndent}` }}>
-        <${ToolInput} type=${inputType} contents=${input} />
+        <${ToolInput}
+          type=${inputType}
+          contents=${input}
+          view=${view}
+          style=${{ marginBottom: "1em" }}
+        />
         ${output ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
@@ -15156,39 +15165,71 @@ const ToolCallView = ({
     </div>
   </div>`;
 };
-const ToolInput = ({ type, contents }) => {
+const ToolInput = ({ type, contents, view, style }) => {
   if (!contents) {
     return "";
   }
-  const toolInputRef = A(
-    /** @type {HTMLElement|null} */
-    null
-  );
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
+  if (view) {
+    const toolInputRef = A(
+      /** @type {HTMLElement|null} */
+      null
+    );
+    y(() => {
+      if (toolInputRef.current) {
+        for (const child of toolInputRef.current.base.children) {
+          if (child.tagName === "PRE") {
+            const childChild = child.firstElementChild;
+            if (childChild && childChild.tagName === "CODE") {
+              const hasLanguageClass = Array.from(childChild.classList).some(
+                (className) => className.startsWith("language-")
+              );
+              if (hasLanguageClass) {
+                child.classList.add("tool-output");
+                Prism$1.highlightElement(childChild);
+              }
+            }
+          }
+        }
+      }
+    }, [toolInputRef.current]);
+    return m$1`<${MarkdownDiv}
+      markdown=${view.content}
+      ref=${toolInputRef}
+      style=${style}
+    />`;
+  } else {
+    const toolInputRef = A(
+      /** @type {HTMLElement|null} */
+      null
+    );
+    y(() => {
+      const tokens = Prism$1.languages[type];
+      if (toolInputRef.current && tokens) {
+        let resolvedContents = contents;
+        if (typeof contents === "object" || Array.isArray(contents)) {
+          resolvedContents = JSON.stringify(contents);
+        }
+        const html = Prism$1.highlight(resolvedContents, tokens, type);
+        toolInputRef.current.innerHTML = html;
+      }
+    }, [toolInputRef.current, contents, type, view]);
+    return m$1`<pre
+      class="tool-output"
+      style=${{
+      padding: "0.5em",
+      marginTop: "0.25em",
+      marginBottom: "1rem",
+      ...style
+    }}
+    >
+        <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
+      overflowWrap: "anywhere",
+      whiteSpace: "pre-wrap"
+    }}>
+          ${contents}
+          </code>
+      </pre>`;
   }
-  y(() => {
-    const tokens = Prism$1.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism$1.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, contents, type]);
-  return m$1`<pre
-    class="tool-output"
-    style=${{
-    padding: "0.5em",
-    marginTop: "0.25em",
-    marginBottom: "1rem"
-  }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap"
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
 };
 const ToolOutput = ({ output, style }) => {
   if (!output) {
@@ -15350,6 +15391,7 @@ const messageRenderers = {
 const ChatView = ({
   id,
   messages,
+  toolCallStyle,
   style,
   indented,
   numbered = true
@@ -15412,6 +15454,7 @@ const ChatView = ({
               message=${msg.message}
               toolMessages=${msg.toolMessages}
               indented=${indented}
+              toolCallStyle=${toolCallStyle}
             />
           </div>`;
     } else {
@@ -15420,6 +15463,7 @@ const ChatView = ({
             message=${msg.message}
             toolMessages=${msg.toolMessages}
             indented=${indented}
+            toolCallStyle=${toolCallStyle}
           />`;
     }
   })}
@@ -15437,7 +15481,13 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessages, indented }) => {
+const ChatMessage = ({
+  id,
+  message,
+  toolMessages,
+  indented,
+  toolCallStyle
+}) => {
   const collapse = message.role === "system";
   return m$1`
     <div
@@ -15469,13 +15519,14 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
           key=${`${id}-contents`}
           message=${message}
           toolMessages=${toolMessages}
+          toolCallStyle=${toolCallStyle}
         />
       </${ExpandablePanel}>
       </div>
     </div>
   `;
 };
-const MessageContents = ({ message, toolMessages }) => {
+const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
   if (message.role === "assistant" && message.tool_calls && message.tool_calls.length) {
     const result = [];
     if (message.content) {
@@ -15499,12 +15550,16 @@ const MessageContents = ({ message, toolMessages }) => {
         toolMessage = toolMessages[idx];
       }
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-      return m$1`<${ToolCallView}
-        functionCall=${functionCall}
-        input=${input}
-        inputType=${inputType}
-        output=${resolvedToolOutput}
-      />`;
+      if (toolCallStyle === "compact") {
+        return m$1`<code>tool: ${functionCall}</code>`;
+      } else {
+        return m$1`<${ToolCallView}
+          functionCall=${functionCall}
+          input=${input}
+          inputType=${inputType}
+          output=${resolvedToolOutput}
+        />`;
+      }
     });
     if (toolCalls) {
       result.push(...toolCalls);
@@ -19049,6 +19104,7 @@ const ModelEventView = ({ id, event, style }) => {
       messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
       numbered=${false}
+      toolCallStyle="compact"
       />
     </div>
 
@@ -19345,7 +19401,6 @@ const decisionIcon = (decision) => {
   }
 };
 const ToolEventView = ({ id, event, style, depth }) => {
-  var _a2;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
@@ -19354,40 +19409,29 @@ const ToolEventView = ({ id, event, style, depth }) => {
     return e2.event === "approval";
   });
   const title = `Tool: ${event.function}`;
-  const output = event.result || ((_a2 = event.error) == null ? void 0 : _a2.message);
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
-        ${!output ? "(No output)" : m$1`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
-            <${ToolOutput}
-              output=${output}
-            />
-          </${ExpandablePanel}>`}
-        ${approvalEvent ? m$1`<${ApprovalEventView}
-                id="${id}-approval"
-                event=${approvalEvent}
-                style=${{ border: "none", padding: 0, marginBottom: 0 }}
-              />` : ""}
-    </div>
-    
-  
-  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
+  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
       output=${event.result}
       mode="compact"
+      view=${event.view}
       />
-        ${event.events.length > 0 ? m$1`<${TranscriptView}
-                id="${id}-subtask"
-                name="Transcript"
-                events=${event.events}
-                depth=${depth + 1}
-              />` : ""}
-
+      ${approvalEvent ? m$1`<${ApprovalEventView}
+              id="${id}-approval"
+              event=${approvalEvent}
+              style=${{ border: "none", padding: 0, marginBottom: 0 }}
+            />` : ""}
   </div>
+    ${event.events.length > 0 ? m$1`<${TranscriptView}
+            id="${id}-subtask"
+            name="Transcript"
+            events=${event.events}
+            depth=${depth + 1}
+          />` : ""}
   </${EventPanel}>`;
 };
 const ErrorEventView = ({ id, event, style }) => {
