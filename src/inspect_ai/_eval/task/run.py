@@ -470,9 +470,7 @@ async def task_run_sample(
         except asyncio.CancelledError as ex:
             if active.interrupt_action:
                 # notify the user
-                transcript().info(
-                    f"Sample completed: interrupted by operator (action={active.interrupt_action}))"
-                )
+                transcript().info("Sample completed: interrupted by operator")
 
                 # handle the action
                 match active.interrupt_action:
