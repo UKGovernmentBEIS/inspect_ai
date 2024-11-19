@@ -104,7 +104,6 @@ class TaskRunOptions:
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
-    sample_semaphore: asyncio.Semaphore | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
 
 
@@ -120,7 +119,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
-    sample_semaphore = options.sample_semaphore
     kwargs = options.kwargs
 
     # resolve default generate_config for task
@@ -239,10 +237,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     set_task_generate(generate)
 
                     # semaphore to limit concurrency
-                    sample_semaphore = (
-                        sample_semaphore
-                        if sample_semaphore
-                        else create_sample_semaphore(config, generate_config, model.api)
+                    sample_semaphore = create_sample_semaphore(
+                        config, generate_config, model.api
                     )
 
                     # create sample coroutines
