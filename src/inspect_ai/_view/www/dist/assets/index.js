@@ -15146,9 +15146,9 @@ const ToolCallView = ({
   const codeIndent = mode === "compact" ? "" : "";
   return m$1`<div>
     ${icon}
-    <code style=${{ fontSize: FontSize.small }}
-      >${(view == null ? void 0 : view.title) || functionCall}</code
-    >
+    ${!view || view.title ? m$1`<code style=${{ fontSize: FontSize.small }}
+          >${(view == null ? void 0 : view.title) || functionCall}</code
+        >` : ""}
     <div>
       <div style=${{ marginLeft: `${codeIndent}` }}>
         <${ToolInput}
@@ -15176,14 +15176,18 @@ const ToolInput = ({ type, contents, view, style }) => {
     );
     y(() => {
       if (toolInputRef.current) {
-        const firstChild = toolInputRef.current.base.firstElementChild;
-        if (firstChild && firstChild.tagName === "PRE") {
-          const childChild = firstChild.firstElementChild;
-          if (childChild.tagName === "CODE") {
-            firstChild.classList.add("tool-output");
-            Prism$1.highlightElement(
-              toolInputRef.current.base.firstElementChild.firstElementChild
-            );
+        for (const child of toolInputRef.current.base.children) {
+          if (child.tagName === "PRE") {
+            const childChild = child.firstElementChild;
+            if (childChild && childChild.tagName === "CODE") {
+              const hasLanguageClass = Array.from(childChild.classList).some(
+                (className) => className.startsWith("language-")
+              );
+              if (hasLanguageClass) {
+                child.classList.add("tool-output");
+                Prism$1.highlightElement(childChild);
+              }
+            }
           }
         }
       }
@@ -15547,7 +15551,7 @@ const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
       }
       const resolvedToolOutput = resolveToolMessage(toolMessage);
       if (toolCallStyle === "compact") {
-        return m$1`<code>[call ${functionCall}]</code>`;
+        return m$1`<code>tool: ${functionCall}</code>`;
       } else {
         return m$1`<${ToolCallView}
           functionCall=${functionCall}

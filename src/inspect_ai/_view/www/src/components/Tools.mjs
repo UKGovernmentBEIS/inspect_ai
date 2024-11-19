@@ -74,9 +74,11 @@ export const ToolCallView = ({
   const codeIndent = mode === "compact" ? "" : "";
   return html`<div>
     ${icon}
-    <code style=${{ fontSize: FontSize.small }}
-      >${view?.title || functionCall}</code
-    >
+    ${!view || view.title
+      ? html`<code style=${{ fontSize: FontSize.small }}
+          >${view?.title || functionCall}</code
+        >`
+      : ""}
     <div>
       <div style=${{ marginLeft: `${codeIndent}` }}>
         <${ToolInput}
@@ -116,14 +118,18 @@ export const ToolInput = ({ type, contents, view, style }) => {
     useEffect(() => {
       // Sniff around for code in the view that could be text highlighted
       if (toolInputRef.current) {
-        const firstChild = toolInputRef.current.base.firstElementChild;
-        if (firstChild && firstChild.tagName === "PRE") {
-          const childChild = firstChild.firstElementChild;
-          if (childChild && childChild.tagName === "CODE") {
-            firstChild.classList.add("tool-output");
-            Prism.highlightElement(
-              toolInputRef.current.base.firstElementChild.firstElementChild,
-            );
+        for (const child of toolInputRef.current.base.children) {
+          if (child.tagName === "PRE") {
+            const childChild = child.firstElementChild;
+            if (childChild && childChild.tagName === "CODE") {
+              const hasLanguageClass = Array.from(childChild.classList).some(
+                (className) => className.startsWith("language-"),
+              );
+              if (hasLanguageClass) {
+                child.classList.add("tool-output");
+                Prism.highlightElement(childChild);
+              }
+            }
           }
         }
       }
