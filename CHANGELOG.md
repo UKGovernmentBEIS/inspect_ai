@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+- Use [tool views](https://inspect.ai-safety-institute.org.uk/approval.html#tool-views) when rendering tool calls in Insepct View.
 
 ## v0.3.47 (18 November 2024) 
 
