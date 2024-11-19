@@ -192,11 +192,23 @@ export const SampleList = (props) => {
     }
   }, 0);
 
+  // Count limits
+  const limitCount = items?.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+
   const percentError = (errorCount / sampleCount) * 100;
+  const percentLimit = (limitCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
       ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
-      : undefined;
+      : limitCount
+        ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.`
+        : undefined;
 
   const warningRow = warningMessage
     ? html`<${WarningBand} message=${warningMessage} />`

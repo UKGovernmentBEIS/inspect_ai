@@ -186,11 +186,11 @@ export const ApplicationIcons = {
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   limits: {
-    "messages": "bi bi-chat-right-text",
-    "context": "bi bi-person-workspace",
-    "operator": "bi bi-person-workspace",
-    "tokens": "bi bi-list",
-    "time": "bi bi-stopwatch"
+    messages: "bi bi-chat-right-text",
+    context: "bi bi-person-workspace",
+    operator: "bi bi-person-workspace",
+    tokens: "bi bi-list",
+    time: "bi bi-stopwatch",
   },
   logging: {
     notset: "bi bi-card-text",

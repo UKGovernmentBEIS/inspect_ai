@@ -7800,11 +7800,11 @@ const ApplicationIcons = {
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   limits: {
-    "messages": "bi bi-chat-right-text",
-    "context": "bi bi-person-workspace",
-    "operator": "bi bi-person-workspace",
-    "tokens": "bi bi-list",
-    "time": "bi bi-stopwatch"
+    messages: "bi bi-chat-right-text",
+    context: "bi bi-person-workspace",
+    operator: "bi bi-person-workspace",
+    tokens: "bi bi-list",
+    time: "bi bi-stopwatch"
   },
   logging: {
     notset: "bi bi-card-text",
@@ -20485,8 +20485,16 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
+  const limitCount = items == null ? void 0 : items.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
   const percentError = errorCount / sampleCount * 100;
-  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
+  const percentLimit = limitCount / sampleCount * 100;
+  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.` : void 0;
   const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
