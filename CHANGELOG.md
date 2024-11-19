@@ -1,5 +1,7 @@
 # Changelog
 
+- Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
+
 ## v0.3.47 (18 November 2024) 
 
 - Basic agent: Ensure that the scorer is only run once when max_attempts = 1.
