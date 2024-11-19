@@ -65,7 +65,7 @@ class SampleLimitEvent(BaseEvent):
     event: Literal["sample_limit"] = Field(default="sample_limit")
     """Event type."""
 
-    type: Literal["message", "time", "token", "context"]
+    type: Literal["message", "time", "token", "context", "operator"]
     """Type of limit that halted processing"""
 
     limit: int | None = Field(default=None)

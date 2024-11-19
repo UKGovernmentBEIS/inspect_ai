@@ -23,19 +23,23 @@ export const SampleLimitEventView = ({ id, event, style }) => {
         return "Message Limit Exceeded";
       case "token":
         return "Token Limit Exceeded";
+      case "operator":
+        return "Operator Canceled";
     }
   };
 
   const resolve_icon = (type) => {
     switch (type) {
       case "context":
-        return ApplicationIcons.info;
+        return ApplicationIcons.limits.context;
       case "time":
-        return ApplicationIcons.info;
+        return ApplicationIcons.limits.time;
       case "message":
-        return ApplicationIcons.info;
+        return ApplicationIcons.limits.messages;
       case "token":
-        return ApplicationIcons.info;
+        return ApplicationIcons.limits.tokens;
+      case "operator":
+        return ApplicationIcons.limits.operator;
     }
   };
 

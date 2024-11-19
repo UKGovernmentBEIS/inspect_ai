@@ -7799,6 +7799,13 @@ const ApplicationIcons = {
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
+  limits: {
+    "messages": "bi bi-chat-right-text",
+    "context": "bi bi-person-workspace",
+    "operator": "bi bi-person-workspace",
+    "tokens": "bi bi-list",
+    "time": "bi bi-stopwatch"
+  },
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
@@ -19402,10 +19409,46 @@ const InputEventView = ({ id, event, style }) => {
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
   </${EventPanel}>`;
 };
+const SampleLimitEventView = ({ id, event, style }) => {
+  const resolve_title = (type) => {
+    switch (type) {
+      case "context":
+        return "Context Limit Exceeded";
+      case "time":
+        return "Time Limit Execeeded";
+      case "message":
+        return "Message Limit Exceeded";
+      case "token":
+        return "Token Limit Exceeded";
+      case "operator":
+        return "Operator Canceled";
+    }
+  };
+  const resolve_icon = (type) => {
+    switch (type) {
+      case "context":
+        return ApplicationIcons.limits.context;
+      case "time":
+        return ApplicationIcons.limits.time;
+      case "message":
+        return ApplicationIcons.limits.messages;
+      case "token":
+        return ApplicationIcons.limits.tokens;
+      case "operator":
+        return ApplicationIcons.limits.operator;
+    }
+  };
+  const title = resolve_title(event.type);
+  const icon = resolve_icon(event.type);
+  return m$1`
+  <${EventPanel} id=${id} title=${title} icon=${icon} style=${style}>
+    ${event.message}
+  </${EventPanel}>`;
+};
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").SampleLimitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -19461,6 +19504,12 @@ const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "sample_limit":
+      return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
         style=${style}

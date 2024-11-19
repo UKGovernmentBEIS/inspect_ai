@@ -302,10 +302,12 @@ export type Type8 = string | null;
 export type Name8 = string;
 export type Timestamp12 = string;
 export type Event12 = "subtask";
+export type Event13 = "sample_limit";
 export type Name9 = string;
 export type Type9 = string | null;
 export type Events2 = (
   | SampleInitEvent
+  | SampleLimitEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
@@ -321,6 +323,7 @@ export type Events2 = (
 )[];
 export type Events1 = (
   | SampleInitEvent
+  | SampleLimitEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
@@ -336,6 +339,7 @@ export type Events1 = (
 )[];
 export type Events = (
   | SampleInitEvent
+  | SampleLimitEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
@@ -666,6 +670,13 @@ export interface SampleInitEvent {
   event: Event;
   sample: Sample;
   state: JsonValue;
+}
+export interface SampleLimitEvent {
+  timestamp: Timestamp;
+  event: Event13;
+  type: "time" | "token" | "message" | "context" | "operator";
+  message: string | null;
+  limit: number | null;
 }
 export interface Sample {
   input: Input1;

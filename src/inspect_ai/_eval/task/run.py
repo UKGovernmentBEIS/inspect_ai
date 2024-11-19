@@ -41,7 +41,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
-from inspect_ai.log._log import EvalSampleReductions, eval_error
+from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -571,6 +571,17 @@ def log_sample(
         )
 
     # construct sample for logging
+    sample_events = transcript().events
+
+    # if a limit was hit, note that in the Eval Sample
+    limit = None
+    for e in sample_events:
+        if e.event == "sample_limit":
+            limit = EvalSampleLimit(
+                type=e.type, limit=e.limit if e.limit is not None else -1
+            )
+            break
+
     eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
@@ -585,9 +596,10 @@ def log_sample(
         output=state.output,
         scores=cast(dict[str, Score], scores),
         store=dict(state.store.items()),
-        events=transcript().events,
+        events=sample_events,
         model_usage=sample_model_usage(),
         error=error,
+        limit=limit,
     )
 
     logger.log_sample(condense_sample(eval_sample, log_images), flush=True)

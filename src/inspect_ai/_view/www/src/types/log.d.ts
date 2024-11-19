@@ -674,7 +674,7 @@ export interface SampleInitEvent {
 export interface SampleLimitEvent {
   timestamp: Timestamp;
   event: Event13;
-  type: "time" | "token" | "message" | "context";
+  type: "time" | "token" | "message" | "context" | "operator";
   message: string | null;
   limit: number | null;
 }
