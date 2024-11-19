@@ -332,18 +332,21 @@ async def startup_sandbox_environments(
 
     # initialiase sandboxenvs (track cleanups)
     cleanups: list[tuple[TaskCleanup, str | None, str]] = []
-    for sandboxenv in sandboxenvs:
-        # find type
-        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+    with display().suspend_task_app():
+        for sandboxenv in sandboxenvs:
+            # find type
+            sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
-        # run startup
-        task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv.run_dir), display().suspend_task_app():
-            await task_init("startup", sandboxenv.sandbox.config)
+            # run startup
+            task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+            with chdir(sandboxenv.run_dir):
+                await task_init("startup", sandboxenv.sandbox.config)
 
-        # append cleanup method
-        task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-        cleanups.append((task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir))
+            # append cleanup method
+            task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+            cleanups.append(
+                (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+            )
 
     # return shutdown method
     async def shutdown() -> None:

@@ -753,10 +753,13 @@ def eval_init(
 
     # resolve tasks (set active model to resolve uses of the
     # 'default' model in tools, solvers, and scorers)
-    resolved_tasks: list[ResolvedTask] = []
-    for m in models:
-        init_active_model(m, generate_config)
-        resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+    from inspect_ai._display.core.active import display
+
+    with display().suspend_task_app():
+        resolved_tasks: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, generate_config)
+            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
     # resolve approval
     if isinstance(approval, str | ApprovalPolicyConfig):
