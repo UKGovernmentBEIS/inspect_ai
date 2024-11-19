@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.47 (18 November 2024) 
 
 - Basic agent: Ensure that the scorer is only run once when max_attempts = 1.
 - Basic agent: Support custom function for incorrect_message reply to model.
-- Tool calling: Execute multiple tool calls serially (models seem to assume that multiple calls are executed this way rather than in parallel).
+- Tool calling: Execute multiple tool calls serially (some models assume that multiple calls are executed this way rather than in parallel).
 - Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.
-- AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).\
+- AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
 - Bedrock: Migrate to the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html), which supports many more features including tool calling and multimodal models.
 
 ## v0.3.46 (12 November 2024) 
