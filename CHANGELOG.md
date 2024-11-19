@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+
 ## v0.3.47 (18 November 2024) 
 
 - Basic agent: Ensure that the scorer is only run once when max_attempts = 1.
@@ -8,7 +12,6 @@
 - Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.
 - AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
 - Bedrock: Migrate to the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html), which supports many more features including tool calling and multimodal models.
-- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
 
 ## v0.3.46 (12 November 2024) 
 
