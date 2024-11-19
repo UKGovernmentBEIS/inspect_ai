@@ -66,6 +66,7 @@ export const ModelEventView = ({ id, event, style }) => {
       messages=${[...userMessages, ...(outputMessages || [])]}
       style=${{ paddingTop: "1em" }}
       numbered=${false}
+      toolCallStyle="compact"
       />
     </div>
 
