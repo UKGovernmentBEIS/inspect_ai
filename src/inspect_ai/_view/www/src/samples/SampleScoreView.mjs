@@ -13,6 +13,14 @@ const labelStyle = {
   ...TextStyle.secondary,
 };
 
+/**
+ * @param {Object} props - The component props.
+ * @param {import("../types/log").EvalSample} props.sample - The sample.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {Object} props.style - The style for the element.
+ * @param {string} props.scorer - The scorer.
+ * @returns {import("preact").JSX.Element} The SampleScoreView component.
+ */
 export const SampleScoreView = ({
   sample,
   sampleDescriptor,
@@ -20,7 +28,7 @@ export const SampleScoreView = ({
   scorer,
 }) => {
   if (!sampleDescriptor) {
-    return "";
+    return html``;
   }
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
@@ -147,40 +155,47 @@ export const SampleScoreView = ({
             </tbody>
           </table>`
         : ""}
-      ${sample?.score?.metadata &&
-      Object.keys(sample?.score?.metadata).length > 0
-        ? html` <table
-            class="table"
-            style=${{ width: "100%", marginBottom: "0" }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style=${{
-                    paddingBottom: "0",
-                    paddingLeft: "0",
-                    ...labelStyle,
-                    fontWeight: "400",
-                  }}
-                >
-                  Metadata
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style=${{ paddingLeft: "0" }}>
-                  <${MetaDataView}
-                    id="task-sample-score-metadata"
-                    classes="tab-pane"
-                    entries="${sample?.score?.metadata}"
-                    style=${{ marginTop: "1em" }}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>`
-        : ""}
+      ${
+        // @ts-ignore
+        sample?.score?.metadata &&
+        // @ts-ignore
+        Object.keys(sample?.score?.metadata).length > 0
+          ? html` <table
+              class="table"
+              style=${{ width: "100%", marginBottom: "0" }}
+            >
+              <thead>
+                <tr>
+                  <th
+                    style=${{
+                      paddingBottom: "0",
+                      paddingLeft: "0",
+                      ...labelStyle,
+                      fontWeight: "400",
+                    }}
+                  >
+                    Metadata
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style=${{ paddingLeft: "0" }}>
+                    <${MetaDataView}
+                      id="task-sample-score-metadata"
+                      classes="tab-pane"
+                      entries="${
+                        // @ts-ignore
+                        sample?.score?.metadata
+                      }"
+                      style=${{ marginTop: "1em" }}
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>`
+          : ""
+      }
     </div>
   `;
 };

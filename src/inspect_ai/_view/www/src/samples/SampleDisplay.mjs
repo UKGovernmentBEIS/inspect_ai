@@ -352,6 +352,14 @@ const metadataViewsForSample = (id, sample) => {
   return sampleMetadatas;
 };
 
+/**
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The unique identifier for the sample.
+ * @param {import("../types/log").EvalSample} props.sample - The sample.
+ * @param {Object} props.style - The style for the element
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @returns {import("preact").JSX.Element} The SampleSummary component.
+ */
 const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input =
     sampleDescriptor?.messageShape.normalized.input > 0
