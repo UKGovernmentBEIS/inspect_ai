@@ -75,7 +75,7 @@ export function App({
     initialState?.headersLoading || false,
   );
 
-  // Selected Log
+  /** @type {[import("./Types.mjs").CurrentLog, function(import("./Types.mjs").CurrentLog): void]} */
   const [selectedLog, setSelectedLog] = useState(
     initialState?.selectedLog || {
       contents: undefined,
@@ -94,6 +94,7 @@ export function App({
       ? initialState.selectedSampleIndex
       : -1,
   );
+  /** @type {[import("./types/log").EvalSample, function(import("./types/log").EvalSample): void]} */
   const [selectedSample, setSelectedSample] = useState(
     initialState?.selectedSample,
   );

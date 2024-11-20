@@ -42,6 +42,7 @@ import {
 /**
  * Provides descriptor functions for a scorer.
  * @typedef {Object} ScorerDescriptor
+ * @property {() => string} metadata - Function to retrieve the metadata of the score.
  * @property {() => string} explanation - Function to retrieve the explanation of the score.
  * @property {() => string} answer - Function to retrieve the answer associated with the score.
  * @property {function(): Array<{name: string, rendered: function(): any}>} scores - Function to retrieve scores with their render functions.

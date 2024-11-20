@@ -17,7 +17,22 @@ import { inputString } from "../utils/Format.mjs";
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 
-// Convert samples to a datastructure which contemplates grouping, etc...
+/**
+ * Convert samples to a datastructure which contemplates grouping, etc...
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {Object} props.listRef - The ref for the list.
+ * @param {import("./SamplesTab.mjs").ListItem[]} props.items - The samples.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {Object} props.style - The style for the element
+ * @param {number} props.selectedIndex - The index of the selected sample.
+ * @param {(index: number) => void} props.setSelectedIndex - The function to set the selected sample index.
+ * @param {import("../Types.mjs").ScoreLabel} props.selectedScore - The function to get the selected score.
+ * @param {() => void} props.nextSample - The function to move to the next sample.
+ * @param {() => void} props.prevSample - The function to move to the previous sample.
+ * @param {(index: number) => void} props.showSample - The function to show the sample.
+ * @returns {import("preact").JSX.Element} The SampleList component.
+ */
 export const SampleList = (props) => {
   const {
     listRef,
@@ -93,6 +108,7 @@ export const SampleList = (props) => {
     }
   }, [selectedIndex, rowMap, listRef]);
 
+  /** @param {import("./SamplesTab.mjs").ListItem} item */
   const renderRow = (item) => {
     if (item.type === "sample") {
       return html`
@@ -192,6 +208,7 @@ export const SampleList = (props) => {
   // Count any sample errors and display a bad alerting the user
   // to any errors
   const errorCount = items?.reduce((previous, item) => {
+    // @ts-expect-error
     if (item.data.error) {
       return previous + 1;
     } else {
@@ -201,6 +218,7 @@ export const SampleList = (props) => {
 
   // Count limits
   const limitCount = items?.reduce((previous, item) => {
+    // @ts-expect-error
     if (item.data.limit) {
       return previous + 1;
     } else {
@@ -260,6 +278,17 @@ const SeparatorRow = ({ id, title, height }) => {
   </div>`;
 };
 
+/**
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The unique identifier for the sample.
+ * @param {number} props.index - The index of the sample.
+ * @param {import("../api/Types.mjs").SampleSummary} props.sample - The sample.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {number} props.height - The height of the sample row.
+ * @param {boolean} props.selected - Whether the sample is selected.
+ * @param {(index: number) => void} props.showSample - The function to show the sample.
+ * @returns {import("preact").JSX.Element} The SampleRow component.
+ */
 const SampleRow = ({
   id,
   index,
