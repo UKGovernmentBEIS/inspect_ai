@@ -368,7 +368,9 @@ const SampleRow = ({
         ${sample
           ? html`
               <${MarkdownDiv}
-                markdown=${sampleDescriptor?.selectedScorer(sample).answer()}
+                markdown=${sampleDescriptor
+                  ?.selectedScorerDescriptor(sample)
+                  .answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
