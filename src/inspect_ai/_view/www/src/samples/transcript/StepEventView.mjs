@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { TranscriptComponent } from "./TranscriptView.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the StepEventView component.
@@ -23,6 +24,7 @@ export const StepEventView = ({ event, children, style }) => {
     id=${`step-${event.name}`}
     classes="transcript-step"
     title="${title}"
+    subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}

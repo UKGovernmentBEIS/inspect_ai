@@ -7662,6 +7662,18 @@ function formatNumber(num) {
     maximumFractionDigits: 5
   });
 }
+function formatDateTime(date) {
+  const options = {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  };
+  return new Intl.DateTimeFormat(void 0, options).format(date);
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -7869,6 +7881,9 @@ const TextStyle = {
   },
   secondary: {
     color: "var(--bs-secondary)"
+  },
+  tertiary: {
+    color: "var(--bs-tertiary-color)"
   }
 };
 const ErrorPanel = ({ id, classes, title, error: error2 }) => {
@@ -16704,6 +16719,7 @@ const EventPanel = ({
   id,
   classes,
   title,
+  subTitle,
   text: text2,
   icon,
   titleColor,
@@ -16733,10 +16749,14 @@ const EventPanel = ({
     gridColumns2.push("max-content");
   }
   gridColumns2.push("minmax(0, max-content)");
+  if (subTitle) {
+    gridColumns2.push("minmax(0, max-content)");
+  }
   gridColumns2.push("auto");
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
+          title=${subTitle}
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -17012,7 +17032,7 @@ const SampleInitEventView = ({ id, event, style }) => {
   `);
   }
   return m$1`
-  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
@@ -18625,7 +18645,7 @@ const StateEventView = ({ id, event, style }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -18770,6 +18790,7 @@ const StepEventView = ({ event, children, style }) => {
     id=${`step-${event.name}`}
     classes="transcript-step"
     title="${title}"
+    subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}
@@ -18898,7 +18919,7 @@ const SubtaskEventView = ({ id, event, style, depth }) => {
         `;
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style} collapse=${false}>
       ${body}
     </${EventPanel}>`;
 };
@@ -19150,7 +19171,7 @@ const ModelEventView = ({ id, event, style }) => {
     }
   }
   return m$1`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style}>
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
@@ -19361,14 +19382,14 @@ const InfoEventView = ({ id, event, style }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
+  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style}>
     ${panels}
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
   const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
   return m$1`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
+  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
@@ -19464,7 +19485,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
   });
   const title = `Tool: ${event.function}`;
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
   <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
@@ -19490,13 +19511,13 @@ const ToolEventView = ({ id, event, style, depth }) => {
 };
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
+  <${EventPanel} id=${id} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const InputEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style}>
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
   </${EventPanel}>`;
 };
