@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Iterator
 
+from rich.console import RenderableType
 from rich.text import Text
-from textual.app import RenderResult
 from textual.reactive import Reactive
 from textual.widget import Widget
 
@@ -77,7 +77,7 @@ class AppTitlebarTitle(Widget):
     sub_text = Reactive("")
     """The sub-title text."""
 
-    def render(self) -> RenderResult:
+    def render(self) -> RenderableType:
         """Render the title and sub-title.
 
         Returns:
