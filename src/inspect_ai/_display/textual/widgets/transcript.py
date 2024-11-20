@@ -184,9 +184,12 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         result = event.result
 
     if result:
-        content.append(
-            Panel(str(result).strip(), box=NOBORDER, highlight=True, padding=(0, 0))
-        )
+        content.append(str(result).strip())
+
+        # if we want to instead do rich highlighting this is how its done
+        # content.append(
+        #     Panel(str(result).strip(), box=NOBORDER, highlight=True, padding=(0, 0))
+        # )
 
     return display + [EventDisplay("tool call", Group(*content))]
 
