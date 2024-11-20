@@ -179,6 +179,9 @@ class SampleToolbar(Horizontal):
             tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
         )
 
+    def on_mount(self) -> None:
+        self.query_one("#pending-status").visible = False
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
             if event.button.id == "cancel-score-output":
@@ -207,7 +210,7 @@ class SampleToolbar(Horizontal):
                 else None
             )
             if last_event and last_event.pending:
-                pending_status.display = True
+                pending_status.visible = True
                 pending_caption = cast(Static, self.query_one("#pending-caption"))
                 pending_caption_text = (
                     "Generating..."
@@ -219,12 +222,12 @@ class SampleToolbar(Horizontal):
                 )
                 clock.start(last_event.timestamp.timestamp())
             else:
-                pending_status.display = False
+                pending_status.visible = False
                 clock.stop()
 
         else:
             self.display = False
-            pending_status.display = False
+            pending_status.visible = False
             clock.stop()
 
 
