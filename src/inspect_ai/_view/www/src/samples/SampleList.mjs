@@ -145,6 +145,7 @@ export const SampleList = (props) => {
   );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit } = gridColumns(sampleDescriptor);
 
   const headerRow = html`<div
     style=${{
@@ -162,6 +163,7 @@ export const SampleList = (props) => {
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
+    <div>${limit > 0 ? "Limit" : ""}</div>
     <div>Score</div>
   </div>`;
 
@@ -338,6 +340,16 @@ const SampleRow = ({
             `
           : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+          fontSize: FontSize.small,
+          ...ApplicationStyles.threeLineClamp,
+          ...cellStyle,
+        }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
@@ -355,13 +367,13 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit } = gridColumns(sampleDescriptor);
 
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em",
+    gridGap: "10px",
+    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr ${limit}fr minmax(2.8rem, auto)`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem",
   };
 };
 
@@ -378,5 +390,9 @@ const gridColumns = (sampleDescriptor) => {
     sampleDescriptor?.messageShape.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
-  return { input, target, answer };
+  const limit =
+    sampleDescriptor?.messageShape.limit > 0
+      ? Math.max(0.1, sampleDescriptor.messageShape.limit)
+      : 0;
+  return { input, target, answer, limit };
 };

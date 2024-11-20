@@ -19556,7 +19556,6 @@ const RenderedEventNode = ({ id, node, style }) => {
         style=${style}
       />`;
     case "sample_limit":
-      console.log("sample_limit");
       return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
@@ -20485,6 +20484,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20501,6 +20501,7 @@ const SampleList = (props) => {
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
+    <div>${limit > 0 ? "Limit" : ""}</div>
     <div>Score</div>
   </div>`;
   const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
@@ -20653,6 +20654,16 @@ const SampleRow = ({
               />
             ` : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+    fontSize: FontSize.small,
+    ...ApplicationStyles.threeLineClamp,
+    ...cellStyle
+  }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
@@ -20667,19 +20678,20 @@ const SampleRow = ({
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit } = gridColumns(sampleDescriptor);
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em"
+    gridGap: "10px",
+    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr ${limit}fr minmax(2.8rem, auto)`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem"
   };
 };
 const gridColumns = (sampleDescriptor) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  return { input, target, answer };
+  const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.1, sampleDescriptor.messageShape.limit) : 0;
+  return { input, target, answer, limit };
 };
 const SamplesTab = ({
   task_id,
@@ -20722,6 +20734,7 @@ const SamplesTab = ({
   y(() => {
     if (showingSampleDialog) {
       setTimeout(() => {
+        sampleDialogRef.current.base.focus();
       }, 0);
     } else {
       setTimeout(() => {
@@ -25118,15 +25131,19 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
         ),
         300
       );
+      previous[3] = Math.min(
+        Math.max(previous[3], current.limit ? current.limit.length : 0)
+      );
       return previous;
     },
-    [0, 0, 0]
+    [0, 0, 0, 0]
   );
-  const base2 = sizes[0] + sizes[1] + sizes[2] || 1;
+  const base2 = sizes[0] + sizes[1] + sizes[2] + sizes[3] || 1;
   const messageShape = {
     input: sizes[0] / base2,
     target: sizes[1] / base2,
-    answer: sizes[2] / base2
+    answer: sizes[2] / base2,
+    limit: sizes[3] / base2
   };
   const scoreRendered = (sample) => {
     const score2 = scoreValue(sample);
