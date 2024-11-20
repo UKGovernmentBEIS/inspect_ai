@@ -6,7 +6,7 @@ from test_helpers.utils import skip_if_no_openai, sleep_for_solver
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import InfoEvent
+from inspect_ai.log._transcript import SampleLimitEvent
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -50,7 +50,7 @@ def test_message_limit_complete():
 
     log = eval(task, model="mockllm/model")[0]
     assert len(log.samples[0].messages) == message_limit
-    check_info_event(log, "exceeded message limit")
+    check_limit_event(log, "message")
 
 
 @skip_if_no_openai
@@ -68,12 +68,12 @@ def test_token_limit_complete():
     total_tokens = log.stats.model_usage[model].total_tokens
     assert total_tokens > token_limit
     assert total_tokens < (token_limit * 3)
-    check_info_event(log, "exceeded token limit")
+    check_limit_event(log, "token")
 
 
 def test_time_limit():
     log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
-    check_info_event(log, "exceeded time limit")
+    check_limit_event(log, "time")
 
 
 def test_time_limit_scorer():
@@ -84,7 +84,7 @@ def test_time_limit_scorer():
         fail_on_error=False,
     )[0]
     assert log.status == "success"
-    check_info_event(log, "exceeded time limit")
+    check_limit_event(log, "time")
 
 
 def test_solver_scorer_combined_timeout():
@@ -104,7 +104,7 @@ def test_solver_scorer_combined_timeout_exceeded():
         fail_on_error=False,
     )[0]
     assert log.status == "success"
-    check_info_event(log, "exceeded time limit")
+    check_limit_event(log, "time")
 
 
 def test_solver_timeout_scored():
@@ -125,16 +125,20 @@ def test_solver_timeout_not_scored():
     assert log.status == "error"
 
 
-def check_info_event(log: EvalLog, content: str) -> None:
-    event = find_info_event(log)
+def check_limit_event(log: EvalLog, content: str) -> None:
+    event = find_limit_event(log)
     assert event
-    assert content in str(event.data)
+    assert content == event.type
 
 
-def find_info_event(log: EvalLog) -> InfoEvent | None:
+def find_limit_event(log: EvalLog) -> SampleLimitEvent | None:
     if log.samples:
         return next(
-            (event for event in log.samples[0].events if isinstance(event, InfoEvent)),
+            (
+                event
+                for event in log.samples[0].events
+                if isinstance(event, SampleLimitEvent)
+            ),
             None,
         )
     else:

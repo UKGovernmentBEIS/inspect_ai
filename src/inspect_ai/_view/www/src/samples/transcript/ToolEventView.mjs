@@ -5,6 +5,7 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the ToolEventView component.
@@ -30,7 +31,7 @@ export const ToolEventView = ({ id, event, style, depth }) => {
 
   const title = `Tool: ${event.function}`;
   return html`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
   <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}

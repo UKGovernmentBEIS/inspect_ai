@@ -4,6 +4,7 @@ import { html } from "htm/preact";
 import { EventPanel } from "../EventPanel.mjs";
 import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
 import { StateDiffView } from "./StateDiffView.mjs";
+import { formatDateTime } from "../../../utils/Format.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -44,7 +45,7 @@ export const StateEventView = ({ id, event, style }) => {
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
   return html`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : undefined} collapse=${changePreview === undefined ? true : undefined} style=${style}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : undefined} collapse=${changePreview === undefined ? true : undefined} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };

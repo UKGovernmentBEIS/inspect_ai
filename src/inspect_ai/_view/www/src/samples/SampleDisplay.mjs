@@ -60,16 +60,14 @@ export const InlineSampleDisplay = ({
   setSelectedTab,
   context,
 }) => {
-  return html`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
-  >
+  return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
       containerStyle=${{
         background: "var(--bs-body-bg)",
       }}
     />
-    <div style=${{ height: "1em" }} />
+    <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError
       ? html`<${ErrorPanel}
           title="Unable to load sample"
@@ -379,6 +377,10 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     sampleDescriptor?.messageShape.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
+  const limitSize =
+    sampleDescriptor?.messageShape.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+      : 0;
 
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
@@ -434,6 +436,15 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
         : "",
       size: `${answer}fr`,
       clamp: true,
+    });
+  }
+
+  if (limitSize > 0) {
+    columns.push({
+      label: "Limit",
+      value: sample.limit.type,
+      size: `${limitSize}fr`,
+      center: true,
     });
   }
 

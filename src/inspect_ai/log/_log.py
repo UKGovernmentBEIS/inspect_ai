@@ -105,6 +105,14 @@ class EvalConfig(BaseModel):
         return values
 
 
+class EvalSampleLimit(BaseModel):
+    type: Literal["context", "time", "message", "token", "operator"]
+    """The type of limit"""
+
+    limit: int
+    """The limit value"""
+
+
 class EvalSample(BaseModel):
     id: int | str
     """Unique id for sample."""
@@ -160,6 +168,9 @@ class EvalSample(BaseModel):
     Resolve attachments for a sample (replacing attachment://* references with
     attachment content) with the resolve_sample_attachments() function.
     """
+
+    limit: EvalSampleLimit | None = Field(default=None)
+    """The limit that halted the sample"""
 
     # deprecated properties
 

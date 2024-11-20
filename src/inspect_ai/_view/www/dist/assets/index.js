@@ -7662,6 +7662,18 @@ function formatNumber(num) {
     maximumFractionDigits: 5
   });
 }
+function formatDateTime(date) {
+  const options = {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  };
+  return new Intl.DateTimeFormat(void 0, options).format(date);
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -7799,6 +7811,13 @@ const ApplicationIcons = {
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
+  limits: {
+    messages: "bi bi-chat-right-text",
+    context: "bi bi-person-workspace",
+    operator: "bi bi-person-workspace",
+    tokens: "bi bi-list",
+    time: "bi bi-stopwatch"
+  },
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
@@ -7862,6 +7881,9 @@ const TextStyle = {
   },
   secondary: {
     color: "var(--bs-secondary)"
+  },
+  tertiary: {
+    color: "var(--bs-tertiary-color)"
   }
 };
 const ErrorPanel = ({ id, classes, title, error: error2 }) => {
@@ -7963,7 +7985,8 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    ...containerStyle
+    ...containerStyle,
+    background: "#ffffff00"
   };
   const progressBarStyle = {
     width: "5%",
@@ -16294,6 +16317,43 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
+const WarningBand = ({ message, hidden, setHidden }) => {
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color: "var(--bs-warning-text-emphasis)",
+    background: "var(--bs-warning-bg-subtle)",
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging.warning} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-warning-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const LargeModal = (props) => {
   const {
     id,
@@ -16307,7 +16367,10 @@ const LargeModal = (props) => {
     showProgress,
     children,
     initialScrollPositionRef,
-    setInitialScrollPosition
+    setInitialScrollPosition,
+    warning,
+    warningHidden,
+    setWarningHidden
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const scrollRef = A();
@@ -16417,6 +16480,12 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
+
+        ${warning ? m$1`<${WarningBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+            />` : ""}
         <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
         </div>
@@ -16650,6 +16719,7 @@ const EventPanel = ({
   id,
   classes,
   title,
+  subTitle,
   text: text2,
   icon,
   titleColor,
@@ -16679,10 +16749,14 @@ const EventPanel = ({
     gridColumns2.push("max-content");
   }
   gridColumns2.push("minmax(0, max-content)");
+  if (subTitle) {
+    gridColumns2.push("minmax(0, max-content)");
+  }
   gridColumns2.push("auto");
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
+          title=${subTitle}
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -16958,7 +17032,7 @@ const SampleInitEventView = ({ id, event, style }) => {
   `);
   }
   return m$1`
-  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
@@ -18571,7 +18645,7 @@ const StateEventView = ({ id, event, style }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -18716,6 +18790,7 @@ const StepEventView = ({ event, children, style }) => {
     id=${`step-${event.name}`}
     classes="transcript-step"
     title="${title}"
+    subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}
@@ -18844,7 +18919,7 @@ const SubtaskEventView = ({ id, event, style, depth }) => {
         `;
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style} collapse=${false}>
       ${body}
     </${EventPanel}>`;
 };
@@ -19096,7 +19171,7 @@ const ModelEventView = ({ id, event, style }) => {
     }
   }
   return m$1`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style}>
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
@@ -19307,14 +19382,14 @@ const InfoEventView = ({ id, event, style }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
+  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style}>
     ${panels}
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
   const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
   return m$1`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
+  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
@@ -19410,7 +19485,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
   });
   const title = `Tool: ${event.function}`;
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
   <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
@@ -19436,20 +19511,56 @@ const ToolEventView = ({ id, event, style, depth }) => {
 };
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
+  <${EventPanel} id=${id} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const InputEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style}>
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
+  </${EventPanel}>`;
+};
+const SampleLimitEventView = ({ id, event, style }) => {
+  const resolve_title = (type) => {
+    switch (type) {
+      case "context":
+        return "Context Limit Exceeded";
+      case "time":
+        return "Time Limit Execeeded";
+      case "message":
+        return "Message Limit Exceeded";
+      case "token":
+        return "Token Limit Exceeded";
+      case "operator":
+        return "Operator Canceled";
+    }
+  };
+  const resolve_icon = (type) => {
+    switch (type) {
+      case "context":
+        return ApplicationIcons.limits.context;
+      case "time":
+        return ApplicationIcons.limits.time;
+      case "message":
+        return ApplicationIcons.limits.messages;
+      case "token":
+        return ApplicationIcons.limits.tokens;
+      case "operator":
+        return ApplicationIcons.limits.operator;
+    }
+  };
+  const title = resolve_title(event.type);
+  const icon = resolve_icon(event.type);
+  return m$1`
+  <${EventPanel} id=${id} title=${title} icon=${icon} style=${style}>
+    ${event.message}
   </${EventPanel}>`;
 };
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").SampleLimitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -19505,6 +19616,12 @@ const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "sample_limit":
+      return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
         style=${style}
@@ -19769,16 +19886,14 @@ const InlineSampleDisplay = ({
   setSelectedTab,
   context
 }) => {
-  return m$1`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
-  >
+  return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
       containerStyle=${{
     background: "var(--bs-body-bg)"
   }}
     />
-    <div style=${{ height: "1em" }} />
+    <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError ? m$1`<${ErrorPanel}
           title="Unable to load sample"
           error=${sampleError}
@@ -20031,6 +20146,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
+  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -20075,6 +20191,14 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
           />` : "",
       size: `${answer}fr`,
       clamp: true
+    });
+  }
+  if (limitSize > 0) {
+    columns.push({
+      label: "Limit",
+      value: sample.limit.type,
+      size: `${limitSize}fr`,
+      center: true
     });
   }
   columns.push({
@@ -20289,44 +20413,6 @@ class VirtualList extends k$1 {
     return rows;
   }
 }
-const WarningBand = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    alignItems: "center",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    color: "var(--bs-warning-text-emphasis)",
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    color: "var(--bs-warning-text-emphasis)",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
-};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -20345,6 +20431,10 @@ const SampleList = (props) => {
   if (items.length === 0) {
     return m$1`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [items]);
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
   };
@@ -20434,6 +20524,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20450,6 +20541,7 @@ const SampleList = (props) => {
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
+    <div>${limit > 0 ? "Limit" : ""}</div>
     <div>Score</div>
   </div>`;
   const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
@@ -20480,9 +20572,21 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
+  const limitCount = items == null ? void 0 : items.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
   const percentError = errorCount / sampleCount * 100;
-  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
+  const percentLimit = limitCount / sampleCount * 100;
+  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.` : void 0;
+  const warningRow = warningMessage ? m$1`<${WarningBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+      />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -20590,6 +20694,16 @@ const SampleRow = ({
               />
             ` : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+    fontSize: FontSize.small,
+    ...ApplicationStyles.threeLineClamp,
+    ...cellStyle
+  }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
@@ -20604,19 +20718,20 @@ const SampleRow = ({
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit } = gridColumns(sampleDescriptor);
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em"
+    gridGap: "10px",
+    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr ${limit}fr minmax(2.8rem, auto)`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem"
   };
 };
 const gridColumns = (sampleDescriptor) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  return { input, target, answer };
+  const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.limit) : 0;
+  return { input, target, answer, limit };
 };
 const SamplesTab = ({
   task_id,
@@ -24499,6 +24614,10 @@ const WorkSpace = ({
   if (!evalSpec) {
     return "";
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [logFileName]);
   y(() => {
     if (divRef.current) {
       divRef.current.scrollTop = 0;
@@ -24597,6 +24716,8 @@ const WorkSpace = ({
           warnings.push(
             m$1`<${WarningBand}
               message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
             />`
           );
         }
@@ -25050,15 +25171,19 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
         ),
         300
       );
+      previous[3] = Math.min(
+        Math.max(previous[3], current.limit ? current.limit.length : 0)
+      );
       return previous;
     },
-    [0, 0, 0]
+    [0, 0, 0, 0]
   );
-  const base2 = sizes[0] + sizes[1] + sizes[2] || 1;
+  const base2 = sizes[0] + sizes[1] + sizes[2] + sizes[3] || 1;
   const messageShape = {
     input: sizes[0] / base2,
     target: sizes[1] / base2,
-    answer: sizes[2] / base2
+    answer: sizes[2] / base2,
+    limit: sizes[3] / base2
   };
   const scoreRendered = (sample) => {
     const score2 = scoreValue(sample);

@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { useEffect, useMemo } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
@@ -35,6 +35,11 @@ export const SampleList = (props) => {
   if (items.length === 0) {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [items]);
 
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
@@ -140,6 +145,7 @@ export const SampleList = (props) => {
   );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit } = gridColumns(sampleDescriptor);
 
   const headerRow = html`<div
     style=${{
@@ -157,6 +163,7 @@ export const SampleList = (props) => {
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
+    <div>${limit > 0 ? "Limit" : ""}</div>
     <div>Score</div>
   </div>`;
 
@@ -192,14 +199,30 @@ export const SampleList = (props) => {
     }
   }, 0);
 
+  // Count limits
+  const limitCount = items?.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+
   const percentError = (errorCount / sampleCount) * 100;
+  const percentLimit = (limitCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
       ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
-      : undefined;
+      : limitCount
+        ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.`
+        : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningBand} message=${warningMessage} />`
+    ? html`<${WarningBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+      />`
     : "";
 
   return html` <div
@@ -317,6 +340,16 @@ const SampleRow = ({
             `
           : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+          fontSize: FontSize.small,
+          ...ApplicationStyles.threeLineClamp,
+          ...cellStyle,
+        }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
@@ -334,13 +367,13 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit } = gridColumns(sampleDescriptor);
 
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em",
+    gridGap: "10px",
+    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr ${limit}fr minmax(2.8rem, auto)`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem",
   };
 };
 
@@ -357,5 +390,9 @@ const gridColumns = (sampleDescriptor) => {
     sampleDescriptor?.messageShape.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
-  return { input, target, answer };
+  const limit =
+    sampleDescriptor?.messageShape.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.limit)
+      : 0;
+  return { input, target, answer, limit };
 };
