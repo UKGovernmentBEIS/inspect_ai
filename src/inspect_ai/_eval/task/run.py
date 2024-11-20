@@ -464,8 +464,8 @@ async def task_run_sample(
             transcript()._event(
                 SampleLimitEvent(
                     type="time",
-                    limit=time_limit,
                     message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                    limit=time_limit,
                 )
             )
 
@@ -474,8 +474,13 @@ async def task_run_sample(
 
         except asyncio.CancelledError as ex:
             if active.interrupt_action:
-                # notify the user
-                transcript().info("Sample completed: interrupted by operator")
+                # record eve t
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="operator",
+                        message="Sample completed: interrupted by operator",
+                    )
+                )
 
                 # handle the action
                 match active.interrupt_action:
@@ -536,8 +541,12 @@ async def task_run_sample(
 
         except asyncio.CancelledError:
             if active.interrupt_action:
-                # note interrupt
-                transcript().info("Unable to score sample due to operator interruption")
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="operator",
+                        message="Unable to score sample due to operator interruption",
+                    )
+                )
 
             raise
 
@@ -547,8 +556,8 @@ async def task_run_sample(
                 transcript()._event(
                     SampleLimitEvent(
                         type="time",
-                        limit=time_limit,
                         message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                        limit=time_limit,
                     )
                 )
 

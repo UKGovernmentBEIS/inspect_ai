@@ -72,11 +72,11 @@ class SampleLimitEvent(BaseEvent):
     type: Literal["message", "time", "token", "operator"]
     """Type of limit that halted processing"""
 
-    limit: int | None = Field(default=None)
-    """The limit value"""
-
-    message: str | None = Field(default=None)
+    message: str
     """A message associated with this limit"""
+
+    limit: int | None = Field(default=None)
+    """The limit value (if any)"""
 
 
 class StoreEvent(BaseEvent):

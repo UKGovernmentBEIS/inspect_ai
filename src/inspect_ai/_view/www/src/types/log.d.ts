@@ -210,8 +210,8 @@ export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
 export type Type5 = "message" | "time" | "token" | "operator";
+export type Message2 = string;
 export type Limit1 = number | null;
-export type Message2 = string | null;
 export type Timestamp2 = string;
 export type Pending2 = boolean | null;
 export type Event2 = "state";
@@ -711,8 +711,8 @@ export interface SampleLimitEvent {
   pending: Pending1;
   event: Event1;
   type: Type5;
-  limit: Limit1;
   message: Message2;
+  limit: Limit1;
 }
 /**
  * Change to the current `TaskState`

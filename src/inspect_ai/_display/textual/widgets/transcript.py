@@ -28,6 +28,7 @@ from inspect_ai.log._transcript import (
     LoggerEvent,
     ModelEvent,
     SampleInitEvent,
+    SampleLimitEvent,
     ScoreEvent,
     StepEvent,
     SubtaskEvent,
@@ -147,6 +148,10 @@ def render_sample_init_event(event: SampleInitEvent) -> EventDisplay:
         content.append(str(sample.target).strip())
 
     return EventDisplay("sample init", Group(*content))
+
+
+def render_sample_limit_event(event: SampleLimitEvent) -> EventDisplay:
+    return EventDisplay(f"limit: {event.type}", Text(event.message))
 
 
 def render_model_event(event: ModelEvent) -> EventDisplay:
@@ -320,6 +325,7 @@ EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
+    (SampleLimitEvent, render_sample_limit_event),
     (StepEvent, render_step_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),

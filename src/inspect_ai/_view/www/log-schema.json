@@ -2819,6 +2819,10 @@
           "title": "Type",
           "type": "string"
         },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
         "limit": {
           "anyOf": [
             {
@@ -2830,18 +2834,6 @@
           ],
           "default": null,
           "title": "Limit"
-        },
-        "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Message"
         }
       },
       "required": [
@@ -2849,8 +2841,8 @@
         "pending",
         "event",
         "type",
-        "limit",
-        "message"
+        "message",
+        "limit"
       ],
       "title": "SampleLimitEvent",
       "type": "object",
