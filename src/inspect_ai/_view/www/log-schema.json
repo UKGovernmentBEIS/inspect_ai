@@ -2788,6 +2788,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "sample_limit",
           "default": "sample_limit",
@@ -2834,6 +2846,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "type",
         "limit",
@@ -3638,6 +3651,17 @@
           "title": "Arguments",
           "type": "object"
         },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "result": {
           "anyOf": [
             {
@@ -3689,17 +3713,6 @@
           ],
           "default": null,
           "title": "Truncated"
-        },
-        "view": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolCallContent"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "error": {
           "anyOf": [
@@ -3771,9 +3784,9 @@
         "id",
         "function",
         "arguments",
+        "view",
         "result",
         "truncated",
-        "view",
         "error",
         "events"
       ],
