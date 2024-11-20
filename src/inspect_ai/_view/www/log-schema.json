@@ -2711,7 +2711,6 @@
             "message",
             "time",
             "token",
-            "context",
             "operator"
           ],
           "title": "Type",
