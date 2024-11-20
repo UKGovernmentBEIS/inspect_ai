@@ -532,9 +532,7 @@ async def task_run_sample(
         except asyncio.CancelledError:
             if active.interrupt_action:
                 # note interrupt
-                transcript().info(
-                    f"Unable to score sample due to operator interruption: (action={active.interrupt_action})"
-                )
+                transcript().info("Unable to score sample due to operator interruption")
 
             raise
 
