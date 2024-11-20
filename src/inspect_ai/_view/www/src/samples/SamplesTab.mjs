@@ -55,7 +55,9 @@ export const SamplesTab = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
 }) => {
+  /** @type {[ListItem[], function(ListItem[]): void]} */
   const [items, setItems] = useState([]);
+  /** @type {[ListItem[], function(ListItem[]): void]} */
   const [sampleItems, setSampleItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));

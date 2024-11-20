@@ -30,6 +30,7 @@
  * @property { import("../types/log").Input } input
  * @property { import("../types/log").Target } target
  * @property { import("../types/log").Scores1 } scores
+ * @property { string } [error]
  * @property { import("../types/log").Type11 } [limit]
  */
 

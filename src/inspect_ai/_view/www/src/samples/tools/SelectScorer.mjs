@@ -1,6 +1,13 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
+/**
+ * @param {Object} props
+ * @param {import("../../Types.mjs").ScoreLabel[]} props.scores
+ * @param {import("../../Types.mjs").ScoreLabel} props.score
+ * @param {(score: import("../../Types.mjs").ScoreLabel) => void} props.setScore
+ * @returns {import("preact").JSX.Element}
+ */
 export const SelectScorer = ({ scores, score, setScore }) => {
   const scorers = scores.reduce((accum, scorer) => {
     if (

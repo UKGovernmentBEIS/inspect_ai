@@ -16775,7 +16775,7 @@ ${entry.value}</pre
       scorer
     }) => {
       if (!sampleDescriptor) {
-        return "";
+        return m$1``;
       }
       const scoreInput = inputString(sample.input);
       if (sample.choices && sample.choices.length > 0) {
