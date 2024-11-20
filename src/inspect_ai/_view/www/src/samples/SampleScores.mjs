@@ -9,8 +9,10 @@ import { html } from "htm/preact";
  */
 export const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer
-    ? sampleDescriptor.scorer(sample, scorer).scores()
-    : sampleDescriptor.selectedScorer(sample).scores();
+    ? sampleDescriptor.evalDescriptor
+        .scorerDescriptor(sample, { scorer, name: scorer })
+        .scores()
+    : sampleDescriptor.selectedScorerDescriptor(sample).scores();
 
   if (scores.length === 1) {
     return scores[0].rendered();

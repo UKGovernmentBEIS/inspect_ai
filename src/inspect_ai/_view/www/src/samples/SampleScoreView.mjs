@@ -42,7 +42,10 @@ export const SampleScoreView = ({
     );
   }
 
-  const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
+  const scorerDescriptor = sampleDescriptor.evalDescriptor.scorerDescriptor(
+    sample,
+    { scorer, name: scorer },
+  );
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
   const metadata = scorerDescriptor.metadata();
