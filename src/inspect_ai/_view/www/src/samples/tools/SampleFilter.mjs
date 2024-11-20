@@ -30,11 +30,11 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
     }
   };
 
-  switch (descriptor?.scoreDescriptor?.scoreType) {
+  switch (descriptor?.selectedScoreDescriptor?.scoreType) {
     case kScoreTypePassFail: {
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.val };
         }),
       );
@@ -48,7 +48,7 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
     case kScoreTypeCategorical: {
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat, value: cat };
         }),
       );
@@ -79,12 +79,12 @@ export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
     }
 
     case kScoreTypeObject: {
-      if (!descriptor.scoreDescriptor.categories) {
+      if (!descriptor.selectedScoreDescriptor.categories) {
         return "";
       }
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.value };
         }),
       );

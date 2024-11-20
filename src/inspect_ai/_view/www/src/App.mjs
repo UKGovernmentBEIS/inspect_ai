@@ -31,7 +31,10 @@ import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
 import { kDefaultSort } from "./constants.mjs";
-import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
+import {
+  createEvalDescriptor,
+  createSamplesDescriptor,
+} from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
 import { filterFnForType } from "./samples/tools/filters.mjs";
@@ -325,7 +328,7 @@ export function App({
 
     // Set the grouping
     let grouping = "none";
-    if (samplesDescriptor?.epochs > 1) {
+    if (samplesDescriptor?.evalDescriptor?.epochs > 1) {
       if (byEpoch(sort) || epoch !== "all") {
         grouping = "epoch";
       } else if (bySample(sort)) {
@@ -338,13 +341,16 @@ export function App({
     setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
 
-  const samplesDescriptor = useMemo(() => {
-    return createsSamplesDescriptor(
+  const evalDescriptor = useMemo(() => {
+    return createEvalDescriptor(
       scores,
       selectedLog.contents?.sampleSummaries,
       selectedLog.contents?.eval?.config?.epochs || 1,
-      score,
     );
+  }, [selectedLog, scores]);
+
+  const samplesDescriptor = useMemo(() => {
+    return createSamplesDescriptor(evalDescriptor, score);
   }, [selectedLog, scores, score]);
 
   const refreshSampleTab = useCallback(

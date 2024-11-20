@@ -422,7 +422,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 
   const fullAnswer =
     sample && sampleDescriptor
-      ? sampleDescriptor.selectedScorer(sample).answer()
+      ? sampleDescriptor.selectedScorerDescriptor(sample).answer()
       : undefined;
   if (fullAnswer) {
     columns.push({
