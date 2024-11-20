@@ -44,6 +44,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_file_space,
         test_write_file_is_directory,
         test_write_file_without_permissions,
+        test_write_file_exists,
         test_exec_output,
         test_exec_timeout,
         test_exec_permission_error,
@@ -201,6 +202,16 @@ async def test_write_file_without_permissions(
     with Raises(PermissionError) as e_info:
         await sandbox_env.write_file(file_name, "this won't stick")
     assert file_name in str(e_info.value)
+
+
+async def test_write_file_exists(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "file_exists.file"
+    await sandbox_env.write_file(file_name, "mundane content")
+    await sandbox_env.write_file(file_name, "altered content")
+    altered_content = await sandbox_env.read_file(file_name, text=True)
+    assert altered_content == "altered content"
 
 
 async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:

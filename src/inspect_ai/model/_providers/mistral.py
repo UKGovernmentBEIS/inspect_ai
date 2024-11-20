@@ -9,6 +9,7 @@ from mistralai import (
     ImageURL,
     ImageURLChunk,
     Mistral,
+    ReferenceChunk,
     TextChunk,
 )
 from mistralai.models import (
@@ -351,7 +352,9 @@ def completion_content(content: str | list[ContentChunk]) -> str | list[Content]
 
 
 def completion_content_chunk(content: ContentChunk) -> Content:
-    if isinstance(content, TextChunk):
+    if isinstance(content, ReferenceChunk):
+        raise TypeError("ReferenceChunk content is not supported by Inspect.")
+    elif isinstance(content, TextChunk):
         return ContentText(text=content.text)
     else:
         if isinstance(content.image_url, str):

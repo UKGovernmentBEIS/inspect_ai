@@ -14,6 +14,7 @@ import { resolveToolInput, ToolCallView } from "./Tools.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the chat view.
  * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
  * @param {Object} [props.style] - Inline styles for the chat view.
  * @param {boolean} props.indented - Whether the chatview has indented messages
  * @param {boolean} [props.numbered] - Whether the chatview is numbered
@@ -22,6 +23,7 @@ import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 export const ChatView = ({
   id,
   messages,
+  toolCallStyle,
   style,
   indented,
   numbered = true,
@@ -112,6 +114,7 @@ export const ChatView = ({
               message=${msg.message}
               toolMessages=${msg.toolMessages}
               indented=${indented}
+              toolCallStyle=${toolCallStyle}
             />
           </div>`;
         } else {
@@ -120,6 +123,7 @@ export const ChatView = ({
             message=${msg.message}
             toolMessages=${msg.toolMessages}
             indented=${indented}
+            toolCallStyle=${toolCallStyle}
           />`;
         }
       })}
@@ -153,9 +157,16 @@ const normalizeContent = (content) => {
  * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
  * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
  * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @param {"compact" | "complete"} props.toolCallStyle - Whether to hide tool calls
  * @returns {import("preact").JSX.Element} The component.
  */
-const ChatMessage = ({ id, message, toolMessages, indented }) => {
+const ChatMessage = ({
+  id,
+  message,
+  toolMessages,
+  indented,
+  toolCallStyle,
+}) => {
   const collapse = message.role === "system";
   return html`
     <div
@@ -187,6 +198,7 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
           key=${`${id}-contents`}
           message=${message}
           toolMessages=${toolMessages}
+          toolCallStyle=${toolCallStyle}
         />
       </${ExpandablePanel}>
       </div>
@@ -199,9 +211,10 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
  * @param {Object} props
  * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
  * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
+ * @param {"compact" | "complete"} props.toolCallStyle - Whether to hide tool calls
  * @returns {import("preact").JSX.Element | import("preact").JSX.Element[]} The component.
  */
-const MessageContents = ({ message, toolMessages }) => {
+const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
   if (
     message.role === "assistant" &&
     message.tool_calls &&
@@ -236,12 +249,16 @@ const MessageContents = ({ message, toolMessages }) => {
 
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-      return html`<${ToolCallView}
-        functionCall=${functionCall}
-        input=${input}
-        inputType=${inputType}
-        output=${resolvedToolOutput}
-      />`;
+      if (toolCallStyle === "compact") {
+        return html`<code>tool: ${functionCall}</code>`;
+      } else {
+        return html`<${ToolCallView}
+          functionCall=${functionCall}
+          input=${input}
+          inputType=${inputType}
+          output=${resolvedToolOutput}
+        />`;
+      }
     });
 
     if (toolCalls) {

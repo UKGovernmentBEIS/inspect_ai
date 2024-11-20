@@ -11,6 +11,7 @@ import { html } from "htm/preact";
 import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
+import { MarkdownDiv } from "./MarkdownDiv.mjs";
 
 /**
  * @typedef {Object} ToolCallResult
@@ -43,18 +44,20 @@ export const resolveToolInput = (fn, toolArgs) => {
 /**
  * Renders the ToolCallView component.
  *
- * @param {Object} params - The parameters for the component.
- * @param {string} params.functionCall - The function call
- * @param {string | undefined } params.input - The main input for this call
- * @param {string | undefined } params.inputType - The input type for this call
- * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} params.output - The tool output
- * @param { "compact" | undefined } params.mode - The display mode for this call
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.functionCall - The function call
+ * @param {string | undefined } props.input - The main input for this call
+ * @param {string | undefined } props.inputType - The input type for this call
+ * @param {import("../types/log").ToolCallContent} props.view - The tool call view
+ * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
+ * @param { "compact" | undefined } props.mode - The display mode for this call
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const ToolCallView = ({
   functionCall,
   input,
   inputType,
+  view,
   output,
   mode,
 }) => {
@@ -71,10 +74,19 @@ export const ToolCallView = ({
   const codeIndent = mode === "compact" ? "" : "";
   return html`<div>
     ${icon}
-    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    ${!view || view.title
+      ? html`<code style=${{ fontSize: FontSize.small }}
+          >${view?.title || functionCall}</code
+        >`
+      : ""}
     <div>
       <div style=${{ marginLeft: `${codeIndent}` }}>
-        <${ToolInput} type=${inputType} contents=${input} />
+        <${ToolInput}
+          type=${inputType}
+          contents=${input}
+          view=${view}
+          style=${{ marginBottom: "1em" }}
+        />
         ${output
           ? html`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
@@ -89,47 +101,77 @@ export const ToolCallView = ({
 /**
  * Renders the ToolInput component.
  *
- * @param {Object} params - The parameters for the component.
- * @param {string} params.type - The function call
- * @param {string | undefined } params.contents - The main input for this call
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.type - The function call
+ * @param {string | undefined } props.contents - The main input for this call
+ * @param {Record<string, string>} [props.style] - The style
+ * @param {import("../types/log").ToolCallContent} props.view - The tool call view
  * @returns {import("preact").JSX.Element | string} The SampleTranscript component.
  */
-export const ToolInput = ({ type, contents }) => {
+export const ToolInput = ({ type, contents, view, style }) => {
   if (!contents) {
     return "";
   }
 
-  const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+  if (view) {
+    const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+    useEffect(() => {
+      // Sniff around for code in the view that could be text highlighted
+      if (toolInputRef.current) {
+        for (const child of toolInputRef.current.base.children) {
+          if (child.tagName === "PRE") {
+            const childChild = child.firstElementChild;
+            if (childChild && childChild.tagName === "CODE") {
+              const hasLanguageClass = Array.from(childChild.classList).some(
+                (className) => className.startsWith("language-"),
+              );
+              if (hasLanguageClass) {
+                child.classList.add("tool-output");
+                Prism.highlightElement(childChild);
+              }
+            }
+          }
+        }
+      }
+    }, [toolInputRef.current]);
+    return html`<${MarkdownDiv}
+      markdown=${view.content}
+      ref=${toolInputRef}
+      style=${style}
+    />`;
+  } else {
+    const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+    useEffect(() => {
+      const tokens = Prism.languages[type];
+      if (toolInputRef.current && tokens) {
+        let resolvedContents = contents;
+        if (typeof contents === "object" || Array.isArray(contents)) {
+          resolvedContents = JSON.stringify(contents);
+        }
+        const html = Prism.highlight(resolvedContents, tokens, type);
+        toolInputRef.current.innerHTML = html;
+      }
+    }, [toolInputRef.current, contents, type, view]);
 
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
+    return html`<pre
+      class="tool-output"
+      style=${{
+        padding: "0.5em",
+        marginTop: "0.25em",
+        marginBottom: "1rem",
+        ...style,
+      }}
+    >
+        <code ref=${toolInputRef} class="sourceCode${type
+      ? ` language-${type}`
+      : ""}" style=${{
+      overflowWrap: "anywhere",
+      whiteSpace: "pre-wrap",
+    }}>
+          ${contents}
+          </code>
+      </pre>`;
   }
-
-  useEffect(() => {
-    const tokens = Prism.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, contents, type]);
-
-  return html`<pre
-    class="tool-output"
-    style=${{
-      padding: "0.5em",
-      marginTop: "0.25em",
-      marginBottom: "1rem",
-    }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type
-    ? ` language-${type}`
-    : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap",
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
 };
 
 /**
