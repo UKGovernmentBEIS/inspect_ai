@@ -89,3 +89,5 @@ def transcript_separator(title: str) -> RenderableType:
 LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
 
 DOTTED = Box(" ·· \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+
+NOBORDER = Box("    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")

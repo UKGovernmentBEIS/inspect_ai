@@ -3,6 +3,7 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -12,6 +13,7 @@ from textual.widgets import Static
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.transcript import (
+    NOBORDER,
     set_transcript_markdown_options,
     transcript_markdown,
     transcript_separator,
@@ -182,7 +184,9 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         result = event.result
 
     if result:
-        content.append(transcript_markdown(str(result)))
+        content.append(
+            Panel(str(result).strip(), box=NOBORDER, highlight=True, padding=(0, 0))
+        )
 
     return display + [EventDisplay("tool call", Group(*content))]
 
