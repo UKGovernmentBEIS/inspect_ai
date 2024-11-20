@@ -61,6 +61,9 @@ class SamplesView(Widget):
     def on_mount(self) -> None:
         self.watch(self.query_one(OptionList), "highlighted", self.set_highlighted)
 
+    async def notify_active(self, active: bool) -> None:
+        await self.query_one(TranscriptView).notify_active(active)
+
     def set_samples(self, samples: list[ActiveSample]) -> None:
         # check for a highlighted sample (make sure we don't remove it)
         option_list = self.query_one(OptionList)

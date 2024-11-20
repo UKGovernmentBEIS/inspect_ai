@@ -44,30 +44,49 @@ class TranscriptView(ScrollableContainer):
         self._sample_id: str | None = None
         self._sample_events: int | None = None
 
+        self._active = False
+        self._pending_sample: ActiveSample | None = None
+
+    async def notify_active(self, active: bool) -> None:
+        self._active = active
+        if self._active and self._pending_sample:
+            await self.sync_sample(self._pending_sample)
+            self._pending_sample = None
+
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         # if sample is none then reset
         if sample is None:
-            self._sample_id = None
+            self._sample = None
             self._sample_events = None
             await self.remove_children()
 
-        # if we have either a new sample or a new event count then proceed
-        elif (
-            sample.id != self._sample_id
-            or len(sample.transcript.events) != self._sample_events
-        ):
-            # update (scrolling to end if we are already close to it)
-            new_sample = sample.id != self._sample_id
-            scroll_to_end = new_sample or abs(self.scroll_y - self.max_scroll_y) <= 20
-            async with self.batch():
-                await self.remove_children()
-                await self.mount_all(self._widgets_for_events(sample.transcript.events))
-            if scroll_to_end:
-                self.scroll_end(animate=not new_sample)
+        # process sample if we are active
+        elif self._active:
+            # if we have either a new sample or a new event count then proceed
+            if (
+                sample.id != self._sample_id
+                or len(sample.transcript.events) != self._sample_events
+            ):
+                # update (scrolling to end if we are already close to it)
+                new_sample = sample.id != self._sample_id
+                scroll_to_end = (
+                    new_sample or abs(self.scroll_y - self.max_scroll_y) <= 20
+                )
+                async with self.batch():
+                    await self.remove_children()
+                    await self.mount_all(
+                        self._widgets_for_events(sample.transcript.events)
+                    )
+                if scroll_to_end:
+                    self.scroll_end(animate=not new_sample)
 
-            # set members
-            self._sample_id = sample.id
-            self._sample_events = len(sample.transcript.events)
+                # set members
+                self._sample_id = sample.id
+                self._sample_events = len(sample.transcript.events)
+
+        # if we aren't active then save as a pending sample
+        else:
+            self._pending_sample = sample
 
     def _widgets_for_events(self, events: Sequence[Event]) -> list[Widget]:
         widgets: list[Widget] = []

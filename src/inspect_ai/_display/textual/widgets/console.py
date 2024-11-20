@@ -20,7 +20,7 @@ class ConsoleView(RichLog):
         self.active = False
         self.show_horizontal_scrollbar = False
 
-    def notify_active(self, active: bool) -> None:
+    async def notify_active(self, active: bool) -> None:
         self.active = active
         if self.active:
             self.unread = None

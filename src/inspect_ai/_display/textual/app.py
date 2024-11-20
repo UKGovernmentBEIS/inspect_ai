@@ -196,6 +196,9 @@ class TaskScreenApp(App[TR]):
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
 
+        # handle tab activations
+        self.handle_tab_activations()
+
         # handle console unread
         self.handle_console_unread()
 
@@ -266,10 +269,18 @@ class TaskScreenApp(App[TR]):
             else:
                 console_tab.label = Text.from_markup("Console")
 
-        def set_active_tab(active: str) -> None:
-            console_view.notify_active(active == "console")
-
         self.watch(console_view, "unread", set_unread)
+
+    # handle tab activations
+    def handle_tab_activations(self) -> None:
+        tabs = self.query_one(TabbedContent)
+        console_view = self.query_one(ConsoleView)
+        samples_view = self.query_one(SamplesView)
+
+        async def set_active_tab(active: str) -> None:
+            await console_view.notify_active(active == "console")
+            await samples_view.notify_active(active == "samples")
+
         self.watch(tabs, "active", set_active_tab)
 
     # capture output and route to console view and our buffer
