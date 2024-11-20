@@ -176,8 +176,7 @@ def eval(
             log_buffer=log_buffer,
             score=score,
             **kwargs,
-        ),
-        enable_full=approval is None,
+        )
     )
 
 
