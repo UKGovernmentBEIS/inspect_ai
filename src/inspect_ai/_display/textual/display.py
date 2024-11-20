@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, Coroutine, Iterator
+from typing import Any, AsyncIterator, Coroutine, Iterator
 
 import rich
 from typing_extensions import override
@@ -57,11 +57,11 @@ class TextualDisplay(Display):
             yield
 
     @override
-    @contextlib.contextmanager
-    def task_screen(
+    @contextlib.asynccontextmanager
+    async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
-    ) -> Iterator[TaskScreen]:
-        with self.app.task_screen(tasks, parallel) as task_screen:
+    ) -> AsyncIterator[TaskScreen]:
+        async with self.app.task_screen(tasks, parallel) as task_screen:
             yield task_screen
 
     @override

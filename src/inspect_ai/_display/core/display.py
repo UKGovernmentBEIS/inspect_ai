@@ -1,9 +1,9 @@
-import abc
 import contextlib
 from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     Any,
+    AsyncIterator,
     Coroutine,
     Iterator,
     Protocol,
@@ -13,6 +13,7 @@ from typing import (
     runtime_checkable,
 )
 
+import rich
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
@@ -82,14 +83,17 @@ TR = TypeVar("TR")
 
 
 class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
-    @abc.abstractmethod
+    def __exit__(self, *excinfo: Any) -> None:
+        pass
+
     @contextlib.contextmanager
     def input_screen(
         self,
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
-    ) -> Iterator[Console]: ...
+    ) -> Iterator[Console]:
+        yield rich.get_console()
 
 
 @runtime_checkable
@@ -112,10 +116,11 @@ class Display(Protocol):
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]: ...
 
-    @contextlib.contextmanager
-    def task_screen(
+    @contextlib.asynccontextmanager
+    async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
-    ) -> Iterator[TaskScreen]: ...
+    ) -> AsyncIterator[TaskScreen]:
+        yield TaskScreen()
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...

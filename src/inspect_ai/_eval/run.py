@@ -213,7 +213,7 @@ async def eval_run(
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
 
-    with display().task_screen(task_specs(tasks), parallel=False) as screen:
+    async with display().task_screen(task_specs(tasks), parallel=False) as screen:
         init_task_screen(screen)
         asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
 
@@ -292,7 +292,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    with display().task_screen(task_specs(tasks), parallel=True) as screen:
+    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         # init screen
         init_task_screen(screen)
 

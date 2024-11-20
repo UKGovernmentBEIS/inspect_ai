@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Iterator
+from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
 import rich
 from rich.console import Console, Group, RenderableType
@@ -83,10 +83,10 @@ class RichDisplay(Display):
         yield
 
     @override
-    @contextlib.contextmanager
-    def task_screen(
+    @contextlib.asynccontextmanager
+    async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
-    ) -> Iterator[TaskScreen]:
+    ) -> AsyncIterator[TaskScreen]:
         self.total_tasks = len(tasks)
         self.tasks = []
         self.progress_ui = rich_progress()

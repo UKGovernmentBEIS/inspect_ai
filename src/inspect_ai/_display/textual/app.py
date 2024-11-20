@@ -1,6 +1,7 @@
+import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, Coroutine, Generic, Iterator
+from typing import Any, AsyncIterator, Coroutine, Generic, Iterator
 
 import rich
 from rich.console import Console
@@ -90,13 +91,29 @@ class TaskScreenApp(App[TR]):
         # return result w/ output
         return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)
 
+    async def on_load(self) -> None:
+        # events used to synchronise loading
+        self._on_load_app = asyncio.Event()
+        self._on_app_loaded = asyncio.Event()
+
+        # run the workers
+        self.workers.start_all()
+
+        # wait until we are given the signal to load
+        await self._on_load_app.wait()
+
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
-        with self.app.suspend():
-            try:
-                yield
-            finally:
-                self.app.refresh(repaint=True)
+        # suspend only if the app is already loaded
+        # (otherwise its not yet displayed )
+        if self._on_app_loaded.is_set():
+            with self.app.suspend():
+                try:
+                    yield
+                finally:
+                    self.app.refresh(repaint=True)
+        else:
+            yield
 
     # exit the app when the worker terminates
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -110,10 +127,14 @@ class TaskScreenApp(App[TR]):
             self.exit(event.worker.result)
 
     # notification that a new top level set of tasks are being run
-    @contextlib.contextmanager
-    def task_screen(
+    @contextlib.asynccontextmanager
+    async def task_screen(
         self, tasks: list[TaskSpec], parallel: bool
-    ) -> Iterator[TaskScreen]:
+    ) -> AsyncIterator[TaskScreen]:
+        # indicate its time to load then wait on the load
+        self._on_load_app.set()
+        await self._on_app_loaded.wait()
+
         # reset state
         self._tasks = []
         self._total_tasks = len(tasks)
@@ -172,9 +193,6 @@ class TaskScreenApp(App[TR]):
                 yield ConsoleView()
 
     def on_mount(self) -> None:
-        # start the eval worker
-        self.workers.start_all()
-
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
 
@@ -183,6 +201,9 @@ class TaskScreenApp(App[TR]):
 
         # update display every second
         self.set_interval(1, self.update_display)
+
+        # indicate that the app is loaded
+        self._on_app_loaded.set()
 
     # update dynamic parts of display
     def update_display(self) -> None:
