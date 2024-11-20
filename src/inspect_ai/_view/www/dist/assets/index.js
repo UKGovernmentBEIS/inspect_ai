@@ -19811,22 +19811,6 @@ const kEpochDescVal = "epoch-desc";
 const kScoreAscVal = "score-asc";
 const kScoreDescVal = "score-desc";
 const kDefaultSort = kSampleAscVal;
-const sampleLimitMessage = (type) => {
-  switch (type) {
-    case "operator":
-      return "Sample terminated due to operator limit.";
-    case "message":
-      return "Sample terminated due to message limit.";
-    case "time":
-      return "Sample terminated due to time limit.";
-    case "token":
-      return "Sample terminated due to token limit.";
-    case "context":
-      return "Sample terminated due to context limit.";
-    default:
-      return void 0;
-  }
-};
 const InlineSampleDisplay = ({
   id,
   sample,
@@ -19837,11 +19821,6 @@ const InlineSampleDisplay = ({
   setSelectedTab,
   context
 }) => {
-  var _a2;
-  const [hidden, setHidden] = h(false);
-  y(() => {
-    setHidden(false);
-  }, [sample]);
   return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
@@ -19849,11 +19828,6 @@ const InlineSampleDisplay = ({
     background: "var(--bs-body-bg)"
   }}
     />
-    ${(sample == null ? void 0 : sample.limit) ? m$1`<${WarningBand}
-          message=${sampleLimitMessage((_a2 = sample == null ? void 0 : sample.limit) == null ? void 0 : _a2.type)}
-          hidden=${hidden}
-          setHidden=${setHidden}
-        />` : ""}
     <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError ? m$1`<${ErrorPanel}
           title="Unable to load sample"
@@ -20107,7 +20081,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.1, sampleDescriptor.messageShape.answer) : 0;
+  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -20230,11 +20204,6 @@ const SampleDialog = ({
   setSampleScrollPosition,
   context
 }) => {
-  var _a2;
-  const [hidden, setHidden] = h(false);
-  y(() => {
-    setHidden(false);
-  }, [sample]);
   const tools = T(() => {
     const nextTool = {
       label: "Next Sample",
@@ -20305,9 +20274,6 @@ const SampleDialog = ({
       showProgress=${sampleStatus === "loading"}
       initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
-      warning=${sampleLimitMessage((_a2 = sample == null ? void 0 : sample.limit) == null ? void 0 : _a2.type)}
-      warningHidden=${hidden}
-      setWarningHidden=${setHidden}
     >
         ${children}
     </${LargeModal}>`;
@@ -20699,7 +20665,7 @@ const gridColumns = (sampleDescriptor) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.1, sampleDescriptor.messageShape.limit) : 0;
+  const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.limit) : 0;
   return { input, target, answer, limit };
 };
 const SamplesTab = ({

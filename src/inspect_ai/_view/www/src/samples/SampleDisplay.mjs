@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { useEffect, useState } from "preact/hooks";
 
 import { ChatView } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
@@ -36,8 +35,6 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
-import { sampleLimitMessage } from "./SampleLimit.mjs";
 
 /**
  * Inline Sample Display
@@ -63,11 +60,6 @@ export const InlineSampleDisplay = ({
   setSelectedTab,
   context,
 }) => {
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    setHidden(false);
-  }, [sample]);
-
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
@@ -75,13 +67,6 @@ export const InlineSampleDisplay = ({
         background: "var(--bs-body-bg)",
       }}
     />
-    ${sample?.limit
-      ? html`<${WarningBand}
-          message=${sampleLimitMessage(sample?.limit?.type)}
-          hidden=${hidden}
-          setHidden=${setHidden}
-        />`
-      : ""}
     <div style=${{ margin: "0 1em 1em 1em" }} />
     ${sampleError
       ? html`<${ErrorPanel}
@@ -394,7 +379,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       : 0;
   const limitSize =
     sampleDescriptor?.messageShape.limit > 0
-      ? Math.max(0.1, sampleDescriptor.messageShape.answer)
+      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
 
   const scoreInput = inputString(sample.input);

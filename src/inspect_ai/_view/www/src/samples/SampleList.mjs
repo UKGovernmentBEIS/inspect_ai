@@ -392,7 +392,7 @@ const gridColumns = (sampleDescriptor) => {
       : 0;
   const limit =
     sampleDescriptor?.messageShape.limit > 0
-      ? Math.max(0.1, sampleDescriptor.messageShape.limit)
+      ? Math.max(0.15, sampleDescriptor.messageShape.limit)
       : 0;
   return { input, target, answer, limit };
 };
