@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the ErrorEventView component.
@@ -15,7 +16,7 @@ import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
  */
 export const InputEventView = ({ id, event, style }) => {
   return html`
-  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style}>
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
   </${EventPanel}>`;
 };
