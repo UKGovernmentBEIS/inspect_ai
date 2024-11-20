@@ -29299,79 +29299,29 @@ self.onmessage = function (e) {
   `;
     };
     const SelectScorer = ({ scores, score, setScore }) => {
-      const scorers = scores.reduce((accum, scorer) => {
-        if (!accum.find((sc) => {
-          return scorer.scorer === sc.scorer;
-        })) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, []);
-      if (scorers.length === 1) {
-        return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-          alignSelf: "center",
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >Score:</span
-        >
-        <${ScoreSelector}
-          scores=${scores}
-          selectedIndex=${scoreIndex(score, scores)}
-          selectedIndexChanged=${(index) => {
-          setScore(scores[index]);
-        }}
-        />
-      </div>
-    `;
-      } else {
-        const scorerScores = scores.filter((sc) => {
-          return sc.scorer === score.scorer;
-        });
-        const selectors = [
-          m$1`<${ScorerSelector}
-        scorers=${scorers}
-        selectedIndex=${scorerIndex(score, scorers)}
+      return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="select-scorer-label"
+        style=${{
+        alignSelf: "center",
+        fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary,
+        marginRight: "0.3em",
+        marginLeft: "0.2em"
+      }}
+        >Scorer:</span
+      >
+      <${ScoreSelector}
+        scores=${scores}
+        selectedIndex=${scoreIndex(score, scores)}
         selectedIndexChanged=${(index) => {
-            setScore(scorers[index]);
-          }}
-      />`
-        ];
-        if (scorerScores.length > 1) {
-          selectors.push(
-            m$1`<${ScoreSelector}
-          style=${{ marginLeft: "1em" }}
-          scores=${scorerScores}
-          selectedIndex=${scoreIndex(score, scorerScores)}
-          selectedIndexChanged=${(index) => {
-              setScore(scorerScores[index]);
-            }}
-        />`
-          );
-        }
-        return m$1`
-      <div style=${{ display: "flex" }}>
-        <span
-          class="select-scorer-label"
-          style=${{
-          alignSelf: "center",
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary,
-          marginRight: "0.3em",
-          marginLeft: "0.2em"
-        }}
-          >Scorer:</span
-        >
-        ${selectors}
-      </div>
-    `;
-      }
+        setScore(scores[index]);
+      }}
+      />
+    </div>
+  `;
     };
     const ScoreSelector = ({
       scores,
@@ -29389,30 +29339,14 @@ self.onmessage = function (e) {
       }}
   >
     ${scores.map((score) => {
-        return m$1`<option value="${score.name}">${score.name}</option>`;
-      })}
-  </select>`;
-    };
-    const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
-      return m$1`<select
-    class="form-select form-select-sm"
-    aria-label=".epoch-filter-label"
-    style=${{ fontSize: FontSize.smaller }}
-    value=${scorers[selectedIndex].scorer}
-    onChange=${(e2) => {
-        selectedIndexChanged(e2.target.selectedIndex);
-      }}
-  >
-    ${scorers.map((scorer) => {
-        return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
+        return m$1`<option value="${score.name}">
+        ${score.scorer != score.name ? "- " : ""}${score.name}
+      </option>`;
       })}
   </select>`;
     };
     const scoreIndex = (score, scores) => scores.findIndex((sc) => {
       return sc.name === score.name && sc.scorer === score.scorer;
-    });
-    const scorerIndex = (score, scores) => scores.findIndex((sc) => {
-      return sc.scorer === score.scorer;
     });
     const SampleTools = (props) => {
       const {
