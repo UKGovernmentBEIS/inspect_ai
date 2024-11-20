@@ -16702,6 +16702,7 @@ const EventPanel = ({
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
+          title=${subTitle}
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -16740,20 +16741,6 @@ const EventPanel = ({
           >
             ${title}
           </div>
-          ${subTitle ? m$1` <div
-                style=${{
-    marginLeft: "0.5em",
-    ...TextStyle.label,
-    ...TextStyle.tertiary,
-    ...titleStyle,
-    fontWeight: "400"
-  }}
-                onclick=${() => {
-    setCollapsed(!collapsed);
-  }}
-              >
-                ${subTitle}
-              </div>` : ""}
           <div
             onclick=${() => {
     setCollapsed(!collapsed);

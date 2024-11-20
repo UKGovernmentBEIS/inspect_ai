@@ -75,6 +75,7 @@ export const EventPanel = ({
   const titleEl =
     title || icon || filteredArrChildren.length > 1
       ? html`<div
+          title=${subTitle}
           style=${{
             display: "grid",
             gridTemplateColumns: gridColumns.join(" "),
@@ -119,22 +120,6 @@ export const EventPanel = ({
           >
             ${title}
           </div>
-          ${subTitle
-            ? html` <div
-                style=${{
-                  marginLeft: "0.5em",
-                  ...TextStyle.label,
-                  ...TextStyle.tertiary,
-                  ...titleStyle,
-                  fontWeight: "400",
-                }}
-                onclick=${() => {
-                  setCollapsed(!collapsed);
-                }}
-              >
-                ${subTitle}
-              </div>`
-            : ""}
           <div
             onclick=${() => {
               setCollapsed(!collapsed);
