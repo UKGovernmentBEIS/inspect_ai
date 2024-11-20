@@ -27,8 +27,8 @@ from ..core.display import (
 from ..core.footer import task_footer
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
+from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
-from .widgets.log import LogView
 from .widgets.samples import SamplesView
 from .widgets.tasks import TasksView
 from .widgets.titlebar import AppTitlebar
@@ -168,8 +168,8 @@ class TaskScreenApp(App[TR]):
                 yield TasksView()
             with TabPane("Samples", id="samples"):
                 yield SamplesView()
-            with TabPane("Log", id="log"):
-                yield LogView()
+            with TabPane("Console", id="console"):
+                yield ConsoleView()
 
     def on_mount(self) -> None:
         # start the eval worker
@@ -178,8 +178,8 @@ class TaskScreenApp(App[TR]):
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
 
-        # handle log unread
-        self.handle_log_unread()
+        # handle console unread
+        self.handle_console_unread()
 
         # update display every second
         self.set_interval(1, self.update_display)
@@ -232,26 +232,26 @@ class TaskScreenApp(App[TR]):
         footer.left = left
         footer.right = right
 
-    # track and display log unread state
-    def handle_log_unread(self) -> None:
+    # track and display console unread state
+    def handle_console_unread(self) -> None:
         # unread management
         tabs = self.query_one(TabbedContent)
-        log_tab = tabs.get_tab("log")
-        log_view = self.query_one(LogView)
+        console_tab = tabs.get_tab("console")
+        console_view = self.query_one(ConsoleView)
 
         def set_unread(unread: int | None) -> None:
             if unread is not None:
-                log_tab.label = Text.from_markup(f"Log ({unread})")
+                console_tab.label = Text.from_markup(f"Console ({unread})")
             else:
-                log_tab.label = Text.from_markup("Log")
+                console_tab.label = Text.from_markup("Console")
 
         def set_active_tab(active: str) -> None:
-            log_view.notify_active(active == "log")
+            console_view.notify_active(active == "console")
 
-        self.watch(log_view, "unread", set_unread)
+        self.watch(console_view, "unread", set_unread)
         self.watch(tabs, "active", set_active_tab)
 
-    # capture output and route to log view and our buffer
+    # capture output and route to console view and our buffer
     def on_print(self, event: Print) -> None:
         # remove trailing newline
         text = event.text
@@ -261,8 +261,8 @@ class TaskScreenApp(App[TR]):
         # track output (for printing at the end)
         self._output.append(text)
 
-        # write to log view
-        self.query_one(LogView).write_ansi(text)
+        # write to console view
+        self.query_one(ConsoleView).write_ansi(text)
 
     # map ctrl+c to cancelling the worker
     @override

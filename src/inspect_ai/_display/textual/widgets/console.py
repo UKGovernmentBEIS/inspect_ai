@@ -3,9 +3,9 @@ from textual.reactive import reactive
 from textual.widgets import RichLog
 
 
-class LogView(RichLog):
+class ConsoleView(RichLog):
     DEFAULT_CSS = """
-    LogView {
+    ConsoleView {
         scrollbar-size-horizontal: 1;
         scrollbar-size-vertical: 1;
         scrollbar-gutter: stable;
