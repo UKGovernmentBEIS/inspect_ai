@@ -4,7 +4,8 @@ import { FontSize } from "../appearance/Fonts.mjs";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
-export const WarningBand = ({ message, hidden, setHidden }) => {
+export const MessageBand = ({ message, hidden, setHidden, type }) => {
+
   return html`
     <div
       style=${{
@@ -12,14 +13,14 @@ export const WarningBand = ({ message, hidden, setHidden }) => {
         alignItems: "center",
         columnGap: "0.5em",
         fontSize: FontSize.small,
-        color: "var(--bs-warning-text-emphasis)",
-        background: "var(--bs-warning-bg-subtle)",
+        color: "var(--bs-" + type + "-text-emphasis)",
+        background: "var(--bs-" + type + "-bg-subtle)",
         borderBottom: "solid 1px var(--bs-light-border-subtle)",
         padding: "0.3em 1em",
         display: hidden ? "none" : "grid",
       }}
     >
-      <i class=${ApplicationIcons.logging.warning} />
+      <i class=${ApplicationIcons.logging[type]} />
       ${message}
       <button
         title="Close"
@@ -27,7 +28,7 @@ export const WarningBand = ({ message, hidden, setHidden }) => {
           fontSize: FontSize["title-secondary"],
           margin: "0",
           padding: "0",
-          color: "var(--bs-warning-text-emphasis)",
+          color: "var(--bs-" + type + "-text-emphasis)",
           height: FontSize["title-secondary"],
           lineHeight: FontSize["title-secondary"],
         }}

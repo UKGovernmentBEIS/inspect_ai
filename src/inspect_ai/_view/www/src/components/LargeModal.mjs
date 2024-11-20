@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "preact/hooks";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
 import { debounce } from "../utils/sync.mjs";
-import { WarningBand } from "./WarningBand.mjs";
+import { MessageBand } from "./MessageBand.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -154,10 +154,11 @@ export const LargeModal = (props) => {
         />
 
         ${warning
-          ? html`<${WarningBand}
+          ? html`<${MessageBand}
               message=${warning}
               hidden=${warningHidden}
               setHidden=${setWarningHidden}
+              type="warning"
             />`
           : ""}
         <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>

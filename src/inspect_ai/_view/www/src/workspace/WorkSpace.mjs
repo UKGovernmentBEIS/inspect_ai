@@ -15,7 +15,7 @@ import { Navbar } from "../navbar/Navbar.mjs";
 
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -245,10 +245,11 @@ export const WorkSpace = ({
           evalStatus === "success"
         ) {
           warnings.push(
-            html`<${WarningBand}
+            html`<${MessageBand}
               message="Unable to display samples (this evaluation log may be too large)."
               hidden=${hidden}
               setHidden=${setHidden}
+              type="warning"
             />`,
           );
         }
