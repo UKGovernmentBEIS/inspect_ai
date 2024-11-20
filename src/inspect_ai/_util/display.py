@@ -9,11 +9,26 @@ logger = getLogger(__name__)
 DisplayType = Literal["full", "rich", "plain", "none"]
 
 
-def display_type() -> DisplayType:
-    display = os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
+_display_type: DisplayType | None = None
+
+
+def init_display_type(display: str | None = None) -> DisplayType:
+    global _display_type
+    display = (
+        display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
+    )
     match display:
         case "full" | "rich" | "plain" | "none":
-            return display
+            _display_type = display
         case _:
             logger.warning(f"Unknown display type '{display}'")
-            return "full"
+            _display_type = "full"
+    return _display_type
+
+
+def display_type() -> DisplayType:
+    global _display_type
+    if _display_type:
+        return _display_type
+    else:
+        return init_display_type()

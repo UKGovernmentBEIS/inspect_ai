@@ -1,5 +1,4 @@
 import functools
-import os
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -11,6 +10,7 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
+from inspect_ai._util.display import init_display_type
 
 
 class CommonOptions(TypedDict):
@@ -103,9 +103,10 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 def process_common_options(options: CommonOptions) -> None:
     # propagate display
     if options["no_ansi"]:
-        os.environ["INSPECT_DISPLAY"] = "plain"
+        display = "plain"
     else:
-        os.environ["INSPECT_DISPLAY"] = options["display"].lower().strip()
+        display = options["display"].lower().strip()
+    init_display_type(display)
 
     # attach debugger if requested
     if options["debug"]:

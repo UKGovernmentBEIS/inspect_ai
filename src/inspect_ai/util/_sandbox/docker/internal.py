@@ -24,16 +24,18 @@ async def is_internal_image_built(image: str) -> bool:
 
 
 async def build_internal_image(image: str) -> None:
+    args = [
+        "docker",
+        "build",
+        "--tag",
+        image,
+        "--progress",
+        "plain" if display_type() == "plain" else "auto",
+    ]
+    if display_type() == "none":
+        args.append("--quiet")
     result = await subprocess(
-        [
-            "docker",
-            "build",
-            "--tag",
-            image,
-            "--progress",
-            "plain" if display_type() == "plain" else "auto",
-            INTERNAL_IMAGES[image].as_posix(),
-        ],
+        args + [INTERNAL_IMAGES[image].as_posix()],
         capture_output=False,
     )
     if not result.success:
