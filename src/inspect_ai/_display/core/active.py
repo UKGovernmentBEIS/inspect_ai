@@ -1,6 +1,5 @@
 import sys
 from contextvars import ContextVar
-from typing import Any, Coroutine
 
 import rich
 
@@ -9,11 +8,7 @@ from inspect_ai.util._trace import trace_enabled
 
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
-from .display import TR, Display, TaskScreen
-
-
-def run_task_app(main: Coroutine[Any, Any, TR]) -> TR:
-    return display().run_task_app(main)
+from .display import Display, TaskScreen
 
 
 def display() -> Display:

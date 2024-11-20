@@ -7,7 +7,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
-from inspect_ai._display.core.active import run_task_app
+from inspect_ai._display.core.active import display
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
@@ -144,7 +144,7 @@ def eval(
     # resolve eval trace
     max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples, model)
 
-    return run_task_app(
+    return display().run_task_app(
         main=eval_async(
             tasks=tasks,
             model=model,
@@ -499,7 +499,7 @@ def eval_retry(
     # resolve eval trace
     max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples)
 
-    return run_task_app(
+    return display().run_task_app(
         main=eval_retry_async(
             tasks=tasks,
             log_level=log_level,
