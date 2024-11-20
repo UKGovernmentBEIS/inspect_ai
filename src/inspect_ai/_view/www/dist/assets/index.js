@@ -20107,6 +20107,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
+  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.1, sampleDescriptor.messageShape.answer) : 0;
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -20151,6 +20152,14 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
           />` : "",
       size: `${answer}fr`,
       clamp: true
+    });
+  }
+  if (limitSize > 0) {
+    columns.push({
+      label: "Limit",
+      value: sample.limit.type,
+      size: `${limitSize}fr`,
+      center: true
     });
   }
   columns.push({

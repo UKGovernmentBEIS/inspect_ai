@@ -392,6 +392,10 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     sampleDescriptor?.messageShape.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.answer)
       : 0;
+  const limitSize =
+    sampleDescriptor?.messageShape.limit > 0
+      ? Math.max(0.1, sampleDescriptor.messageShape.answer)
+      : 0;
 
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
@@ -447,6 +451,15 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
         : "",
       size: `${answer}fr`,
       clamp: true,
+    });
+  }
+
+  if (limitSize > 0) {
+    columns.push({
+      label: "Limit",
+      value: sample.limit.type,
+      size: `${limitSize}fr`,
+      center: true,
     });
   }
 
