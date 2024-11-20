@@ -6,6 +6,7 @@ import { ChatView } from "../../components/ChatView.mjs";
 import { EventSection } from "./EventSection.mjs";
 import { toArray } from "../../utils/Type.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the SampleInitEventView component.
@@ -42,7 +43,7 @@ export const SampleInitEventView = ({ id, event, style }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
