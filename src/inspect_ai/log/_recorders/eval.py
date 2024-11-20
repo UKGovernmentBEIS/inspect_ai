@@ -34,6 +34,7 @@ class SampleSummary(BaseModel):
     target: str | list[str]
     scores: dict[str, Score] | None
     error: str | None
+    limit: str | None
 
 
 class LogStart(BaseModel):
@@ -268,6 +269,7 @@ class EvalRecorder(FileRecorder):
                     target=sample.target,
                     scores=sample.scores,
                     error=sample.error.message if sample.error is not None else None,
+                    limit=f"{sample.limit.type}" if sample.limit is not None else None,
                 )
             )
         log.samples.clear()

@@ -59,6 +59,22 @@ class SampleInitEvent(BaseEvent):
     """Initial state."""
 
 
+class SampleLimitEvent(BaseEvent):
+    """The sample was unable to finish processing due to a limit"""
+
+    event: Literal["sample_limit"] = Field(default="sample_limit")
+    """Event type."""
+
+    type: Literal["message", "time", "token", "context", "operator"]
+    """Type of limit that halted processing"""
+
+    limit: int | None = Field(default=None)
+    """The limit value"""
+
+    message: str | None = Field(default=None)
+    """A message associated with this limit"""
+
+
 class StoreEvent(BaseEvent):
     """Change to data within the current `Store`."""
 
@@ -268,6 +284,7 @@ class SubtaskEvent(BaseEvent):
 
 Event: TypeAlias = Union[
     SampleInitEvent
+    | SampleLimitEvent
     | StateEvent
     | StoreEvent
     | ModelEvent

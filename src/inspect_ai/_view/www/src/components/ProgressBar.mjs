@@ -19,6 +19,7 @@ export const ProgressBar = ({ style, containerStyle, animating }) => {
     width: "100%",
     height: "2px",
     ...containerStyle,
+    background: "#ffffff00",
   };
 
   const progressBarStyle = {

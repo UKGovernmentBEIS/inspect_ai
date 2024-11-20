@@ -41,10 +41,11 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
-from inspect_ai.log._log import EvalSampleReductions, eval_error
+from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
+    SampleLimitEvent,
     ScoreEvent,
     transcript,
 )
@@ -435,8 +436,12 @@ async def task_run_sample(
 
         except TimeoutError:
             # notify the user
-            transcript().info(
-                f"Sample completed: exceeded time limit ({time_limit:,} seconds)"
+            transcript()._event(
+                SampleLimitEvent(
+                    type="time",
+                    limit=time_limit,
+                    message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                )
             )
 
             # capture most recent state for scoring
@@ -502,8 +507,12 @@ async def task_run_sample(
         except BaseException as ex:
             # note timeout
             if isinstance(ex, TimeoutError):
-                transcript().info(
-                    f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="time",
+                        limit=time_limit,
+                        message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                    )
                 )
 
             # handle error (this will throw if we've exceeded the limit)
@@ -558,6 +567,17 @@ def log_sample(
         )
 
     # construct sample for logging
+    sample_events = transcript().events
+
+    # if a limit was hit, note that in the Eval Sample
+    limit = None
+    for e in sample_events:
+        if e.event == "sample_limit":
+            limit = EvalSampleLimit(
+                type=e.type, limit=e.limit if e.limit is not None else -1
+            )
+            break
+
     eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
@@ -572,9 +592,10 @@ def log_sample(
         output=state.output,
         scores=cast(dict[str, Score], scores),
         store=dict(state.store.items()),
-        events=transcript().events,
+        events=sample_events,
         model_usage=sample_model_usage(),
         error=error,
+        limit=limit,
     )
 
     logger.log_sample(condense_sample(eval_sample, log_images), flush=True)

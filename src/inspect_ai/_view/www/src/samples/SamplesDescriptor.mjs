@@ -60,6 +60,7 @@ import {
  * @property {number} input - Normalized size of the input message.
  * @property {number} target - Normalized size of the target message.
  * @property {number} answer - Normalized size of the answer message.
+ * @property {number} limit - Normalized size of the limit message.
  */
 
 /**
@@ -213,17 +214,21 @@ export const createsSamplesDescriptor = (
         ),
         300,
       );
+      previous[3] = Math.min(
+        Math.max(previous[3], current.limit ? current.limit.length : 0),
+      );
       return previous;
     },
-    [0, 0, 0],
+    [0, 0, 0, 0],
   );
 
   // normalize to base 1
-  const base = sizes[0] + sizes[1] + sizes[2] || 1;
+  const base = sizes[0] + sizes[1] + sizes[2] + sizes[3] || 1;
   const messageShape = {
     input: sizes[0] / base,
     target: sizes[1] / base,
     answer: sizes[2] / base,
+    limit: sizes[3] / base,
   };
 
   const scoreRendered = (sample) => {

@@ -1,6 +1,6 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -125,6 +125,11 @@ export const WorkSpace = ({
     return "";
   }
 
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [logFileName]);
+
   // Display the log
   useEffect(() => {
     if (divRef.current) {
@@ -242,6 +247,8 @@ export const WorkSpace = ({
           warnings.push(
             html`<${WarningBand}
               message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
             />`,
           );
         }
