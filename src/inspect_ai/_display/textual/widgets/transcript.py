@@ -12,6 +12,7 @@ from textual.widgets import Static
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import (
     set_transcript_markdown_options,
     transcript_markdown,
@@ -184,7 +185,7 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
 
     if result:
         result = str(result).strip()
-        content.append(Text(result, style=rich_theme().light))
+        content.extend(lines_display(result, 50, rich_theme().light))
 
     return display + [EventDisplay("tool call", Group(*content))]
 

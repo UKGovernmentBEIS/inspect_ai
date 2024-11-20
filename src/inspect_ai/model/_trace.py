@@ -1,6 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
+from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.util._trace import trace_enabled, trace_panel
 
@@ -13,19 +14,8 @@ MESSAGE_TITLE = "Message"
 def trace_tool_mesage(message: ChatMessageTool) -> None:
     if trace_enabled():
         # truncate output to 100 lines
-        MAX_LINES = 100
         output = message.error.message if message.error else message.text.strip()
-        lines = output.splitlines()
-        if len(lines) > MAX_LINES:
-            content: list[RenderableType] = ["\n".join(lines[0:MAX_LINES])]
-            content.append(Text())
-            content.append(
-                Text.from_markup(
-                    f"[italic]Output truncated ({len(lines) - MAX_LINES} additional lines)...[/italic]"
-                )
-            )
-        else:
-            content = [output]
+        content = lines_display(output, 100)
 
         trace_panel(
             title=f"Tool Output: {message.function}",
