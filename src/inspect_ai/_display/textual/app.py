@@ -28,7 +28,7 @@ from ..core.display import (
 from ..core.footer import task_footer
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
-from .theme import inspect_light, inspect_dark
+from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
 from .widgets.samples import SamplesView
