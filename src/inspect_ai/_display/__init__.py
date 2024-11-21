@@ -1,25 +1,6 @@
-from .core.active import display
-from .core.display import (
-    Display,
-    Progress,
-    TaskCancelled,
-    TaskError,
-    TaskProfile,
-    TaskResult,
-    TaskScreen,
-    TaskSuccess,
-    TaskWithResult,
-)
+from ._display import Display
+from .rich import rich_display
 
-__all__ = [
-    "display",
-    "Display",
-    "Progress",
-    "TaskCancelled",
-    "TaskError",
-    "TaskProfile",
-    "TaskResult",
-    "TaskScreen",
-    "TaskWithResult",
-    "TaskSuccess",
-]
+
+def display() -> Display:
+    return rich_display()

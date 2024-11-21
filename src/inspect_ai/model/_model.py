@@ -328,29 +328,19 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    self._record_model_interaction(
+                    await self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
                         config=config,
-                        cache="read",
                         output=existing,
+                        cache="read",
                         call=None,
                     )
                     return existing
 
             # verify that model apis are allowed
             self.verify_model_apis()
-
-            # record the interaction before the call to generate
-            # (we'll update it with the results once we have them)
-            complete = self._record_model_interaction(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                cache="write" if cache else None,
-            )
 
             result = await self.api.generate(
                 input=input,
@@ -364,8 +354,16 @@ class Model:
                 output = result
                 call = None
 
-            # complete the transcript event
-            complete(output, call)
+            # write to transcript
+            await self._record_model_interaction(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                cache="write" if cache else None,
+                call=call,
+            )
 
             # record usage
             if output.usage:
@@ -419,50 +417,32 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    def _record_model_interaction(
+    async def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
+        output: ModelOutput,
         cache: Literal["read", "write"] | None,
-        output: ModelOutput | None = None,
-        call: ModelCall | None = None,
-    ) -> Callable[[ModelOutput, ModelCall | None], None]:
+        call: ModelCall | None,
+    ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        # create event and add it to the transcript
-        model = str(self)
-        event = ModelEvent(
-            model=model,
-            input=input,
-            tools=tools,
-            tool_choice=tool_choice,
-            config=config,
-            output=output if output else ModelOutput.from_content(model, ""),
-            cache=cache,
-            call=call,
-            pending=output is None,
+        trace_assistant_message(input, output.choices[0].message)
+
+        transcript()._event(
+            ModelEvent(
+                model=str(self),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                cache=cache,
+                call=call,
+            )
         )
-        transcript()._event(event)
-
-        # callable that can be used to update the interaction w/ output
-        def complete(
-            updated_output: ModelOutput, updated_call: ModelCall | None
-        ) -> None:
-            # trace
-            trace_assistant_message(input, updated_output.choices[0].message)
-
-            # update event
-            event.output = updated_output
-            event.call = updated_call
-            event.pending = None
-
-        # if we have output then complete it now
-        if output:
-            complete(output, call)
-
-        return complete
 
 
 class ModelName:

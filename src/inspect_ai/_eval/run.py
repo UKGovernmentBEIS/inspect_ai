@@ -7,18 +7,12 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
-from inspect_ai._display.core.active import (
-    clear_task_screen,
-    init_task_screen,
-)
-from inspect_ai._display.core.display import TaskSpec
+from inspect_ai._display._display import clear_task_screen, init_task_screen
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
-from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -213,10 +207,9 @@ async def eval_run(
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
 
-    async with display().task_screen(task_specs(tasks), parallel=False) as screen:
+    with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
         init_task_screen(screen)
         asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
-
         try:
             return await asyncio.gather(*asyncio_tasks)
         except asyncio.CancelledError:
@@ -228,9 +221,9 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
                     task.cancel()
                     await task
                     results.append(task.result())
-            return results
         finally:
             clear_task_screen()
+        return results
 
 
 # multiple mode -- run multiple logical tasks (requires some smart
@@ -292,8 +285,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
-        # init screen
+    with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
+        # set screen
         init_task_screen(screen)
 
         # start worker tasks
@@ -332,21 +325,18 @@ async def startup_sandbox_environments(
 
     # initialiase sandboxenvs (track cleanups)
     cleanups: list[tuple[TaskCleanup, str | None, str]] = []
-    with display().suspend_task_app():
-        for sandboxenv in sandboxenvs:
-            # find type
-            sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+    for sandboxenv in sandboxenvs:
+        # find type
+        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
-            # run startup
-            task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-            with chdir(sandboxenv.run_dir):
-                await task_init("startup", sandboxenv.sandbox.config)
+        # run startup
+        task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+        with chdir(sandboxenv.run_dir):
+            await task_init("startup", sandboxenv.sandbox.config)
 
-            # append cleanup method
-            task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-            cleanups.append(
-                (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
-            )
+        # append cleanup method
+        task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+        cleanups.append((task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir))
 
     # return shutdown method
     async def shutdown() -> None:
@@ -361,10 +351,3 @@ async def startup_sandbox_environments(
                 )
 
     return shutdown
-
-
-def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
-    return [
-        TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
-        for task in tasks
-    ]
