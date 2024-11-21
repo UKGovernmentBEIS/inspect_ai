@@ -297,8 +297,8 @@ class TaskState:
                 transcript()._event(
                     SampleLimitEvent(
                         type="message",
-                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
                         limit=self.message_limit,
+                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
                     )
                 )
             return True
@@ -309,8 +309,8 @@ class TaskState:
                 transcript()._event(
                     SampleLimitEvent(
                         type="token",
-                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
                         limit=self.token_limit,
+                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
                     )
                 )
             return True

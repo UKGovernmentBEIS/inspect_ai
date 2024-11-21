@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 
@@ -40,12 +41,12 @@ def concurrency(
     key = key if key else name
 
     # do we have an existing semaphore? if not create one and store it
-    semaphore = _concurrency_semaphores.get(key, None)
+    semaphore = _concurrency_semaphores.get().get(key, None)
     if semaphore is None:
         semaphore = ConcurencySempahore(
             name, concurrency, asyncio.Semaphore(concurrency)
         )
-        _concurrency_semaphores[key] = semaphore
+        _concurrency_semaphores.get()[key] = semaphore
 
     # return the semaphore
     return semaphore.semaphore
@@ -53,13 +54,13 @@ def concurrency(
 
 def concurrency_status() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
-    for c in _concurrency_semaphores.values():
+    for c in _concurrency_semaphores.get().values():
         status[c.name] = (c.concurrency - c.semaphore._value, c.concurrency)
     return status
 
 
 def init_concurrency() -> None:
-    _concurrency_semaphores.clear()
+    _concurrency_semaphores.set({})
 
 
 @dataclass
@@ -69,4 +70,6 @@ class ConcurencySempahore:
     semaphore: asyncio.Semaphore
 
 
-_concurrency_semaphores: dict[str, ConcurencySempahore] = {}
+_concurrency_semaphores: ContextVar[dict[str, ConcurencySempahore]] = ContextVar(
+    "concurrency_semaphores", default={}
+)
