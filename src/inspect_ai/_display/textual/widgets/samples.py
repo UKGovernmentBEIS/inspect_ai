@@ -33,13 +33,14 @@ class SamplesView(Widget):
         scrollbar-size-vertical: 1;
         margin-bottom: 1;
         row-span: 2;
+        background: transparent;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
-        background: $primary 40%;
+        background: $primary 20%;
     }
 
     SamplesView OptionList > .option-list--option-highlighted {
-        background: $primary 40%;
+        background: $primary 20%;
         text-style: none;
     }
 

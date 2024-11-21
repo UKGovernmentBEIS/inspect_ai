@@ -28,6 +28,7 @@ from ..core.display import (
 from ..core.footer import task_footer
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
+from .theme import inspect_light, inspect_dark
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
 from .widgets.samples import SamplesView
@@ -67,11 +68,8 @@ class TaskScreenApp(App[TR]):
         # all tasks processed by app
         self._app_tasks: list[TaskWithResult] = []
 
-        # dynamically enable dark mode or light mode
-        self.dark = detect_terminal_background().dark
-
         # enable rich hooks
-        rich_initialise(self.dark)
+        rich_initialise(detect_terminal_background().dark)
 
     def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
         # create the worker
@@ -193,6 +191,12 @@ class TaskScreenApp(App[TR]):
                 yield ConsoleView()
 
     def on_mount(self) -> None:
+        # register and set theme
+        dark = detect_terminal_background().dark
+        self.register_theme(inspect_dark)
+        self.register_theme(inspect_light)
+        self.theme = "inspect-dark" if dark else "inspect-light"
+
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
 

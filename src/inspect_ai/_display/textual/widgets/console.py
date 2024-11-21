@@ -9,6 +9,7 @@ class ConsoleView(RichLog):
         scrollbar-size-horizontal: 1;
         scrollbar-size-vertical: 1;
         scrollbar-gutter: stable;
+        background: transparent;
     }
     """
 
