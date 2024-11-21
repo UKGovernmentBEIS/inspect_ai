@@ -149,25 +149,33 @@ async def list_eval_logs_async(
 
 def write_eval_log(
     log: EvalLog,
-    log_file: str | FileInfo,
+    location: str | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> None:
     """Write an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log to write.
-       log_file (str | FileInfo): Location to write log to.
+       location (str | FileInfo): Location to write log to.
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
-    log_file = log_file if isinstance(log_file, str) else log_file.name
+    # resolve location
+    if location is None:
+        if log.location:
+            location = log.location
+        else:
+            raise ValueError(
+                "EvalLog passe to write_eval_log does not have a location, so you must pass an explicit location"
+            )
+    location = location if isinstance(location, str) else location.name
 
     # get recorder type
     if format == "auto":
-        recorder_type = recorder_type_for_location(log_file)
+        recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    recorder_type.write_log(log_file, log)
+    recorder_type.write_log(location, log)
 
 
 def write_log_dir_manifest(

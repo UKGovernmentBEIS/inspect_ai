@@ -23,7 +23,7 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.dataset import Sample
-from inspect_ai.log._file import list_eval_logs
+from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import Model, get_model
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import generate
@@ -41,6 +41,15 @@ def test_eval_set() -> None:
         )
         assert success
         assert logs[0].status == "success"
+
+        # read and write logs based on location
+        for log in logs:
+            log = read_eval_log(log.location)
+            log.eval.metadata = {"foo": "bar"}
+            write_eval_log(log)
+            log = read_eval_log(log.location)
+            assert log.eval.metadata
+            log.eval.metadata["foo"] = "bar"
 
     # run eval that is guaranteed to fail
     with tempfile.TemporaryDirectory() as log_dir:
