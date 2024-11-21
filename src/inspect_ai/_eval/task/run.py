@@ -9,12 +9,12 @@ from typing import Callable, Literal, cast
 
 from typing_extensions import Unpack
 
-from inspect_ai._display import display
-from inspect_ai._display._display import (
+from inspect_ai._display import (
     TaskCancelled,
     TaskError,
     TaskProfile,
     TaskSuccess,
+    display,
 )
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
@@ -42,6 +42,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
+from inspect_ai.log._samples import ActiveSample, active_sample
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -258,6 +259,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             log_images=log_images,
                             sample_source=sample_source,
                             sample_error=sample_error_handler,
+                            fails_on_error=(
+                                config.fail_on_error is None
+                                or config.fail_on_error is True
+                            ),
                             time_limit=config.time_limit,
                             semaphore=sample_semaphore,
                         )
@@ -362,6 +367,7 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: Callable[[BaseException], EvalError],
+    fails_on_error: bool,
     time_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
@@ -399,7 +405,7 @@ async def task_run_sample(
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
 
@@ -415,8 +421,27 @@ async def task_run_sample(
         timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
     )
 
+    # helper to handle exceptions (will throw if we've exceeded the limit)
+    def handle_error(ex: BaseException) -> EvalError:
+        err = sample_error(ex)
+        transcript()._event(ErrorEvent(error=err))
+        return err
+
     # solver loop
-    async with semaphore_cm, sandboxenv_cm:
+    async with (
+        semaphore_cm,
+        sandboxenv_cm,
+        active_sample(
+            ActiveSample(
+                task_name,
+                str(state.model),
+                sample,
+                state.epoch,
+                fails_on_error,
+                sample_transcript,
+            )
+        ) as active,
+    ):
         error: EvalError | None = None
         try:
             async with timeout_cm:
@@ -439,24 +464,38 @@ async def task_run_sample(
             transcript()._event(
                 SampleLimitEvent(
                     type="time",
-                    limit=time_limit,
                     message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                    limit=time_limit,
                 )
             )
 
             # capture most recent state for scoring
             state = sample_state() or state
 
-        except asyncio.CancelledError:
-            # allow cancelled error to propagate
-            raise
+        except asyncio.CancelledError as ex:
+            if active.interrupt_action:
+                # record eve t
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="operator",
+                        message="Sample completed: interrupted by operator",
+                    )
+                )
+
+                # handle the action
+                match active.interrupt_action:
+                    case "score":
+                        # continue to scoring (capture the most recent state)
+                        state = sample_state() or state
+                    case "error":
+                        # default error handling
+                        error = handle_error(ex)
+
+            else:
+                raise
 
         except BaseException as ex:
-            # handle error (this will throw if we've exceeded the limit)
-            error = sample_error(ex)
-
-            # fire error event
-            transcript()._event(ErrorEvent(error=error))
+            error = handle_error(ex)
 
         # set timeout for scoring. if the original timeout was never hit
         # then just create a new timeout_cm targeting the original
@@ -501,7 +540,14 @@ async def task_run_sample(
                                 results[scorer_name] = sample_score
 
         except asyncio.CancelledError:
-            # allow cancelled error to propagate
+            if active.interrupt_action:
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="operator",
+                        message="Unable to score sample due to operator interruption",
+                    )
+                )
+
             raise
 
         except BaseException as ex:
@@ -510,16 +556,13 @@ async def task_run_sample(
                 transcript()._event(
                     SampleLimitEvent(
                         type="time",
-                        limit=time_limit,
                         message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                        limit=time_limit,
                     )
                 )
 
             # handle error (this will throw if we've exceeded the limit)
-            error = sample_error(ex)
-
-            # fire error event
-            transcript()._event(ErrorEvent(error=error))
+            error = handle_error(ex)
 
         progress()
 
@@ -567,11 +610,10 @@ def log_sample(
         )
 
     # construct sample for logging
-    sample_events = transcript().events
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
-    for e in sample_events:
+    for e in transcript().events:
         if e.event == "sample_limit":
             limit = EvalSampleLimit(
                 type=e.type, limit=e.limit if e.limit is not None else -1
@@ -592,7 +634,7 @@ def log_sample(
         output=state.output,
         scores=cast(dict[str, Score], scores),
         store=dict(state.store.items()),
-        events=sample_events,
+        events=list(transcript().events),
         model_usage=sample_model_usage(),
         error=error,
         limit=limit,

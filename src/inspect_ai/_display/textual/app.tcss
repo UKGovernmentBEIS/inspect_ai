@@ -1,0 +1,26 @@
+
+ContentTab {
+  height: 1;
+  padding: 0 1 0 2; 
+}
+
+ContentTabs {
+  height: 2;
+}
+
+ContentTabs #tabs-list {
+  min-height: 1;
+}
+
+TabPane {
+  padding: 0 0 0 0;
+}
+
+Tabs {  
+  &:focus {
+      & .-active {
+          background: transparent;
+      }
+  }
+}
+
