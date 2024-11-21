@@ -35,11 +35,11 @@ class SamplesView(Widget):
         row-span: 2;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
-        background: $accent 40%;
+        background: $primary 40%;
     }
 
     SamplesView OptionList > .option-list--option-highlighted {
-        background: $accent 40%;
+        background: $primary 40%;
         text-style: none;
     }
 
@@ -153,7 +153,7 @@ class SampleToolbar(Horizontal):
         min-width: 20;
     }
     SampleToolbar #cancel-score-output {
-        color: $accent-darken-3;
+        color: $primary-darken-3;
     }
     SampleToolbar #cancel-raise-error {
         color: $warning-darken-3;
@@ -236,7 +236,7 @@ class EventLoadingIndicator(LoadingIndicator):
     EventLoadingIndicator {
         width: auto;
         height: 1;
-        color: $accent;
+        color: $primary;
         text-style: not reverse;
         margin-right: 1;
     }

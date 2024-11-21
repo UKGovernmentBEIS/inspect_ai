@@ -16,3 +16,11 @@ TabPane {
   padding: 0 0 0 0;
 }
 
+Tabs {  
+  &:focus {
+      & .-active {
+          background: transparent;
+      }
+  }
+}
+

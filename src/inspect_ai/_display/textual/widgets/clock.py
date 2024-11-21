@@ -10,7 +10,7 @@ from inspect_ai._display.core.progress import progress_time
 class Clock(Static):
     DEFAULT_CSS = """
     Clock {
-        color: $accent-lighten-3;
+        color: $primary-lighten-3;
     }
     """
 

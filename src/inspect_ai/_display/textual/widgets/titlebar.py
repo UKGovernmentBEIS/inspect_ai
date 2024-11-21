@@ -14,7 +14,7 @@ class AppTitlebar(Widget):
         dock: top;
         width: 100%;
         background: $panel;
-        color: $accent;
+        color: $primary;
         height: 1;
         text-style: bold;
     }
