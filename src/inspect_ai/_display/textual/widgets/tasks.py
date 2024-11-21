@@ -108,6 +108,12 @@ class TaskProgressView(Widget):
     }
     TaskProgressView Bar {
         width: 1fr;
+        &> .bar--bar {
+            color: $warning 90%;
+        }
+        &> .bar--complete {
+            color: $success;
+        }
     }
     """
 

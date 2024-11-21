@@ -7,7 +7,7 @@ inspect_dark = Theme(
     accent="#ffa62b",
     warning="#ffa62b",
     error="#ba3c5b",
-    success="#64CE91",
+    success="#408558",
     foreground="#e0e0e0",
 )
 
