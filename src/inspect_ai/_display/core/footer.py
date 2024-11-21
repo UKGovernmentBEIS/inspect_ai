@@ -6,15 +6,13 @@ from inspect_ai._util.throttle import throttle
 from inspect_ai.util._concurrency import concurrency_status
 
 from .config import task_dict
-from .rich import rich_theme
 
 
 @throttle(1)
-def task_footer() -> tuple[RenderableType, RenderableType]:
-    theme = rich_theme()
+def task_footer(style: str = "") -> tuple[RenderableType, RenderableType]:
     return (
-        f"[{theme.light}]{task_resources()}[/{theme.light}]",
-        Text(task_http_rate_limits(), style=theme.light),
+        Text.from_markup(task_resources(), style=style),
+        Text.from_markup(task_http_rate_limits(), style=style),
     )
 
 

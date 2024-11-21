@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Iterator, cast
 
 from rich.console import RenderableType
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
 from textual.reactive import reactive
@@ -14,7 +15,9 @@ from inspect_ai._display.textual.widgets.clock import Clock
 
 from ...core.display import (
     Progress,
+    TaskCancelled,
     TaskDisplay,
+    TaskError,
     TaskResult,
     TaskSpec,
     TaskWithResult,
@@ -42,6 +45,9 @@ class TasksView(Container):
         scrollbar-size-vertical: 1;
         margin-top: 1;
         margin-bottom: 1;
+    }
+    #tasks-config {
+        color: $text-muted;
     }
     #tasks-targets {
         text-align: right;
@@ -98,13 +104,12 @@ class TasksView(Container):
 class TaskProgressView(Widget):
     DEFAULT_CSS = """
     TaskProgressView {
-        color: $text-muted;
         height: auto;
         width: 1fr;
         layout: grid;
         grid-size: 5 1;
         grid-columns: auto auto auto 1fr auto;
-        grid-gutter: 1
+        grid-gutter: 1;
     }
     TaskProgressView Bar {
         width: 1fr;
@@ -156,10 +161,25 @@ class TaskStatusIcon(Static):
     result: reactive[TaskResult | None] = reactive(None)
 
     def __init__(self) -> None:
-        super().__init__(progress_status_icon(None))
+        super().__init__()
+        self.watch_result(None)
 
     def watch_result(self, new_result: TaskResult | None) -> None:
-        self.update(progress_status_icon(new_result))
+        self.update(self._status_icon(new_result))
+
+    def _status_icon(self, result: TaskResult | None) -> RenderableType:
+        error = self.app.current_theme.error or ""
+        succcess = self.app.current_theme.success or ""
+        running = self.app.current_theme.secondary or ""
+        if result:
+            if isinstance(result, TaskError):
+                return Text("✗", style=error)
+            elif isinstance(result, TaskCancelled):
+                return Text("✗", style=error)
+            else:
+                return Text("✔", style=succcess)
+        else:
+            return Text("⠿", style=running)
 
 
 class TaskProgress(Progress):

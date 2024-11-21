@@ -26,7 +26,7 @@ def rich_no_color() -> bool:
     )
 
 
-def rich_initialise(dark: bool) -> None:
+def rich_initialise() -> None:
     # reflect ansi prefs
     if display_type() == "plain":
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
@@ -47,9 +47,9 @@ def rich_initialise(dark: bool) -> None:
             syntax = Syntax(
                 code,
                 self.lexer_name,
-                theme=transcript_code_theme(dark),
+                theme=transcript_code_theme(),
                 word_wrap=True,
-                background_color="#282c34" if dark else "rgb(240,240,240)",
+                background_color="#282c34",
                 padding=0,
             )
             yield syntax

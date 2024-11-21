@@ -12,7 +12,6 @@ from textual.widgets import TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
-from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
 
@@ -69,7 +68,7 @@ class TaskScreenApp(App[TR]):
         self._app_tasks: list[TaskWithResult] = []
 
         # enable rich hooks
-        rich_initialise(detect_terminal_background().dark)
+        rich_initialise()
 
     def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
         # create the worker
@@ -192,10 +191,9 @@ class TaskScreenApp(App[TR]):
 
     def on_mount(self) -> None:
         # register and set theme
-        dark = detect_terminal_background().dark
         self.register_theme(inspect_dark)
         self.register_theme(inspect_light)
-        self.theme = "inspect-dark" if dark else "inspect-light"
+        self.theme = "inspect-dark"
 
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
