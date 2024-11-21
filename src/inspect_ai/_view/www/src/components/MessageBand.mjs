@@ -5,6 +5,10 @@ import { FontSize } from "../appearance/Fonts.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 export const MessageBand = ({ message, hidden, setHidden, type }) => {
+  const bgColor =
+    type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
+  const color =
+    "var(--bs-" + type === "info" ? "secondary" : undefined + "-text-emphasis)";
 
   return html`
     <div
@@ -13,8 +17,8 @@ export const MessageBand = ({ message, hidden, setHidden, type }) => {
         alignItems: "center",
         columnGap: "0.5em",
         fontSize: FontSize.small,
-        color: "var(--bs-" + type + "-text-emphasis)",
-        background: "var(--bs-" + type + "-bg-subtle)",
+        color: color,
+        background: bgColor,
         borderBottom: "solid 1px var(--bs-light-border-subtle)",
         padding: "0.3em 1em",
         display: hidden ? "none" : "grid",
