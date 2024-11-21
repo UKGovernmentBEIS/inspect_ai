@@ -45,7 +45,7 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
         """
         # execute the command
         result = await sandbox().exec(
-            cmd=["bash", "-c", cmd], timeout=timeout, user=user
+            cmd=["bash", "--login", "-c", cmd], timeout=timeout, user=user
         )
         # return output (including stderr if any)
         output = ""
