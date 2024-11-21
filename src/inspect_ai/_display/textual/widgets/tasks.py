@@ -27,7 +27,6 @@ from ...core.progress import (
     MAX_MODEL_NAME_WIDTH,
     progress_description,
     progress_model_name,
-    progress_status_icon,
 )
 
 
