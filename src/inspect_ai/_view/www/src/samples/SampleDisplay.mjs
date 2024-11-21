@@ -67,20 +67,21 @@ export const InlineSampleDisplay = ({
         background: "var(--bs-body-bg)",
       }}
     />
-    <div style=${{ margin: "0 1em 1em 1em" }} />
-    ${sampleError
-      ? html`<${ErrorPanel}
-          title="Unable to load sample"
-          error=${sampleError}
-        />`
-      : html` <${SampleDisplay}
-          id=${id}
-          sample=${sample}
-          sampleDescriptor=${sampleDescriptor}
-          selectedTab=${selectedTab}
-          setSelectedTab=${setSelectedTab}
-          context=${context}
-        />`}
+    <div style=${{ margin: "1em 1em 1em 1em" }}>
+      ${sampleError
+        ? html`<${ErrorPanel}
+            title="Unable to load sample"
+            error=${sampleError}
+          />`
+        : html` <${SampleDisplay}
+            id=${id}
+            sample=${sample}
+            sampleDescriptor=${sampleDescriptor}
+            selectedTab=${selectedTab}
+            setSelectedTab=${setSelectedTab}
+            context=${context}
+          />`}
+    </div>
   </div>`;
 };
 
