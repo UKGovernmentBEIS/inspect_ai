@@ -7,13 +7,13 @@ from typing import Any
 import psutil
 
 from inspect_ai._display import display
-from inspect_ai._display.logger import init_logger
 from inspect_ai._util.constants import (
     DEFAULT_SERVER_HOST,
     DEFAULT_VIEW_PORT,
 )
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.logger import init_logger
 from inspect_ai._view.server import view_server
 
 from .notify import view_data_dir

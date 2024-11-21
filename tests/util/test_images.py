@@ -40,7 +40,7 @@ def test_google_images():
 
 @skip_if_no_openai
 def test_openai_images():
-    check_images("openai/gpt-4")
+    check_images("openai/gpt-4o")
 
 
 @skip_if_no_vertex
