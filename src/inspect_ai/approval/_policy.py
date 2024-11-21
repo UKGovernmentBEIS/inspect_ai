@@ -102,7 +102,7 @@ class ApproverPolicyConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        known_fields = set(cls.model_fields.keys())
+        known_fields = set(cls.__pydantic_fields__.keys())
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
