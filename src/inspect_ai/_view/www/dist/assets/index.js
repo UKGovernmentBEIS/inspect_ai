@@ -16317,7 +16317,9 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
-const WarningBand = ({ message, hidden, setHidden }) => {
+const MessageBand = ({ message, hidden, setHidden, type }) => {
+  const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
+  const color = "var(--bs-" + type === "info" ? "secondary" : "undefined-text-emphasis)";
   return m$1`
     <div
       style=${{
@@ -16325,14 +16327,14 @@ const WarningBand = ({ message, hidden, setHidden }) => {
     alignItems: "center",
     columnGap: "0.5em",
     fontSize: FontSize.small,
-    color: "var(--bs-warning-text-emphasis)",
-    background: "var(--bs-warning-bg-subtle)",
+    color,
+    background: bgColor,
     borderBottom: "solid 1px var(--bs-light-border-subtle)",
     padding: "0.3em 1em",
     display: hidden ? "none" : "grid"
   }}
     >
-      <i class=${ApplicationIcons.logging.warning} />
+      <i class=${ApplicationIcons.logging[type]} />
       ${message}
       <button
         title="Close"
@@ -16340,7 +16342,7 @@ const WarningBand = ({ message, hidden, setHidden }) => {
     fontSize: FontSize["title-secondary"],
     margin: "0",
     padding: "0",
-    color: "var(--bs-warning-text-emphasis)",
+    color: "var(--bs-" + type + "-text-emphasis)",
     height: FontSize["title-secondary"],
     lineHeight: FontSize["title-secondary"]
   }}
@@ -16481,10 +16483,11 @@ const LargeModal = (props) => {
   }}
         />
 
-        ${warning ? m$1`<${WarningBand}
+        ${warning ? m$1`<${MessageBand}
               message=${warning}
               hidden=${warningHidden}
               setHidden=${setWarningHidden}
+              type="warning"
             />` : ""}
         <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
           ${children}
@@ -20146,7 +20149,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
+  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.limit) : 0;
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -20193,7 +20196,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       clamp: true
     });
   }
-  if (limitSize > 0) {
+  if (sample.limit && limitSize > 0) {
     columns.push({
       label: "Limit",
       value: sample.limit.type,
@@ -20581,11 +20584,12 @@ const SampleList = (props) => {
   }, 0);
   const percentError = errorCount / sampleCount * 100;
   const percentLimit = limitCount / sampleCount * 100;
-  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningBand}
+  const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
+  const warningRow = warningMessage ? m$1`<${MessageBand}
         message=${warningMessage}
         hidden=${hidden}
         setHidden=${setHidden}
+        type="info"
       />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
@@ -24714,10 +24718,11 @@ const WorkSpace = ({
         const warnings = [];
         if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
           warnings.push(
-            m$1`<${WarningBand}
+            m$1`<${MessageBand}
               message="Unable to display samples (this evaluation log may be too large)."
               hidden=${hidden}
               setHidden=${setHidden}
+              type="warning"
             />`
           );
         }

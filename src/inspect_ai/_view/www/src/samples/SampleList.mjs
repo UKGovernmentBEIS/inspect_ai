@@ -11,7 +11,7 @@ import { SampleError } from "./SampleError.mjs";
 import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
 import { inputString } from "../utils/Format.mjs";
 
 const kSampleHeight = 88;
@@ -212,16 +212,17 @@ export const SampleList = (props) => {
   const percentLimit = (limitCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
-      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
       : limitCount
-        ? `WARNING: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) were stopped due a limit.`
+        ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
         : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningBand}
+    ? html`<${MessageBand}
         message=${warningMessage}
         hidden=${hidden}
         setHidden=${setHidden}
+        type="info"
       />`
     : "";
 

@@ -379,7 +379,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
       : 0;
   const limitSize =
     sampleDescriptor?.messageShape.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+      ? Math.max(0.15, sampleDescriptor.messageShape.limit)
       : 0;
 
   const scoreInput = inputString(sample.input);
@@ -439,7 +439,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     });
   }
 
-  if (limitSize > 0) {
+  if (sample.limit && limitSize > 0) {
     columns.push({
       label: "Limit",
       value: sample.limit.type,
