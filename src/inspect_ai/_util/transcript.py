@@ -83,7 +83,7 @@ def transcript_panel(
 
 
 def transcript_separator(title: str) -> RenderableType:
-    return Rule(title=title, style="blue bold", align="center", end="\n\n")
+    return Rule(title=title, style="orange1 bold", align="center", end="\n\n")
 
 
 LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
