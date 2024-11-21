@@ -8,6 +8,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "approval",
           "default": "approval",
@@ -76,6 +88,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "message",
         "call",
@@ -533,6 +546,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "error",
           "default": "error",
@@ -548,6 +573,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "error"
       ],
@@ -1989,6 +2015,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "info",
           "default": "info",
@@ -2004,6 +2042,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "data"
       ],
@@ -2018,6 +2057,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "input",
@@ -2039,6 +2090,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "input",
         "input_ansi"
@@ -2107,6 +2159,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "logger",
           "default": "logger",
@@ -2122,6 +2186,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "message"
       ],
@@ -2297,6 +2362,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "model",
           "default": "model",
@@ -2389,6 +2466,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "model",
         "input",
@@ -2663,6 +2741,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "sample_init",
           "default": "sample_init",
@@ -2681,6 +2771,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "sample",
         "state"
@@ -2696,6 +2787,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "sample_limit",
@@ -2716,6 +2819,10 @@
           "title": "Type",
           "type": "string"
         },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
         "limit": {
           "anyOf": [
             {
@@ -2727,26 +2834,15 @@
           ],
           "default": null,
           "title": "Limit"
-        },
-        "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Message"
         }
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "type",
-        "limit",
-        "message"
+        "message",
+        "limit"
       ],
       "title": "SampleLimitEvent",
       "type": "object",
@@ -3015,6 +3111,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "score",
           "default": "score",
@@ -3048,6 +3156,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "score",
         "target"
@@ -3063,6 +3172,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "state",
@@ -3083,6 +3204,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "changes"
       ],
@@ -3097,6 +3219,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "step",
@@ -3134,6 +3268,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "action",
         "type",
@@ -3150,6 +3285,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "store",
@@ -3170,6 +3317,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "changes"
       ],
@@ -3184,6 +3332,18 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
         },
         "event": {
           "const": "subtask",
@@ -3271,6 +3431,7 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "name",
         "type",
@@ -3437,6 +3598,18 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
         "event": {
           "const": "tool",
           "default": "tool",
@@ -3469,6 +3642,17 @@
           },
           "title": "Arguments",
           "type": "object"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "result": {
           "anyOf": [
@@ -3521,17 +3705,6 @@
           ],
           "default": null,
           "title": "Truncated"
-        },
-        "view": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolCallContent"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         },
         "error": {
           "anyOf": [
@@ -3597,14 +3770,15 @@
       },
       "required": [
         "timestamp",
+        "pending",
         "event",
         "type",
         "id",
         "function",
         "arguments",
+        "view",
         "result",
         "truncated",
-        "view",
         "error",
         "events"
       ],

@@ -1,22 +1,36 @@
-import abc
 import contextlib
-from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Iterator, Type, Union
+from typing import (
+    Any,
+    AsyncIterator,
+    Coroutine,
+    Iterator,
+    Protocol,
+    Type,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
+import rich
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
 
 
-class Progress(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class Progress(Protocol):
     def update(self, n: int = 1) -> None: ...
 
-    @abc.abstractmethod
     def complete(self) -> None: ...
+
+
+@dataclass
+class TaskSpec:
+    name: str
+    model: ModelName
 
 
 @dataclass
@@ -59,58 +73,54 @@ class TaskSuccess:
 TaskResult = Union[TaskError, TaskCancelled, TaskSuccess]
 
 
+@dataclass
+class TaskWithResult:
+    profile: TaskProfile
+    result: TaskResult | None
+
+
+TR = TypeVar("TR")
+
+
 class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
-    @abc.abstractmethod
+    def __exit__(self, *excinfo: Any) -> None:
+        pass
+
     @contextlib.contextmanager
     def input_screen(
         self,
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
-    ) -> Iterator[Console]: ...
+    ) -> Iterator[Console]:
+        yield rich.get_console()
 
 
-class TaskDisplay(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class TaskDisplay(Protocol):
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]: ...
 
-    @abc.abstractmethod
     def complete(self, result: TaskResult) -> None: ...
 
 
-class Display(abc.ABC):
-    @abc.abstractmethod
+@runtime_checkable
+class Display(Protocol):
     def print(self, message: str) -> None: ...
 
-    @abc.abstractmethod
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
 
-    @abc.abstractmethod
-    @contextlib.contextmanager
-    def task_screen(self, total_tasks: int, parallel: bool) -> Iterator[TaskScreen]: ...
+    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
 
-    @abc.abstractmethod
+    @contextlib.contextmanager
+    def suspend_task_app(self) -> Iterator[None]: ...
+
+    @contextlib.asynccontextmanager
+    async def task_screen(
+        self, tasks: list[TaskSpec], parallel: bool
+    ) -> AsyncIterator[TaskScreen]:
+        yield TaskScreen()
+
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
-
-
-def task_screen() -> TaskScreen:
-    screen = _task_screen.get(None)
-    if screen is None:
-        raise RuntimeError(
-            "console input function called outside of running evaluation."
-        )
-    return screen
-
-
-def init_task_screen(screen: TaskScreen) -> None:
-    _task_screen.set(screen)
-
-
-def clear_task_screen() -> None:
-    _task_screen.set(None)
-
-
-_task_screen: ContextVar[TaskScreen | None] = ContextVar("task_screen", default=None)

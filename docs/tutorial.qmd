@@ -54,7 +54,7 @@ computer security and provide a short response in a few words.
 
 ### Eval {.unlisted}
 
-Discerning whether the correct security guidance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+Discerning whether the correct security guidance was provided by the model might prove difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
 
 ```{python}
 @task
