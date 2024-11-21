@@ -30,4 +30,5 @@ def test_python_simple_echo() -> None:
     tool_call = get_tool_call(messages, python.__name__)
     assert tool_call is not None
     tool_call_response = get_tool_response(messages, tool_call)
+    assert tool_call_response is not None
     assert tool_call_response.content == "testing python tool\n"
