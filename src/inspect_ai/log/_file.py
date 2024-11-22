@@ -60,28 +60,26 @@ def list_eval_logs(
        List of EvalLog Info.
 
     """
-    logger.debug(f"Listing eval logs for {log_dir}")
-    try:
-        # get the eval logs
-        fs = filesystem(log_dir, fs_options)
-        if fs.exists(log_dir):
-            eval_logs = log_files_from_ls(
-                fs.ls(log_dir, recursive=recursive), formats, descending
-            )
-        else:
-            return []
-
-        # apply filter if requested
-        if filter:
-            return [
-                log
-                for log in eval_logs
-                if filter(read_eval_log(log.name, header_only=True))
-            ]
-        else:
-            return eval_logs
-    finally:
+    # get the eval logs
+    fs = filesystem(log_dir, fs_options)
+    if fs.exists(log_dir):
+        logger.debug(f"Listing eval logs for {log_dir}")
+        eval_logs = log_files_from_ls(
+            fs.ls(log_dir, recursive=recursive), formats, descending
+        )
         logger.debug(f"Listing eval logs for {log_dir} completed")
+    else:
+        return []
+
+    # apply filter if requested
+    if filter:
+        return [
+            log
+            for log in eval_logs
+            if filter(read_eval_log(log.name, header_only=True))
+        ]
+    else:
+        return eval_logs
 
 
 async def list_eval_logs_async(
@@ -177,15 +175,15 @@ def write_eval_log(
     location = location if isinstance(location, str) else location.name
 
     logger.debug(f"Writing eval log to {location}")
-    try:
-        # get recorder type
-        if format == "auto":
-            recorder_type = recorder_type_for_location(location)
-        else:
-            recorder_type = recorder_type_for_format(format)
-        recorder_type.write_log(location, log)
-    finally:
-        logger.debug(f"Writing eval log to {location} completed")
+
+    # get recorder type
+    if format == "auto":
+        recorder_type = recorder_type_for_location(location)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    recorder_type.write_log(location, log)
+
+    logger.debug(f"Writing eval log to {location} completed")
 
 
 def write_log_dir_manifest(
@@ -253,29 +251,29 @@ def read_eval_log(
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
     logger.debug(f"Reading eval log from {log_file}")
-    try:
-        # get recorder type
-        if format == "auto":
-            recorder_type = recorder_type_for_location(log_file)
-        else:
-            recorder_type = recorder_type_for_format(format)
-        log = recorder_type.read_log(log_file, header_only)
 
-        # resolve attachement if requested
-        if resolve_attachments and log.samples:
-            log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+    # get recorder type
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    log = recorder_type.read_log(log_file, header_only)
 
-        # provide sample ids if they aren't there
-        if log.eval.dataset.sample_ids is None and log.samples is not None:
-            sample_ids: dict[str | int, None] = {}
-            for sample in log.samples:
-                if sample.id not in sample_ids:
-                    sample_ids[sample.id] = None
-            log.eval.dataset.sample_ids = list(sample_ids.keys())
+    # resolve attachement if requested
+    if resolve_attachments and log.samples:
+        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
 
-        return log
-    finally:
-        logger.debug(f"Completed reading eval log from {log_file}")
+    # provide sample ids if they aren't there
+    if log.eval.dataset.sample_ids is None and log.samples is not None:
+        sample_ids: dict[str | int, None] = {}
+        for sample in log.samples:
+            if sample.id not in sample_ids:
+                sample_ids[sample.id] = None
+        log.eval.dataset.sample_ids = list(sample_ids.keys())
+
+    logger.debug(f"Completed reading eval log from {log_file}")
+
+    return log
 
 
 def read_eval_log_headers(
