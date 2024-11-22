@@ -279,4 +279,5 @@ async def compose_command(
         timeout=timeout,
         capture_output=capture_output,
     )
+    sandbox_log(f"compose command completed: {shlex.join(compose_command)}")
     return result
