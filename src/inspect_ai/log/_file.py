@@ -1,7 +1,7 @@
 import asyncio
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from logging import getLogger
 from typing import Any, Callable, Generator, Literal, cast
 
 import fsspec  # type: ignore
@@ -19,6 +19,8 @@ from inspect_ai.log._condense import resolve_sample_attachments
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
+
+logger = getLogger(__name__)
 
 
 class EvalLogInfo(FileInfo):
@@ -61,9 +63,11 @@ def list_eval_logs(
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
+        logger.debug(f"Listing eval logs for {log_dir}")
         eval_logs = log_files_from_ls(
             fs.ls(log_dir, recursive=recursive), formats, descending
         )
+        logger.debug(f"Listing eval logs for {log_dir} completed")
     else:
         return []
 
@@ -170,12 +174,16 @@ def write_eval_log(
             )
     location = location if isinstance(location, str) else location.name
 
+    logger.debug(f"Writing eval log to {location}")
+
     # get recorder type
     if format == "auto":
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
     recorder_type.write_log(location, log)
+
+    logger.debug(f"Writing eval log to {location} completed")
 
 
 def write_log_dir_manifest(
@@ -242,6 +250,7 @@ def read_eval_log(
     """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
+    logger.debug(f"Reading eval log from {log_file}")
 
     # get recorder type
     if format == "auto":
@@ -262,19 +271,15 @@ def read_eval_log(
                 sample_ids[sample.id] = None
         log.eval.dataset.sample_ids = list(sample_ids.keys())
 
+    logger.debug(f"Completed reading eval log from {log_file}")
+
     return log
 
 
 def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    with ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(read_eval_log, log_file, header_only=True)
-            for log_file in log_files
-        ]
-        results = [future.result() for future in futures]
-    return results
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
 async def read_eval_log_headers_async(
