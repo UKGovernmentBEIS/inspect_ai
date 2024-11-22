@@ -11,6 +11,7 @@
 - Log viewer: display sample ids rather than indexes.
 - Log viewer: add timestamps to transcript events.
 - Log viewer: metadata which contains images will now render the images.
+- Log viewer: show custom tool call views in messages display.
 
 ## v0.3.47 (18 November 2024) 
 
