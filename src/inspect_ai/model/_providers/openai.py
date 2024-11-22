@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, cast
+from typing import Any
 
 from openai import (
     APIConnectionError,
@@ -418,16 +418,13 @@ async def as_chat_completion_part(
     else:
         # API takes URL or base64 encoded file. If it's a remote file or
         # data URL leave it alone, otherwise encode it
-        image_url, detail = (
-            (content.image, "auto")
-            if isinstance(content.image, str)
-            else (content.image, content.detail)
-        )
+        image_url = content.image
+        detail = content.detail
 
         if not is_http_url(image_url) and not is_data_uri(image_url):
             image_url = await image_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=cast(Any, detail)),
+            image_url=dict(url=image_url, detail=detail),
         )
