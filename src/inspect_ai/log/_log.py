@@ -562,6 +562,9 @@ class EvalLog(BaseModel):
     reductions: list[EvalSampleReductions] | None = Field(default=None)
     """Reduced sample values"""
 
+    location: str = Field(default_factory=str, exclude=True)
+    """Location that the log file was read from."""
+
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:

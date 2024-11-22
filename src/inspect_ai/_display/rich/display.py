@@ -13,7 +13,6 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.display import display_type
-from inspect_ai._util.terminal import detect_terminal_background
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._trace import trace_enabled
@@ -61,7 +60,7 @@ class RichDisplay(Display):
         self.parallel = False
         self.live: Live | None = None
         self.timer_handle: asyncio.TimerHandle | None = None
-        rich_initialise(detect_terminal_background().dark)
+        rich_initialise()
 
     @override
     def print(self, message: str) -> None:
@@ -283,8 +282,9 @@ class RichTaskDisplay(TaskDisplay):
 
 
 def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
+    theme = rich_theme()
     body: list[RenderableType] = ["", progress]
-    config = task_config(tasks[0].profile)
+    config = task_config(tasks[0].profile, style=theme.light)
     if config:
         body = [config] + body
 
@@ -292,7 +292,7 @@ def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> Renderable
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
         body=Group(*body),
-        footer=task_footer(),
+        footer=task_footer(theme.light),
         log_location=None,
     )
 
@@ -301,6 +301,7 @@ def tasks_live_status(
     total_tasks: int, tasks: list[TaskStatus], progress: RProgress
 ) -> RenderableType:
     # rendering context
+    theme = rich_theme()
     console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
@@ -308,7 +309,7 @@ def tasks_live_status(
     completed = sum(1 for task in tasks if task.result is not None)
 
     # get config
-    config = task_config(tasks[0].profile, generate_config=False)
+    config = task_config(tasks[0].profile, generate_config=False, style=theme.light)
     if config:
         config += "\n"
 
@@ -316,12 +317,11 @@ def tasks_live_status(
     footer_table = Table.grid(expand=True)
     footer_table.add_column()
     footer_table.add_column(justify="right")
-    footer = task_footer()
+    footer = task_footer(theme.light)
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
     # create panel w/ title
-    theme = rich_theme()
     panel = Panel(
         Group(config, progress, footer_table, fit=False),
         title=f"[bold][{theme.meta}]{tasks_title(completed, total_tasks)}[/{theme.meta}][/bold]",
@@ -333,8 +333,9 @@ def tasks_live_status(
 
 
 def task_no_ansi(profile: TaskProfile) -> str:
+    theme = rich_theme()
     message = f"Running task {task_title(profile, True)}"
-    config = task_config(profile)
+    config = task_config(profile, style=theme.light)
     if config:
         message = f"{message} (config: {config})"
     return f"{message}...\n"

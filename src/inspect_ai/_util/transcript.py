@@ -1,5 +1,3 @@
-import functools
-
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
@@ -8,14 +6,9 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from inspect_ai._util.terminal import detect_terminal_background
 
-
-@functools.cache
-def transcript_code_theme(dark: bool | None = None) -> str:
-    if dark is None:
-        dark = detect_terminal_background().dark
-    return "github-dark" if dark else "vscode"
+def transcript_code_theme() -> str:
+    return "github-dark"
 
 
 def transcript_markdown(content: str) -> Markdown:
@@ -82,8 +75,8 @@ def transcript_panel(
     )
 
 
-def transcript_separator(title: str) -> RenderableType:
-    return Rule(title=title, style="#3376CD bold", align="center", end="\n\n")
+def transcript_separator(title: str, color: str) -> RenderableType:
+    return Rule(title=title, style=f"{color} bold", align="center", end="\n\n")
 
 
 LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")

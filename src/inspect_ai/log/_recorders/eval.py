@@ -193,7 +193,7 @@ class EvalRecorder(FileRecorder):
     def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
-                evalLog = _read_header(zip)
+                evalLog = _read_header(zip, location)
                 if REDUCTIONS_JSON in zip.namelist():
                     with zip.open(REDUCTIONS_JSON, "r") as f:
                         reductions = [
@@ -399,18 +399,18 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
         return summaries
 
 
-def _read_header(zip: ZipFile) -> EvalLog:
+def _read_header(zip: ZipFile, location: str) -> EvalLog:
     # first see if the header is here
     if HEADER_JSON in zip.namelist():
         with zip.open(HEADER_JSON, "r") as f:
-            return EvalLog(**json.load(f))
+            log = EvalLog(**json.load(f))
+            log.location = location
+            return log
     else:
         with zip.open(_journal_path(START_JSON), "r") as f:
             start = LogStart(**json.load(f))
         return EvalLog(
-            version=start.version,
-            eval=start.eval,
-            plan=start.plan,
+            version=start.version, eval=start.eval, plan=start.plan, location=location
         )
 
 

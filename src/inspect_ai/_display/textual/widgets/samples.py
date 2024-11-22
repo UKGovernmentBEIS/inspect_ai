@@ -36,12 +36,11 @@ class SamplesView(Widget):
         background: transparent;
     }
     SamplesView OptionList:focus > .option-list--option-highlighted {
-        background: $primary 20%;
+        background: $primary 40%;
     }
 
     SamplesView OptionList > .option-list--option-highlighted {
-        background: $primary 20%;
-        text-style: none;
+        background: $primary 40%;
     }
 
     SamplesView TranscriptView {
@@ -97,19 +96,13 @@ class SamplesView(Widget):
             table.add_column()
             table.add_column(justify="right")
             table.add_column()
-            task_name = Text.from_markup(
-                f"{registry_unqualified_name(sample.task)}", style="black"
-            )
+            task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(18, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(
-                f"{progress_time(sample.execution_time)}", style="black"
-            )
+            task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
             table.add_row(task_name, task_time, " ")
-            sample_id = Text.from_markup(f"id: {sample.sample.id}", style="dim black")
+            sample_id = Text.from_markup(f"id: {sample.sample.id}")
             sample_id.truncate(18, overflow="ellipsis", pad=True)
-            sample_epoch = Text.from_markup(
-                f"epoch: {sample.epoch:.0f}", style="dim black"
-            )
+            sample_epoch = Text.from_markup(f"epoch: {sample.epoch:.0f}")
             table.add_row(
                 sample_id,
                 sample_epoch,
@@ -182,6 +175,8 @@ class SampleToolbar(Horizontal):
 
     def on_mount(self) -> None:
         self.query_one("#pending-status").visible = False
+        self.query_one("#cancel-score-output").display = False
+        self.query_one("#cancel-raise-error").display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
@@ -198,10 +193,12 @@ class SampleToolbar(Horizontal):
 
         pending_status = self.query_one("#pending-status")
         clock = self.query_one(Clock)
+        cancel_score_output = cast(Button, self.query_one("#cancel-score-output"))
         cancel_with_error = cast(Button, self.query_one("#cancel-raise-error"))
         if sample and not sample.completed:
             # update visibility and button status
             self.display = True
+            cancel_score_output.display = True
             cancel_with_error.display = not sample.fails_on_error
 
             # if we have a pending event then start the clock and show pending status

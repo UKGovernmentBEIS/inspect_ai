@@ -15,7 +15,7 @@ class AppFooter(Widget):
         grid-columns: 1fr auto;
         grid-gutter: 2;
         background: $foreground 5%;
-        color: $text;
+        color: $text-muted;
         dock: bottom;
         height: auto;
         padding: 0 1

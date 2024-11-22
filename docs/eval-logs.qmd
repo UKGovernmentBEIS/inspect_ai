@@ -92,7 +92,7 @@ If you do need to interact with the underlying JSON (e.g., when reading logs fro
 
 By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
- You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
+You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
 ``` bash
 inspect eval images.py --log-format=json --no-log-images
@@ -130,12 +130,53 @@ if log.status == "success":
 
 In the section below we'll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).
 
+### Location
+
+::: {.callout-note appearance="simple"}
+The `location` property described below is supported only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `EvalLog` object returned from `eval()` and `read_eval_log()` has a `location` property that indicates the storage location it was written to or read from.
+
+The `write_eval_log()` function will use this `location` if it isn't passed an explicit `location` to write to. This enables you to modify the contents of a log file return from `eval()` as follows:
+
+``` python
+log = eval(my_task())[0]
+# edit EvalLog as required
+write_eval_log(log)
+```
+
+Or alternatively for an `EvalLog` read from a filesystem:
+
+``` python
+log = read_eval_log(log_file_path)
+# edit EvalLog as required
+write_eval_log(log)
+```
+
+If you are working with the results of an [Eval Set](eval-sets.qmd), the returned logs are headers rather than the full log with all samples. If you want to edit logs returned from `eval_set` you should read them fully, edit them, and then write them. For example:
+
+``` python
+success, logs = eval_set(tasks)
+ 
+for log in logs:
+    log = read_eval_log(log.location)
+    # edit EvalLog as required
+    write_eval_log(log)
+```
+
+Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+
 ### Functions
 
 You can enumerate, read, and write `EvalLog` objects using the following helper functions from the `inspect_ai.log` module:
 
 | Function | Description |
-|--------------------|----------------------------------------------------|
+|----------------------|--------------------------------------------------|
 | `list_eval_logs` | List all of the eval logs at a given location. |
 | `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
 | `read_eval_log_sample` | Read a single `EvalSample` from a log file |
@@ -162,14 +203,15 @@ Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False`
 
 If you are working with log files that are too large to comfortably fit in memory, we recommend the following options and workflow to stream them rather than loading them into memory all at once :
 
-1.  Use the `.eval` log file format which supports compression and incremental access to samples (see details on this in the [Log Format] section above). If you have existing `.json` files you can easily batch convert them to `.eval` using the [Log Commands](#converting-logs) described below.
+1.  Use the `.eval` log file format which supports compression and incremental access to samples (see details on this in the [Log Format](#sec-log-format) section above). If you have existing `.json` files you can easily batch convert them to `.eval` using the [Log Commands](#converting-logs) described below.
 
 2.  If you only need access to the "header" of the log file (which includes general eval metadata as well as the evaluation results) use the `header_only` option of `read_eval_log()`:
 
     ``` python
     log = read_eval_log(log_file, header_only = True)
     ```
-3. If you want to read individual samples, either read them selectively using `read_eval_log_sample()`, or read them iteratively using `read_eval_log_samples()` (which will ensure that only one sample at a time is read into memory):
+
+3.  If you want to read individual samples, either read them selectively using `read_eval_log_sample()`, or read them iteratively using `read_eval_log_samples()` (which will ensure that only one sample at a time is read into memory):
 
     ``` python
     # read a single sample
@@ -182,7 +224,7 @@ If you are working with log files that are too large to comfortably fit in memor
 
 Note that `read_eval_log_samples()` will raise an error if you pass it a log that does not have `status=="success"` (this is because it can't read all of the samples in an incomplete log). If you want to read the samples anyway, pass the `all_samples_required=False` option:
 
-```python
+``` python
 # will not raise an error if the log file has an "error" or "cancelled" status
 for sample in read_eval_log_samples(log_file, all_samples_required=False):
     ...
@@ -278,7 +320,7 @@ $ inspect log dump file:///home/user/log/logfile.json
 $ inspect log dump s3://my-evals-bucket/logfile.json
 ```
 
-### Converting Logs
+### Converting Logs {#converting-logs}
 
 You can convert between the two underlying [log formats](#sec-log-format) using the `inspect log convert` command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (`--to` and `--output-dir`). For example:
 

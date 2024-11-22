@@ -1,12 +1,12 @@
 from inspect_ai._util.registry import is_registry_dict
 
 from .display import TaskProfile
-from .rich import rich_theme
 
 
-def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
+def task_config(
+    profile: TaskProfile, generate_config: bool = True, style: str = ""
+) -> str:
     # merge config
-    theme = rich_theme()
     # wind params back for display
     task_args = dict(profile.task_args)
     for key in task_args.keys():
@@ -28,7 +28,10 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:
-        return f"[{theme.light}]{values}[/{theme.light}]"
+        if style:
+            return f"[{style}]{values}[/{style}]"
+        else:
+            return values
     else:
         return ""
 
