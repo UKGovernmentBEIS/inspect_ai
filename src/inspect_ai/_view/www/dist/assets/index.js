@@ -7931,7 +7931,7 @@ const ErrorPanel = ({ id, classes, title, error: error2 }) => {
         >
           <div>
             Error: ${message || ""}
-            ${stack2 && m$1`
+            ${stack2 && error2.displayStack !== false && m$1`
               <pre
                 style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
               >
@@ -22933,6 +22933,22 @@ try {
   tds = 1;
 } catch (e2) {
 }
+class FileSizeLimitError extends Error {
+  /**
+   * Creates a new FileSizeLimitError.
+   *
+   * @param {string} file - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(file, maxBytes) {
+    super(
+      `File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`
+    );
+    this.name = "FileSizeLimitError";
+    this.file = file;
+    this.maxBytes = maxBytes;
+  }
+}
 const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
   const contentLength = await fetchContentLength(url);
   const eocdrBuffer = await fetchBytes(
@@ -22951,7 +22967,7 @@ const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes
   const centralDirectory = parseCentralDirectory(centralDirBuffer);
   return {
     centralDirectory,
-    readFile: async (file) => {
+    readFile: async (file, maxBytes) => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
@@ -22965,6 +22981,9 @@ const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes
       const filenameLength = headerData[26] + (headerData[27] << 8);
       const extraFieldLength = headerData[28] + (headerData[29] << 8);
       const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+      if (maxBytes && totalSizeToFetch > maxBytes) {
+        throw new FileSizeLimitError(file, maxBytes);
+      }
       const fileData = await fetchBytes(
         url,
         entry.fileOffset,
@@ -23305,6 +23324,7 @@ class AsyncQueue {
     }
   }
 }
+const MAX_BYTES = 12582912;
 const openRemoteLogFile = async (api2, url, concurrency) => {
   const queue = new AsyncQueue(concurrency);
   const remoteZipFile = await openRemoteZipFile(
@@ -23312,14 +23332,20 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
     api2.eval_log_size,
     api2.eval_log_bytes
   );
-  const readJSONFile = async (file) => {
+  const readJSONFile = async (file, maxBytes) => {
     try {
-      const data = await remoteZipFile.readFile(file);
+      const data = await remoteZipFile.readFile(file, maxBytes);
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
       return asyncJsonParse(jsonString);
     } catch (error2) {
-      throw new Error(`Failed to read or parse file ${file}: ${error2.message}`);
+      if (error2 instanceof FileSizeLimitError) {
+        throw error2;
+      } else {
+        throw new Error(
+          `Failed to read or parse file ${file}: ${error2.message}`
+        );
+      }
     }
   };
   const listSamples = async () => {
@@ -23333,10 +23359,10 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
       };
     });
   };
-  const readSample = (sampleId, epoch) => {
+  const readSample = async (sampleId, epoch) => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return readJSONFile(sampleFile);
+      return readJSONFile(sampleFile, MAX_BYTES);
     } else {
       console.log({ dir: remoteZipFile.centralDirectory });
       throw new Error(
@@ -23438,6 +23464,25 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
 const isEvalFile = (file) => {
   return file.endsWith(".eval");
 };
+class SampleSizeLimitedExceededError extends Error {
+  /**
+   * Creates a new SizeLimitedExceededError.
+   *
+   * @param {string | number} id - The name of the file that caused the error.
+   * @param {number} epoch - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(id, epoch, maxBytes) {
+    super(
+      `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+    );
+    this.name = "SampleSizeLimitedExceededError";
+    this.id = id;
+    this.epoch = epoch;
+    this.maxBytes = maxBytes;
+    this.displayStack = false;
+  }
+}
 const clientApi = (api2) => {
   let current_log = void 0;
   let current_path = void 0;
@@ -23506,8 +23551,16 @@ const clientApi = (api2) => {
   const get_log_sample = async (log_file, id, epoch) => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file, true);
-      const sample = await remoteLogFile.readSample(id, epoch);
-      return sample;
+      try {
+        const sample = await remoteLogFile.readSample(id, epoch);
+        return sample;
+      } catch (error2) {
+        if (error2 instanceof FileSizeLimitError) {
+          throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
+        } else {
+          throw error2;
+        }
+      }
     } else {
       const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
