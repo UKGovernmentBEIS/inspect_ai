@@ -15833,6 +15833,17 @@ ${entry.value}</pre
       };
     }
   },
+  Image: {
+    bucket: Buckets.intermediate,
+    canRender: (entry) => {
+      return typeof entry.value === "string" && entry.value.startsWith("data:image/");
+    },
+    render: (id, entry) => {
+      return {
+        rendered: m$1`<img src=${entry.value} />`
+      };
+    }
+  },
   Object: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {

@@ -2,7 +2,7 @@ import click
 from rich import print
 from rich.table import Table
 
-from inspect_ai._display.logger import init_logger
+from inspect_ai._util.logger import init_logger
 from inspect_ai.model import (
     ModelName,
     cache_clear,

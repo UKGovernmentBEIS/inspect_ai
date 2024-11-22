@@ -125,7 +125,7 @@ def subtask(
                     name=subtask_name,
                     input=log_input,
                     result=result,
-                    events=transcript().events,
+                    events=list(transcript().events),
                     type=type,
                 )
 
@@ -154,11 +154,13 @@ def subtask(
         return create_subtask_wrapper(name)
 
 
-def init_subtask(name: str, store: Store) -> None:
+def init_subtask(name: str, store: Store) -> Any:
     from inspect_ai.log._transcript import (
         Transcript,
         init_transcript,
     )
 
     init_subtask_store(store)
-    init_transcript(Transcript(name=name))
+    transcript = Transcript(name=name)
+    init_transcript(transcript)
+    return transcript
