@@ -127,7 +127,10 @@ export type Id1 = string;
 export type Function = string;
 export type Type3 = "function";
 export type ParseError = string | null;
-export type Content3 = string | (ContentText | ContentImage)[];
+export type Title = string | null;
+export type Format = "text" | "markdown";
+export type Content3 = string;
+export type Content4 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId = string | null;
@@ -168,7 +171,7 @@ export type TopLogprobs1 = TopLogprob[] | null;
 export type Token1 = string;
 export type Logprob2 = number;
 export type Bytes1 = number[] | null;
-export type Content4 = Logprob[];
+export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Metadata4 = {} | null;
 export type Error = string | null;
@@ -263,9 +266,6 @@ export type Event5 = "tool";
 export type Type8 = "function";
 export type Id3 = string;
 export type Function2 = string;
-export type Title = string | null;
-export type Format = "text" | "markdown";
-export type Content5 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp6 = string;
@@ -389,6 +389,7 @@ export type Explanation2 = string | null;
 export type Metadata8 = {} | null;
 export type SampleId = string | number | null;
 export type Samples2 = SampleScore[];
+export type Location1 = string;
 
 export interface EvalLog {
   version?: Version;
@@ -400,6 +401,7 @@ export interface EvalLog {
   error?: EvalError | null;
   samples?: Samples1;
   reductions?: Reductions;
+  location?: Location1;
 }
 export interface EvalSpec {
   run_id: RunId;
@@ -617,10 +619,19 @@ export interface ToolCall {
   arguments: Arguments;
   type: Type3;
   parse_error: ParseError;
+  view: ToolCallContent | null;
 }
 export interface Arguments {}
-export interface ChatMessageTool {
+/**
+ * Content to include in tool call view.
+ */
+export interface ToolCallContent {
+  title: Title;
+  format: Format;
   content: Content3;
+}
+export interface ChatMessageTool {
+  content: Content4;
   source: Source3;
   role: Role3;
   tool_call_id: ToolCallId;
@@ -647,7 +658,7 @@ export interface ChatCompletionChoice {
  * Log probability information for a completion choice.
  */
 export interface Logprobs1 {
-  content: Content4;
+  content: Content5;
 }
 /**
  * Log probability for a token.
@@ -882,14 +893,6 @@ export interface ToolEvent {
 }
 export interface Arguments1 {
   [k: string]: JsonValue;
-}
-/**
- * Content to include in tool call view.
- */
-export interface ToolCallContent {
-  title: Title;
-  format: Format;
-  content: Content5;
 }
 /**
  * Tool approval.

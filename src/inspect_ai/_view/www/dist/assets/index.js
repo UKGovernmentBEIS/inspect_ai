@@ -20743,7 +20743,6 @@ const SampleRow = ({
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  console.log({ d: gridColumns(sampleDescriptor) });
   const { input, target, answer, limit, id } = gridColumns(sampleDescriptor);
   return {
     gridGap: "10px",
@@ -20753,7 +20752,6 @@ const gridColumnStyles = (sampleDescriptor) => {
   };
 };
 const gridColumns = (sampleDescriptor) => {
-  console.log({ d: sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape });
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
