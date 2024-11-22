@@ -7,6 +7,7 @@
 - `EvalLog` now includes a [location](https://github.com/UKGovernmentBEIS/inspect_ai/pull/872) property indicating where it was read from.
 - Use [tool views](https://inspect.ai-safety-institute.org.uk/approval.html#tool-views) when rendering tool calls in Insepct View.
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
+- Log viewer: display sample ids rather than indexes.
 - Log viewer: add timestamps to transcript events.
 - Log viewer: metadata which contains images will now render the images.
 
