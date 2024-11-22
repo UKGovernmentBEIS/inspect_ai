@@ -24,15 +24,43 @@ import { decompress } from "fflate";
  */
 
 /**
- * Opens a remote ZIP file from the specified URL, fetches and parses the central directory, and provides a method to read files within the ZIP.
+ * Represents an error thrown when a file exceeds the maximum allowed size.
+ *
+ * @class
+ * @extends {Error}
+ */
+export class FileSizeLimitError extends Error {
+  /**
+   * Creates a new FileSizeLimitError.
+   *
+   * @param {string} file - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(file, maxBytes) {
+    super(
+      `File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`,
+    );
+    this.name = "FileSizeLimitError";
+    this.file = file;
+    this.maxBytes = maxBytes;
+  }
+}
+
+/**
+ * Opens a remote ZIP file from the specified URL, fetches and parses the central directory,
+ * and provides a method to read files within the ZIP.
  *
  * @param {string} url - The URL of the remote ZIP file.
- * @param {(url: string) => Promise<number>} [fetchContentLength] - function to compute file length
- * @param {(url: string, start:number, end: number) => Promise<Uint8Array>} [fetchBytes] - function to fetch bytes
- * @returns {Promise<{ centralDirectory: Map<string, CentralDirectoryEntry>, readFile: function(string): Promise<Uint8Array> }>} A promise that resolves with an object containing:
- *  - `centralDirectory`: A map of filenames to their corresponding central directory entries.
- *  - `readFile`: A function to read a specific file from the ZIP archive by name.
- * @throws {Error} If the file is not found or an unsupported compression method is encountered.
+ * @param {(url: string) => Promise<number>} [fetchContentLength] - Optional function to compute the content length of the remote file.
+ * @param {(url: string, start: number, end: number) => Promise<Uint8Array>} [fetchBytes] - Optional function to fetch a range of bytes from the remote file.
+ * @returns {Promise<{
+ *   centralDirectory: Map<string, CentralDirectoryEntry>,
+ *   readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>
+ * }>} A promise that resolves with an object containing:
+ *   - `centralDirectory`: A map where keys are filenames and values are their corresponding central directory entries.
+ *   - `readFile`: A function to read a specific file from the ZIP archive by name.
+ *                  Takes the filename and an optional maximum byte length to read.
+ * @throws {Error} If the file is not found or if an unsupported compression method is encountered.
  */
 export const openRemoteZipFile = async (
   url,
@@ -61,7 +89,7 @@ export const openRemoteZipFile = async (
   const centralDirectory = parseCentralDirectory(centralDirBuffer);
   return {
     centralDirectory: centralDirectory,
-    readFile: async (file) => {
+    readFile: async (file, maxBytes) => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
@@ -83,6 +111,11 @@ export const openRemoteZipFile = async (
       const extraFieldLength = headerData[28] + (headerData[29] << 8);
       const totalSizeToFetch =
         headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+
+      // Throw an error if this request exceeds our maximum size
+      if (maxBytes && totalSizeToFetch > maxBytes) {
+        throw new FileSizeLimitError(file, maxBytes);
+      }
 
       // Use the total size to fetch the compressed data
       const fileData = await fetchBytes(
