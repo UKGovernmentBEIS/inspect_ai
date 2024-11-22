@@ -57,10 +57,18 @@ import {
 /**
  * Describes the shape of the messages based on their sizes.
  * @typedef {Object} MessageShape
- * @property {number} input - Normalized size of the input message.
- * @property {number} target - Normalized size of the target message.
- * @property {number} answer - Normalized size of the answer message.
- * @property {number} limit - Normalized size of the limit message.
+ * @property {Object} raw
+ * @property {number} raw.id - Normalized size of the id
+ * @property {number} raw.input - Normalized size of the input message.
+ * @property {number} raw.target - Normalized size of the target message.
+ * @property {number} raw.answer - Normalized size of the answer message.
+ * @property {number} raw.limit - Normalized size of the limit message.
+ * @property {Object} normalized
+ * @property {number} normalized.id - Normalized size of the id
+ * @property {number} normalized.input - Normalized size of the input message.
+ * @property {number} normalized.target - Normalized size of the target message.
+ * @property {number} normalized.answer - Normalized size of the answer message.
+ * @property {number} normalized.limit - Normalized size of the limit message.
  */
 
 /**
@@ -216,19 +224,46 @@ export const createsSamplesDescriptor = (
       );
       previous[3] = Math.min(
         Math.max(previous[3], current.limit ? current.limit.length : 0),
+        50,
+      );
+      previous[4] = Math.min(
+        Math.max(previous[4], String(current.id).length),
+        10,
       );
       return previous;
     },
-    [0, 0, 0, 0],
+    [0, 0, 0, 0, 0],
   );
 
   // normalize to base 1
-  const base = sizes[0] + sizes[1] + sizes[2] + sizes[3] || 1;
+  const maxSizes = {
+    input: Math.min(sizes[0], 300),
+    target: Math.min(sizes[1], 300),
+    answer: Math.min(sizes[2], 300),
+    limit: Math.min(sizes[3], 50),
+    id: Math.min(sizes[4], 10),
+  };
+  const base =
+    maxSizes.input +
+      maxSizes.target +
+      maxSizes.answer +
+      maxSizes.limit +
+      maxSizes.id || 1;
   const messageShape = {
-    input: sizes[0] / base,
-    target: sizes[1] / base,
-    answer: sizes[2] / base,
-    limit: sizes[3] / base,
+    raw: {
+      input: sizes[0],
+      target: sizes[1],
+      answer: sizes[2],
+      limit: sizes[3],
+      id: sizes[4],
+    },
+    normalized: {
+      input: maxSizes.input / base,
+      target: maxSizes.target / base,
+      answer: maxSizes.answer / base,
+      limit: maxSizes.limit / base,
+      id: maxSizes.id / base,
+    },
   };
 
   const scoreRendered = (sample) => {

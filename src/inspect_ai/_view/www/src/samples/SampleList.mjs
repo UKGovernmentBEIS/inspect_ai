@@ -159,11 +159,11 @@ export const SampleList = (props) => {
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
-    <div>${limit > 0 ? "Limit" : ""}</div>
+    <div>${limit !== "0" ? "Limit" : ""}</div>
     <div>Score</div>
   </div>`;
 
@@ -300,7 +300,12 @@ const SampleRow = ({
         overflowY: "hidden",
       }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
+      <div
+        class="sample-id"
+        style=${{ ...cellStyle, ...ApplicationStyles.threeLineClamp }}
+      >
+        ${sample.id}
+      </div>
       <div
         class="sample-input"
         style=${{
@@ -368,32 +373,49 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer, limit } = gridColumns(sampleDescriptor);
-
+  console.log({ d: gridColumns(sampleDescriptor) });
+  const { input, target, answer, limit, id } = gridColumns(sampleDescriptor);
   return {
     gridGap: "10px",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr ${limit}fr minmax(2.8rem, auto)`,
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} minmax(2.8rem, auto)`,
     paddingLeft: "1rem",
     paddingRight: "1rem",
   };
 };
 
 const gridColumns = (sampleDescriptor) => {
+  console.log({ d: sampleDescriptor?.messageShape });
   const input =
-    sampleDescriptor?.messageShape.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.input)
+    sampleDescriptor?.messageShape.normalized.input > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.target)
+    sampleDescriptor?.messageShape.normalized.target > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+    sampleDescriptor?.messageShape.normalized.answer > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
   const limit =
-    sampleDescriptor?.messageShape.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.limit)
+    sampleDescriptor?.messageShape.normalized.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  return { input, target, answer, limit };
+  const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+
+  const frSize = (val) => {
+    if (val === 0) {
+      return "0";
+    } else {
+      return `${val}fr`;
+    }
+  };
+
+  return {
+    input: frSize(input),
+    target: frSize(target),
+    answer: frSize(answer),
+    limit: frSize(limit),
+    id: `${id}em`,
+  };
 };

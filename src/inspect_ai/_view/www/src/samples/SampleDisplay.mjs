@@ -367,21 +367,25 @@ const metadataViewsForSample = (id, sample, context) => {
 
 const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const input =
-    sampleDescriptor?.messageShape.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.input)
+    sampleDescriptor?.messageShape.normalized.input > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.target)
+    sampleDescriptor?.messageShape.normalized.target > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+    sampleDescriptor?.messageShape.normalized.answer > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
   const limitSize =
-    sampleDescriptor?.messageShape.limit > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.limit)
+    sampleDescriptor?.messageShape.normalized.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
+  const idSize = Math.max(
+    2,
+    Math.min(10, sampleDescriptor?.messageShape.raw.id),
+  );
 
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
@@ -398,7 +402,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(min-content, max-content)",
+    size: `${idSize}em`,
   });
 
   columns.push({
