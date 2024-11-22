@@ -1,7 +1,6 @@
 import asyncio
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Generator, Literal, cast
 
 import fsspec  # type: ignore
