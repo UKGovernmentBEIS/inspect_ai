@@ -3476,6 +3476,17 @@
           ],
           "default": null,
           "title": "Parse Error"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -3483,7 +3494,8 @@
         "function",
         "arguments",
         "type",
-        "parse_error"
+        "parse_error",
+        "view"
       ],
       "title": "ToolCall",
       "type": "object",
@@ -4132,6 +4144,10 @@
       ],
       "default": null,
       "title": "Reductions"
+    },
+    "location": {
+      "title": "Location",
+      "type": "string"
     }
   },
   "required": [
