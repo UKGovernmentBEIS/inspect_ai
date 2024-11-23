@@ -40,9 +40,12 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 
 SAFETY_SETTINGS = "safety_settings"
@@ -108,12 +111,17 @@ class VertexAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
 
         messages = await as_chat_messages(input)
@@ -177,7 +185,7 @@ def model_call(
     return ModelCall.create(
         request=dict(
             contents=[model_call_content(content) for content in contents],
-            generation_config=generation_config,
+            generation_config=generation_config.to_dict(),
             safety_settings=safety_settings,
             tools=[tool.to_dict() for tool in tools] if tools is not None else None,
         ),
@@ -224,12 +232,12 @@ def consective_tool_message_reducer(
     message: VertexContent,
 ) -> list[VertexContent]:
     if (
-        message["role"] == "function"
+        message.role == "function"
         and len(messages) > 0
-        and messages[-1]["role"] == "function"
+        and messages[-1].role == "function"
     ):
         messages[-1] = VertexContent(
-            role="function", parts=messages[-1]["parts"] + message["parts"]
+            role="function", parts=messages[-1].parts + message.parts
         )
     else:
         messages.append(message)
@@ -361,7 +369,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -369,6 +377,26 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(

@@ -61,9 +61,12 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 from .util import model_base_url
 
@@ -123,12 +126,17 @@ class GoogleAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
 
         # google-native messages
@@ -479,7 +487,8 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    # build choide
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -487,6 +496,27 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    # add logprobs if provided
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(
