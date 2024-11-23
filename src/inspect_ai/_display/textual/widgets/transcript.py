@@ -259,7 +259,10 @@ def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
 
     content: list[RenderableType] = [render_function_call(event.name, event.input)]
     content.append(Text())
-    content.append(render_as_json(event.result))
+    if isinstance(event.result, str | int | float | bool | None):
+        content.append(Text(str(event.result)))
+    else:
+        content.append(render_as_json(event.result))
 
     return display + [EventDisplay(f"subtask: {event.name}", Group(*content))]
 
