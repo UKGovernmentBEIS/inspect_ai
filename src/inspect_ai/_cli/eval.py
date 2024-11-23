@@ -911,7 +911,7 @@ def eval_retry_command(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = True if log_images else None
+    log_images = False if log_images is False else None
     score = False if no_score else True
 
     # resolve fail_on_error
