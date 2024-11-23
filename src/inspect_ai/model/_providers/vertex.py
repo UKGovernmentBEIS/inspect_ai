@@ -116,19 +116,13 @@ class VertexAPI(ModelAPI):
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
-        if config.num_choices is not None:
-            parameters.candidate_count = config.num_choices
-        if config.seed is not None:
-            parameters.seed = config.seed
-        if config.presence_penalty is not None:
-            parameters.presence_penalty = config.presence_penalty
-        if config.frequency_penalty is not None:
-            parameters.frequency_penalty = config.frequency_penalty
-        if config.logprobs is not None:
-            parameters.response_logprobs = config.logprobs
-        if config.top_logprobs is not None:
-            parameters.logprobs = config.top_logprobs
 
         messages = await as_chat_messages(input)
         vertex_tools = chat_tools(tools) if len(tools) > 0 else None
@@ -191,7 +185,7 @@ def model_call(
     return ModelCall.create(
         request=dict(
             contents=[model_call_content(content) for content in contents],
-            generation_config=generation_config,
+            generation_config=generation_config.to_dict(),
             safety_settings=safety_settings,
             tools=[tool.to_dict() for tool in tools] if tools is not None else None,
         ),
@@ -238,12 +232,12 @@ def consective_tool_message_reducer(
     message: VertexContent,
 ) -> list[VertexContent]:
     if (
-        message["role"] == "function"
+        message.role == "function"
         and len(messages) > 0
-        and messages[-1]["role"] == "function"
+        and messages[-1].role == "function"
     ):
         messages[-1] = VertexContent(
-            role="function", parts=messages[-1]["parts"] + message["parts"]
+            role="function", parts=messages[-1].parts + message.parts
         )
     else:
         messages.append(message)
@@ -387,7 +381,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     if candidate.logprobs_result:
         logprobs: list[Logprob] = []
         for chosen, top in zip(
-            candidate.logprobs_result.chosen_candidate,
+            candidate.logprobs_result.chosen_candidates,
             candidate.logprobs_result.top_candidates,
         ):
             logprobs.append(
