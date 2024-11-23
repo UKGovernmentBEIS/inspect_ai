@@ -25,7 +25,7 @@ class SamplesView(Widget):
         layout: grid;
         grid-size: 2 3;
         grid-rows: auto 1fr auto;
-        grid-columns: 30 1fr;
+        grid-columns: 32 1fr;
         grid-gutter: 1;
     }
     """
@@ -147,14 +147,14 @@ class SamplesList(OptionList):
             return None
 
 
-class SampleInfo(Widget):
+class SampleInfo(Horizontal):
     DEFAULT_CSS = """
     SampleInfo {
         color: $text-muted;
         layout: grid;
         grid-size: 2 1;
         grid-rows: auto 1fr;
-        width: 1fr;
+        width: 100%;
     }
     #sample-info-model {
         text-align: right;
@@ -171,7 +171,7 @@ class SampleInfo(Widget):
         if sample is not None:
             self.display = True
             id = Text.from_markup(
-                f"[bold]{sample.task}[/bold]  id: {sample.sample.id} (epoch {sample.epoch})"
+                f"[bold]{registry_unqualified_name(sample.task)}[/bold] - id: {sample.sample.id} (epoch {sample.epoch})"
             )
             info_id.update(id)
             model = Text.from_markup(sample.model)
