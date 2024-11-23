@@ -110,9 +110,9 @@ class SamplesList(OptionList):
         options: list[Option | Separator] = []
         for sample in self.samples:
             table = Table.grid(expand=True)
-            table.add_column()
-            table.add_column(justify="right")
-            table.add_column()
+            table.add_column(width=20)
+            table.add_column(width=11, justify="right")
+            table.add_column(width=1)
             task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(18, overflow="ellipsis", pad=True)
             task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
@@ -148,17 +148,17 @@ class SamplesList(OptionList):
 
 
 class SampleInfo(Horizontal):
-    DEFAULT_CSS = """
-    SampleInfo {
+    DEFAULT_CSS = f"""
+    SampleInfo {{
         color: $text-muted;
         layout: grid;
         grid-size: 2 1;
-        grid-rows: auto 1fr;
+        grid-columns: 1fr {MAX_MODEL_NAME_WIDTH+1};
         width: 100%;
-    }
-    #sample-info-model {
+    }}
+    #sample-info-model {{
         text-align: right;
-    }
+    }}
     """
 
     def compose(self) -> ComposeResult:
