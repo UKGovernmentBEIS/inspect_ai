@@ -67,7 +67,7 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
 def str_to_float(s: str) -> float:
     """Convert a str to float, including handling exponent characters.
 
-    The Python is_numeric() function returns True for strings that include exponents
+    The Python isnumeric() function returns True for strings that include exponents
     (e.g. 5²) however the float() function doesn't handle exponents. This function
     will correctly handle these exponents when converting from str to float.
 
