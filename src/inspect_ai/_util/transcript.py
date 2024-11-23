@@ -1,3 +1,5 @@
+import html
+
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
@@ -14,7 +16,7 @@ def transcript_code_theme() -> str:
 def transcript_markdown(content: str) -> Markdown:
     code_theme = transcript_code_theme()
     return Markdown(
-        content,
+        html.escape(content),
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,
