@@ -39,6 +39,13 @@ from inspect_ai.tool._tool import ToolResult
 
 
 class TranscriptView(ScrollableContainer):
+    DEFAULT_CSS = """
+    TranscriptView {
+        scrollbar-size-vertical: 1;
+        scrollbar-gutter: stable;
+    }
+    """
+
     def __init__(self) -> None:
         super().__init__()
         self._sample_id: str | None = None

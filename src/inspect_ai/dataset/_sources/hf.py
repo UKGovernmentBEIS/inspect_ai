@@ -6,6 +6,7 @@ from typing import Any
 
 from inspect_ai._util.appdirs import inspect_cache_dir
 from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.file import safe_filename
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.version import verify_required_version
 
@@ -87,9 +88,10 @@ def hf_dataset(
     data_to_sample = record_to_sample_fn(sample_fields)
 
     # generate a unique cache dir for this dataset
+    dataset_hash = mm3_hash(f"{path}{name}{data_dir}{split}{kwargs}")
     datasets_cache_dir = inspect_cache_dir("hf_datasets")
     dataset_cache_dir = os.path.join(
-        datasets_cache_dir, mm3_hash(f"{path}{name}{data_dir}{split}{kwargs}")
+        datasets_cache_dir, f"{safe_filename(path)}-{dataset_hash}"
     )
     if os.path.exists(dataset_cache_dir) and cached and revision is None:
         dataset = datasets.load_from_disk(dataset_cache_dir)
@@ -115,7 +117,6 @@ def hf_dataset(
         dataset = dataset.select(range(limit))
 
     # return the dataset
-    print("returning datasets")
     return MemoryDataset(
         samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
         name=Path(path).stem if Path(path).exists() else path,
