@@ -148,17 +148,17 @@ class SamplesList(OptionList):
 
 
 class SampleInfo(Horizontal):
-    DEFAULT_CSS = f"""
-    SampleInfo {{
+    DEFAULT_CSS = """
+    SampleInfo {
         color: $text-muted;
         layout: grid;
         grid-size: 2 1;
-        grid-columns: 1fr {MAX_MODEL_NAME_WIDTH+1};
+        grid-columns: 1fr auto;
         width: 100%;
-    }}
-    #sample-info-model {{
+    }
+    #sample-info-model {
         text-align: right;
-    }}
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -175,8 +175,7 @@ class SampleInfo(Horizontal):
             )
             info_id.update(id)
             model = Text.from_markup(sample.model)
-            model.truncate(MAX_MODEL_NAME_WIDTH, overflow="ellipsis")
-            info_model.update(sample.model)
+            info_model.update(model)
         else:
             self.display = False
 
