@@ -40,9 +40,12 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 
 SAFETY_SETTINGS = "safety_settings"
@@ -108,13 +111,24 @@ class VertexAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
         )
+        if config.num_choices is not None:
+            parameters.candidate_count = config.num_choices
+        if config.seed is not None:
+            parameters.seed = config.seed
+        if config.presence_penalty is not None:
+            parameters.presence_penalty = config.presence_penalty
+        if config.frequency_penalty is not None:
+            parameters.frequency_penalty = config.frequency_penalty
+        if config.logprobs is not None:
+            parameters.response_logprobs = config.logprobs
+        if config.top_logprobs is not None:
+            parameters.logprobs = config.top_logprobs
 
         messages = await as_chat_messages(input)
         vertex_tools = chat_tools(tools) if len(tools) > 0 else None
@@ -361,7 +375,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -369,6 +383,26 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidate,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(
