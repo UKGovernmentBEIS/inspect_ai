@@ -131,19 +131,13 @@ class GoogleAPI(ModelAPI):
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
-        if config.num_choices is not None:
-            parameters.candidate_count = config.num_choices
-        if config.seed is not None:
-            parameters.seed = config.seed
-        if config.presence_penalty is not None:
-            parameters.presence_penalty = config.presence_penalty
-        if config.frequency_penalty is not None:
-            parameters.frequency_penalty = config.frequency_penalty
-        if config.logprobs is not None:
-            parameters.response_logprobs = config.logprobs
-        if config.top_logprobs is not None:
-            parameters.logprobs = config.top_logprobs
 
         # google-native messages
         contents = await as_chat_messages(input)
@@ -507,7 +501,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     if candidate.logprobs_result:
         logprobs: list[Logprob] = []
         for chosen, top in zip(
-            candidate.logprobs_result.chosen_candidate,
+            candidate.logprobs_result.chosen_candidates,
             candidate.logprobs_result.top_candidates,
         ):
             logprobs.append(
