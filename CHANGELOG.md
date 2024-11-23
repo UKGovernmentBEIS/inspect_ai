@@ -8,6 +8,7 @@
 - Use [tool views](https://inspect.ai-safety-institute.org.uk/approval.html#tool-views) when rendering tool calls in Insepct View.
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
+- Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
 - Log viewer: display sample ids rather than indexes.
 - Log viewer: add timestamps to transcript events.
 - Log viewer: metadata which contains images will now render the images.
