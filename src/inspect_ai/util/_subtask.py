@@ -80,6 +80,7 @@ def subtask(
 
     def create_subtask_wrapper(func: Subtask, name: str | None = None) -> Subtask:
         from inspect_ai.log._transcript import (
+            Event,
             SubtaskEvent,
             track_store_changes,
             transcript,
@@ -112,7 +113,7 @@ def subtask(
                 log_input = dict_jsonable(log_input | kwargs)
 
             # create coroutine so we can provision a subtask contextvars
-            async def run() -> tuple[RT, SubtaskEvent]:
+            async def run() -> tuple[RT, list[Event]]:
                 # initialise subtask (provisions store and transcript)
                 init_subtask(subtask_name, store if store else Store())
 
@@ -120,24 +121,23 @@ def subtask(
                 with track_store_changes():  # type: ignore
                     result = await func(*args, **kwargs)
 
-                # create a subtask event
-                event = SubtaskEvent(
-                    name=subtask_name,
-                    input=log_input,
-                    result=result,
-                    events=list(transcript().events),
-                    type=type,
-                )
-
                 # return result and event
-                return result, event
+                return result, list(transcript().events)
+
+            # create subtask event
+            event = SubtaskEvent(
+                name=subtask_name, input=log_input, type=type, pending=True
+            )
+            transcript()._event(event)
 
             # create and run the task as a coroutine
             asyncio_task = asyncio.create_task(run())
-            result, event = await asyncio_task
+            result, events = await asyncio_task
 
-            # fire event
-            transcript()._event(event)
+            # update event
+            event.result = result
+            event.events = events
+            event.pending = None
 
             # return result
             return result
