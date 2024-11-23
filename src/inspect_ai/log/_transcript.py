@@ -295,7 +295,7 @@ class SubtaskEvent(BaseEvent):
     result: Any = Field(default=None)
     """Subtask function result."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
 
 

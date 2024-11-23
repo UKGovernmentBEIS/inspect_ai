@@ -141,11 +141,6 @@ class TaskScreenApp(App[TR]):
         tasks_view = self.query_one(TasksView)
         tasks_view.init_tasks(tasks)
 
-        # dynamic tab caption for task(s)
-        tabs = self.query_one(TabbedContent)
-        tasks_tab = tabs.get_tab("tasks")
-        tasks_tab.label = Text.from_markup("Tasks" if self._total_tasks > 1 else "Task")
-
         # update display
         self.update_display()
 
@@ -184,7 +179,7 @@ class TaskScreenApp(App[TR]):
         with TabbedContent(id="tabs", initial="tasks"):
             with TabPane("Tasks", id="tasks"):
                 yield TasksView()
-            with TabPane("Samples", id="samples"):
+            with TabPane("Running Samples", id="samples"):
                 yield SamplesView()
             with TabPane("Console", id="console"):
                 yield ConsoleView()

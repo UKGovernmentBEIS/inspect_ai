@@ -39,6 +39,13 @@ from inspect_ai.tool._tool import ToolResult
 
 
 class TranscriptView(ScrollableContainer):
+    DEFAULT_CSS = """
+    TranscriptView {
+        scrollbar-size-vertical: 1;
+        scrollbar-gutter: stable;
+    }
+    """
+
     def __init__(self) -> None:
         super().__init__()
         self._sample_id: str | None = None
@@ -198,7 +205,6 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
             content.append(event.view.content)
     else:
         content.append(render_function_call(event.function, event.arguments))
-    content.append(Text())
 
     # render the output
     if isinstance(event.result, list):
@@ -213,6 +219,7 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         result = event.result
 
     if result:
+        content.append(Text())
         result = str(result).strip()
         content.extend(lines_display(result, 50))
 
@@ -258,8 +265,12 @@ def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
             display.extend(render_event(e) or [])
 
     content: list[RenderableType] = [render_function_call(event.name, event.input)]
-    content.append(Text())
-    content.append(render_as_json(event.result))
+    if event.result:
+        content.append(Text())
+        if isinstance(event.result, str | int | float | bool | None):
+            content.append(Text(str(event.result)))
+        else:
+            content.append(render_as_json(event.result))
 
     return display + [EventDisplay(f"subtask: {event.name}", Group(*content))]
 
