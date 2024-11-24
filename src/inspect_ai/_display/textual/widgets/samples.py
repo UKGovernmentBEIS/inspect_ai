@@ -199,10 +199,10 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
-        self._show_connections = False
+        self._show_sandboxes = False
 
     def compose(self) -> ComposeResult:
-        if self._sample is not None and len(self._sample.connections) > 0:
+        if self._sample is not None and len(self._sample.sandboxes) > 0:
             with Collapsible(title=""):
                 yield SandboxesView()
         else:
@@ -217,18 +217,18 @@ class SampleInfo(Horizontal):
         self._sample = sample
 
         # compute whether we should show connection and recompose as required
-        show_connections = sample is not None and len(sample.connections) > 0
-        if show_connections != self._show_connections:
+        show_sandboxes = sample is not None and len(sample.sandboxes) > 0
+        if show_sandboxes != self._show_sandboxes:
             await self.recompose()
-        self._show_connections = show_connections
+        self._show_sandboxes = show_sandboxes
 
         if sample is not None:
             self.display = True
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
-            if show_connections:
+            if show_sandboxes:
                 self.query_one(Collapsible).title = title
                 sandboxes = self.query_one(SandboxesView)
-                await sandboxes.sync_connections(sample.connections)
+                await sandboxes.sync_sandboxes(sample.sandboxes)
 
             else:
                 self.query_one(Static).update(title)
@@ -260,11 +260,9 @@ class SandboxesView(Vertical):
             markup=True,
         )
 
-    async def sync_connections(
-        self, connnections: dict[str, SandboxConnection]
-    ) -> None:
-        def connection_type() -> str:
-            connection = list(connnections.values())[0]
+    async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
+        def sandbox_connection_type() -> str:
+            connection = list(sandboxes.values())[0]
             if isinstance(connection, SandboxConnectionShell):
                 return "directories"
             elif isinstance(connection, SandboxConnectionContainer):
@@ -272,24 +270,24 @@ class SandboxesView(Vertical):
             else:
                 return "hosts"
 
-        def connection_target(connection: SandboxConnection) -> str:
-            if isinstance(connection, SandboxConnectionShell):
-                target = connection.working_dir
-            elif isinstance(connection, SandboxConnectionContainer):
-                target = connection.container
+        def sandbox_connection_target(sandbox: SandboxConnection) -> str:
+            if isinstance(sandbox, SandboxConnectionShell):
+                target = sandbox.working_dir
+            elif isinstance(sandbox, SandboxConnectionContainer):
+                target = sandbox.container
             else:
-                target = connection.destination
+                target = sandbox.destination
             return target
 
         caption = cast(Static, self.query_one("#sandboxes-caption"))
-        caption.update(f"[bold]sandbox {connection_type()}:[/bold]")
+        caption.update(f"[bold]sandbox {sandbox_connection_type()}:[/bold]")
 
-        sandboxes = self.query_one("#sandboxes")
-        await sandboxes.remove_children()
-        await sandboxes.mount_all(
+        sandboxes_widget = self.query_one("#sandboxes")
+        await sandboxes_widget.remove_children()
+        await sandboxes_widget.mount_all(
             [
-                Static(connection_target(connection))
-                for connection in connnections.values()
+                Static(sandbox_connection_target(sandbox))
+                for sandbox in sandboxes.values()
             ]
         )
 

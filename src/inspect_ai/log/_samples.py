@@ -19,9 +19,9 @@ class ActiveSample:
         model: str,
         sample: Sample,
         epoch: int,
-        connections: dict[str, SandboxConnection],
         fails_on_error: bool,
         transcript: Transcript,
+        sandboxes: dict[str, SandboxConnection],
     ) -> None:
         self.id = uuid()
         self.started = datetime.now().timestamp()
@@ -30,9 +30,9 @@ class ActiveSample:
         self.model = model
         self.sample = sample
         self.epoch = epoch
-        self.connections = connections
         self.fails_on_error = fails_on_error
         self.transcript = transcript
+        self.sandboxes = sandboxes
         self._sample_task = asyncio.current_task()
         self._interrupt_action: Literal["score", "error"] | None = None
 
@@ -72,7 +72,7 @@ async def active_sample(
         model=model,
         sample=sample,
         epoch=epoch,
-        connections=await sandbox_connections(),
+        sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
     )
