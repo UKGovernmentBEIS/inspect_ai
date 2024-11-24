@@ -3,14 +3,14 @@
 from .context import sandbox, sandbox_with
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
-    SandboxContainerLogin,
     SandboxEnvironment,
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     SandboxLogin,
-    SandboxShellLogin,
-    SandboxSSHLogin,
+    SandboxLoginContainer,
+    SandboxLoginShell,
+    SandboxLoginSSH,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .local import LocalSandboxEnvironment  # noqa: F401
@@ -24,9 +24,9 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxLogin",
-    "SandboxContainerLogin",
-    "SandboxShellLogin",
-    "SandboxSSHLogin",
+    "SandboxLoginContainer",
+    "SandboxLoginShell",
+    "SandboxLoginSSH",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

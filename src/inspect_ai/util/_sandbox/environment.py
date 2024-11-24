@@ -25,11 +25,11 @@ class SandboxLoginBase(BaseModel):
     """Agent working directory."""
 
 
-class SandboxShellLogin(SandboxLoginBase):
+class SandboxLoginShell(SandboxLoginBase):
     type: Literal["shell"] = Field(default="shell")
 
 
-class SandboxContainerLogin(SandboxLoginBase):
+class SandboxLoginContainer(SandboxLoginBase):
     type: Literal["container"] = Field(default="container")
     """Sandbox login type."""
 
@@ -37,7 +37,7 @@ class SandboxContainerLogin(SandboxLoginBase):
     """Container name."""
 
 
-class SandboxSSHLogin(SandboxLoginBase):
+class SandboxLoginSSH(SandboxLoginBase):
     type: Literal["ssh"] = Field(default="ssh")
     """Sandbox login type."""
 
@@ -45,7 +45,7 @@ class SandboxSSHLogin(SandboxLoginBase):
     """SSH destination server."""
 
 
-SandboxLogin = Union[SandboxContainerLogin, SandboxShellLogin, SandboxSSHLogin]
+SandboxLogin = Union[SandboxLoginContainer, SandboxLoginShell, SandboxLoginSSH]
 """Information required to login to sandbox."""
 
 

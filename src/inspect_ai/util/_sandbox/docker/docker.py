@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import SandboxContainerLogin, SandboxEnvironment, SandboxLogin
+from ..environment import SandboxEnvironment, SandboxLogin, SandboxLoginContainer
 from ..limits import verify_exec_result_size, verify_read_file_size
 from ..registry import sandboxenv
 from .cleanup import (
@@ -397,7 +397,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @override
     async def login(self) -> SandboxLogin:
         # find container for service
-        services = await compose_ps(project=self._project, status="running")
+        services = await compose_ps(project=self._project)
         container = next(
             (
                 service["Name"]
@@ -409,8 +409,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # return container login
         if container:
-            return SandboxContainerLogin(
-                command=f'docker exec --workdir "{self._working_dir}" -it {container} /bin/bash --login',
+            return SandboxLoginContainer(
+                command=f"docker exec -it {container} /bin/bash --login",
                 container=container,
                 working_dir=self._working_dir,
             )

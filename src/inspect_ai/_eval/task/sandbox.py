@@ -6,6 +6,7 @@ from typing import AsyncGenerator, NamedTuple
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.util._sandbox.context import (
@@ -51,7 +52,7 @@ async def sandboxenv_context(
         # initialize sandbox environment,
         environments = await init_sandbox_environments_sample(
             type=sandbox.type,
-            task_name=task_name,
+            task_name=registry_unqualified_name(task_name),
             config=sandbox.config,
             files=files,
             setup=setup,

@@ -3,13 +3,29 @@ from typing import cast
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalGroup, VerticalGroup
+from textual.containers import (
+    Horizontal,
+    HorizontalGroup,
+    Vertical,
+    VerticalGroup,
+)
 from textual.widget import Widget
-from textual.widgets import Button, LoadingIndicator, OptionList, Static
+from textual.widgets import (
+    Button,
+    Collapsible,
+    LoadingIndicator,
+    OptionList,
+    Static,
+)
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
+from inspect_ai.util._sandbox import (
+    SandboxLogin,
+    SandboxLoginContainer,
+    SandboxLoginShell,
+)
 
 from ...core.progress import progress_time
 from .clock import Clock
@@ -151,33 +167,126 @@ class SampleInfo(Horizontal):
     DEFAULT_CSS = """
     SampleInfo {
         color: $text-muted;
-        layout: grid;
-        grid-size: 2 1;
-        grid-columns: 1fr auto;
-        width: 100%;
     }
-    #sample-info-model {
-        text-align: right;
+    SampleInfo Collapsible {
+        padding: 0;
+        border-top: none;
+    }
+    SampleInfo Collapsible CollapsibleTitle {
+        padding: 0;
+        color: $secondary;
+        &:hover {
+            background: $block-hover-background;
+            color: $primary;
+        }
+        &:focus {
+            background: $block-hover-background;
+            color: $primary;
+        }
+    }
+    SampleInfo Collapsible Contents {
+        padding: 1 0 1 2;
+        overflow-y: hidden;
+        overflow-x: auto;
+    }
+    SampleInfo Static {
+        width: 1fr;
+        background: $surface;
+        color: $secondary;
     }
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._sample: ActiveSample | None = None
+        self._show_logins = False
+
     def compose(self) -> ComposeResult:
-        yield Static(id="sample-info-id")
-        yield Static(id="sample-info-model")
+        if self._sample is not None and len(self._sample.logins) > 0:
+            with Collapsible(title=""):
+                yield SandboxesView()
+        else:
+            yield Static()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        info_id = cast(Static, self.query_one("#sample-info-id"))
-        info_model = cast(Static, self.query_one("#sample-info-model"))
+        # bail if we've already processed this sample
+        if self._sample == sample:
+            return
+
+        # set sample
+        self._sample = sample
+
+        # compute whether we should show login and recompose as required
+        show_logins = sample is not None and len(sample.logins) > 0
+        if show_logins != self._show_logins:
+            await self.recompose()
+        self._show_logins = show_logins
+
         if sample is not None:
             self.display = True
-            id = Text.from_markup(
-                f"[bold]{registry_unqualified_name(sample.task)}[/bold] - id: {sample.sample.id} (epoch {sample.epoch})"
-            )
-            info_id.update(id)
-            model = Text.from_markup(sample.model)
-            info_model.update(model)
+            title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
+            if show_logins:
+                self.query_one(Collapsible).title = title
+                sandboxes = self.query_one(SandboxesView)
+                await sandboxes.sync_logins(sample.logins)
+
+            else:
+                self.query_one(Static).update(title)
         else:
             self.display = False
+
+
+class SandboxesView(Vertical):
+    DEFAULT_CSS = """
+    SandboxesView {
+        padding: 0 0 1 0;
+        background: transparent;
+        height: auto;
+    }
+    SandboxesView Static {
+        background: transparent;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="sandboxes-caption", markup=True)
+        yield Vertical(id="sandboxes")
+        yield Static(
+            "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
+            id="sandboxes-footer",
+            markup=True,
+        )
+
+    async def sync_logins(self, logins: dict[str, SandboxLogin]) -> None:
+        def login_type() -> str:
+            login = list(logins.values())[0]
+            if isinstance(login, SandboxLoginShell):
+                return "directories"
+            elif isinstance(login, SandboxLoginContainer):
+                return "containers"
+            else:
+                return "hosts"
+
+        def login_target(login: SandboxLogin) -> str:
+            if isinstance(login, SandboxLoginShell):
+                target = login.working_dir
+            elif isinstance(login, SandboxLoginContainer):
+                target = login.container
+            else:
+                target = login.destination
+            return target
+
+        caption = cast(Static, self.query_one("#sandboxes-caption"))
+        caption.update(f"[bold]sandbox {login_type()}:[/bold]")
+
+        sandboxes = self.query_one("#sandboxes")
+        await sandboxes.remove_children()
+        await sandboxes.mount_all(
+            [Static(login_target(login)) for login in logins.values()]
+        )
 
 
 class SampleToolbar(Horizontal):

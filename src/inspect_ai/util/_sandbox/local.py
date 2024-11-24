@@ -7,7 +7,7 @@ import aiofiles
 from typing_extensions import override
 
 from .._subprocess import ExecResult, subprocess
-from .environment import SandboxEnvironment, SandboxLogin, SandboxShellLogin
+from .environment import SandboxEnvironment, SandboxLogin, SandboxLoginShell
 from .limits import verify_exec_result_size, verify_read_file_size
 from .registry import sandboxenv
 
@@ -99,7 +99,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def login(self) -> SandboxLogin:
-        return SandboxShellLogin(
+        return SandboxLoginShell(
             command="/bin/bash --login", working_dir=self.directory.name
         )
 

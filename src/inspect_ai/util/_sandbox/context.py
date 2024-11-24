@@ -4,11 +4,7 @@ from typing import Any, NoReturn, cast
 
 from shortuuid import uuid
 
-from .environment import (
-    SampleCleanup,
-    SampleInit,
-    SandboxEnvironment,
-)
+from .environment import SampleCleanup, SampleInit, SandboxEnvironment, SandboxLogin
 from .registry import registry_find_sandboxenv
 
 logger = getLogger(__name__)
@@ -83,6 +79,20 @@ async def sandbox_with(file: str) -> SandboxEnvironment | None:
 
     # not found
     return None
+
+
+async def sandbox_logins() -> dict[str, SandboxLogin]:
+    environments = sandbox_environments_context_var.get(None)
+    if environments:
+        logins: dict[str, SandboxLogin] = {}
+        for name, environment in environments.items():
+            try:
+                logins[name] = await environment.login()
+            except NotImplementedError:
+                pass
+        return logins
+    else:
+        return {}
 
 
 def raise_no_sandbox() -> NoReturn:
