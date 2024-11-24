@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.42
+
+- Improve support for selecting text in the full screen terminal
+
 ## 0.3.41
 
 - Add `Copy Path` context menu to activity bar logs panel

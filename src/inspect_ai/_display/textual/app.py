@@ -97,7 +97,13 @@ class TaskScreenApp(App[TR]):
         self.workers.start_all()
 
         # wait until we are given the signal to load
-        await self._on_load_app.wait()
+        # if the worker completes in the meantime then there was an error during
+        # initialisation, in that case return early, which will enable delivery of
+        # the worker error event and standard exit control flow
+        while not self._on_load_app.is_set():
+            if len(self.workers._workers) == 0:
+                return
+            await asyncio.sleep(0.1)
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
