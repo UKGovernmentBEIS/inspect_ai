@@ -4,7 +4,12 @@ from typing import Any, NoReturn, cast
 
 from shortuuid import uuid
 
-from .environment import SampleCleanup, SampleInit, SandboxEnvironment, SandboxLogin
+from .environment import (
+    SampleCleanup,
+    SampleInit,
+    SandboxConnection,
+    SandboxEnvironment,
+)
 from .registry import registry_find_sandboxenv
 
 logger = getLogger(__name__)
@@ -81,16 +86,16 @@ async def sandbox_with(file: str) -> SandboxEnvironment | None:
     return None
 
 
-async def sandbox_logins() -> dict[str, SandboxLogin]:
+async def sandbox_connections() -> dict[str, SandboxConnection]:
     environments = sandbox_environments_context_var.get(None)
     if environments:
-        logins: dict[str, SandboxLogin] = {}
+        connections: dict[str, SandboxConnection] = {}
         for name, environment in environments.items():
             try:
-                logins[name] = await environment.login()
+                connections[name] = await environment.connection()
             except NotImplementedError:
                 pass
-        return logins
+        return connections
     else:
         return {}
 

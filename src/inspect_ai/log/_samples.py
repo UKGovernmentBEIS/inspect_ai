@@ -6,8 +6,8 @@ from typing import AsyncGenerator, Literal
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._sandbox import SandboxLogin
-from inspect_ai.util._sandbox.context import sandbox_logins
+from inspect_ai.util._sandbox import SandboxConnection
+from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ._transcript import Transcript
 
@@ -19,7 +19,7 @@ class ActiveSample:
         model: str,
         sample: Sample,
         epoch: int,
-        logins: dict[str, SandboxLogin],
+        connections: dict[str, SandboxConnection],
         fails_on_error: bool,
         transcript: Transcript,
     ) -> None:
@@ -30,7 +30,7 @@ class ActiveSample:
         self.model = model
         self.sample = sample
         self.epoch = epoch
-        self.logins = logins
+        self.connections = connections
         self.fails_on_error = fails_on_error
         self.transcript = transcript
         self._sample_task = asyncio.current_task()
@@ -72,7 +72,7 @@ async def active_sample(
         model=model,
         sample=sample,
         epoch=epoch,
-        logins=await sandbox_logins(),
+        connections=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
     )

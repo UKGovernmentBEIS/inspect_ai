@@ -22,9 +22,9 @@ from textual.widgets.option_list import Option, Separator
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.util._sandbox import (
-    SandboxLogin,
-    SandboxLoginContainer,
-    SandboxLoginShell,
+    SandboxConnection,
+    SandboxConnectionContainer,
+    SandboxConnectionShell,
 )
 
 from ...core.progress import progress_time
@@ -199,10 +199,10 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
-        self._show_logins = False
+        self._show_connections = False
 
     def compose(self) -> ComposeResult:
-        if self._sample is not None and len(self._sample.logins) > 0:
+        if self._sample is not None and len(self._sample.connections) > 0:
             with Collapsible(title=""):
                 yield SandboxesView()
         else:
@@ -216,19 +216,19 @@ class SampleInfo(Horizontal):
         # set sample
         self._sample = sample
 
-        # compute whether we should show login and recompose as required
-        show_logins = sample is not None and len(sample.logins) > 0
-        if show_logins != self._show_logins:
+        # compute whether we should show connection and recompose as required
+        show_connections = sample is not None and len(sample.connections) > 0
+        if show_connections != self._show_connections:
             await self.recompose()
-        self._show_logins = show_logins
+        self._show_connections = show_connections
 
         if sample is not None:
             self.display = True
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
-            if show_logins:
+            if show_connections:
                 self.query_one(Collapsible).title = title
                 sandboxes = self.query_one(SandboxesView)
-                await sandboxes.sync_logins(sample.logins)
+                await sandboxes.sync_connections(sample.connections)
 
             else:
                 self.query_one(Static).update(title)
@@ -260,32 +260,37 @@ class SandboxesView(Vertical):
             markup=True,
         )
 
-    async def sync_logins(self, logins: dict[str, SandboxLogin]) -> None:
-        def login_type() -> str:
-            login = list(logins.values())[0]
-            if isinstance(login, SandboxLoginShell):
+    async def sync_connections(
+        self, connnections: dict[str, SandboxConnection]
+    ) -> None:
+        def connection_type() -> str:
+            connection = list(connnections.values())[0]
+            if isinstance(connection, SandboxConnectionShell):
                 return "directories"
-            elif isinstance(login, SandboxLoginContainer):
+            elif isinstance(connection, SandboxConnectionContainer):
                 return "containers"
             else:
                 return "hosts"
 
-        def login_target(login: SandboxLogin) -> str:
-            if isinstance(login, SandboxLoginShell):
-                target = login.working_dir
-            elif isinstance(login, SandboxLoginContainer):
-                target = login.container
+        def connection_target(connection: SandboxConnection) -> str:
+            if isinstance(connection, SandboxConnectionShell):
+                target = connection.working_dir
+            elif isinstance(connection, SandboxConnectionContainer):
+                target = connection.container
             else:
-                target = login.destination
+                target = connection.destination
             return target
 
         caption = cast(Static, self.query_one("#sandboxes-caption"))
-        caption.update(f"[bold]sandbox {login_type()}:[/bold]")
+        caption.update(f"[bold]sandbox {connection_type()}:[/bold]")
 
         sandboxes = self.query_one("#sandboxes")
         await sandboxes.remove_children()
         await sandboxes.mount_all(
-            [Static(login_target(login)) for login in logins.values()]
+            [
+                Static(connection_target(connection))
+                for connection in connnections.values()
+            ]
         )
 
 

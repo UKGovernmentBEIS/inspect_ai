@@ -17,19 +17,22 @@ SampleCleanup = Callable[
 ]
 
 
-class SandboxLoginBase(BaseModel):
+class SandboxConnectionBase(BaseModel):
     command: str
     """Shell command to connect to sandbox."""
 
     working_dir: str
     """Agent working directory."""
 
+    status: str = Field(default_factory=str)
+    """Current service status."""
 
-class SandboxLoginShell(SandboxLoginBase):
+
+class SandboxConnectionShell(SandboxConnectionBase):
     type: Literal["shell"] = Field(default="shell")
 
 
-class SandboxLoginContainer(SandboxLoginBase):
+class SandboxConnectionContainer(SandboxConnectionBase):
     type: Literal["container"] = Field(default="container")
     """Sandbox login type."""
 
@@ -37,7 +40,7 @@ class SandboxLoginContainer(SandboxLoginBase):
     """Container name."""
 
 
-class SandboxLoginSSH(SandboxLoginBase):
+class SandboxConnectionSSH(SandboxConnectionBase):
     type: Literal["ssh"] = Field(default="ssh")
     """Sandbox login type."""
 
@@ -45,8 +48,10 @@ class SandboxLoginSSH(SandboxLoginBase):
     """SSH destination server."""
 
 
-SandboxLogin = Union[SandboxLoginContainer, SandboxLoginShell, SandboxLoginSSH]
-"""Information required to login to sandbox."""
+SandboxConnection = Union[
+    SandboxConnectionContainer, SandboxConnectionShell, SandboxConnectionSSH
+]
+"""Information required to connect to sandbox."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -224,8 +229,8 @@ class SandboxEnvironment(abc.ABC):
         """
         ...
 
-    async def login(self) -> SandboxLogin:
-        raise NotImplementedError("login not implemented")
+    async def connection(self) -> SandboxConnection:
+        raise NotImplementedError("connection not implemented")
 
 
 @dataclass
