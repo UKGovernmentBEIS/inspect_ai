@@ -24,9 +24,6 @@ class SandboxConnectionBase(BaseModel):
     working_dir: str
     """Agent working directory."""
 
-    status: str = Field(default_factory=str)
-    """Current service status."""
-
 
 class SandboxConnectionShell(SandboxConnectionBase):
     type: Literal["shell"] = Field(default="shell")
