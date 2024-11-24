@@ -11,7 +11,7 @@ from textual.widgets.option_list import Option, Separator
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 
-from ...core.progress import MAX_MODEL_NAME_WIDTH, progress_time
+from ...core.progress import progress_time
 from .clock import Clock
 from .transcript import TranscriptView
 
