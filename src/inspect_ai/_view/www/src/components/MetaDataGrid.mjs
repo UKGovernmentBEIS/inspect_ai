@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { RenderedContent } from "./RenderedContent.mjs";
+import { RenderedContent } from "./RenderedContent/RenderedContent.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 /**

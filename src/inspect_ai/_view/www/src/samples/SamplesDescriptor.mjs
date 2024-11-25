@@ -7,7 +7,7 @@ import {
   inputString,
   arrayToString,
 } from "../utils/Format.mjs";
-import { RenderedContent } from "../components/RenderedContent.mjs";
+import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 import {
   kScoreTypeCategorical,
