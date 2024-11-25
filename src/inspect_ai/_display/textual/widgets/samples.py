@@ -68,12 +68,24 @@ class SamplesView(Widget):
         self.query_one(SamplesList).set_samples(samples)
 
     async def set_highlighted_sample(self, highlighted: int | None) -> None:
+        sample_info = self.query_one(SampleInfo)
+        transcript_view = self.query_one(TranscriptView)
+        sample_toolbar = self.query_one(SampleToolbar)
         if highlighted is not None:
             sample = self.query_one(SamplesList).sample_for_highlighted(highlighted)
             if sample is not None:
-                await self.query_one(SampleInfo).sync_sample(sample)
-                await self.query_one(TranscriptView).sync_sample(sample)
-                await self.query_one(SampleToolbar).sync_sample(sample)
+                sample_info.display = True
+                transcript_view.display = True
+                sample_toolbar.display = True
+                await sample_info.sync_sample(sample)
+                await transcript_view.sync_sample(sample)
+                await sample_toolbar.sync_sample(sample)
+                return
+
+        # otherwise hide ui
+        sample_info.display = False
+        transcript_view.display = False
+        sample_toolbar.display = False
 
 
 class SamplesList(OptionList):
