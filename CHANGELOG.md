@@ -9,6 +9,7 @@
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
 - Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
+- Handle exponents in numeric normalisation for match, include, and answer scorers.
 - hf_dataset: added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`). 
 - hf_dataset: added `revision` option to load a specific branch or commit SHA (when using `revision` datasets are always revalidated on Hugging Face, i.e. `cached` is ignored).
 - Log viewer: display sample ids rather than indexes.
