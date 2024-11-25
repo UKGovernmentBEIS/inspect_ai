@@ -885,6 +885,11 @@ file-entry-cache@^8.0.0:
   dependencies:
     flat-cache "^4.0.0"
 
+filtrex@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/filtrex/-/filtrex-3.1.0.tgz#5ec00994615ff10e5e09c89bb290c855cb408c21"
+  integrity sha512-mHzZ2wUISETF1OaEcNRiGz1ljuIV8c/C9td9qyAZ+wTwigkAk5RO9YrCxQKk5H9v7joDRFIBik9U5RTK9eXZ/A==
+
 find-up@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/find-up/-/find-up-5.0.0.tgz#4c92819ecb7083561e4f4a240a86be5198f536fc"

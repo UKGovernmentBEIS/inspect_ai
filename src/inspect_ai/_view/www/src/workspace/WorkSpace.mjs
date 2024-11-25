@@ -66,7 +66,9 @@ import { debounce } from "../utils/sync.mjs";
  * @param {(showing: boolean) => void} props.setShowingSampleDialog - Call to show the sample dialog
  * @param {(epoch: string) => void} props.setEpoch - set the current epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
+ * @param {string | undefined} props.filterError - whether there is an error in the filter expression
  * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
+ * @param {(fragment: string) => void } props.addToFilterExpression - add to the current filter expression
  * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
@@ -113,7 +115,9 @@ export const WorkSpace = ({
   epoch,
   setEpoch,
   filter,
+  filterError,
   setFilter,
+  addToFilterExpression,
   score,
   setScore,
   scores,
@@ -191,6 +195,7 @@ export const WorkSpace = ({
               epochs=${epochs}
               setEpoch=${setEpoch}
               filter=${filter}
+              filterError=${filterError}
               filterChanged=${setFilter}
               sort=${sort}
               setSort=${setSort}
@@ -368,6 +373,8 @@ export const WorkSpace = ({
     evalResults=${evalResults}
     evalStats=${evalStats}
     samples=${samples}
+    evalDescriptor=${samplesDescriptor.evalDescriptor}
+    addToFilterExpression=${addToFilterExpression}
     status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
@@ -386,6 +393,8 @@ const WorkspaceDisplay = ({
   evalResults,
   evalStats,
   samples,
+  evalDescriptor,
+  addToFilterExpression,
   status,
   showToggle,
   selectedTab,
@@ -456,20 +465,20 @@ const WorkspaceDisplay = ({
     }, [tabs]);
 
     return html`
-    
-    
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
       evalStats=${evalStats}
       samples=${samples}
+      evalDescriptor=${evalDescriptor}
+      addToFilterExpression=${addToFilterExpression}
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
+
       offcanvas=${offcanvas}
-    />    
+    />
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",
