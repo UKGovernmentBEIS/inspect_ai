@@ -5,7 +5,7 @@ import { FontSize } from "../../appearance/Fonts.mjs";
 
 import { ANSIDisplay } from "../AnsiDisplay.mjs";
 import { MetaDataView } from "../MetaDataView.mjs";
-import { ChatView } from "../ChatView.mjs";
+import { ChatMessageRenderer } from "./ChatMessageRenderer.mjs";
 import { formatNumber } from "../../utils/Format.mjs";
 
 /**
@@ -14,7 +14,7 @@ import { formatNumber } from "../../utils/Format.mjs";
  *
  * @enum {number}
  */
-const Buckets = {
+export const Buckets = {
   first: 0,
   intermediate: 10,
   final: 1000,
@@ -159,23 +159,7 @@ const contentRenderers = {
       return { rendered: arrayRendered };
     },
   },
-  ChatMessage: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      const val = entry.value;
-      return (
-        Array.isArray(val) &&
-        val.length > 0 &&
-        val[0]?.role !== undefined &&
-        val[0]?.content !== undefined
-      );
-    },
-    render: (_id, entry) => {
-      return {
-        rendered: html`<${ChatView} messages=${entry.value} />`,
-      };
-    },
-  },
+  ChatMessage: ChatMessageRenderer,
   web_search: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {

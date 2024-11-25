@@ -15638,6 +15638,19 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
+const ChatMessageRenderer = {
+  bucket: Buckets.first,
+  canRender: (entry) => {
+    var _a2, _b2;
+    const val = entry.value;
+    return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+  },
+  render: (id, entry) => {
+    return {
+      rendered: m$1`<${ChatView} id=${id} messages=${entry.value} />`
+    };
+  }
+};
 const Buckets = {
   first: 0,
   intermediate: 10,
@@ -15748,19 +15761,7 @@ const contentRenderers = {
       return { rendered: arrayRendered };
     }
   },
-  ChatMessage: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      var _a2, _b2;
-      const val = entry.value;
-      return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-    },
-    render: (_id, entry) => {
-      return {
-        rendered: m$1`<${ChatView} messages=${entry.value} />`
-      };
-    }
-  },
+  ChatMessage: ChatMessageRenderer,
   web_search: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
