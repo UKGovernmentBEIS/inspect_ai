@@ -6,6 +6,7 @@ from rich.text import Text
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.path import cwd_relative_path
+from inspect_ai._util.registry import registry_unqualified_name
 
 from .display import TaskProfile
 from .rich import is_vscode_notebook, rich_theme
@@ -82,7 +83,7 @@ def task_title(profile: TaskProfile, show_model: bool) -> str:
     eval_epochs = profile.eval_config.epochs or 1
     epochs = f" x {profile.eval_config.epochs}" if eval_epochs > 1 else ""
     samples = f"{profile.samples//eval_epochs:,}{epochs} sample{'s' if profile.samples > 1 else ''}"
-    title = f"{profile.name} ({samples})"
+    title = f"{registry_unqualified_name(profile.name)} ({samples})"
     if show_model:
         title = f"{title}: {profile.model}"
     return title

@@ -10,7 +10,11 @@ from typing_extensions import override
 
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import SandboxEnvironment
+from ..environment import (
+    SandboxConnection,
+    SandboxConnectionContainer,
+    SandboxEnvironment,
+)
 from ..limits import verify_exec_result_size, verify_read_file_size
 from ..registry import sandboxenv
 from .cleanup import (
@@ -27,6 +31,7 @@ from .compose import (
     compose_command,
     compose_cp,
     compose_exec,
+    compose_ps,
     compose_pull,
     compose_services,
     compose_up,
@@ -392,6 +397,33 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             else:
                 async with aiofiles.open(dest_file, "rb") as f:
                     return await f.read()
+
+    @override
+    async def connection(self) -> SandboxConnection:
+        # find container for service
+        services = await compose_ps(project=self._project)
+        container = next(
+            (
+                service["Name"]
+                for service in services
+                if service["Service"] == self._service
+            ),
+            None,
+        )
+
+        # return container login
+        if container:
+            return SandboxConnectionContainer(
+                command=f"docker exec -it {container} /bin/bash --login",
+                container=container,
+                working_dir=self._working_dir,
+            )
+
+        # error (not currently running)
+        else:
+            raise ConnectionError(
+                f"Service '{self._service} is not currently running.'"
+            )
 
     def container_file(self, file: str) -> str:
         path = Path(file)

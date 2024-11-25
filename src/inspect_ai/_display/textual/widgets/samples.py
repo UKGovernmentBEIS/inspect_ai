@@ -3,13 +3,29 @@ from typing import cast
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalGroup, VerticalGroup
+from textual.containers import (
+    Horizontal,
+    HorizontalGroup,
+    Vertical,
+    VerticalGroup,
+)
 from textual.widget import Widget
-from textual.widgets import Button, LoadingIndicator, OptionList, Static
+from textual.widgets import (
+    Button,
+    Collapsible,
+    LoadingIndicator,
+    OptionList,
+    Static,
+)
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
+from inspect_ai.util._sandbox import (
+    SandboxConnection,
+    SandboxConnectionContainer,
+    SandboxConnectionLocal,
+)
 
 from ...core.progress import progress_time
 from .clock import Clock
@@ -52,12 +68,24 @@ class SamplesView(Widget):
         self.query_one(SamplesList).set_samples(samples)
 
     async def set_highlighted_sample(self, highlighted: int | None) -> None:
+        sample_info = self.query_one(SampleInfo)
+        transcript_view = self.query_one(TranscriptView)
+        sample_toolbar = self.query_one(SampleToolbar)
         if highlighted is not None:
             sample = self.query_one(SamplesList).sample_for_highlighted(highlighted)
             if sample is not None:
-                await self.query_one(SampleInfo).sync_sample(sample)
-                await self.query_one(TranscriptView).sync_sample(sample)
-                await self.query_one(SampleToolbar).sync_sample(sample)
+                sample_info.display = True
+                transcript_view.display = True
+                sample_toolbar.display = True
+                await sample_info.sync_sample(sample)
+                await transcript_view.sync_sample(sample)
+                await sample_toolbar.sync_sample(sample)
+                return
+
+        # otherwise hide ui
+        sample_info.display = False
+        transcript_view.display = False
+        sample_toolbar.display = False
 
 
 class SamplesList(OptionList):
@@ -151,33 +179,131 @@ class SampleInfo(Horizontal):
     DEFAULT_CSS = """
     SampleInfo {
         color: $text-muted;
-        layout: grid;
-        grid-size: 2 1;
-        grid-columns: 1fr auto;
-        width: 100%;
     }
-    #sample-info-model {
-        text-align: right;
+    SampleInfo Collapsible {
+        padding: 0;
+        border-top: none;
+    }
+    SampleInfo Collapsible CollapsibleTitle {
+        padding: 0;
+        color: $secondary;
+        &:hover {
+            background: $block-hover-background;
+            color: $primary;
+        }
+        &:focus {
+            background: $block-hover-background;
+            color: $primary;
+        }
+    }
+    SampleInfo Collapsible Contents {
+        padding: 1 0 1 2;
+        overflow-y: hidden;
+        overflow-x: auto;
+    }
+    SampleInfo Static {
+        width: 1fr;
+        background: $surface;
+        color: $secondary;
     }
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._sample: ActiveSample | None = None
+        self._show_sandboxes = False
+
     def compose(self) -> ComposeResult:
-        yield Static(id="sample-info-id")
-        yield Static(id="sample-info-model")
+        if self._sample is not None and len(self._sample.sandboxes) > 0:
+            with Collapsible(title=""):
+                yield SandboxesView()
+        else:
+            yield Static()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        info_id = cast(Static, self.query_one("#sample-info-id"))
-        info_model = cast(Static, self.query_one("#sample-info-model"))
+        # bail if we've already processed this sample
+        if self._sample == sample:
+            return
+
+        # set sample
+        self._sample = sample
+
+        # compute whether we should show connection and recompose as required
+        show_sandboxes = sample is not None and len(sample.sandboxes) > 0
+        if show_sandboxes != self._show_sandboxes:
+            await self.recompose()
+        self._show_sandboxes = show_sandboxes
+
         if sample is not None:
             self.display = True
-            id = Text.from_markup(
-                f"[bold]{registry_unqualified_name(sample.task)}[/bold] - id: {sample.sample.id} (epoch {sample.epoch})"
-            )
-            info_id.update(id)
-            model = Text.from_markup(sample.model)
-            info_model.update(model)
+            title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
+            if show_sandboxes:
+                self.query_one(Collapsible).title = title
+                sandboxes = self.query_one(SandboxesView)
+                await sandboxes.sync_sandboxes(sample.sandboxes)
+            else:
+                self.query_one(Static).update(title)
         else:
             self.display = False
+
+
+class SandboxesView(Vertical):
+    DEFAULT_CSS = """
+    SandboxesView {
+        padding: 0 0 1 0;
+        background: transparent;
+        height: auto;
+    }
+    SandboxesView Static {
+        background: transparent;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="sandboxes-caption", markup=True)
+        yield Vertical(id="sandboxes")
+        yield Static(
+            "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
+            id="sandboxes-footer",
+            markup=True,
+        )
+
+    async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
+        def sandbox_connection_type() -> str:
+            connection = list(sandboxes.values())[0]
+            if isinstance(connection, SandboxConnectionLocal):
+                return "directories"
+            elif isinstance(connection, SandboxConnectionContainer):
+                return "containers"
+            else:
+                return "hosts"
+
+        def sandbox_connection_target(sandbox: SandboxConnection) -> str:
+            if isinstance(sandbox, SandboxConnectionLocal):
+                target = sandbox.working_dir
+            elif isinstance(sandbox, SandboxConnectionContainer):
+                target = sandbox.container
+            else:
+                target = sandbox.destination
+            return target.strip()
+
+        caption = cast(Static, self.query_one("#sandboxes-caption"))
+        caption.update(f"[bold]sandbox {sandbox_connection_type()}:[/bold]")
+
+        sandboxes_widget = self.query_one("#sandboxes")
+        sandboxes_widget.styles.margin = (
+            (0, 0, 1, 0) if len(sandboxes) > 1 else (0, 0, 0, 0)
+        )
+        await sandboxes_widget.remove_children()
+        await sandboxes_widget.mount_all(
+            [
+                Static(sandbox_connection_target(sandbox))
+                for sandbox in sandboxes.values()
+            ]
+        )
 
 
 class SampleToolbar(Horizontal):

@@ -2,6 +2,8 @@ import abc
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
 
+from pydantic import BaseModel, Field
+
 from .._subprocess import ExecResult
 
 TaskInit = Callable[[str, str | None], Awaitable[None]]
@@ -13,6 +15,40 @@ SampleInit = Callable[
 SampleCleanup = Callable[
     [str, str | None, dict[str, "SandboxEnvironment"], bool], Awaitable[None]
 ]
+
+
+class SandboxConnectionBase(BaseModel):
+    command: str
+    """Shell command to connect to sandbox."""
+
+    working_dir: str
+    """Agent working directory."""
+
+
+class SandboxConnectionLocal(SandboxConnectionBase):
+    type: Literal["local"] = Field(default="local")
+
+
+class SandboxConnectionContainer(SandboxConnectionBase):
+    type: Literal["container"] = Field(default="container")
+    """Sandbox login type."""
+
+    container: str
+    """Container name."""
+
+
+class SandboxConnectionSSH(SandboxConnectionBase):
+    type: Literal["ssh"] = Field(default="ssh")
+    """Sandbox login type."""
+
+    destination: str
+    """SSH destination server."""
+
+
+SandboxConnection = Union[
+    SandboxConnectionContainer, SandboxConnectionLocal, SandboxConnectionSSH
+]
+"""Information required to connect to sandbox."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -189,6 +225,9 @@ class SandboxEnvironment(abc.ABC):
             exceeds the 100 MiB limit.
         """
         ...
+
+    async def connection(self) -> SandboxConnection:
+        raise NotImplementedError("connection not implemented")
 
 
 @dataclass
