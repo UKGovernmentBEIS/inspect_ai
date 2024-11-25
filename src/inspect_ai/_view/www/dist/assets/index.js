@@ -9470,6 +9470,11 @@ const OutputRun = ({ outputRun }) => {
     >${outputRun.text}</span
   >`;
 };
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1e3
+};
 const decodeCache = {};
 function getDecodeCache(exclude) {
   let cache = decodeCache[exclude];
@@ -15647,14 +15652,21 @@ const ChatMessageRenderer = {
   },
   render: (id, entry) => {
     return {
-      rendered: m$1`<${ChatView} id=${id} messages=${entry.value} />`
+      rendered: m$1`<${ChatSummary} id=${id} messages=${entry.value} />`
     };
   }
 };
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1e3
+const ChatSummary = ({ id, messages }) => {
+  let seenUserMsg = false;
+  for (const message of messages.reverse()) {
+    if (seenUserMsg && message.role === "assistant") {
+      break;
+    }
+    if (message.role === "user") {
+      seenUserMsg = true;
+    }
+  }
+  return m$1`<${ChatView} id=${id} messages=${messages} />`;
 };
 const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {

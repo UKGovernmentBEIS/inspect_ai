@@ -1,10 +1,10 @@
 import { html } from "htm/preact";
 
-import { Buckets } from "./RenderedContent.mjs";
+import { Buckets } from "./Types.mjs";
 import { ChatView } from "../ChatView.mjs";
 
 /**
- * @type {import("./RenderedContent.mjs").ContentRenderer}
+ * @type {import("./Types.mjs").ContentRenderer}
  *
  * Renders chat messages as a ChatView component.
  */
@@ -21,7 +21,32 @@ export const ChatMessageRenderer = {
   },
   render: (id, entry) => {
     return {
-      rendered: html`<${ChatView} id=${id} messages=${entry.value} />`,
+      rendered: html`<${ChatSummary} id=${id} messages=${entry.value} />`,
     };
   },
+};
+
+/**
+ * Represents a chat summary component that renders a list of chat messages.
+ *
+ * @param {Object} props - The properties for the component.
+ * @param {string} props.id - A unique identifier for the chat summary.
+ * @param {(import("../../types/log").ChatMessageAssistant | import("../../types/log").ChatMessageUser | import("../../types/log").ChatMessageSystem | import("../../types/log").ChatMessageTool)[]} props.messages - A list of chat messages to display.
+ * @returns {import("preact").JSX.Element} The rendered ChatView component.
+ */
+export const ChatSummary = ({ id, messages }) => {
+  const summaryMessages = [];
+  let seenUserMsg = false;
+  for (const message of messages.reverse()) {
+    if (seenUserMsg && message.role === "assistant") {
+      break;
+    }
+
+    summaryMessages.unshift(message);
+    if (message.role === "user") {
+      seenUserMsg = true;
+    }
+  }
+
+  return html`<${ChatView} id=${id} messages=${messages} />`;
 };
