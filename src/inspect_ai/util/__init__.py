@@ -3,6 +3,10 @@ from ._console import input_screen
 from ._resource import resource
 from ._sandbox import (
     OutputLimitExceededError,
+    SandboxConnection,
+    SandboxConnectionContainer,
+    SandboxConnectionLocal,
+    SandboxConnectionSSH,
     SandboxEnvironment,
     SandboxEnvironmentLimits,
     SandboxEnvironments,
@@ -32,6 +36,10 @@ __all__ = [
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
+    "SandboxConnection",
+    "SandboxConnectionContainer",
+    "SandboxConnectionLocal",
+    "SandboxConnectionSSH",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

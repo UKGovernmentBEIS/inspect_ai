@@ -7,7 +7,7 @@ import aiofiles
 from typing_extensions import override
 
 from .._subprocess import ExecResult, subprocess
-from .environment import SandboxEnvironment
+from .environment import SandboxConnection, SandboxConnectionLocal, SandboxEnvironment
 from .limits import verify_exec_result_size, verify_read_file_size
 from .registry import sandboxenv
 
@@ -96,6 +96,12 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         else:
             async with aiofiles.open(file, "rb") as f:
                 return await f.read()
+
+    @override
+    async def connection(self) -> SandboxConnection:
+        return SandboxConnectionLocal(
+            command="/bin/bash --login", working_dir=self.directory.name
+        )
 
     def _resolve_file(self, file: str) -> str:
         path = Path(file)
