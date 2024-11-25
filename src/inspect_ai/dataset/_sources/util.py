@@ -74,12 +74,9 @@ def chat_content_with_resolved_image(
     content: Content, resolver: Callable[[str], str]
 ) -> Content:
     if isinstance(content, ContentImage):
-        if isinstance(content.image, str):
-            return ContentImage(image=resolver(content.image))
-        else:
-            return ContentImage(
-                image=resolver(content.image),
-                detail=content.image.detail,
-            )
+        return ContentImage(
+            image=resolver(content.image),
+            detail=content.detail,
+        )
     else:
         return content

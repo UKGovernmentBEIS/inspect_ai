@@ -1,6 +1,9 @@
 import datetime
 import io
 import os
+import re
+import string
+import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
@@ -296,6 +299,58 @@ def size_in_mb(file: str) -> float:
     # Get the size in megabytes
     file_size_in_mb = file_size_in_bytes / (1024 * 1024)
     return file_size_in_mb
+
+
+def safe_filename(s: str, max_length: int = 255) -> str:
+    """
+    Convert a string into a safe filename by removing or replacing unsafe characters.
+
+    Args:
+        s (str): The input string to convert
+        max_length (int): Maximum length of the resulting filename (default 255)
+
+    Returns:
+        str: A safe filename string
+
+    Example:
+        >>> safe_filename("Hello/World?.txt")
+        'Hello_World.txt'
+    """
+    # normalize unicode characters
+    s = unicodedata.normalize("NFKD", s)
+    s = s.encode("ASCII", "ignore").decode("ASCII")
+
+    # remove or replace unsafe characters
+    # Keep only alphanumeric characters, dots, dashes, and underscores
+    safe_chars = string.ascii_letters + string.digits + ".-_"
+    s = "".join(c if c in safe_chars else "_" for c in s)
+
+    # remove consecutive underscores
+    s = re.sub(r"_+", "_", s)
+
+    # remove leading/trailing periods and underscores
+    s = s.strip("._")
+
+    # handle empty string case
+    if not s:
+        s = "untitled"
+
+    # handle starting with a period (hidden files)
+    if s.startswith("."):
+        s = "_" + s
+
+    # enforce length limit
+    if len(s) > max_length:
+        # If we need to truncate, preserve the file extension if present
+        name, ext = os.path.splitext(s)
+        ext_len = len(ext)
+        if ext_len > 0:
+            max_name_length = max_length - ext_len
+            s = name[:max_name_length] + ext
+        else:
+            s = s[:max_length]
+
+    return s
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(

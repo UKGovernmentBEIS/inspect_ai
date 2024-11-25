@@ -69,7 +69,7 @@ def anthropic() -> type[ModelAPI]:
 def vertex() -> type[ModelAPI]:
     FEATURE = "Google Vertex API"
     PACKAGE = "google-cloud-aiplatform"
-    MIN_VERSION = "1.59.0"
+    MIN_VERSION = "1.73.0"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
@@ -94,7 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.8.1"
+    MIN_VERSION = "0.8.3"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917

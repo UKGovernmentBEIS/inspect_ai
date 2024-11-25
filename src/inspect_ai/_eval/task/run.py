@@ -42,7 +42,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import ActiveSample, active_sample
+from inspect_ai.log._samples import active_sample
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -432,14 +432,12 @@ async def task_run_sample(
         semaphore_cm,
         sandboxenv_cm,
         active_sample(
-            ActiveSample(
-                task_name,
-                str(state.model),
-                sample,
-                state.epoch,
-                fails_on_error,
-                sample_transcript,
-            )
+            task=task_name,
+            model=str(state.model),
+            sample=sample,
+            epoch=state.epoch,
+            fails_on_error=fails_on_error,
+            transcript=sample_transcript,
         ) as active,
     ):
         error: EvalError | None = None

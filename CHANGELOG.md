@@ -9,10 +9,15 @@
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
 - Log files now properly deal with scores that produce Nan. (fixes [#834](https://github.com/UKGovernmentBEIS/inspect_ai/issues/834))
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
+- Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
+- Handle exponents in numeric normalisation for match, include, and answer scorers.
+- hf_dataset: added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`). 
+- hf_dataset: added `revision` option to load a specific branch or commit SHA (when using `revision` datasets are always revalidated on Hugging Face, i.e. `cached` is ignored).
 - Log viewer: display sample ids rather than indexes.
 - Log viewer: add timestamps to transcript events.
 - Log viewer: metadata which contains images will now render the images.
 - Log viewer: show custom tool call views in messages display.
+- Bugfix: Correctly read and forward image detail property.
 
 ## v0.3.47 (18 November 2024) 
 

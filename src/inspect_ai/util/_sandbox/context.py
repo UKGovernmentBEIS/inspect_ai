@@ -7,6 +7,7 @@ from shortuuid import uuid
 from .environment import (
     SampleCleanup,
     SampleInit,
+    SandboxConnection,
     SandboxEnvironment,
 )
 from .registry import registry_find_sandboxenv
@@ -83,6 +84,20 @@ async def sandbox_with(file: str) -> SandboxEnvironment | None:
 
     # not found
     return None
+
+
+async def sandbox_connections() -> dict[str, SandboxConnection]:
+    environments = sandbox_environments_context_var.get(None)
+    if environments:
+        connections: dict[str, SandboxConnection] = {}
+        for name, environment in environments.items():
+            try:
+                connections[name] = await environment.connection()
+            except NotImplementedError:
+                pass
+        return connections
+    else:
+        return {}
 
 
 def raise_no_sandbox() -> NoReturn:

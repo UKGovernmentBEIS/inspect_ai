@@ -97,7 +97,13 @@ class TaskScreenApp(App[TR]):
         self.workers.start_all()
 
         # wait until we are given the signal to load
-        await self._on_load_app.wait()
+        # if the worker completes in the meantime then there was an error during
+        # initialisation, in that case return early, which will enable delivery of
+        # the worker error event and standard exit control flow
+        while not self._on_load_app.is_set():
+            if len(self.workers._workers) == 0:
+                return
+            await asyncio.sleep(0.1)
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
@@ -141,11 +147,6 @@ class TaskScreenApp(App[TR]):
         tasks_view = self.query_one(TasksView)
         tasks_view.init_tasks(tasks)
 
-        # dynamic tab caption for task(s)
-        tabs = self.query_one(TabbedContent)
-        tasks_tab = tabs.get_tab("tasks")
-        tasks_tab.label = Text.from_markup("Tasks" if self._total_tasks > 1 else "Task")
-
         # update display
         self.update_display()
 
@@ -184,7 +185,7 @@ class TaskScreenApp(App[TR]):
         with TabbedContent(id="tabs", initial="tasks"):
             with TabPane("Tasks", id="tasks"):
                 yield TasksView()
-            with TabPane("Samples", id="samples"):
+            with TabPane("Running Samples", id="samples"):
                 yield SamplesView()
             with TabPane("Console", id="console"):
                 yield ConsoleView()
