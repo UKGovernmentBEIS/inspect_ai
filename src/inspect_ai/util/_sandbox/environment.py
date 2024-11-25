@@ -25,8 +25,8 @@ class SandboxConnectionBase(BaseModel):
     """Agent working directory."""
 
 
-class SandboxConnectionShell(SandboxConnectionBase):
-    type: Literal["shell"] = Field(default="shell")
+class SandboxConnectionLocal(SandboxConnectionBase):
+    type: Literal["local"] = Field(default="local")
 
 
 class SandboxConnectionContainer(SandboxConnectionBase):
@@ -46,7 +46,7 @@ class SandboxConnectionSSH(SandboxConnectionBase):
 
 
 SandboxConnection = Union[
-    SandboxConnectionContainer, SandboxConnectionShell, SandboxConnectionSSH
+    SandboxConnectionContainer, SandboxConnectionLocal, SandboxConnectionSSH
 ]
 """Information required to connect to sandbox."""
 

@@ -24,7 +24,7 @@ from inspect_ai.log._samples import ActiveSample
 from inspect_ai.util._sandbox import (
     SandboxConnection,
     SandboxConnectionContainer,
-    SandboxConnectionShell,
+    SandboxConnectionLocal,
 )
 
 from ...core.progress import progress_time
@@ -274,7 +274,7 @@ class SandboxesView(Vertical):
     async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
         def sandbox_connection_type() -> str:
             connection = list(sandboxes.values())[0]
-            if isinstance(connection, SandboxConnectionShell):
+            if isinstance(connection, SandboxConnectionLocal):
                 return "directories"
             elif isinstance(connection, SandboxConnectionContainer):
                 return "containers"
@@ -282,7 +282,7 @@ class SandboxesView(Vertical):
                 return "hosts"
 
         def sandbox_connection_target(sandbox: SandboxConnection) -> str:
-            if isinstance(sandbox, SandboxConnectionShell):
+            if isinstance(sandbox, SandboxConnectionLocal):
                 target = sandbox.working_dir
             elif isinstance(sandbox, SandboxConnectionContainer):
                 target = sandbox.container

@@ -5,7 +5,7 @@ from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
     SandboxConnection,
     SandboxConnectionContainer,
-    SandboxConnectionShell,
+    SandboxConnectionLocal,
     SandboxConnectionSSH,
     SandboxEnvironment,
     SandboxEnvironments,
@@ -25,7 +25,7 @@ __all__ = [
     "SandboxEnvironmentType",
     "SandboxConnection",
     "SandboxConnectionContainer",
-    "SandboxConnectionShell",
+    "SandboxConnectionLocal",
     "SandboxConnectionSSH",
     "sandboxenv",
     "sandbox",
