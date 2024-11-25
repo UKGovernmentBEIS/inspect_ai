@@ -68,7 +68,7 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
   />`;
 };
 
-const DatasetDetailView = ({ dataset, context, style }) => {
+const DatasetDetailView = ({ dataset, style }) => {
   // Filter out sample_ids
   const filtered = Object.fromEntries(
     Object.entries(dataset).filter(([key]) => key !== "sample_ids"),
@@ -83,7 +83,6 @@ const DatasetDetailView = ({ dataset, context, style }) => {
   return html`<${MetaDataView}
     entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
@@ -114,7 +113,7 @@ const SolversDetailView = ({ steps, context }) => {
   </div>`;
 };
 
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon
     ? html`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>`
     : "";
@@ -130,7 +129,6 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${html`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
@@ -224,10 +222,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: html`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`,
+    contents: html`<${DatasetDetailView} dataset=${evaluation.dataset} />`,
   });
 
   taskColumns.push({
@@ -290,7 +285,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `,
   });
@@ -305,7 +299,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -320,7 +313,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -336,7 +328,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -352,7 +343,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -368,7 +358,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });

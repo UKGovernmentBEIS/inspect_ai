@@ -15638,13 +15638,12 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
-const RenderedContent = ({
-  id,
-  entry,
-  context,
-  defaultRendering,
-  options
-}) => {
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1e3
+};
+const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -15657,26 +15656,12 @@ const RenderedContent = ({
   });
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(
-      id,
-      entry,
-      defaultRendering,
-      options,
-      context
-    );
+    const { rendered } = renderer.render(id, entry);
     if (rendered !== void 0) {
       value = rendered;
-      if (afterBody !== void 0) {
-        context.afterBody(afterBody);
-      }
     }
   }
   return m$1`${value}`;
-};
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1e3
 };
 const contentRenderers = {
   AnsiString: {
@@ -15702,7 +15687,7 @@ const contentRenderers = {
     }
   },
   Boolean: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
@@ -15712,7 +15697,7 @@ const contentRenderers = {
     }
   },
   Number: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
@@ -15748,7 +15733,7 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
@@ -15758,7 +15743,6 @@ const contentRenderers = {
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
-        context=${context}
         compact
       />`;
       return { rendered: arrayRendered };
@@ -15849,7 +15833,7 @@ ${entry.value}</pre
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -15865,7 +15849,6 @@ ${entry.value}</pre
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
-          context=${context}
           compact
         />`
       };
@@ -15879,8 +15862,6 @@ const MetaDataView = ({
   style,
   entries,
   tableOptions,
-  context,
-  expanded,
   compact
 }) => {
   const baseId = baseClass || "metadataview";
@@ -15927,12 +15908,7 @@ const MetaDataView = ({
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </td>
     </tr>`;
   });
@@ -15998,7 +15974,7 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     style=${planItemStyle}
   />`;
 };
-const DatasetDetailView = ({ dataset, context, style }) => {
+const DatasetDetailView = ({ dataset, style }) => {
   const filtered = Object.fromEntries(
     Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
   );
@@ -16010,7 +15986,6 @@ const DatasetDetailView = ({ dataset, context, style }) => {
   return m$1`<${MetaDataView}
     entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
@@ -16037,7 +16012,7 @@ const SolversDetailView = ({ steps, context }) => {
     ${details}
   </div>`;
 };
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
   return m$1`
     <div style=${style}>
@@ -16051,7 +16026,6 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${m$1`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
@@ -16129,10 +16103,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: m$1`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`
+    contents: m$1`<${DatasetDetailView} dataset=${evaluation.dataset} />`
   });
   taskColumns.push({
     title: "Plan",
@@ -16188,7 +16159,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `
   });
@@ -16202,7 +16172,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16217,7 +16186,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16232,7 +16200,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config2}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16247,7 +16214,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16262,7 +16228,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16566,8 +16531,7 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer,
-  context
+  scorer
 }) => {
   var _a2, _b2, _c;
   if (!sampleDescriptor) {
@@ -16720,7 +16684,6 @@ const SampleScoreView = ({
                     classes="tab-pane"
                     entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
                     style=${{ marginTop: "1em" }}
-                    context=${context}
                   />
                 </td>
               </tr>
@@ -16924,15 +16887,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({
-  id,
-  entries,
-  classes,
-  context,
-  style,
-  expanded,
-  plain
-}) => {
+const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -16976,12 +16931,7 @@ const MetaDataGrid = ({
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </div>
     `;
   });
@@ -19033,7 +18983,7 @@ const TokenRow = ({ model, usage }) => {
   </tr>`;
 };
 const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
+const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
@@ -19066,7 +19016,6 @@ const UsageCard = ({ stats, context }) => {
     ["Duration"]: totalDuration
   }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>
@@ -19927,8 +19876,7 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   const baseId = `sample-dialog`;
   if (!sample) {
@@ -19963,7 +19911,6 @@ const SampleDisplay = ({
       <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
-          context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
           style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19976,7 +19923,6 @@ const SampleDisplay = ({
         <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
-            context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19984,11 +19930,7 @@ const SampleDisplay = ({
         </${TabPanel}>`);
     }
   }
-  const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${id}`,
-    sample,
-    context
-  );
+  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
   if (sampleMetadatas.length > 0) {
     tabs.push(
       m$1`
@@ -20110,7 +20052,7 @@ const SampleDisplay = ({
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id, sample, context) => {
+const metadataViewsForSample = (id, sample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(m$1`
@@ -20132,7 +20074,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
         </${Card}>`
@@ -20149,7 +20090,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
       </${Card}>`
@@ -20333,7 +20273,6 @@ const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
-          context=${context}
         />`;
   }, [
     id,
@@ -24796,9 +24735,7 @@ const WorkSpace = ({
           />`
         ]);
         if (evalStatus !== "started") {
-          infoCards.push(
-            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-          );
+          infoCards.push(m$1`<${UsageCard} stats=${evalStats} />`);
         }
         if (evalStatus === "error" && evalError) {
           infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
@@ -25239,11 +25176,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
   ];
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -25541,13 +25474,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -25557,7 +25487,6 @@ const scoreCategorizers = [
           return m$1`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         }
       };

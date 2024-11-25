@@ -8,13 +8,35 @@ import { MetaDataView } from "../MetaDataView.mjs";
 import { ChatView } from "../ChatView.mjs";
 import { formatNumber } from "../../utils/Format.mjs";
 
-export const RenderedContent = ({
-  id,
-  entry,
-  context,
-  defaultRendering,
-  options,
-}) => {
+/**
+ * Enum for renderer bucket priorities.
+ * Determines the order in which renderers are applied.
+ *
+ * @enum {number}
+ */
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1000,
+};
+
+/**
+ * @typedef {Object} ContentRenderer
+ * @property {number} bucket - Priority bucket for the renderer. Lower numbers are higher priority.
+ * @property {(content: any) => boolean} canRender - Determines if the renderer can handle the entry.
+ * @property {(id: string, content: any) => { rendered: import("preact").JSX.Element | import("preact").JSX.Element[] | string }} render
+ *   - Function that renders the entry. Returns an object containing the rendered content and optional after-body content.
+ */
+
+/**
+ * Renders content based on its type using registered content renderers.
+ *
+ * @param {Object} props - Properties passed to the component.
+ * @param {string} props.id - Unique identifier for the rendered content.
+ * @param {Object} props.entry - Entry object containing `value` to be rendered.
+ * @returns {import("preact").JSX.Element | string} Rendered content.
+ */
+export const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -32,29 +54,20 @@ export const RenderedContent = ({
 
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(
-      id,
-      entry,
-      defaultRendering,
-      options,
-      context,
-    );
+    const { rendered } = renderer.render(id, entry);
     if (rendered !== undefined) {
       value = rendered;
-      if (afterBody !== undefined) {
-        context.afterBody(afterBody);
-      }
     }
   }
   return html`${value}`;
 };
 
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1000,
-};
-
+/**
+ * Object containing different content renderers.
+ * Each renderer is responsible for rendering a specific type of content.
+ *
+ * @type {Record<string, ContentRenderer>}
+ */
 const contentRenderers = {
   AnsiString: {
     bucket: Buckets.first,
@@ -82,7 +95,7 @@ const contentRenderers = {
     },
   },
   Boolean: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
@@ -92,7 +105,7 @@ const contentRenderers = {
     },
   },
   Number: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
@@ -130,7 +143,7 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const arrayMap = {};
       entry.value.forEach((entry, index) => {
         arrayMap[`[${index}]`] = entry;
@@ -141,7 +154,6 @@ const contentRenderers = {
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
-        context=${context}
         compact
       />`;
       return { rendered: arrayRendered };
@@ -239,7 +251,7 @@ ${entry.value}</pre
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       // Generate a json preview
       const summary = [];
       const keys = Object.keys(entry.value);
@@ -257,7 +269,6 @@ ${entry.value}</pre
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
-          context=${context}
           compact
         />`,
       };

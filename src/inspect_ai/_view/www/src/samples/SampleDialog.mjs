@@ -96,7 +96,6 @@ export const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
-          context=${context}
         />`;
   }, [
     id,

@@ -228,9 +228,7 @@ export const WorkSpace = ({
         ]);
 
         if (evalStatus !== "started") {
-          infoCards.push(
-            html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
-          );
+          infoCards.push(html`<${UsageCard} stats=${evalStats} />`);
         }
 
         // If there is error or progress, includes those within info

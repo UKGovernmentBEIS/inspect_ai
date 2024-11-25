@@ -15,10 +15,9 @@ const kUsageCardBodyId = "usage-card-body";
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("../types/log").EvalStats} props.stats - The identifier for this view
- * @param {Object} props.context - The
  * @returns {import("preact").JSX.Element | string} The UsageCard component.
  */
-export const UsageCard = ({ stats, context }) => {
+export const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
@@ -53,7 +52,6 @@ export const UsageCard = ({ stats, context }) => {
               ["Duration"]: totalDuration,
             }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>

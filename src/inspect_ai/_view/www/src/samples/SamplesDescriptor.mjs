@@ -196,11 +196,7 @@ export const createsSamplesDescriptor = (
   /** @type {ScoreDescriptor} */
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context,
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -539,13 +535,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -555,7 +548,6 @@ const scoreCategorizers = [
           return html`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         },
       };
