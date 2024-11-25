@@ -49,7 +49,7 @@ export const ModelEventView = ({ id, event, style }) => {
   // For any user messages which immediately preceded this model call, including a
   // panel and display those user messages
   const userMessages = [];
-  for (const msg of event.input.reverse()) {
+  for (const msg of event.input.slice().reverse()) {
     if (msg.role === "user") {
       userMessages.push(msg);
     } else {
