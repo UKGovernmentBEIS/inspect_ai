@@ -38,7 +38,10 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import { filterFnForType } from "./samples/tools/filters.mjs";
+import {
+  addFragmentToFilter,
+  filterExpression,
+} from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -164,6 +167,7 @@ export function App({
   const [score, setScore] = useState(initialState?.score);
 
   // Re-filter the samples
+  const [filterError, setFilterError] = useState(initialState?.filterError);
   const [filteredSamples, setFilteredSamples] = useState(
     initialState?.filteredSamples || [],
   );
@@ -171,6 +175,14 @@ export function App({
   const [groupByOrder, setGroupByOrder] = useState(
     initialState?.groupByOrder || "asc",
   );
+
+  const addToFilterExpression = (fragment) => {
+    setFilter(addFragmentToFilter(filter, fragment));
+    const filterInput = document.getElementById("sample-filter-input");
+    if (filterInput) {
+      filterInput.focus();
+    }
+  };
 
   const afterBodyElements = [];
   const saveState = useCallback(() => {
@@ -308,6 +320,7 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
+    var newFilterError = undefined;
     const filtered = samples.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
@@ -317,9 +330,14 @@ export function App({
       }
 
       // Apply the filter
-      const filterFn = filterFnForType(filter);
-      if (filterFn && filter.value) {
-        return filterFn(samplesDescriptor, sample, filter.value);
+      if (filter.value) {
+        const { matches, error } = filterExpression(
+          evalDescriptor,
+          sample,
+          filter.value,
+        );
+        newFilterError ||= error;
+        return matches;
       } else {
         return true;
       }
@@ -338,6 +356,7 @@ export function App({
       }
     }
 
+    setFilterError(newFilterError);
     setFilteredSamples(sorted);
     setGroupBy(grouping);
     setGroupByOrder(order);
@@ -942,7 +961,9 @@ export function App({
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
+              filterError=${filterError}
               setFilter=${setFilter}
+              addToFilterExpression=${addToFilterExpression}
               score=${score}
               setScore=${setScore}
               scores=${scores}

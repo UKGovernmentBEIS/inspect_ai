@@ -1,112 +1,26 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-
-import {
-  kScoreTypeCategorical,
-  kScoreTypeNumeric,
-  kScoreTypeObject,
-  kScoreTypePassFail,
-} from "../../constants.mjs";
+import { useRef } from "preact/hooks";
 
 /**
  * Renders the Sample Filter Control
  *
  * @param {Object} props - The parameters for the component.
- * @param {import("../SamplesDescriptor.mjs").SamplesDescriptor} props.descriptor - The sample descriptor
  * @param {(filter: import("../../Types.mjs").ScoreFilter) => void} props.filterChanged - Filter changed function
  * @param {import("../../Types.mjs").ScoreFilter} props.filter - Capabilities of the application host
+ * @param {string | undefined} props.filterError - The error in the filter expression, if any.
  * @returns {import("preact").JSX.Element | string} The TranscriptView component.
  */
-export const SampleFilter = ({ descriptor, filter, filterChanged }) => {
-  const updateCategoryValue = (e) => {
-    const val = e.currentTarget.value;
-    if (val === "all") {
-      filterChanged({});
-    } else {
-      filterChanged({
-        value: val,
-        type: kScoreTypeCategorical,
-      });
-    }
-  };
+export const SampleFilter = ({ filter, filterError, filterChanged }) => {
+  const inputRef = useRef(null);
+  const tooltip = filterError
+    ? `${filterError}\n\n${filterTooltip}`
+    : filterTooltip;
 
-  switch (descriptor?.selectedScoreDescriptor?.scoreType) {
-    case kScoreTypePassFail: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.val };
-        }),
-      );
-      return html`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-    }
-
-    case kScoreTypeCategorical: {
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-          return { text: cat, value: cat };
-        }),
-      );
-      return html`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-    }
-
-    case kScoreTypeNumeric: {
-      // TODO: Create a real numeric slider control of some kind
-      return html`
-        <input
-          type="text"
-          class="form-control"
-          value=${filter.value}
-          placeholder="Filter Samples (score)"
-          style=${{ width: "150px" }}
-          onInput=${(e) => {
-            filterChanged({
-              value: e.currentTarget.value,
-              type: kScoreTypeNumeric,
-            });
-          }}
-        />
-      `;
-    }
-
-    case kScoreTypeObject: {
-      if (!descriptor.selectedScoreDescriptor.categories) {
-        return "";
-      }
-      const options = [{ text: "All", value: "all" }];
-      options.push(
-        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-          return { text: cat.text, value: cat.value };
-        }),
-      );
-
-      return html`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-    }
-
-    default: {
-      return undefined;
-    }
-  }
-};
-
-const SelectFilter = ({ value, options, onChange }) => {
   return html`
     <div style=${{ display: "flex" }}>
       <span
-        class="sample-label"
+        class="sample-filter-label"
         style=${{
           alignSelf: "center",
           fontSize: FontSize.smaller,
@@ -115,19 +29,71 @@ const SelectFilter = ({ value, options, onChange }) => {
           marginRight: "0.3em",
           marginLeft: "0.2em",
         }}
-        >Scores:</span
+        >Filter:</span
       >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sample-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${value}
-        onChange=${onChange}
-      >
-        ${options.map((option) => {
-          return html`<option value="${option.value}">${option.text}</option>`;
-        })}
-      </select>
+      <div style=${{ position: "relative", width: "300px", display: "flex" }}>
+        <input
+          type="text"
+          id="sample-filter-input"
+          class="form-control"
+          aria-label=".sample-filter-label"
+          value=${filter.value || ""}
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck=${false}
+          placeholder="Filter expression..."
+          title=${tooltip}
+          style=${{
+            width: "100%",
+            fontSize: FontSize.smaller,
+            borderColor: filterError ? "red" : undefined,
+            paddingRight: "1.5em",
+          }}
+          onInput=${(e) => {
+            filterChanged({
+              value: e.currentTarget.value,
+            });
+          }}
+          ref=${inputRef}
+        />
+        ${filter.value &&
+        html`
+          <button
+            class="btn btn-link"
+            style=${{
+              position: "absolute",
+              right: "0.3em",
+              top: "50%",
+              transform: "translateY(-50%)",
+              padding: "0",
+              fontSize: FontSize.smaller,
+              textDecoration: "none",
+              ...TextStyle.secondary,
+            }}
+            onClick=${() => {
+              filterChanged({
+                value: "",
+              });
+              inputRef.current?.focus();
+            }}
+            title="Clear filter"
+          >
+            ✕
+          </button>
+        `}
+      </div>
     </div>
   `;
 };
+
+const filterTooltip = `
+Filter samples by scores. Supported expressions:
+  • Arithmetic: +, -, *, /, mod, ^
+  • Comparison: <, <=, >, >=, ==, !=, including chain comparisons, e.g. “10 <= x < 20”
+  • Boolean: and, or, not
+  • Regex matching: ~= (case-sensitive)
+  • Set operations: in, not in; e.g. “x in (1, 2, 3)”
+  • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
+Click on the score name above to add it to the filter.
+`.trim();

@@ -1056,11 +1056,11 @@ var require_assets = __commonJS({
                 if (rematch && pos2 >= rematch.reach) {
                   break;
                 }
-                var str = currentNode.value;
+                var str2 = currentNode.value;
                 if (tokenList.length > text2.length) {
                   return;
                 }
-                if (str instanceof Token2) {
+                if (str2 instanceof Token2) {
                   continue;
                 }
                 var removeCount = 1;
@@ -1088,19 +1088,19 @@ var require_assets = __commonJS({
                     p2 += k2.value.length;
                   }
                   removeCount--;
-                  str = text2.slice(pos2, p2);
+                  str2 = text2.slice(pos2, p2);
                   match.index -= pos2;
                 } else {
-                  match = matchPattern(pattern, 0, str, lookbehind);
+                  match = matchPattern(pattern, 0, str2, lookbehind);
                   if (!match) {
                     continue;
                   }
                 }
                 var from = match.index;
                 var matchStr = match[0];
-                var before = str.slice(0, from);
-                var after = str.slice(from + matchStr.length);
-                var reach = pos2 + str.length;
+                var before = str2.slice(0, from);
+                var after = str2.slice(from + matchStr.length);
+                var reach = pos2 + str2.length;
                 if (rematch && reach > rematch.reach) {
                   rematch.reach = reach;
                 }
@@ -7631,40 +7631,40 @@ var require_assets = __commonJS({
         )} min ${seconds % 60} sec`;
       }
     };
-    function formatPrettyDecimal(num) {
-      const numDecimalPlaces = num.toString().includes(".") ? num.toString().split(".")[1].length : 0;
+    function formatPrettyDecimal(num2) {
+      const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
       if (numDecimalPlaces === 0) {
-        return num.toFixed(1);
+        return num2.toFixed(1);
       } else if (numDecimalPlaces > 3) {
-        return num.toFixed(3);
+        return num2.toFixed(3);
       } else {
-        return num.toString();
+        return num2.toString();
       }
     }
-    function formatDecimalNoTrailingZeroes(num) {
-      if (typeof num !== "number") {
-        return num;
+    function formatDecimalNoTrailingZeroes(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
       }
-      if (num.toString().includes(".")) {
-        const decimal = num.toString().split(".")[1];
+      if (num2.toString().includes(".")) {
+        const decimal = num2.toString().split(".")[1];
         const trimmed = decimal.replace(/\.?0+$/, "");
-        return num.toFixed(trimmed.length);
+        return num2.toFixed(trimmed.length);
       } else {
-        return num.toFixed(0);
+        return num2.toFixed(0);
       }
     }
-    function toTitleCase(str) {
-      return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
+    function toTitleCase(str2) {
+      return str2.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
     }
-    function formatNoDecimal(num) {
-      if (typeof num !== "number") {
-        return num;
+    function formatNoDecimal(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
       }
-      const rounded = Math.round(num);
+      const rounded = Math.round(num2);
       return rounded.toFixed(0);
     }
-    function formatNumber(num) {
-      return num.toLocaleString(navigator.language, {
+    function formatNumber(num2) {
+      return num2.toLocaleString(navigator.language, {
         minimumFractionDigits: 0,
         maximumFractionDigits: 5
       });
@@ -9989,28 +9989,28 @@ var require_assets = __commonJS({
        * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      write(str, offset2) {
+      write(str2, offset2) {
         switch (this.state) {
           case EntityDecoderState.EntityStart: {
-            if (str.charCodeAt(offset2) === CharCodes.NUM) {
+            if (str2.charCodeAt(offset2) === CharCodes.NUM) {
               this.state = EntityDecoderState.NumericStart;
               this.consumed += 1;
-              return this.stateNumericStart(str, offset2 + 1);
+              return this.stateNumericStart(str2, offset2 + 1);
             }
             this.state = EntityDecoderState.NamedEntity;
-            return this.stateNamedEntity(str, offset2);
+            return this.stateNamedEntity(str2, offset2);
           }
           case EntityDecoderState.NumericStart: {
-            return this.stateNumericStart(str, offset2);
+            return this.stateNumericStart(str2, offset2);
           }
           case EntityDecoderState.NumericDecimal: {
-            return this.stateNumericDecimal(str, offset2);
+            return this.stateNumericDecimal(str2, offset2);
           }
           case EntityDecoderState.NumericHex: {
-            return this.stateNumericHex(str, offset2);
+            return this.stateNumericHex(str2, offset2);
           }
           case EntityDecoderState.NamedEntity: {
-            return this.stateNamedEntity(str, offset2);
+            return this.stateNamedEntity(str2, offset2);
           }
         }
       }
@@ -10023,22 +10023,22 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericStart(str, offset2) {
-        if (offset2 >= str.length) {
+      stateNumericStart(str2, offset2) {
+        if (offset2 >= str2.length) {
           return -1;
         }
-        if ((str.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((str2.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
           this.state = EntityDecoderState.NumericHex;
           this.consumed += 1;
-          return this.stateNumericHex(str, offset2 + 1);
+          return this.stateNumericHex(str2, offset2 + 1);
         }
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str, offset2);
+        return this.stateNumericDecimal(str2, offset2);
       }
-      addToNumericResult(str, start2, end2, base2) {
+      addToNumericResult(str2, start2, end2, base2) {
         if (start2 !== end2) {
           const digitCount = end2 - start2;
-          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str.substr(start2, digitCount), base2);
+          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start2, digitCount), base2);
           this.consumed += digitCount;
         }
       }
@@ -10051,18 +10051,18 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericHex(str, offset2) {
+      stateNumericHex(str2, offset2) {
         const startIdx = offset2;
-        while (offset2 < str.length) {
-          const char = str.charCodeAt(offset2);
+        while (offset2 < str2.length) {
+          const char = str2.charCodeAt(offset2);
           if (isNumber(char) || isHexadecimalCharacter(char)) {
             offset2 += 1;
           } else {
-            this.addToNumericResult(str, startIdx, offset2, 16);
+            this.addToNumericResult(str2, startIdx, offset2, 16);
             return this.emitNumericEntity(char, 3);
           }
         }
-        this.addToNumericResult(str, startIdx, offset2, 16);
+        this.addToNumericResult(str2, startIdx, offset2, 16);
         return -1;
       }
       /**
@@ -10074,18 +10074,18 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericDecimal(str, offset2) {
+      stateNumericDecimal(str2, offset2) {
         const startIdx = offset2;
-        while (offset2 < str.length) {
-          const char = str.charCodeAt(offset2);
+        while (offset2 < str2.length) {
+          const char = str2.charCodeAt(offset2);
           if (isNumber(char)) {
             offset2 += 1;
           } else {
-            this.addToNumericResult(str, startIdx, offset2, 10);
+            this.addToNumericResult(str2, startIdx, offset2, 10);
             return this.emitNumericEntity(char, 2);
           }
         }
-        this.addToNumericResult(str, startIdx, offset2, 10);
+        this.addToNumericResult(str2, startIdx, offset2, 10);
         return -1;
       }
       /**
@@ -10130,12 +10130,12 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNamedEntity(str, offset2) {
+      stateNamedEntity(str2, offset2) {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-        for (; offset2 < str.length; offset2++, this.excess++) {
-          const char = str.charCodeAt(offset2);
+        for (; offset2 < str2.length; offset2++, this.excess++) {
+          const char = str2.charCodeAt(offset2);
           this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
           if (this.treeIndex < 0) {
             return this.result === 0 || // If we are parsing an attribute
@@ -10219,15 +10219,15 @@ var require_assets = __commonJS({
     }
     function getDecoder(decodeTree) {
       let ret = "";
-      const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint$1(str));
-      return function decodeWithTrie(str, decodeMode) {
+      const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint$1(str2));
+      return function decodeWithTrie(str2, decodeMode) {
         let lastIndex = 0;
         let offset2 = 0;
-        while ((offset2 = str.indexOf("&", offset2)) >= 0) {
-          ret += str.slice(lastIndex, offset2);
+        while ((offset2 = str2.indexOf("&", offset2)) >= 0) {
+          ret += str2.slice(lastIndex, offset2);
           decoder.startEntity(decodeMode);
           const len = decoder.write(
-            str,
+            str2,
             // Skip the "&"
             offset2 + 1
           );
@@ -10238,7 +10238,7 @@ var require_assets = __commonJS({
           lastIndex = offset2 + len;
           offset2 = len === 0 ? lastIndex + 1 : lastIndex;
         }
-        const result = ret + str.slice(lastIndex);
+        const result = ret + str2.slice(lastIndex);
         ret = "";
         return result;
       };
@@ -10270,8 +10270,8 @@ var require_assets = __commonJS({
     }
     const htmlDecoder = getDecoder(htmlDecodeTree);
     getDecoder(xmlDecodeTree);
-    function decodeHTML(str, mode = DecodingMode.Legacy) {
-      return htmlDecoder(str, mode);
+    function decodeHTML(str2, mode = DecodingMode.Legacy) {
+      return htmlDecoder(str2, mode);
     }
     function _class$1(obj) {
       return Object.prototype.toString.call(obj);
@@ -10355,17 +10355,17 @@ var require_assets = __commonJS({
       }
       return match;
     }
-    function unescapeMd(str) {
-      if (str.indexOf("\\") < 0) {
-        return str;
+    function unescapeMd(str2) {
+      if (str2.indexOf("\\") < 0) {
+        return str2;
       }
-      return str.replace(UNESCAPE_MD_RE, "$1");
+      return str2.replace(UNESCAPE_MD_RE, "$1");
     }
-    function unescapeAll(str) {
-      if (str.indexOf("\\") < 0 && str.indexOf("&") < 0) {
-        return str;
+    function unescapeAll(str2) {
+      if (str2.indexOf("\\") < 0 && str2.indexOf("&") < 0) {
+        return str2;
       }
-      return str.replace(UNESCAPE_ALL_RE, function(match, escaped, entity2) {
+      return str2.replace(UNESCAPE_ALL_RE, function(match, escaped, entity2) {
         if (escaped) {
           return escaped;
         }
@@ -10383,15 +10383,15 @@ var require_assets = __commonJS({
     function replaceUnsafeChar(ch3) {
       return HTML_REPLACEMENTS[ch3];
     }
-    function escapeHtml(str) {
-      if (HTML_ESCAPE_TEST_RE.test(str)) {
-        return str.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+    function escapeHtml(str2) {
+      if (HTML_ESCAPE_TEST_RE.test(str2)) {
+        return str2.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
       }
-      return str;
+      return str2;
     }
     const REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
-    function escapeRE$1(str) {
-      return str.replace(REGEXP_ESCAPE_RE, "\\$&");
+    function escapeRE$1(str2) {
+      return str2.replace(REGEXP_ESCAPE_RE, "\\$&");
     }
     function isSpace(code2) {
       switch (code2) {
@@ -10463,12 +10463,12 @@ var require_assets = __commonJS({
           return false;
       }
     }
-    function normalizeReference(str) {
-      str = str.trim().replace(/\s+/g, " ");
+    function normalizeReference(str2) {
+      str2 = str2.trim().replace(/\s+/g, " ");
       if ("ẞ".toLowerCase() === "Ṿ") {
-        str = str.replace(/ẞ/g, "ß");
+        str2 = str2.replace(/ẞ/g, "ß");
       }
-      return str.toLowerCase().toUpperCase();
+      return str2.toLowerCase().toUpperCase();
     }
     const lib$1 = { mdurl, ucmicro };
     const utils = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -10523,7 +10523,7 @@ var require_assets = __commonJS({
       state.pos = oldPos;
       return labelEnd;
     }
-    function parseLinkDestination(str, start2, max2) {
+    function parseLinkDestination(str2, start2, max2) {
       let code2;
       let pos2 = start2;
       const result = {
@@ -10531,10 +10531,10 @@ var require_assets = __commonJS({
         pos: 0,
         str: ""
       };
-      if (str.charCodeAt(pos2) === 60) {
+      if (str2.charCodeAt(pos2) === 60) {
         pos2++;
         while (pos2 < max2) {
-          code2 = str.charCodeAt(pos2);
+          code2 = str2.charCodeAt(pos2);
           if (code2 === 10) {
             return result;
           }
@@ -10543,7 +10543,7 @@ var require_assets = __commonJS({
           }
           if (code2 === 62) {
             result.pos = pos2 + 1;
-            result.str = unescapeAll(str.slice(start2 + 1, pos2));
+            result.str = unescapeAll(str2.slice(start2 + 1, pos2));
             result.ok = true;
             return result;
           }
@@ -10557,7 +10557,7 @@ var require_assets = __commonJS({
       }
       let level = 0;
       while (pos2 < max2) {
-        code2 = str.charCodeAt(pos2);
+        code2 = str2.charCodeAt(pos2);
         if (code2 === 32) {
           break;
         }
@@ -10565,7 +10565,7 @@ var require_assets = __commonJS({
           break;
         }
         if (code2 === 92 && pos2 + 1 < max2) {
-          if (str.charCodeAt(pos2 + 1) === 32) {
+          if (str2.charCodeAt(pos2 + 1) === 32) {
             break;
           }
           pos2 += 2;
@@ -10591,12 +10591,12 @@ var require_assets = __commonJS({
       if (level !== 0) {
         return result;
       }
-      result.str = unescapeAll(str.slice(start2, pos2));
+      result.str = unescapeAll(str2.slice(start2, pos2));
       result.pos = pos2;
       result.ok = true;
       return result;
     }
-    function parseLinkTitle(str, start2, max2, prev_state) {
+    function parseLinkTitle(str2, start2, max2, prev_state) {
       let code2;
       let pos2 = start2;
       const state = {
@@ -10618,7 +10618,7 @@ var require_assets = __commonJS({
         if (pos2 >= max2) {
           return state;
         }
-        let marker = str.charCodeAt(pos2);
+        let marker = str2.charCodeAt(pos2);
         if (marker !== 34 && marker !== 39 && marker !== 40) {
           return state;
         }
@@ -10630,10 +10630,10 @@ var require_assets = __commonJS({
         state.marker = marker;
       }
       while (pos2 < max2) {
-        code2 = str.charCodeAt(pos2);
+        code2 = str2.charCodeAt(pos2);
         if (code2 === state.marker) {
           state.pos = pos2 + 1;
-          state.str += unescapeAll(str.slice(start2, pos2));
+          state.str += unescapeAll(str2.slice(start2, pos2));
           state.ok = true;
           return state;
         } else if (code2 === 40 && state.marker === 41) {
@@ -10644,7 +10644,7 @@ var require_assets = __commonJS({
         pos2++;
       }
       state.can_continue = true;
-      state.str += unescapeAll(str.slice(start2, pos2));
+      state.str += unescapeAll(str2.slice(start2, pos2));
       return state;
     }
     const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -10668,9 +10668,9 @@ var require_assets = __commonJS({
       let langName = "";
       let langAttrs = "";
       if (info) {
-        const arr = info.split(/(\s+)/g);
-        langName = arr[0];
-        langAttrs = arr.slice(2).join("");
+        const arr2 = info.split(/(\s+)/g);
+        langName = arr2[0];
+        langAttrs = arr2.slice(2).join("");
       }
       let highlighted;
       if (options.highlight) {
@@ -11024,10 +11024,10 @@ var require_assets = __commonJS({
     const NEWLINES_RE = /\r\n?|\n/g;
     const NULL_RE = /\0/g;
     function normalize(state) {
-      let str;
-      str = state.src.replace(NEWLINES_RE, "\n");
-      str = str.replace(NULL_RE, "�");
-      state.src = str;
+      let str2;
+      str2 = state.src.replace(NEWLINES_RE, "\n");
+      str2 = str2.replace(NULL_RE, "�");
+      state.src = str2;
     }
     function block(state) {
       let token2;
@@ -11050,11 +11050,11 @@ var require_assets = __commonJS({
         }
       }
     }
-    function isLinkOpen$1(str) {
-      return /^<a[>\s]/i.test(str);
+    function isLinkOpen$1(str2) {
+      return /^<a[>\s]/i.test(str2);
     }
-    function isLinkClose$1(str) {
-      return /^<\/a\s*>/i.test(str);
+    function isLinkClose$1(str2) {
+      return /^<\/a\s*>/i.test(str2);
     }
     function linkify$1(state) {
       const blockTokens = state.tokens;
@@ -11208,8 +11208,8 @@ var require_assets = __commonJS({
     const QUOTE_TEST_RE = /['"]/;
     const QUOTE_RE = /['"]/g;
     const APOSTROPHE = "’";
-    function replaceAt(str, index, ch3) {
-      return str.slice(0, index) + ch3 + str.slice(index + 1);
+    function replaceAt(str2, index, ch3) {
+      return str2.slice(0, index) + ch3 + str2.slice(index + 1);
     }
     function process_inlines(tokens, state) {
       let j2;
@@ -11565,30 +11565,30 @@ var require_assets = __commonJS({
       const max2 = state.eMarks[line2];
       return state.src.slice(pos2, max2);
     }
-    function escapedSplit(str) {
+    function escapedSplit(str2) {
       const result = [];
-      const max2 = str.length;
+      const max2 = str2.length;
       let pos2 = 0;
-      let ch3 = str.charCodeAt(pos2);
+      let ch3 = str2.charCodeAt(pos2);
       let isEscaped = false;
       let lastPos = 0;
       let current = "";
       while (pos2 < max2) {
         if (ch3 === 124) {
           if (!isEscaped) {
-            result.push(current + str.substring(lastPos, pos2));
+            result.push(current + str2.substring(lastPos, pos2));
             current = "";
             lastPos = pos2 + 1;
           } else {
-            current += str.substring(lastPos, pos2 - 1);
+            current += str2.substring(lastPos, pos2 - 1);
             lastPos = pos2;
           }
         }
         isEscaped = ch3 === 92;
         pos2++;
-        ch3 = str.charCodeAt(pos2);
+        ch3 = str2.charCodeAt(pos2);
       }
-      result.push(current + str.substring(lastPos));
+      result.push(current + str2.substring(lastPos));
       return result;
     }
     function table(state, startLine, endLine, silent) {
@@ -12257,11 +12257,11 @@ var require_assets = __commonJS({
         const max3 = state.eMarks[nextLine2];
         return state.src.slice(pos3, max3 + 1);
       }
-      let str = state.src.slice(pos2, max2 + 1);
-      max2 = str.length;
+      let str2 = state.src.slice(pos2, max2 + 1);
+      max2 = str2.length;
       let labelEnd = -1;
       for (pos2 = 1; pos2 < max2; pos2++) {
-        const ch3 = str.charCodeAt(pos2);
+        const ch3 = str2.charCodeAt(pos2);
         if (ch3 === 91) {
           return false;
         } else if (ch3 === 93) {
@@ -12270,32 +12270,32 @@ var require_assets = __commonJS({
         } else if (ch3 === 10) {
           const lineContent = getNextLine(nextLine);
           if (lineContent !== null) {
-            str += lineContent;
-            max2 = str.length;
+            str2 += lineContent;
+            max2 = str2.length;
             nextLine++;
           }
         } else if (ch3 === 92) {
           pos2++;
-          if (pos2 < max2 && str.charCodeAt(pos2) === 10) {
+          if (pos2 < max2 && str2.charCodeAt(pos2) === 10) {
             const lineContent = getNextLine(nextLine);
             if (lineContent !== null) {
-              str += lineContent;
-              max2 = str.length;
+              str2 += lineContent;
+              max2 = str2.length;
               nextLine++;
             }
           }
         }
       }
-      if (labelEnd < 0 || str.charCodeAt(labelEnd + 1) !== 58) {
+      if (labelEnd < 0 || str2.charCodeAt(labelEnd + 1) !== 58) {
         return false;
       }
       for (pos2 = labelEnd + 2; pos2 < max2; pos2++) {
-        const ch3 = str.charCodeAt(pos2);
+        const ch3 = str2.charCodeAt(pos2);
         if (ch3 === 10) {
           const lineContent = getNextLine(nextLine);
           if (lineContent !== null) {
-            str += lineContent;
-            max2 = str.length;
+            str2 += lineContent;
+            max2 = str2.length;
             nextLine++;
           }
         } else if (isSpace(ch3)) ;
@@ -12303,7 +12303,7 @@ var require_assets = __commonJS({
           break;
         }
       }
-      const destRes = state.md.helpers.parseLinkDestination(str, pos2, max2);
+      const destRes = state.md.helpers.parseLinkDestination(str2, pos2, max2);
       if (!destRes.ok) {
         return false;
       }
@@ -12316,12 +12316,12 @@ var require_assets = __commonJS({
       const destEndLineNo = nextLine;
       const start2 = pos2;
       for (; pos2 < max2; pos2++) {
-        const ch3 = str.charCodeAt(pos2);
+        const ch3 = str2.charCodeAt(pos2);
         if (ch3 === 10) {
           const lineContent = getNextLine(nextLine);
           if (lineContent !== null) {
-            str += lineContent;
-            max2 = str.length;
+            str2 += lineContent;
+            max2 = str2.length;
             nextLine++;
           }
         } else if (isSpace(ch3)) ;
@@ -12329,15 +12329,15 @@ var require_assets = __commonJS({
           break;
         }
       }
-      let titleRes = state.md.helpers.parseLinkTitle(str, pos2, max2);
+      let titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2);
       while (titleRes.can_continue) {
         const lineContent = getNextLine(nextLine);
         if (lineContent === null) break;
-        str += lineContent;
+        str2 += lineContent;
         pos2 = max2;
-        max2 = str.length;
+        max2 = str2.length;
         nextLine++;
-        titleRes = state.md.helpers.parseLinkTitle(str, pos2, max2, titleRes);
+        titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2, titleRes);
       }
       let title;
       if (pos2 < max2 && start2 !== pos2 && titleRes.ok) {
@@ -12349,19 +12349,19 @@ var require_assets = __commonJS({
         nextLine = destEndLineNo;
       }
       while (pos2 < max2) {
-        const ch3 = str.charCodeAt(pos2);
+        const ch3 = str2.charCodeAt(pos2);
         if (!isSpace(ch3)) {
           break;
         }
         pos2++;
       }
-      if (pos2 < max2 && str.charCodeAt(pos2) !== 10) {
+      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
         if (title) {
           title = "";
           pos2 = destEndPos;
           nextLine = destEndLineNo;
           while (pos2 < max2) {
-            const ch3 = str.charCodeAt(pos2);
+            const ch3 = str2.charCodeAt(pos2);
             if (!isSpace(ch3)) {
               break;
             }
@@ -12369,10 +12369,10 @@ var require_assets = __commonJS({
           }
         }
       }
-      if (pos2 < max2 && str.charCodeAt(pos2) !== 10) {
+      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
         return false;
       }
-      const label = normalizeReference(str.slice(1, labelEnd));
+      const label = normalizeReference(str2.slice(1, labelEnd));
       if (!label) {
         return false;
       }
@@ -13449,11 +13449,11 @@ var require_assets = __commonJS({
       }
       return false;
     }
-    function isLinkOpen(str) {
-      return /^<a[>\s]/i.test(str);
+    function isLinkOpen(str2) {
+      return /^<a[>\s]/i.test(str2);
     }
-    function isLinkClose(str) {
-      return /^<\/a\s*>/i.test(str);
+    function isLinkClose(str2) {
+      return /^<\/a\s*>/i.test(str2);
     }
     function isLetter(ch3) {
       const lc = ch3 | 32;
@@ -13702,8 +13702,8 @@ var require_assets = __commonJS({
         state.pushPending();
       }
     };
-    ParserInline.prototype.parse = function(str, md, env, outTokens) {
-      const state = new this.State(str, md, env, outTokens);
+    ParserInline.prototype.parse = function(str2, md, env, outTokens) {
+      const state = new this.State(str2, md, env, outTokens);
       this.tokenize(state);
       const rules = this.ruler2.getRules("");
       const len = rules.length;
@@ -13779,8 +13779,8 @@ var require_assets = __commonJS({
     function isFunction(obj) {
       return _class(obj) === "[object Function]";
     }
-    function escapeRE(str) {
-      return str.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
+    function escapeRE(str2) {
+      return str2.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
     }
     const defaultOptions = {
       fuzzyLink: true,
@@ -14086,8 +14086,8 @@ var require_assets = __commonJS({
         compile(this);
         return this;
       }
-      this.__tlds__ = this.__tlds__.concat(list2).sort().filter(function(el, idx, arr) {
-        return el !== arr[idx - 1];
+      this.__tlds__ = this.__tlds__.concat(list2).sort().filter(function(el, idx, arr2) {
+        return el !== arr2[idx - 1];
       }).reverse();
       compile(this);
       return this;
@@ -14509,8 +14509,8 @@ var require_assets = __commonJS({
     const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
     const GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
     function validateLink(url) {
-      const str = url.trim().toLowerCase();
-      return BAD_PROTO_RE.test(str) ? GOOD_DATA_RE.test(str) : true;
+      const str2 = url.trim().toLowerCase();
+      return BAD_PROTO_RE.test(str2) ? GOOD_DATA_RE.test(str2) : true;
     }
     const RECODE_HOSTNAME_FOR = ["http:", "https:", "mailto:"];
     function normalizeLink(url) {
@@ -14717,7 +14717,7 @@ var require_assets = __commonJS({
         }
       });
     };
-    function unescapeCodeHtmlEntities(str) {
+    function unescapeCodeHtmlEntities(str2) {
       const htmlEntities = {
         "&lt;": "<",
         "&gt;": ">",
@@ -14725,7 +14725,7 @@ var require_assets = __commonJS({
         "&#x5C;": "\\",
         "&quot;": '"'
       };
-      return str.replace(
+      return str2.replace(
         /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
         function(match, starttag, content, endtag) {
           return starttag + content.replace(
@@ -14741,11 +14741,11 @@ var require_assets = __commonJS({
     (function(module2) {
       (function() {
         const createBuffer = (val) => new TextEncoder().encode(val);
-        function MurmurHashV2(str, seed) {
-          if (typeof str === "string") str = createBuffer(str);
-          let l2 = str.length, h2 = seed ^ l2, i2 = 0, k2;
+        function MurmurHashV2(str2, seed) {
+          if (typeof str2 === "string") str2 = createBuffer(str2);
+          let l2 = str2.length, h2 = seed ^ l2, i2 = 0, k2;
           while (l2 >= 4) {
-            k2 = str[i2] & 255 | (str[++i2] & 255) << 8 | (str[++i2] & 255) << 16 | (str[++i2] & 255) << 24;
+            k2 = str2[i2] & 255 | (str2[++i2] & 255) << 8 | (str2[++i2] & 255) << 16 | (str2[++i2] & 255) << 24;
             k2 = (k2 & 65535) * 1540483477 + (((k2 >>> 16) * 1540483477 & 65535) << 16);
             k2 ^= k2 >>> 24;
             k2 = (k2 & 65535) * 1540483477 + (((k2 >>> 16) * 1540483477 & 65535) << 16);
@@ -14755,11 +14755,11 @@ var require_assets = __commonJS({
           }
           switch (l2) {
             case 3:
-              h2 ^= (str[i2 + 2] & 255) << 16;
+              h2 ^= (str2[i2 + 2] & 255) << 16;
             case 2:
-              h2 ^= (str[i2 + 1] & 255) << 8;
+              h2 ^= (str2[i2 + 1] & 255) << 8;
             case 1:
-              h2 ^= str[i2] & 255;
+              h2 ^= str2[i2] & 255;
               h2 = (h2 & 65535) * 1540483477 + (((h2 >>> 16) * 1540483477 & 65535) << 16);
           }
           h2 ^= h2 >>> 13;
@@ -18495,13 +18495,13 @@ ${val.stack}`;
     function getBase64Code(charCode) {
       return base64codes[charCode - 43];
     }
-    function base64_decode(str) {
-      let missingOctets = str.endsWith("==") ? 2 : str.endsWith("=") ? 1 : 0;
-      let n2 = str.length;
+    function base64_decode(str2) {
+      let missingOctets = str2.endsWith("==") ? 2 : str2.endsWith("=") ? 1 : 0;
+      let n2 = str2.length;
       let result = new Uint8Array(3 * (n2 / 4));
       let buffer2;
       for (let i2 = 0, j2 = 0; i2 < n2; i2 += 4, j2 += 3) {
-        buffer2 = getBase64Code(str.charCodeAt(i2)) << 18 | getBase64Code(str.charCodeAt(i2 + 1)) << 12 | getBase64Code(str.charCodeAt(i2 + 2)) << 6 | getBase64Code(str.charCodeAt(i2 + 3));
+        buffer2 = getBase64Code(str2.charCodeAt(i2)) << 18 | getBase64Code(str2.charCodeAt(i2 + 1)) << 12 | getBase64Code(str2.charCodeAt(i2 + 2)) << 6 | getBase64Code(str2.charCodeAt(i2 + 3));
         result[j2] = buffer2 >> 16;
         result[j2 + 1] = buffer2 >> 8 & 255;
         result[j2 + 2] = buffer2 & 255;
@@ -19074,7 +19074,7 @@ ${val.stack}`;
       let proto;
       return obj != null && typeof obj === "object" && (obj[$PROXY] || !(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype || Array.isArray(obj));
     }
-    function unwrap(item, set = /* @__PURE__ */ new Set()) {
+    function unwrap$1(item, set = /* @__PURE__ */ new Set()) {
       let result, unwrapped, v2, prop;
       if (result = item != null && item[$RAW]) return result;
       if (!isWrappable(item) || set.has(item)) return item;
@@ -19083,7 +19083,7 @@ ${val.stack}`;
         else set.add(item);
         for (let i2 = 0, l2 = item.length; i2 < l2; i2++) {
           v2 = item[i2];
-          if ((unwrapped = unwrap(v2, set)) !== v2) item[i2] = unwrapped;
+          if ((unwrapped = unwrap$1(v2, set)) !== v2) item[i2] = unwrapped;
         }
       } else {
         if (Object.isFrozen(item)) item = Object.assign({}, item);
@@ -19093,7 +19093,7 @@ ${val.stack}`;
           prop = keys[i2];
           if (desc[prop].get) continue;
           v2 = item[prop];
-          if ((unwrapped = unwrap(v2, set)) !== v2) item[prop] = unwrapped;
+          if ((unwrapped = unwrap$1(v2, set)) !== v2) item[prop] = unwrapped;
         }
       }
       return item;
@@ -19185,7 +19185,7 @@ ${val.stack}`;
     }
     function updateArray(current, next) {
       if (typeof next === "function") next = next(current);
-      next = unwrap(next);
+      next = unwrap$1(next);
       if (Array.isArray(next)) {
         if (current === next) return;
         let i2 = 0, len = next.length;
@@ -19234,13 +19234,13 @@ ${val.stack}`;
         if (value === prev) return;
       }
       if (part === void 0 && value == void 0) return;
-      value = unwrap(value);
+      value = unwrap$1(value);
       if (part === void 0 || isWrappable(prev) && isWrappable(value) && !Array.isArray(value)) {
         mergeStoreNode(prev, value);
       } else setProperty(current, part, value);
     }
     function createStore(...[store, options]) {
-      const unwrappedStore = unwrap(store || {});
+      const unwrappedStore = unwrap$1(store || {});
       const isArray = Array.isArray(unwrappedStore);
       const wrappedStore = wrap$1(unwrappedStore);
       function setStore(...args) {
@@ -19325,7 +19325,7 @@ ${val.stack}`;
       const {
         merge,
         key: key2 = "id"
-      } = options, v2 = unwrap(value);
+      } = options, v2 = unwrap$1(value);
       return (state) => {
         if (!isWrappable(state) || !isWrappable(v2)) return v2;
         const res = applyState(v2, {
@@ -20687,13 +20687,13 @@ ${events}
       let playCount = 0;
       async function init() {
         const {
-          parser,
+          parser: parser2,
           minFrameTime,
           inputOffset,
           dumpFilename,
           encoding = "utf-8"
         } = src;
-        const recording2 = prepare(await parser(await doFetch(src), {
+        const recording2 = prepare(await parser2(await doFetch(src), {
           encoding
         }), logger, {
           idleTimeLimit,
@@ -21507,19 +21507,19 @@ ${events}
           socket.onmessage = handleJsonMessage;
           handleJsonMessage(event);
         } else {
-          const arr = new Uint8Array(event.data);
-          if (arr[0] == 65 && arr[1] == 76 && arr[2] == 105 && arr[3] == 83) {
-            if (arr[4] == 1) {
+          const arr2 = new Uint8Array(event.data);
+          if (arr2[0] == 65 && arr2[1] == 76 && arr2[2] == 105 && arr2[3] == 83) {
+            if (arr2[4] == 1) {
               logger.info("activating ALiS v1 handler");
               socket.onmessage = handleStreamMessage;
             } else {
-              logger.warn(`unsupported ALiS version (${arr[4]})`);
+              logger.warn(`unsupported ALiS version (${arr2[4]})`);
               socket.close();
             }
           } else {
             logger.info("activating raw text handler");
             initBuffer();
-            const text2 = utfDecoder.decode(arr);
+            const text2 = utfDecoder.decode(arr2);
             const size = sizeFromResizeSeq(text2) ?? sizeFromScriptStartMessage(text2);
             if (size !== void 0) {
               const [cols, rows] = size;
@@ -21596,12 +21596,12 @@ ${events}
           logger.debug(`unknown frame type: ${type}`);
         }
       }
-      function parseTheme2(arr) {
-        const foreground = hexColor(arr[0], arr[1], arr[2]);
-        const background = hexColor(arr[3], arr[4], arr[5]);
+      function parseTheme2(arr2) {
+        const foreground = hexColor(arr2[0], arr2[1], arr2[2]);
+        const background = hexColor(arr2[3], arr2[4], arr2[5]);
         const palette = [];
         for (let i2 = 0; i2 < 16; i2++) {
-          palette.push(hexColor(arr[i2 * 3 + 6], arr[i2 * 3 + 7], arr[i2 * 3 + 8]));
+          palette.push(hexColor(arr2[i2 * 3 + 6], arr2[i2 * 3 + 7], arr2[i2 * 3 + 8]));
         }
         return {
           foreground,
@@ -23554,11 +23554,11 @@ ${events}
       }
       return defaultInstance$1.diff(left2, right2);
     }
-    const trimUnderscore = (str) => {
-      if (str.substring(0, 1) === "_") {
-        return str.slice(1);
+    const trimUnderscore = (str2) => {
+      if (str2.substring(0, 1) === "_") {
+        return str2.slice(1);
       }
-      return str;
+      return str2;
     };
     const arrayKeyToSortNumber = (key2) => {
       if (key2 === "_t") {
@@ -25196,6 +25196,7 @@ ${events}
     const kScoreTypeNumeric = "numeric";
     const kScoreTypeOther = "other";
     const kScoreTypeObject = "object";
+    const kScoreTypeBoolean = "boolean";
     const kSampleAscVal = "sample-asc";
     const kSampleDescVal = "sample-desc";
     const kEpochAscVal = "epoch-asc";
@@ -29191,89 +29192,15 @@ self.onmessage = function (e) {
         order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
       };
     };
-    const SampleFilter = ({ descriptor, filter, filterChanged }) => {
-      var _a2;
-      const updateCategoryValue = (e2) => {
-        const val = e2.currentTarget.value;
-        if (val === "all") {
-          filterChanged({});
-        } else {
-          filterChanged({
-            value: val,
-            type: kScoreTypeCategorical
-          });
-        }
-      };
-      switch ((_a2 = descriptor == null ? void 0 : descriptor.selectedScoreDescriptor) == null ? void 0 : _a2.scoreType) {
-        case kScoreTypePassFail: {
-          const options = [{ text: "All", value: "all" }];
-          options.push(
-            ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-              return { text: cat.text, value: cat.val };
-            })
-          );
-          return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-        }
-        case kScoreTypeCategorical: {
-          const options = [{ text: "All", value: "all" }];
-          options.push(
-            ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-              return { text: cat, value: cat };
-            })
-          );
-          return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-        }
-        case kScoreTypeNumeric: {
-          return m$1`
-        <input
-          type="text"
-          class="form-control"
-          value=${filter.value}
-          placeholder="Filter Samples (score)"
-          style=${{ width: "150px" }}
-          onInput=${(e2) => {
-            filterChanged({
-              value: e2.currentTarget.value,
-              type: kScoreTypeNumeric
-            });
-          }}
-        />
-      `;
-        }
-        case kScoreTypeObject: {
-          if (!descriptor.selectedScoreDescriptor.categories) {
-            return "";
-          }
-          const options = [{ text: "All", value: "all" }];
-          options.push(
-            ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
-              return { text: cat.text, value: cat.value };
-            })
-          );
-          return m$1`<${SelectFilter}
-        value=${filter.value || "all"}
-        options=${options}
-        onChange=${updateCategoryValue}
-      />`;
-        }
-        default: {
-          return void 0;
-        }
-      }
-    };
-    const SelectFilter = ({ value, options, onChange }) => {
+    const SampleFilter = ({ filter, filterError, filterChanged }) => {
+      const inputRef = A(null);
+      const tooltip = filterError ? `${filterError}
+
+${filterTooltip}` : filterTooltip;
       return m$1`
     <div style=${{ display: "flex" }}>
       <span
-        class="sample-label"
+        class="sample-filter-label"
         style=${{
         alignSelf: "center",
         fontSize: FontSize.smaller,
@@ -29282,22 +29209,73 @@ self.onmessage = function (e) {
         marginRight: "0.3em",
         marginLeft: "0.2em"
       }}
-        >Scores:</span
+        >Filter:</span
       >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sample-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${value}
-        onChange=${onChange}
-      >
-        ${options.map((option) => {
-        return m$1`<option value="${option.value}">${option.text}</option>`;
-      })}
-      </select>
+      <div style=${{ position: "relative", width: "300px", display: "flex" }}>
+        <input
+          type="text"
+          id="sample-filter-input"
+          class="form-control"
+          aria-label=".sample-filter-label"
+          value=${filter.value || ""}
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck=${false}
+          placeholder="Filter expression..."
+          title=${tooltip}
+          style=${{
+        width: "100%",
+        fontSize: FontSize.smaller,
+        borderColor: filterError ? "red" : void 0,
+        paddingRight: "1.5em"
+      }}
+          onInput=${(e2) => {
+        filterChanged({
+          value: e2.currentTarget.value
+        });
+      }}
+          ref=${inputRef}
+        />
+        ${filter.value && m$1`
+          <button
+            class="btn btn-link"
+            style=${{
+        position: "absolute",
+        right: "0.3em",
+        top: "50%",
+        transform: "translateY(-50%)",
+        padding: "0",
+        fontSize: FontSize.smaller,
+        textDecoration: "none",
+        ...TextStyle.secondary
+      }}
+            onClick=${() => {
+        var _a2;
+        filterChanged({
+          value: ""
+        });
+        (_a2 = inputRef.current) == null ? void 0 : _a2.focus();
+      }}
+            title="Clear filter"
+          >
+            ✕
+          </button>
+        `}
+      </div>
     </div>
   `;
     };
+    const filterTooltip = `
+Filter samples by scores. Supported expressions:
+  • Arithmetic: +, -, *, /, mod, ^
+  • Comparison: <, <=, >, >=, ==, !=, including chain comparisons, e.g. “10 <= x < 20”
+  • Boolean: and, or, not
+  • Regex matching: ~= (case-sensitive)
+  • Set operations: in, not in; e.g. “x in (1, 2, 3)”
+  • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
+Click on the score name above to add it to the filter.
+`.trim();
     const SelectScorer = ({ scores, score, setScore }) => {
       return m$1`
     <div style=${{ display: "flex" }}>
@@ -29353,6 +29331,7 @@ self.onmessage = function (e) {
         epoch,
         setEpoch,
         filter,
+        filterError,
         filterChanged,
         sort,
         setSort,
@@ -29383,18 +29362,18 @@ self.onmessage = function (e) {
         );
       }
       tools.push(
-        m$1`<${SampleFilter}
-      filter=${filter}
-      filterChanged=${filterChanged}
-      descriptor=${sampleDescriptor}
-    />`
-      );
-      tools.push(
         m$1`<${SortFilter}
       sampleDescriptor=${sampleDescriptor}
       sort=${sort}
       setSort=${setSort}
       epochs=${hasEpochs}
+    />`
+      );
+      tools.push(
+        m$1`<${SampleFilter}
+      filter=${filter}
+      filterError=${filterError}
+      filterChanged=${filterChanged}
     />`
       );
       return tools;
@@ -29456,12 +29435,2549 @@ self.onmessage = function (e) {
     <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children2}</div>
   </div>`;
     };
+    var _parser = function() {
+      var parser2 = {
+        trace: function trace() {
+        },
+        yy: {},
+        symbols_: {
+          error: 2,
+          expressions: 3,
+          e: 4,
+          EndOfExpression: 5,
+          "-": 6,
+          "+": 7,
+          "*": 8,
+          "/": 9,
+          "^": 10,
+          mod: 11,
+          and: 12,
+          or: 13,
+          not: 14,
+          if: 15,
+          then: 16,
+          else: 17,
+          in: 18,
+          notIn: 19,
+          "(": 20,
+          ")": 21,
+          Arguments: 22,
+          ",": 23,
+          Number: 24,
+          Symbol: 25,
+          String: 26,
+          of: 27,
+          Relation: 28,
+          "%": 29,
+          "?": 30,
+          ":": 31,
+          RelationalOperator: 32,
+          "==": 33,
+          "!=": 34,
+          "~=": 35,
+          "<": 36,
+          "<=": 37,
+          ">=": 38,
+          ">": 39,
+          $accept: 0,
+          $end: 1
+        },
+        terminals_: {
+          2: "error",
+          5: "EndOfExpression",
+          6: "-",
+          7: "+",
+          8: "*",
+          9: "/",
+          10: "^",
+          11: "mod",
+          12: "and",
+          13: "or",
+          14: "not",
+          15: "if",
+          16: "then",
+          17: "else",
+          18: "in",
+          19: "notIn",
+          20: "(",
+          21: ")",
+          23: ",",
+          24: "Number",
+          25: "Symbol",
+          26: "String",
+          27: "of",
+          29: "%",
+          30: "?",
+          31: ":",
+          33: "==",
+          34: "!=",
+          35: "~=",
+          36: "<",
+          37: "<=",
+          38: ">=",
+          39: ">"
+        },
+        productions_: [
+          0,
+          [3, 2],
+          [4, 2],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 2],
+          [4, 6],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 5],
+          [4, 1],
+          [4, 1],
+          [4, 1],
+          [4, 3],
+          [4, 3],
+          [4, 4],
+          [4, 1],
+          [4, 3],
+          [4, 5],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [28, 3],
+          [28, 3],
+          [22, 1],
+          [22, 3]
+        ],
+        performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate, $$, _$) {
+          var $0 = $$.length - 1;
+          switch (yystate) {
+            case 1:
+              return $$[$0 - 1];
+            case 2:
+              this.$ = ["(", "ops['-'](", $$[$0], ")", ")"];
+              break;
+            case 3:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 4:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 5:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 6:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 7:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 8:
+              this.$ = ["(", "ops.mod(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 9:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") && ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 10:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") || ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 11:
+              this.$ = ["(", "! ", "std.coerceBoolean", "(", $$[$0], ")", ")"];
+              break;
+            case 12:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                "",
+                ")"
+              ];
+              break;
+            case 13:
+              this.$ = ["(", "std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 14:
+              this.$ = ["(", "!std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 15:
+              this.$ = ["(", "", $$[$0 - 1], "", ")"];
+              break;
+            case 16:
+              this.$ = ["(", "[ ", $$[$0 - 3], ", ", $$[$0 - 1], " ]", ")"];
+              break;
+            case 17:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 18:
+              this.$ = ["prop(", $$[$0], ", data)"];
+              break;
+            case 19:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 20:
+              this.$ = ["prop(", $$[$0 - 2], ", ", $$[$0], ")"];
+              break;
+            case 21:
+              this.$ = ["call(", $$[$0 - 2], ")"];
+              break;
+            case 22:
+              this.$ = ["call(", $$[$0 - 3], ", ", $$[$0 - 1], ")"];
+              break;
+            case 23:
+              this.$ = yy.reduceRelation($$[$0]);
+              break;
+            case 24:
+              this.$ = [
+                "std.warnDeprecated('modulo', ops['mod'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                "))"
+              ];
+              break;
+            case 25:
+              this.$ = [
+                "std.warnDeprecated('ternary', ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                ")"
+              ];
+              break;
+            case 26:
+              this.$ = ["=="];
+              break;
+            case 27:
+              this.$ = ["!="];
+              break;
+            case 28:
+              this.$ = ["~="];
+              break;
+            case 29:
+              this.$ = ["<"];
+              break;
+            case 30:
+              this.$ = ["<="];
+              break;
+            case 31:
+              this.$ = [">="];
+              break;
+            case 32:
+              this.$ = [">"];
+              break;
+            case 33:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], ...$$[$0]];
+              break;
+            case 34:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], $$[$0]];
+              break;
+            case 35:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 36:
+              this.$ = ["", $$[$0 - 2], ", ", $$[$0], ""];
+              break;
+          }
+        },
+        table: [
+          {
+            3: 1,
+            4: 2,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            1: [3]
+          },
+          {
+            5: [1, 11],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 32,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 33,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 34,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 35,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            22: 36,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 17],
+            6: [2, 17],
+            7: [2, 17],
+            8: [2, 17],
+            9: [2, 17],
+            10: [2, 17],
+            11: [2, 17],
+            12: [2, 17],
+            13: [2, 17],
+            16: [2, 17],
+            17: [2, 17],
+            18: [2, 17],
+            19: [2, 17],
+            21: [2, 17],
+            23: [2, 17],
+            29: [2, 17],
+            30: [2, 17],
+            31: [2, 17],
+            33: [2, 17],
+            34: [2, 17],
+            35: [2, 17],
+            36: [2, 17],
+            37: [2, 17],
+            38: [2, 17],
+            39: [2, 17]
+          },
+          {
+            5: [2, 18],
+            6: [2, 18],
+            7: [2, 18],
+            8: [2, 18],
+            9: [2, 18],
+            10: [2, 18],
+            11: [2, 18],
+            12: [2, 18],
+            13: [2, 18],
+            16: [2, 18],
+            17: [2, 18],
+            18: [2, 18],
+            19: [2, 18],
+            20: [1, 38],
+            21: [2, 18],
+            23: [2, 18],
+            27: [1, 37],
+            29: [2, 18],
+            30: [2, 18],
+            31: [2, 18],
+            33: [2, 18],
+            34: [2, 18],
+            35: [2, 18],
+            36: [2, 18],
+            37: [2, 18],
+            38: [2, 18],
+            39: [2, 18]
+          },
+          {
+            5: [2, 19],
+            6: [2, 19],
+            7: [2, 19],
+            8: [2, 19],
+            9: [2, 19],
+            10: [2, 19],
+            11: [2, 19],
+            12: [2, 19],
+            13: [2, 19],
+            16: [2, 19],
+            17: [2, 19],
+            18: [2, 19],
+            19: [2, 19],
+            21: [2, 19],
+            23: [2, 19],
+            29: [2, 19],
+            30: [2, 19],
+            31: [2, 19],
+            33: [2, 19],
+            34: [2, 19],
+            35: [2, 19],
+            36: [2, 19],
+            37: [2, 19],
+            38: [2, 19],
+            39: [2, 19]
+          },
+          {
+            5: [2, 23],
+            6: [2, 23],
+            7: [2, 23],
+            8: [2, 23],
+            9: [2, 23],
+            10: [2, 23],
+            11: [2, 23],
+            12: [2, 23],
+            13: [2, 23],
+            16: [2, 23],
+            17: [2, 23],
+            18: [2, 23],
+            19: [2, 23],
+            21: [2, 23],
+            23: [2, 23],
+            29: [2, 23],
+            30: [2, 23],
+            31: [2, 23],
+            33: [2, 23],
+            34: [2, 23],
+            35: [2, 23],
+            36: [2, 23],
+            37: [2, 23],
+            38: [2, 23],
+            39: [2, 23]
+          },
+          {
+            1: [2, 1]
+          },
+          {
+            4: 39,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 40,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 41,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 42,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 43,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 44,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 45,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 46,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 47,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 48,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 49,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 50,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 52,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 51
+          },
+          {
+            6: [2, 26],
+            14: [2, 26],
+            15: [2, 26],
+            20: [2, 26],
+            24: [2, 26],
+            25: [2, 26],
+            26: [2, 26]
+          },
+          {
+            6: [2, 27],
+            14: [2, 27],
+            15: [2, 27],
+            20: [2, 27],
+            24: [2, 27],
+            25: [2, 27],
+            26: [2, 27]
+          },
+          {
+            6: [2, 28],
+            14: [2, 28],
+            15: [2, 28],
+            20: [2, 28],
+            24: [2, 28],
+            25: [2, 28],
+            26: [2, 28]
+          },
+          {
+            6: [2, 29],
+            14: [2, 29],
+            15: [2, 29],
+            20: [2, 29],
+            24: [2, 29],
+            25: [2, 29],
+            26: [2, 29]
+          },
+          {
+            6: [2, 30],
+            14: [2, 30],
+            15: [2, 30],
+            20: [2, 30],
+            24: [2, 30],
+            25: [2, 30],
+            26: [2, 30]
+          },
+          {
+            6: [2, 31],
+            14: [2, 31],
+            15: [2, 31],
+            20: [2, 31],
+            24: [2, 31],
+            25: [2, 31],
+            26: [2, 31]
+          },
+          {
+            6: [2, 32],
+            14: [2, 32],
+            15: [2, 32],
+            20: [2, 32],
+            24: [2, 32],
+            25: [2, 32],
+            26: [2, 32]
+          },
+          {
+            5: [2, 2],
+            6: [2, 2],
+            7: [2, 2],
+            8: [2, 2],
+            9: [2, 2],
+            10: [1, 16],
+            11: [2, 2],
+            12: [2, 2],
+            13: [2, 2],
+            16: [2, 2],
+            17: [2, 2],
+            18: [2, 2],
+            19: [2, 2],
+            21: [2, 2],
+            23: [2, 2],
+            29: [2, 2],
+            30: [2, 2],
+            31: [2, 2],
+            32: 24,
+            33: [2, 2],
+            34: [2, 2],
+            35: [2, 2],
+            36: [2, 2],
+            37: [2, 2],
+            38: [2, 2],
+            39: [2, 2]
+          },
+          {
+            5: [2, 11],
+            6: [2, 11],
+            7: [2, 11],
+            8: [2, 11],
+            9: [2, 11],
+            10: [1, 16],
+            11: [2, 11],
+            12: [2, 11],
+            13: [2, 11],
+            16: [2, 11],
+            17: [2, 11],
+            18: [2, 11],
+            19: [2, 11],
+            21: [2, 11],
+            23: [2, 11],
+            29: [2, 11],
+            30: [2, 11],
+            31: [2, 11],
+            32: 24,
+            33: [2, 11],
+            34: [2, 11],
+            35: [2, 11],
+            36: [2, 11],
+            37: [2, 11],
+            38: [2, 11],
+            39: [2, 11]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [1, 53],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 54],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            23: [1, 55]
+          },
+          {
+            4: 56,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 59,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            21: [1, 57],
+            22: 58,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 3],
+            6: [2, 3],
+            7: [2, 3],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 3],
+            13: [2, 3],
+            16: [2, 3],
+            17: [2, 3],
+            18: [2, 3],
+            19: [2, 3],
+            21: [2, 3],
+            23: [2, 3],
+            29: [1, 22],
+            30: [2, 3],
+            31: [2, 3],
+            32: 24,
+            33: [2, 3],
+            34: [2, 3],
+            35: [2, 3],
+            36: [2, 3],
+            37: [2, 3],
+            38: [2, 3],
+            39: [2, 3]
+          },
+          {
+            5: [2, 4],
+            6: [2, 4],
+            7: [2, 4],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 4],
+            13: [2, 4],
+            16: [2, 4],
+            17: [2, 4],
+            18: [2, 4],
+            19: [2, 4],
+            21: [2, 4],
+            23: [2, 4],
+            29: [1, 22],
+            30: [2, 4],
+            31: [2, 4],
+            32: 24,
+            33: [2, 4],
+            34: [2, 4],
+            35: [2, 4],
+            36: [2, 4],
+            37: [2, 4],
+            38: [2, 4],
+            39: [2, 4]
+          },
+          {
+            5: [2, 5],
+            6: [2, 5],
+            7: [2, 5],
+            8: [2, 5],
+            9: [2, 5],
+            10: [1, 16],
+            11: [2, 5],
+            12: [2, 5],
+            13: [2, 5],
+            16: [2, 5],
+            17: [2, 5],
+            18: [2, 5],
+            19: [2, 5],
+            21: [2, 5],
+            23: [2, 5],
+            29: [2, 5],
+            30: [2, 5],
+            31: [2, 5],
+            32: 24,
+            33: [2, 5],
+            34: [2, 5],
+            35: [2, 5],
+            36: [2, 5],
+            37: [2, 5],
+            38: [2, 5],
+            39: [2, 5]
+          },
+          {
+            5: [2, 6],
+            6: [2, 6],
+            7: [2, 6],
+            8: [2, 6],
+            9: [2, 6],
+            10: [1, 16],
+            11: [2, 6],
+            12: [2, 6],
+            13: [2, 6],
+            16: [2, 6],
+            17: [2, 6],
+            18: [2, 6],
+            19: [2, 6],
+            21: [2, 6],
+            23: [2, 6],
+            29: [2, 6],
+            30: [2, 6],
+            31: [2, 6],
+            32: 24,
+            33: [2, 6],
+            34: [2, 6],
+            35: [2, 6],
+            36: [2, 6],
+            37: [2, 6],
+            38: [2, 6],
+            39: [2, 6]
+          },
+          {
+            5: [2, 7],
+            6: [2, 7],
+            7: [2, 7],
+            8: [2, 7],
+            9: [2, 7],
+            10: [1, 16],
+            11: [2, 7],
+            12: [2, 7],
+            13: [2, 7],
+            16: [2, 7],
+            17: [2, 7],
+            18: [2, 7],
+            19: [2, 7],
+            21: [2, 7],
+            23: [2, 7],
+            29: [2, 7],
+            30: [2, 7],
+            31: [2, 7],
+            32: 24,
+            33: [2, 7],
+            34: [2, 7],
+            35: [2, 7],
+            36: [2, 7],
+            37: [2, 7],
+            38: [2, 7],
+            39: [2, 7]
+          },
+          {
+            5: [2, 8],
+            6: [2, 8],
+            7: [2, 8],
+            8: [2, 8],
+            9: [2, 8],
+            10: [1, 16],
+            11: [2, 8],
+            12: [2, 8],
+            13: [2, 8],
+            16: [2, 8],
+            17: [2, 8],
+            18: [2, 8],
+            19: [2, 8],
+            21: [2, 8],
+            23: [2, 8],
+            29: [2, 8],
+            30: [2, 8],
+            31: [2, 8],
+            32: 24,
+            33: [2, 8],
+            34: [2, 8],
+            35: [2, 8],
+            36: [2, 8],
+            37: [2, 8],
+            38: [2, 8],
+            39: [2, 8]
+          },
+          {
+            5: [2, 9],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 9],
+            13: [2, 9],
+            16: [2, 9],
+            17: [2, 9],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 9],
+            23: [2, 9],
+            29: [1, 22],
+            30: [2, 9],
+            31: [2, 9],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 10],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [2, 10],
+            16: [2, 10],
+            17: [2, 10],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 10],
+            23: [2, 10],
+            29: [1, 22],
+            30: [2, 10],
+            31: [2, 10],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 13],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 13],
+            13: [2, 13],
+            16: [2, 13],
+            17: [2, 13],
+            18: [2, 13],
+            19: [2, 13],
+            21: [2, 13],
+            23: [2, 13],
+            29: [1, 22],
+            30: [2, 13],
+            31: [2, 13],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 14],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 14],
+            13: [2, 14],
+            16: [2, 14],
+            17: [2, 14],
+            18: [2, 14],
+            19: [2, 14],
+            21: [2, 14],
+            23: [2, 14],
+            29: [1, 22],
+            30: [2, 14],
+            31: [2, 14],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 24],
+            6: [2, 24],
+            7: [2, 24],
+            8: [2, 24],
+            9: [2, 24],
+            10: [1, 16],
+            11: [2, 24],
+            12: [2, 24],
+            13: [2, 24],
+            16: [2, 24],
+            17: [2, 24],
+            18: [2, 24],
+            19: [2, 24],
+            21: [2, 24],
+            23: [2, 24],
+            29: [2, 24],
+            30: [2, 24],
+            31: [2, 24],
+            32: 24,
+            33: [2, 24],
+            34: [2, 24],
+            35: [2, 24],
+            36: [2, 24],
+            37: [2, 24],
+            38: [2, 24],
+            39: [2, 24]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            31: [1, 60],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 33],
+            6: [2, 33],
+            7: [2, 33],
+            8: [2, 33],
+            9: [2, 33],
+            10: [2, 33],
+            11: [2, 33],
+            12: [2, 33],
+            13: [2, 33],
+            16: [2, 33],
+            17: [2, 33],
+            18: [2, 33],
+            19: [2, 33],
+            21: [2, 33],
+            23: [2, 33],
+            29: [2, 33],
+            30: [2, 33],
+            31: [2, 33],
+            33: [2, 33],
+            34: [2, 33],
+            35: [2, 33],
+            36: [2, 33],
+            37: [2, 33],
+            38: [2, 33],
+            39: [2, 33]
+          },
+          {
+            5: [2, 34],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 34],
+            13: [2, 34],
+            16: [2, 34],
+            17: [2, 34],
+            18: [2, 34],
+            19: [2, 34],
+            21: [2, 34],
+            23: [2, 34],
+            29: [1, 22],
+            30: [2, 34],
+            31: [2, 34],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 61,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 15],
+            6: [2, 15],
+            7: [2, 15],
+            8: [2, 15],
+            9: [2, 15],
+            10: [2, 15],
+            11: [2, 15],
+            12: [2, 15],
+            13: [2, 15],
+            16: [2, 15],
+            17: [2, 15],
+            18: [2, 15],
+            19: [2, 15],
+            21: [2, 15],
+            23: [2, 15],
+            29: [2, 15],
+            30: [2, 15],
+            31: [2, 15],
+            33: [2, 15],
+            34: [2, 15],
+            35: [2, 15],
+            36: [2, 15],
+            37: [2, 15],
+            38: [2, 15],
+            39: [2, 15]
+          },
+          {
+            4: 62,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 20],
+            6: [2, 20],
+            7: [2, 20],
+            8: [2, 20],
+            9: [2, 20],
+            10: [2, 20],
+            11: [2, 20],
+            12: [2, 20],
+            13: [2, 20],
+            16: [2, 20],
+            17: [2, 20],
+            18: [2, 20],
+            19: [2, 20],
+            21: [2, 20],
+            23: [2, 20],
+            29: [2, 20],
+            30: [2, 20],
+            31: [2, 20],
+            32: 24,
+            33: [2, 20],
+            34: [2, 20],
+            35: [2, 20],
+            36: [2, 20],
+            37: [2, 20],
+            38: [2, 20],
+            39: [2, 20]
+          },
+          {
+            5: [2, 21],
+            6: [2, 21],
+            7: [2, 21],
+            8: [2, 21],
+            9: [2, 21],
+            10: [2, 21],
+            11: [2, 21],
+            12: [2, 21],
+            13: [2, 21],
+            16: [2, 21],
+            17: [2, 21],
+            18: [2, 21],
+            19: [2, 21],
+            21: [2, 21],
+            23: [2, 21],
+            29: [2, 21],
+            30: [2, 21],
+            31: [2, 21],
+            33: [2, 21],
+            34: [2, 21],
+            35: [2, 21],
+            36: [2, 21],
+            37: [2, 21],
+            38: [2, 21],
+            39: [2, 21]
+          },
+          {
+            21: [1, 63],
+            23: [1, 64]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 35],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 65,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            17: [1, 66],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 67],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 22],
+            6: [2, 22],
+            7: [2, 22],
+            8: [2, 22],
+            9: [2, 22],
+            10: [2, 22],
+            11: [2, 22],
+            12: [2, 22],
+            13: [2, 22],
+            16: [2, 22],
+            17: [2, 22],
+            18: [2, 22],
+            19: [2, 22],
+            21: [2, 22],
+            23: [2, 22],
+            29: [2, 22],
+            30: [2, 22],
+            31: [2, 22],
+            33: [2, 22],
+            34: [2, 22],
+            35: [2, 22],
+            36: [2, 22],
+            37: [2, 22],
+            38: [2, 22],
+            39: [2, 22]
+          },
+          {
+            4: 68,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 25],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 25],
+            17: [2, 25],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 25],
+            23: [2, 25],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 25],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 69,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 16],
+            6: [2, 16],
+            7: [2, 16],
+            8: [2, 16],
+            9: [2, 16],
+            10: [2, 16],
+            11: [2, 16],
+            12: [2, 16],
+            13: [2, 16],
+            16: [2, 16],
+            17: [2, 16],
+            18: [2, 16],
+            19: [2, 16],
+            21: [2, 16],
+            23: [2, 16],
+            29: [2, 16],
+            30: [2, 16],
+            31: [2, 16],
+            33: [2, 16],
+            34: [2, 16],
+            35: [2, 16],
+            36: [2, 16],
+            37: [2, 16],
+            38: [2, 16],
+            39: [2, 16]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 36],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 12],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 12],
+            17: [2, 12],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 12],
+            23: [2, 12],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 12],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          }
+        ],
+        defaultActions: {
+          11: [2, 1]
+        },
+        parseError: function parseError(str2, hash2) {
+          throw new Error(str2);
+        },
+        parse: function parse2(input) {
+          var self2 = this, stack2 = [0], vstack = [null], lstack = [], table2 = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
+          this.lexer.setInput(input);
+          this.lexer.yy = this.yy;
+          this.yy.lexer = this.lexer;
+          this.yy.parser = this;
+          if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
+          var yyloc = this.lexer.yylloc;
+          lstack.push(yyloc);
+          var ranges = this.lexer.options && this.lexer.options.ranges;
+          if (typeof this.yy.parseError === "function")
+            this.parseError = this.yy.parseError;
+          function popStack(n2) {
+            stack2.length = stack2.length - 2 * n2;
+            vstack.length = vstack.length - n2;
+            lstack.length = lstack.length - n2;
+          }
+          function lex2() {
+            var token2;
+            token2 = self2.lexer.lex() || 1;
+            if (typeof token2 !== "number") {
+              token2 = self2.symbols_[token2] || token2;
+            }
+            return token2;
+          }
+          var symbol, preErrorSymbol, state, action, r2, yyval = {}, p2, len, newState, expected;
+          while (true) {
+            state = stack2[stack2.length - 1];
+            if (this.defaultActions[state]) {
+              action = this.defaultActions[state];
+            } else {
+              if (symbol === null || typeof symbol == "undefined") {
+                symbol = lex2();
+              }
+              action = table2[state] && table2[state][symbol];
+            }
+            if (typeof action === "undefined" || !action.length || !action[0]) {
+              var errStr = "";
+              if (!recovering) {
+                expected = [];
+                for (p2 in table2[state])
+                  if (this.terminals_[p2] && p2 > 2) {
+                    expected.push("'" + this.terminals_[p2] + "'");
+                  }
+                if (this.lexer.showPosition) {
+                  errStr = "Parse error on line " + (yylineno + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + expected.join(", ") + ", got '" + (this.terminals_[symbol] || symbol) + "'";
+                } else {
+                  errStr = "Parse error on line " + (yylineno + 1) + ": Unexpected " + (symbol == 1 ? "end of input" : "'" + (this.terminals_[symbol] || symbol) + "'");
+                }
+                this.parseError(errStr, {
+                  text: this.lexer.match,
+                  token: this.terminals_[symbol] || symbol,
+                  line: this.lexer.yylineno,
+                  loc: yyloc,
+                  expected
+                });
+              }
+              if (recovering == 3) {
+                if (symbol == EOF) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                yyleng = this.lexer.yyleng;
+                yytext = this.lexer.yytext;
+                yylineno = this.lexer.yylineno;
+                yyloc = this.lexer.yylloc;
+                symbol = lex2();
+              }
+              while (1) {
+                if (TERROR.toString() in table2[state]) {
+                  break;
+                }
+                if (state === 0) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                popStack(1);
+                state = stack2[stack2.length - 1];
+              }
+              preErrorSymbol = symbol == 2 ? null : symbol;
+              symbol = TERROR;
+              state = stack2[stack2.length - 1];
+              action = table2[state] && table2[state][TERROR];
+              recovering = 3;
+            }
+            if (action[0] instanceof Array && action.length > 1) {
+              throw new Error(
+                "Parse Error: multiple actions possible at state: " + state + ", token: " + symbol
+              );
+            }
+            switch (action[0]) {
+              case 1:
+                stack2.push(symbol);
+                vstack.push(this.lexer.yytext);
+                lstack.push(this.lexer.yylloc);
+                stack2.push(action[1]);
+                symbol = null;
+                if (!preErrorSymbol) {
+                  yyleng = this.lexer.yyleng;
+                  yytext = this.lexer.yytext;
+                  yylineno = this.lexer.yylineno;
+                  yyloc = this.lexer.yylloc;
+                  if (recovering > 0) recovering--;
+                } else {
+                  symbol = preErrorSymbol;
+                  preErrorSymbol = null;
+                }
+                break;
+              case 2:
+                len = this.productions_[action[1]][1];
+                yyval.$ = vstack[vstack.length - len];
+                yyval._$ = {
+                  first_line: lstack[lstack.length - (len || 1)].first_line,
+                  last_line: lstack[lstack.length - 1].last_line,
+                  first_column: lstack[lstack.length - (len || 1)].first_column,
+                  last_column: lstack[lstack.length - 1].last_column
+                };
+                if (ranges) {
+                  yyval._$.range = [
+                    lstack[lstack.length - (len || 1)].range[0],
+                    lstack[lstack.length - 1].range[1]
+                  ];
+                }
+                r2 = this.performAction.call(
+                  yyval,
+                  yytext,
+                  yyleng,
+                  yylineno,
+                  this.yy,
+                  action[1],
+                  vstack,
+                  lstack
+                );
+                if (typeof r2 !== "undefined") {
+                  return r2;
+                }
+                if (len) {
+                  stack2 = stack2.slice(0, -1 * len * 2);
+                  vstack = vstack.slice(0, -1 * len);
+                  lstack = lstack.slice(0, -1 * len);
+                }
+                stack2.push(this.productions_[action[1]][0]);
+                vstack.push(yyval.$);
+                lstack.push(yyval._$);
+                newState = table2[stack2[stack2.length - 2]][stack2[stack2.length - 1]];
+                stack2.push(newState);
+                break;
+              case 3:
+                return true;
+            }
+          }
+          return true;
+        }
+      };
+      var lexer = function() {
+        var lexer2 = {
+          EOF: 1,
+          parseError: function parseError(str2, hash2) {
+            if (this.yy.parser) {
+              this.yy.parser.parseError(str2, hash2);
+            } else {
+              throw new Error(str2);
+            }
+          },
+          setInput: function(input) {
+            this._input = input;
+            this._more = this._less = this.done = false;
+            this.yylineno = this.yyleng = 0;
+            this.yytext = this.matched = this.match = "";
+            this.conditionStack = ["INITIAL"];
+            this.yylloc = {
+              first_line: 1,
+              first_column: 0,
+              last_line: 1,
+              last_column: 0
+            };
+            if (this.options.ranges) this.yylloc.range = [0, 0];
+            this.offset = 0;
+            return this;
+          },
+          input: function() {
+            var ch3 = this._input[0];
+            this.yytext += ch3;
+            this.yyleng++;
+            this.offset++;
+            this.match += ch3;
+            this.matched += ch3;
+            var lines = ch3.match(/(?:\r\n?|\n).*/g);
+            if (lines) {
+              this.yylineno++;
+              this.yylloc.last_line++;
+            } else {
+              this.yylloc.last_column++;
+            }
+            if (this.options.ranges) this.yylloc.range[1]++;
+            this._input = this._input.slice(1);
+            return ch3;
+          },
+          unput: function(ch3) {
+            var len = ch3.length;
+            var lines = ch3.split(/(?:\r\n?|\n)/g);
+            this._input = ch3 + this._input;
+            this.yytext = this.yytext.substr(0, this.yytext.length - len - 1);
+            this.offset -= len;
+            var oldLines = this.match.split(/(?:\r\n?|\n)/g);
+            this.match = this.match.substr(0, this.match.length - 1);
+            this.matched = this.matched.substr(0, this.matched.length - 1);
+            if (lines.length - 1) this.yylineno -= lines.length - 1;
+            var r2 = this.yylloc.range;
+            this.yylloc = {
+              first_line: this.yylloc.first_line,
+              last_line: this.yylineno + 1,
+              first_column: this.yylloc.first_column,
+              last_column: lines ? (lines.length === oldLines.length ? this.yylloc.first_column : 0) + oldLines[oldLines.length - lines.length].length - lines[0].length : this.yylloc.first_column - len
+            };
+            if (this.options.ranges) {
+              this.yylloc.range = [r2[0], r2[0] + this.yyleng - len];
+            }
+            return this;
+          },
+          more: function() {
+            this._more = true;
+            return this;
+          },
+          less: function(n2) {
+            this.unput(this.match.slice(n2));
+          },
+          pastInput: function() {
+            var past = this.matched.substr(
+              0,
+              this.matched.length - this.match.length
+            );
+            return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
+          },
+          upcomingInput: function() {
+            var next = this.match;
+            if (next.length < 20) {
+              next += this._input.substr(0, 20 - next.length);
+            }
+            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
+              /\n/g,
+              ""
+            );
+          },
+          showPosition: function() {
+            var pre = this.pastInput();
+            var c2 = new Array(pre.length + 1).join("-");
+            return pre + this.upcomingInput() + "\n" + c2 + "^";
+          },
+          next: function() {
+            if (this.done) {
+              return this.EOF;
+            }
+            if (!this._input) this.done = true;
+            var token2, match, tempMatch, index, lines;
+            if (!this._more) {
+              this.yytext = "";
+              this.match = "";
+            }
+            var rules = this._currentRules();
+            for (var i2 = 0; i2 < rules.length; i2++) {
+              tempMatch = this._input.match(this.rules[rules[i2]]);
+              if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
+                match = tempMatch;
+                index = i2;
+                if (!this.options.flex) break;
+              }
+            }
+            if (match) {
+              lines = match[0].match(/(?:\r\n?|\n).*/g);
+              if (lines) this.yylineno += lines.length;
+              this.yylloc = {
+                first_line: this.yylloc.last_line,
+                last_line: this.yylineno + 1,
+                first_column: this.yylloc.last_column,
+                last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
+              };
+              this.yytext += match[0];
+              this.match += match[0];
+              this.matches = match;
+              this.yyleng = this.yytext.length;
+              if (this.options.ranges) {
+                this.yylloc.range = [this.offset, this.offset += this.yyleng];
+              }
+              this._more = false;
+              this._input = this._input.slice(match[0].length);
+              this.matched += match[0];
+              token2 = this.performAction.call(
+                this,
+                this.yy,
+                this,
+                rules[index],
+                this.conditionStack[this.conditionStack.length - 1]
+              );
+              if (this.done && this._input) this.done = false;
+              if (token2) return token2;
+              else return;
+            }
+            if (this._input === "") {
+              return this.EOF;
+            } else {
+              return this.parseError(
+                "Lexical error on line " + (this.yylineno + 1) + ". Unrecognized text.\n" + this.showPosition(),
+                {
+                  text: "",
+                  token: null,
+                  line: this.yylineno
+                }
+              );
+            }
+          },
+          lex: function lex2() {
+            var r2 = this.next();
+            if (typeof r2 !== "undefined") {
+              return r2;
+            } else {
+              return this.lex();
+            }
+          },
+          begin: function begin(condition) {
+            this.conditionStack.push(condition);
+          },
+          popState: function popState() {
+            return this.conditionStack.pop();
+          },
+          _currentRules: function _currentRules() {
+            return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
+          },
+          topState: function() {
+            return this.conditionStack[this.conditionStack.length - 2];
+          },
+          pushState: function begin(condition) {
+            this.begin(condition);
+          }
+        };
+        lexer2.options = {};
+        lexer2.performAction = function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
+          switch ($avoiding_name_collisions) {
+            case 0:
+              return "*";
+            case 1:
+              return "/";
+            case 2:
+              return "-";
+            case 3:
+              return "+";
+            case 4:
+              return "^";
+            case 5:
+              return "(";
+            case 6:
+              return ")";
+            case 7:
+              return ",";
+            case 8:
+              return "==";
+            case 9:
+              return "!=";
+            case 10:
+              return "~=";
+            case 11:
+              return ">=";
+            case 12:
+              return "<=";
+            case 13:
+              return "<";
+            case 14:
+              return ">";
+            case 15:
+              return "notIn";
+            case 16:
+              return "and";
+            case 17:
+              return "or";
+            case 18:
+              return "not";
+            case 19:
+              return "in";
+            case 20:
+              return "of";
+            case 21:
+              return "if";
+            case 22:
+              return "then";
+            case 23:
+              return "else";
+            case 24:
+              return "mod";
+            case 25:
+              break;
+            case 26:
+              return "Number";
+            case 27:
+              yy_.yytext = JSON.stringify({
+                name: yy_.yytext,
+                type: "unescaped"
+              });
+              return "Symbol";
+            case 28:
+              yy_.yytext = JSON.stringify({
+                name: yy.buildString("'", yy_.yytext),
+                type: "single-quoted"
+              });
+              return "Symbol";
+            case 29:
+              yy_.yytext = JSON.stringify(yy.buildString('"', yy_.yytext));
+              return "String";
+            case 30:
+              return "%";
+            case 31:
+              return "?";
+            case 32:
+              return ":";
+            case 33:
+              return "EndOfExpression";
+          }
+        };
+        lexer2.rules = [
+          /^(?:\*)/,
+          /^(?:\/)/,
+          /^(?:-)/,
+          /^(?:\+)/,
+          /^(?:\^)/,
+          /^(?:\()/,
+          /^(?:\))/,
+          /^(?:\,)/,
+          /^(?:==)/,
+          /^(?:\!=)/,
+          /^(?:\~=)/,
+          /^(?:>=)/,
+          /^(?:<=)/,
+          /^(?:<)/,
+          /^(?:>)/,
+          /^(?:not\s+in[^\w])/,
+          /^(?:and[^\w])/,
+          /^(?:or[^\w])/,
+          /^(?:not[^\w])/,
+          /^(?:in[^\w])/,
+          /^(?:of[^\w])/,
+          /^(?:if[^\w])/,
+          /^(?:then[^\w])/,
+          /^(?:else[^\w])/,
+          /^(?:mod[^\w])/,
+          /^(?:\s+)/,
+          /^(?:[0-9]+(?:\.[0-9]+)?(?![0-9\.]))/,
+          /^(?:[a-zA-Z$_][\.a-zA-Z0-9$_]*)/,
+          /^(?:'(?:\\'|\\\\|[^'\\])*')/,
+          /^(?:"(?:\\"|\\\\|[^"\\])*")/,
+          /^(?:\%)/,
+          /^(?:\?)/,
+          /^(?::)/,
+          /^(?:$)/
+        ];
+        lexer2.conditions = {
+          INITIAL: {
+            rules: [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33
+            ],
+            inclusive: true
+          }
+        };
+        return lexer2;
+      }();
+      parser2.lexer = lexer;
+      function Parser() {
+        this.yy = {};
+      }
+      Parser.prototype = parser2;
+      parser2.Parser = Parser;
+      return new Parser();
+    }();
+    const parser = _parser;
+    _parser.Parser;
+    class UnknownFunctionError extends ReferenceError {
+      constructor(funcName) {
+        super(`Unknown function: ${funcName}()`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_FUNCTION");
+        this.functionName = funcName;
+      }
+    }
+    class UnknownPropertyError extends ReferenceError {
+      constructor(propName) {
+        super(`Property “${propName}” does not exist.`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_PROPERTY");
+        this.propertyName = propName;
+      }
+    }
+    class UnknownOptionError extends TypeError {
+      constructor(key2) {
+        super(`Unknown option: ${key2}`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_OPTION");
+        this.keyName = key2;
+      }
+    }
+    class UnexpectedTypeError extends TypeError {
+      constructor(expected, got) {
+        super(`Expected a ${expected}, but got a ${got} instead.`);
+        __publicField(this, "I18N_STRING", "UNEXPECTED_TYPE");
+        this.expectedType = expected;
+        this.recievedType = got;
+      }
+    }
+    class InternalError extends Error {
+      constructor(message) {
+        super(message);
+        __publicField(this, "I18N_STRING", "INTERNAL");
+      }
+    }
+    function hasOwnProperty(obj, prop) {
+      if (typeof obj === "object" || typeof obj === "function") {
+        return Object.prototype.hasOwnProperty.call(obj, prop);
+      }
+      return false;
+    }
+    function mod(a2, b2) {
+      return (a2 % b2 + b2) % b2;
+    }
+    function unbox(value) {
+      if (typeof value !== "object") return value;
+      if (value instanceof Number || value instanceof String || value instanceof Boolean)
+        return value.valueOf();
+    }
+    function unwrap(value) {
+      if (Array.isArray(value) && value.length === 1) value = value[0];
+      return unbox(value);
+    }
+    function prettyType(value) {
+      value = unwrap(value);
+      if (value === void 0) return "undefined";
+      if (value === null) return "null";
+      if (value === true) return "true";
+      if (value === false) return "false";
+      if (typeof value === "number") return "number";
+      if (typeof value === "string") return "text";
+      if (typeof value !== "object" && typeof value !== "function")
+        return "unknown type";
+      if (Array.isArray(value)) return "list";
+      return "object";
+    }
+    function num(value) {
+      value = unwrap(value);
+      if (typeof value === "number") return value;
+      throw new UnexpectedTypeError("number", prettyType(value));
+    }
+    function str(value) {
+      value = unwrap(value);
+      if (typeof value === "string") return value;
+      throw new UnexpectedTypeError("text", prettyType(value));
+    }
+    function numstr(value) {
+      value = unwrap(value);
+      if (typeof value === "string" || typeof value === "number") return value;
+      throw new UnexpectedTypeError("text or number", prettyType(value));
+    }
+    function bool(value) {
+      value = unwrap(value);
+      if (typeof value === "boolean") return value;
+      throw new UnexpectedTypeError(
+        "logical value (“true” or “false”)",
+        prettyType(value)
+      );
+    }
+    function arr(value) {
+      if (value === void 0 || value === null) {
+        throw new UnexpectedTypeError("list", prettyType(value));
+      }
+      if (Array.isArray(value)) {
+        return value;
+      } else {
+        return [value];
+      }
+    }
+    function flatten(input) {
+      const stack2 = [...input];
+      const res = [];
+      while (stack2.length) {
+        const next = stack2.pop();
+        if (Array.isArray(next)) {
+          stack2.push(...next);
+        } else {
+          res.push(next);
+        }
+      }
+      return res.reverse();
+    }
+    const std = {
+      isfn(fns, funcName) {
+        return hasOwnProperty(fns, funcName) && typeof fns[funcName] === "function";
+      },
+      unknown(funcName) {
+        throw new UnknownFunctionError(funcName);
+      },
+      coerceArray: arr,
+      coerceNumber: num,
+      coerceNumberOrString: numstr,
+      coerceBoolean: bool,
+      isSubset(a2, b2) {
+        const A2 = arr(a2);
+        const B2 = arr(b2);
+        return A2.every((val) => B2.includes(val));
+      },
+      warnDeprecated: /* @__PURE__ */ function() {
+        const warnMax = 3;
+        let warnedTimes = {
+          ternary: 0,
+          modulo: 0
+        };
+        return (cause, value) => {
+          switch (cause) {
+            case "ternary":
+              if (warnedTimes.ternary++ >= warnMax) break;
+              console.warn(
+                "The use of ? and : as conditional operators has been deprecated in Filtrex v3 in favor of the if..then..else ternary operator. See issue #34 for more information."
+              );
+              break;
+            case "modulo":
+              if (warnedTimes.modulo++ >= warnMax) break;
+              console.warn(
+                "The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information."
+              );
+              break;
+          }
+          return value;
+        };
+      }(),
+      buildString(quote, literal2) {
+        quote = String(quote)[0];
+        literal2 = String(literal2);
+        let built = "";
+        if (literal2[0] !== quote || literal2[literal2.length - 1] !== quote)
+          throw new InternalError(
+            `Unexpected internal error: String literal doesn't begin/end with the right quotation mark.`
+          );
+        for (let i2 = 1; i2 < literal2.length - 1; i2++) {
+          if (literal2[i2] === "\\") {
+            i2++;
+            if (i2 >= literal2.length - 1)
+              throw new InternalError(
+                `Unexpected internal error: Unescaped backslash at the end of string literal.`
+              );
+            if (literal2[i2] === "\\") built += "\\";
+            else if (literal2[i2] === quote) built += quote;
+            else
+              throw new InternalError(
+                `Unexpected internal error: Invalid escaped character in string literal: ${literal2[i2]}`
+              );
+          } else if (literal2[i2] === quote) {
+            throw new InternalError(
+              `Unexpected internal error: String literal contains unescaped quotation mark.`
+            );
+          } else {
+            built += literal2[i2];
+          }
+        }
+        return built;
+      },
+      reduceRelation(arr2) {
+        const declarations = [];
+        const comparisons = [];
+        let previousExpression = flatten([arr2[0]]).join("");
+        let j2 = 0;
+        for (let i2 = 1; i2 < arr2.length - 1; i2 += 2) {
+          const expr = flatten([arr2[i2 + 1]]).join("");
+          const tempVar = `tmp${j2++}`;
+          comparisons.push(
+            `ops["${arr2[i2]}"](${previousExpression}, ${tempVar} = ${expr})`
+          );
+          previousExpression = tempVar;
+          declarations.push(tempVar);
+        }
+        return `(function(){ var ${declarations.join(", ")}; return ${comparisons.join(" && ")};})()`;
+      }
+    };
+    parser.yy = Object.create(std);
+    function compileExpression(expression, options) {
+      if (arguments.length > 2) throw new TypeError("Too many arguments.");
+      options = typeof options === "object" ? options : {};
+      const knownOptions = [
+        "extraFunctions",
+        "constants",
+        "customProp",
+        "operators"
+      ];
+      let { extraFunctions, constants, customProp, operators } = options;
+      for (const key2 of Object.keys(options))
+        if (!knownOptions.includes(key2)) throw new UnknownOptionError(key2);
+      let functions = {
+        abs: Math.abs,
+        ceil: Math.ceil,
+        floor: Math.floor,
+        log: Math.log,
+        log2: Math.log2,
+        log10: Math.log10,
+        max: Math.max,
+        min: Math.min,
+        round: Math.round,
+        sqrt: Math.sqrt,
+        exists: (v2) => v2 !== void 0 && v2 !== null,
+        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
+      };
+      if (extraFunctions) {
+        for (const name of Object.keys(extraFunctions)) {
+          functions[name] = extraFunctions[name];
+        }
+      }
+      let defaultOperators = {
+        "+": (a2, b2) => numstr(a2) + numstr(b2),
+        "-": (a2, b2) => b2 === void 0 ? -num(a2) : num(a2) - num(b2),
+        "*": (a2, b2) => num(a2) * num(b2),
+        "/": (a2, b2) => num(a2) / num(b2),
+        "^": (a2, b2) => Math.pow(num(a2), num(b2)),
+        mod: (a2, b2) => mod(num(a2), num(b2)),
+        "==": (a2, b2) => a2 === b2,
+        "!=": (a2, b2) => a2 !== b2,
+        "<": (a2, b2) => num(a2) < num(b2),
+        "<=": (a2, b2) => num(a2) <= num(b2),
+        ">=": (a2, b2) => num(a2) >= num(b2),
+        ">": (a2, b2) => num(a2) > num(b2),
+        "~=": (a2, b2) => RegExp(str(b2)).test(str(a2))
+      };
+      if (operators) {
+        for (const name of Object.keys(operators)) {
+          defaultOperators[name] = operators[name];
+        }
+      }
+      operators = defaultOperators;
+      constants = constants ?? {};
+      let js = flatten(parser.parse(expression));
+      js.unshift("return ");
+      js.push(";");
+      function nakedProp(name, obj, type) {
+        if (hasOwnProperty(obj ?? {}, name)) return obj[name];
+        throw new UnknownPropertyError(name);
+      }
+      function safeGetter(obj) {
+        return function get2(name) {
+          if (hasOwnProperty(obj ?? {}, name)) return obj[name];
+          throw new UnknownPropertyError(name);
+        };
+      }
+      if (typeof customProp === "function") {
+        nakedProp = (name, obj, type) => customProp(name, safeGetter(obj), obj, type);
+      }
+      function createCall(fns) {
+        return function call(_ref) {
+          let { name } = _ref;
+          for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+            args[_key - 1] = arguments[_key];
+          }
+          if (hasOwnProperty(fns, name) && typeof fns[name] === "function")
+            return fns[name](...args);
+          throw new UnknownFunctionError(name);
+        };
+      }
+      function prop(_ref2, obj) {
+        let { name, type } = _ref2;
+        if (type === "unescaped" && hasOwnProperty(constants, name))
+          return constants[name];
+        return nakedProp(name, obj, type);
+      }
+      let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
+      return function(data) {
+        try {
+          return func(createCall(functions), operators, std, prop, data);
+        } catch (e2) {
+          return e2;
+        }
+      };
+    }
+    const coerceValue = (value, descriptor) => {
+      if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
+        return Boolean(value);
+      } else {
+        return value;
+      }
+    };
+    const isFilteringSupportedForValue = (value) => ["string", "number", "boolean"].includes(typeof value);
+    const isFilteringSupportedForScore = (descriptor) => {
+      if (!descriptor) {
+        return false;
+      }
+      return [
+        kScoreTypePassFail,
+        kScoreTypeCategorical,
+        kScoreTypeNumeric,
+        kScoreTypeBoolean
+      ].includes(descriptor.scoreType);
+    };
+    const bannedShortScoreNames = (scores) => {
+      const used = /* @__PURE__ */ new Set();
+      const banned = /* @__PURE__ */ new Set();
+      for (const { scorer, name } of scores) {
+        banned.add(scorer);
+        if (used.has(name)) {
+          banned.add(name);
+        } else {
+          used.add(name);
+        }
+      }
+      return banned;
+    };
+    const scoreVariables = (evalDescriptor, sampleScores) => {
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const variables = {};
+      const addScore = (variableName, scoreLabel, value) => {
+        const coercedValue = coerceValue(
+          value,
+          evalDescriptor.scoreDescriptor(scoreLabel)
+        );
+        if (isFilteringSupportedForValue(coercedValue)) {
+          variables[variableName] = coercedValue;
+        }
+      };
+      for (const [scorer, score] of Object.entries(sampleScores)) {
+        addScore(scorer, { scorer, name: scorer }, score.value);
+        if (typeof score.value === "object") {
+          for (const [name, value] of Object.entries(score.value)) {
+            addScore(`${scorer}.${name}`, { scorer, name }, value);
+            if (!bannedShortNames.has(name)) {
+              addScore(name, { scorer, name }, value);
+            }
+          }
+        }
+      }
+      return variables;
+    };
+    const scoreFilterItems = (evalDescriptor) => {
+      const items = [];
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const valueToString = (value) => typeof value === "string" ? `"${value}"` : String(value);
+      const addScore = (canonicalName, scoreLabel) => {
+        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+        if (!descriptor || !isFilteringSupportedForScore(descriptor)) {
+          items.push({
+            canonicalName,
+            tooltip: void 0,
+            isFilterable: false,
+            suggestions: []
+          });
+          return;
+        }
+        var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
+        var suggestions = [];
+        if (descriptor.min !== void 0 || descriptor.max !== void 0) {
+          const rounded = (num2) => {
+            return parseFloat(num2.toPrecision(3)).toString();
+          };
+          tooltip += `
+Range: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
+        }
+        if (descriptor.categories) {
+          tooltip += `
+Categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
+          suggestions = [
+            canonicalName,
+            ...descriptor.categories.map(
+              (cat) => `${canonicalName} == ${valueToString(cat.val)}`
+            )
+          ];
+        }
+        items.push({ canonicalName, tooltip, isFilterable: true, suggestions });
+      };
+      for (const { name, scorer } of evalDescriptor.scores) {
+        const canonicalName = name !== scorer && bannedShortNames.has(name) ? `${scorer}.${name}` : name;
+        addScore(canonicalName, { name, scorer });
+      }
+      return items;
+    };
+    const addFragmentToFilter = (filter, fragment) => {
+      var value = filter.value || "";
+      if (value.trim() && !value.endsWith(" ")) {
+        value = `${value} `;
+      }
+      if (value.trim() && !value.match(/ +(or|and) *$/)) {
+        value = `${value}and `;
+      }
+      value += fragment;
+      return { value };
+    };
+    const filterExpression = (evalDescriptor, sample, value) => {
+      try {
+        const expression = compileExpression(value);
+        const vars = scoreVariables(evalDescriptor, sample.scores);
+        const result = expression(vars);
+        if (typeof result === "boolean") {
+          return { matches: result, error: void 0 };
+        } else if (result instanceof Error) {
+          throw result;
+        } else {
+          throw new TypeError(
+            `Filter expression returned a non-boolean value: ${result}`
+          );
+        }
+      } catch (error2) {
+        return { matches: false, error: error2.message };
+      }
+    };
     const SecondaryBar = ({
       evalSpec,
       evalPlan,
       evalResults,
       evalStats,
       samples,
+      evalDescriptor,
+      addToFilterExpression,
       status,
       style: style2
     }) => {
@@ -29488,18 +32004,10 @@ self.onmessage = function (e) {
   </${LabeledValue}>
 `
       });
-      const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
-      values.push({
-        size: "minmax(12%, auto)",
-        value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
-    <${ScorerSummary} 
-      scorers=${evalResults == null ? void 0 : evalResults.scores} />
-  </${LabeledValue}>`
-      });
       if (hasConfig) {
         values.push({
           size: "minmax(12%, auto)",
-          value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
+          value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "center" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`
         });
@@ -29511,9 +32019,18 @@ self.onmessage = function (e) {
       values.push({
         size: "minmax(12%, auto)",
         value: m$1`
-      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "center" }}>
         ${totalDuration}
       </${LabeledValue}>`
+      });
+      const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
+      values.push({
+        size: "minmax(12%, auto)",
+        value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: "right" }}>
+    <${ScorerSummary}
+      evalDescriptor=${evalDescriptor}
+      addToFilterExpression=${addToFilterExpression} />
+  </${LabeledValue}>`
       });
       return m$1`
     <${ExpandablePanel} style=${{ margin: "0", ...style2 }} collapse=${true} lines=${4}>
@@ -29546,15 +32063,107 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const ScorerSummary = ({ scorers }) => {
-      if (!scorers) {
+    const FilterableItem = ({
+      item,
+      index,
+      openSuggestionIndex,
+      setOpenSuggestionIndex,
+      addToFilterExpression
+    }) => {
+      const handleClick = () => {
+        if (item.suggestions.length === 0) {
+          addToFilterExpression(item.canonicalName);
+        } else {
+          setOpenSuggestionIndex(openSuggestionIndex === index ? null : index);
+        }
+      };
+      const handleSuggestionClick = (suggestion) => {
+        addToFilterExpression(suggestion);
+        setOpenSuggestionIndex(null);
+      };
+      const popupRef = (el) => {
+        if (el && openSuggestionIndex === index) {
+          const rect = el.previousElementSibling.getBoundingClientRect();
+          const viewportWidth = window.innerWidth;
+          const popupWidth = el.offsetWidth;
+          const finalLeft = rect.left + popupWidth > viewportWidth ? rect.right - popupWidth : rect.left;
+          el.style.setProperty("--popup-left", `${finalLeft}px`);
+          el.style.setProperty("--popup-top", `${rect.bottom + 4}px`);
+        }
+      };
+      return m$1`
+    <div
+      class="filterable-item"
+      style=${{ display: "inline-block", position: "static" }}
+    >
+      <a
+        class="filter-link"
+        style=${{
+        color: "var(--bs-body-color)",
+        textDecoration: "underline",
+        cursor: "pointer"
+      }}
+        title=${item.tooltip}
+        onclick=${handleClick}
+      >
+        ${item.canonicalName}
+      </a>
+      ${item.suggestions.length > 0 && // Use fixed position to avoid being clipped by `ExpandablePanel`.
+      m$1`
+        <div
+          class="suggestions-popup"
+          style=${{
+        position: "fixed",
+        left: "var(--popup-left, 0)",
+        top: "var(--popup-top, 0)",
+        backgroundColor: "var(--bs-body-bg)",
+        border: "1px solid var(--bs-border-color)",
+        borderRadius: "4px",
+        padding: "0.25rem 0",
+        zIndex: 1e3,
+        display: openSuggestionIndex === index ? "block" : "none",
+        boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)"
+      }}
+          ref=${popupRef}
+        >
+          ${item.suggestions.map(
+        (suggestion) => m$1`
+              <div
+                class="custom-dropdown-item"
+                style=${{ padding: "0.25rem 1rem", cursor: "pointer" }}
+                onclick=${() => handleSuggestionClick(suggestion)}
+              >
+                ${suggestion}
+              </div>
+            `
+      )}
+        </div>
+      `}
+    </div>
+  `;
+    };
+    const ScorerSummary = ({ evalDescriptor, addToFilterExpression }) => {
+      if (!evalDescriptor) {
         return "";
       }
-      const uniqScorers = /* @__PURE__ */ new Set();
-      scorers.forEach((scorer) => {
-        uniqScorers.add(scorer.name);
-      });
-      return Array.from(uniqScorers).join(", ");
+      const items = scoreFilterItems(evalDescriptor);
+      const [openSuggestionIndex, setOpenSuggestionIndex] = h(null);
+      return m$1`
+    <span style=${{ position: "relative" }}>
+      ${Array.from(items).map(
+        (item, index) => m$1`
+          ${index > 0 ? ", " : ""}
+          ${item.isFilterable ? m$1`<${FilterableItem}
+                item=${item}
+                index=${index}
+                openSuggestionIndex=${openSuggestionIndex}
+                setOpenSuggestionIndex=${setOpenSuggestionIndex}
+                addToFilterExpression=${addToFilterExpression}
+              />` : m$1`<span title=${item.tooltip}>${item.canonicalName}</span>`}
+        `
+      )}
+    </span>
+  `;
     };
     const ParamSummary = ({ params }) => {
       if (!params) {
@@ -29583,6 +32192,8 @@ self.onmessage = function (e) {
       evalResults,
       evalStats,
       samples,
+      evalDescriptor,
+      addToFilterExpression,
       showToggle,
       offcanvas,
       status
@@ -29723,6 +32334,8 @@ self.onmessage = function (e) {
           evalResults=${evalResults}
           evalStats=${evalStats}
           samples=${samples}
+          evalDescriptor=${evalDescriptor}
+          addToFilterExpression=${addToFilterExpression}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
         />
@@ -29967,7 +32580,9 @@ self.onmessage = function (e) {
       epoch,
       setEpoch,
       filter,
+      filterError,
       setFilter,
+      addToFilterExpression,
       score,
       setScore,
       scores,
@@ -30036,6 +32651,7 @@ self.onmessage = function (e) {
               epochs=${epochs}
               setEpoch=${setEpoch}
               filter=${filter}
+              filterError=${filterError}
               filterChanged=${setFilter}
               sort=${sort}
               setSort=${setSort}
@@ -30197,6 +32813,8 @@ self.onmessage = function (e) {
     evalResults=${evalResults}
     evalStats=${evalStats}
     samples=${samples}
+    evalDescriptor=${samplesDescriptor.evalDescriptor}
+    addToFilterExpression=${addToFilterExpression}
     status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
@@ -30214,6 +32832,8 @@ self.onmessage = function (e) {
       evalResults,
       evalStats,
       samples,
+      evalDescriptor,
+      addToFilterExpression,
       status,
       showToggle,
       selectedTab,
@@ -30275,20 +32895,20 @@ self.onmessage = function (e) {
           });
         }, [tabs]);
         return m$1`
-    
-    
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
       evalStats=${evalStats}
       samples=${samples}
+      evalDescriptor=${evalDescriptor}
+      addToFilterExpression=${addToFilterExpression}
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
+
       offcanvas=${offcanvas}
-    />    
+    />
     <div ref=${divRef} class="workspace" style=${{
           paddingTop: "0rem",
           overflowY: "hidden"
@@ -31022,95 +33642,6 @@ self.onmessage = function (e) {
       }
       return value;
     };
-    const filterFnForType = (filter) => {
-      if (filter.type) {
-        return filterFnsForType[filter.type];
-      } else {
-        return void 0;
-      }
-    };
-    const filterCategory = (descriptor, sample, value) => {
-      const score = descriptor.selectedScore(sample);
-      if (typeof score.value === "string") {
-        return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-      } else if (typeof score.value === "object") {
-        return JSON.stringify(score.value) == value;
-      } else {
-        return String(score.value) === value;
-      }
-    };
-    const filterText = (descriptor, sample, value) => {
-      const score = descriptor.selectedScore(sample);
-      if (!value) {
-        return true;
-      } else {
-        if (isNumeric(value)) {
-          if (typeof score.value === "number") {
-            return score.value === Number(value);
-          } else {
-            return Number(score.value) === Number(value);
-          }
-        } else {
-          const filters = [
-            {
-              prefix: ">=",
-              fn: (score2, val) => {
-                return score2 >= val;
-              }
-            },
-            {
-              prefix: "<=",
-              fn: (score2, val) => {
-                return score2 <= val;
-              }
-            },
-            {
-              prefix: ">",
-              fn: (score2, val) => {
-                return score2 > val;
-              }
-            },
-            {
-              prefix: "<",
-              fn: (score2, val) => {
-                return score2 < val;
-              }
-            },
-            {
-              prefix: "=",
-              fn: (score2, val) => {
-                return score2 === val;
-              }
-            },
-            {
-              prefix: "!=",
-              fn: (score2, val) => {
-                return score2 !== val;
-              }
-            }
-          ];
-          for (const filter of filters) {
-            if (value == null ? void 0 : value.startsWith(filter.prefix)) {
-              const val = value.slice(filter.prefix.length).trim();
-              if (!val) {
-                return true;
-              }
-              const num = Number(val);
-              return filter.fn(score.value, num);
-            }
-          }
-          if (typeof score.value === "string") {
-            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-          } else {
-            return String(score.value) === value;
-          }
-        }
-      }
-    };
-    const filterFnsForType = {
-      [kScoreTypeCategorical]: filterCategory,
-      [kScoreTypeNumeric]: filterText
-    };
     function App({
       api: api2,
       initialState: initialState2 = void 0,
@@ -31175,6 +33706,7 @@ self.onmessage = function (e) {
       const [sort, setSort] = h((initialState2 == null ? void 0 : initialState2.sort) || kDefaultSort);
       const [scores, setScores] = h((initialState2 == null ? void 0 : initialState2.scores) || []);
       const [score, setScore] = h(initialState2 == null ? void 0 : initialState2.score);
+      const [filterError, setFilterError] = h(initialState2 == null ? void 0 : initialState2.filterError);
       const [filteredSamples, setFilteredSamples] = h(
         (initialState2 == null ? void 0 : initialState2.filteredSamples) || []
       );
@@ -31182,6 +33714,13 @@ self.onmessage = function (e) {
       const [groupByOrder, setGroupByOrder] = h(
         (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
       );
+      const addToFilterExpression = (fragment) => {
+        setFilter(addFragmentToFilter(filter, fragment));
+        const filterInput = document.getElementById("sample-filter-input");
+        if (filterInput) {
+          filterInput.focus();
+        }
+      };
       const afterBodyElements = [];
       const saveState = q(() => {
         const state = {
@@ -31310,15 +33849,21 @@ self.onmessage = function (e) {
       y(() => {
         var _a3, _b3;
         const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
+        var newFilterError = void 0;
         const filtered = samples.filter((sample) => {
           if (epoch && epoch !== "all") {
             if (epoch !== sample.epoch + "") {
               return false;
             }
           }
-          const filterFn = filterFnForType(filter);
-          if (filterFn && filter.value) {
-            return filterFn(samplesDescriptor, sample, filter.value);
+          if (filter.value) {
+            const { matches, error: error2 } = filterExpression(
+              evalDescriptor,
+              sample,
+              filter.value
+            );
+            newFilterError || (newFilterError = error2);
+            return matches;
           } else {
             return true;
           }
@@ -31332,6 +33877,7 @@ self.onmessage = function (e) {
             grouping = "sample";
           }
         }
+        setFilterError(newFilterError);
         setFilteredSamples(sorted);
         setGroupBy(grouping);
         setGroupByOrder(order2);
@@ -31782,7 +34328,9 @@ self.onmessage = function (e) {
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
+              filterError=${filterError}
               setFilter=${setFilter}
+              addToFilterExpression=${addToFilterExpression}
               score=${score}
               setScore=${setScore}
               scores=${scores}

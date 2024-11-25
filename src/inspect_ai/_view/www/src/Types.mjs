@@ -25,7 +25,6 @@
 /**
  * @typedef {Object} ScoreFilter
  * @property {string} [value]
- * @property {string} [type]
  */
 
 /**
