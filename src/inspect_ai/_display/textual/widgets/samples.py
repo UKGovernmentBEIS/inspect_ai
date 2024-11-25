@@ -229,7 +229,6 @@ class SampleInfo(Horizontal):
                 self.query_one(Collapsible).title = title
                 sandboxes = self.query_one(SandboxesView)
                 await sandboxes.sync_sandboxes(sample.sandboxes)
-
             else:
                 self.query_one(Static).update(title)
         else:
@@ -277,12 +276,15 @@ class SandboxesView(Vertical):
                 target = sandbox.container
             else:
                 target = sandbox.destination
-            return target
+            return target.strip()
 
         caption = cast(Static, self.query_one("#sandboxes-caption"))
         caption.update(f"[bold]sandbox {sandbox_connection_type()}:[/bold]")
 
         sandboxes_widget = self.query_one("#sandboxes")
+        sandboxes_widget.styles.margin = (
+            (0, 0, 1, 0) if len(sandboxes) > 1 else (0, 0, 0, 0)
+        )
         await sandboxes_widget.remove_children()
         await sandboxes_widget.mount_all(
             [
