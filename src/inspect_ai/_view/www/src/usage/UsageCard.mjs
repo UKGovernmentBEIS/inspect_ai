@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatNumber, formatTime } from "../utils/Format.mjs";
+import { formatDuration, formatNumber } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { ModelTokenTable } from "./ModelTokenTable.mjs";
@@ -23,7 +23,10 @@ export const UsageCard = ({ stats, context }) => {
     return "";
   }
 
-  const totalDuration = duration(stats);
+  const totalDuration = formatDuration(
+    new Date(stats.started_at),
+    new Date(stats.completed_at),
+  );
   const usageMetadataStyle = {
     fontSize: FontSize.smaller,
   };
@@ -156,12 +159,4 @@ export const ModelUsagePanel = ({ usage }) => {
       }
     })}
   </div>`;
-};
-
-const duration = (stats) => {
-  const start = new Date(stats.started_at);
-  const end = new Date(stats.completed_at);
-  const durationMs = end.getTime() - start.getTime();
-  const durationSec = durationMs / 1000;
-  return formatTime(durationSec);
 };
