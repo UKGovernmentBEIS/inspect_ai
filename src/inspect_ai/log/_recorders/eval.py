@@ -11,6 +11,7 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import dirname, file
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
 
@@ -286,7 +287,12 @@ class EvalRecorder(FileRecorder):
 def zip_write(zip: ZipFile, filename: str, data: Any) -> None:
     zip.writestr(
         filename,
-        to_json(value=data, indent=2, exclude_none=True, fallback=lambda _x: None),
+        to_json(
+            value=jsonable_python(data),
+            indent=2,
+            exclude_none=True,
+            fallback=lambda _x: None,
+        ),
     )
 
 
