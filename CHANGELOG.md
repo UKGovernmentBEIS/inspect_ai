@@ -18,6 +18,7 @@
 - Log viewer: Add timestamps to transcript events.
 - Log viewer: Metadata which contains images will now render the images.
 - Log viewer: Show custom tool call views in messages display.
+- Log viewer: Allow filtering samples by compound expressions including multiple scorers.
 - Bugfix: Correctly read and forward image detail property.
 - Bugfix: Correct resolution of global eval override of task or sample sandboxes.
 - Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from mutliple threads)
