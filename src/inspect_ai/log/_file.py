@@ -15,6 +15,7 @@ from inspect_ai._util.file import (
     file,
     filesystem,
 )
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
 
 from ._log import EvalLog, EvalSample
@@ -472,7 +473,10 @@ def eval_log_json(log: EvalLog) -> str:
     # pass around 'live' objects -- this is fine to do and we
     # don't want to prevent it at the serialization level
     return to_json(
-        value=log, indent=2, exclude_none=True, fallback=lambda _x: None
+        value=jsonable_python(log),
+        indent=2,
+        exclude_none=True,
+        fallback=lambda _x: None,
     ).decode()
 
 

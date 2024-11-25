@@ -17,6 +17,7 @@ import { SecondaryBar } from "./SecondaryBar.mjs";
  * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
+ * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
  * @param {string} [props.status] - the status
  * @param {boolean} props.offcanvas - Are we in offcanvas mode?
@@ -29,6 +30,7 @@ export const Navbar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   showToggle,
   offcanvas,
@@ -176,6 +178,7 @@ export const Navbar = ({
           evalSpec=${evalSpec}
           evalPlan=${evalPlan}
           evalResults=${evalResults}
+          evalStats=${evalStats}
           samples=${samples}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
