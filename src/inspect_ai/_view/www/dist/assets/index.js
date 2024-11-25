@@ -19139,7 +19139,7 @@ const ModelEventView = ({ id, event, style }) => {
     justifySelf: "start"
   };
   const userMessages = [];
-  for (const msg of event.input.reverse()) {
+  for (const msg of event.input.slice().reverse()) {
     if (msg.role === "user") {
       userMessages.push(msg);
     } else {
