@@ -7674,6 +7674,11 @@ function formatDateTime(date) {
   };
   return new Intl.DateTimeFormat(void 0, options).format(date);
 }
+function formatDuration(start2, end2) {
+  const durationMs = end2.getTime() - start2.getTime();
+  const durationSec = durationMs / 1e3;
+  return formatTime(durationSec);
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -19050,7 +19055,10 @@ const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
-  const totalDuration = duration(stats);
+  const totalDuration = formatDuration(
+    new Date(stats.started_at),
+    new Date(stats.completed_at)
+  );
   const usageMetadataStyle = {
     fontSize: FontSize.smaller
   };
@@ -19165,13 +19173,6 @@ const ModelUsagePanel = ({ usage }) => {
     }
   })}
   </div>`;
-};
-const duration = (stats) => {
-  const start2 = new Date(stats.started_at);
-  const end2 = new Date(stats.completed_at);
-  const durationMs = end2.getTime() - start2.getTime();
-  const durationSec = durationMs / 1e3;
-  return formatTime(durationSec);
 };
 const ModelEventView = ({ id, event, style }) => {
   var _a2, _b2;
@@ -24195,6 +24196,7 @@ const SecondaryBar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   style
@@ -24225,7 +24227,7 @@ const SecondaryBar = ({
   const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
+    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
     <${ScorerSummary} 
       scorers=${evalResults == null ? void 0 : evalResults.scores} />
   </${LabeledValue}>`
@@ -24238,6 +24240,17 @@ const SecondaryBar = ({
     </${LabeledValue}>`
     });
   }
+  const totalDuration = formatDuration(
+    new Date(evalStats.started_at),
+    new Date(evalStats.completed_at)
+  );
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
+        ${totalDuration}
+      </${LabeledValue}>`
+  });
   return m$1`
     <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
@@ -24304,6 +24317,7 @@ const Navbar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   showToggle,
   offcanvas,
@@ -24441,6 +24455,7 @@ const Navbar = ({
           evalSpec=${evalSpec}
           evalPlan=${evalPlan}
           evalResults=${evalResults}
+          evalStats=${evalStats}
           samples=${samples}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
@@ -24903,6 +24918,7 @@ const WorkSpace = ({
     evalSpec=${evalSpec}
     evalPlan=${evalPlan}
     evalResults=${evalResults}
+    evalStats=${evalStats}
     samples=${samples}
     status=${evalStatus}
     tabs=${resolvedTabs}
@@ -24919,6 +24935,7 @@ const WorkspaceDisplay = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   showToggle,
@@ -24959,6 +24976,7 @@ const WorkspaceDisplay = ({
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
+      evalStats=${evalStats}
       samples=${samples}
       status=${status}
       file=${logFileName}

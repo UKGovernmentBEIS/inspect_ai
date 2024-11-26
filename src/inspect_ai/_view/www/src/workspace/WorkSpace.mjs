@@ -364,6 +364,7 @@ export const WorkSpace = ({
     evalSpec=${evalSpec}
     evalPlan=${evalPlan}
     evalResults=${evalResults}
+    evalStats=${evalStats}
     samples=${samples}
     status=${evalStatus}
     tabs=${resolvedTabs}
@@ -381,6 +382,7 @@ const WorkspaceDisplay = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   showToggle,
@@ -427,6 +429,7 @@ const WorkspaceDisplay = ({
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
+      evalStats=${evalStats}
       samples=${samples}
       status=${status}
       file=${logFileName}

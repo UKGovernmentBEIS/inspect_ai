@@ -238,3 +238,16 @@ export function formatDateTime(date) {
   // @ts-ignore
   return new Intl.DateTimeFormat(undefined, options).format(date);
 }
+
+/**
+ * Returns the formatted duration between two dates
+ *
+ * @param {Date} start - The starting date/time to format.
+ * @param {Date} end - The starting date/time to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatDuration(start, end) {
+  const durationMs = end.getTime() - start.getTime();
+  const durationSec = durationMs / 1000;
+  return formatTime(durationSec);
+}

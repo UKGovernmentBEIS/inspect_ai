@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
 import { LabeledValue } from "../components/LabeledValue.mjs";
-import { formatDataset } from "../utils/Format.mjs";
+import { formatDataset, formatDuration } from "../utils/Format.mjs";
 import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
 
 /**
@@ -11,6 +11,7 @@ import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
  * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
+ * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
  * @param {string} [props.status] - the status
  * @param {Map<string, string>} [props.style] - is this off canvas
@@ -21,6 +22,7 @@ export const SecondaryBar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   style,
@@ -42,6 +44,7 @@ export const SecondaryBar = ({
   const hasConfig = Object.keys(hyperparameters).length > 0;
 
   const values = [];
+
   values.push({
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="Dataset" style=${staticColStyle}>
@@ -56,7 +59,7 @@ export const SecondaryBar = ({
   const label = evalResults?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
     <${ScorerSummary} 
       scorers=${evalResults?.scores} />
   </${LabeledValue}>`,
@@ -70,6 +73,18 @@ export const SecondaryBar = ({
     </${LabeledValue}>`,
     });
   }
+
+  const totalDuration = formatDuration(
+    new Date(evalStats.started_at),
+    new Date(evalStats.completed_at),
+  );
+  values.push({
+    size: "minmax(12%, auto)",
+    value: html`
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
+        ${totalDuration}
+      </${LabeledValue}>`,
+  });
 
   return html`
     <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
