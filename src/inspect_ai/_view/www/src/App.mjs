@@ -237,11 +237,13 @@ export function App({
 
   const setWorkspaceTabScrollPosition = useCallback(
     debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position,
-      };
-      saveState();
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position,
+        };
+        saveState();
+      }
     }, 250),
     [saveState],
   );
