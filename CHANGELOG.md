@@ -18,6 +18,7 @@
 - Log viewer: metadata which contains images will now render the images.
 - Log viewer: show custom tool call views in messages display.
 - Bugfix: Correctly read and forward image detail property.
+- Bugfix: Correct resolution of global eval override of task or sample sandboxes.
 
 ## v0.3.47 (18 November 2024) 
 

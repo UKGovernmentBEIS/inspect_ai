@@ -104,10 +104,12 @@ class TaskSandboxEnvironment(NamedTuple):
 
 
 def resolve_sandbox_for_task(
+    eval_sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
 ) -> TaskSandboxEnvironment | None:
-    sandbox = resolve_sandbox(task.sandbox, sample)
+    # eval_sandbox overrides task or sample sandbox
+    sandbox = eval_sandbox or resolve_sandbox(task.sandbox, sample)
     if sandbox is not None:
         return TaskSandboxEnvironment(sandbox, task_run_dir(task))
     else:
