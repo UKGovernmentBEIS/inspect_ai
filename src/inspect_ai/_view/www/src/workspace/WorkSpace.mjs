@@ -422,6 +422,37 @@ const WorkspaceDisplay = ({
       [setWorkspaceTabScrollPosition],
     );
 
+    const onSelected = useCallback(
+      (e) => {
+        const id = e.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab],
+    );
+
+    // Compute tab panels anytime the tabs change
+    const tabPanels = useMemo(() => {
+      return Object.keys(tabs).map((key) => {
+        const tab = tabs[key];
+        return html`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${useCallback(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll],
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
+
     return html`
     
     
@@ -469,25 +500,7 @@ const WorkspaceDisplay = ({
                 fontWeight: 600,
               },
             }} >
-              ${Object.keys(tabs).map((key) => {
-                const tab = tabs[key];
-                return html`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e) => {
-                  const id = e.currentTarget.id;
-                  setSelectedTab(id);
-                }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-                setScrollPosition=${(position) => {
-                  onScroll(tab.id, position);
-                }}
-                >
-                  ${tab.content()}
-                </${TabPanel}>`;
-              })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;

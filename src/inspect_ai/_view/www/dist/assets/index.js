@@ -8500,9 +8500,9 @@ const TabPanel = ({
     }, 0);
   });
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setScrollPosition]
   );
   return m$1`<div
@@ -24969,6 +24969,34 @@ const WorkspaceDisplay = ({
       }, 100),
       [setWorkspaceTabScrollPosition]
     );
+    const onSelected = q(
+      (e2) => {
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab]
+    );
+    const tabPanels = T(() => {
+      return Object.keys(tabs).map((key2) => {
+        const tab = tabs[key2];
+        return m$1`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${q(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll]
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
     return m$1`
     
     
@@ -25016,25 +25044,7 @@ const WorkspaceDisplay = ({
         fontWeight: 600
       }
     }} >
-              ${Object.keys(tabs).map((key2) => {
-      const tab = tabs[key2];
-      return m$1`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e2) => {
-        const id = e2.currentTarget.id;
-        setSelectedTab(id);
-      }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-                setScrollPosition=${(position) => {
-        onScroll(tab.id, position);
-      }}
-                >
-                  ${tab.content()}
-                </${TabPanel}>`;
-    })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;
@@ -25907,12 +25917,16 @@ function App({
     groupBy,
     groupByOrder
   ]);
+  const saveStateRef = A(saveState);
+  y(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
   const setSampleScrollPosition = q(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveState();
-    }, 250),
-    [saveState]
+      saveStateRef.current();
+    }, 1e3),
+    []
   );
   const setWorkspaceTabScrollPosition = q(
     debounce((tab, position) => {
@@ -25921,13 +25935,13 @@ function App({
           ...workspaceTabScrollPosition.current,
           [tab]: position
         };
-        saveState();
+        saveStateRef.current();
       }
-    }, 250),
-    [saveState]
+    }, 1e3),
+    []
   );
   y(() => {
-    saveState();
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
