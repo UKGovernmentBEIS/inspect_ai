@@ -84,7 +84,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
+    <div>
     <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 
