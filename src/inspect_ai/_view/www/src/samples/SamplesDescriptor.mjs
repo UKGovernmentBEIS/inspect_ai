@@ -7,7 +7,7 @@ import {
   inputString,
   arrayToString,
 } from "../utils/Format.mjs";
-import { RenderedContent } from "../components/RenderedContent.mjs";
+import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 import {
   kScoreTypeCategorical,
@@ -77,7 +77,6 @@ import {
  * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
- * @param {import("..//Types.mjs").RenderContext} context - The application context
  * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
  * @returns {SamplesDescriptor} The SamplesDescriptor
  */
@@ -85,7 +84,6 @@ export const createsSamplesDescriptor = (
   scorers,
   samples,
   epochs,
-  context,
   selectedScore,
 ) => {
   if (!samples) {
@@ -196,11 +194,7 @@ export const createsSamplesDescriptor = (
   /** @type {ScoreDescriptor} */
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context,
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -366,7 +360,7 @@ export const createsSamplesDescriptor = (
 
 /**
  * @typedef {Object} ScoreCategorizer
- * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").RenderContext) => ScoreDescriptor} describe
+ * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]) => ScoreDescriptor} describe
  */
 const scoreCategorizers = [
   {
@@ -539,13 +533,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -555,7 +546,6 @@ const scoreCategorizers = [
           return html`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         },
       };

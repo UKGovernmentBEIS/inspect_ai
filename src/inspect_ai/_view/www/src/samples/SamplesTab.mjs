@@ -19,7 +19,6 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
  * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @param {string} props.sampleStatus - whether the sample is loading
  * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
@@ -55,7 +54,6 @@ export const SamplesTab = ({
   setSelectedSampleTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
-  context,
 }) => {
   const [items, setItems] = useState([]);
   const [sampleItems, setSampleItems] = useState([]);
@@ -152,7 +150,6 @@ export const SamplesTab = ({
         sampleDescriptor=${sampleDescriptor}
         selectedTab=${selectedSampleTab}
         setSelectedTab=${setSelectedSampleTab}
-        context=${context}
       />`,
     );
   } else if (sampleMode === "many") {
@@ -198,7 +195,6 @@ export const SamplesTab = ({
       setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      context=${context}
       sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />

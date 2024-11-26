@@ -47,7 +47,6 @@ import {
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({
@@ -58,7 +57,6 @@ export const InlineSampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
-  context,
 }) => {
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -79,7 +77,6 @@ export const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
-            context=${context}
           />`}
     </div>
   </div>`;
@@ -94,7 +91,6 @@ export const InlineSampleDisplay = ({
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const SampleDisplay = ({
@@ -103,7 +99,6 @@ export const SampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
-  context,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
@@ -153,7 +148,6 @@ export const SampleDisplay = ({
       }>
         <${SampleScoreView}
           sample=${sample}
-          context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
           style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -168,7 +162,6 @@ export const SampleDisplay = ({
         }>
           <${SampleScoreView}
             sample=${sample}
-            context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -177,11 +170,7 @@ export const SampleDisplay = ({
     }
   }
 
-  const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${id}`,
-    sample,
-    context,
-  );
+  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
   if (sampleMetadatas.length > 0) {
     tabs.push(
       html`
@@ -314,7 +303,7 @@ export const SampleDisplay = ({
   </${TabSet}>`;
 };
 
-const metadataViewsForSample = (id, sample, context) => {
+const metadataViewsForSample = (id, sample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(html`
@@ -337,7 +326,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample?.metadata}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
         </${Card}>`,
@@ -355,7 +343,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample?.store}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
       </${Card}>`,
