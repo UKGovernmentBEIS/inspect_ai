@@ -1,3 +1,4 @@
+import re
 from typing import Callable, Literal
 
 from inspect_ai._util.text import (
@@ -67,10 +68,10 @@ def match_str(
         # normalize as required
         t = normalize_number(t)
         if location == "begin":
-            words = v.split(" ")
+            words = re.split(r"\s+", v)
             v = first_number_normalized(words)
         elif location == "end":
-            words = v.split(" ")
+            words = re.split(r"\s+", v)
             words.reverse()
             v = first_number_normalized(words)
         elif location == "exact":
