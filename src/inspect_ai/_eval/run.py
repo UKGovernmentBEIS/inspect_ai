@@ -22,7 +22,13 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
+    TaskCleanup,
+    TaskInit,
+    resolve_sandbox_environment,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
@@ -44,6 +50,7 @@ async def eval_run(
     tasks: list[ResolvedTask],
     parallel: int,
     eval_config: EvalConfig,
+    eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
@@ -66,7 +73,7 @@ async def eval_run(
     if has_sandbox:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
-            tasks, cleanup
+            resolve_sandbox_environment(eval_sandbox), tasks, cleanup
         )
 
     # resolve solver and solver spec
@@ -319,14 +326,16 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
 
 async def startup_sandbox_environments(
-    tasks: list[ResolvedTask], cleanup: bool
+    eval_sandbox: SandboxEnvironmentSpec | None,
+    tasks: list[ResolvedTask],
+    cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
     sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
         for sample in task.task.dataset:
-            sandbox = resolve_sandbox_for_task(task.task, sample)
+            sandbox = resolve_sandbox_for_task(eval_sandbox, task.task, sample)
             if sandbox is not None and sandbox not in sandboxenvs:
                 sandboxenvs.add(sandbox)
 
