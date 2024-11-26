@@ -25,7 +25,6 @@ import { ErrorPanel } from "../components/ErrorPanel.mjs";
  * @param {() => void} [props.prevSample] - function to move to previous sample
  * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
  * @param {(position: number) => void} props.setSampleScrollPosition - set the sample scroll position
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const SampleDialog = ({
@@ -43,7 +42,6 @@ export const SampleDialog = ({
   setSelectedTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
-  context,
 }) => {
   const tools = useMemo(() => {
     const nextTool = {
@@ -96,17 +94,8 @@ export const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
-          context=${context}
         />`;
-  }, [
-    id,
-    sample,
-    sampleDescriptor,
-    selectedTab,
-    setSelectedTab,
-    context,
-    sampleError,
-  ]);
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
 
   const onHide = useCallback(() => {
     setShowingSampleDialog(false);

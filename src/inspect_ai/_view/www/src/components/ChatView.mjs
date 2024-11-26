@@ -287,7 +287,7 @@ export const iconForMsg = (msg) => {
 /**
  *
  * @param {import("../types/log").ChatMessageTool} toolMessage - The tool output message
- * @returns {Array<{type: string, content: import("../types/log").Content3}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
+ * @returns {Array<{type: string, content: import("../types/log").Content4}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
  */
 const resolveToolMessage = (toolMessage) => {
   if (!toolMessage) {

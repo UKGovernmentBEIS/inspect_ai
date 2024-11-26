@@ -8500,9 +8500,9 @@ const TabPanel = ({
     }, 0);
   });
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setScrollPosition]
   );
   return m$1`<div
@@ -9474,6 +9474,11 @@ const OutputRun = ({ outputRun }) => {
   return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
+};
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1e3
 };
 const decodeCache = {};
 function getDecodeCache(exclude) {
@@ -15643,13 +15648,89 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
-const RenderedContent = ({
-  id,
-  entry,
-  context,
-  defaultRendering,
-  options
-}) => {
+const NavPills = ({ children }) => {
+  const [activeItem, setActiveItem] = h(children[0].props["title"]);
+  const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
+    const active = activeItem2 === title;
+    return m$1` <li class="nav-item">
+      <button
+        type="button"
+        role="tab"
+        aria-selected=${active}
+        style=${{
+      minWidth: "4rem",
+      ...TextStyle.label,
+      fontSize: FontSize.small,
+      padding: "0.1rem  0.6rem",
+      borderRadius: "var(--bs-border-radius)"
+    }}
+        class="nav-link ${active ? "active " : ""}"
+        onclick=${() => {
+      setActiveItem2(title);
+    }}
+      >
+        ${title}
+      </button>
+    </li>`;
+  };
+  const navPills = children.map((nav, idx) => {
+    var _a2;
+    const title = typeof nav === "object" ? ((_a2 = nav["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+    return m$1`<${NavPill}
+      title=${title}
+      activeItem=${activeItem}
+      setActiveItem=${setActiveItem}
+    />`;
+  });
+  const navBodies = children.map((child) => {
+    var _a2;
+    return m$1` <div
+      style=${{
+      display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none"
+    }}
+    >
+      ${child}
+    </div>`;
+  });
+  return m$1`<ul
+      class="nav nav-pills card-header-pills"
+      style=${{ marginRight: "0" }}
+      role="tablist"
+      aria-orientation="horizontal"
+    >
+      ${navPills}
+    </ul>
+    ${navBodies}`;
+};
+const ChatMessageRenderer = {
+  bucket: Buckets.first,
+  canRender: (entry) => {
+    var _a2, _b2;
+    const val = entry.value;
+    return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+  },
+  render: (id, entry) => {
+    return {
+      rendered: m$1`
+        <${NavPills}>
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
+        </${NavPills}>
+        `
+    };
+  }
+};
+const ChatSummary = ({ id, messages }) => {
+  const summaryMessages = [];
+  for (const message of messages.slice().reverse()) {
+    summaryMessages.unshift(message);
+    if (message.role === "user") {
+      break;
+    }
+  }
+  return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
+};
+const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -15662,26 +15743,12 @@ const RenderedContent = ({
   });
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(
-      id,
-      entry,
-      defaultRendering,
-      options,
-      context
-    );
+    const { rendered } = renderer.render(id, entry);
     if (rendered !== void 0) {
       value = rendered;
-      if (afterBody !== void 0) {
-        context.afterBody(afterBody);
-      }
     }
   }
   return m$1`${value}`;
-};
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1e3
 };
 const contentRenderers = {
   AnsiString: {
@@ -15707,7 +15774,7 @@ const contentRenderers = {
     }
   },
   Boolean: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
@@ -15717,7 +15784,7 @@ const contentRenderers = {
     }
   },
   Number: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
@@ -15753,7 +15820,7 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
@@ -15763,25 +15830,12 @@ const contentRenderers = {
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
-        context=${context}
         compact
       />`;
       return { rendered: arrayRendered };
     }
   },
-  ChatMessage: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      var _a2, _b2;
-      const val = entry.value;
-      return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-    },
-    render: (_id, entry) => {
-      return {
-        rendered: m$1`<${ChatView} messages=${entry.value} />`
-      };
-    }
-  },
+  ChatMessage: ChatMessageRenderer,
   web_search: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
@@ -15854,7 +15908,7 @@ ${entry.value}</pre
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -15870,7 +15924,6 @@ ${entry.value}</pre
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
-          context=${context}
           compact
         />`
       };
@@ -15884,8 +15937,6 @@ const MetaDataView = ({
   style,
   entries,
   tableOptions,
-  context,
-  expanded,
   compact
 }) => {
   const baseId = baseClass || "metadataview";
@@ -15932,12 +15983,7 @@ const MetaDataView = ({
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </td>
     </tr>`;
   });
@@ -15962,7 +16008,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
+const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -15975,7 +16021,6 @@ const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
           evaluation=${evalSpec}
           plan=${evalPlan}
           scores=${scores}
-          context=${context}
         />
       </${CardBody}>
     </${Card}>
@@ -15991,7 +16036,7 @@ const planSepStyle = {
   marginTop: "em",
   marginBottom: "-0.1em"
 };
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   if (scores.length > 1) {
     params["scores"] = scores;
   }
@@ -15999,11 +16044,10 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
-const DatasetDetailView = ({ dataset, context, style }) => {
+const DatasetDetailView = ({ dataset, style }) => {
   const filtered = Object.fromEntries(
     Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
   );
@@ -16015,21 +16059,16 @@ const DatasetDetailView = ({ dataset, context, style }) => {
   return m$1`<${MetaDataView}
     entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
   const details = steps == null ? void 0 : steps.map((step, index) => {
     return m$1`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -16042,7 +16081,7 @@ const SolversDetailView = ({ steps, context }) => {
     ${details}
   </div>`;
 };
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
   return m$1`
     <div style=${style}>
@@ -16056,14 +16095,13 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${m$1`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
   `;
 };
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -16134,17 +16172,12 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: m$1`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`
+    contents: m$1`<${DatasetDetailView} dataset=${evaluation.dataset} />`
   });
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: m$1`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `
+    contents: m$1` <${SolversDetailView} steps=${steps} /> `
   });
   if (scores) {
     const scorers = scores.reduce((accum, score) => {
@@ -16165,7 +16198,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key2}
           scores=${scorers[key2].scores}
           params=${scorers[key2].params}
-          context=${context}
         />`;
       });
       taskColumns.push({
@@ -16193,7 +16225,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `
   });
@@ -16207,7 +16238,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16222,7 +16252,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16237,7 +16266,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config2}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16252,7 +16280,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16267,7 +16294,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16402,9 +16428,9 @@ const LargeModal = (props) => {
     }
   }, []);
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setInitialScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setInitialScrollPosition]
   );
   const headerEls = [];
@@ -16571,8 +16597,7 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer,
-  context
+  scorer
 }) => {
   var _a2, _b2, _c;
   if (!sampleDescriptor) {
@@ -16725,7 +16750,6 @@ const SampleScoreView = ({
                     classes="tab-pane"
                     entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
                     style=${{ marginTop: "1em" }}
-                    context=${context}
                   />
                 </td>
               </tr>
@@ -16929,15 +16953,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({
-  id,
-  entries,
-  classes,
-  context,
-  style,
-  expanded,
-  plain
-}) => {
+const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -16981,12 +16997,7 @@ const MetaDataGrid = ({
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </div>
     `;
   });
@@ -18959,7 +18970,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
-    <${Rendered} values=${result} />
+    <div>
+      <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 const Rendered = ({ values }) => {
@@ -19038,7 +19051,7 @@ const TokenRow = ({ model, usage }) => {
   </tr>`;
 };
 const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
+const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
@@ -19074,7 +19087,6 @@ const UsageCard = ({ stats, context }) => {
     ["Duration"]: totalDuration
   }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>
@@ -19732,14 +19744,16 @@ const fixupEventStream = (events) => {
       event: "step",
       action: "begin",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
     fixedUp.splice(initEventIndex + 2, 0, {
       timestamp: initEvent.timestamp,
       event: "step",
       action: "end",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
   }
   return fixedUp;
@@ -19898,8 +19912,7 @@ const InlineSampleDisplay = ({
   sampleError,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -19918,7 +19931,6 @@ const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
-            context=${context}
           />`}
     </div>
   </div>`;
@@ -19928,8 +19940,7 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   const baseId = `sample-dialog`;
   if (!sample) {
@@ -19964,7 +19975,6 @@ const SampleDisplay = ({
       <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
-          context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
           style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19977,7 +19987,6 @@ const SampleDisplay = ({
         <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
-            context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19985,11 +19994,7 @@ const SampleDisplay = ({
         </${TabPanel}>`);
     }
   }
-  const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${id}`,
-    sample,
-    context
-  );
+  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
   if (sampleMetadatas.length > 0) {
     tabs.push(
       m$1`
@@ -20111,7 +20116,7 @@ const SampleDisplay = ({
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id, sample, context) => {
+const metadataViewsForSample = (id, sample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(m$1`
@@ -20133,7 +20138,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
         </${Card}>`
@@ -20150,7 +20154,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
       </${Card}>`
@@ -20286,8 +20289,7 @@ const SampleDialog = ({
   selectedTab,
   setSelectedTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const tools = T(() => {
     const nextTool = {
@@ -20334,17 +20336,8 @@ const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
-          context=${context}
         />`;
-  }, [
-    id,
-    sample,
-    sampleDescriptor,
-    selectedTab,
-    setSelectedTab,
-    context,
-    sampleError
-  ]);
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
   const onHide = q(() => {
     setShowingSampleDialog(false);
   }, [setShowingSampleDialog]);
@@ -20791,8 +20784,7 @@ const SamplesTab = ({
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const [items, setItems] = h([]);
   const [sampleItems, setSampleItems] = h([]);
@@ -20879,7 +20871,6 @@ const SamplesTab = ({
         sampleDescriptor=${sampleDescriptor}
         selectedTab=${selectedSampleTab}
         setSelectedTab=${setSelectedSampleTab}
-        context=${context}
       />`
     );
   } else if (sampleMode === "many") {
@@ -20918,7 +20909,6 @@ const SamplesTab = ({
       setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      context=${context}
       sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />
@@ -24708,7 +24698,6 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   workspaceTabScrollPositionRef,
@@ -24758,7 +24747,6 @@ const WorkSpace = ({
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${renderContext}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
           />`;
@@ -24807,13 +24795,10 @@ const WorkSpace = ({
             evalSpec=${evalSpec}
             evalPlan=${evalPlan}
             scores=${evalResults == null ? void 0 : evalResults.scores}
-            context=${renderContext}
           />`
         ]);
         if (evalStatus !== "started") {
-          infoCards.push(
-            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-          );
+          infoCards.push(m$1`<${UsageCard} stats=${evalStats} />`);
         }
         if (evalStatus === "error" && evalError) {
           infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
@@ -24910,7 +24895,6 @@ const WorkSpace = ({
     filter,
     sort,
     epoch,
-    renderContext,
     sampleScrollPositionRef,
     setSampleScrollPosition,
     epochs,
@@ -24979,7 +24963,42 @@ const WorkspaceDisplay = ({
         return "";
       }
     });
+    const onScroll = q(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition]
+    );
+    const onSelected = q(
+      (e2) => {
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab]
+    );
+    const tabPanels = T(() => {
+      return Object.keys(tabs).map((key2) => {
+        const tab = tabs[key2];
+        return m$1`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${q(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll]
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
     return m$1`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
@@ -25025,25 +25044,7 @@ const WorkspaceDisplay = ({
         fontWeight: 600
       }
     }} >
-              ${Object.keys(tabs).map((key2) => {
-      const tab = tabs[key2];
-      return m$1`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e2) => {
-        const id = e2.currentTarget.id;
-        setSelectedTab(id);
-      }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-                setScrollPosition=${(position) => {
-        setWorkspaceTabScrollPosition(tab.id, position);
-      }}
-                >
-                  ${tab.content()}
-                </${TabPanel}>`;
-    })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;
@@ -25190,7 +25191,7 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
-const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   if (!samples) {
     return void 0;
   }
@@ -25257,11 +25258,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
   ];
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -25559,13 +25556,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -25575,7 +25569,6 @@ const scoreCategorizers = [
           return m$1`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         }
       };
@@ -25866,14 +25859,6 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = T(
-    () => ({
-      afterBody: (el) => {
-        afterBodyElements.push(el);
-      }
-    }),
-    []
-  );
   const saveState = q(() => {
     const state = {
       logs,
@@ -25932,25 +25917,31 @@ function App({
     groupBy,
     groupByOrder
   ]);
+  const saveStateRef = A(saveState);
+  y(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
   const setSampleScrollPosition = q(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveState();
-    }, 250),
-    [saveState]
+      saveStateRef.current();
+    }, 1e3),
+    []
   );
   const setWorkspaceTabScrollPosition = q(
     debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position
-      };
-      saveState();
-    }, 250),
-    [saveState]
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position
+        };
+        saveStateRef.current();
+      }
+    }, 1e3),
+    []
   );
   y(() => {
-    saveState();
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
@@ -26027,7 +26018,6 @@ function App({
       scores,
       (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
       ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
-      context,
       score
     );
   }, [selectedLog, scores, score]);
@@ -26456,7 +26446,6 @@ function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
