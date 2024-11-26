@@ -6,13 +6,13 @@ aliases:
 
 ## Overview
 
-Inspect runs evaluations using a parallel async architecture, eagerly executing many samples in parallel while at the same time ensuring that that resources aren't over-saturated by enforcing various limits (e.g. maximum number of concurrent model connections, maximum number of subprocesses, etc.).
+Inspect runs evaluations using a parallel async architecture, eagerly executing many samples in parallel while at the same time ensuring that resources aren't over-saturated by enforcing various limits (e.g. maximum number of concurrent model connections, maximum number of subprocesses, etc.).
 
 There are a progression of concurrency concerns, and while most evaluations can rely on the Inspect default behaviour, others will benefit from more customisation. Below we'll cover the following:
 
 1.  Model API connection concurrency.
 2.  Evaluating multiple models in parallel.
-3.  Evaluating mulitple tasks in paralle. 
+3.  Evaluating multiple tasks in parallel. 
 3.  Sandbox environment concurrency.
 4.  Writing parallel code in custom tools, solvers, and scorers.
 
@@ -36,11 +36,11 @@ When you run an eval you'll see information reported on the current active conne
 
 Here we've set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
 
-You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
+You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
 
 ### Limiting Retries
 
-By default, inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned . You can limit these retries by using the `max_retries` and `timeout` eval options. For example:
+By default, Inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned. You can limit these retries by using the `max_retries` and `timeout` eval options. For example:
 
 ``` bash
 $ inspect eval --model openai/gpt-4 --max-retries 10 --timeout 600
@@ -68,7 +68,7 @@ eval("mathematics.py", model=[
 ])
 ```
 
-![](images/inspect-multiple-models.png){fig-alt="An evaluation task display show the progress for 3 differnet models."}
+![](images/inspect-multiple-models.png){fig-alt="An evaluation task display showing the progress for 3 different models."}
 
 Since each model provider has its own `max_connections` they don't contend with each other for resources. If you need to evaluate multiple models, doing so concurrently is highly recommended.
 
@@ -82,7 +82,7 @@ INSPECT_EVAL_MODEL=openai/gpt-4-turbo,google/gemini-1.5-pro
 
 By default, Inspect runs a single task at a time. This is because most tasks consist of 10 or more samples, which generally means that sample parallelism is enough to make full use of the `max_connections` defined for the active model. 
 
-If however, the number samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel You can do this via the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up 5 tasks run in parallel:
+If however, the number of samples per task is substantially lower than `max_connections` then you might benefit from running multiple tasks in parallel. You can do this via the `--max-tasks` CLI option or `max_tasks` parameter to the `eval()` function. For example, here we run all of the tasks in the current working directory with up to 5 tasks run in parallel:
 
 ``` bash
 $ inspect eval . --max-tasks=5 
@@ -104,20 +104,19 @@ tasks = [
 eval(tasks, max_tasks=5)
 ```
 
-It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, If the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
+It's critical to reinforce that this will only provide a performance gain if the number of samples is very small. For example, if the dataset contains 10 samples and your `max_connections` is 10, there is no gain to be had by running tasks in parallel.
 
 Note that you can combine parallel tasks with parallel models as follows:
 
 ``` python
 eval(
     tasks, # 6 tasks for various temperature values
-    model=["openai/gpt-4o", "anthropic/claude-3-haiku-20240307"],
+    model=["openai/gpt-4", "anthropic/claude-3-haiku-20240307"],
     max_tasks=5,
 )
 ```
 
 This code will evaluate a total of 12 tasks (6 temperature variations against 2 models each) with up to 5 tasks run in parallel.
-
 
 ## Sandbox Environments {#sec-parallel-tool-environments}
 
@@ -127,13 +126,13 @@ This code will evaluate a total of 12 tasks (6 temperature variations against 2 
 
 The `max_samples` option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised.
 
-Since sandbox enviroinments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
+Since sandbox environments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
 
 Note that setting `max_samples` to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using sandbox environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).
 
 ### Max Subprocesses
 
-The `max_subprocesses` option determines how many subprocesses calls can run in parallel. By defualt, this is set to `os.cpu_count()`. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasting `max_subprocesses`.
+The `max_subprocesses` option determines how many subprocess calls can run in parallel. By default, this is set to `os.cpu_count()`. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing `max_subprocesses`.
 
 ## Solvers and Scorers {#sec-parallel-solvers-and-scorers}
 
@@ -141,7 +140,7 @@ The `max_subprocesses` option determines how many subprocesses calls can run in 
 
 It's possible that your custom solvers, tools, or scorers will call other REST APIs. Two things to keep in mind when doing this are:
 
-1.  It's critical that connections to other APIs use `async` HTTP APIs (i.e. the `httpx` model rather than the `requests` module). This is because Inspect's parallelism relies on everything being `async`, so if you make a blocking HTTP call with `requests` it will actually hold up all of the rest of the work in system!
+1.  It's critical that connections to other APIs use `async` HTTP APIs (i.e. the `httpx` module rather than the `requests` module). This is because Inspect's parallelism relies on everything being `async`, so if you make a blocking HTTP call with `requests` it will actually hold up all of the rest of the work in the system!
 
 2.  As with model APIs, rate limits may be in play, so it's important not to over-saturate these connections. Recall that Inspect runs all samples in parallel so if you have 500 samples and don't do anything to limit concurrency, you will likely end up making hundreds of calls at a time to the API.
 
@@ -196,7 +195,7 @@ Note that we don't await the call to `model.generate()` when building our list o
 
 #### Web Requests
 
-Here's an examples of using `asyncio.gather()` to parallelise web requests:
+Here's an example of using `asyncio.gather()` to parallelise web requests:
 
 ``` python
 import asyncio
