@@ -153,8 +153,8 @@ class SamplesList(OptionList):
                 sample_epoch,
                 " ",
             )
+            table.add_row("", "", "")
             options.append(Option(table, id=sample.id))
-            options.append(Separator())
 
         self.add_options(options)
 
