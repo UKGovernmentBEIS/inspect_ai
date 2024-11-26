@@ -16428,9 +16428,9 @@ const LargeModal = (props) => {
     }
   }, []);
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setInitialScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setInitialScrollPosition]
   );
   const headerEls = [];

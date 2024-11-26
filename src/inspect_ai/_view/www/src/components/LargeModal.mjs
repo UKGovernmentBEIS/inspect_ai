@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
-import { debounce } from "../utils/sync.mjs";
 import { MessageBand } from "./MessageBand.mjs";
 
 export const LargeModal = (props) => {
@@ -44,9 +43,9 @@ export const LargeModal = (props) => {
   }, []);
 
   const onScroll = useCallback(
-    debounce((e) => {
+    (e) => {
       setInitialScrollPosition(e.srcElement.scrollTop);
-    }, 100),
+    },
     [setInitialScrollPosition],
   );
 
