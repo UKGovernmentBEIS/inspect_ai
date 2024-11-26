@@ -1,6 +1,6 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -21,6 +21,7 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants.mjs";
+import { debounce } from "../utils/sync.mjs";
 
 /**
  * Renders the Main Application
@@ -411,7 +412,16 @@ const WorkspaceDisplay = ({
         }
       });
 
+    const onScroll = useCallback(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition],
+    );
+    
+
     return html`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
@@ -469,7 +479,7 @@ const WorkspaceDisplay = ({
                 scrollable=${!!tab.scrollable}
                 scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
                 setScrollPosition=${(position) => {
-                  setWorkspaceTabScrollPosition(tab.id, position);
+                  onScroll(tab.id, position);
                 }}
                 >
                   ${tab.content()}
