@@ -227,12 +227,18 @@ export function App({
     groupByOrder,
   ]);
 
+  const saveStateRef = useRef(saveState);
+  // Update the ref whenever saveState changes
+  useEffect(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
+
   const setSampleScrollPosition = useCallback(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveState();
-    }, 250),
-    [saveState],
+      saveStateRef.current();
+    }, 1000),
+    [],
   );
 
   const setWorkspaceTabScrollPosition = useCallback(
@@ -242,16 +248,16 @@ export function App({
           ...workspaceTabScrollPosition.current,
           [tab]: position,
         };
-        saveState();
+        saveStateRef.current();
       }
-    }, 250),
-    [saveState],
+    }, 1000),
+    [],
   );
 
   // Save state when it changes, so that we can restore it later
   //
   useEffect(() => {
-    saveState();
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
