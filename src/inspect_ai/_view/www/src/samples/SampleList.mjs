@@ -1,5 +1,11 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo,  useCallback, useRef, useState } from "preact/hooks";
+import {
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";

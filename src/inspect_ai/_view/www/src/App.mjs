@@ -18,7 +18,7 @@ import { SampleDialog } from "./samples/SampleDialog.mjs";
 // Registration component
 import "./Register.mjs";
 
-import { debounce, sleep } from "./utils/sync.mjs";
+import { debounce } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -924,7 +924,8 @@ export function App({
                   setSelectedTab=${setSelectedSampleTab}
                   nextSample=${nextSample}
                   prevSample=${previousSample}
-                  context=${context}
+                  sampleScrollPositionRef=${sampleScrollPosition}
+                  setSampleScrollPosition=${setSampleScrollPosition}
                 />
               `
             : selectedLog.contents === undefined
@@ -945,51 +946,48 @@ export function App({
                   onPageChanged="${setLogHeaderPage}"
                 />`
               : html`<${TaskView}
-                task_id=${selectedLog?.contents?.eval?.task_id}
-                logFileName=${selectedLog?.name}
-                evalStatus=${selectedLog?.contents?.status}
-                evalError=${selectedLog?.contents?.error}
-                evalVersion=${selectedLog?.contents?.version}
-                evalSpec=${selectedLog?.contents?.eval}
-                evalPlan=${selectedLog?.contents?.plan}
-                evalStats=${selectedLog?.contents?.stats}
-                evalResults=${selectedLog?.contents?.results}
-                showToggle=${showToggle}
-                onToggle=${clearSelectedLog}
-                samples=${filteredSamples}
-                sampleMode=${sampleMode}
-                groupBy=${groupBy}
-                groupByOrder=${groupByOrder}
-                sampleStatus=${sampleStatus}
-                sampleError=${sampleError}
-                samplesDescriptor=${samplesDescriptor}
-                refreshLog=${refreshLog}
-                capabilities=${capabilities}
-                selected=${selectedLogIndex}
-                selectedSample=${selectedSample}
-                selectedSampleIndex=${selectedSampleIndex}
-                setSelectedSampleIndex=${setSelectedSampleIndex}
-                showingSampleDialog=${showingSampleDialog}
-                setShowingSampleDialog=${handleSampleShowingDialog}
-                selectedTab=${selectedWorkspaceTab}
-                setSelectedTab=${setSelectedWorkspaceTab}
-                selectedSampleTab=${selectedSampleTab}
-                setSelectedSampleTab=${setSelectedSampleTab}
-                sort=${sort}
-                setSort=${setSort}
-                epochs=${selectedLog?.contents?.eval?.config?.epochs}
-                epoch=${epoch}
-                setEpoch=${setEpoch}
-                filter=${filter}
-                setFilter=${setFilter}
-                score=${score}
-                setScore=${setScore}
-                scores=${scores}
-                sampleScrollPositionRef=${sampleScrollPosition}
-                setSampleScrollPosition=${setSampleScrollPosition}
-                workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
-                setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
-              />`
+                  task_id=${selectedLog?.contents?.eval?.task_id}
+                  logFileName=${selectedLog?.name}
+                  evalStatus=${selectedLog?.contents?.status}
+                  evalError=${selectedLog?.contents?.error}
+                  evalVersion=${selectedLog?.contents?.version}
+                  evalSpec=${selectedLog?.contents?.eval}
+                  evalPlan=${selectedLog?.contents?.plan}
+                  evalStats=${selectedLog?.contents?.stats}
+                  evalResults=${selectedLog?.contents?.results}
+                  showToggle=${showToggle}
+                  onToggle=${clearSelectedLog}
+                  samples=${filteredSamples}
+                  sampleMode=${sampleMode}
+                  groupBy=${groupBy}
+                  groupByOrder=${groupByOrder}
+                  sampleStatus=${sampleStatus}
+                  sampleError=${sampleError}
+                  samplesDescriptor=${samplesDescriptor}
+                  refreshLog=${refreshLog}
+                  capabilities=${capabilities}
+                  selected=${selectedLogIndex}
+                  selectedSample=${selectedSample}
+                  selectedSampleIndex=${selectedSampleIndex}
+                  setSelectedSampleIndex=${setSelectedSampleIndex}
+                  setShowingSampleDialog=${handleSampleShowingDialog}
+                  selectedTab=${selectedWorkspaceTab}
+                  setSelectedTab=${setSelectedWorkspaceTab}
+                  selectedSampleTab=${selectedSampleTab}
+                  setSelectedSampleTab=${setSelectedSampleTab}
+                  sort=${sort}
+                  setSort=${setSort}
+                  epochs=${selectedLog?.contents?.eval?.config?.epochs}
+                  epoch=${epoch}
+                  setEpoch=${setEpoch}
+                  filter=${filter}
+                  setFilter=${setFilter}
+                  score=${score}
+                  setScore=${setScore}
+                  scores=${scores}
+                  workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+                  setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+                />`
       }
     </div>
     ${afterBodyElements}

@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback } from "preact/hooks";
+import { useCallback, useMemo } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";

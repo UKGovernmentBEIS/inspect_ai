@@ -29,8 +29,6 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @param {(index: number) => void} props.previousSample - function to select a tab
  * @param {string} props.epoch - the selected epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
- * @param {import("htm/preact").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
- * @param {(position: number) => void} props.setSampleScrollPosition - sets the sample scroll position
  * @param {any} props.sort - the selected sort
  *
  * @returns {import("preact").JSX.Element[]} The TranscriptView component.
@@ -53,8 +51,6 @@ export const SamplesTab = ({
   previousSample,
   selectedSampleTab,
   setSelectedSampleTab,
-  sampleScrollPositionRef,
-  setSampleScrollPosition,
 }) => {
   const [items, setItems] = useState([]);
 

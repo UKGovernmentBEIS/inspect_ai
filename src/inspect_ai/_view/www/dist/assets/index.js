@@ -9972,8 +9972,8 @@ function constructFrom(date, value) {
   if (date instanceof Date) return new date.constructor(value);
   return new Date(value);
 }
-function toDate(argument, context2) {
-  return constructFrom(context2 || argument, argument);
+function toDate(argument, context) {
+  return constructFrom(context || argument, argument);
 }
 let defaultOptions = {};
 function getDefaultOptions() {
@@ -10028,7 +10028,7 @@ function getTimezoneOffsetInMilliseconds(date) {
   utcDate.setUTCFullYear(_date.getFullYear());
   return +date - +utcDate;
 }
-function normalizeDates(context2, ...dates) {
+function normalizeDates(context, ...dates) {
   const normalize3 = constructFrom.bind(
     null,
     dates.find((date) => typeof date === "object")
@@ -10214,9 +10214,9 @@ const formatRelativeLocale = {
 const formatRelative = (token2, _date, _baseDate, _options) => formatRelativeLocale[token2];
 function buildLocalizeFn(args) {
   return (value, options) => {
-    const context2 = (options == null ? void 0 : options.context) ? String(options.context) : "standalone";
+    const context = (options == null ? void 0 : options.context) ? String(options.context) : "standalone";
     let valuesArray;
-    if (context2 === "formatting" && args.formattingValues) {
+    if (context === "formatting" && args.formattingValues) {
       const defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
       const width = (options == null ? void 0 : options.width) ? String(options.width) : defaultWidth;
       valuesArray = args.formattingValues[width] || args.formattingValues[defaultWidth];
@@ -12682,29 +12682,29 @@ class Processor {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   process(input, pipe) {
-    let context2 = input;
-    context2.options = this.options();
+    let context = input;
+    context.options = this.options();
     let nextPipe = pipe || input.pipe || "default";
     let lastPipe;
     while (nextPipe) {
-      if (typeof context2.nextAfterChildren !== "undefined") {
-        context2.next = context2.nextAfterChildren;
-        context2.nextAfterChildren = null;
+      if (typeof context.nextAfterChildren !== "undefined") {
+        context.next = context.nextAfterChildren;
+        context.nextAfterChildren = null;
       }
       if (typeof nextPipe === "string") {
         nextPipe = this.pipe(nextPipe);
       }
-      nextPipe.process(context2);
+      nextPipe.process(context);
       lastPipe = nextPipe;
       nextPipe = null;
-      if (context2) {
-        if (context2.next) {
-          context2 = context2.next;
-          nextPipe = context2.pipe || lastPipe;
+      if (context) {
+        if (context.next) {
+          context = context.next;
+          nextPipe = context.pipe || lastPipe;
         }
       }
     }
-    return context2.hasResult ? context2.result : void 0;
+    return context.hasResult ? context.result : void 0;
   }
 }
 class Pipe {
@@ -12718,20 +12718,20 @@ class Pipe {
     }
     const debug = this.debug;
     const length = this.filters.length;
-    const context2 = input;
+    const context = input;
     for (let index = 0; index < length; index++) {
       const filter = this.filters[index];
       if (debug) {
         this.log(`filter: ${filter.filterName}`);
       }
-      filter(context2);
-      if (typeof context2 === "object" && context2.exiting) {
-        context2.exiting = false;
+      filter(context);
+      if (typeof context === "object" && context.exiting) {
+        context.exiting = false;
         break;
       }
     }
-    if (!context2.next && this.resultCheck) {
-      this.resultCheck(context2);
+    if (!context.next && this.resultCheck) {
+      this.resultCheck(context);
     }
   }
   log(msg) {
@@ -12792,9 +12792,9 @@ class Pipe {
     if (this.resultCheck) {
       return;
     }
-    this.resultCheck = (context2) => {
-      if (!context2.hasResult) {
-        console.log(context2);
+    this.resultCheck = (context) => {
+      if (!context.hasResult) {
+        console.log(context);
         const error2 = new Error(`${this.name} failed`);
         error2.noResult = true;
         throw error2;
@@ -12895,171 +12895,171 @@ class ReverseContext extends Context {
     this.pipe = "reverse";
   }
 }
-const diffFilter$3 = function trivialMatchesDiffFilter(context2) {
-  if (context2.left === context2.right) {
-    context2.setResult(void 0).exit();
+const diffFilter$3 = function trivialMatchesDiffFilter(context) {
+  if (context.left === context.right) {
+    context.setResult(void 0).exit();
     return;
   }
-  if (typeof context2.left === "undefined") {
-    if (typeof context2.right === "function") {
+  if (typeof context.left === "undefined") {
+    if (typeof context.right === "function") {
       throw new Error("functions are not supported");
     }
-    context2.setResult([context2.right]).exit();
+    context.setResult([context.right]).exit();
     return;
   }
-  if (typeof context2.right === "undefined") {
-    context2.setResult([context2.left, 0, 0]).exit();
+  if (typeof context.right === "undefined") {
+    context.setResult([context.left, 0, 0]).exit();
     return;
   }
-  if (typeof context2.left === "function" || typeof context2.right === "function") {
+  if (typeof context.left === "function" || typeof context.right === "function") {
     throw new Error("functions are not supported");
   }
-  context2.leftType = context2.left === null ? "null" : typeof context2.left;
-  context2.rightType = context2.right === null ? "null" : typeof context2.right;
-  if (context2.leftType !== context2.rightType) {
-    context2.setResult([context2.left, context2.right]).exit();
+  context.leftType = context.left === null ? "null" : typeof context.left;
+  context.rightType = context.right === null ? "null" : typeof context.right;
+  if (context.leftType !== context.rightType) {
+    context.setResult([context.left, context.right]).exit();
     return;
   }
-  if (context2.leftType === "boolean" || context2.leftType === "number") {
-    context2.setResult([context2.left, context2.right]).exit();
+  if (context.leftType === "boolean" || context.leftType === "number") {
+    context.setResult([context.left, context.right]).exit();
     return;
   }
-  if (context2.leftType === "object") {
-    context2.leftIsArray = Array.isArray(context2.left);
+  if (context.leftType === "object") {
+    context.leftIsArray = Array.isArray(context.left);
   }
-  if (context2.rightType === "object") {
-    context2.rightIsArray = Array.isArray(context2.right);
+  if (context.rightType === "object") {
+    context.rightIsArray = Array.isArray(context.right);
   }
-  if (context2.leftIsArray !== context2.rightIsArray) {
-    context2.setResult([context2.left, context2.right]).exit();
+  if (context.leftIsArray !== context.rightIsArray) {
+    context.setResult([context.left, context.right]).exit();
     return;
   }
-  if (context2.left instanceof RegExp) {
-    if (context2.right instanceof RegExp) {
-      context2.setResult([context2.left.toString(), context2.right.toString()]).exit();
+  if (context.left instanceof RegExp) {
+    if (context.right instanceof RegExp) {
+      context.setResult([context.left.toString(), context.right.toString()]).exit();
     } else {
-      context2.setResult([context2.left, context2.right]).exit();
+      context.setResult([context.left, context.right]).exit();
     }
   }
 };
 diffFilter$3.filterName = "trivial";
-const patchFilter$3 = function trivialMatchesPatchFilter(context2) {
-  if (typeof context2.delta === "undefined") {
-    context2.setResult(context2.left).exit();
+const patchFilter$3 = function trivialMatchesPatchFilter(context) {
+  if (typeof context.delta === "undefined") {
+    context.setResult(context.left).exit();
     return;
   }
-  context2.nested = !Array.isArray(context2.delta);
-  if (context2.nested) {
+  context.nested = !Array.isArray(context.delta);
+  if (context.nested) {
     return;
   }
-  const nonNestedDelta = context2.delta;
+  const nonNestedDelta = context.delta;
   if (nonNestedDelta.length === 1) {
-    context2.setResult(nonNestedDelta[0]).exit();
+    context.setResult(nonNestedDelta[0]).exit();
     return;
   }
   if (nonNestedDelta.length === 2) {
-    if (context2.left instanceof RegExp) {
+    if (context.left instanceof RegExp) {
       const regexArgs = /^\/(.*)\/([gimyu]+)$/.exec(nonNestedDelta[1]);
       if (regexArgs) {
-        context2.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
+        context.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
         return;
       }
     }
-    context2.setResult(nonNestedDelta[1]).exit();
+    context.setResult(nonNestedDelta[1]).exit();
     return;
   }
   if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
-    context2.setResult(void 0).exit();
+    context.setResult(void 0).exit();
   }
 };
 patchFilter$3.filterName = "trivial";
-const reverseFilter$3 = function trivialReferseFilter(context2) {
-  if (typeof context2.delta === "undefined") {
-    context2.setResult(context2.delta).exit();
+const reverseFilter$3 = function trivialReferseFilter(context) {
+  if (typeof context.delta === "undefined") {
+    context.setResult(context.delta).exit();
     return;
   }
-  context2.nested = !Array.isArray(context2.delta);
-  if (context2.nested) {
+  context.nested = !Array.isArray(context.delta);
+  if (context.nested) {
     return;
   }
-  const nonNestedDelta = context2.delta;
+  const nonNestedDelta = context.delta;
   if (nonNestedDelta.length === 1) {
-    context2.setResult([nonNestedDelta[0], 0, 0]).exit();
+    context.setResult([nonNestedDelta[0], 0, 0]).exit();
     return;
   }
   if (nonNestedDelta.length === 2) {
-    context2.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
+    context.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
     return;
   }
   if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
-    context2.setResult([nonNestedDelta[0]]).exit();
+    context.setResult([nonNestedDelta[0]]).exit();
   }
 };
 reverseFilter$3.filterName = "trivial";
-const collectChildrenDiffFilter = (context2) => {
-  if (!context2 || !context2.children) {
+const collectChildrenDiffFilter = (context) => {
+  if (!context || !context.children) {
     return;
   }
-  const length = context2.children.length;
+  const length = context.children.length;
   let child;
-  let result = context2.result;
+  let result = context.result;
   for (let index = 0; index < length; index++) {
-    child = context2.children[index];
+    child = context.children[index];
     if (typeof child.result === "undefined") {
       continue;
     }
     result = result || {};
     result[child.childName] = child.result;
   }
-  if (result && context2.leftIsArray) {
+  if (result && context.leftIsArray) {
     result._t = "a";
   }
-  context2.setResult(result).exit();
+  context.setResult(result).exit();
 };
 collectChildrenDiffFilter.filterName = "collectChildren";
-const objectsDiffFilter = (context2) => {
-  if (context2.leftIsArray || context2.leftType !== "object") {
+const objectsDiffFilter = (context) => {
+  if (context.leftIsArray || context.leftType !== "object") {
     return;
   }
-  const left = context2.left;
-  const right = context2.right;
+  const left = context.left;
+  const right = context.right;
   let name;
   let child;
-  const propertyFilter = context2.options.propertyFilter;
+  const propertyFilter = context.options.propertyFilter;
   for (name in left) {
     if (!Object.prototype.hasOwnProperty.call(left, name)) {
       continue;
     }
-    if (propertyFilter && !propertyFilter(name, context2)) {
+    if (propertyFilter && !propertyFilter(name, context)) {
       continue;
     }
     child = new DiffContext(left[name], right[name]);
-    context2.push(child, name);
+    context.push(child, name);
   }
   for (name in right) {
     if (!Object.prototype.hasOwnProperty.call(right, name)) {
       continue;
     }
-    if (propertyFilter && !propertyFilter(name, context2)) {
+    if (propertyFilter && !propertyFilter(name, context)) {
       continue;
     }
     if (typeof left[name] === "undefined") {
       child = new DiffContext(void 0, right[name]);
-      context2.push(child, name);
+      context.push(child, name);
     }
   }
-  if (!context2.children || context2.children.length === 0) {
-    context2.setResult(void 0).exit();
+  if (!context.children || context.children.length === 0) {
+    context.setResult(void 0).exit();
     return;
   }
-  context2.exit();
+  context.exit();
 };
 objectsDiffFilter.filterName = "objects";
-const patchFilter$2 = function nestedPatchFilter(context2) {
-  if (!context2.nested) {
+const patchFilter$2 = function nestedPatchFilter(context) {
+  if (!context.nested) {
     return;
   }
-  const nestedDelta = context2.delta;
+  const nestedDelta = context.delta;
   if (nestedDelta._t) {
     return;
   }
@@ -13067,78 +13067,78 @@ const patchFilter$2 = function nestedPatchFilter(context2) {
   let name;
   let child;
   for (name in objectDelta) {
-    child = new PatchContext(context2.left[name], objectDelta[name]);
-    context2.push(child, name);
+    child = new PatchContext(context.left[name], objectDelta[name]);
+    context.push(child, name);
   }
-  context2.exit();
+  context.exit();
 };
 patchFilter$2.filterName = "objects";
-const collectChildrenPatchFilter$1 = function collectChildrenPatchFilter(context2) {
-  if (!context2 || !context2.children) {
+const collectChildrenPatchFilter$1 = function collectChildrenPatchFilter(context) {
+  if (!context || !context.children) {
     return;
   }
-  const deltaWithChildren = context2.delta;
+  const deltaWithChildren = context.delta;
   if (deltaWithChildren._t) {
     return;
   }
-  const object = context2.left;
-  const length = context2.children.length;
+  const object = context.left;
+  const length = context.children.length;
   let child;
   for (let index = 0; index < length; index++) {
-    child = context2.children[index];
+    child = context.children[index];
     const property = child.childName;
-    if (Object.prototype.hasOwnProperty.call(context2.left, property) && child.result === void 0) {
+    if (Object.prototype.hasOwnProperty.call(context.left, property) && child.result === void 0) {
       delete object[property];
     } else if (object[property] !== child.result) {
       object[property] = child.result;
     }
   }
-  context2.setResult(object).exit();
+  context.setResult(object).exit();
 };
 collectChildrenPatchFilter$1.filterName = "collectChildren";
-const reverseFilter$2 = function nestedReverseFilter(context2) {
-  if (!context2.nested) {
+const reverseFilter$2 = function nestedReverseFilter(context) {
+  if (!context.nested) {
     return;
   }
-  const nestedDelta = context2.delta;
+  const nestedDelta = context.delta;
   if (nestedDelta._t) {
     return;
   }
-  const objectDelta = context2.delta;
+  const objectDelta = context.delta;
   let name;
   let child;
   for (name in objectDelta) {
     child = new ReverseContext(objectDelta[name]);
-    context2.push(child, name);
+    context.push(child, name);
   }
-  context2.exit();
+  context.exit();
 };
 reverseFilter$2.filterName = "objects";
-const collectChildrenReverseFilter$1 = (context2) => {
-  if (!context2 || !context2.children) {
+const collectChildrenReverseFilter$1 = (context) => {
+  if (!context || !context.children) {
     return;
   }
-  const deltaWithChildren = context2.delta;
+  const deltaWithChildren = context.delta;
   if (deltaWithChildren._t) {
     return;
   }
-  const length = context2.children.length;
+  const length = context.children.length;
   let child;
   const delta = {};
   for (let index = 0; index < length; index++) {
-    child = context2.children[index];
+    child = context.children[index];
     const property = child.childName;
     if (delta[property] !== child.result) {
       delta[property] = child.result;
     }
   }
-  context2.setResult(delta).exit();
+  context.setResult(delta).exit();
 };
 collectChildrenReverseFilter$1.filterName = "collectChildren";
 const defaultMatch = function(array1, array2, index1, index2) {
   return array1[index1] === array2[index2];
 };
-const lengthMatrix = function(array1, array2, match3, context2) {
+const lengthMatrix = function(array1, array2, match3, context) {
   const len1 = array1.length;
   const len2 = array2.length;
   let x, y2;
@@ -13152,7 +13152,7 @@ const lengthMatrix = function(array1, array2, match3, context2) {
   matrix.match = match3;
   for (x = 1; x < len1 + 1; x++) {
     for (y2 = 1; y2 < len2 + 1; y2++) {
-      if (match3(array1, array2, x - 1, y2 - 1, context2)) {
+      if (match3(array1, array2, x - 1, y2 - 1, context)) {
         matrix[x][y2] = matrix[x - 1][y2 - 1] + 1;
       } else {
         matrix[x][y2] = Math.max(matrix[x - 1][y2], matrix[x][y2 - 1]);
@@ -13161,7 +13161,7 @@ const lengthMatrix = function(array1, array2, match3, context2) {
   }
   return matrix;
 };
-const backtrack = function(matrix, array1, array2, context2) {
+const backtrack = function(matrix, array1, array2, context) {
   let index1 = array1.length;
   let index2 = array2.length;
   const subsequence = {
@@ -13170,7 +13170,7 @@ const backtrack = function(matrix, array1, array2, context2) {
     indices2: []
   };
   while (index1 !== 0 && index2 !== 0) {
-    const sameLetter = matrix.match(array1, array2, index1 - 1, index2 - 1, context2);
+    const sameLetter = matrix.match(array1, array2, index1 - 1, index2 - 1, context);
     if (sameLetter) {
       subsequence.sequence.unshift(array1[index1 - 1]);
       subsequence.indices1.unshift(index1 - 1);
@@ -13189,8 +13189,8 @@ const backtrack = function(matrix, array1, array2, context2) {
   }
   return subsequence;
 };
-const get = function(array1, array2, match3, context2) {
-  const innerContext = context2 || {};
+const get = function(array1, array2, match3, context) {
+  const innerContext = context || {};
   const matrix = lengthMatrix(array1, array2, match3 || defaultMatch, innerContext);
   return backtrack(matrix, array1, array2, innerContext);
 };
@@ -13209,7 +13209,7 @@ function arraysHaveMatchByRef(array1, array2, len1, len2) {
     }
   }
 }
-function matchItems(array1, array2, index1, index2, context2) {
+function matchItems(array1, array2, index1, index2, context) {
   const value1 = array1[index1];
   const value2 = array2[index2];
   if (value1 === value2) {
@@ -13218,43 +13218,43 @@ function matchItems(array1, array2, index1, index2, context2) {
   if (typeof value1 !== "object" || typeof value2 !== "object") {
     return false;
   }
-  const objectHash = context2.objectHash;
+  const objectHash = context.objectHash;
   if (!objectHash) {
-    return context2.matchByPosition && index1 === index2;
+    return context.matchByPosition && index1 === index2;
   }
-  context2.hashCache1 = context2.hashCache1 || [];
-  let hash1 = context2.hashCache1[index1];
+  context.hashCache1 = context.hashCache1 || [];
+  let hash1 = context.hashCache1[index1];
   if (typeof hash1 === "undefined") {
-    context2.hashCache1[index1] = hash1 = objectHash(value1, index1);
+    context.hashCache1[index1] = hash1 = objectHash(value1, index1);
   }
   if (typeof hash1 === "undefined") {
     return false;
   }
-  context2.hashCache2 = context2.hashCache2 || [];
-  let hash2 = context2.hashCache2[index2];
+  context.hashCache2 = context.hashCache2 || [];
+  let hash2 = context.hashCache2[index2];
   if (typeof hash2 === "undefined") {
-    context2.hashCache2[index2] = hash2 = objectHash(value2, index2);
+    context.hashCache2[index2] = hash2 = objectHash(value2, index2);
   }
   if (typeof hash2 === "undefined") {
     return false;
   }
   return hash1 === hash2;
 }
-const diffFilter$2 = function arraysDiffFilter(context2) {
-  if (!context2.leftIsArray) {
+const diffFilter$2 = function arraysDiffFilter(context) {
+  if (!context.leftIsArray) {
     return;
   }
   const matchContext = {
-    objectHash: context2.options && context2.options.objectHash,
-    matchByPosition: context2.options && context2.options.matchByPosition
+    objectHash: context.options && context.options.objectHash,
+    matchByPosition: context.options && context.options.matchByPosition
   };
   let commonHead = 0;
   let commonTail = 0;
   let index;
   let index1;
   let index2;
-  const array1 = context2.left;
-  const array2 = context2.right;
+  const array1 = context.left;
+  const array2 = context.right;
   const len1 = array1.length;
   const len2 = array2.length;
   let child;
@@ -13264,20 +13264,20 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
   while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
     index = commonHead;
     child = new DiffContext(array1[index], array2[index]);
-    context2.push(child, index);
+    context.push(child, index);
     commonHead++;
   }
   while (commonTail + commonHead < len1 && commonTail + commonHead < len2 && matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)) {
     index1 = len1 - 1 - commonTail;
     index2 = len2 - 1 - commonTail;
     child = new DiffContext(array1[index1], array2[index2]);
-    context2.push(child, index2);
+    context.push(child, index2);
     commonTail++;
   }
   let result;
   if (commonHead + commonTail === len1) {
     if (len1 === len2) {
-      context2.setResult(void 0).exit();
+      context.setResult(void 0).exit();
       return;
     }
     result = result || {
@@ -13286,7 +13286,7 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
     for (index = commonHead; index < len2 - commonTail; index++) {
       result[index] = [array2[index]];
     }
-    context2.setResult(result).exit();
+    context.setResult(result).exit();
     return;
   }
   if (commonHead + commonTail === len2) {
@@ -13296,7 +13296,7 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
     for (index = commonHead; index < len1 - commonTail; index++) {
       result[`_${index}`] = [array1[index], 0, 0];
     }
-    context2.setResult(result).exit();
+    context.setResult(result).exit();
     return;
   }
   delete matchContext.hashCache1;
@@ -13315,11 +13315,11 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
     }
   }
   let detectMove = true;
-  if (context2.options && context2.options.arrays && context2.options.arrays.detectMove === false) {
+  if (context.options && context.options.arrays && context.options.arrays.detectMove === false) {
     detectMove = false;
   }
   let includeValueOnMove = false;
-  if (context2.options && context2.options.arrays && context2.options.arrays.includeValueOnMove) {
+  if (context.options && context.options.arrays && context.options.arrays.includeValueOnMove) {
     includeValueOnMove = true;
   }
   const removedItemsLength = removedItems.length;
@@ -13337,7 +13337,7 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
             }
             index2 = index;
             child = new DiffContext(array1[index1], array2[index2]);
-            context2.push(child, index2);
+            context.push(child, index2);
             removedItems.splice(removeItemIndex1, 1);
             isMove = true;
             break;
@@ -13351,10 +13351,10 @@ const diffFilter$2 = function arraysDiffFilter(context2) {
       index1 = seq.indices1[indexOnArray2] + commonHead;
       index2 = seq.indices2[indexOnArray2] + commonHead;
       child = new DiffContext(array1[index1], array2[index2]);
-      context2.push(child, index2);
+      context.push(child, index2);
     }
   }
-  context2.setResult(result).exit();
+  context.setResult(result).exit();
 };
 diffFilter$2.filterName = "arrays";
 const compare = {
@@ -13365,18 +13365,18 @@ const compare = {
     return (a2, b2) => a2[name] - b2[name];
   }
 };
-const patchFilter$1 = function nestedPatchFilter2(context2) {
-  if (!context2.nested) {
+const patchFilter$1 = function nestedPatchFilter2(context) {
+  if (!context.nested) {
     return;
   }
-  const nestedDelta = context2.delta;
+  const nestedDelta = context.delta;
   if (nestedDelta._t !== "a") {
     return;
   }
   let index;
   let index1;
   const delta = nestedDelta;
-  const array = context2.left;
+  const array = context.left;
   let toRemove = [];
   let toInsert = [];
   const toModify = [];
@@ -13429,50 +13429,50 @@ const patchFilter$1 = function nestedPatchFilter2(context2) {
     for (index = 0; index < toModifyLength; index++) {
       const modification = toModify[index];
       child = new PatchContext(array[modification.index], modification.delta);
-      context2.push(child, modification.index);
+      context.push(child, modification.index);
     }
   }
-  if (!context2.children) {
-    context2.setResult(array).exit();
+  if (!context.children) {
+    context.setResult(array).exit();
     return;
   }
-  context2.exit();
+  context.exit();
 };
 patchFilter$1.filterName = "arrays";
-const collectChildrenPatchFilter2 = function collectChildrenPatchFilter3(context2) {
-  if (!context2 || !context2.children) {
+const collectChildrenPatchFilter2 = function collectChildrenPatchFilter3(context) {
+  if (!context || !context.children) {
     return;
   }
-  const deltaWithChildren = context2.delta;
+  const deltaWithChildren = context.delta;
   if (deltaWithChildren._t !== "a") {
     return;
   }
-  const array = context2.left;
-  const length = context2.children.length;
+  const array = context.left;
+  const length = context.children.length;
   let child;
   for (let index = 0; index < length; index++) {
-    child = context2.children[index];
+    child = context.children[index];
     const arrayIndex = child.childName;
     array[arrayIndex] = child.result;
   }
-  context2.setResult(array).exit();
+  context.setResult(array).exit();
 };
 collectChildrenPatchFilter2.filterName = "arraysCollectChildren";
-const reverseFilter$1 = function arraysReverseFilter(context2) {
-  if (!context2.nested) {
-    const nonNestedDelta = context2.delta;
+const reverseFilter$1 = function arraysReverseFilter(context) {
+  if (!context.nested) {
+    const nonNestedDelta = context.delta;
     if (nonNestedDelta[2] === ARRAY_MOVE) {
       const arrayMoveDelta = nonNestedDelta;
-      context2.newName = `_${arrayMoveDelta[1]}`;
-      context2.setResult([
+      context.newName = `_${arrayMoveDelta[1]}`;
+      context.setResult([
         arrayMoveDelta[0],
-        parseInt(context2.childName.substring(1), 10),
+        parseInt(context.childName.substring(1), 10),
         ARRAY_MOVE
       ]).exit();
     }
     return;
   }
-  const nestedDelta = context2.delta;
+  const nestedDelta = context.delta;
   if (nestedDelta._t !== "a") {
     return;
   }
@@ -13484,9 +13484,9 @@ const reverseFilter$1 = function arraysReverseFilter(context2) {
       continue;
     }
     child = new ReverseContext(arrayDelta[name]);
-    context2.push(child, name);
+    context.push(child, name);
   }
-  context2.exit();
+  context.exit();
 };
 reverseFilter$1.filterName = "arrays";
 const reverseArrayDeltaIndex = (delta, index, itemDelta) => {
@@ -13522,22 +13522,22 @@ const reverseArrayDeltaIndex = (delta, index, itemDelta) => {
   }
   return reverseIndex;
 };
-const collectChildrenReverseFilter = (context2) => {
-  if (!context2 || !context2.children) {
+const collectChildrenReverseFilter = (context) => {
+  if (!context || !context.children) {
     return;
   }
-  const deltaWithChildren = context2.delta;
+  const deltaWithChildren = context.delta;
   if (deltaWithChildren._t !== "a") {
     return;
   }
   const arrayDelta = deltaWithChildren;
-  const length = context2.children.length;
+  const length = context.children.length;
   let child;
   const delta = {
     _t: "a"
   };
   for (let index = 0; index < length; index++) {
-    child = context2.children[index];
+    child = context.children[index];
     let name = child.newName;
     if (typeof name === "undefined") {
       name = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result);
@@ -13546,23 +13546,23 @@ const collectChildrenReverseFilter = (context2) => {
       delta[name] = child.result;
     }
   }
-  context2.setResult(delta).exit();
+  context.setResult(delta).exit();
 };
 collectChildrenReverseFilter.filterName = "arraysCollectChildren";
-const diffFilter$1 = function datesDiffFilter(context2) {
-  if (context2.left instanceof Date) {
-    if (context2.right instanceof Date) {
-      if (context2.left.getTime() !== context2.right.getTime()) {
-        context2.setResult([context2.left, context2.right]);
+const diffFilter$1 = function datesDiffFilter(context) {
+  if (context.left instanceof Date) {
+    if (context.right instanceof Date) {
+      if (context.left.getTime() !== context.right.getTime()) {
+        context.setResult([context.left, context.right]);
       } else {
-        context2.setResult(void 0);
+        context.setResult(void 0);
       }
     } else {
-      context2.setResult([context2.left, context2.right]);
+      context.setResult([context.left, context.right]);
     }
-    context2.exit();
-  } else if (context2.right instanceof Date) {
-    context2.setResult([context2.left, context2.right]).exit();
+    context.exit();
+  } else if (context.right instanceof Date) {
+    context.setResult([context.left, context.right]).exit();
   }
 };
 diffFilter$1.filterName = "dates";
@@ -13601,37 +13601,37 @@ function getDiffMatchPatch(options, required) {
   }
   return cachedDiffPatch;
 }
-const diffFilter = function textsDiffFilter(context2) {
-  if (context2.leftType !== "string") {
+const diffFilter = function textsDiffFilter(context) {
+  if (context.leftType !== "string") {
     return;
   }
-  const left = context2.left;
-  const right = context2.right;
-  const minLength = context2.options && context2.options.textDiff && context2.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
+  const left = context.left;
+  const right = context.right;
+  const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
   if (left.length < minLength || right.length < minLength) {
-    context2.setResult([left, right]).exit();
+    context.setResult([left, right]).exit();
     return;
   }
-  const diffMatchPatch = getDiffMatchPatch(context2.options);
+  const diffMatchPatch = getDiffMatchPatch(context.options);
   if (!diffMatchPatch) {
-    context2.setResult([left, right]).exit();
+    context.setResult([left, right]).exit();
     return;
   }
   const diff2 = diffMatchPatch.diff;
-  context2.setResult([diff2(left, right), 0, TEXT_DIFF]).exit();
+  context.setResult([diff2(left, right), 0, TEXT_DIFF]).exit();
 };
 diffFilter.filterName = "texts";
-const patchFilter = function textsPatchFilter(context2) {
-  if (context2.nested) {
+const patchFilter = function textsPatchFilter(context) {
+  if (context.nested) {
     return;
   }
-  const nonNestedDelta = context2.delta;
+  const nonNestedDelta = context.delta;
   if (nonNestedDelta[2] !== TEXT_DIFF) {
     return;
   }
   const textDiffDelta = nonNestedDelta;
-  const patch = getDiffMatchPatch(context2.options, true).patch;
-  context2.setResult(patch(context2.left, textDiffDelta[0])).exit();
+  const patch = getDiffMatchPatch(context.options, true).patch;
+  context.setResult(patch(context.left, textDiffDelta[0])).exit();
 };
 patchFilter.filterName = "texts";
 const textDeltaReverse = function(delta) {
@@ -13663,16 +13663,16 @@ const textDeltaReverse = function(delta) {
   }
   return lines.join("\n");
 };
-const reverseFilter = function textsReverseFilter(context2) {
-  if (context2.nested) {
+const reverseFilter = function textsReverseFilter(context) {
+  if (context.nested) {
     return;
   }
-  const nonNestedDelta = context2.delta;
+  const nonNestedDelta = context.delta;
   if (nonNestedDelta[2] !== TEXT_DIFF) {
     return;
   }
   const textDiffDelta = nonNestedDelta;
-  context2.setResult([textDeltaReverse(textDiffDelta[0]), 0, TEXT_DIFF]).exit();
+  context.setResult([textDeltaReverse(textDiffDelta[0]), 0, TEXT_DIFF]).exit();
 };
 reverseFilter.filterName = "texts";
 class DiffPatcher {
@@ -13728,23 +13728,23 @@ const arrayKeyToSortNumber = (key2) => {
 const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
 class BaseFormatter {
   format(delta, left) {
-    const context2 = {};
-    this.prepareContext(context2);
-    const preparedContext = context2;
+    const context = {};
+    this.prepareContext(context);
+    const preparedContext = context;
     this.recurse(preparedContext, delta, left);
     return this.finalize(preparedContext);
   }
-  prepareContext(context2) {
-    context2.buffer = [];
-    context2.out = function(...args) {
+  prepareContext(context) {
+    context.buffer = [];
+    context.out = function(...args) {
       this.buffer.push(...args);
     };
   }
-  typeFormattterNotFound(context2, deltaType) {
+  typeFormattterNotFound(context, deltaType) {
     throw new Error(`cannot format delta type: ${deltaType}`);
   }
   /* eslint-disable @typescript-eslint/no-unused-vars */
-  typeFormattterErrorFormatter(context2, err2, delta, leftValue, key2, leftKey, movedFrom) {
+  typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom) {
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */
   finalize({ buffer: buffer2 }) {
@@ -13752,7 +13752,7 @@ class BaseFormatter {
       return buffer2.join("");
     }
   }
-  recurse(context2, delta, left, key2, leftKey, movedFrom, isLast) {
+  recurse(context, delta, left, key2, leftKey, movedFrom, isLast) {
     const useMoveOriginHere = delta && movedFrom;
     const leftValue = useMoveOriginHere ? movedFrom.value : left;
     if (typeof delta === "undefined" && typeof key2 === "undefined") {
@@ -13761,29 +13761,29 @@ class BaseFormatter {
     const type = this.getDeltaType(delta, movedFrom);
     const nodeType = type === "node" ? delta._t === "a" ? "array" : "object" : "";
     if (typeof key2 !== "undefined") {
-      this.nodeBegin(context2, key2, leftKey, type, nodeType, isLast);
+      this.nodeBegin(context, key2, leftKey, type, nodeType, isLast);
     } else {
-      this.rootBegin(context2, type, nodeType);
+      this.rootBegin(context, type, nodeType);
     }
     let typeFormattter;
     try {
-      typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context2, type);
-      typeFormattter.call(this, context2, delta, leftValue, key2, leftKey, movedFrom);
+      typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
+      typeFormattter.call(this, context, delta, leftValue, key2, leftKey, movedFrom);
     } catch (err2) {
-      this.typeFormattterErrorFormatter(context2, err2, delta, leftValue, key2, leftKey, movedFrom);
+      this.typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom);
       if (typeof console !== "undefined" && console.error) {
         console.error(err2.stack);
       }
     }
     if (typeof key2 !== "undefined") {
-      this.nodeEnd(context2, key2, leftKey, type, nodeType, isLast);
+      this.nodeEnd(context, key2, leftKey, type, nodeType, isLast);
     } else {
-      this.rootEnd(context2, type, nodeType);
+      this.rootEnd(context, type, nodeType);
     }
   }
-  formatDeltaChildren(context2, delta, left) {
+  formatDeltaChildren(context, delta, left) {
     this.forEachDeltaKey(delta, left, (key2, leftKey, movedFrom, isLast) => {
-      this.recurse(context2, delta[key2], left ? left[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+      this.recurse(context, delta[key2], left ? left[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
     });
   }
   forEachDeltaKey(delta, left, fn) {
@@ -13896,85 +13896,85 @@ class BaseFormatter {
   }
 }
 class HtmlFormatter extends BaseFormatter {
-  typeFormattterErrorFormatter(context2, err2) {
-    context2.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
+  typeFormattterErrorFormatter(context, err2) {
+    context.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
   }
-  formatValue(context2, value) {
-    context2.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
+  formatValue(context, value) {
+    context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
   }
-  formatTextDiffString(context2, value) {
+  formatTextDiffString(context, value) {
     const lines = this.parseTextDiff(value);
-    context2.out('<ul class="jsondiffpatch-textdiff">');
+    context.out('<ul class="jsondiffpatch-textdiff">');
     for (let i = 0, l2 = lines.length; i < l2; i++) {
       const line2 = lines[i];
-      context2.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
+      context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
       const pieces = line2.pieces;
       for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
         const piece = pieces[pieceIndex];
-        context2.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
+        context.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
       }
-      context2.out("</div></li>");
+      context.out("</div></li>");
     }
-    context2.out("</ul>");
+    context.out("</ul>");
   }
-  rootBegin(context2, type, nodeType) {
+  rootBegin(context, type, nodeType) {
     const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-    context2.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
+    context.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
   }
-  rootEnd(context2) {
-    context2.out(`</div>${context2.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
+  rootEnd(context) {
+    context.out(`</div>${context.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
   }
-  nodeBegin(context2, key2, leftKey, type, nodeType) {
+  nodeBegin(context, key2, leftKey, type, nodeType) {
     const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-    context2.out(`<li class="${nodeClass}" data-key="${leftKey}"><div class="jsondiffpatch-property-name">${leftKey}</div>`);
+    context.out(`<li class="${nodeClass}" data-key="${leftKey}"><div class="jsondiffpatch-property-name">${leftKey}</div>`);
   }
-  nodeEnd(context2) {
-    context2.out("</li>");
+  nodeEnd(context) {
+    context.out("</li>");
   }
-  format_unchanged(context2, delta, left) {
+  format_unchanged(context, delta, left) {
     if (typeof left === "undefined") {
       return;
     }
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context2, left);
-    context2.out("</div>");
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, left);
+    context.out("</div>");
   }
-  format_movedestination(context2, delta, left) {
+  format_movedestination(context, delta, left) {
     if (typeof left === "undefined") {
       return;
     }
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context2, left);
-    context2.out("</div>");
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, left);
+    context.out("</div>");
   }
-  format_node(context2, delta, left) {
+  format_node(context, delta, left) {
     const nodeType = delta._t === "a" ? "array" : "object";
-    context2.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-    this.formatDeltaChildren(context2, delta, left);
-    context2.out("</ul>");
+    context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
+    this.formatDeltaChildren(context, delta, left);
+    context.out("</ul>");
   }
-  format_added(context2, delta) {
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context2, delta[0]);
-    context2.out("</div>");
+  format_added(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out("</div>");
   }
-  format_modified(context2, delta) {
-    context2.out('<div class="jsondiffpatch-value jsondiffpatch-left-value">');
-    this.formatValue(context2, delta[0]);
-    context2.out('</div><div class="jsondiffpatch-value jsondiffpatch-right-value">');
-    this.formatValue(context2, delta[1]);
-    context2.out("</div>");
+  format_modified(context, delta) {
+    context.out('<div class="jsondiffpatch-value jsondiffpatch-left-value">');
+    this.formatValue(context, delta[0]);
+    context.out('</div><div class="jsondiffpatch-value jsondiffpatch-right-value">');
+    this.formatValue(context, delta[1]);
+    context.out("</div>");
   }
-  format_deleted(context2, delta) {
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context2, delta[0]);
-    context2.out("</div>");
+  format_deleted(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out("</div>");
   }
-  format_moved(context2, delta) {
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatValue(context2, delta[0]);
-    context2.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
-    context2.out(
+  format_moved(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatValue(context, delta[0]);
+    context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
+    context.out(
       /* jshint multistr: true */
       `<div class="jsondiffpatch-arrow" style="position: relative; left: -34px;">
           <svg width="30" height="60" style="position: absolute; display: none;">
@@ -13991,12 +13991,12 @@ class HtmlFormatter extends BaseFormatter {
           </svg>
       </div>`
     );
-    context2.hasArrows = true;
+    context.hasArrows = true;
   }
-  format_textdiff(context2, delta) {
-    context2.out('<div class="jsondiffpatch-value">');
-    this.formatTextDiffString(context2, delta[0]);
-    context2.out("</div>");
+  format_textdiff(context, delta) {
+    context.out('<div class="jsondiffpatch-value">');
+    this.formatTextDiffString(context, delta[0]);
+    context.out("</div>");
   }
 }
 function htmlEscape(text2) {
@@ -15875,7 +15875,7 @@ const SampleDialog = ({
   prevSample,
   sampleStatus,
   sampleError,
-  showingSampleDialog: showingSampleDialog2,
+  showingSampleDialog,
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
@@ -15918,7 +15918,7 @@ const SampleDialog = ({
     },
     [prevSample, nextSample]
   );
-  const children = useMemo(() => {
+  const children = T(() => {
     return sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
           id=${id}
           sample=${sample}
@@ -15936,7 +15936,7 @@ const SampleDialog = ({
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
-      visible=${showingSampleDialog2}
+      visible=${showingSampleDialog}
       onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
       initialScrollPositionRef=${sampleScrollPositionRef}
@@ -15963,21 +15963,21 @@ const dirname = (path) => {
   return pathparts.join("/");
 };
 function throttle(func, wait, options) {
-  var context2, args, result;
+  var context, args, result;
   var timeout = null;
   var previous = 0;
   if (!options) options = {};
   var later = function() {
     previous = options.leading === false ? 0 : Date.now();
     timeout = null;
-    result = func.apply(context2, args);
-    if (!timeout) context2 = args = null;
+    result = func.apply(context, args);
+    if (!timeout) context = args = null;
   };
   return function() {
     var now = Date.now();
     if (!previous && options.leading === false) previous = now;
     var remaining = wait - (now - previous);
-    context2 = this;
+    context = this;
     args = arguments;
     if (remaining <= 0 || remaining > wait) {
       if (timeout) {
@@ -15985,8 +15985,8 @@ function throttle(func, wait, options) {
         timeout = null;
       }
       previous = now;
-      result = func.apply(context2, args);
-      if (!timeout) context2 = args = null;
+      result = func.apply(context, args);
+      if (!timeout) context = args = null;
     } else if (!timeout && options.trailing !== false) {
       timeout = setTimeout(later, remaining);
     }
@@ -15994,7 +15994,7 @@ function throttle(func, wait, options) {
   };
 }
 function debounce(func, wait, options = {}) {
-  let timeout, context2, args, result;
+  let timeout, context, args, result;
   let lastCallTime = null;
   const later = () => {
     const last = Date.now() - lastCallTime;
@@ -16003,13 +16003,13 @@ function debounce(func, wait, options = {}) {
     } else {
       timeout = null;
       if (!options.leading) {
-        result = func.apply(context2, args);
-        if (!timeout) context2 = args = null;
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
       }
     }
   };
   return function() {
-    context2 = this;
+    context = this;
     args = arguments;
     lastCallTime = Date.now();
     const callNow = options.leading && !timeout;
@@ -16017,8 +16017,8 @@ function debounce(func, wait, options = {}) {
       timeout = setTimeout(later, wait);
     }
     if (callNow) {
-      result = func.apply(context2, args);
-      context2 = args = null;
+      result = func.apply(context, args);
+      context = args = null;
     }
     return result;
   };
@@ -16853,9 +16853,7 @@ const SamplesTab = ({
   nextSample,
   previousSample,
   selectedSampleTab,
-  setSelectedSampleTab,
-  sampleScrollPositionRef,
-  setSampleScrollPosition
+  setSelectedSampleTab
 }) => {
   const [items, setItems] = h([]);
   const showSample = q(
@@ -20708,8 +20706,6 @@ const TaskView = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
-  nextSample,
-  previousSample,
   sampleStatus,
   sampleError,
   sort,
@@ -20759,7 +20755,6 @@ const TaskView = ({
             sample=${selectedSample}
             sampleStatus=${sampleStatus}
             sampleError=${sampleError}
-            showingSampleDialog=${showingSampleDialog}
             setShowingSampleDialog=${setShowingSampleDialog}
             samples=${samples}
             sampleMode=${sampleMode}
@@ -20909,7 +20904,6 @@ const TaskView = ({
     selectedSample,
     sampleStatus,
     sampleError,
-    showingSampleDialog,
     setShowingSampleDialog,
     groupBy,
     groupByOrder,
@@ -22447,7 +22441,7 @@ function App({
   const workspaceTabScrollPosition = A(
     (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
   );
-  const [showingSampleDialog2, setShowingSampleDialog] = h(
+  const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
   );
   const [status, setStatus] = h(
@@ -22489,7 +22483,7 @@ function App({
       sampleStatus,
       sampleError,
       selectedSampleTab,
-      showingSampleDialog: showingSampleDialog2,
+      showingSampleDialog,
       status,
       capabilities,
       showFind,
@@ -22520,7 +22514,7 @@ function App({
     sampleStatus,
     sampleError,
     selectedSampleTab,
-    showingSampleDialog2,
+    showingSampleDialog,
     status,
     capabilities,
     showFind,
@@ -22571,7 +22565,7 @@ function App({
     sampleStatus,
     sampleError,
     selectedSampleTab,
-    showingSampleDialog2,
+    showingSampleDialog,
     status,
     capabilities,
     showFind,
@@ -22644,7 +22638,7 @@ function App({
         setSelectedSampleTab(defaultTab);
       }
     },
-    [selectedSampleTab, showingSampleDialog2]
+    [selectedSampleTab, showingSampleDialog]
   );
   const clearSelectedLog = q(() => {
     setSelectedLog({ contents: void 0, name: void 0 });
@@ -22668,7 +22662,7 @@ function App({
     if (loadingSampleIndexRef.current === selectedSampleIndex) {
       return;
     }
-    if (!showingSampleDialog2 && ((_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries.length) > 1) {
+    if (!showingSampleDialog && ((_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries.length) > 1) {
       return;
     }
     if (selectedSampleIndex < filteredSamples.length) {
@@ -22708,7 +22702,7 @@ function App({
   }, [
     selectedSample,
     selectedSampleIndex,
-    showingSampleDialog2,
+    showingSampleDialog,
     selectedLog,
     filteredSamples,
     setSelectedSample,
@@ -23019,7 +23013,7 @@ function App({
     }
   }, [selectedSampleIndex, filteredSamples, sampleStatus, previousSampleIndex]);
   y(() => {
-    if (showingSampleDialog2) {
+    if (showingSampleDialog) {
       setTimeout(() => {
         sampleDialogRef.current.base.focus();
       }, 0);
@@ -23028,7 +23022,7 @@ function App({
         if (taskListRef.current) ;
       }, 0);
     }
-  }, [showingSampleDialog2]);
+  }, [showingSampleDialog]);
   const sampleTitle = selectedSample ? `Sample ${selectedSample.id} ${((_b2 = selectedLog.contents) == null ? void 0 : _b2.eval.config.epochs) > 1 ? `Epoch ${selectedSample.epoch}` : ""}` : "";
   return m$1`
     <${AppErrorBoundary}>
@@ -23050,7 +23044,7 @@ function App({
       ${status.error ? m$1`<${ErrorPanel}
               title="An error occurred while loading this task."
               error=${status.error}
-            />` : showingSampleDialog2 ? m$1`
+            />` : showingSampleDialog ? m$1`
                 <${SampleDialog}
                   id=${(selectedSample == null ? void 0 : selectedSample.id) || ""}
                   title=${sampleTitle}
@@ -23060,13 +23054,14 @@ function App({
                   sampleStatus=${sampleStatus}
                   sampleError=${sampleError}
                   sampleDescriptor=${samplesDescriptor}
-                  showingSampleDialog=${showingSampleDialog2}
+                  showingSampleDialog=${showingSampleDialog}
                   setShowingSampleDialog=${setShowingSampleDialog}
                   selectedTab=${selectedSampleTab}
                   setSelectedTab=${setSelectedSampleTab}
                   nextSample=${nextSample}
                   prevSample=${previousSample}
-                  context=${context}
+                  sampleScrollPositionRef=${sampleScrollPosition}
+                  setSampleScrollPosition=${setSampleScrollPosition}
                 />
               ` : selectedLog.contents === void 0 ? m$1`<${TaskList}
                   ref=${taskListRef}
@@ -23084,51 +23079,48 @@ function App({
   )}"
                   onPageChanged="${setLogHeaderPage}"
                 />` : m$1`<${TaskView}
-                task_id=${(_f = (_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.eval) == null ? void 0 : _f.task_id}
-                logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-                evalStatus=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.status}
-                evalError=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.error}
-                evalVersion=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.version}
-                evalSpec=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval}
-                evalPlan=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.plan}
-                evalStats=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.stats}
-                evalResults=${(_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.results}
-                showToggle=${showToggle}
-                onToggle=${clearSelectedLog}
-                samples=${filteredSamples}
-                sampleMode=${sampleMode}
-                groupBy=${groupBy}
-                groupByOrder=${groupByOrder}
-                sampleStatus=${sampleStatus}
-                sampleError=${sampleError}
-                samplesDescriptor=${samplesDescriptor}
-                refreshLog=${refreshLog}
-                capabilities=${capabilities}
-                selected=${selectedLogIndex}
-                selectedSample=${selectedSample}
-                selectedSampleIndex=${selectedSampleIndex}
-                setSelectedSampleIndex=${setSelectedSampleIndex}
-                showingSampleDialog=${showingSampleDialog2}
-                setShowingSampleDialog=${handleSampleShowingDialog}
-                selectedTab=${selectedWorkspaceTab}
-                setSelectedTab=${setSelectedWorkspaceTab}
-                selectedSampleTab=${selectedSampleTab}
-                setSelectedSampleTab=${setSelectedSampleTab}
-                sort=${sort}
-                setSort=${setSort}
-                epochs=${(_p = (_o = (_n = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _n.eval) == null ? void 0 : _o.config) == null ? void 0 : _p.epochs}
-                epoch=${epoch}
-                setEpoch=${setEpoch}
-                filter=${filter}
-                setFilter=${setFilter}
-                score=${score}
-                setScore=${setScore}
-                scores=${scores}
-                sampleScrollPositionRef=${sampleScrollPosition}
-                setSampleScrollPosition=${setSampleScrollPosition}
-                workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
-                setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
-              />`}
+                  task_id=${(_f = (_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.eval) == null ? void 0 : _f.task_id}
+                  logFileName=${selectedLog == null ? void 0 : selectedLog.name}
+                  evalStatus=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.status}
+                  evalError=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.error}
+                  evalVersion=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.version}
+                  evalSpec=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval}
+                  evalPlan=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.plan}
+                  evalStats=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.stats}
+                  evalResults=${(_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.results}
+                  showToggle=${showToggle}
+                  onToggle=${clearSelectedLog}
+                  samples=${filteredSamples}
+                  sampleMode=${sampleMode}
+                  groupBy=${groupBy}
+                  groupByOrder=${groupByOrder}
+                  sampleStatus=${sampleStatus}
+                  sampleError=${sampleError}
+                  samplesDescriptor=${samplesDescriptor}
+                  refreshLog=${refreshLog}
+                  capabilities=${capabilities}
+                  selected=${selectedLogIndex}
+                  selectedSample=${selectedSample}
+                  selectedSampleIndex=${selectedSampleIndex}
+                  setSelectedSampleIndex=${setSelectedSampleIndex}
+                  setShowingSampleDialog=${handleSampleShowingDialog}
+                  selectedTab=${selectedWorkspaceTab}
+                  setSelectedTab=${setSelectedWorkspaceTab}
+                  selectedSampleTab=${selectedSampleTab}
+                  setSelectedSampleTab=${setSelectedSampleTab}
+                  sort=${sort}
+                  setSort=${setSort}
+                  epochs=${(_p = (_o = (_n = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _n.eval) == null ? void 0 : _o.config) == null ? void 0 : _p.epochs}
+                  epoch=${epoch}
+                  setEpoch=${setEpoch}
+                  filter=${filter}
+                  setFilter=${setFilter}
+                  score=${score}
+                  setScore=${setScore}
+                  scores=${scores}
+                  workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+                  setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+                />`}
     </div>
     ${afterBodyElements}
     </${AppErrorBoundary}>
