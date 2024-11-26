@@ -168,17 +168,6 @@ export function App({
   );
 
   const afterBodyElements = [];
-
-  /** @type {import("./Types.mjs").RenderContext} */
-  const context = useMemo(
-    () => ({
-      afterBody: (el) => {
-        afterBodyElements.push(el);
-      },
-    }),
-    [],
-  );
-
   const saveState = useCallback(() => {
     const state = {
       logs,
@@ -346,7 +335,6 @@ export function App({
       scores,
       selectedLog.contents?.sampleSummaries,
       selectedLog.contents?.eval?.config?.epochs || 1,
-      context,
       score,
     );
   }, [selectedLog, scores, score]);
@@ -915,7 +903,6 @@ export function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}

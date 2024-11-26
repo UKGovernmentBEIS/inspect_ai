@@ -17,11 +17,10 @@ const kPlanCardBodyId = "task-plan-card-body";
  * @param {import("../types/log").EvalSpec} [props.evalSpec] - The sample
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The task id
  * @param {import("../types/log").EvalScore[]} [props.scores] - the samples
- * @param {import("../Types.mjs").RenderContext} props.context - is this off canvas
  *
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
+export const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -34,7 +33,6 @@ export const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
           evaluation=${evalSpec}
           plan=${evalPlan}
           scores=${scores}
-          context=${context}
         />
       </${CardBody}>
     </${Card}>
@@ -53,7 +51,7 @@ const planSepStyle = {
   marginBottom: "-0.1em",
 };
 
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   // Merge scores into params
   if (scores.length > 1) {
     params["scores"] = scores;
@@ -63,7 +61,6 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
@@ -87,18 +84,14 @@ const DatasetDetailView = ({ dataset, style }) => {
   />`;
 };
 
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = html` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
 
   const details = steps?.map((step, index) => {
     return html`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -136,7 +129,7 @@ const DetailStep = ({ icon, name, params, style }) => {
   `;
 };
 
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -228,9 +221,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: html`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `,
+    contents: html` <${SolversDetailView} steps=${steps} /> `,
   });
 
   if (scores) {
@@ -253,7 +244,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key}
           scores=${scorers[key].scores}
           params=${scorers[key].params}
-          context=${context}
         />`;
       });
 

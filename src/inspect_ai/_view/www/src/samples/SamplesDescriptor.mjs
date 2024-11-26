@@ -77,7 +77,6 @@ import {
  * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
- * @param {import("..//Types.mjs").RenderContext} context - The application context
  * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
  * @returns {SamplesDescriptor} The SamplesDescriptor
  */
@@ -85,7 +84,6 @@ export const createsSamplesDescriptor = (
   scorers,
   samples,
   epochs,
-  context,
   selectedScore,
 ) => {
   if (!samples) {
@@ -362,7 +360,7 @@ export const createsSamplesDescriptor = (
 
 /**
  * @typedef {Object} ScoreCategorizer
- * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").RenderContext) => ScoreDescriptor} describe
+ * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]) => ScoreDescriptor} describe
  */
 const scoreCategorizers = [
   {

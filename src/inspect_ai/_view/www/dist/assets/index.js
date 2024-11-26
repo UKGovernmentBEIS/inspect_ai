@@ -15647,46 +15647,54 @@ const NavPills = ({ children }) => {
   const [activeItem, setActiveItem] = h(children[0].props["title"]);
   const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
     const active = activeItem2 === title;
-    return m$1`
-        <li class="nav-item">
-            <button
-            type="button"
-            role="tab"
-            aria-selected=${active}
-            style=${{
+    return m$1` <li class="nav-item">
+      <button
+        type="button"
+        role="tab"
+        aria-selected=${active}
+        style=${{
       minWidth: "4rem",
       ...TextStyle.label,
       fontSize: FontSize.small,
       padding: "0.1rem  0.6rem",
       borderRadius: "var(--bs-border-radius)"
     }}
-            class="nav-link ${active ? "active " : ""}"
-            onclick=${() => {
+        class="nav-link ${active ? "active " : ""}"
+        onclick=${() => {
       setActiveItem2(title);
     }}
-            >
-            ${title}
-            </button>
-        </li>`;
+      >
+        ${title}
+      </button>
+    </li>`;
   };
   const navPills = children.map((nav, idx) => {
     var _a2;
     const title = typeof nav === "object" ? ((_a2 = nav["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
-    return m$1`<${NavPill} title=${title} activeItem=${activeItem} setActiveItem=${setActiveItem}/>`;
+    return m$1`<${NavPill}
+      title=${title}
+      activeItem=${activeItem}
+      setActiveItem=${setActiveItem}
+    />`;
   });
   const navBodies = children.map((child) => {
     var _a2;
-    return m$1`
-        <div style=${{ display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none" }}>
-        ${child}
-        </div>`;
+    return m$1` <div
+      style=${{
+      display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none"
+    }}
+    >
+      ${child}
+    </div>`;
   });
   return m$1`<ul
-        class="nav nav-pills card-header-pills"
-        style=${{ marginRight: "0" }}
-        role="tablist"
-        aria-orientation="horizontal"
-    >${navPills}</ul>
+      class="nav nav-pills card-header-pills"
+      style=${{ marginRight: "0" }}
+      role="tablist"
+      aria-orientation="horizontal"
+    >
+      ${navPills}
+    </ul>
     ${navBodies}`;
 };
 const ChatMessageRenderer = {
@@ -15995,7 +16003,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
+const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -16008,7 +16016,6 @@ const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
           evaluation=${evalSpec}
           plan=${evalPlan}
           scores=${scores}
-          context=${context}
         />
       </${CardBody}>
     </${Card}>
@@ -16024,7 +16031,7 @@ const planSepStyle = {
   marginTop: "em",
   marginBottom: "-0.1em"
 };
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   if (scores.length > 1) {
     params["scores"] = scores;
   }
@@ -16032,7 +16039,6 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
@@ -16051,17 +16057,13 @@ const DatasetDetailView = ({ dataset, style }) => {
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
   const details = steps == null ? void 0 : steps.map((step, index) => {
     return m$1`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -16094,7 +16096,7 @@ const DetailStep = ({ icon, name, params, style }) => {
     </div>
   `;
 };
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -16170,9 +16172,7 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: m$1`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `
+    contents: m$1` <${SolversDetailView} steps=${steps} /> `
   });
   if (scores) {
     const scorers = scores.reduce((accum, score) => {
@@ -16193,7 +16193,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key2}
           scores=${scorers[key2].scores}
           params=${scorers[key2].params}
-          context=${context}
         />`;
       });
       taskColumns.push({
@@ -18967,7 +18966,7 @@ const SubtaskSummary = ({ input, result }) => {
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
     <div>
-    <${Rendered} values=${result} />
+      <${Rendered} values=${result} />
     </div>
   </div>`;
 };
@@ -19912,8 +19911,7 @@ const InlineSampleDisplay = ({
   sampleError,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -19932,7 +19930,6 @@ const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
-            context=${context}
           />`}
     </div>
   </div>`;
@@ -20291,8 +20288,7 @@ const SampleDialog = ({
   selectedTab,
   setSelectedTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const tools = T(() => {
     const nextTool = {
@@ -20340,15 +20336,7 @@ const SampleDialog = ({
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
         />`;
-  }, [
-    id,
-    sample,
-    sampleDescriptor,
-    selectedTab,
-    setSelectedTab,
-    context,
-    sampleError
-  ]);
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
   const onHide = q(() => {
     setShowingSampleDialog(false);
   }, [setShowingSampleDialog]);
@@ -20795,8 +20783,7 @@ const SamplesTab = ({
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const [items, setItems] = h([]);
   const [sampleItems, setSampleItems] = h([]);
@@ -20883,7 +20870,6 @@ const SamplesTab = ({
         sampleDescriptor=${sampleDescriptor}
         selectedTab=${selectedSampleTab}
         setSelectedTab=${setSelectedSampleTab}
-        context=${context}
       />`
     );
   } else if (sampleMode === "many") {
@@ -20922,7 +20908,6 @@ const SamplesTab = ({
       setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      context=${context}
       sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />
@@ -24698,7 +24683,6 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   workspaceTabScrollPositionRef,
@@ -24748,7 +24732,6 @@ const WorkSpace = ({
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${renderContext}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
           />`;
@@ -24797,7 +24780,6 @@ const WorkSpace = ({
             evalSpec=${evalSpec}
             evalPlan=${evalPlan}
             scores=${evalResults == null ? void 0 : evalResults.scores}
-            context=${renderContext}
           />`
         ]);
         if (evalStatus !== "started") {
@@ -24898,7 +24880,6 @@ const WorkSpace = ({
     filter,
     sort,
     epoch,
-    renderContext,
     sampleScrollPositionRef,
     setSampleScrollPosition,
     epochs,
@@ -25182,7 +25163,7 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
-const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   if (!samples) {
     return void 0;
   }
@@ -25850,14 +25831,6 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = T(
-    () => ({
-      afterBody: (el) => {
-        afterBodyElements.push(el);
-      }
-    }),
-    []
-  );
   const saveState = q(() => {
     const state = {
       logs,
@@ -26011,7 +25984,6 @@ function App({
       scores,
       (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
       ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
-      context,
       score
     );
   }, [selectedLog, scores, score]);
@@ -26440,7 +26412,6 @@ function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}

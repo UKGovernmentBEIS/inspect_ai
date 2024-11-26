@@ -47,7 +47,6 @@ import {
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({
@@ -58,7 +57,6 @@ export const InlineSampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
-  context,
 }) => {
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -79,7 +77,6 @@ export const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
-            context=${context}
           />`}
     </div>
   </div>`;

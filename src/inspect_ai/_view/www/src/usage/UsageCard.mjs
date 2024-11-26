@@ -70,7 +70,6 @@ export const UsageCard = ({ stats }) => {
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("../types/log").ModelUsage1} props.usage - The identifier for this view
- * @param {Object} props.context - The
  * @returns {import("preact").JSX.Element | string} The ModelUsagePanel component.
  */
 export const ModelUsagePanel = ({ usage }) => {

@@ -77,7 +77,6 @@ import { debounce } from "../utils/sync.mjs";
  * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
  * @param {import("preact/hooks").MutableRef<number>} props.workspaceTabScrollPositionRef - The initial scroll position for the workspace tabs
  * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
- * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
@@ -120,7 +119,6 @@ export const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   workspaceTabScrollPositionRef,
@@ -178,7 +176,6 @@ export const WorkSpace = ({
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${renderContext}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
           />`;
@@ -230,7 +227,6 @@ export const WorkSpace = ({
             evalSpec=${evalSpec}
             evalPlan=${evalPlan}
             scores=${evalResults?.scores}
-            context=${renderContext}
           />`,
         ]);
 
@@ -344,7 +340,6 @@ export const WorkSpace = ({
     filter,
     sort,
     epoch,
-    renderContext,
     sampleScrollPositionRef,
     setSampleScrollPosition,
     epochs,
