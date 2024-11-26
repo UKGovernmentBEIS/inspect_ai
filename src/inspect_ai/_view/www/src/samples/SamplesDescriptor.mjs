@@ -23,10 +23,11 @@ import {
  * @property {number} epochs - The number of epochs.
  * @property {import("../api/Types.mjs").SampleSummary[]} samples - The list of sample summaries.
  * @property {import("../Types.mjs").ScoreLabel[]} scores - the list of available scores
- * @property {(sample: import("../api/Types.mjs").SampleSummary, scoreLabel: import("../Types.mjs").ScoreLabel) => ScorerDescriptor} scorerDescriptor - Returns the scorer descriptor for a sample and a specified scorer.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scoreLabel: import("../Types.mjs").ScoreLabel) => ScorerDescriptor} scorerDescriptor - Returns the scorer descriptor for a sample and a specified scorer.
  * @property {(scoreLabel: import("../Types.mjs").ScoreLabel) => ScoreDescriptor} scoreDescriptor - Provides information about the score types and how to render them.
- * @property {(sample: import("../api/Types.mjs").SampleSummary, scoreLabel: import("../Types.mjs").ScoreLabel) => SelectedScore} score - Returns information about a score for a sample.
- * @property {(sample: import("../api/Types.mjs").SampleSummary, scorer: string) => string} scoreAnswer - Returns the answer for a sample and a specified scorer.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scoreLabel: import("../Types.mjs").ScoreLabel) => SelectedScore} score - Returns information about a score for a sample.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scorer: string) => string} scoreAnswer - Returns the answer for a sample and a specified scorer.
+ */
 
 /**
  * Represents a utility summary of the samples.
@@ -34,8 +35,8 @@ import {
  * @property {EvalDescriptor} evalDescriptor - The EvalDescriptor.
  * @property {MessageShape} messageShape - The normalized sizes of input, target, and answer messages.
  * @property {ScoreDescriptor} selectedScoreDescriptor - Provides information about the score types and how to render them.
- * @property {(sample: import("../api/Types.mjs").SampleSummary) => SelectedScore} selectedScore - Returns the selected score for a sample.
- * @property {(sample: import("../api/Types.mjs").SampleSummary) => ScorerDescriptor} selectedScorerDescriptor - Returns the scorer descriptor for a sample using the selected scorer.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData) => SelectedScore} selectedScore - Returns the selected score for a sample.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData) => ScorerDescriptor} selectedScorerDescriptor - Returns the scorer descriptor for a sample using the selected scorer.
  */
 
 /**
@@ -94,7 +95,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   }
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {import("../Types.mjs").ScoreLabel} scoreLabel - the score label
    * @returns {import("../types/log").Value2} The Score
    */
@@ -118,7 +119,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {string} The answer
    */
@@ -134,7 +135,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {string} The explanation
    */
@@ -150,7 +151,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
 
   // Retrieve the metadata for a sample
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {Object} The explanation
    */
@@ -232,7 +233,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
    * @param {import("../Types.mjs").ScoreLabel} scoreLabel
    * @returns {any}
    */
@@ -249,7 +250,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
    * @param {import("../Types.mjs").ScoreLabel} scoreLabel
    * @returns {ScorerDescriptor}
    */
@@ -332,7 +333,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
    * @param {import("../Types.mjs").ScoreLabel} scoreLabel
    * @returns {SelectedScore}
    */
