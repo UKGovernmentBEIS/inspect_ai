@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 
 import { Buckets } from "./Types.mjs";
 import { ChatView } from "../ChatView.mjs";
+import { NavPills } from "../NavPills.mjs";
 
 /**
  * @type {import("./Types.mjs").ContentRenderer}
@@ -21,7 +22,12 @@ export const ChatMessageRenderer = {
   },
   render: (id, entry) => {
     return {
-      rendered: html`<${ChatSummary} id=${id} messages=${entry.value} />`,
+      rendered: html`
+        <${NavPills}>
+        <${ChatSummary} title="Summary" id=${id} messages=${entry.value} />
+        <${ChatView} title="Complete" id=${id} messages=${entry.value} />
+        </${NavPills}>
+        `,
     };
   },
 };
@@ -35,18 +41,15 @@ export const ChatMessageRenderer = {
  * @returns {import("preact").JSX.Element} The rendered ChatView component.
  */
 export const ChatSummary = ({ id, messages }) => {
-  const summaryMessages = [];
-  let seenUserMsg = false;
-  for (const message of messages.reverse()) {
-    if (seenUserMsg && message.role === "assistant") {
-      break;
-    }
 
+  // Show the last 'turn'
+  const summaryMessages = [];
+  for (const message of messages.slice().reverse()) {
     summaryMessages.unshift(message);
     if (message.role === "user") {
-      seenUserMsg = true;
+      break;
     }
   }
 
-  return html`<${ChatView} id=${id} messages=${messages} />`;
+  return html`<${ChatView} id=${id} messages=${summaryMessages} />`;
 };

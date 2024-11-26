@@ -15643,6 +15643,52 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
+const NavPills = ({ children }) => {
+  const [activeItem, setActiveItem] = h(children[0].props["title"]);
+  const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
+    const active = activeItem2 === title;
+    return m$1`
+        <li class="nav-item">
+            <button
+            type="button"
+            role="tab"
+            aria-selected=${active}
+            style=${{
+      minWidth: "4rem",
+      ...TextStyle.label,
+      fontSize: FontSize.small,
+      padding: "0.1rem  0.6rem",
+      borderRadius: "var(--bs-border-radius)"
+    }}
+            class="nav-link ${active ? "active " : ""}"
+            onclick=${() => {
+      setActiveItem2(title);
+    }}
+            >
+            ${title}
+            </button>
+        </li>`;
+  };
+  const navPills = children.map((nav, idx) => {
+    var _a2;
+    const title = typeof nav === "object" ? ((_a2 = nav["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+    return m$1`<${NavPill} title=${title} activeItem=${activeItem} setActiveItem=${setActiveItem}/>`;
+  });
+  const navBodies = children.map((child) => {
+    var _a2;
+    return m$1`
+        <div style=${{ display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none" }}>
+        ${child}
+        </div>`;
+  });
+  return m$1`<ul
+        class="nav nav-pills card-header-pills"
+        style=${{ marginRight: "0" }}
+        role="tablist"
+        aria-orientation="horizontal"
+    >${navPills}</ul>
+    ${navBodies}`;
+};
 const ChatMessageRenderer = {
   bucket: Buckets.first,
   canRender: (entry) => {
@@ -15652,21 +15698,24 @@ const ChatMessageRenderer = {
   },
   render: (id, entry) => {
     return {
-      rendered: m$1`<${ChatSummary} id=${id} messages=${entry.value} />`
+      rendered: m$1`
+        <${NavPills}>
+        <${ChatSummary} title="Summary" id=${id} messages=${entry.value} />
+        <${ChatView} title="Complete" id=${id} messages=${entry.value} />
+        </${NavPills}>
+        `
     };
   }
 };
 const ChatSummary = ({ id, messages }) => {
-  let seenUserMsg = false;
-  for (const message of messages.reverse()) {
-    if (seenUserMsg && message.role === "assistant") {
+  const summaryMessages = [];
+  for (const message of messages.slice().reverse()) {
+    summaryMessages.unshift(message);
+    if (message.role === "user") {
       break;
     }
-    if (message.role === "user") {
-      seenUserMsg = true;
-    }
   }
-  return m$1`<${ChatView} id=${id} messages=${messages} />`;
+  return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
 };
 const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
@@ -18917,7 +18966,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
+    <div>
     <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 const Rendered = ({ values }) => {
@@ -19693,14 +19744,16 @@ const fixupEventStream = (events) => {
       event: "step",
       action: "begin",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
     fixedUp.splice(initEventIndex + 2, 0, {
       timestamp: initEvent.timestamp,
       event: "step",
       action: "end",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
   }
   return fixedUp;
@@ -24912,7 +24965,14 @@ const WorkspaceDisplay = ({
         return "";
       }
     });
+    const onScroll = q(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition]
+    );
     return m$1`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
@@ -24970,7 +25030,7 @@ const WorkspaceDisplay = ({
                 scrollable=${!!tab.scrollable}
                 scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
                 setScrollPosition=${(position) => {
-        setWorkspaceTabScrollPosition(tab.id, position);
+        onScroll(tab.id, position);
       }}
                 >
                   ${tab.content()}
