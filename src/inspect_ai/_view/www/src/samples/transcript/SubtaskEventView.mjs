@@ -85,7 +85,7 @@ const SubtaskSummary = ({ input, result }) => {
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
     <div>
-    <${Rendered} values=${result} />
+      <${Rendered} values=${result} />
     </div>
   </div>`;
 };

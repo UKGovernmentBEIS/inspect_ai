@@ -15700,8 +15700,8 @@ const ChatMessageRenderer = {
     return {
       rendered: m$1`
         <${NavPills}>
-        <${ChatSummary} title="Summary" id=${id} messages=${entry.value} />
-        <${ChatView} title="Complete" id=${id} messages=${entry.value} />
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
         </${NavPills}>
         `
     };

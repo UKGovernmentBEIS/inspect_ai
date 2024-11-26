@@ -24,8 +24,8 @@ export const ChatMessageRenderer = {
     return {
       rendered: html`
         <${NavPills}>
-        <${ChatSummary} title="Summary" id=${id} messages=${entry.value} />
-        <${ChatView} title="Complete" id=${id} messages=${entry.value} />
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
         </${NavPills}>
         `,
     };
@@ -41,7 +41,6 @@ export const ChatMessageRenderer = {
  * @returns {import("preact").JSX.Element} The rendered ChatView component.
  */
 export const ChatSummary = ({ id, messages }) => {
-
   // Show the last 'turn'
   const summaryMessages = [];
   for (const message of messages.slice().reverse()) {

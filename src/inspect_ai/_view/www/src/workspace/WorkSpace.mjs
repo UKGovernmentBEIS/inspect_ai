@@ -1,6 +1,12 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -418,7 +424,6 @@ const WorkspaceDisplay = ({
       }, 100),
       [setWorkspaceTabScrollPosition],
     );
-    
 
     return html`
     
