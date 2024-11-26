@@ -73,7 +73,7 @@ async def eval_run(
     if has_sandbox:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
-            tasks, resolve_sandbox_environment(eval_sandbox), cleanup
+            resolve_sandbox_environment(eval_sandbox), tasks, cleanup
         )
 
     # resolve solver and solver spec
@@ -326,8 +326,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
 
 async def startup_sandbox_environments(
-    tasks: list[ResolvedTask],
     eval_sandbox: SandboxEnvironmentSpec | None,
+    tasks: list[ResolvedTask],
     cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
