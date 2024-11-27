@@ -1,16 +1,15 @@
 import asyncio
 import json
 import time
-import uuid
 from pathlib import Path, PurePosixPath
 from typing import (
-    Any,
     Awaitable,
     Callable,
     cast,
 )
 
 from pydantic import JsonValue
+from shortuuid import uuid
 
 from inspect_ai.util import SandboxEnvironment, sandbox
 
@@ -22,6 +21,9 @@ SERVICES_DIR = "/tmp/inspect-sandbox-services"
 ID = "id"
 METHOD = "method"
 PARAMS = "params"
+
+ERROR = "error"
+RESULT = "result"
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
@@ -103,21 +105,28 @@ class SandboxService:
         # helpers to write responses and errors
 
         async def write_response(
-            response: JsonValue | None, error: str | None = None
+            result: JsonValue | None, error: str | None = None
         ) -> None:
+            # form response payload
+            response_data = {
+                ID: request_id,
+                RESULT: result,
+                ERROR: error,
+            }
+
             # compute response path
             response_path = PurePosixPath(
                 self._responses_dir, f"{request_id}.json"
             ).as_posix()
 
             # write response
-            await self._write_text_file(response_path, json.dumps(response))
+            await self._write_text_file(response_path, json.dumps(response_data))
 
             # remove request file
-            result = await self._sandbox.exec(["rm", "-f", request_file])
-            if not result.success:
+            exec_rm = await self._sandbox.exec(["rm", "-f", request_file])
+            if not exec_rm.success:
                 raise RuntimeError(
-                    f"Error removing request file '{request_file}': {result.stderr}"
+                    f"Error removing request file '{request_file}': {exec_rm.stderr}"
                 )
 
         async def write_error_response(error: str) -> None:
@@ -140,7 +149,7 @@ class SandboxService:
         # all clear, call the method
         else:
             try:
-                params = cast(dict[str, JsonValue], request_data.get("params"))
+                params = cast(dict[str, JsonValue], request_data.get(PARAMS))
                 method = self._methods[method_name]
                 await write_response(await method(**params))
             except Exception as err:
@@ -165,51 +174,33 @@ class SandboxService:
         return ""
 
 
-def call_inspect_service(service: str, method: str, **params: JsonValue) -> JsonValue:
-    requests_dir = PurePosixPath(SERVICES_DIR, service, REQUESTS_DIR)
-    responses_dir = PurePosixPath(SERVICES_DIR, service, RESPONSES_DIR)
+def call_inspect_service(
+    service: str, method: str, params: dict[str, JsonValue]
+) -> JsonValue:
+    # directories
+    requests_dir = Path(SERVICES_DIR, service, REQUESTS_DIR)
+    responses_dir = Path(SERVICES_DIR, service, RESPONSES_DIR)
 
-    return None
+    # create request and write it
+    request_id = uuid()
+    request_data = {ID: request_id, METHOD: method, PARAMS: params}
+    request_path = requests_dir / f"{request_id}.json"
+    with open(request_path, "w") as f:
+        json.dump(request_data, f)
 
+    # wait for response
+    response_path = responses_dir / f"{request_id}.json"
+    while True:
+        time.sleep(0.2)
+        if response_path.exists():
+            # read and remove the file
+            with open(response_path, "r") as f:
+                response = json.load(f)
+            response_path.unlink()
 
-class FileRPCClient:
-    def __init__(
-        self, request_dir: str = "rpc_requests", response_dir: str = "rpc_responses"
-    ):
-        self.request_dir = Path(request_dir)
-        self.response_dir = Path(response_dir)
-        self.request_dir.mkdir(exist_ok=True)
-        self.response_dir.mkdir(exist_ok=True)
+            # raise error if necessary
+            if response[ERROR]:
+                raise Exception(response[ERROR])
 
-    async def call(self, method: str, **params) -> Any:
-        """Make an RPC call and wait for the response."""
-        request_id = str(uuid.uuid4())
-        request_data = {"id": request_id, "method": method, "params": params}
-
-        # Write request file
-        request_path = self.request_dir / f"{request_id}.request"
-        with open(request_path, "w") as f:
-            json.dump(request_data, f)
-
-        # Wait for response with adaptive polling
-        poll_interval = 0.01
-        max_interval = 0.5
-        start_time = time.time()
-
-        while True:
-            response_path = self.response_dir / f"{request_id}.response"
-            if response_path.exists():
-                with open(response_path, "r") as f:
-                    response = json.load(f)
-                response_path.unlink()
-
-                if response["error"]:
-                    raise Exception(response["error"])
-                return response["result"]
-
-            # Increase polling interval over time
-            elapsed = time.time() - start_time
-            if elapsed > 1.0:
-                poll_interval = min(poll_interval * 1.5, max_interval)
-
-            await asyncio.sleep(poll_interval)
+            # return response
+            return response[RESULT]
