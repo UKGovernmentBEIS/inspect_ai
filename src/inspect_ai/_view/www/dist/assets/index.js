@@ -90,13 +90,13 @@ function M() {
 }
 function P$1(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   var a2, p2, y2, d2, w2, _2 = t2 && t2.__k || v$1, g2 = l2.length;
-  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
+  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && E(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
 }
 function $(n2, l2, u2) {
   var t2, i, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
   for (n2.__k = [], t2 = 0; t2 < e2; t2++) null != (i = l2[t2]) && "boolean" != typeof i && "function" != typeof i ? (r2 = t2 + a2, (i = n2.__k[t2] = "string" == typeof i || "number" == typeof i || "bigint" == typeof i || i.constructor == String ? g(null, i, null, null, null) : y$1(i) ? g(b, { children: i }, null, null, null) : void 0 === i.constructor && i.__b > 0 ? g(i.type, i.props, i.key, i.ref ? i.ref : null, i.__v) : i).__ = n2, i.__b = n2.__b + 1, o2 = null, -1 !== (f2 = i.__i = L(i, u2, r2, s2)) && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i.type && (i.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : (f2 > r2 ? a2-- : a2++, i.__u |= 65536))) : i = n2.__k[t2] = null;
-  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2));
+  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), N(o2, o2));
 }
 function I(n2, l2, u2) {
   var t2, i;
@@ -113,7 +113,7 @@ function I(n2, l2, u2) {
 function L(n2, l2, u2, t2) {
   var i = n2.key, o2 = n2.type, r2 = u2 - 1, f2 = u2 + 1, e2 = l2[u2];
   if (null === e2 || e2 && i == e2.key && o2 === e2.type && 0 == (131072 & e2.__u)) return u2;
-  if (t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
+  if (("function" != typeof o2 || o2 === b || i) && t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
     if (r2 >= 0) {
       if ((e2 = l2[r2]) && 0 == (131072 & e2.__u) && i == e2.key && o2 === e2.type) return r2;
       r2--;
@@ -152,7 +152,7 @@ function F(n2) {
       var t2 = this.l[u2.type + n2];
       if (null == u2.t) u2.t = e$3++;
       else if (u2.t < t2.u) return;
-      return t2(l$1.event ? l$1.event(u2) : u2);
+      return l$1.event && (u2 = l$1.event(u2)), "handleEvent" in t2 ? t2.handleEvent(u2) : t2(u2);
     }
   };
 }
@@ -161,7 +161,7 @@ function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
   n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = V), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
       if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, S2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, S2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
@@ -193,7 +193,7 @@ function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
 }
 function j$1(n2, u2, t2) {
   u2.__d = void 0;
-  for (var i = 0; i < t2.length; i++) N(t2[i], t2[++i], t2[++i]);
+  for (var i = 0; i < t2.length; i++) E(t2[i], t2[++i], t2[++i]);
   l$1.__c && l$1.__c(u2, n2), n2.some(function(u3) {
     try {
       n2 = u3.__h, u3.__h = [], n2.some(function(n3) {
@@ -232,7 +232,7 @@ function z$1(u2, t2, i, o2, r2, f2, e2, c2, s2) {
   }
   return u2;
 }
-function N(n2, u2, t2) {
+function E(n2, u2, t2) {
   try {
     if ("function" == typeof n2) {
       var i = "function" == typeof n2.__u;
@@ -242,9 +242,9 @@ function N(n2, u2, t2) {
     l$1.__e(n3, t2);
   }
 }
-function V(n2, u2, t2) {
+function N(n2, u2, t2) {
   var i, o2;
-  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || N(i, null, u2)), null != (i = n2.__c)) {
+  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || E(i, null, u2)), null != (i = n2.__c)) {
     if (i.componentWillUnmount) try {
       i.componentWillUnmount();
     } catch (n3) {
@@ -252,13 +252,13 @@ function V(n2, u2, t2) {
     }
     i.base = i.__P = null;
   }
-  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && V(i[o2], u2, t2 || "function" != typeof n2.type);
+  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && N(i[o2], u2, t2 || "function" != typeof n2.type);
   t2 || w$1(n2.__e), n2.__c = n2.__ = n2.__e = n2.__d = void 0;
 }
-function q$1(n2, l2, u2) {
+function V(n2, l2, u2) {
   return this.constructor(n2, u2);
 }
-function B$1(u2, t2, i) {
+function q$1(u2, t2, i) {
   var o2, r2, f2, e2;
   l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i || t2).__k = _(b, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i ? [i] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i ? i : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
 }
@@ -2297,9 +2297,9 @@ var clipboard = { exports: {} };
           279: (
             /***/
             function(module2) {
-              function E() {
+              function E2() {
               }
-              E.prototype = {
+              E2.prototype = {
                 on: function(name, callback, ctx) {
                   var e2 = this.e || (this.e = {});
                   (e2[name] || (e2[name] = [])).push({
@@ -2341,8 +2341,8 @@ var clipboard = { exports: {} };
                   return this;
                 }
               };
-              module2.exports = E;
-              module2.exports.TinyEmitter = E;
+              module2.exports = E2;
+              module2.exports.TinyEmitter = E2;
             }
           )
           /******/
@@ -7473,13 +7473,13 @@ function p(n2, u2, i) {
       if (u3.every(function(n4) {
         return !n4.__N;
       })) return !c2 || c2.call(this, n3, t2, r2);
-      var i2 = false;
+      var i2 = o2.__c.props !== n3;
       return u3.forEach(function(n4) {
         if (n4.__N) {
           var t3 = n4.__[0];
           n4.__ = n4.__N, n4.__N = void 0, t3 !== n4.__[0] && (i2 = true);
         }
-      }), !(!i2 && o2.__c.props === n3) && (!c2 || c2.call(this, n3, t2, r2));
+      }), c2 && c2.call(this, n3, t2, r2) || i2;
     };
     r$1.u = true;
     var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
@@ -20537,7 +20537,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const { limit } = gridColumns(sampleDescriptor);
+  const { limit, answer } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20553,9 +20553,9 @@ const SampleList = (props) => {
     <div>Id</div>
     <div>Input</div>
     <div>Target</div>
-    <div>Answer</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>
-    <div>Score</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
   const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -20728,7 +20728,8 @@ const SampleRow = ({
         style=${{
     fontSize: FontSize.small,
     ...cellStyle,
-    display: "flex"
+    display: "flex",
+    justifySelf: "center"
   }}
       >
         ${sample.error ? m$1`<${SampleError} message=${sample.error} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
@@ -20737,10 +20738,10 @@ const SampleRow = ({
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer, limit, id } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit, id, score } = gridColumns(sampleDescriptor);
   return {
     gridGap: "10px",
-    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} minmax(2.8rem, auto)`,
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
     paddingLeft: "1rem",
     paddingRight: "1rem"
   };
@@ -20751,6 +20752,10 @@ const gridColumns = (sampleDescriptor) => {
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
   const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
   const id = Math.max(2, Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.score)
+  );
   const frSize = (val) => {
     if (val === 0) {
       return "0";
@@ -20763,7 +20768,8 @@ const gridColumns = (sampleDescriptor) => {
     target: frSize(target),
     answer: frSize(answer),
     limit: frSize(limit),
-    id: `${id}em`
+    id: `${id}rem`,
+    score: `${score}rem`
   };
 };
 const SamplesTab = ({
@@ -25267,6 +25273,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
     (previous, current) => {
       var _a2;
       const text2 = inputString(current.input).join(" ");
+      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
       previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -25287,32 +25294,36 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
         Math.max(previous[4], String(current.id).length),
         10
       );
+      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
       return previous;
     },
-    [0, 0, 0, 0, 0]
+    [0, 0, 0, 0, 0, 0]
   );
   const maxSizes = {
     input: Math.min(sizes[0], 300),
     target: Math.min(sizes[1], 300),
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
-    id: Math.min(sizes[4], 10)
+    id: Math.min(sizes[4], 10),
+    score: Math.min(sizes[4], 30)
   };
-  const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id || 1;
+  const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
   const messageShape = {
     raw: {
       input: sizes[0],
       target: sizes[1],
       answer: sizes[2],
       limit: sizes[3],
-      id: sizes[4]
+      id: sizes[4],
+      score: sizes[5]
     },
     normalized: {
       input: maxSizes.input / base2,
       target: maxSizes.target / base2,
       answer: maxSizes.answer / base2,
       limit: maxSizes.limit / base2,
-      id: maxSizes.id / base2
+      id: maxSizes.id / base2,
+      score: maxSizes.score / base2
     }
   };
   const scoreRendered = (sample) => {
@@ -26499,7 +26510,7 @@ let initialState = void 0;
 if (vscode) {
   initialState = vscode.getState();
 }
-B$1(m$1`<${App}
+q$1(m$1`<${App}
     api=${api}
     initialState=${initialState}
     saveInitialState=${throttle((state) => {

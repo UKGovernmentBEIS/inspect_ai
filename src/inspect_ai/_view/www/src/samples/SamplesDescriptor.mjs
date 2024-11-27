@@ -204,6 +204,7 @@ export const createsSamplesDescriptor = (
   const sizes = samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
+      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
       previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -224,9 +225,11 @@ export const createsSamplesDescriptor = (
         Math.max(previous[4], String(current.id).length),
         10,
       );
+      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+
       return previous;
     },
-    [0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0],
   );
 
   // normalize to base 1
@@ -236,13 +239,15 @@ export const createsSamplesDescriptor = (
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
     id: Math.min(sizes[4], 10),
+    score: Math.min(sizes[4], 30),
   };
   const base =
     maxSizes.input +
       maxSizes.target +
       maxSizes.answer +
       maxSizes.limit +
-      maxSizes.id || 1;
+      maxSizes.id +
+      maxSizes.score || 1;
   const messageShape = {
     raw: {
       input: sizes[0],
@@ -250,6 +255,7 @@ export const createsSamplesDescriptor = (
       answer: sizes[2],
       limit: sizes[3],
       id: sizes[4],
+      score: sizes[5],
     },
     normalized: {
       input: maxSizes.input / base,
@@ -257,6 +263,7 @@ export const createsSamplesDescriptor = (
       answer: maxSizes.answer / base,
       limit: maxSizes.limit / base,
       id: maxSizes.id / base,
+      score: maxSizes.score / base,
     },
   };
 
