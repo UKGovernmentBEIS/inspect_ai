@@ -168,17 +168,6 @@ export function App({
   );
 
   const afterBodyElements = [];
-
-  /** @type {import("./Types.mjs").RenderContext} */
-  const context = useMemo(
-    () => ({
-      afterBody: (el) => {
-        afterBodyElements.push(el);
-      },
-    }),
-    [],
-  );
-
   const saveState = useCallback(() => {
     const state = {
       logs,
@@ -238,29 +227,37 @@ export function App({
     groupByOrder,
   ]);
 
+  const saveStateRef = useRef(saveState);
+  // Update the ref whenever saveState changes
+  useEffect(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
+
   const setSampleScrollPosition = useCallback(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveState();
-    }, 250),
-    [saveState],
+      saveStateRef.current();
+    }, 1000),
+    [],
   );
 
   const setWorkspaceTabScrollPosition = useCallback(
     debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position,
-      };
-      saveState();
-    }, 250),
-    [saveState],
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position,
+        };
+        saveStateRef.current();
+      }
+    }, 1000),
+    [],
   );
 
   // Save state when it changes, so that we can restore it later
   //
   useEffect(() => {
-    saveState();
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
@@ -346,7 +343,6 @@ export function App({
       scores,
       selectedLog.contents?.sampleSummaries,
       selectedLog.contents?.eval?.config?.epochs || 1,
-      context,
       score,
     );
   }, [selectedLog, scores, score]);
@@ -915,7 +911,6 @@ export function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}

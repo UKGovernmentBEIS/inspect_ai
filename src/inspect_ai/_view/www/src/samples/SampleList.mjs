@@ -145,7 +145,7 @@ export const SampleList = (props) => {
   );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const { limit } = gridColumns(sampleDescriptor);
+  const { limit, answer } = gridColumns(sampleDescriptor);
 
   const headerRow = html`<div
     style=${{
@@ -162,9 +162,9 @@ export const SampleList = (props) => {
     <div>Id</div>
     <div>Input</div>
     <div>Target</div>
-    <div>Answer</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>
-    <div>Score</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
 
   const sampleCount = items?.reduce((prev, current) => {
@@ -362,6 +362,7 @@ const SampleRow = ({
           fontSize: FontSize.small,
           ...cellStyle,
           display: "flex",
+          justifySelf: "center",
         }}
       >
         ${sample.error
@@ -373,10 +374,11 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer, limit, id } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit, id, score } =
+    gridColumns(sampleDescriptor);
   return {
     gridGap: "10px",
-    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} minmax(2.8rem, auto)`,
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
     paddingLeft: "1rem",
     paddingRight: "1rem",
   };
@@ -400,6 +402,10 @@ const gridColumns = (sampleDescriptor) => {
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
   const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor?.messageShape.raw.score),
+  );
 
   const frSize = (val) => {
     if (val === 0) {
@@ -414,6 +420,7 @@ const gridColumns = (sampleDescriptor) => {
     target: frSize(target),
     answer: frSize(answer),
     limit: frSize(limit),
-    id: `${id}em`,
+    id: `${id}rem`,
+    score: `${score}rem`,
   };
 };

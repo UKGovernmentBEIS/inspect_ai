@@ -90,13 +90,13 @@ function M() {
 }
 function P$1(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   var a2, p2, y2, d2, w2, _2 = t2 && t2.__k || v$1, g2 = l2.length;
-  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
+  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && E(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
 }
 function $(n2, l2, u2) {
   var t2, i, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
   for (n2.__k = [], t2 = 0; t2 < e2; t2++) null != (i = l2[t2]) && "boolean" != typeof i && "function" != typeof i ? (r2 = t2 + a2, (i = n2.__k[t2] = "string" == typeof i || "number" == typeof i || "bigint" == typeof i || i.constructor == String ? g(null, i, null, null, null) : y$1(i) ? g(b, { children: i }, null, null, null) : void 0 === i.constructor && i.__b > 0 ? g(i.type, i.props, i.key, i.ref ? i.ref : null, i.__v) : i).__ = n2, i.__b = n2.__b + 1, o2 = null, -1 !== (f2 = i.__i = L(i, u2, r2, s2)) && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i.type && (i.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : (f2 > r2 ? a2-- : a2++, i.__u |= 65536))) : i = n2.__k[t2] = null;
-  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2));
+  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), N(o2, o2));
 }
 function I(n2, l2, u2) {
   var t2, i;
@@ -113,7 +113,7 @@ function I(n2, l2, u2) {
 function L(n2, l2, u2, t2) {
   var i = n2.key, o2 = n2.type, r2 = u2 - 1, f2 = u2 + 1, e2 = l2[u2];
   if (null === e2 || e2 && i == e2.key && o2 === e2.type && 0 == (131072 & e2.__u)) return u2;
-  if (t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
+  if (("function" != typeof o2 || o2 === b || i) && t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
     if (r2 >= 0) {
       if ((e2 = l2[r2]) && 0 == (131072 & e2.__u) && i == e2.key && o2 === e2.type) return r2;
       r2--;
@@ -152,7 +152,7 @@ function F(n2) {
       var t2 = this.l[u2.type + n2];
       if (null == u2.t) u2.t = e$3++;
       else if (u2.t < t2.u) return;
-      return t2(l$1.event ? l$1.event(u2) : u2);
+      return l$1.event && (u2 = l$1.event(u2)), "handleEvent" in t2 ? t2.handleEvent(u2) : t2(u2);
     }
   };
 }
@@ -161,7 +161,7 @@ function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
   n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = V), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
       if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, S2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, S2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
@@ -193,7 +193,7 @@ function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
 }
 function j$1(n2, u2, t2) {
   u2.__d = void 0;
-  for (var i = 0; i < t2.length; i++) N(t2[i], t2[++i], t2[++i]);
+  for (var i = 0; i < t2.length; i++) E(t2[i], t2[++i], t2[++i]);
   l$1.__c && l$1.__c(u2, n2), n2.some(function(u3) {
     try {
       n2 = u3.__h, u3.__h = [], n2.some(function(n3) {
@@ -232,7 +232,7 @@ function z$1(u2, t2, i, o2, r2, f2, e2, c2, s2) {
   }
   return u2;
 }
-function N(n2, u2, t2) {
+function E(n2, u2, t2) {
   try {
     if ("function" == typeof n2) {
       var i = "function" == typeof n2.__u;
@@ -242,9 +242,9 @@ function N(n2, u2, t2) {
     l$1.__e(n3, t2);
   }
 }
-function V(n2, u2, t2) {
+function N(n2, u2, t2) {
   var i, o2;
-  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || N(i, null, u2)), null != (i = n2.__c)) {
+  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || E(i, null, u2)), null != (i = n2.__c)) {
     if (i.componentWillUnmount) try {
       i.componentWillUnmount();
     } catch (n3) {
@@ -252,13 +252,13 @@ function V(n2, u2, t2) {
     }
     i.base = i.__P = null;
   }
-  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && V(i[o2], u2, t2 || "function" != typeof n2.type);
+  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && N(i[o2], u2, t2 || "function" != typeof n2.type);
   t2 || w$1(n2.__e), n2.__c = n2.__ = n2.__e = n2.__d = void 0;
 }
-function q$1(n2, l2, u2) {
+function V(n2, l2, u2) {
   return this.constructor(n2, u2);
 }
-function B$1(u2, t2, i) {
+function q$1(u2, t2, i) {
   var o2, r2, f2, e2;
   l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i || t2).__k = _(b, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i ? [i] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i ? i : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
 }
@@ -2297,9 +2297,9 @@ var clipboard = { exports: {} };
           279: (
             /***/
             function(module2) {
-              function E() {
+              function E2() {
               }
-              E.prototype = {
+              E2.prototype = {
                 on: function(name, callback, ctx) {
                   var e2 = this.e || (this.e = {});
                   (e2[name] || (e2[name] = [])).push({
@@ -2341,8 +2341,8 @@ var clipboard = { exports: {} };
                   return this;
                 }
               };
-              module2.exports = E;
-              module2.exports.TinyEmitter = E;
+              module2.exports = E2;
+              module2.exports.TinyEmitter = E2;
             }
           )
           /******/
@@ -7473,13 +7473,13 @@ function p(n2, u2, i) {
       if (u3.every(function(n4) {
         return !n4.__N;
       })) return !c2 || c2.call(this, n3, t2, r2);
-      var i2 = false;
+      var i2 = o2.__c.props !== n3;
       return u3.forEach(function(n4) {
         if (n4.__N) {
           var t3 = n4.__[0];
           n4.__ = n4.__N, n4.__N = void 0, t3 !== n4.__[0] && (i2 = true);
         }
-      }), !(!i2 && o2.__c.props === n3) && (!c2 || c2.call(this, n3, t2, r2));
+      }), c2 && c2.call(this, n3, t2, r2) || i2;
     };
     r$1.u = true;
     var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
@@ -8500,9 +8500,9 @@ const TabPanel = ({
     }, 0);
   });
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setScrollPosition]
   );
   return m$1`<div
@@ -9474,6 +9474,11 @@ const OutputRun = ({ outputRun }) => {
   return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
+};
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1e3
 };
 const decodeCache = {};
 function getDecodeCache(exclude) {
@@ -15643,13 +15648,89 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
-const RenderedContent = ({
-  id,
-  entry,
-  context,
-  defaultRendering,
-  options
-}) => {
+const NavPills = ({ children }) => {
+  const [activeItem, setActiveItem] = h(children[0].props["title"]);
+  const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
+    const active = activeItem2 === title;
+    return m$1` <li class="nav-item">
+      <button
+        type="button"
+        role="tab"
+        aria-selected=${active}
+        style=${{
+      minWidth: "4rem",
+      ...TextStyle.label,
+      fontSize: FontSize.small,
+      padding: "0.1rem  0.6rem",
+      borderRadius: "var(--bs-border-radius)"
+    }}
+        class="nav-link ${active ? "active " : ""}"
+        onclick=${() => {
+      setActiveItem2(title);
+    }}
+      >
+        ${title}
+      </button>
+    </li>`;
+  };
+  const navPills = children.map((nav, idx) => {
+    var _a2;
+    const title = typeof nav === "object" ? ((_a2 = nav["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+    return m$1`<${NavPill}
+      title=${title}
+      activeItem=${activeItem}
+      setActiveItem=${setActiveItem}
+    />`;
+  });
+  const navBodies = children.map((child) => {
+    var _a2;
+    return m$1` <div
+      style=${{
+      display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none"
+    }}
+    >
+      ${child}
+    </div>`;
+  });
+  return m$1`<ul
+      class="nav nav-pills card-header-pills"
+      style=${{ marginRight: "0" }}
+      role="tablist"
+      aria-orientation="horizontal"
+    >
+      ${navPills}
+    </ul>
+    ${navBodies}`;
+};
+const ChatMessageRenderer = {
+  bucket: Buckets.first,
+  canRender: (entry) => {
+    var _a2, _b2;
+    const val = entry.value;
+    return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+  },
+  render: (id, entry) => {
+    return {
+      rendered: m$1`
+        <${NavPills}>
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
+        </${NavPills}>
+        `
+    };
+  }
+};
+const ChatSummary = ({ id, messages }) => {
+  const summaryMessages = [];
+  for (const message of messages.slice().reverse()) {
+    summaryMessages.unshift(message);
+    if (message.role === "user") {
+      break;
+    }
+  }
+  return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
+};
+const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -15662,26 +15743,12 @@ const RenderedContent = ({
   });
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(
-      id,
-      entry,
-      defaultRendering,
-      options,
-      context
-    );
+    const { rendered } = renderer.render(id, entry);
     if (rendered !== void 0) {
       value = rendered;
-      if (afterBody !== void 0) {
-        context.afterBody(afterBody);
-      }
     }
   }
   return m$1`${value}`;
-};
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1e3
 };
 const contentRenderers = {
   AnsiString: {
@@ -15707,7 +15774,7 @@ const contentRenderers = {
     }
   },
   Boolean: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
@@ -15717,7 +15784,7 @@ const contentRenderers = {
     }
   },
   Number: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
@@ -15753,7 +15820,7 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
@@ -15763,25 +15830,12 @@ const contentRenderers = {
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
-        context=${context}
         compact
       />`;
       return { rendered: arrayRendered };
     }
   },
-  ChatMessage: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      var _a2, _b2;
-      const val = entry.value;
-      return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-    },
-    render: (_id, entry) => {
-      return {
-        rendered: m$1`<${ChatView} messages=${entry.value} />`
-      };
-    }
-  },
+  ChatMessage: ChatMessageRenderer,
   web_search: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
@@ -15854,7 +15908,7 @@ ${entry.value}</pre
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -15870,7 +15924,6 @@ ${entry.value}</pre
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
-          context=${context}
           compact
         />`
       };
@@ -15884,8 +15937,6 @@ const MetaDataView = ({
   style,
   entries,
   tableOptions,
-  context,
-  expanded,
   compact
 }) => {
   const baseId = baseClass || "metadataview";
@@ -15932,12 +15983,7 @@ const MetaDataView = ({
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </td>
     </tr>`;
   });
@@ -15962,7 +16008,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
+const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -15975,7 +16021,6 @@ const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
           evaluation=${evalSpec}
           plan=${evalPlan}
           scores=${scores}
-          context=${context}
         />
       </${CardBody}>
     </${Card}>
@@ -15991,7 +16036,7 @@ const planSepStyle = {
   marginTop: "em",
   marginBottom: "-0.1em"
 };
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   if (scores.length > 1) {
     params["scores"] = scores;
   }
@@ -15999,11 +16044,10 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
-const DatasetDetailView = ({ dataset, context, style }) => {
+const DatasetDetailView = ({ dataset, style }) => {
   const filtered = Object.fromEntries(
     Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
   );
@@ -16015,21 +16059,16 @@ const DatasetDetailView = ({ dataset, context, style }) => {
   return m$1`<${MetaDataView}
     entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
   const details = steps == null ? void 0 : steps.map((step, index) => {
     return m$1`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -16042,7 +16081,7 @@ const SolversDetailView = ({ steps, context }) => {
     ${details}
   </div>`;
 };
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
   return m$1`
     <div style=${style}>
@@ -16056,14 +16095,13 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${m$1`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
   `;
 };
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -16134,17 +16172,12 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: m$1`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`
+    contents: m$1`<${DatasetDetailView} dataset=${evaluation.dataset} />`
   });
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: m$1`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `
+    contents: m$1` <${SolversDetailView} steps=${steps} /> `
   });
   if (scores) {
     const scorers = scores.reduce((accum, score) => {
@@ -16165,7 +16198,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key2}
           scores=${scorers[key2].scores}
           params=${scorers[key2].params}
-          context=${context}
         />`;
       });
       taskColumns.push({
@@ -16193,7 +16225,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `
   });
@@ -16207,7 +16238,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16222,7 +16252,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16237,7 +16266,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config2}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16252,7 +16280,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16267,7 +16294,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16402,9 +16428,9 @@ const LargeModal = (props) => {
     }
   }, []);
   const onScroll = q(
-    debounce((e2) => {
+    (e2) => {
       setInitialScrollPosition(e2.srcElement.scrollTop);
-    }, 100),
+    },
     [setInitialScrollPosition]
   );
   const headerEls = [];
@@ -16571,8 +16597,7 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer,
-  context
+  scorer
 }) => {
   var _a2, _b2, _c;
   if (!sampleDescriptor) {
@@ -16725,7 +16750,6 @@ const SampleScoreView = ({
                     classes="tab-pane"
                     entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
                     style=${{ marginTop: "1em" }}
-                    context=${context}
                   />
                 </td>
               </tr>
@@ -16929,15 +16953,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({
-  id,
-  entries,
-  classes,
-  context,
-  style,
-  expanded,
-  plain
-}) => {
+const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -16981,12 +16997,7 @@ const MetaDataGrid = ({
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </div>
     `;
   });
@@ -18959,7 +18970,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
-    <${Rendered} values=${result} />
+    <div>
+      <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 const Rendered = ({ values }) => {
@@ -19038,7 +19051,7 @@ const TokenRow = ({ model, usage }) => {
   </tr>`;
 };
 const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
+const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
@@ -19074,7 +19087,6 @@ const UsageCard = ({ stats, context }) => {
     ["Duration"]: totalDuration
   }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>
@@ -19732,14 +19744,16 @@ const fixupEventStream = (events) => {
       event: "step",
       action: "begin",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
     fixedUp.splice(initEventIndex + 2, 0, {
       timestamp: initEvent.timestamp,
       event: "step",
       action: "end",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
   }
   return fixedUp;
@@ -19898,8 +19912,7 @@ const InlineSampleDisplay = ({
   sampleError,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -19918,7 +19931,6 @@ const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
-            context=${context}
           />`}
     </div>
   </div>`;
@@ -19928,8 +19940,7 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   const baseId = `sample-dialog`;
   if (!sample) {
@@ -19964,7 +19975,6 @@ const SampleDisplay = ({
       <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
-          context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
           style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19977,7 +19987,6 @@ const SampleDisplay = ({
         <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
-            context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19985,11 +19994,7 @@ const SampleDisplay = ({
         </${TabPanel}>`);
     }
   }
-  const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${id}`,
-    sample,
-    context
-  );
+  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
   if (sampleMetadatas.length > 0) {
     tabs.push(
       m$1`
@@ -20111,7 +20116,7 @@ const SampleDisplay = ({
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id, sample, context) => {
+const metadataViewsForSample = (id, sample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(m$1`
@@ -20133,7 +20138,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
         </${Card}>`
@@ -20150,7 +20154,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
       </${Card}>`
@@ -20286,8 +20289,7 @@ const SampleDialog = ({
   selectedTab,
   setSelectedTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const tools = T(() => {
     const nextTool = {
@@ -20334,17 +20336,8 @@ const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
-          context=${context}
         />`;
-  }, [
-    id,
-    sample,
-    sampleDescriptor,
-    selectedTab,
-    setSelectedTab,
-    context,
-    sampleError
-  ]);
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
   const onHide = q(() => {
     setShowingSampleDialog(false);
   }, [setShowingSampleDialog]);
@@ -20544,7 +20537,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const { limit } = gridColumns(sampleDescriptor);
+  const { limit, answer } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20560,9 +20553,9 @@ const SampleList = (props) => {
     <div>Id</div>
     <div>Input</div>
     <div>Target</div>
-    <div>Answer</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>
-    <div>Score</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
   const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -20735,7 +20728,8 @@ const SampleRow = ({
         style=${{
     fontSize: FontSize.small,
     ...cellStyle,
-    display: "flex"
+    display: "flex",
+    justifySelf: "center"
   }}
       >
         ${sample.error ? m$1`<${SampleError} message=${sample.error} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
@@ -20744,10 +20738,10 @@ const SampleRow = ({
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer, limit, id } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit, id, score } = gridColumns(sampleDescriptor);
   return {
     gridGap: "10px",
-    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} minmax(2.8rem, auto)`,
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
     paddingLeft: "1rem",
     paddingRight: "1rem"
   };
@@ -20758,6 +20752,10 @@ const gridColumns = (sampleDescriptor) => {
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
   const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
   const id = Math.max(2, Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.score)
+  );
   const frSize = (val) => {
     if (val === 0) {
       return "0";
@@ -20770,7 +20768,8 @@ const gridColumns = (sampleDescriptor) => {
     target: frSize(target),
     answer: frSize(answer),
     limit: frSize(limit),
-    id: `${id}em`
+    id: `${id}rem`,
+    score: `${score}rem`
   };
 };
 const SamplesTab = ({
@@ -20791,8 +20790,7 @@ const SamplesTab = ({
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
-  setSampleScrollPosition,
-  context
+  setSampleScrollPosition
 }) => {
   const [items, setItems] = h([]);
   const [sampleItems, setSampleItems] = h([]);
@@ -20879,7 +20877,6 @@ const SamplesTab = ({
         sampleDescriptor=${sampleDescriptor}
         selectedTab=${selectedSampleTab}
         setSelectedTab=${setSelectedSampleTab}
-        context=${context}
       />`
     );
   } else if (sampleMode === "many") {
@@ -20918,7 +20915,6 @@ const SamplesTab = ({
       setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      context=${context}
       sampleScrollPositionRef=${sampleScrollPositionRef}
       setSampleScrollPosition=${setSampleScrollPosition}
     />
@@ -24708,7 +24704,6 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   workspaceTabScrollPositionRef,
@@ -24758,7 +24753,6 @@ const WorkSpace = ({
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${renderContext}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
           />`;
@@ -24807,13 +24801,10 @@ const WorkSpace = ({
             evalSpec=${evalSpec}
             evalPlan=${evalPlan}
             scores=${evalResults == null ? void 0 : evalResults.scores}
-            context=${renderContext}
           />`
         ]);
         if (evalStatus !== "started") {
-          infoCards.push(
-            m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-          );
+          infoCards.push(m$1`<${UsageCard} stats=${evalStats} />`);
         }
         if (evalStatus === "error" && evalError) {
           infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
@@ -24910,7 +24901,6 @@ const WorkSpace = ({
     filter,
     sort,
     epoch,
-    renderContext,
     sampleScrollPositionRef,
     setSampleScrollPosition,
     epochs,
@@ -24979,7 +24969,42 @@ const WorkspaceDisplay = ({
         return "";
       }
     });
+    const onScroll = q(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition]
+    );
+    const onSelected = q(
+      (e2) => {
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab]
+    );
+    const tabPanels = T(() => {
+      return Object.keys(tabs).map((key2) => {
+        const tab = tabs[key2];
+        return m$1`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${q(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll]
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
     return m$1`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
@@ -25025,25 +25050,7 @@ const WorkspaceDisplay = ({
         fontWeight: 600
       }
     }} >
-              ${Object.keys(tabs).map((key2) => {
-      const tab = tabs[key2];
-      return m$1`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e2) => {
-        const id = e2.currentTarget.id;
-        setSelectedTab(id);
-      }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-                setScrollPosition=${(position) => {
-        setWorkspaceTabScrollPosition(tab.id, position);
-      }}
-                >
-                  ${tab.content()}
-                </${TabPanel}>`;
-    })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;
@@ -25190,7 +25197,7 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
-const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   if (!samples) {
     return void 0;
   }
@@ -25257,11 +25264,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
   ];
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -25270,6 +25273,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
     (previous, current) => {
       var _a2;
       const text2 = inputString(current.input).join(" ");
+      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
       previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -25290,32 +25294,36 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
         Math.max(previous[4], String(current.id).length),
         10
       );
+      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
       return previous;
     },
-    [0, 0, 0, 0, 0]
+    [0, 0, 0, 0, 0, 0]
   );
   const maxSizes = {
     input: Math.min(sizes[0], 300),
     target: Math.min(sizes[1], 300),
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
-    id: Math.min(sizes[4], 10)
+    id: Math.min(sizes[4], 10),
+    score: Math.min(sizes[4], 30)
   };
-  const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id || 1;
+  const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
   const messageShape = {
     raw: {
       input: sizes[0],
       target: sizes[1],
       answer: sizes[2],
       limit: sizes[3],
-      id: sizes[4]
+      id: sizes[4],
+      score: sizes[5]
     },
     normalized: {
       input: maxSizes.input / base2,
       target: maxSizes.target / base2,
       answer: maxSizes.answer / base2,
       limit: maxSizes.limit / base2,
-      id: maxSizes.id / base2
+      id: maxSizes.id / base2,
+      score: maxSizes.score / base2
     }
   };
   const scoreRendered = (sample) => {
@@ -25559,13 +25567,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -25575,7 +25580,6 @@ const scoreCategorizers = [
           return m$1`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         }
       };
@@ -25866,14 +25870,6 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = T(
-    () => ({
-      afterBody: (el) => {
-        afterBodyElements.push(el);
-      }
-    }),
-    []
-  );
   const saveState = q(() => {
     const state = {
       logs,
@@ -25932,25 +25928,31 @@ function App({
     groupBy,
     groupByOrder
   ]);
+  const saveStateRef = A(saveState);
+  y(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
   const setSampleScrollPosition = q(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveState();
-    }, 250),
-    [saveState]
+      saveStateRef.current();
+    }, 1e3),
+    []
   );
   const setWorkspaceTabScrollPosition = q(
     debounce((tab, position) => {
-      workspaceTabScrollPosition.current = {
-        ...workspaceTabScrollPosition.current,
-        [tab]: position
-      };
-      saveState();
-    }, 250),
-    [saveState]
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position
+        };
+        saveStateRef.current();
+      }
+    }, 1e3),
+    []
   );
   y(() => {
-    saveState();
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
@@ -26027,7 +26029,6 @@ function App({
       scores,
       (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
       ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
-      context,
       score
     );
   }, [selectedLog, scores, score]);
@@ -26456,7 +26457,6 @@ function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
@@ -26510,7 +26510,7 @@ let initialState = void 0;
 if (vscode) {
   initialState = vscode.getState();
 }
-B$1(m$1`<${App}
+q$1(m$1`<${App}
     api=${api}
     initialState=${initialState}
     saveInitialState=${throttle((state) => {

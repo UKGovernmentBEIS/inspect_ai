@@ -1,6 +1,12 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -21,6 +27,7 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants.mjs";
+import { debounce } from "../utils/sync.mjs";
 
 /**
  * Renders the Main Application
@@ -70,7 +77,6 @@ import {
  * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
  * @param {import("preact/hooks").MutableRef<number>} props.workspaceTabScrollPositionRef - The initial scroll position for the workspace tabs
  * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
- * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
@@ -113,7 +119,6 @@ export const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   workspaceTabScrollPositionRef,
@@ -171,7 +176,6 @@ export const WorkSpace = ({
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${renderContext}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
           />`;
@@ -223,14 +227,11 @@ export const WorkSpace = ({
             evalSpec=${evalSpec}
             evalPlan=${evalPlan}
             scores=${evalResults?.scores}
-            context=${renderContext}
           />`,
         ]);
 
         if (evalStatus !== "started") {
-          infoCards.push(
-            html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
-          );
+          infoCards.push(html`<${UsageCard} stats=${evalStats} />`);
         }
 
         // If there is error or progress, includes those within info
@@ -339,7 +340,6 @@ export const WorkSpace = ({
     filter,
     sort,
     epoch,
-    renderContext,
     sampleScrollPositionRef,
     setSampleScrollPosition,
     epochs,
@@ -415,7 +415,46 @@ const WorkspaceDisplay = ({
         }
       });
 
+    const onScroll = useCallback(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition],
+    );
+
+    const onSelected = useCallback(
+      (e) => {
+        const id = e.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab],
+    );
+
+    // Compute tab panels anytime the tabs change
+    const tabPanels = useMemo(() => {
+      return Object.keys(tabs).map((key) => {
+        const tab = tabs[key];
+        return html`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${useCallback(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll],
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
+
     return html`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
@@ -461,25 +500,7 @@ const WorkspaceDisplay = ({
                 fontWeight: 600,
               },
             }} >
-              ${Object.keys(tabs).map((key) => {
-                const tab = tabs[key];
-                return html`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e) => {
-                  const id = e.currentTarget.id;
-                  setSelectedTab(id);
-                }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}
-                scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-                setScrollPosition=${(position) => {
-                  setWorkspaceTabScrollPosition(tab.id, position);
-                }}
-                >
-                  ${tab.content()}
-                </${TabPanel}>`;
-              })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;

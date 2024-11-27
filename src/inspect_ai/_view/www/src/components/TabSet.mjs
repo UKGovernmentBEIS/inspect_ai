@@ -1,7 +1,6 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { useCallback, useEffect, useRef } from "preact/hooks";
-import { debounce } from "../utils/sync.mjs";
 
 // styles: { tabSet:{}, tabBody: {}}
 export const TabSet = ({ id, type, classes, tools, styles, children }) => {
@@ -59,9 +58,9 @@ export const TabPanel = ({
   });
 
   const onScroll = useCallback(
-    debounce((e) => {
+    (e) => {
       setScrollPosition(e.srcElement.scrollTop);
-    }, 100),
+    },
     [setScrollPosition],
   );
 
