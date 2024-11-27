@@ -1,6 +1,5 @@
 import asyncio
 import json
-import time
 from pathlib import Path, PurePosixPath
 from typing import (
     Awaitable,
