@@ -20,6 +20,7 @@
 - Log viewer: show custom tool call views in messages display.
 - Bugfix: Correctly read and forward image detail property.
 - Bugfix: Correct resolution of global eval override of task or sample sandboxes.
+- Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from mutliple threads)
 
 ## v0.3.47 (18 November 2024) 
 
