@@ -174,7 +174,7 @@ class SandboxService:
         return ""
 
 
-def call_inspect_service(
+async def call_inspect_service(
     service: str, method: str, params: dict[str, JsonValue]
 ) -> JsonValue:
     # directories
@@ -191,7 +191,7 @@ def call_inspect_service(
     # wait for response
     response_path = responses_dir / f"{request_id}.json"
     while True:
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         if response_path.exists():
             # read and remove the file
             with open(response_path, "r") as f:
