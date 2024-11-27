@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { RenderedContent } from "./RenderedContent.mjs";
+import { RenderedContent } from "./RenderedContent/RenderedContent.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 
 /**
@@ -13,8 +13,6 @@ import { FontSize } from "../appearance/Fonts.mjs";
  * @param {Object} [props.style] - Inline styles for the table element.
  * @param {Object[]|Record<string, string>} props.entries - The metadata entries to display.
  * @param {string} [props.tableOptions] - Options for table styling.
- * @param {Object} [props.context] - Context for rendering the entries.
- * @param {boolean} [props.expanded] - Whether to render the entries in expanded mode.
  * @param {boolean} [props.compact] - Whether to render the table in compact mode.
  * @returns {import("preact").JSX.Element} The component.
  */
@@ -25,8 +23,6 @@ export const MetaDataView = ({
   style,
   entries,
   tableOptions,
-  context,
-  expanded,
   compact,
 }) => {
   const baseId = baseClass || "metadataview";
@@ -86,12 +82,7 @@ export const MetaDataView = ({
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id} entry=${entry} />
       </td>
     </tr>`;
   });

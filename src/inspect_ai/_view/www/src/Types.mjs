@@ -30,10 +30,5 @@
  */
 
 /**
- * @typedef {Object} RenderContext
- * @property {(el: import("preact").JSX.Element) => void} afterBody:
- */
-
-/**
  * @typedef {"none" | "single" | "many"} SampleMode
  */
