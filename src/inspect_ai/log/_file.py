@@ -86,7 +86,6 @@ def list_eval_logs(
 async def list_eval_logs_async(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
-    filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
     descending: bool = True,
     fs_options: dict[str, Any] = {},
@@ -100,9 +99,6 @@ async def list_eval_logs_async(
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
       formats (Literal["eval", "json"]): Formats to list (default
         to listing all formats)
-      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
-         Note that the EvalLog instance passed to the filter has only
-         the EvalLog header (i.e. does not have the samples or logging output).
       recursive (bool): List log files recursively (defaults to True).
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
@@ -130,22 +126,13 @@ async def list_eval_logs_async(
                 )
             logs = [fs._file_info(file) for file in files]
             # resolve to eval logs
-            eval_logs = log_files_from_ls(logs, formats, descending)
+            return log_files_from_ls(logs, formats, descending)
         else:
             return []
-        # apply filter if requested
-        if filter:
-            log_headers = await read_eval_log_headers_async(eval_logs)
-            return [
-                log for header, log in zip(log_headers, eval_logs) if filter(header)
-            ]
-        else:
-            return eval_logs
     else:
         return list_eval_logs(
             log_dir=log_dir,
             formats=formats,
-            filter=filter,
             recursive=recursive,
             descending=descending,
             fs_options=fs_options,
@@ -281,18 +268,6 @@ def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [read_eval_log(log_file, header_only=True) for log_file in log_files]
-
-
-async def read_eval_log_headers_async(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
-) -> list[EvalLog]:
-    results = await asyncio.gather(
-        *[
-            asyncio.to_thread(read_eval_log, log_file, header_only=True)
-            for log_file in log_files
-        ]
-    )
-    return results
 
 
 def read_eval_log_sample(
