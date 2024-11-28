@@ -27,14 +27,27 @@ RESULT = "result"
 POLLING_INTERVAL = 0.1
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
+"""Method definition for sandbox service.
+
+Service methods should accept and return arguments of type JsonValue
+"""
 
 
 async def sandbox_service(
     name: str,
-    sandbox: SandboxEnvironment,
     methods: dict[str, SandboxServiceMethod],
     until: Callable[[], bool],
+    sandbox: SandboxEnvironment = sandbox(),
 ) -> None:
+    """Run a service that is callable from within a sandbox.
+
+    Args:
+        name (str): Service name
+        methods (dict[str, SandboxServiceMethod]): Service methods.
+        until (Callable[[], bool]): Function used to check whether
+          the service should stop.
+        sandbox (SandboxEnvironment): Sandbox to publish service to.
+    """
     # setup and start service
     service = SandboxService(name, sandbox)
     for name, method in methods.items():
@@ -48,7 +61,19 @@ async def sandbox_service(
 
 
 class SandboxService:
+    """Sandbox service.
+
+    Service that makes available a set of methods to a sandbox
+    for calling back into main Inspect solver / scaffold.
+    """
+
     def __init__(self, name: str, sandbox: SandboxEnvironment = sandbox()) -> None:
+        """Create a SandboxService.
+
+        Args:
+            name (str): Service name
+            sandbox (SandboxEnvironment): Sandbox to publish service to.
+        """
         self._name = name
         self._sandbox = sandbox
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
@@ -58,9 +83,16 @@ class SandboxService:
         self._client_script: str = ""
 
     def add_method(self, name: str, method: SandboxServiceMethod) -> None:
+        """Add a method to the service.
+
+        Args:
+            name (str): Method name.
+            method (SandboxServiceMethod): Function that implements method.
+        """
         self._methods[name] = method
 
     async def start(self) -> None:
+        """Start running the service."""
         # requests dir
         assert not self._requests_dir
         self._requests_dir = await self._create_rpc_dir(REQUESTS_DIR)
@@ -77,6 +109,7 @@ class SandboxService:
         self._client_script = client_script
 
     async def handle_requests(self) -> None:
+        """Handle all pending service requests."""
         # read pending request files
         result = await self._sandbox.exec(["ls", "-1", f"{self._requests_dir}/*.json"])
         if not result.success:
