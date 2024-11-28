@@ -308,19 +308,19 @@ async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
     output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
     with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size}"])
-    assert "limit of 1 MiB was exceeded" in str(e_info.value)
+    assert "limit of 10 MiB was exceeded" in str(e_info.value)
     truncated_output = e_info.value.truncated_output
     # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
-    assert truncated_output and len(truncated_output) == 1024**2
+    assert truncated_output and len(truncated_output) == 10 * 1024**2
 
 
 async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
     output_size = 10 * 1024**2 + 1024  # 10 MiB + 1 KiB
     with pytest.raises(OutputLimitExceededError) as e_info:
         await sandbox_env.exec(["sh", "-c", f"yes | head -c {output_size} 1>&2"])
-    assert "limit of 1 MiB was exceeded" in str(e_info.value)
+    assert "limit of 10 MiB was exceeded" in str(e_info.value)
     truncated_output = e_info.value.truncated_output
-    assert truncated_output and len(truncated_output) == 1024**2
+    assert truncated_output and len(truncated_output) == 10 * 1024**2
 
 
 # TODO: write a test for when cwd doesn't exist
