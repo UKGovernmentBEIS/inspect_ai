@@ -7,6 +7,7 @@ from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX
 
+from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
     auto_compose_file,
@@ -26,10 +27,17 @@ class ComposeProject:
 
     @classmethod
     async def create(
-        cls, name: str, config: str | None, env: dict[str, str] = {}
+        cls,
+        name: str,
+        config: SandboxEnvironmentConfigType | None,
+        env: dict[str, str] = {},
     ) -> "ComposeProject":
         # resolve config to full path if we have one
-        config_path = Path(config).resolve() if config else None
+        config_path = None
+        if isinstance(config, str):
+            config_path = Path(config).resolve()
+        elif config is not None:
+            raise ValueError(f"Unsupported config type: {type(config)}. Expected str.")
 
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):

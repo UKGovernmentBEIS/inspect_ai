@@ -1,22 +1,36 @@
+from dataclasses import dataclass
 from typing import Literal, Union, overload
 
 from typing_extensions import override
 
-from inspect_ai.util import ExecResult, SandboxEnvironment
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfig,
+    SandboxEnvironmentConfigType,
+)
 
 
 class PodmanSandboxEnvironment(SandboxEnvironment):
+    def __init__(self, socket_path: str | None) -> None:
+        self.socket_path = socket_path
+
     @classmethod
     async def sample_init(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
-        return {"default": PodmanSandboxEnvironment()}
+        if isinstance(config, PodmanSandboxEnvironmentConfig):
+            return {"default": PodmanSandboxEnvironment(config.socket_path)}
+        return {"default": PodmanSandboxEnvironment(None)}
 
     @classmethod
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -47,3 +61,8 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         return ""
+
+
+@dataclass(frozen=True)
+class PodmanSandboxEnvironmentConfig(SandboxEnvironmentConfig):
+    socket_path: str
