@@ -152,10 +152,13 @@ export const ToolInput = ({ type, contents, view, style }) => {
   }
 
   if (view) {
-    const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+    const toolInputRef = useRef(
+      /** @type {import("preact").Component & { base: Element }} */ (null),
+    );
     useEffect(() => {
       // Sniff around for code in the view that could be text highlighted
       if (toolInputRef.current) {
+        // @ts-expect-error: TS doesn't know that `HTMLCollection` is iterable.
         for (const child of toolInputRef.current.base.children) {
           if (child.tagName === "PRE") {
             const childChild = child.firstElementChild;

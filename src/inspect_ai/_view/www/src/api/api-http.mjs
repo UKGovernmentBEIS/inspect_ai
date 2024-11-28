@@ -56,6 +56,7 @@ function simpleHttpAPI(logInfo) {
         });
         return Promise.resolve({
           files: logs,
+          log_dir,
         });
       } else if (log_file) {
         // Check the cache
@@ -76,6 +77,7 @@ function simpleHttpAPI(logInfo) {
 
         return {
           files: [result],
+          log_dir,
         };
       } else {
         // No log.json could be found, and there isn't a log file,

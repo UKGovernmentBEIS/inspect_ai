@@ -8499,7 +8499,10 @@ var require_assets = __commonJS({
       children: children2
     }) => {
       const tabContentsId = computeTabContentsId(id, index);
-      const tabContentsRef = A();
+      const tabContentsRef = A(
+        /** @type {HTMLElement|null} */
+        null
+      );
       y(() => {
         setTimeout(() => {
           if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
@@ -15138,8 +15141,14 @@ var require_assets = __commonJS({
     }) => {
       const [collapsed, setCollapsed] = h(collapse);
       const [showToggle, setShowToggle] = h(false);
-      const contentsRef = A();
-      const observerRef = A();
+      const contentsRef = A(
+        /** @type {HTMLElement|null} */
+        null
+      );
+      const observerRef = A(
+        /** @type {IntersectionObserver|null} */
+        null
+      );
       y(() => {
         setCollapsed(collapse);
       }, [children2, collapse]);
@@ -15313,7 +15322,7 @@ var require_assets = __commonJS({
       }
       if (view) {
         const toolInputRef = A(
-          /** @type {HTMLElement|null} */
+          /** @type {import("preact").Component & { base: Element }} */
           null
         );
         y(() => {
@@ -16531,7 +16540,10 @@ ${entry.value}</pre
         setWarningHidden
       } = props;
       const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
-      const scrollRef = A();
+      const scrollRef = A(
+        /** @type {HTMLElement|null} */
+        null
+      );
       y(() => {
         if (scrollRef.current) {
           setTimeout(() => {
@@ -25640,26 +25652,26 @@ ${events}
     class VirtualList extends x$1 {
       constructor(props) {
         super(props);
+        /** @type {HTMLElement} */
+        __publicField(this, "base");
         this.state = {
           height: 0,
           offset: 0
         };
-        this.resize = this.resize.bind(this);
-        this.handleScroll = throttle$1(this.handleScroll.bind(this), 100);
+        this.resize = () => {
+          if (this.state.height !== this.base.offsetHeight) {
+            this.setState({ height: this.base.offsetHeight });
+          }
+        };
+        this.handleScroll = throttle$1(() => {
+          if (this.base) {
+            this.setState({ offset: this.base.scrollTop });
+          }
+          if (this.props.sync) {
+            this.forceUpdate();
+          }
+        }, 100);
         this.containerRef = b();
-      }
-      resize() {
-        if (this.state.height !== this.base.offsetHeight) {
-          this.setState({ height: this.base.offsetHeight });
-        }
-      }
-      handleScroll() {
-        if (this.base) {
-          this.setState({ offset: this.base.scrollTop });
-        }
-        if (this.props.sync) {
-          this.forceUpdate();
-        }
       }
       componentDidUpdate() {
         this.resize();
@@ -28418,7 +28430,8 @@ self.onmessage = function (e) {
               };
             });
             return Promise.resolve({
-              files: logs
+              files: logs,
+              log_dir
             });
           } else if (log_file) {
             let evalLog = cache.get();
@@ -28433,7 +28446,8 @@ self.onmessage = function (e) {
               task_id: evalLog.eval.task_id
             };
             return {
-              files: [result]
+              files: [result],
+              log_dir
             };
           } else {
             throw new Error(
@@ -29879,7 +29893,8 @@ self.onmessage = function (e) {
         ...TextStyle.secondary
       }}
       >
-        ${metric.reducer}
+        ${// @ts-expect-error
+      metric.reducer}
       </div>` : "";
       return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
     <div
@@ -30364,7 +30379,10 @@ self.onmessage = function (e) {
       }
     };
     const FindBand = ({ hideBand }) => {
-      const searchBoxRef = A();
+      const searchBoxRef = A(
+        /** @type {HTMLInputElement|null} */
+        null
+      );
       y(() => {
         searchBoxRef.current.focus();
       }, []);
@@ -30384,13 +30402,16 @@ self.onmessage = function (e) {
           }
           return expandablePanelEl;
         };
-        const focusedElement = document.activeElement;
+        const focusedElement = (
+          /** @type {HTMLElement} */
+          document.activeElement
+        );
         const result = window.find(term, false, !!back, false, false, true, false);
         const noResultEl = window.document.getElementById(
           "inspect-find-no-results"
         );
         if (result) {
-          noResultEl.style.opacity = 0;
+          noResultEl.style.opacity = "0";
           const selection = window.getSelection();
           if (selection.rangeCount > 0) {
             const parentPanel = parentExpandablePanel(selection);
@@ -30411,7 +30432,7 @@ self.onmessage = function (e) {
             }, 100);
           }
         } else {
-          noResultEl.style.opacity = 1;
+          noResultEl.style.opacity = "1";
         }
         if (focusedElement) {
           focusedElement.focus();
