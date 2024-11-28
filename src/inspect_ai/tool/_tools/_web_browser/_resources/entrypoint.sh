@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# If headful mode, spin up Xvfb, Fluxbox and x11vnc for real-time web browser viewing
 if [ "$HEADLESS" = "False" ]; then
 
     # Start Xvfb in the background

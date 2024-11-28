@@ -4,7 +4,8 @@ FROM python:3.12-bookworm
 
 WORKDIR /app/web_browser
 
-# Install system dependancies
+# Install system dependancies (instead of maintaining two images, install headful dependencies
+# even though not all dependancies strictly needed in headless mode)
 RUN apt-get update \
     && apt-get install -y \
     xvfb \
