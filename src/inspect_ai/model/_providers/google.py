@@ -412,6 +412,10 @@ def schema_from_param(param: ToolParam | ToolParams) -> Schema:
             type=param.type, properties=param.properties, required=param.required
         )
 
+    empty_object_placeholder = {
+        "placeholder": ToolParam(type="string", description="empty object placeholder")
+    }
+
     if param.type == "number":
         return Schema(type=Type.NUMBER, description=param.description)
     elif param.type == "integer":
@@ -427,12 +431,12 @@ def schema_from_param(param: ToolParam | ToolParams) -> Schema:
             items=schema_from_param(param.items) if param.items else None,
         )
     elif param.type == "object":
+        if not param.properties:
+            param.properties = empty_object_placeholder
         return Schema(
             type=Type.OBJECT,
             description=param.description,
-            properties={k: schema_from_param(v) for k, v in param.properties.items()}
-            if param.properties is not None
-            else None,
+            properties={k: schema_from_param(v) for k, v in param.properties.items()},
             required=param.required,
         )
     else:
