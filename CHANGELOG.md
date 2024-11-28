@@ -10,6 +10,7 @@
 - Log files now properly deal with scores that produce Nan. (fixes [#834](https://github.com/UKGovernmentBEIS/inspect_ai/issues/834))
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
 - Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
+- AzureAI: Change default max_tokens for Llama models to 2048 (4096 currently yields an error w/ Llama 3.1).
 - Mistral: Various compatiblity changes for their client and tool calling implementation.
 - Handle exponents in numeric normalisation for match, include, and answer scorers.
 - hf_dataset: Added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`). 
@@ -20,7 +21,7 @@
 - Log viewer: Show custom tool call views in messages display.
 - Bugfix: Correctly read and forward image detail property.
 - Bugfix: Correct resolution of global eval override of task or sample sandboxes.
-- Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from mutliple threads)
+- Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from mutliple threads).
 
 ## v0.3.47 (18 November 2024) 
 
