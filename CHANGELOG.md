@@ -13,12 +13,12 @@
 - AzureAI: Change default max_tokens for Llama models to 2048 (4096 currently yields an error w/ Llama 3.1).
 - Mistral: Various compatiblity changes for their client and tool calling implementation.
 - Handle exponents in numeric normalisation for match, include, and answer scorers.
-- hf_dataset: added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`). 
-- hf_dataset: added `revision` option to load a specific branch or commit SHA (when using `revision` datasets are always revalidated on Hugging Face, i.e. `cached` is ignored).
-- Log viewer: display sample ids rather than indexes.
-- Log viewer: add timestamps to transcript events.
-- Log viewer: metadata which contains images will now render the images.
-- Log viewer: show custom tool call views in messages display.
+- hf_dataset: Added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`). 
+- hf_dataset: Added `revision` option to load a specific branch or commit SHA (when using `revision` datasets are always revalidated on Hugging Face, i.e. `cached` is ignored).
+- Log viewer: Display sample ids rather than indexes.
+- Log viewer: Add timestamps to transcript events.
+- Log viewer: Metadata which contains images will now render the images.
+- Log viewer: Show custom tool call views in messages display.
 - Bugfix: Correctly read and forward image detail property.
 - Bugfix: Correct resolution of global eval override of task or sample sandboxes.
 - Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from mutliple threads).
