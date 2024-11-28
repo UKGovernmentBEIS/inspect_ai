@@ -14,7 +14,6 @@ from inspect_ai.util import SandboxEnvironment, sandbox
 
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
-CLIENT_SCRIPT = "client.py"
 SERVICES_DIR = "/tmp/inspect-sandbox-services"
 
 ID = "id"
@@ -64,7 +63,27 @@ class SandboxService:
     """Sandbox service.
 
     Service that makes available a set of methods to a sandbox
-    for calling back into main Inspect solver / scaffold.
+    for calling back into the main Inspect process.
+
+    To use the service from within a sandbox, either add it to the sys path
+    or use importlib. For example, if the service is named 'foo':
+
+    ```python
+    import sys
+    sys.path.append("/tmp/inspect-sandbox-services/foo")
+    import foo
+    ```
+
+    Or:
+
+    ```python
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "foo", "/tmp/inspect-sandbox-services/foo/foo.py"
+    )
+    foo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(foo)
+    ```
     """
 
     def __init__(self, name: str, sandbox: SandboxEnvironment = sandbox()) -> None:
@@ -103,7 +122,7 @@ class SandboxService:
 
         # client script
         assert not self._client_script
-        client_script = PurePosixPath(self._service_dir, CLIENT_SCRIPT).as_posix()
+        client_script = PurePosixPath(self._service_dir, f"{self._name}.py").as_posix()
         client_code = self._generate_client()
         await self._write_text_file(client_script, client_code)
         self._client_script = client_script
