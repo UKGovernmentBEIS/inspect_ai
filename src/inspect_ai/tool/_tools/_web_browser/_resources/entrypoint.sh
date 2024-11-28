@@ -16,7 +16,7 @@ if [ "$HEADLESS" = "False" ]; then
 
     # Start x11vnc in the background
     echo "Starting VNC server..."
-    x11vnc -display :99 -passwd ${VNC_PASSWORD} -forever -shared -verbose &
+    x11vnc -display :99 -forever -shared -verbose &
 
     # Wait for X server to be ready
     echo "Checking X server with DISPLAY=\${DISPLAY}"
