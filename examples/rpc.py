@@ -1,6 +1,7 @@
 import asyncio
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
+from textwrap import dedent
 from typing import (
     Awaitable,
     Callable,
@@ -8,7 +9,6 @@ from typing import (
 )
 
 from pydantic import JsonValue
-from shortuuid import uuid
 
 from inspect_ai.util import SandboxEnvironment, sandbox
 
@@ -24,6 +24,8 @@ PARAMS = "params"
 ERROR = "error"
 RESULT = "result"
 
+POLLING_INTERVAL = 0.1
+
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
 
@@ -32,7 +34,6 @@ async def sandbox_service(
     sandbox: SandboxEnvironment,
     methods: dict[str, SandboxServiceMethod],
     until: Callable[[], bool],
-    interval: float = 0.2,
 ) -> None:
     # setup and start service
     service = SandboxService(name, sandbox)
@@ -42,7 +43,7 @@ async def sandbox_service(
 
     # wait for and process methods
     while not until():
-        await asyncio.sleep(interval)
+        await asyncio.sleep(POLLING_INTERVAL)
         await service.handle_requests()
 
 
@@ -71,7 +72,7 @@ class SandboxService:
         # client script
         assert not self._client_script
         client_script = PurePosixPath(self._service_dir, CLIENT_SCRIPT).as_posix()
-        client_code = self._generate_client_code()
+        client_code = self._generate_client()
         await self._write_text_file(client_script, client_code)
         self._client_script = client_script
 
@@ -169,37 +170,49 @@ class SandboxService:
             msg = f"Failed to write file '{file}' into container: {result.stderr}"
             raise RuntimeError(msg)
 
-    def _generate_client_code(self) -> str:
-        return ""
+    def _generate_client(self) -> str:
+        return dedent(f"""
+        async def call_{self._name}(method: str, params: dict[str, JsonValue]
+        ) -> JsonValue:
+            # dependencies
+            from json import dump, load
+            from uuid import uuid4
+            from pathlib import Path
 
+            # directories
+            requests_dir = Path("{SERVICES_DIR}", "{self._name}", "{REQUESTS_DIR}")
+            responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
 
-async def call_inspect_service(
-    service: str, method: str, params: dict[str, JsonValue]
-) -> JsonValue:
-    # directories
-    requests_dir = Path(SERVICES_DIR, service, REQUESTS_DIR)
-    responses_dir = Path(SERVICES_DIR, service, RESPONSES_DIR)
+            # create request and write it
+            request_id = uuid4()
+            request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
+            request_path = requests_dir / request_id + ".json"
+            with open(request_path, "w") as f:
+                dump(request_data, f)
 
-    # create request and write it
-    request_id = uuid()
-    request_data = {ID: request_id, METHOD: method, PARAMS: params}
-    request_path = requests_dir / f"{request_id}.json"
-    with open(request_path, "w") as f:
-        json.dump(request_data, f)
+            # wait for response
+            response_path = responses_dir / request_id + ".json"
+            while True:
+                # initial wait
+                await asyncio.sleep({POLLING_INTERVAL})
 
-    # wait for response
-    response_path = responses_dir / f"{request_id}.json"
-    while True:
-        await asyncio.sleep(0.2)
-        if response_path.exists():
-            # read and remove the file
-            with open(response_path, "r") as f:
-                response = json.load(f)
-            response_path.unlink()
+                if response_path.exists():
+                    # read and remove the file
+                    with open(response_path, "r") as f:
+                        response = load(f)
+                    response_path.unlink()
 
-            # raise error if necessary
-            if response[ERROR]:
-                raise Exception(response[ERROR])
+                    # raise error if we have one
+                    if "{ERROR}" in response:
+                        raise Exception(response["{ERROR}"])
 
-            # return response
-            return response[RESULT]
+                    # return response if we have one
+                    elif "{RESULT}" in response:
+                        return response["{RESULT}"]
+
+                    # invalid response
+                    else:
+                        raise RuntimeError(
+                            "No {ERROR} or {RESULT} field in response for method " + method
+                        )
+        """)
