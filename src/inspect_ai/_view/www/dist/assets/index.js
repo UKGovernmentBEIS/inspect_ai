@@ -8492,7 +8492,10 @@ const TabPanel = ({
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
-  const tabContentsRef = A();
+  const tabContentsRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     setTimeout(() => {
       if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
@@ -15131,8 +15134,14 @@ const ExpandablePanel = ({
 }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
-  const contentsRef = A();
-  const observerRef = A();
+  const contentsRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const observerRef = A(
+    /** @type {IntersectionObserver|null} */
+    null
+  );
   y(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
@@ -15302,7 +15311,7 @@ const ToolInput = ({ type, contents, view, style }) => {
   }
   if (view) {
     const toolInputRef = A(
-      /** @type {HTMLElement|null} */
+      /** @type {import("preact").Component & { base: Element }} */
       null
     );
     y(() => {
@@ -16520,7 +16529,10 @@ const LargeModal = (props) => {
     setWarningHidden
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
-  const scrollRef = A();
+  const scrollRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     if (scrollRef.current) {
       setTimeout(() => {
@@ -20444,26 +20456,26 @@ const STYLE_CONTENT = "position:absolute; top:0; left:0; height:100%; width:100%
 class VirtualList extends x$1 {
   constructor(props) {
     super(props);
+    /** @type {HTMLElement} */
+    __publicField(this, "base");
     this.state = {
       height: 0,
       offset: 0
     };
-    this.resize = this.resize.bind(this);
-    this.handleScroll = throttle(this.handleScroll.bind(this), 100);
+    this.resize = () => {
+      if (this.state.height !== this.base.offsetHeight) {
+        this.setState({ height: this.base.offsetHeight });
+      }
+    };
+    this.handleScroll = throttle(() => {
+      if (this.base) {
+        this.setState({ offset: this.base.scrollTop });
+      }
+      if (this.props.sync) {
+        this.forceUpdate();
+      }
+    }, 100);
     this.containerRef = b();
-  }
-  resize() {
-    if (this.state.height !== this.base.offsetHeight) {
-      this.setState({ height: this.base.offsetHeight });
-    }
-  }
-  handleScroll() {
-    if (this.base) {
-      this.setState({ offset: this.base.scrollTop });
-    }
-    if (this.props.sync) {
-      this.forceUpdate();
-    }
   }
   componentDidUpdate() {
     this.resize();
@@ -23222,7 +23234,8 @@ function simpleHttpAPI(logInfo) {
           };
         });
         return Promise.resolve({
-          files: logs
+          files: logs,
+          log_dir
         });
       } else if (log_file) {
         let evalLog = cache.get();
@@ -23237,7 +23250,8 @@ function simpleHttpAPI(logInfo) {
           task_id: evalLog.eval.task_id
         };
         return {
-          files: [result]
+          files: [result],
+          log_dir
         };
       } else {
         throw new Error(
@@ -25165,7 +25179,10 @@ const WorkspaceDisplay = ({
   }
 };
 const FindBand = ({ hideBand }) => {
-  const searchBoxRef = A();
+  const searchBoxRef = A(
+    /** @type {HTMLInputElement|null} */
+    null
+  );
   y(() => {
     searchBoxRef.current.focus();
   }, []);
@@ -25185,13 +25202,16 @@ const FindBand = ({ hideBand }) => {
       }
       return expandablePanelEl;
     };
-    const focusedElement = document.activeElement;
+    const focusedElement = (
+      /** @type {HTMLElement} */
+      document.activeElement
+    );
     const result = window.find(term, false, !!back, false, false, true, false);
     const noResultEl = window.document.getElementById(
       "inspect-find-no-results"
     );
     if (result) {
-      noResultEl.style.opacity = 0;
+      noResultEl.style.opacity = "0";
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {
         const parentPanel = parentExpandablePanel(selection);
@@ -25212,7 +25232,7 @@ const FindBand = ({ hideBand }) => {
         }, 100);
       }
     } else {
-      noResultEl.style.opacity = 1;
+      noResultEl.style.opacity = "1";
     }
     if (focusedElement) {
       focusedElement.focus();
