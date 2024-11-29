@@ -9,6 +9,7 @@
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
 - Log files now properly deal with scores that produce Nan. (fixes [#834](https://github.com/UKGovernmentBEIS/inspect_ai/issues/834))
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
+- Google: Support for tools/functions that have no parameters.
 - Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
 - AzureAI: Change default max_tokens for Llama models to 2048 (4096 currently yields an error w/ Llama 3.1).
 - Mistral: Various compatiblity changes for their client and tool calling implementation.
