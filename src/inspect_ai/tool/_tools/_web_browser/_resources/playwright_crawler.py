@@ -41,7 +41,7 @@ class PlaywrightBrowser:
     HEIGHT = 1080
     _playwright_api = None
 
-    def __init__(self, headless: bool):
+    def __init__(self, headless: bool = True):
         """
         Creates the browser.
 
