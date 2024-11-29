@@ -190,11 +190,8 @@ class AzureAIAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        if self.is_llama3():
-            return 8192  # context window is 128k
-
-        elif self.is_llama():
-            return 2048  # llama2 context window is 4096
+        if self.is_llama():
+            return 2048  # llama2 and llama3 on azureai have context windows of 4096
 
         # Mistral uses a default of 8192 which is fine, so we don't mess with it
         # see: https://learn.microsoft.com/en-us/azure/ai-studio/how-to/deploy-models-mistral#request-schema

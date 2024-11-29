@@ -13,10 +13,10 @@ def transcript_code_theme() -> str:
     return "github-dark"
 
 
-def transcript_markdown(content: str) -> Markdown:
+def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
     code_theme = transcript_code_theme()
     return Markdown(
-        html.escape(content),
+        html.escape(content) if escape else content,
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,

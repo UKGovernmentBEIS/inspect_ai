@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Callable, Literal, Type, cast
 
+from shortuuid import uuid
 from tenacity import (
     retry,
     retry_if_exception,
@@ -352,12 +353,15 @@ class Model:
                 cache="write" if cache else None,
             )
 
+            generate_id = uuid()
+            logger.debug(f"model generate {generate_id} ({str(self)})")
             result = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
             )
+            logger.debug(f"model generate {generate_id} (completed)")
             if isinstance(result, tuple):
                 output, call = result
             else:

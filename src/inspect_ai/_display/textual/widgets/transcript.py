@@ -249,10 +249,12 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
     table.add_column("", justify="left")
     table.add_row("Target", str(event.target).strip())
     if event.score.answer:
-        table.add_row("Answer", transcript_markdown(event.score.answer))
+        table.add_row("Answer", transcript_markdown(event.score.answer, escape=True))
     table.add_row("Score", str(event.score.value).strip())
     if event.score.explanation:
-        table.add_row("Explanation", transcript_markdown(event.score.explanation))
+        table.add_row(
+            "Explanation", transcript_markdown(event.score.explanation, escape=True)
+        )
 
     return EventDisplay("score", table)
 
@@ -329,7 +331,7 @@ def render_message(
     ]
     text = text or message.text
     if text:
-        content.extend([transcript_markdown(text.strip())])
+        content.extend([transcript_markdown(text.strip(), escape=True)])
     return content
 
 

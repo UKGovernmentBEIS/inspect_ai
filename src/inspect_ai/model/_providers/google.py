@@ -396,7 +396,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=schema_from_param(tool.parameters),
+            parameters=schema_from_param(tool.parameters)
+            if len(tool.parameters.properties) > 0
+            else None,
         )
         for tool in tools
     ]
