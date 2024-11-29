@@ -10,7 +10,7 @@ from typing import (
 
 from pydantic import JsonValue
 
-from inspect_ai.util import SandboxEnvironment, sandbox
+from .environment import SandboxEnvironment
 
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
@@ -34,9 +34,9 @@ Service methods should accept and return arguments of type JsonValue
 
 async def sandbox_service(
     name: str,
-    methods: dict[str, SandboxServiceMethod],
+    methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
     until: Callable[[], bool],
-    sandbox: SandboxEnvironment = sandbox(),
+    sandbox: SandboxEnvironment,
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
@@ -49,6 +49,8 @@ async def sandbox_service(
     """
     # setup and start service
     service = SandboxService(name, sandbox)
+    if isinstance(methods, list):
+        methods = {v.__name__: v for v in methods}
     for name, method in methods.items():
         service.add_method(name, method)
     await service.start()
@@ -86,7 +88,7 @@ class SandboxService:
     ```
     """
 
-    def __init__(self, name: str, sandbox: SandboxEnvironment = sandbox()) -> None:
+    def __init__(self, name: str, sandbox: SandboxEnvironment) -> None:
         """Create a SandboxService.
 
         Args:
@@ -96,7 +98,7 @@ class SandboxService:
         self._name = name
         self._sandbox = sandbox
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
-        self._methods: dict[str, SandboxServiceMethod]
+        self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
         self._responses_dir: str = ""
         self._client_script: str = ""
@@ -129,21 +131,29 @@ class SandboxService:
 
     async def handle_requests(self) -> None:
         """Handle all pending service requests."""
-        # read pending request files
-        result = await self._sandbox.exec(["ls", "-1", f"{self._requests_dir}/*.json"])
-        if not result.success:
-            raise RuntimeError(
-                f"Error reading service requests for '{self._name}' service."
-            )
-        request_files = result.stdout.strip().splitlines()
+        # list pending requests
+        list_requests = f"ls -1 {self._requests_dir}/*.json"
+        result = await self._sandbox.exec(["bash", "-c", list_requests])
 
-        # handle requests in parallel
-        await asyncio.gather(*[self._handle_request(file) for file in request_files])
+        # process reqests
+        if result.success:
+            request_files = result.stdout.strip().splitlines()
+            if request_files:
+                await asyncio.gather(
+                    *[self._handle_request(file) for file in request_files]
+                )
 
     async def _handle_request(self, request_file: str) -> None:
-        # read and validate request
-        with open(request_file, "r") as f:
-            request_data = json.load(f)
+        # read request
+        read_request = f"cat {request_file}"
+        result = await self._sandbox.exec(["bash", "-c", read_request])
+        if not result.success:
+            raise RuntimeError(
+                f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
+            )
+
+        # parse request
+        request_data = json.loads(result.stdout)
         if not isinstance(request_data, dict):
             raise TypeError(f"Service request is not a dict (type={request_data})")
 
@@ -209,6 +219,7 @@ class SandboxService:
 
     async def _create_rpc_dir(self, name: str) -> str:
         rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
+        result = await self._sandbox.exec(["rm", "-rf", rpc_dir])
         result = await self._sandbox.exec(["mkdir", "-p", rpc_dir])
         if not result.success:
             raise RuntimeError(
@@ -224,9 +235,11 @@ class SandboxService:
 
     def _generate_client(self) -> str:
         return dedent(f"""
-        async def call_{self._name}(method: str, params: dict[str, JsonValue]
-        ) -> JsonValue:
+        from typing import Any
+
+        async def call_{self._name}(method: str, **params: Any) -> Any:
             # dependencies
+            from asyncio import sleep
             from json import dump, load
             from uuid import uuid4
             from pathlib import Path
@@ -236,17 +249,17 @@ class SandboxService:
             responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
 
             # create request and write it
-            request_id = uuid4()
+            request_id = str(uuid4())
             request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
-            request_path = requests_dir / request_id + ".json"
+            request_path = requests_dir / (request_id + ".json")
             with open(request_path, "w") as f:
                 dump(request_data, f)
 
             # wait for response
-            response_path = responses_dir / request_id + ".json"
+            response_path = responses_dir / (request_id + ".json")
             while True:
                 # initial wait
-                await asyncio.sleep({POLLING_INTERVAL})
+                await sleep({POLLING_INTERVAL})
 
                 if response_path.exists():
                     # read and remove the file
@@ -255,7 +268,7 @@ class SandboxService:
                     response_path.unlink()
 
                     # raise error if we have one
-                    if "{ERROR}" in response:
+                    if response.get("{ERROR}", None) is not None:
                         raise Exception(response["{ERROR}"])
 
                     # return response if we have one
