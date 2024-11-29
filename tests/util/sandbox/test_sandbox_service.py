@@ -3,11 +3,15 @@ from textwrap import dedent
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import sandbox, sandbox_service
+from inspect_ai.util import ExecResult, sandbox, sandbox_service
 
 
 def test_sandbox_service():
-    eval(Task(solver=math_service()), model="mockllm/model", sandbox="docker")
+    log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="docker")[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.store.get("result") == 8
 
 
 @solver
@@ -36,11 +40,13 @@ def math_service() -> Solver:
         await sandbox().write_file("run.py", run_script)
 
         # run the script and the math service
-        for t in asyncio.as_completed(
+        for task in asyncio.as_completed(
             [sandbox().exec(["python3", "run.py"]), run_math_service(state)]
         ):
-            print("task completed")
-            print(await t)
+            result = await task
+            if isinstance(result, ExecResult) and not result.success:
+                print(f"Error running script 'run.py': {result.stderr}")
+                break
 
         return state
 
@@ -59,7 +65,7 @@ async def run_math_service(state: TaskState) -> None:
     async def finish(result: int) -> None:
         nonlocal finished
         finished = True
-        print(f"finished: {result}")
+        state.store.set("result", result)
 
     await sandbox_service(
         name="math_service",
