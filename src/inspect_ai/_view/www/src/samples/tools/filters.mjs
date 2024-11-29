@@ -5,6 +5,7 @@ import {
   kScoreTypeNumeric,
   kScoreTypePassFail,
 } from "../../constants.mjs";
+import { inputString } from "../../utils/Format.mjs";
 
 /**
  * Coerces a value to the type expected by the score.
@@ -197,7 +198,7 @@ export const addFragmentToFilter = (filter, fragment) => {
 
 /**
  * TODO: Add case-insensitive string comparison.
- * TODO: Support filtering by things other than scores: metadata, transcript text, etc.
+ * TODO: Pass EvalSample instead of SampleSummary and allow full-text message search.
  *
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
  * @param {import("../../api/Types.mjs").SampleSummary} sample
@@ -206,7 +207,25 @@ export const addFragmentToFilter = (filter, fragment) => {
  */
 export const filterExpression = (evalDescriptor, sample, value) => {
   try {
-    const expression = compileExpression(value);
+    /** @type {(regex: string) => boolean} */
+    const inputContains = (regex) => {
+      return inputString(sample.input).some((msg) =>
+        msg.match(new RegExp(regex, "i")),
+      );
+    };
+    /** @type {(regex: string) => boolean} */
+    const targetContains = (regex) => {
+      let targets = Array.isArray(sample.target)
+        ? sample.target
+        : [sample.target];
+      return targets.some((target) => target.match(new RegExp(regex, "i")));
+    };
+
+    const extraFunctions = {
+      input_contains: inputContains,
+      target_contains: targetContains,
+    };
+    const expression = compileExpression(value, { extraFunctions });
     const vars = scoreVariables(evalDescriptor, sample.scores);
     const result = expression(vars);
     if (typeof result === "boolean") {

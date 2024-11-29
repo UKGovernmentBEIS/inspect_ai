@@ -31954,7 +31954,20 @@ Categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
     };
     const filterExpression = (evalDescriptor, sample, value) => {
       try {
-        const expression = compileExpression(value);
+        const inputContains = (regex2) => {
+          return inputString(sample.input).some(
+            (msg) => msg.match(new RegExp(regex2, "i"))
+          );
+        };
+        const targetContains = (regex2) => {
+          let targets = Array.isArray(sample.target) ? sample.target : [sample.target];
+          return targets.some((target) => target.match(new RegExp(regex2, "i")));
+        };
+        const extraFunctions = {
+          input_contains: inputContains,
+          target_contains: targetContains
+        };
+        const expression = compileExpression(value, { extraFunctions });
         const vars = scoreVariables(evalDescriptor, sample.scores);
         const result = expression(vars);
         if (typeof result === "boolean") {
