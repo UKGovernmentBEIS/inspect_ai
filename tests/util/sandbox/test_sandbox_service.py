@@ -18,7 +18,8 @@ def test_sandbox_service():
 def math_service() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # generate a script that will exercise the service and copy it to the sandbox
-        run_script = dedent("""
+        run_script = "run.py"
+        run_script_code = dedent("""
         import asyncio
 
         async def run():
@@ -40,15 +41,15 @@ def math_service() -> Solver:
 
         asyncio.run(run())
         """)
-        await sandbox().write_file("run.py", run_script)
+        await sandbox().write_file(run_script, run_script_code)
 
         # run the script and the math service
         for task in asyncio.as_completed(
-            [sandbox().exec(["python3", "run.py"]), run_math_service(state)]
+            [sandbox().exec(["python3", run_script]), run_math_service(state)]
         ):
             result = await task
             if isinstance(result, ExecResult) and not result.success:
-                print(f"Error running script 'run.py': {result.stderr}")
+                print(f"Error running script '{run_script}': {result.stderr}")
                 break
 
         return state
@@ -76,7 +77,3 @@ async def run_math_service(state: TaskState) -> None:
         until=lambda: finished,
         sandbox=sandbox(),
     )
-
-
-if __name__ == "__main__":
-    test_sandbox_service()
