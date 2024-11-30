@@ -7,7 +7,7 @@ from inspect_ai.util import ExecResult, sandbox, sandbox_service
 
 
 def test_sandbox_service():
-    log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="local")[0]
+    log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="docker")[0]
     assert log.status == "success"
     assert log.samples
     sample = log.samples[0]
