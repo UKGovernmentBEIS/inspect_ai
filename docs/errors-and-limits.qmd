@@ -159,6 +159,10 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
         ...
 ```
 
+::: {.callout-important}
+It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+:::
+
 ### Limit Checking
 
 How and when are sample limits checked? Time limits are handled automatically by the code that runs the sample. Message and token limits are checked automatically when you access the `completed` property of `TaskState`. For example, most agents will use `state.completed` as their main loop condition:
