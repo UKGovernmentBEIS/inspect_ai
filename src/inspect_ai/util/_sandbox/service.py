@@ -237,47 +237,62 @@ class SandboxService:
         return dedent(f"""
         from typing import Any
 
-        async def call_{self._name}(method: str, **params: Any) -> Any:
-            # dependencies
+        def call_{self._name}(method: str, **params: Any) -> Any:
+            from time import sleep
+            request_id = _write_{self._name}_request(method, **params)
+            while True:
+                sleep({POLLING_INTERVAL})
+                success, result = _read_{self._name}_response(request_id)
+                if success:
+                    return result
+
+        async def call_{self._name}_async(method: str, **params: Any) -> Any:
             from asyncio import sleep
-            from json import dump, load
-            from uuid import uuid4
+            request_id = _write_{self._name}_request(method, **params)
+            while True:
+                await sleep({POLLING_INTERVAL})
+                success, result = _read_{self._name}_response(request_id)
+                if success:
+                    return result
+
+        def _write_{self._name}_request(method: str, **params: Any) -> str:
+            from json import dump
             from pathlib import Path
+            from uuid import uuid4
 
-            # directories
             requests_dir = Path("{SERVICES_DIR}", "{self._name}", "{REQUESTS_DIR}")
-            responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
-
-            # create request and write it
             request_id = str(uuid4())
             request_data = dict({ID}=request_id, {METHOD}=method, {PARAMS}=params)
             request_path = requests_dir / (request_id + ".json")
             with open(request_path, "w") as f:
                 dump(request_data, f)
+            return request_id
 
-            # wait for response
+        def _read_{self._name}_response(request_id: str) -> tuple[bool, Any]:
+            from json import load
+            from pathlib import Path
+
+            responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
             response_path = responses_dir / (request_id + ".json")
-            while True:
-                # initial wait
-                await sleep({POLLING_INTERVAL})
+            if response_path.exists():
+                # read and remove the file
+                with open(response_path, "r") as f:
+                    response = load(f)
+                response_path.unlink()
 
-                if response_path.exists():
-                    # read and remove the file
-                    with open(response_path, "r") as f:
-                        response = load(f)
-                    response_path.unlink()
+                # raise error if we have one
+                if response.get("{ERROR}", None) is not None:
+                    raise Exception(response["{ERROR}"])
 
-                    # raise error if we have one
-                    if response.get("{ERROR}", None) is not None:
-                        raise Exception(response["{ERROR}"])
+                # return response if we have one
+                elif "{RESULT}" in response:
+                    return True, response["{RESULT}"]
 
-                    # return response if we have one
-                    elif "{RESULT}" in response:
-                        return response["{RESULT}"]
-
-                    # invalid response
-                    else:
-                        raise RuntimeError(
-                            "No {ERROR} or {RESULT} field in response for method " + method
-                        )
+                # invalid response
+                else:
+                    raise RuntimeError(
+                        "No {ERROR} or {RESULT} field in response for method " + method
+                    )
+            else:
+                return False, None
         """)

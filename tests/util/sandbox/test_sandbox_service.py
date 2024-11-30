@@ -7,7 +7,7 @@ from inspect_ai.util import ExecResult, sandbox, sandbox_service
 
 
 def test_sandbox_service():
-    log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="docker")[0]
+    log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="local")[0]
     assert log.status == "success"
     assert log.samples
     sample = log.samples[0]
@@ -28,12 +28,12 @@ def math_service() -> Solver:
             # import service
             import sys
             sys.path.append("/tmp/inspect-sandbox-services/math_service")
-            from math_service import call_math_service
+            from math_service import call_math_service, call_math_service_async
 
             # call service
-            result = await call_math_service("add", x=10, y=5)
-            result = await call_math_service("subtract", x=result, y=7)
-            await call_math_service("finish", result=result)
+            result = await call_math_service_async("add", x=10, y=5)
+            result = call_math_service("subtract", x=result, y=7)
+            await call_math_service_async("finish", result=result)
 
         asyncio.run(run())
         """)
