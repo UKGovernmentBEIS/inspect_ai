@@ -26,10 +26,6 @@ RESULT = "result"
 POLLING_INTERVAL = 0.1
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
-"""Method definition for sandbox service.
-
-Service methods should accept and return arguments of type JsonValue
-"""
 
 
 async def sandbox_service(
