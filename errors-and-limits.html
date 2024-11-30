@@ -514,6 +514,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        state.token_limit <span class="op">=</span> token_limit</span>
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>It’s important to note that the <code>token_limit</code> is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the <code>max_tokens</code> generation option.</p>
+</div>
+</div>
 </section>
 <section id="limit-checking" class="level3">
 <h3 class="anchored" data-anchor-id="limit-checking">Limit Checking</h3>

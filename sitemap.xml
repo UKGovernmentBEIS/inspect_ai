@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/errors-and-limits.html</loc>
-    <lastmod>2024-11-19T00:01:11.693Z</lastmod>
+    <lastmod>2024-11-30T17:35:56.367Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/workflow.html</loc>
@@ -22,11 +22,11 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/parallelism.html</loc>
-    <lastmod>2024-11-19T00:01:11.700Z</lastmod>
+    <lastmod>2024-11-26T14:47:05.493Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/scorers.html</loc>
-    <lastmod>2024-11-19T16:44:04.054Z</lastmod>
+    <lastmod>2024-11-22T21:37:20.665Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/log-viewer.html</loc>
@@ -38,7 +38,7 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/tutorial.html</loc>
-    <lastmod>2024-11-21T03:28:25.288Z</lastmod>
+    <lastmod>2024-11-22T21:37:20.666Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/solvers.html</loc>
@@ -82,6 +82,6 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/eval-logs.html</loc>
-    <lastmod>2024-11-21T14:21:44.411Z</lastmod>
+    <lastmod>2024-11-22T21:37:20.665Z</lastmod>
   </url>
 </urlset>
