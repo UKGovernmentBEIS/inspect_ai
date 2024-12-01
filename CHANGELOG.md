@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Improve cancellation feedback and prevent multiple cancellations when using fullscreen display.
+- Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 
 ## v0.3.48 (01 December 2024) 
 
