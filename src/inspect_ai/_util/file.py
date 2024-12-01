@@ -172,7 +172,22 @@ class FileSystem:
         self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
-        self.fs.makedirs(path, exist_ok=exist_ok)
+        if self.is_s3():
+            # try to avoid calling create_bucket on s3 filesystems (as that requires distinct
+            # privileges from being able to write to an existing bucket). we do this by
+            # first calling mkdir w/ create_parents=False and then only if that fails
+            # with FileNotFound do we attempt to create the bucket by calling mkdirs
+            try:
+                self.fs.makedir(path, create_parents=False)
+            except FileExistsError:
+                if exist_ok:
+                    pass
+                else:
+                    raise
+            except FileNotFoundError:
+                self.fs.makedirs(path, exist_ok=exist_ok)
+        else:
+            self.fs.makedirs(path, exist_ok=exist_ok)
 
     def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
         return self._file_info(self.fs.info(path, **kwargs))
