@@ -1,6 +1,13 @@
 ---
 title: Inspect
 subtitle: An open-source framework for large language model evaluations
+citation:
+  id: "UK_AI_Safety_Institute_Inspect_AI_Framework_2024"
+  title: "Inspect AI: Framework for Large Language Model Evaluations"
+  author: "UK AI Safety Institute"
+  issued: 2024-05
+  url: "https://github.com/UKGovernmentBEIS/inspect_ai"
+  type: "software"
 ---
 
 ## Welcome
