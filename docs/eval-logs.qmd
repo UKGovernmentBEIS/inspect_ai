@@ -132,14 +132,6 @@ In the section below we'll talk more about how to deal with logs from failed eva
 
 ### Location
 
-::: {.callout-note appearance="simple"}
-The `location` property described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `EvalLog` object returned from `eval()` and `read_eval_log()` has a `location` property that indicates the storage location it was written to or read from.
 
 The `write_eval_log()` function will use this `location` if it isn't passed an explicit `location` to write to. This enables you to modify the contents of a log file return from `eval()` as follows:
