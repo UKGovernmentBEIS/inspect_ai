@@ -221,7 +221,9 @@ class TaskScreenApp(App[TR]):
     # update the header title
     def update_title(self) -> None:
         # determine title
-        if len(self._tasks) > 0:
+        if self._worker and self._worker.is_cancelled:
+            title = "eval interrupted (cancelling running samples...)"
+        elif len(self._tasks) > 0:
             if self._parallel:
                 completed = sum(1 for task in self._tasks if task.result is not None)
                 title = f"{tasks_title(completed, self._total_tasks)}"
@@ -302,8 +304,9 @@ class TaskScreenApp(App[TR]):
     # map ctrl+c to cancelling the worker
     @override
     async def action_quit(self) -> None:
-        if self._worker and self._worker.is_running:
+        if self._worker and self._worker.is_running and not self._worker.is_cancelled:
             self._worker.cancel()
+            self.update_title()
 
 
 class TextualTaskScreen(TaskScreen, Generic[TR]):
