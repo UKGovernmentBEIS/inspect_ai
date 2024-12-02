@@ -8,7 +8,11 @@ from typing_extensions import override
 
 from .._subprocess import ExecResult, subprocess
 from .environment import SandboxConnection, SandboxConnectionLocal, SandboxEnvironment
-from .limits import verify_exec_result_size, verify_read_file_size
+from .limits import (
+    SandboxEnvironmentLimits,
+    verify_exec_result_size,
+    verify_read_file_size,
+)
 from .registry import sandboxenv
 
 
@@ -63,6 +67,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             cwd=final_cwd,
             env=env,
             timeout=timeout,
+            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
         verify_exec_result_size(result)
         return result
