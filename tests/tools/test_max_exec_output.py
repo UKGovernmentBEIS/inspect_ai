@@ -1,3 +1,6 @@
+import pytest
+from test_helpers.utils import skip_if_no_docker
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model._generate_config import GenerateConfig
@@ -20,7 +23,11 @@ foo_big = ""
 
 for _ in range(1000):
     foo = ''.join(random.choices(string.ascii_letters + string.digits, k=1_000_000))
+
+    # stream out another 1MB of data
     print(foo)
+
+    # deliberately keep the big string in memory
     foo_big += foo
     print(len(foo_big))
             """,
@@ -32,6 +39,10 @@ for _ in range(1000):
     return solve
 
 
+# Run this test with a memory limit of around 200MB,
+# e.g. systemd-run --user --scope -p MemoryMax=200M pytest tests/tools/test_max_exec_output.py --capture=no --runslow
+@skip_if_no_docker
+@pytest.mark.slow
 def test_max_exec_output():
     task = Task(
         dataset=[
