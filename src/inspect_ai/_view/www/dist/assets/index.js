@@ -23837,25 +23837,48 @@ const byEpoch = (sort) => {
 const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 };
+const sortId = (a2, b2) => {
+  if (isNumeric(a2.id) && isNumeric(b2.id)) {
+    return Number(a2.id) - Number(b2.id);
+  } else {
+    return String(a2.id).localeCompare(String(b2.id));
+  }
+};
 const sortSamples = (sort, samples, samplesDescriptor) => {
   const sortedSamples = samples.sort((a2, b2) => {
     switch (sort) {
-      case kSampleAscVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(a2.id) - Number(b2.id);
+      case kSampleAscVal: {
+        const result = sortId(a2, b2);
+        if (result !== 0) {
+          return result;
         } else {
-          return String(a2.id).localeCompare(String(b2.id));
+          return a2.epoch - b2.epoch;
         }
-      case kSampleDescVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(b2.id) - Number(a2.id);
+      }
+      case kSampleDescVal: {
+        const result = sortId(b2, a2);
+        if (result !== 0) {
+          return result;
         } else {
-          return String(b2.id).localeCompare(String(a2.id));
+          return a2.epoch - b2.epoch;
         }
-      case kEpochAscVal:
-        return a2.epoch - b2.epoch;
-      case kEpochDescVal:
-        return b2.epoch - a2.epoch;
+      }
+      case kEpochAscVal: {
+        const result = a2.epoch - b2.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a2, b2);
+        }
+      }
+      case kEpochDescVal: {
+        const result = b2.epoch - a2.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a2, b2);
+        }
+      }
       case kScoreAscVal:
         return samplesDescriptor.scoreDescriptor.compare(
           samplesDescriptor.selectedScore(a2).value,
