@@ -11,3 +11,12 @@ async def test_number_eol():
     result = await scorer(state, Target(["60"]))
 
     assert result.text == CORRECT
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_match():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="28 + 32 = 60%\nThis solves the problem.")
+    result = await scorer(state, Target(["60", "60%"]))
+
+    assert result.text == CORRECT
