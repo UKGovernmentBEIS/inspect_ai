@@ -151,6 +151,7 @@ async def subprocess(
 
                 # stop if we have a limit and we have exceeded it
                 if output_limit is not None and len(output) > output_limit:
+                    proc.kill()
                     break
 
             # return stream output
