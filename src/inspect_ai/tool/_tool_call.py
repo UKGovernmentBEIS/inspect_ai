@@ -48,7 +48,7 @@ class ToolCall:
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""
 
-    view: ToolCallContent | None = Field(default=None)
+    view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
 
 
