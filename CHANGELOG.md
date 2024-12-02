@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.
 - Improve cancellation feedback and prevent multiple cancellations when using fullscreen display.
 
 ## v0.3.48 (01 December 2024) 
