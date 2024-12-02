@@ -146,6 +146,11 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListingCopyEditorPath",
+        "title": "Copy Editor URL",
+        "enablement": "workspaceFolderCount != 0"
+      },      
+      {
         "command": "inspect.logListingReveal",
         "title": "Reveal Log Listing",
         "category": "Inspect",
@@ -368,8 +373,13 @@
         },
         {
           "command": "inspect.logListingCopyLogPath",
-          "group": "1_copycommands",
+          "group": "1_copycommands@1",
           "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
+        },
+        {
+          "command": "inspect.logListingCopyEditorPath",
+          "group": "1_copycommands@2",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file\\+remote/"
         },
         {
           "command": "inspect.logListingDeleteLogFile",

@@ -153,6 +153,15 @@ export async function activateLogListing(
     }
   }));
 
+  // Register copy editor command
+  disposables.push(vscode.commands.registerCommand('inspect.logListingCopyEditorPath', async (node: LogNode) => {
+    const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
+    if (logUri) {
+      const url = `vscode://ukaisi.inspect-ai/open?log=${logUri.toString()}`;
+      await vscode.env.clipboard.writeText(url);
+    }
+  }));
+
   // refresh when a log in our directory changes
   disposables.push(logsWatcher.onInspectLogCreated((e) => {
     const treeLogDir = treeDataProvider.getLogListing()?.logDir();
