@@ -125,9 +125,10 @@ async def subprocess(
         yield proc
 
         # write stdin if specified
-        if input is not None and proc.stdin is not None:
-            proc.stdin.write(input)
-            await proc.stdin.drain()
+        if proc.stdin is not None:
+            if input is not None:
+                proc.stdin.write(input)
+                await proc.stdin.drain()
             proc.stdin.close()
             await proc.stdin.wait_closed()
 
