@@ -15,7 +15,11 @@ from ..environment import (
     SandboxConnectionContainer,
     SandboxEnvironment,
 )
-from ..limits import verify_exec_result_size, verify_read_file_size
+from ..limits import (
+    SandboxEnvironmentLimits,
+    verify_exec_result_size,
+    verify_read_file_size,
+)
 from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
@@ -241,6 +245,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
             timeout=timeout,
             input=input,
+            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
         verify_exec_result_size(exec_result)
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
@@ -369,6 +374,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     dest=os.path.basename(dest_file),
                     project=self._project,
                     cwd=os.path.dirname(dest_file),
+                    output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
                 )
             except RuntimeError as ex:
                 # extract the message and normalise case

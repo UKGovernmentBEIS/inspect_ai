@@ -71,9 +71,15 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
 
 
 async def compose_cp(
-    src: str, dest: str, project: ComposeProject, cwd: str | Path | None = None
+    src: str,
+    dest: str,
+    project: ComposeProject,
+    cwd: str | Path | None = None,
+    output_limit: int | None = None,
 ) -> None:
-    result = await compose_command(["cp", "--", src, dest], project=project, cwd=cwd)
+    result = await compose_command(
+        ["cp", "--", src, dest], project=project, cwd=cwd, output_limit=output_limit
+    )
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
         raise RuntimeError(msg)
@@ -149,6 +155,7 @@ async def compose_exec(
     project: ComposeProject,
     timeout: int | None = None,
     input: str | bytes | None = None,
+    output_limit: int | None = None,
 ) -> ExecResult[str]:
     return await compose_command(
         ["exec"] + command,
@@ -156,6 +163,7 @@ async def compose_exec(
         timeout=timeout,
         input=input,
         forward_env=False,
+        output_limit=output_limit,
     )
 
 
@@ -241,6 +249,7 @@ async def compose_command(
     cwd: str | Path | None = None,
     forward_env: bool = True,
     capture_output: bool = True,
+    output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
 ) -> ExecResult[str]:
     # The base docker compose command
@@ -278,6 +287,7 @@ async def compose_command(
         env=env,
         timeout=timeout,
         capture_output=capture_output,
+        output_limit=output_limit,
     )
     sandbox_log(f"compose command completed: {shlex.join(compose_command)}")
     return result
