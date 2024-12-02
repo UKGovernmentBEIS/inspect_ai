@@ -269,18 +269,26 @@ const extractInputMetadata = (toolName) => {
 /**
  * @param {string} inputKey
  * @param {Object<string, any>} args
- * @returns {{ input: any, args: string[] }}
+ * @returns {{ input: string | undefined, args: string[] }}
  */
 const extractInput = (inputKey, args) => {
   const formatArg = (key, value) => {
     const quotedValue = typeof value === "string" ? `"${value}"` : value;
     return `${key}: ${quotedValue}`;
   };
-
   if (args) {
     if (Object.keys(args).length === 1) {
+      const inputRaw = args[Object.keys(args)[0]];
+
+      let input;
+      if (Array.isArray(inputRaw) || typeof inputRaw === "object") {
+        input = JSON.stringify(inputRaw, undefined, 2);
+      } else {
+        input = String(inputRaw);
+      }
+
       return {
-        input: args[Object.keys(args)[0]],
+        input: input,
         args: [],
       };
     } else if (args[inputKey]) {
