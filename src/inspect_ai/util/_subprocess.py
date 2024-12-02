@@ -138,7 +138,7 @@ async def subprocess(
                 return bytes()
 
             # read 8k at a time
-            output = bytes()
+            output = bytearray()
             while True:
                 # read chunk and terminate if we are done
                 chunk = await stream.read(8192)
@@ -146,14 +146,14 @@ async def subprocess(
                     break
 
                 # append to output
-                output = output + chunk
+                output.extend(chunk)
 
                 # stop if we have a limit and we have exceeded it
                 if output_limit is not None and len(output) > output_limit:
                     break
 
             # return stream output
-            return output
+            return bytes(output)
 
         # wait for it to execute and yield result
         stdout, stderr = await asyncio.gather(
