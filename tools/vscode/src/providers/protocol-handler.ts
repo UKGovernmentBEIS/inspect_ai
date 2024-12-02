@@ -29,11 +29,7 @@ export class InspectProtocolHandler implements UriHandler {
           }
 
           // Execute the open command
-          await commands.executeCommand(
-            "vscode.openWith",
-            logUri,
-            "inspect-ai.log-editor"
-          );
+          await commands.executeCommand('inspect.openLogViewer', logUri);
         }
       }
     }
