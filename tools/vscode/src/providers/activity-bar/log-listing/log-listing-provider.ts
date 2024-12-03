@@ -157,7 +157,7 @@ export async function activateLogListing(
   disposables.push(vscode.commands.registerCommand('inspect.logListingCopyEditorPath', async (node: LogNode) => {
     const logUri = treeDataProvider.getLogListing()?.uriForNode(node);
     if (logUri) {
-      const url = `vscode://ukaisi.inspect-ai/open?log=${logUri.toString()}`;
+      const url = `vscode://ukaisi.inspect-ai/open?log=${encodeURIComponent(logUri.toString())}`;
       await vscode.env.clipboard.writeText(url);
     }
   }));
