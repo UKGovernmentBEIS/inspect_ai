@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
+
 ## v0.3.49 (03 December 2024)
 
 - Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.
