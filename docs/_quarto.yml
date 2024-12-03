@@ -2,6 +2,8 @@ project:
    type: website
    resources: 
       - CNAME
+      - llms.txt
+   post-render: scripts/post-render.sh
   
 website:
    title: "Inspect"
@@ -96,6 +98,8 @@ format:
      toc-depth: 3
      number-sections: false
      code-annotations: select
+   gfm: 
+      output-ext: html.lmd
 
 
 execute: 
