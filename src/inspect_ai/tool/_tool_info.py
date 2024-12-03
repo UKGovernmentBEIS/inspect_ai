@@ -1,4 +1,6 @@
 import inspect
+import types
+import typing
 from dataclasses import is_dataclass
 from typing import (
     Any,
@@ -139,12 +141,18 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
             return ToolParam(type="string")
         elif type_hint is bool:
             return ToolParam(type="boolean")
+        elif type_hint is list:
+            return ToolParam(type="array", items=ToolParam())
+        elif type_hint is dict:
+            return ToolParam(type="object", additionalProperties=ToolParam())
         elif (
             is_dataclass(type_hint)
             or is_typeddict(type_hint)
             or (isinstance(type_hint, type) and issubclass(type_hint, BaseModel))
         ):
             return parse_object(type_hint)
+        elif type_hint is type(None):
+            return ToolParam(type="null")
         else:
             return ToolParam()
     elif origin is list or origin is List:
@@ -156,10 +164,14 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
             type="object",
             additionalProperties=parse_type(args[1]) if len(args) > 1 else ToolParam(),
         )
-    elif origin is Union:
+    elif origin is Union or origin is types.UnionType:
         return ToolParam(anyOf=[parse_type(arg) for arg in args])
     elif origin is Optional:
-        return ToolParam(anyOf=[parse_type(args[0]), ToolParam()])
+        return ToolParam(
+            anyOf=[parse_type(arg) for arg in args] + [ToolParam(type="null")]
+        )
+    elif origin is typing.Literal:
+        return ToolParam(enum=list(args))
 
     return ToolParam()  # Default case if we can't determine the type
 
