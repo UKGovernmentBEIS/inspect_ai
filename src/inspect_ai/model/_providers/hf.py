@@ -31,7 +31,7 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .util import chat_api_input
+from .util import chat_api_input, Llama31Handler, ChatAPIHandler
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -113,8 +113,11 @@ class HuggingFaceAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
+        # create handler
+        handler: ChatAPIHandler | None = Llama31Handler() if len(tools) > 0 else None
+
         # create chat
-        chat = self.hf_chat(input, tools)
+        chat = self.hf_chat(input, tools, handler)
 
         # prepare tokenizer
         tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
@@ -172,6 +175,14 @@ class HuggingFaceAPI(ModelAPI):
             ),
         )
 
+        choice = ChatCompletionChoice(
+            message=chat_completion_assistant_message(response, tools, handler),
+            logprobs=(
+                Logprobs(content=final_logprobs) if final_logprobs is not None else None
+            ),
+            source="generate",
+        )
+
         # return output
         return ModelOutput(
             model=self.model_name,
@@ -197,9 +208,17 @@ class HuggingFaceAPI(ModelAPI):
     def collapse_user_messages(self) -> bool:
         return True
 
-    def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
+    def hf_chat(
+        self,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        handler: ChatAPIHandler | None,
+    ) -> str:
         # convert to hf format
-        hf_messages = chat_api_input(messages, tools)
+        if handler:
+            hf_messages = handler.input_with_tools(messages, tools)
+        else:
+            hf_messages = messages
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             hf_messages,
@@ -209,6 +228,17 @@ class HuggingFaceAPI(ModelAPI):
         )
         # return
         return cast(str, chat)
+
+
+def chat_completion_assistant_message(
+    response: Any, tools: list[ToolInfo], handler: ChatAPIHandler | None
+) -> ChatMessageAssistant:
+    if handler:
+        return handler.parse_assistant_response(response.output, tools)
+    else:
+        return ChatMessageAssistant(
+            content=response.output,
+        )
 
 
 def set_random_seeds(seed: int | None = None) -> None:
