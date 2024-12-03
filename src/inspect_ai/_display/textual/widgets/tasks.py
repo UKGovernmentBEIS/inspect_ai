@@ -158,7 +158,7 @@ class TaskProgressView(Widget):
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
-        self.segments.update(f"[{complete}/{total}]")
+        self.segments.update(f"[{complete:,}/{total:,}]")
 
 
 class TaskStatusIcon(Static):
