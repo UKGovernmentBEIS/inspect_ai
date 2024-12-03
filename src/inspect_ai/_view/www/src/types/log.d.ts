@@ -173,6 +173,7 @@ export type Logprob2 = number;
 export type Bytes1 = number[] | null;
 export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
+export type Time = number | null;
 export type Metadata4 = {} | null;
 export type Error = string | null;
 export type Scores1 = {
@@ -646,6 +647,7 @@ export interface ModelOutput {
   model: Model1;
   choices: Choices1;
   usage: ModelUsage1 | null;
+  time: Time;
   metadata: Metadata4;
   error: Error;
 }
