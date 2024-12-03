@@ -270,7 +270,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     ]
 
                     # run them in parallel (subject to config.max_samples)
-                    sample_results = await asyncio.gather(*sample_coroutines)
+                    sample_results = []
+                    td.sample_complete(complete=0, total=len(samples))
+                    for coroutine in asyncio.as_completed(sample_coroutines):
+                        result = await coroutine
+                        sample_results.append(result)
+                        td.sample_complete(
+                            complete=len(sample_results), total=len(samples)
+                        )
 
                 # compute and record metrics if we have scores
                 completed_scores = [

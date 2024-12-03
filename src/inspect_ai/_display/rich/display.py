@@ -280,6 +280,10 @@ class RichTaskDisplay(TaskDisplay):
         self.status.result = result
         self.p.complete()
 
+    @override
+    def sample_complete(self, complete: int, total: int) -> None:
+        self.p.update_segments(complete, total)
+
 
 def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
     theme = rich_theme()

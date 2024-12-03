@@ -26,6 +26,8 @@ class Progress(Protocol):
 
     def complete(self) -> None: ...
 
+    def update_segments(self, complete: int, total: int) -> None: ...
+
 
 @dataclass
 class TaskSpec:
@@ -102,6 +104,8 @@ class TaskDisplay(Protocol):
     def progress(self) -> Iterator[Progress]: ...
 
     def complete(self, result: TaskResult) -> None: ...
+
+    def sample_complete(self, complete: int, total: int) -> None: ...
 
 
 @runtime_checkable
