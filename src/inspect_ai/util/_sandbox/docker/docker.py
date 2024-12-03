@@ -14,6 +14,7 @@ from ..environment import (
     SandboxConnection,
     SandboxConnectionContainer,
     SandboxEnvironment,
+    SandboxEnvironmentConfigType,
 )
 from ..limits import (
     SandboxEnvironmentLimits,
@@ -55,7 +56,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return CONFIG_FILES + [DOCKERFILE]
 
     @classmethod
-    async def task_init(cls, task_name: str, config: str | None) -> None:
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
         # validate prereqs
         await validate_prereqs()
 
@@ -102,13 +105,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @override
     @classmethod
     async def sample_init(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
         sandbox_log("setup")
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
-        if config and Path(config).exists():
+        if isinstance(config, str) and Path(config).exists():
             # read the config file
             with open(config, "r") as f:
                 config_text = f.read()
@@ -179,7 +185,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -195,7 +201,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         await project_cleanup_shutdown(cleanup)
 

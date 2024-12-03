@@ -198,7 +198,7 @@ def resolve_task_sandbox(
                     break
 
         # resolve relative paths
-        if resolved_sandbox.config is not None:
+        if isinstance(resolved_sandbox.config, str):
             file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
                 file_path = Path(task_run_dir(task)) / file_path

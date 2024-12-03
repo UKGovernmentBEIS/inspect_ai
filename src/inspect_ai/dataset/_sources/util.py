@@ -34,7 +34,7 @@ def resolve_sample_files(dataset: Dataset) -> None:
     # for each sample
     for sample in dataset:
         # check for sandbox config file
-        if sample.sandbox and sample.sandbox.config is not None:
+        if sample.sandbox and isinstance(sample.sandbox.config, str):
             sample.sandbox = SandboxEnvironmentSpec(
                 sample.sandbox.type, resolve_file(sample.sandbox.config)
             )
