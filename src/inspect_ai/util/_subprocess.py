@@ -39,7 +39,6 @@ async def subprocess(
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
     capture_output: bool = True,
-    output_limit: int | None = None,
     timeout: int | None = None,
 ) -> ExecResult[str]: ...
 
@@ -52,7 +51,6 @@ async def subprocess(
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
     capture_output: bool = True,
-    output_limit: int | None = None,
     timeout: int | None = None,
 ) -> ExecResult[bytes]: ...
 
@@ -64,7 +62,6 @@ async def subprocess(
     cwd: str | Path | None = None,
     env: dict[str, str] = {},
     capture_output: bool = True,
-    output_limit: int | None = None,
     timeout: int | None = None,
 ) -> Union[ExecResult[str], ExecResult[bytes]]:
     """Execute and wait for a subprocess.
@@ -83,8 +80,6 @@ async def subprocess(
        env (dict[str, str]): Additional environment variables.
        capture_output (bool): Capture stderr and stdout into ExecResult
          (if False, then output is redirected to parent stderr/stdout)
-       output_limit (int | None): Stop reading output if it exceeds
-         the specified limit (in bytes).
        timeout (int | None): Timeout. If the timeout expires then
          a `TimeoutError` will be raised.
 
@@ -124,45 +119,10 @@ async def subprocess(
         # yield the proc
         yield proc
 
-        # write stdin if specified
-        if proc.stdin is not None:
-            if input is not None:
-                proc.stdin.write(input)
-                await proc.stdin.drain()
-            proc.stdin.close()
-            await proc.stdin.wait_closed()
-
-        # read streams incrementally so we can check output limits
-        async def read_stream(stream: asyncio.StreamReader | None) -> bytes:
-            # return early for no stream
-            if stream is None:
-                return bytes()
-
-            # read 8k at a time
-            output = bytearray()
-            while True:
-                # read chunk and terminate if we are done
-                chunk = await stream.read(8192)
-                if not chunk:
-                    break
-
-                # append to output
-                output.extend(chunk)
-
-                # stop if we have a limit and we have exceeded it
-                if output_limit is not None and len(output) > output_limit:
-                    proc.kill()
-                    break
-
-            # return stream output
-            return bytes(output)
-
         # wait for it to execute and yield result
-        stdout, stderr = await asyncio.gather(
-            read_stream(proc.stdout), read_stream(proc.stderr)
-        )
-        returncode = await proc.wait()
-        success = returncode == 0
+        stdout, stderr = await proc.communicate(input=input)
+        success = proc.returncode == 0
+        returncode = proc.returncode if proc.returncode is not None else 1
         if text:
             yield ExecResult[str](
                 success=success,
