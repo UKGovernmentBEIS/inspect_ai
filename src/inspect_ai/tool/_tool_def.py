@@ -190,8 +190,8 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
                 f"{context} not provided for parameter '{param_name}' of tool function '{name}'."
             )
 
-        if param.type == "null":
-            raise_not_provided_error("Type annotation")
+        if param.type is None and not param.anyOf and not param.enum:
+            raise_not_provided_error("Unsupported type or type annotation")
         elif not param.description:
             raise_not_provided_error("Description")
 

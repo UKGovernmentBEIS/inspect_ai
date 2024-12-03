@@ -13,9 +13,10 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 class ToolParam(BaseModel):
     """Description of tool parameter in JSON Schema format."""
 
-    type: JSONType = Field(default="null")
+    type: JSONType | None = Field(default=None)
     description: str | None = Field(default=None)
     default: Any = Field(default=None)
+    enum: list[Any] | None = Field(default=None)
     items: Optional["ToolParam"] = Field(default=None)
     properties: dict[str, "ToolParam"] | None = Field(default=None)
     additionalProperties: Optional["ToolParam"] | bool | None = Field(default=None)
