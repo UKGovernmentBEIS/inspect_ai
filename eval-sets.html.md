@@ -97,38 +97,12 @@ was created by a function decorated with `@solver`.
 There are a number of options that control the retry behaviour of eval
 sets:
 
-<table>
-<colgroup>
-<col style="width: 40%" />
-<col style="width: 60%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--retry-attempts</code></td>
-<td>Maximum number of retry attempts (defaults to 10)</td>
-</tr>
-<tr class="even">
-<td><code>--retry-wait</code></td>
-<td>Time to wait between attempts, increased exponentially. (defaults to
-30, resulting in waits of 30, 60, 120, 240, etc.)</td>
-</tr>
-<tr class="odd">
-<td><code>--retry-connections</code></td>
-<td>Reduce max connections at this rate with each retry (defaults to
-0.5)</td>
-</tr>
-<tr class="even">
-<td><code>--no-retry-cleanup</code></td>
-<td>Do not cleanup failed log files after retries.</td>
-</tr>
-</tbody>
-</table>
+| **Option** | Description |
+|----|----|
+| `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 For example, here we specify a base wait time of 120 seconds:
 
@@ -153,29 +127,10 @@ eval_set(
 You can bundle a standalone version of the log viewer for an eval set
 using the bundling options:
 
-<table>
-<colgroup>
-<col style="width: 40%" />
-<col style="width: 60%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--bundle-dir</code></td>
-<td>Directory to write standalone log viewer files to.</td>
-</tr>
-<tr class="even">
-<td><code>--bundle-overwrite</code></td>
-<td>Overwrite existing bundle directory (defaults to not
-overwriting).</td>
-</tr>
-</tbody>
-</table>
+| **Option** | Description |
+|----|----|
+| `--bundle-dir` | Directory to write standalone log viewer files to. |
+| `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
 The bundle directory can then be deployed to any static web server
 ([GitHub Pages](https://docs.github.com/en/pages), [S3
@@ -439,9 +394,7 @@ $ inspect list tasks security | xargs \
    inspect eval-set --log-dir logs-security-42
 ```
 
-<div>
-
-> **Important**
+> [!IMPORTANT]
 >
 > One important thing to keep in mind when using attributes to filter
 > tasks is that both `inspect list tasks` (and the underlying
@@ -461,5 +414,3 @@ $ inspect list tasks security | xargs \
 > def jeopardy():
 >   ...
 > ```
-
-</div>

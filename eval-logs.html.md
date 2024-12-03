@@ -66,9 +66,7 @@ then its location will always be resolved as *relative to* that `.env`
 file (rather than relative to whatever your current working directory is
 when you run `inspect eval`).
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > If you are running in VS Code, then you should restart terminals and
 > notebooks using Inspect when you change the `INSPECT_LOG_DIR` in a
@@ -76,8 +74,6 @@ when you run `inspect eval`).
 > variables](https://code.visualstudio.com/docs/python/environments#_environment-variables)
 > from `.env` files, and your updated `INSPECT_LOG_DIR` won’t be re-read
 > by VS Code until after a restart.
-
-</div>
 
 See the [Amazon S3](#sec-amazon-s3) section below for details on logging
 evaluations to Amazon S3 buckets.
@@ -89,32 +85,10 @@ by an evaluation. Depending on your configuration and what version of
 Inspect you are running, the log JSON will be stored in one of two file
 types:
 
-<table>
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 80%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>.eval</code></td>
-<td>Binary file format optimised for size and speed. Typically 1/8 the
-size of <code>.json</code> files and accesses samples incrementally,
-yielding fast loading in Inspect View no matter the file size.</td>
-</tr>
-<tr class="even">
-<td><code>.json</code></td>
-<td>Text file format with native JSON representation. Occupies
-substantially more disk space and can be slow to load in Inspect View if
-larger than 50MB.</td>
-</tr>
-</tbody>
-</table>
+| Type | Description |
+|----|----|
+| `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
+| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
 Both formats are fully supported by the [Log File
 API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described
@@ -146,9 +120,7 @@ No matter which format you choose, the `EvalLog` returned from `eval()`
 will be the same, and the various APIs provided for log files
 (`read_eval_log()`, `write_eval_log()`, etc.) will also work the same.
 
-<div>
-
-> **Caution**
+> [!CAUTION]
 >
 > The variability in underlying file format makes it especially
 > important that you use the Python [Log File API](#sec-log-file-api)
@@ -159,8 +131,6 @@ will be the same, and the various APIs provided for log files
 > reading logs from another language) see the [Log
 > Commands](#sec-log-commands) section below which describes how to get
 > the plain text JSON representation for any log file.
-
-</div>
 
 ## Image Logging
 
@@ -189,71 +159,17 @@ interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
-<table>
-<colgroup>
-<col style="width: 26%" />
-<col style="width: 27%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>version</code></td>
-<td><code>int</code></td>
-<td>File format version (currently 2).</td>
-</tr>
-<tr class="even">
-<td><code>status</code></td>
-<td><code>str</code></td>
-<td>Status of evaluation (<code>"started"</code>,
-<code>"success"</code>, or <code>"error"</code>).</td>
-</tr>
-<tr class="odd">
-<td><code>eval</code></td>
-<td><code>EvalSpec</code></td>
-<td>Top level eval details including task, model, creation time,
-etc.</td>
-</tr>
-<tr class="even">
-<td><code>plan</code></td>
-<td><code>EvalPlan</code></td>
-<td>List of solvers and model generation config used for the eval.</td>
-</tr>
-<tr class="odd">
-<td><code>results</code></td>
-<td><code>EvalResults</code></td>
-<td>Aggregate results computed by scorer metrics.</td>
-</tr>
-<tr class="even">
-<td><code>stats</code></td>
-<td><code>EvalStats</code></td>
-<td>Model usage statistics (input and output tokens)</td>
-</tr>
-<tr class="odd">
-<td><code>error</code></td>
-<td><code>EvalError</code></td>
-<td>Error information (if <code>status == "error</code>) including
-traceback.</td>
-</tr>
-<tr class="even">
-<td><code>samples</code></td>
-<td><code>list[EvalSample]</code></td>
-<td>Each sample evaluated, including its input, output, target, and
-score.</td>
-</tr>
-<tr class="odd">
-<td><code>reductions</code></td>
-<td><code>list[EvalSampleReduction]</code></td>
-<td>Reductions of sample values for multi-epoch evaluations.</td>
-</tr>
-</tbody>
-</table>
+| Field | Type | Description |
+|----|----|----|
+| `version` | `int` | File format version (currently 2). |
+| `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
+| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
+| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
+| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
+| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
+| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
+| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
 
 Before analysing results from a log, you should always check their
 status to ensure they represent a successful run:
@@ -314,42 +230,13 @@ supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 You can enumerate, read, and write `EvalLog` objects using the following
 helper functions from the `inspect_ai.log` module:
 
-<table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 69%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Function</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>list_eval_logs</code></td>
-<td>List all of the eval logs at a given location.</td>
-</tr>
-<tr class="even">
-<td><code>read_eval_log</code></td>
-<td>Read an <code>EvalLog</code> from a log file path (pass
-<code>header_only</code> to not read samples).</td>
-</tr>
-<tr class="odd">
-<td><code>read_eval_log_sample</code></td>
-<td>Read a single <code>EvalSample</code> from a log file</td>
-</tr>
-<tr class="even">
-<td><code>read_eval_log_samples</code></td>
-<td>Read all samples incrementally (returns a generator that yields
-samples one at a time).</td>
-</tr>
-<tr class="odd">
-<td><code>write_eval_log</code></td>
-<td>Write an <code>EvalLog</code> to a log file path.</td>
-</tr>
-</tbody>
-</table>
+| Function | Description |
+|----|----|
+| `list_eval_logs` | List all of the eval logs at a given location. |
+| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
+| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
+| `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
+| `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
 evaluations, then calling `list_eval_logs()` to analyse the results when
@@ -537,16 +424,14 @@ other hand, setting a very large `max_connections` (e.g. 100
 `max_connections` for a dataset with 100 samples) may result in very few
 recoverable samples in the case of an interruption.
 
-<div>
-
-> **Eval Sets**
+> [!NOTE]
+>
+> ### Eval Sets
 >
 > We’ve discussed how to manage retries for a single evaluation run
 > interactively. For the case of running many evaluation tasks in batch
 > and retrying those which failed, see the documentation on [Eval
 > Sets](eval-sets.qmd)
-
-</div>
 
 ## Amazon S3
 
@@ -579,32 +464,12 @@ particularly convenient to call the Python API. The Inspect CLI has a
 few commands intended to make it easier to work with Inspect logs from
 other languages:
 
-<table>
-<thead>
-<tr class="header">
-<th>Command</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>inspect log list</code></td>
-<td>List all logs in the log directory.</td>
-</tr>
-<tr class="even">
-<td><code>inspect log dump</code></td>
-<td>Print log file contents as JSON.</td>
-</tr>
-<tr class="odd">
-<td><code>inspect log convert</code></td>
-<td>Convert between log file formats.</td>
-</tr>
-<tr class="even">
-<td><code>inspect log schema</code></td>
-<td>Print JSON schema for log files.</td>
-</tr>
-</tbody>
-</table>
+| Command               | Description                         |
+|-----------------------|-------------------------------------|
+| `inspect log list`    | List all logs in the log directory. |
+| `inspect log dump`    | Print log file contents as JSON.    |
+| `inspect log convert` | Convert between log file formats.   |
+| `inspect log schema`  | Print JSON schema for log files.    |
 
 ### Listing Logs
 
@@ -695,9 +560,9 @@ file format with a call to `inspect log schema`:
 $ inspect log schema
 ```
 
-<div>
-
-> **NaN and Inf**
+> [!IMPORTANT]
+>
+> ### NaN and Inf
 >
 > Because evaluation logs contain lots of numerical data and
 > calculations, it is possible that some `number` values will be `NaN`
@@ -711,5 +576,3 @@ $ inspect log schema
 > and `Inf` may be natively supported (if not, see these JSON 5
 > implementations for [other
 > languages](https://github.com/json5/json5/wiki/In-the-Wild)).
-
-</div>

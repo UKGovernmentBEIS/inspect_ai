@@ -63,17 +63,13 @@ eval results.
 You can also run tasks in the VS Code debugger by using the **Debug
 Task** button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that when debugging a task, the Inspect extension will
 > automatically limit the eval to a single sample (`--limit 1` on the
 > command line). If you prefer to debug with many samples, there is a
 > setting that can disable the default behavior (search settings for
 > “inspect debug”).
-
-</div>
 
 ## Activity Bar
 

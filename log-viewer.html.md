@@ -192,52 +192,15 @@ All of these log entries will be included in the sample transcript.
 The log levels and their applicability are described below (in
 increasing order of severity):
 
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Level</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>debug</code></td>
-<td>Detailed information, typically of interest only when diagnosing
-problems.</td>
-</tr>
-<tr class="even">
-<td><code>http</code></td>
-<td>HTTP diagnostics including requests and response statuses</td>
-</tr>
-<tr class="odd">
-<td><code>sandbox</code></td>
-<td>Show commands sent to manage and execute code in sandboxes.</td>
-</tr>
-<tr class="even">
-<td><code>info</code></td>
-<td>Confirmation that things are working as expected.</td>
-</tr>
-<tr class="odd">
-<td><code>warning</code></td>
-<td>or indicative of some problem in the near future (e.g. ‘disk space
-low’). The software is still working as expected.</td>
-</tr>
-<tr class="even">
-<td><code>error</code></td>
-<td>Due to a more serious problem, the software has not been able to
-perform some function</td>
-</tr>
-<tr class="odd">
-<td><code>critical</code></td>
-<td>A serious error, indicating that the program itself may be unable to
-continue running.</td>
-</tr>
-</tbody>
-</table>
+| Level | Description |
+|----|----|
+| `debug` | Detailed information, typically of interest only when diagnosing problems. |
+| `http` | HTTP diagnostics including requests and response statuses |
+| `sandbox` | Show commands sent to manage and execute code in sandboxes. |
+| `info` | Confirmation that things are working as expected. |
+| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error` | Due to a more serious problem, the software has not been able to perform some function |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
 
 #### Default Levels
 

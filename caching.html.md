@@ -216,26 +216,12 @@ distinct values rather than the normal input and output. For example:
 
 Where the prefixes on reported token counts stand for:
 
-<table>
-<tbody>
-<tr class="odd">
-<td><strong>I</strong></td>
-<td>Input tokens</td>
-</tr>
-<tr class="even">
-<td><strong>CW</strong></td>
-<td>Input token cache writes</td>
-</tr>
-<tr class="odd">
-<td><strong>CR</strong></td>
-<td>Input token cache reads</td>
-</tr>
-<tr class="even">
-<td><strong>O</strong></td>
-<td>Output tokens</td>
-</tr>
-</tbody>
-</table>
+|        |                          |
+|--------|--------------------------|
+| **I**  | Input tokens             |
+| **CW** | Input token cache writes |
+| **CR** | Input token cache reads  |
+| **O**  | Output tokens            |
 
 Input token cache writes will typically cost more (in the case of
 Anthropic roughly 25% more) but cache reads substantially less (for

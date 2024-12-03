@@ -8,104 +8,25 @@ providers and can be extended to support arbitrary additions ones.
 Built-in model API providers, their dependencies, and environment
 variables required to use them are as follows:
 
-<table>
-<colgroup>
-<col style="width: 18%" />
-<col style="width: 45%" />
-<col style="width: 37%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Model API</th>
-<th>Dependencies</th>
-<th>Environment Variables</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>OpenAI</td>
-<td><code>pip install openai</code></td>
-<td><code>OPENAI_API_KEY</code></td>
-</tr>
-<tr class="even">
-<td>Anthropic</td>
-<td><code>pip install anthropic</code></td>
-<td><code>ANTHROPIC_API_KEY</code></td>
-</tr>
-<tr class="odd">
-<td>Google</td>
-<td><code>pip install google-generativeai</code></td>
-<td><code>GOOGLE_API_KEY</code></td>
-</tr>
-<tr class="even">
-<td>Mistral</td>
-<td><code>pip install mistralai</code></td>
-<td><code>MISTRAL_API_KEY</code></td>
-</tr>
-<tr class="odd">
-<td>Grok</td>
-<td><code>pip install openai</code></td>
-<td><code>GROK_API_KEY</code></td>
-</tr>
-<tr class="even">
-<td>TogetherAI</td>
-<td><code>pip install openai</code></td>
-<td><code>TOGETHER_API_KEY</code></td>
-</tr>
-<tr class="odd">
-<td>AWS Bedrock</td>
-<td><code>pip install aioboto3</code></td>
-<td><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>,
-and <code>AWS_DEFAULT_REGION</code></td>
-</tr>
-<tr class="even">
-<td>Azure AI</td>
-<td>None required</td>
-<td><code>AZURE_API_KEY</code> and
-<code>INSPECT_EVAL_MODEL_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Groq</td>
-<td><code>pip install groq</code></td>
-<td><code>GROQ_API_KEY</code></td>
-</tr>
-<tr class="even">
-<td>Cloudflare</td>
-<td>None required</td>
-<td><code>CLOUDFLARE_ACCOUNT_ID</code> and
-<code>CLOUDFLARE_API_TOKEN</code></td>
-</tr>
-<tr class="odd">
-<td>Hugging Face</td>
-<td><code>pip install transformers</code></td>
-<td>None required</td>
-</tr>
-<tr class="even">
-<td>vLLM</td>
-<td><code>pip install vllm</code></td>
-<td>None required</td>
-</tr>
-<tr class="odd">
-<td>Ollama</td>
-<td><code>pip install openai</code></td>
-<td>None required</td>
-</tr>
-<tr class="even">
-<td>llama-cpp-python</td>
-<td><code>pip install openai</code></td>
-<td>None required</td>
-</tr>
-<tr class="odd">
-<td>Vertex</td>
-<td><code>pip install google-cloud-aiplatform</code></td>
-<td>None required</td>
-</tr>
-</tbody>
-</table>
+| Model API | Dependencies | Environment Variables |
+|----|----|----|
+| OpenAI | `pip install openai` | `OPENAI_API_KEY` |
+| Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
+| Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
+| Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
+| Grok | `pip install openai` | `GROK_API_KEY` |
+| TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
+| AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
+| Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
+| Groq | `pip install groq` | `GROQ_API_KEY` |
+| Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
+| Hugging Face | `pip install transformers` | None required |
+| vLLM | `pip install vllm` | None required |
+| Ollama | `pip install openai` | None required |
+| llama-cpp-python | `pip install openai` | None required |
+| Vertex | `pip install google-cloud-aiplatform` | None required |
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that some providers
 > ([Grok](https://docs.x.ai/api/integrations#openai-sdk),
@@ -117,8 +38,6 @@ and <code>AWS_DEFAULT_REGION</code></td>
 > to `pip install openai` for these providers even though you aren’t
 > actually interacting with the OpenAI service when you use them.
 
-</div>
-
 ## Using Models
 
 To select a model for use in an evaluation task you specify it using a
@@ -127,117 +46,23 @@ model to use (e.g. `openai/gpt-4`) Here are the supported providers
 along with example model names and links to documentation on all
 available models:
 
-<table>
-<colgroup>
-<col style="width: 18%" />
-<col style="width: 45%" />
-<col style="width: 37%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Provider</th>
-<th>Example</th>
-<th>Docs</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>OpenAI</td>
-<td><code>openai/gpt-3.5-turbo</code></td>
-<td><a href="https://platform.openai.com/docs/models/overview">OpenAI
-Models</a></td>
-</tr>
-<tr class="even">
-<td>Anthropic</td>
-<td><code>anthropic/claude-2.1</code></td>
-<td><a
-href="https://docs.anthropic.com/claude/docs/models-overview">Anthropic
-Models</a></td>
-</tr>
-<tr class="odd">
-<td>Google</td>
-<td><code>google/gemini-1.0-pro</code></td>
-<td><a
-href="https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models">Google
-Models</a></td>
-</tr>
-<tr class="even">
-<td>Mistral</td>
-<td><code>mistral/mistral-large-latest</code></td>
-<td><a href="https://docs.mistral.ai/platform/endpoints/">Mistral
-Models</a></td>
-</tr>
-<tr class="odd">
-<td>Grok</td>
-<td><code>grok/grok-beta</code></td>
-<td><a href="https://docs.x.ai/docs#models">Grok Models</a></td>
-</tr>
-<tr class="even">
-<td>Hugging Face</td>
-<td><code>hf/openai-community/gpt2</code></td>
-<td><a
-href="https://huggingface.co/models?pipeline_tag=text-generation&amp;sort=trending">Hugging
-Face Models</a></td>
-</tr>
-<tr class="odd">
-<td>vLLM</td>
-<td><code>vllm/openai-community/gpt2</code></td>
-<td><a
-href="https://docs.vllm.ai/en/latest/models/supported_models.html">vLLM
-Models</a></td>
-</tr>
-<tr class="even">
-<td>Ollama</td>
-<td><code>ollama/llama3</code></td>
-<td><a href="https://ollama.com/library">Ollama Models</a></td>
-</tr>
-<tr class="odd">
-<td>llama-cpp-python</td>
-<td><code>llama-cpp-python/llama3</code></td>
-<td><a
-href="https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server">llama-cpp-python
-Models</a></td>
-</tr>
-<tr class="even">
-<td>TogetherAI</td>
-<td><code>together/google/gemma-7b-it</code></td>
-<td><a
-href="https://docs.together.ai/docs/inference-models#chat-models">TogetherAI
-Models</a></td>
-</tr>
-<tr class="odd">
-<td>AWS Bedrock</td>
-<td><code>bedrock/meta.llama2-70b-chat-v1</code></td>
-<td><a href="https://aws.amazon.com/bedrock/">AWS Bedrock
-Models</a></td>
-</tr>
-<tr class="even">
-<td>Azure AI</td>
-<td><code>azureai/azure-deployment-name</code></td>
-<td><a href="https://ai.azure.com/explore/models">Azure AI
-Models</a></td>
-</tr>
-<tr class="odd">
-<td>Vertex</td>
-<td><code>vertex/gemini-1.5-flash</code></td>
-<td><a
-href="https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models">Google
-Models</a></td>
-</tr>
-<tr class="even">
-<td>Groq</td>
-<td><code>groq/mixtral-8x7b-32768</code></td>
-<td><a href="https://console.groq.com/docs/models">Groq Models</a></td>
-</tr>
-<tr class="odd">
-<td>Cloudflare</td>
-<td><code>cf/meta/llama-2-7b-chat-fp16</code></td>
-<td><a
-href="https://developers.cloudflare.com/workers-ai/models/#text-generation">Cloudflare
-Models</a></td>
-</tr>
-</tbody>
-</table>
+| Provider | Example | Docs |
+|----|----|----|
+| OpenAI | `openai/gpt-3.5-turbo` | [OpenAI Models](https://platform.openai.com/docs/models/overview) |
+| Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
+| Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
+| Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
+| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
+| Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
+| Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
+| llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
+| TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
+| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
+| Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
+| Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
+| Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
+| Cloudflare | `cf/meta/llama-2-7b-chat-fp16` | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation) |
 
 To select a model for an evaluation, pass it’s name on the command line
 or use the `model` argument of the `eval()` function:
@@ -261,9 +86,7 @@ Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable
 INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > If are using Google, Azure AI, AWS Bedrock, Hugging Face, or vLLM you
 > should additionally consult the sections below on using the [Azure
@@ -272,8 +95,6 @@ INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 > providers to learn more about available models and their usage and
 > authentication requirements.
 
-</div>
-
 ### Model Base URL
 
 Each model also can use a different base URL than the default (e.g. if
@@ -281,98 +102,29 @@ running through a proxy server). The base URL can be specified with the
 same prefix as the `API_KEY`, for example, the following are all valid
 base URLs:
 
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Provider</th>
-<th>Environment Variable</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>OpenAI</td>
-<td><code>OPENAI_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>Anthropic</td>
-<td><code>ANTHROPIC_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Google</td>
-<td><code>GOOGLE_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>Mistral</td>
-<td><code>MISTRAL_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Grok</td>
-<td><code>GROK_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>TogetherAI</td>
-<td><code>TOGETHER_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Ollama</td>
-<td><code>OLLAMA_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>llama-cpp-python</td>
-<td><code>LLAMA_CPP_PYTHON_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>AWS Bedrock</td>
-<td><code>BEDROCK_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>Azure AI</td>
-<td><code>AZUREAI_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Groq</td>
-<td><code>GROQ_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>Cloudflare</td>
-<td><code>CLOUDFLARE_BASE_URL</code></td>
-</tr>
-</tbody>
-</table>
+| Provider         | Environment Variable        |
+|------------------|-----------------------------|
+| OpenAI           | `OPENAI_BASE_URL`           |
+| Anthropic        | `ANTHROPIC_BASE_URL`        |
+| Google           | `GOOGLE_BASE_URL`           |
+| Mistral          | `MISTRAL_BASE_URL`          |
+| Grok             | `GROK_BASE_URL`             |
+| TogetherAI       | `TOGETHER_BASE_URL`         |
+| Ollama           | `OLLAMA_BASE_URL`           |
+| llama-cpp-python | `LLAMA_CPP_PYTHON_BASE_URL` |
+| AWS Bedrock      | `BEDROCK_BASE_URL`          |
+| Azure AI         | `AZUREAI_BASE_URL`          |
+| Groq             | `GROQ_BASE_URL`             |
+| Cloudflare       | `CLOUDFLARE_BASE_URL`       |
 
 In addition, there are separate base URL variables for running various
 frontier models on Azure and Bedrock:
 
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Provider (Model)</th>
-<th>Environment Variable</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>AzureAI (OpenAI)</td>
-<td><code>AZUREAI_OPENAI_BASE_URL</code></td>
-</tr>
-<tr class="even">
-<td>AzureAI (Mistral)</td>
-<td><code>AZUREAI_MISTRAL_BASE_URL</code></td>
-</tr>
-<tr class="odd">
-<td>Bedrock (Anthropic)</td>
-<td><code>BEDROCK_ANTHROPIC_BASE_URL</code></td>
-</tr>
-</tbody>
-</table>
+| Provider (Model)    | Environment Variable         |
+|---------------------|------------------------------|
+| AzureAI (OpenAI)    | `AZUREAI_OPENAI_BASE_URL`    |
+| AzureAI (Mistral)   | `AZUREAI_MISTRAL_BASE_URL`   |
+| Bedrock (Anthropic) | `BEDROCK_ANTHROPIC_BASE_URL` |
 
 ## Generation Config
 
@@ -397,7 +149,7 @@ eval(security_guide, model="google/gemini-1.0-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation
-config options. |
+config options. \|
 
 ### Connections and Rate Limits
 
@@ -533,70 +285,21 @@ you can adjust to determine what sorts of requests will be handled (or
 refused) by the model. The four categories of safety settings are as
 follows:
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Category</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>sexually_explicit</code></td>
-<td>Contains references to sexual acts or other lewd content.</td>
-</tr>
-<tr class="even">
-<td><code>hate_speech</code></td>
-<td>Content that is rude, disrespectful, or profane.</td>
-</tr>
-<tr class="odd">
-<td><code>harassment</code></td>
-<td>Negative or harmful comments targeting identity and/or protected
-attributes.</td>
-</tr>
-<tr class="even">
-<td><code>dangerous_content</code></td>
-<td>Promotes, facilitates, or encourages harmful acts.</td>
-</tr>
-</tbody>
-</table>
+| Category | Description |
+|----|----|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
+| `hate_speech` | Content that is rude, disrespectful, or profane. |
+| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
 
 For each category, the following block thresholds are available:
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Block Threshold</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>none</code></td>
-<td>Always show regardless of probability of unsafe content</td>
-</tr>
-<tr class="even">
-<td><code>only_high</code></td>
-<td>Block when high probability of unsafe content</td>
-</tr>
-<tr class="odd">
-<td><code>medium_and_above</code></td>
-<td>Block when medium or high probability of unsafe content</td>
-</tr>
-<tr class="even">
-<td><code>low_and_above</code></td>
-<td>Block when low, medium or high probability of unsafe content</td>
-</tr>
-</tbody>
-</table>
+| Block Threshold | Description |
+|----|----|
+| `none` | Always show regardless of probability of unsafe content |
+| `only_high` | Block when high probability of unsafe content |
+| `medium_and_above` | Block when medium or high probability of unsafe content |
+| `low_and_above` | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`
@@ -621,15 +324,11 @@ $ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
 
 ### Google Vertex AI
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Vertex AI is a different service to Google AI, see a comparison matrix
 > [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai).
 > Make sure you are using the appropriate model provider.
-
-</div>
 
 The core libraries for Vertex AI interact directly with Google Cloud
 Platform so this provider doesn’t use the standard `BASE_URL`/`API_KEY`
@@ -739,15 +438,11 @@ vLLM is generally much faster than the Hugging Face provider as the
 library is designed entirely for inference speed whereas the Hugging
 Face library is more general purpose.
 
-<div>
-
-> **Tip**
+> [!TIP]
 >
 > Rather than doing inference locally, you can also connect to a remote
 > vLLM server. See the section below on [vLLM Server](#sec-vllm-server)
 > for details).
-
-</div>
 
 #### Device
 
@@ -861,68 +556,20 @@ inspect eval popularity --model google/gemini-1.0-pro -M transport:grpc
 The additional `model_args` are forwarded as follows for the various
 providers:
 
-<table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 70%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Provider</th>
-<th>Forwarded to</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>OpenAI</td>
-<td><code>AsyncOpenAI</code></td>
-</tr>
-<tr class="even">
-<td>Anthropic</td>
-<td><code>AsyncAnthropic</code></td>
-</tr>
-<tr class="odd">
-<td>Google</td>
-<td><code>genai.configure</code></td>
-</tr>
-<tr class="even">
-<td>Mistral</td>
-<td><code>Mistral</code></td>
-</tr>
-<tr class="odd">
-<td>Hugging Face</td>
-<td><code>AutoModelForCausalLM.from_pretrained</code></td>
-</tr>
-<tr class="even">
-<td>vLLM</td>
-<td><code>SamplingParams</code></td>
-</tr>
-<tr class="odd">
-<td>Ollama</td>
-<td><code>AsyncOpenAI</code></td>
-</tr>
-<tr class="even">
-<td>llama-cpp-python</td>
-<td><code>AsyncOpenAI</code></td>
-</tr>
-<tr class="odd">
-<td>TogetherAI</td>
-<td><code>AsyncOpenAI</code></td>
-</tr>
-<tr class="even">
-<td>Groq</td>
-<td><code>AsyncGroq</code></td>
-</tr>
-<tr class="odd">
-<td>AzureAI</td>
-<td>Chat HTTP Post Body</td>
-</tr>
-<tr class="even">
-<td>Cloudflare</td>
-<td>Chat HTTP Post Body</td>
-</tr>
-</tbody>
-</table>
+| Provider         | Forwarded to                           |
+|------------------|----------------------------------------|
+| OpenAI           | `AsyncOpenAI`                          |
+| Anthropic        | `AsyncAnthropic`                       |
+| Google           | `genai.configure`                      |
+| Mistral          | `Mistral`                              |
+| Hugging Face     | `AutoModelForCausalLM.from_pretrained` |
+| vLLM             | `SamplingParams`                       |
+| Ollama           | `AsyncOpenAI`                          |
+| llama-cpp-python | `AsyncOpenAI`                          |
+| TogetherAI       | `AsyncOpenAI`                          |
+| Groq             | `AsyncGroq`                            |
+| AzureAI          | Chat HTTP Post Body                    |
+| Cloudflare       | Chat HTTP Post Body                    |
 
 See the documentation for the requisite model provider for more
 information on the additional model options that can be passed to these

@@ -84,16 +84,12 @@ If you want more insight into Model API connections and retries, specify
 $ inspect eval --model openai/gpt-4 --log-level=http
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that max connections is applied per-model. This means that if you
 > use a grader model from a provider distinct from the one you are
 > evaluating you will get extra concurrency (as each model will enforce
 > its own max connections).
-
-</div>
 
 ## Multiple Models
 

@@ -8,59 +8,24 @@ evaluations. Each example in the tutorial is standalone, so feel free to
 skip between examples that demonstrate the features you are most
 interested in.
 
-<table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 70%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Example</th>
-<th>Demonstrates</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="#sec-security-guide">Security Guide</a></td>
-<td>Custom system prompt; Model grading of output.</td>
-</tr>
-<tr class="even">
-<td><a href="#sec-hellaswag">HellaSwag</a></td>
-<td>Mapping external data formats into Inspect; Multiple choice
-questions.</td>
-</tr>
-<tr class="odd">
-<td><a href="#sec-gsm8k">GSM8K</a></td>
-<td>Using fewshot examples; Scoring numeric output.</td>
-</tr>
-<tr class="even">
-<td><a href="#sec-mathematics">Mathematics</a></td>
-<td>Creating custom scorers; Developing with larger datasets.</td>
-</tr>
-<tr class="odd">
-<td><a href="#sec-tool-use">Tool Use</a></td>
-<td>Tool usage and creating custom tools.</td>
-</tr>
-<tr class="even">
-<td><a href="#sec-intercode-ctf">InterCode CTF</a></td>
-<td>Tool using agents; reading complex datasets.</td>
-</tr>
-</tbody>
-</table>
+| Example | Demonstrates |
+|----|----|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
+| [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
+| [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
+| [Mathematics](#sec-mathematics) | Creating custom scorers; Developing with larger datasets. |
+| [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
+| [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
 
 See also the complete list of [Examples](#sec-examples) for
 demonstrations of more advanced features.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that in these examples we won’t show a `--model` command line
 > argument when we call `inspect eval` (the presumption being that it
 > has been already established via the `INSPECT_EVAL_MODEL` environment
 > variable).
-
-</div>
 
 ## Security Guide
 
@@ -70,29 +35,10 @@ Evals](https://github.com/openai/evals) repository. This eval tests how
 well models are doing at providing cybersecurity guidance. Here are some
 examples from the dataset:
 
-<table>
-<colgroup>
-<col style="width: 56%" />
-<col style="width: 43%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>input</th>
-<th>target</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>What attributes should I set on cookies for strong security?</td>
-<td>secure samesite and httponly</td>
-</tr>
-<tr class="even">
-<td>How should I store passwords securely for an authentication system
-database?</td>
-<td>strong hashing algorithms with salt like Argon2 or bcrypt</td>
-</tr>
-</tbody>
-</table>
+| input | target |
+|----|----|
+| What attributes should I set on cookies for strong security? | secure samesite and httponly |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 ### Setup
 
@@ -244,35 +190,10 @@ word problems. The dataset was created to support the task of question
 answering on basic mathematical problems that require multi-step
 reasoning. Here are some samples from the dataset:
 
-<table>
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>question</th>
-<th>answer</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>James writes a 3-page letter to 2 different friends twice a week.
-How many pages does he write a year?</td>
-<td>He writes each friend 3*2=&lt;&lt;3*2=6&gt;&gt;6 pages a week So he
-writes 6*2=&lt;&lt;6*2=12&gt;&gt;12 pages every week That means he
-writes 12*52=&lt;&lt;12*52=624&gt;&gt;624 pages a year ####
-<strong>624</strong></td>
-</tr>
-<tr class="even">
-<td>Weng earns $12 an hour for babysitting. Yesterday, she just did 50
-minutes of babysitting. How much did she earn?</td>
-<td>Weng earns 12/60 = $&lt;&lt;12/60=0.2&gt;&gt;0.2 per minute. Working
-50 minutes, she earned 0.2 x 50 = $&lt;&lt;0.2*50=10&gt;&gt;10. ####
-<strong>10</strong></td>
-</tr>
-</tbody>
-</table>
+| question | answer |
+|----|----|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
 
 Note that the final numeric answers are contained at the end of the
 **answer** field after the `####` delimiter.
@@ -405,35 +326,10 @@ full step-by-step solution which can be used to teach models to generate
 answer derivations and explanations. Here are some samples from the
 dataset:
 
-<table>
-<colgroup>
-<col style="width: 80%" />
-<col style="width: 20%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Question</th>
-<th style="text-align: right;">Answer</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>How many dollars in interest are earned in two years on a deposit of
-$10,000 invested at 4.5% and compounded annually? Express your answer to
-the nearest cent.</td>
-<td style="text-align: right;">920.25</td>
-</tr>
-<tr class="even">
-<td>Let <span class="math inline"><em>p</em>(<em>x</em>)</span> be a
-monic, quartic polynomial, such that <span
-class="math inline"><em>p</em>(1) = 3,</span> <span
-class="math inline"><em>p</em>(3) = 11,</span> and <span
-class="math inline"><em>p</em>(5) = 27.</span> Find <span
-class="math inline"><em>p</em>(−2) + 7<em>p</em>(6)</span></td>
-<td style="text-align: right;">1112</td>
-</tr>
-</tbody>
-</table>
+| Question | Answer |
+|----|---:|
+| How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
 
 ### Setup
 

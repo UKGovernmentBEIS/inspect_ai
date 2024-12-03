@@ -7,17 +7,13 @@ evaluation suites. We’ll start with the basics, then cover exploratory
 workflows, and finally discuss how to compose evals together into a
 suite.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > If you are using VS Code, we recommend installing the VS Code
 > Extension, which includes tools for running, tuning, debugging, and
 > visualising evals. See the article on the [VS Code
 > Extension](vscode.qmd) for more details on installing and using the
 > extension.
-
-</div>
 
 ## Eval Basics
 
@@ -264,17 +260,13 @@ will always be resolved as relative to that `.env` file (rather than
 relative to whatever your current working directory is when you run
 `inspect eval`).
 
-<div>
-
-> **Important**
+> [!IMPORTANT]
 >
 > `.env` files should *never* be checked into version control, as they
 > nearly always contain either secret API keys or machine specific
 > paths. A best practice is often to check in an `.env.example` file to
 > version control which provides an outline (e.g. keys only not values)
 > of variables that are required by the current project.
-
-</div>
 
 ## Trace Mode
 
@@ -316,17 +308,13 @@ give it arguments that reflect the things you want to try out and vary.
 You’ll then call Inspect’s `eval()` function interactively rather than
 calling `inspect eval` from the shell.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that the code below demonstrates exploratory workflows, but
 > unlike the code above isn’t intended for direct execution but rather
 > only for illustration. For example, we call the `plot_results()`
 > function which isn’t directly defined but rather just an example of a
 > function you might call after running some eval tasks.
-
-</div>
 
 ### Task Args
 
@@ -458,16 +446,12 @@ if __name__ == "__main__":
     eval(tasks, model = "openai/gpt-4")
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > If you aren’t familiar with the `__name__ == "__main__"` idiom, see
 > the docs on
 > [\_\_main\_\_](https://docs.python.org/3/library/__main__.html) for
 > additional details.
-
-</div>
 
 Now we can take the same script and use it with `inspect eval` (while
 leaving our exploratory code intact and protected by the `__main__`

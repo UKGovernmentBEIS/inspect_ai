@@ -90,15 +90,11 @@ class TaskState:
     output: ModelOutput
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that the `TaskState` definition above is simplified: there are
 > other fields in a `TaskState` but we’re excluding them here for
 > clarity.
-
-</div>
 
 A prompt engineering solver will modify the content of `messages`. A
 model generation solver will call the model, append an assistant
@@ -245,46 +241,10 @@ Below is a full example of reading a dataset for use with
 `multiple choice()` and using it in an evaluation task. The underlying
 data in `mmlu.csv` has the following form:
 
-<table style="width:100%;">
-<colgroup>
-<col style="width: 50%" />
-<col style="width: 10%" />
-<col style="width: 10%" />
-<col style="width: 10%" />
-<col style="width: 10%" />
-<col style="width: 10%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Question</th>
-<th>A</th>
-<th>B</th>
-<th>C</th>
-<th>D</th>
-<th style="text-align: center;">Answer</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Find the degree for the given field extension Q(sqrt(2), sqrt(3),
-sqrt(18)) over Q.</td>
-<td>0</td>
-<td>4</td>
-<td>2</td>
-<td>6</td>
-<td style="text-align: center;">B</td>
-</tr>
-<tr class="even">
-<td>Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of &lt;p&gt; in
-S_5.</td>
-<td>8</td>
-<td>2</td>
-<td>24</td>
-<td>120</td>
-<td style="text-align: center;">C</td>
-</tr>
-</tbody>
-</table>
+| Question | A | B | C | D | Answer |
+|----|----|----|----|----|:--:|
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
 
 Here is the task definition:
 
@@ -328,51 +288,12 @@ model.
 The following options are available for further customisation of the
 multiple choice solver:
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Option</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>template</code></td>
-<td>Use <code>template</code> to provide an alternate prompt template
-(note that if you do this your template should handle prompting for
-<code>multiple_correct</code> directly if required). You can access the
-built in templates using the <code>MultipleChoiceTemplate</code>
-enum.</td>
-</tr>
-<tr class="even">
-<td><code>cot</code></td>
-<td>Whether the solver should perform chain-of-thought reasoning before
-answering (defaults to <code>False</code>). NOTE: this has no effect if
-you provide a custom template.</td>
-</tr>
-<tr class="odd">
-<td><code>multiple_correct</code></td>
-<td>By default, multiple choice questions have a single correct answer.
-Set <code>multiple_correct=True</code> if your target has defined
-multiple correct answers (for example, a <code>target</code> of
-<code>["B", "C"]</code>). In this case the model is prompted to provide
-one or more answers, and the sample is scored correct only if each of
-these answers are provided. NOTE: this has no effect if you provide a
-custom template.</td>
-</tr>
-<tr class="even">
-<td><code>shuffle</code></td>
-<td>If you specify <code>shuffle=True</code>, then the order of the
-answers presented to the model will be randomised (this may or may not
-affect results, depending on the nature of the questions and the model
-being evaluated).</td>
-</tr>
-</tbody>
-</table>
+| Option | Description |
+|----|----|
+| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
+| `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
+| `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
+| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
 
 ### Self Critique
 
@@ -420,159 +341,46 @@ Before presenting the examples we’ll take a more in-depth look at the
 properties. The core members of `TaskState` that are *modified* by
 solvers are `messages` / `user_prompt` and `output`:
 
-<table style="width:90%;">
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 25%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>messages</code></td>
-<td>list[ChatMessage]</td>
-<td>Chat conversation history for sample. It is automatically appended
-to by the <code>generate()</code> solver, and is often manipulated by
-other solvers (e.g. for prompt engineering or elicitation).</td>
-</tr>
-<tr class="even">
-<td><code>user_prompt</code></td>
-<td>ChatMessageUser</td>
-<td>Convenience property for accessing the first user message in the
-message history (commonly used for prompt engineering).</td>
-</tr>
-<tr class="odd">
-<td><code>output</code></td>
-<td>ModelOutput</td>
-<td>The ‘final’ model output once we’ve completed all solving. This
-field is automatically updated with the last “assistant” message by the
-<code>generate()</code> solver.</td>
-</tr>
-</tbody>
-</table>
+| Member | Type | Description |
+|----|----|----|
+| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
+| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver. |
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that the `generate()` solver automatically updates both the
 > `messages` and `output` fields. For very simple evaluations modifying
 > the `user_prompt` and then calling `generate()` encompasses all of the
 > required interaction with `TaskState`.
 
-</div>
-
 There are two additional fields that solvers might modify (but they are
 typically for more advanced use cases):
 
-<table style="width:90%;">
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 25%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>metadata</code></td>
-<td>dict</td>
-<td>Original metadata from <code>Sample</code>, as well as any other
-custom metadata that solvers choose to write (typically used to
-coordinate between solvers and/or for custom logging).</td>
-</tr>
-<tr class="even">
-<td><code>completed</code></td>
-<td>bool</td>
-<td>Solvers can set <code>completed = True</code> to cause the task to
-exit the sample immediately.</td>
-</tr>
-</tbody>
-</table>
+| Member | Type | Description |
+|----|----|----|
+| `metadata` | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
+| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately. |
 
 Sometimes its import to have access to the *original* prompt input for
 the task (as other solvers may have re-written or even removed it
 entirely). This is available using the `input` and `input_text`
 properties:
 
-<table style="width:90%;">
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 25%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>input</code></td>
-<td>str | list[ChatMessage]</td>
-<td>Original <code>Sample</code> input.</td>
-</tr>
-<tr class="even">
-<td><code>input_text</code></td>
-<td>str</td>
-<td>Convenience function for accessing the initial input from the
-<code>Sample</code> as a string.</td>
-</tr>
-</tbody>
-</table>
+| Member | Type | Description |
+|----|----|----|
+| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
+| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from
 either the task sample or evaluation:
 
-<table style="width:90%;">
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 25%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>sample_id</code></td>
-<td>int | str</td>
-<td>Unique ID for sample.</td>
-</tr>
-<tr class="even">
-<td><code>epoch</code></td>
-<td>int</td>
-<td>Epoch for sample.</td>
-</tr>
-<tr class="odd">
-<td><code>choices</code></td>
-<td>list[str] | None</td>
-<td>Choices from sample (used only in multiple-choice evals).</td>
-</tr>
-<tr class="even">
-<td><code>model</code></td>
-<td>ModelName</td>
-<td>Name of model currently being evaluated.</td>
-</tr>
-</tbody>
-</table>
+| Member | Type | Description |
+|----|----|----|
+| `sample_id` | int \| str | Unique ID for sample. |
+| `epoch` | int | Epoch for sample. |
+| `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model` | ModelName | Name of model currently being evaluated. |
 
 Finally, task states also include available tools as well as guidance
 for the model on which tools to use (if you haven’t yet encountered the
@@ -580,32 +388,10 @@ concept of tool use in language models, don’t worry about understanding
 these fields, the [Tools](tools.qmd) article provides a more in-depth
 treatment):
 
-<table style="width:90%;">
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 25%" />
-<col style="width: 45%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>tools</code></td>
-<td>list[Tool]</td>
-<td>Tools available to the model</td>
-</tr>
-<tr class="even">
-<td><code>tool_choice</code></td>
-<td>ToolChoice</td>
-<td>Tool choice directive.</td>
-</tr>
-</tbody>
-</table>
+| Member        | Type         | Description                  |
+|---------------|--------------|------------------------------|
+| `tools`       | list\[Tool\] | Tools available to the model |
+| `tool_choice` | ToolChoice   | Tool choice directive.       |
 
 These fields are typically modified via the `use_tools()` solver, but
 they can also be modified directly for more advanced use cases.

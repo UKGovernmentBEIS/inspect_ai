@@ -31,92 +31,23 @@ optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
-<table>
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 40%" />
-<col style="width: 40%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>input</code></td>
-<td><code>str | list[ChatMessage]</code></td>
-<td>The input to be submitted to the model.</td>
-</tr>
-<tr class="even">
-<td><code>choices</code></td>
-<td><code>list[str] | None</code></td>
-<td>Optional. Multiple choice answer list.</td>
-</tr>
-<tr class="odd">
-<td><code>target</code></td>
-<td><code>str | list[str] | None</code></td>
-<td>Optional. Ideal target output. May be a literal value or narrative
-text to be used by a model grader.</td>
-</tr>
-<tr class="even">
-<td><code>id</code></td>
-<td><code>str | None</code></td>
-<td>Optional. Unique identifier for sample.</td>
-</tr>
-<tr class="odd">
-<td><code>metadata</code></td>
-<td><code>dict[str | Any] | None</code></td>
-<td>Optional. Arbitrary metadata associated with the sample.</td>
-</tr>
-<tr class="even">
-<td><code>sandbox</code></td>
-<td><code>str | tuple[str,str]</code></td>
-<td>Optional. Sandbox environment type (or optionally a tuple with type
-and config file)</td>
-</tr>
-<tr class="odd">
-<td><code>files</code></td>
-<td><code>dict[str | str] | None</code></td>
-<td>Optional. Files that go along with the sample (copied to sandbox
-environments).</td>
-</tr>
-<tr class="even">
-<td><code>setup</code></td>
-<td><code>str | None</code></td>
-<td>Optional. Setup script to run for sample (executed within default
-sandbox environment).</td>
-</tr>
-</tbody>
-</table>
+| Field | Type | Description |
+|----|----|----|
+| `input` | `str | list[ChatMessage]` | The input to be submitted to the model. |
+| `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
+| `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id` | `str | None` | Optional. Unique identifier for sample. |
+| `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
+| `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) |
+| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
+| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
 
 So a CSV dataset with the following structure:
 
-<table>
-<colgroup>
-<col style="width: 56%" />
-<col style="width: 43%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>input</th>
-<th>target</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>What cookie attributes should I use for strong security?</td>
-<td>secure samesite and httponly</td>
-</tr>
-<tr class="even">
-<td>How should I store passwords securely for an authentication system
-database?</td>
-<td>strong hashing algorithms with salt like Argon2 or bcrypt</td>
-</tr>
-</tbody>
-</table>
+| input | target |
+|----|----|
+| What cookie attributes should I use for strong security? | secure samesite and httponly |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 Can be read directly with:
 
@@ -309,33 +240,10 @@ multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
-<table>
-<colgroup>
-<col style="width: 10%" />
-<col style="width: 35%" />
-<col style="width: 55%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>role</code></td>
-<td><code>"system" | "user" | "assistant" | "tool"</code></td>
-<td>Role of this chat message.</td>
-</tr>
-<tr class="even">
-<td><code>content</code></td>
-<td><code>str | list[ChatContent]</code></td>
-<td>The content of the message. Can be a simple string or a list of
-content parts intermixing text and images.</td>
-</tr>
-</tbody>
-</table>
+| Field | Type | Description |
+|----|----|----|
+| `role` | `"system" | "user" | "assistant" | "tool"` | Role of this chat message. |
+| `content` | `str | list[ChatContent]` | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:
@@ -356,17 +264,13 @@ conversation with “assistant” responses.
 
 ## Image Input
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Image input is currently only supported for OpenAI vision models
 > (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)),
 > Google Gemini vision models
 > (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)),
 > and Anthropic Claude 3 models.
-
-</div>
 
 To include an image, your dataset input might look like this:
 

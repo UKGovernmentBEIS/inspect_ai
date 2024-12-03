@@ -101,9 +101,7 @@ Task(
 )
 ```
 
-<div id="stderr-note">
-
-> **Note**
+> [!NOTE]
 >
 > The current development version of Inspect replaces the use of the
 > `bootstrap_std` metric with `stderr` for the built in scorers
@@ -121,8 +119,6 @@ Task(
 > problems; for large sample problems (say 30 or more questions), you
 > just need finite variance in the underlying data and the CLT
 > guarantees a normally distributed mean value.
-
-</div>
 
 ## Model Graded
 
@@ -216,9 +212,7 @@ async def score(state: TaskState, target: Target):
 First we’ll talk about the core `Score` and `Value` objects, then
 provide some examples of custom scorers to make things more concrete.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that `score()` above is declared as an `async` function. When
 > creating custom scorers, it’s critical that you understand Inspect’s
@@ -228,51 +222,16 @@ provide some examples of custom scorers to make things more concrete.
 > [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) before
 > proceeding.
 
-</div>
-
 ### Score
 
 The components of `Score` include:
 
-<table>
-<colgroup>
-<col style="width: 20%" />
-<col style="width: 20%" />
-<col style="width: 60%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>value</code></td>
-<td><code>Value</code></td>
-<td>Value assigned to the sample (e.g. “C” or “I”, or a raw numeric
-value).</td>
-</tr>
-<tr class="even">
-<td><code>answer</code></td>
-<td><code>str</code></td>
-<td>Text extracted from model output for comparison (optional).</td>
-</tr>
-<tr class="odd">
-<td><code>explanation</code></td>
-<td><code>str</code></td>
-<td>Explanation of score, e.g. full model output or grader model output
-(optional).</td>
-</tr>
-<tr class="even">
-<td><code>metadata</code></td>
-<td><code>dict[str,Any]</code></td>
-<td>Additional metadata about the score to record in the log file
-(optional).</td>
-</tr>
-</tbody>
-</table>
+| Field | Type | Description |
+|----|----|----|
+| `value` | `Value` | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
+| `answer` | `str` | Text extracted from model output for comparison (optional). |
+| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 For example, the following are all valid `Score` objects:
 
@@ -789,51 +748,16 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-<table>
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 70%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Reducer</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>mean</td>
-<td>Reduce to the average of all scores.</td>
-</tr>
-<tr class="even">
-<td>median</td>
-<td>Reduce to the median of all scores</td>
-</tr>
-<tr class="odd">
-<td>mode</td>
-<td>Reduce to the most common score.</td>
-</tr>
-<tr class="even">
-<td>max</td>
-<td>Reduce to the maximum of all scores.</td>
-</tr>
-<tr class="odd">
-<td>pass_at_{k}</td>
-<td>Probability of at least 1 correct sample given <code>k</code> epochs
-(<a href="https://arxiv.org/pdf/2107.03374"
-class="uri">https://arxiv.org/pdf/2107.03374</a>)</td>
-</tr>
-<tr class="even">
-<td>at_least_{k}</td>
-<td><code>1</code> if at least <code>k</code> samples are correct, else
-<code>0</code>.</td>
-</tr>
-</tbody>
-</table>
+| Reducer | Description |
+|----|----|
+| mean | Reduce to the average of all scores. |
+| median | Reduce to the median of all scores |
+| mode | Reduce to the most common score. |
+| max | Reduce to the maximum of all scores. |
+| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > The built in reducers will compute a reduced `value` for the score and
 > populate the fields `answer` and `explanation` only if their value is
@@ -842,8 +766,6 @@ class="uri">https://arxiv.org/pdf/2107.03374</a>)</td>
 > function needs differing behavior for reducing fields, you should also
 > implement your own custom reducer and merge or preserve fields in some
 > way.
-
-</div>
 
 ### Custom Reducers
 
@@ -892,15 +814,11 @@ inspect score popularity.py
 inspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json
 ```
 
-<div>
-
-> **Tip**
+> [!TIP]
 >
 > Using a distinct scoring step is particularly useful during scorer
 > development, as it bypasses the entire generation phase, saving lots
 > of time and inference costs.
-
-</div>
 
 ### Log Overwriting
 

@@ -169,30 +169,10 @@ more sophisticated infrastructure (e.g. creating network hosts for a
 cybersecurity eval). Inspect comes with two sandbox environments built
 in:
 
-<table>
-<colgroup>
-<col style="width: 38%" />
-<col style="width: 61%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Environment Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>local</code></td>
-<td>Run <code>sandbox()</code> methods in the same file system as the
-running evaluation (should <em>only be used</em> if you are already
-running your evaluation in another sandbox).</td>
-</tr>
-<tr class="even">
-<td><code>docker</code></td>
-<td>Run <code>sandbox()</code> methods within a Docker container</td>
-</tr>
-</tbody>
-</table>
+| Environment Type | Description |
+|----|----|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container |
 
 To create a custom sandbox environment, derive a class from
 `SandboxEnvironment`, implement the required static and instance
@@ -273,60 +253,14 @@ registration of sandboxes from the importing of libraries they require
 The class methods take care of various stages of initialisation, setup,
 and teardown:
 
-<table>
-<colgroup>
-<col style="width: 26%" />
-<col style="width: 26%" />
-<col style="width: 47%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Method</th>
-<th>Lifecycle</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>config_files()</code></td>
-<td>Called once to determine the names of ‘default’ config files for
-this provider (e.g. ‘compose.yaml’).</td>
-<td></td>
-</tr>
-<tr class="even">
-<td><code>task_init()</code></td>
-<td>Called once for each unique sandbox environment config before
-executing the tasks in an <code>eval()</code> run.</td>
-<td>Expensive initialisation operations (e.g. pulling or building
-images)</td>
-</tr>
-<tr class="odd">
-<td><code>sample_init()</code></td>
-<td>Called at the beginning of each <code>Sample</code>.</td>
-<td>Create <code>SandboxEnvironment</code> instances for the
-sample.</td>
-</tr>
-<tr class="even">
-<td><code>sample_cleanup()</code></td>
-<td>Called at the end of each <code>Sample</code></td>
-<td>Cleanup <code>SandboxEnvironment</code> instances for the
-sample.</td>
-</tr>
-<tr class="odd">
-<td><code>task_cleanup()</code></td>
-<td>Called once for each unique sandbox environment config after
-executing the tasks in an <code>eval()</code> run.</td>
-<td>Last chance handler for any resources not yet cleaned up (see also
-discussion below).</td>
-</tr>
-<tr class="even">
-<td><code>cli_cleanup()</code></td>
-<td>Called via <code>inspect sandbox cleanup</code></td>
-<td>CLI invoked manual cleanup of resources created by this
-<code>SandboxEnvironment</code>.</td>
-</tr>
-</tbody>
-</table>
+| Method | Lifecycle | Purpose |
+|----|----|----|
+| `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same
 working directory, the `task_init()` and `task_cleanup()` functions will
@@ -335,15 +269,11 @@ be called once for each unique sandbox environment configuration
 from the fact that initialisation and cleanup are shared for tasks with
 identical configurations.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > The “default” `SandboxEnvironment` i.e. that named “default” or marked
 > as default in some other provider-specific way, **must** be the first
 > key/value in the dictionary returned from `sample_init()`.
-
-</div>
 
 The `task_cleanup()` has a number of important functions:
 

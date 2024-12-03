@@ -175,45 +175,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Stop Reason</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>stop</code></td>
-<td>The model hit a natural stop point or a provided stop sequence</td>
-</tr>
-<tr class="even">
-<td><code>max_tokens</code></td>
-<td>The maximum number of tokens specified in the request was
-reached.</td>
-</tr>
-<tr class="odd">
-<td><code>model_length</code></td>
-<td>The model’s context length was exceeded.</td>
-</tr>
-<tr class="even">
-<td><code>tool_calls</code></td>
-<td>The model called a tool</td>
-</tr>
-<tr class="odd">
-<td><code>content_filter</code></td>
-<td>Content was omitted due to a content filter.</td>
-</tr>
-<tr class="even">
-<td><code>unknown</code></td>
-<td>Unknown (e.g. unexpected runtime error)</td>
-</tr>
-</tbody>
-</table>
+| Stop Reason | Description |
+|----|----|
+| `stop` | The model hit a natural stop point or a provided stop sequence |
+| `max_tokens` | The maximum number of tokens specified in the request was reached. |
+| `model_length` | The model’s context length was exceeded. |
+| `tool_calls` | The model called a tool |
+| `content_filter` | Content was omitted due to a content filter. |
+| `unknown` | Unknown (e.g. unexpected runtime error) |
 
 ### Error Handling
 

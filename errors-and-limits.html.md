@@ -101,36 +101,12 @@ and off entirely), as a number between 0 and 1 (indicating a proportion
 of failures to tolerate), or a number greater than 1 to (indicating a
 count of failures to tolerate):
 
-<table>
-<colgroup>
-<col style="width: 40%" />
-<col style="width: 60%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Value</th>
-<th>Behaviour</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>fail_on_error=True</code></td>
-<td>Fail eval immediately on sample errors (default).</td>
-</tr>
-<tr class="even">
-<td><code>fail_on_error=False</code></td>
-<td>Never fail eval on sample errors.</td>
-</tr>
-<tr class="odd">
-<td><code>fail_on_error=0.1</code></td>
-<td>Fail if more than 10% of total samples have errors.</td>
-</tr>
-<tr class="even">
-<td><code>fail_on_error=5</code></td>
-<td>Fail eval if more than 5 samples have errors.</td>
-</tr>
-</tbody>
-</table>
+| Value                 | Behaviour                                           |
+|-----------------------|-----------------------------------------------------|
+| `fail_on_error=True`  | Fail eval immediately on sample errors (default).   |
+| `fail_on_error=False` | Never fail eval on sample errors.                   |
+| `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
+| `fail_on_error=5`     | Fail eval if more than 5 samples have errors.       |
 
 While `fail_on_error` is typically specified at the `Task` level, you
 can also override the task setting when calling `eval()` or
@@ -266,16 +242,12 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
         ...
 ```
 
-<div>
-
-> **Important**
+> [!IMPORTANT]
 >
 > It’s important to note that the `token_limit` is for all tokens used
 > within the execution of a sample. If you want to limit the number of
 > tokens that can be yielded from a single call to the model you should
 > use the `max_tokens` generation option.
-
-</div>
 
 ### Limit Checking
 

@@ -129,76 +129,18 @@ repository at
 There are several options available for customising the behaviour of the
 basic agent:
 
-<table style="width:93%;">
-<colgroup>
-<col style="width: 23%" />
-<col style="width: 20%" />
-<col style="width: 50%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Option</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>init</code></td>
-<td><code>Solver | list[Solver]</code></td>
-<td>Agent initialisation (e.g. <code>system_message()</code>).</td>
-</tr>
-<tr class="even">
-<td><code>tools</code></td>
-<td><code>list[Tool]</code></td>
-<td>List of tools available to the agent.</td>
-</tr>
-<tr class="odd">
-<td><code>max_attempts</code></td>
-<td><code>int</code></td>
-<td>Maximum number of submission attempts to accept.</td>
-</tr>
-<tr class="even">
-<td><code>message_limit</code></td>
-<td><code>int</code></td>
-<td>Limit on messages in conversation before terminating agent.</td>
-</tr>
-<tr class="odd">
-<td><code>token_limit</code></td>
-<td><code>int</code></td>
-<td>Limit on in conversation before terminating agent.</td>
-</tr>
-<tr class="even">
-<td><code>score_value</code></td>
-<td><code>ValueToFloat</code></td>
-<td>Function used to extract values from scores (defaults to standard
-<code>value_to_float()</code>).</td>
-</tr>
-<tr class="odd">
-<td><code>incorrect_message</code></td>
-<td><code>str</code></td>
-<td>User message reply for an incorrect submission from the model.
-Alternatively, a function which returns a message.</td>
-</tr>
-<tr class="even">
-<td><code>continue_message</code></td>
-<td><code>str</code></td>
-<td>User message to urge the model to continue when it doesn’t make a
-tool call.</td>
-</tr>
-<tr class="odd">
-<td><code>submit_name</code></td>
-<td><code>str</code></td>
-<td>Name for tool used to make submissions (defaults to ‘submit’).</td>
-</tr>
-<tr class="even">
-<td><code>submit_description</code></td>
-<td><code>str</code></td>
-<td>Description of submit tool (defaults to ‘Submit an answer for
-evaluation’)</td>
-</tr>
-</tbody>
-</table>
+| Option | Type | Description |
+|----|----|----|
+| `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
+| `tools` | `list[Tool]` | List of tools available to the agent. |
+| `max_attempts` | `int` | Maximum number of submission attempts to accept. |
+| `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
+| `token_limit` | `int` | Limit on in conversation before terminating agent. |
+| `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
+| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
+| `continue_message` | `str` | User message to urge the model to continue when it doesn’t make a tool call. |
+| `submit_name` | `str` | Name for tool used to make submissions (defaults to ‘submit’). |
+| `submit_description` | `str` | Description of submit tool (defaults to ‘Submit an answer for evaluation’) |
 
 For multiple attempts, submissions are evaluated using the task’s main
 scorer, with value of 1.0 indicating a correct answer. Scorer values are
@@ -283,45 +225,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Stop Reason</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>stop</code></td>
-<td>The model hit a natural stop point or a provided stop sequence</td>
-</tr>
-<tr class="even">
-<td><code>max_tokens</code></td>
-<td>The maximum number of tokens specified in the request was
-reached.</td>
-</tr>
-<tr class="odd">
-<td><code>model_length</code></td>
-<td>The model’s context length was exceeded.</td>
-</tr>
-<tr class="even">
-<td><code>tool_calls</code></td>
-<td>The model called a tool</td>
-</tr>
-<tr class="odd">
-<td><code>content_filter</code></td>
-<td>Content was omitted due to a content filter.</td>
-</tr>
-<tr class="even">
-<td><code>unknown</code></td>
-<td>Unknown (e.g. unexpected runtime error)</td>
-</tr>
-</tbody>
-</table>
+| Stop Reason | Description |
+|----|----|
+| `stop` | The model hit a natural stop point or a provided stop sequence |
+| `max_tokens` | The maximum number of tokens specified in the request was reached. |
+| `model_length` | The model’s context length was exceeded. |
+| `tool_calls` | The model called a tool |
+| `content_filter` | Content was omitted due to a content filter. |
+| `unknown` | Unknown (e.g. unexpected runtime error) |
 
 ### Error Handling
 
@@ -458,9 +369,7 @@ class InspectChatModel(BaseChatModel):
         ...
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that the the `inspect_langchain` module imported here is not a
 > built in feature of Inspect. Rather, you can find its [source
@@ -468,8 +377,6 @@ class InspectChatModel(BaseChatModel):
 > as part of the example. You can use this to create your own LangChain
 > agents or as the basis for creating similar integrations with other
 > agent frameworks.
-
-</div>
 
 Now here’s the `wikipedia_search()` solver (imports again excluded for
 brevity):
@@ -722,32 +629,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-<table>
-<colgroup>
-<col style="width: 36%" />
-<col style="width: 63%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Environment Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>local</code></td>
-<td>Run <code>sandbox()</code> methods in the same file system as the
-running evaluation (should <em>only be used</em> if you are already
-running your evaluation in another sandbox).</td>
-</tr>
-<tr class="even">
-<td><code>docker</code></td>
-<td>Run <code>sandbox()</code> methods within a Docker container (see
-the <a href="#sec-docker-configuration">Docker Configuration</a> section
-below for additional details).</td>
-</tr>
-</tbody>
-</table>
+| Environment Type | Description |
+|----|----|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to
@@ -832,35 +717,11 @@ file (`compose.yaml`).
 Here is how Docker sandbox environments are created based on the
 presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-<table>
-<colgroup>
-<col style="width: 37%" />
-<col style="width: 62%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Config Files</th>
-<th>Behavior</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>None</td>
-<td>Creates a sandbox environment based on the official <a
-href="https://hub.docker.com/_/python">python:3.12-bookworm</a>
-image.</td>
-</tr>
-<tr class="even">
-<td><code>Dockerfile</code></td>
-<td>Creates a sandbox environment by building the image.</td>
-</tr>
-<tr class="odd">
-<td><code>compose.yaml</code></td>
-<td>Creates sandbox environment(s) based on
-<code>compose.yaml</code>.</td>
-</tr>
-</tbody>
-</table>
+| Config Files | Behavior |
+|----|----|
+| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile` | Creates a sandbox environment by building the image. |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will
 automatically generate one as needed. Note that the automatically
@@ -989,17 +850,13 @@ sandbox()          # default sandbox environment
 sandbox("victim")  # named sandbox environment
 ```
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > If you define multiple sandbox environments you are *required* to name
 > one of them “default” so that Inspect knows which environment to
 > resolve for calls to `sandbox()` without an argument. Alternatively,
 > you can add the `x-default` key to a service not named “default” to
 > designate it as the default sandbox.
-
-</div>
 
 #### Infrastructure
 

@@ -14,17 +14,15 @@ Claude 3, Google Gemini, and Mistral). Inspect also includes several
 built-in tools ([bash](#sec-bash-and-python),
 [python](#sec-bash-and-python), and [web_search](#sec-web-search)).
 
-<div>
-
-> **Tools and Agents**
+> [!NOTE]
+>
+> ### Tools and Agents
 >
 > One application of tools is to run them within an agent scaffold that
 > pursues an objective over multiple interactions with a model. The
 > scaffold uses the model to help make decisions about which tools to
 > use and when, and orchestrates calls to the model to use the tools.
 > This is covered in more depth in the [Agents](agents.qmd) section.
-
-</div>
 
 ## Built-In Tools
 
@@ -120,16 +118,12 @@ Inspect’s concurrency scheme. For network requests, this amounts to
 using `async` HTTP calls with `httpx`. For heavier computation, tools
 should use subprocesses as described in the next section.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > Note that when using tools with models, the models do not call the
 > Python function directly. Rather, the model generates a structured
 > request which includes function parameters, and then Inspect calls the
 > function and returns the result to the model.
-
-</div>
 
 ## Tool Errors
 
@@ -183,16 +177,12 @@ automatically handled and result in the `Sample` failing with an error.
 Many tools can simply rely on the default handling to provide reasonable
 behaviour around both expected and unexpected errors.
 
-<div>
-
-> **Note**
+> [!NOTE]
 >
 > When we say that the errors are reported directly to the model, this
 > refers to the behaviour when using the default `generate()`. If on the
 > other hand, you are have created custom scaffolding for an agent, you
 > can intercept tool errors and apply additional filtering and logic.
-
-</div>
 
 ### Explicit Handling
 
@@ -601,54 +591,16 @@ If you review the transcripts of a sample with access to the web browser
 tool, you’ll notice that there are several distinct tools made available
 for control of the web browser. These tools include:
 
-<table>
-<colgroup>
-<col style="width: 35%" />
-<col style="width: 65%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Tool</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>web_browser_go(url)</code></td>
-<td>Navigate the web browser to a URL.</td>
-</tr>
-<tr class="even">
-<td><code>web_browser_click(element_id)</code></td>
-<td>Click an element on the page currently displayed by the web
-browser.</td>
-</tr>
-<tr class="odd">
-<td><code>web_browser_type(element_id)</code></td>
-<td>Type text into an input on a web browser page.</td>
-</tr>
-<tr class="even">
-<td><code>web_browser_type_submit(element_id, text)</code></td>
-<td>Type text into a form input on a web browser page and press ENTER to
-submit the form.</td>
-</tr>
-<tr class="odd">
-<td><code>web_browser_scroll(direction)</code></td>
-<td>Scroll the web browser up or down by one page.</td>
-</tr>
-<tr class="even">
-<td><code>web_browser_forward()</code></td>
-<td>Navigate the web browser forward in the browser history.</td>
-</tr>
-<tr class="odd">
-<td><code>web_browser_back()</code></td>
-<td>Navigate the web browser back in the browser history.</td>
-</tr>
-<tr class="even">
-<td><code>web_browser_refresh()</code></td>
-<td>Refresh the current page of the web browser.</td>
-</tr>
-</tbody>
-</table>
+| Tool | Description |
+|----|----|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
 
 The return value of each of these tools is a [web accessibility
 tree](https://web.dev/articles/the-accessibility-tree) for the page,
