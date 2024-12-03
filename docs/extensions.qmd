@@ -256,9 +256,13 @@ Task(
 )
 ```
 
-Specialised configuration types can also be passed as the `config` argument to `SandboxEnvironmentSpec`:
+Specialised configuration types which derive from Pydantic's `BaseModel` can also be passed as the `config` argument to `SandboxEnvironmentSpec`. Note: they must be hashable (i.e. `frozen=True`).
 
 ``` python
+class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):
+    socket: str
+    runtime: str
+
 Task(
     ...,
     sandbox=SandboxEnvironmentSpec(
