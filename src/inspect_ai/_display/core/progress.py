@@ -56,7 +56,7 @@ class RichProgress(Progress):
             self.on_update()
 
     @override
-    def update_segments(self, complete: int, total: int) -> None:
+    def update_steps(self, complete: int, total: int) -> None:
         self.progress.update(
             task_id=self.task_id, sub_progress=f"[{complete}/{total}]", refresh=True
         )

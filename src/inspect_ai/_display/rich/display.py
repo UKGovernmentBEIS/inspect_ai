@@ -277,7 +277,7 @@ class RichTaskDisplay(TaskDisplay):
 
     @override
     def sample_complete(self, complete: int, total: int) -> None:
-        self.p.update_segments(complete, total)
+        self.p.update_steps(complete, total)
 
     @override
     def complete(self, result: TaskResult) -> None:

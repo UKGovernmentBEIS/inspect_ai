@@ -200,5 +200,5 @@ class TaskProgress(Progress):
             self.progress_bar.update(progress=self.progress_bar.total)
 
     @override
-    def update_segments(self, compete: int, total: int) -> None:
+    def update_steps(self, compete: int, total: int) -> None:
         pass
