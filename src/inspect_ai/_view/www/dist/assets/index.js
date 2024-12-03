@@ -15337,8 +15337,15 @@ const extractInput = (inputKey, args) => {
   };
   if (args) {
     if (Object.keys(args).length === 1) {
+      const inputRaw = args[Object.keys(args)[0]];
+      let input;
+      if (Array.isArray(inputRaw) || typeof inputRaw === "object") {
+        input = JSON.stringify(inputRaw, void 0, 2);
+      } else {
+        input = String(inputRaw);
+      }
       return {
-        input: args[Object.keys(args)[0]],
+        input,
         args: []
       };
     } else if (args[inputKey]) {

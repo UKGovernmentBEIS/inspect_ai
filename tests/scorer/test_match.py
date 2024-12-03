@@ -20,3 +20,21 @@ async def test_non_numeric_match():
     result = await scorer(state, Target(["60", "60%"]))
 
     assert result.text == CORRECT
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_match_end():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="28 + 32 = 60%")
+    result = await scorer(state, Target(["60%"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_match_plain():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="28 + 32 = 60%")
+    result = await scorer(state, Target(["32"]))
+
+    assert result.text == CORRECT
