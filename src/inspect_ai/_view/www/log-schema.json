@@ -2506,6 +2506,18 @@
           ],
           "default": null
         },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time"
+        },
         "metadata": {
           "anyOf": [
             {
@@ -2537,6 +2549,7 @@
         "model",
         "choices",
         "usage",
+        "time",
         "metadata",
         "error"
       ],

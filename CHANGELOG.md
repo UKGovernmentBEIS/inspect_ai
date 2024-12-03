@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
+- Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`. 
 
 ## v0.3.49 (03 December 2024)
 
