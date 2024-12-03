@@ -267,17 +267,7 @@ class SandboxEnvironmentSpec(NamedTuple):
     config: SandboxEnvironmentConfigType | None = None
 
 
-@dataclass(frozen=True)
-class SandboxEnvironmentConfig(abc.ABC):
-    """Base class for sandbox environment configuration.
-
-    Must be frozen so that is it hashable (for determining Set membership).
-    """
-
-    pass
-
-
-SandboxEnvironmentConfigType = SandboxEnvironmentConfig | str
+SandboxEnvironmentConfigType = BaseModel | str
 
 SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
 """SandboxEnvironmentSpec and str and tuple shorthands for it.

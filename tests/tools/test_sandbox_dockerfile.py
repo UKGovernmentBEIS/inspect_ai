@@ -1,13 +1,9 @@
-from dataclasses import dataclass
-
 import pytest
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
-from inspect_ai.util._sandbox.environment import (
-    SandboxEnvironmentConfig,
-    SandboxEnvironmentSpec,
-)
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 @skip_if_no_docker
@@ -24,8 +20,7 @@ def test_sandbox_dockerfile():
 @skip_if_no_docker
 @pytest.mark.slow
 def test_sandbox_dockerfile_raises_for_unsupported_config():
-    @dataclass(frozen=True)
-    class MyConfig(SandboxEnvironmentConfig):
+    class MyConfig(BaseModel, frozen=True):
         pass
 
     sandbox = SandboxEnvironmentSpec("docker", MyConfig())

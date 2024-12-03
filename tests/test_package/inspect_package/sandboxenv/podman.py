@@ -1,14 +1,9 @@
-from dataclasses import dataclass
 from typing import Literal, Union, overload
 
+from pydantic import BaseModel
 from typing_extensions import override
 
-from inspect_ai.util import (
-    ExecResult,
-    SandboxEnvironment,
-    SandboxEnvironmentConfig,
-    SandboxEnvironmentConfigType,
-)
+from inspect_ai.util import ExecResult, SandboxEnvironment, SandboxEnvironmentConfigType
 
 
 class PodmanSandboxEnvironment(SandboxEnvironment):
@@ -63,6 +58,5 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         return ""
 
 
-@dataclass(frozen=True)
-class PodmanSandboxEnvironmentConfig(SandboxEnvironmentConfig):
+class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):
     socket_path: str

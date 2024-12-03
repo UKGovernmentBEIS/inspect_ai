@@ -63,7 +63,7 @@ async def test_extension_sandboxenv_with_specialised_config():
             solver=[use_tools(list_files()), generate()],
             scorer=includes(),
             sandbox=SandboxEnvironmentSpec(
-                "podman", PodmanSandboxEnvironmentConfig("/path/to/socket")
+                "podman", PodmanSandboxEnvironmentConfig(socket_path="/path/to/socket")
             ),
         )
         await eval_async(task, model="mockllm/model")
