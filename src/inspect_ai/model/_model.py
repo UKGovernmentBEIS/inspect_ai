@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import os
+import time
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Callable, Literal, Type, cast
@@ -355,18 +356,23 @@ class Model:
 
             generate_id = uuid()
             logger.debug(f"model generate {generate_id} ({str(self)})")
+            time_start = time.perf_counter()
             result = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
             )
+            time_elapsed = time.perf_counter() - time_start
             logger.debug(f"model generate {generate_id} (completed)")
             if isinstance(result, tuple):
                 output, call = result
             else:
                 output = result
                 call = None
+
+            # update output with time elapsed
+            output.time = time_elapsed
 
             # complete the transcript event
             complete(output, call)
