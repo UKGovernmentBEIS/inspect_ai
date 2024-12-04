@@ -15,6 +15,7 @@ from inspect_ai.util._sandbox.context import (
 )
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
+    SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
 )
 
@@ -129,7 +130,7 @@ def resolve_sandbox(
             and sample.sandbox.type == task_sandbox.type
             and sample.sandbox.config is not None
         ):
-            sandbox_config: str | None = sample.sandbox.config
+            sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
         return SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)

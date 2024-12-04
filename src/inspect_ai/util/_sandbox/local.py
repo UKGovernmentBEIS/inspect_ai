@@ -7,7 +7,12 @@ import aiofiles
 from typing_extensions import override
 
 from .._subprocess import ExecResult, subprocess
-from .environment import SandboxConnection, SandboxConnectionLocal, SandboxEnvironment
+from .environment import (
+    SandboxConnection,
+    SandboxConnectionLocal,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+)
 from .limits import (
     SandboxEnvironmentLimits,
     verify_exec_result_size,
@@ -21,7 +26,10 @@ class LocalSandboxEnvironment(SandboxEnvironment):
     @override
     @classmethod
     async def sample_init(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
         return {"default": LocalSandboxEnvironment()}
 
@@ -30,7 +38,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:

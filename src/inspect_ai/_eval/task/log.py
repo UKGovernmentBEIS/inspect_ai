@@ -75,7 +75,7 @@ class TaskLogger:
             del model_args["api_key"]
 
         # cwd_relative_path for sandbox config
-        if sandbox and sandbox.config:
+        if sandbox and isinstance(sandbox.config, str):
             sandbox = SandboxEnvironmentSpec(
                 sandbox.type, cwd_relative_path(sandbox.config)
             )

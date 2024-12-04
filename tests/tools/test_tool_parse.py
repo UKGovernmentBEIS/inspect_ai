@@ -26,7 +26,7 @@ def test_parse_type():
         type="object", additionalProperties=ToolParam(type="integer")
     )
     assert parse_type(Optional[str]) == ToolParam(
-        anyOf=[ToolParam(type="string"), ToolParam()]
+        anyOf=[ToolParam(type="string"), ToolParam(type="null")]
     )
     assert parse_type(Union[int, str]) == ToolParam(
         anyOf=[ToolParam(type="integer"), ToolParam(type="string")]
