@@ -56,18 +56,17 @@ class RichProgress(Progress):
             self.on_update()
 
     @override
+    def complete(self) -> None:
+        self.progress.update(
+            task_id=self.task_id, completed=PROGRESS_TOTAL, status=self.status()
+        )
+
     def update_count(self, complete: int, total: int) -> None:
         self.progress.update(
             task_id=self.task_id, count=f"[{complete:,}/{total:,}]", refresh=True
         )
         if self.on_update:
             self.on_update()
-
-    @override
-    def complete(self) -> None:
-        self.progress.update(
-            task_id=self.task_id, completed=PROGRESS_TOTAL, status=self.status()
-        )
 
 
 def rich_progress() -> RProgress:

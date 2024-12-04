@@ -198,7 +198,3 @@ class TaskProgress(Progress):
     def complete(self) -> None:
         if self.progress_bar.total is not None:
             self.progress_bar.update(progress=self.progress_bar.total)
-
-    @override
-    def update_count(self, compete: int, total: int) -> None:
-        pass
