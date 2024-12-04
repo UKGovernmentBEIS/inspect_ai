@@ -6,6 +6,7 @@ from rich.console import RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
@@ -151,8 +152,11 @@ class TaskProgressView(Widget):
 
     def complete(self, result: TaskResult) -> None:
         self.t.result = result
-        self.query_one(TaskStatusIcon).result = result
-        self.query_one(Clock).stop()
+        try:
+            self.query_one(TaskStatusIcon).result = result
+            self.query_one(Clock).stop()
+        except NoMatches:
+            pass
         self.task_progress.complete()
 
 
