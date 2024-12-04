@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import os
+import json
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
@@ -117,7 +118,7 @@ class HuggingFaceAPI(ModelAPI):
         handler: ChatAPIHandler | None = Llama31Handler() if len(tools) > 0 else None
 
         # create chat
-        chat = self.hf_chat(input, tools, handler)
+        chat = self.hf_chat(input, tools)
 
         # prepare tokenizer
         tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
@@ -208,15 +209,15 @@ class HuggingFaceAPI(ModelAPI):
     def collapse_user_messages(self) -> bool:
         return True
 
-    def hf_chat(
-        self,
-        messages: list[ChatMessage],
-        tools: list[ToolInfo],
-        handler: ChatAPIHandler | None,
-    ) -> str:
+    def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
-        if handler:
-            hf_messages = handler.input_with_tools(messages, tools)
+        tools_list = []
+        if len(tools) > 0:
+            tools_list = [
+                json.loads(tool.model_dump_json(exclude_none=True, indent=2))
+                for tool in tools
+            ]
+            hf_messages = messages
         else:
             hf_messages = messages
         # apply chat template
@@ -225,6 +226,7 @@ class HuggingFaceAPI(ModelAPI):
             add_generation_prompt=True,
             tokenize=False,
             chat_template=self.chat_template,
+            tools=tools_list if len(tools_list) > 0 else None,
         )
         # return
         return cast(str, chat)
