@@ -19184,7 +19184,15 @@ const ModelUsagePanel = ({ usage }) => {
 const ModelEventView = ({ id, event, style }) => {
   var _a2, _b2;
   const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
-  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
+  const callTime = event.output.time;
+  const subItems = [];
+  if (totalUsage) {
+    subItems.push(`${formatNumber(totalUsage)} tokens`);
+  }
+  if (callTime) {
+    subItems.push(`${formatPrettyDecimal(callTime)} sec`);
+  }
+  const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
   const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
     return choice.message;
   });
