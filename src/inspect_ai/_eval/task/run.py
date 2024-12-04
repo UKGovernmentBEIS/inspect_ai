@@ -390,9 +390,8 @@ async def task_run_sample(
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
         if previous_sample:
-            # tick off progress (note that each sample is allocated)
-            # 10 units of progress to distrubute how it sees fit
-            progress(10)
+            # tick off progress for this sample
+            progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
             # log if requested
             if logger:
