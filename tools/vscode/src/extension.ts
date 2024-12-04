@@ -26,6 +26,7 @@ import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
 import { activateLogNotify } from "./providers/lognotify";
 import { activateOpenLog } from "./providers/openlog";
+import { activateProtocolHandler } from "./providers/protocol-handler";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -64,6 +65,9 @@ export async function activate(context: ExtensionContext) {
 
   // Initial the workspace
   await initializeWorkspace(stateManager);
+
+  // Initialize the protocol handler
+  activateProtocolHandler(context);
 
   // Inspect Manager watches for changes to inspect binary
   const inspectManager = activateInspectManager(context);

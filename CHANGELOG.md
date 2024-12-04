@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+- Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
+
+## v0.3.49 (03 December 2024)
+
 - Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.
 - Improve cancellation feedback and prevent multiple cancellations when using fullscreen display.
-- Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
+- Inspect View: Prevent circular reference error when rendering complex tool input.
+- Inspect View: Resolve display issue with sorting by sample then epoch. 
 
 ## v0.3.48 (01 December 2024) 
 
