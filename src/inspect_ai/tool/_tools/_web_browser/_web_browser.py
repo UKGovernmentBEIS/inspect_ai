@@ -373,6 +373,12 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
             web_at = (
                 str(response.get("web_at")) or "(no web accessiblity tree available)"
             )
+            # Remove base64 data from images.
+            web_at_lines = web_at.split("\n")
+            web_at_lines = [
+                line.partition("data:image/png;base64")[0] for line in web_at_lines
+            ]
+            web_at = "\n".join(web_at_lines)
             store().set(WEB_BROWSER_AT, web_at)
             return web_at
         elif "error" in response:

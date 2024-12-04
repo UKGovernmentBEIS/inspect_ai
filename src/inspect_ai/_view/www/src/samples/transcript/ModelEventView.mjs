@@ -14,7 +14,11 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
-import { formatDateTime, formatNumber } from "../../utils/Format.mjs";
+import {
+  formatDateTime,
+  formatNumber,
+  formatPrettyDecimal,
+} from "../../utils/Format.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -28,7 +32,16 @@ import { formatDateTime, formatNumber } from "../../utils/Format.mjs";
  */
 export const ModelEventView = ({ id, event, style }) => {
   const totalUsage = event.output.usage?.total_tokens;
-  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
+  const callTime = event.output.time;
+
+  const subItems = [];
+  if (totalUsage) {
+    subItems.push(`${formatNumber(totalUsage)} tokens`);
+  }
+  if (callTime) {
+    subItems.push(`${formatPrettyDecimal(callTime)} sec`);
+  }
+  const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined

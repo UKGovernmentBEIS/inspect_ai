@@ -23,6 +23,7 @@ from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     TaskCleanup,
@@ -340,7 +341,7 @@ async def startup_sandbox_environments(
                 sandboxenvs.add(sandbox)
 
     # initialiase sandboxenvs (track cleanups)
-    cleanups: list[tuple[TaskCleanup, str | None, str]] = []
+    cleanups: list[tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]] = []
     with display().suspend_task_app():
         for sandboxenv in sandboxenvs:
             # find type

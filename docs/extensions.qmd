@@ -127,7 +127,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_init(
-        cls, task_name: str, config: str | None
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
         ...
 
@@ -135,7 +135,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_init(
         cls, 
         task_name: str, 
-        config: str | None, 
+        config: SandboxEnvironmentConfigType | None, 
         metadata: dict[str, str]
     ) -> dict[str, SandboxEnvironment]:
         ...
@@ -144,7 +144,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -152,7 +152,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        cleanup: bool,
     ) -> None:
        ...
 
@@ -250,6 +253,22 @@ Sandbox environments can be invoked with an optional configuration parameter, wh
 Task(
     ...,
     sandbox=("podman","config.yaml")
+)
+```
+
+Specialised configuration types which derive from Pydantic's `BaseModel` can also be passed as the `config` argument to `SandboxEnvironmentSpec`. Note: they must be hashable (i.e. `frozen=True`).
+
+``` python
+class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):
+    socket: str
+    runtime: str
+
+Task(
+    ...,
+    sandbox=SandboxEnvironmentSpec(
+        "podman",
+        PodmanSandboxEnvironmentConfig(socket="/podman-socket", runtime="crun"),
+    )
 )
 ```
 

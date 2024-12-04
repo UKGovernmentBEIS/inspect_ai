@@ -8,6 +8,7 @@ from .environment import (
     SandboxConnectionLocal,
     SandboxConnectionSSH,
     SandboxEnvironment,
+    SandboxEnvironmentConfigType,
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -20,6 +21,7 @@ from .service import SandboxService, sandbox_service
 __all__ = [
     "OutputLimitExceededError",
     "SandboxEnvironment",
+    "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",
     "SandboxEnvironments",
     "SandboxEnvironmentSpec",
