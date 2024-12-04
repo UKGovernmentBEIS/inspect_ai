@@ -7,8 +7,8 @@
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed) 
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images)
+- Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
   
-
 ## v0.3.49 (03 December 2024)
 
 - Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.
