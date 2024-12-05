@@ -57,6 +57,7 @@ class Plan(Solver):
 
         self.finish = finish
         self.cleanup = cleanup
+        self.progress: Callable[[], None] = lambda: None
         self._name = name
 
         if not internal:
@@ -105,8 +106,14 @@ class Plan(Solver):
                     state = await solver(state, generate)
                     st.complete(state)
 
+                # tick progress
+                self.progress()
+
                 # check for completed
                 if state.completed:
+                    # tick rest of progress
+                    for _ in range(index + 1, len(self.steps)):
+                        self.progress()
                     # exit loop
                     break
 
@@ -115,6 +122,7 @@ class Plan(Solver):
                 with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
+                self.progress()
 
             # mark completed
             state.completed = True
