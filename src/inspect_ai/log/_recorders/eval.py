@@ -82,7 +82,7 @@ class EvalRecorder(FileRecorder):
         self.data: dict[str, ZipLogFile] = {}
 
     @override
-    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # if the file exists then read summaries
         if location is not None and self.fs.exists(location):
             with file(location, "rb") as f:
@@ -107,7 +107,7 @@ class EvalRecorder(FileRecorder):
         return zip_file
 
     @override
-    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
         self._write(eval, _journal_path(START_JSON), start)
 
@@ -115,12 +115,12 @@ class EvalRecorder(FileRecorder):
         log.log_start = start
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
         log = self.data[self._log_file_key(eval)]  # noqa: F841
         log.samples.append(sample)
 
     @override
-    async def flush(self, eval: EvalSpec) -> None:
+    def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
 
@@ -131,7 +131,7 @@ class EvalRecorder(FileRecorder):
         log.flush()
 
     @override
-    async def log_finish(
+    def log_finish(
         self,
         eval: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
@@ -188,11 +188,11 @@ class EvalRecorder(FileRecorder):
         del self.data[key]
 
         # return the full EvalLog
-        return await self.read_log(log.file)
+        return self.read_log(log.file)
 
     @classmethod
     @override
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
                 evalLog = _read_header(zip, location)
@@ -220,7 +220,7 @@ class EvalRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log_sample(
+    def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         with file(location, "rb") as z:
@@ -235,14 +235,14 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    async def write_log(cls, location: str, log: EvalLog) -> None:
+    def write_log(cls, location: str, log: EvalLog) -> None:
         # write using the recorder (so we get all of the extra streams)
         recorder = EvalRecorder(dirname(location))
-        await recorder.log_init(log.eval, location)
-        await recorder.log_start(log.eval, log.plan)
+        recorder.log_init(log.eval, location)
+        recorder.log_start(log.eval, log.plan)
         for sample in log.samples or []:
-            await recorder.log_sample(log.eval, sample)
-        await recorder.log_finish(
+            recorder.log_sample(log.eval, sample)
+        recorder.log_finish(
             log.eval, log.status, log.stats, log.results, log.reductions, log.error
         )
 

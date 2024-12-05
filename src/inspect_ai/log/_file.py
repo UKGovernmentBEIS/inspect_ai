@@ -9,7 +9,6 @@ from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_json
 
-from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
@@ -153,22 +152,6 @@ def write_eval_log(
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
-    run_coroutine(write_eval_log_async(log, location, format))
-
-
-async def write_eval_log_async(
-    log: EvalLog,
-    location: str | FileInfo | None = None,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> None:
-    """Write an evaluation log.
-
-    Args:
-       log (EvalLog): Evaluation log to write.
-       location (str | FileInfo): Location to write log to.
-       format (Literal["eval", "json", "auto"]): Write to format
-          (defaults to 'auto' based on `log_file` extension)
-    """
     # resolve location
     if location is None:
         if log.location:
@@ -186,7 +169,7 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log)
+    recorder_type.write_log(location, log)
 
     logger.debug(f"Writing eval log to {location} completed")
 
@@ -253,31 +236,6 @@ def read_eval_log(
     Returns:
        EvalLog object read from file.
     """
-    return run_coroutine(
-        read_eval_log_async(log_file, header_only, resolve_attachments, format)
-    )
-
-
-async def read_eval_log_async(
-    log_file: str | FileInfo,
-    header_only: bool = False,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> EvalLog:
-    """Read an evaluation log.
-
-    Args:
-       log_file (str | FileInfo): Log file to read.
-       header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
-       resolve_attachments (bool): Resolve attachments (e.g. images)
-          to their full content.
-       format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
-
-    Returns:
-       EvalLog object read from file.
-    """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
     logger.debug(f"Reading eval log from {log_file}")
@@ -287,7 +245,7 @@ async def read_eval_log_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    log = await recorder_type.read_log(log_file, header_only)
+    log = recorder_type.read_log(log_file, header_only)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -309,15 +267,7 @@ async def read_eval_log_async(
 def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return run_coroutine(read_eval_log_headers_async(log_files))
-
-
-async def read_eval_log_headers_async(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
-) -> list[EvalLog]:
-    return [
-        await read_eval_log_async(log_file, header_only=True) for log_file in log_files
-    ]
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
 def read_eval_log_sample(
@@ -344,35 +294,6 @@ def read_eval_log_sample(
     Raises:
        IndexError: If the passed id and epoch are not found.
     """
-    return run_coroutine(
-        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
-    )
-
-
-async def read_eval_log_sample_async(
-    log_file: str | FileInfo,
-    id: int | str,
-    epoch: int = 1,
-    resolve_attachments: bool = False,
-    format: Literal["eval", "json", "auto"] = "auto",
-) -> EvalSample:
-    """Read a sample from an evaluation log.
-
-    Args:
-       log_file (str | FileInfo): Log file to read.
-       id (int | str): Sample id to read.
-       epoch (int): Epoch for sample id (defaults to 1)
-       resolve_attachments (bool): Resolve attachments (e.g. images)
-          to their full content.
-       format (Literal["eval", "json", "auto"]): Read from format
-          (defaults to 'auto' based on `log_file` extension)
-
-    Returns:
-       EvalSample object read from file.
-
-    Raises:
-       IndexError: If the passed id and epoch are not found.
-    """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
 
@@ -380,7 +301,7 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch)
+    sample = recorder_type.read_log_sample(log_file, id, epoch)
 
     if resolve_attachments:
         sample = resolve_sample_attachments(sample)
