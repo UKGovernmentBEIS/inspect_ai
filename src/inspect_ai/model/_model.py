@@ -379,7 +379,10 @@ class Model:
 
             # record usage
             if output.usage:
+                # record usage
                 record_model_usage(f"{self}", output.usage)
+
+                # send telemetry if its hooked up
                 await send_telemetry(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
@@ -767,6 +770,11 @@ def init_sample_model_usage() -> None:
 def record_model_usage(model: str, usage: ModelUsage) -> None:
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
+
+    # update active sample
+    from inspect_ai.log._samples import set_active_sample_total_tokens
+
+    set_active_sample_total_tokens(sample_total_tokens())
 
 
 def set_model_usage(
