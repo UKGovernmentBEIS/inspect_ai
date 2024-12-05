@@ -84,26 +84,27 @@ class EvalRecorder(FileRecorder):
     @override
     def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # if the file exists then read summaries
-        if location is not None:
-            with ZipFile(location, "r") as zip:
-                log_start = _read_start(zip)
-                summary_counter = _read_summary_counter(zip)
-                summaries = _read_all_summaries(zip, summary_counter)
+        if location is not None and self.fs.exists(location):
+            with file(location, "rb") as f:
+                with ZipFile(f, "r") as zip:
+                    log_start = _read_start(zip)
+                    summary_counter = _read_summary_counter(zip)
+                    summaries = _read_all_summaries(zip, summary_counter)
         else:
             log_start = None
             summary_counter = 0
             summaries = []
 
         # create zip wrapper
-        file = location or self._log_file_path(eval)
-        zip_log_file = ZipLogFile(file=file)
+        zip_file = location or self._log_file_path(eval)
+        zip_log_file = ZipLogFile(file=zip_file)
         zip_log_file.init(log_start, summary_counter, summaries)
 
         # track zip
         self.data[self._log_file_key(eval)] = zip_log_file
 
         # return file path
-        return file
+        return zip_file
 
     @override
     def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
