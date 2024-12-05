@@ -21,7 +21,6 @@ from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
-from inspect_ai.util._sandbox import SandboxConnection
 
 from ...core.progress import progress_time
 from .clock import Clock
@@ -210,7 +209,7 @@ class SampleInfo(Horizontal):
 
     def compose(self) -> ComposeResult:
         with Collapsible(title=""):
-            yield SampleDetails()
+            yield SandboxesView()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         # bail if we've already processed this sample
@@ -224,20 +223,20 @@ class SampleInfo(Horizontal):
             self.display = True
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
             self.query_one(Collapsible).title = title
-            sandboxes = self.query_one(SampleDetails)
-            await sandboxes.sync_sandboxes(sample.sandboxes)
+            sandboxes = self.query_one(SandboxesView)
+            await sandboxes.sync_sample(sample)
         else:
             self.display = False
 
 
-class SampleDetails(Vertical):
+class SandboxesView(Vertical):
     DEFAULT_CSS = """
-    SampleDetails {
+    SandboxesView {
         padding: 0 0 1 0;
         background: transparent;
         height: auto;
     }
-    SampleDetails Static {
+    SandboxesView Static {
         background: transparent;
     }
     """
@@ -246,30 +245,38 @@ class SampleDetails(Vertical):
         super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Static(id="sample-details-caption", markup=True)
-        yield Vertical(id="sandboxes")
+        yield Static(id="sandboxes-caption", markup=True)
+        yield Vertical(id="sandboxes-list")
         yield Static(
             "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
-            id="sandboxes-footer",
             markup=True,
         )
 
-    async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
-        caption = cast(Static, self.query_one("#sample-details-caption"))
-        caption.update("[bold]sandbox containers:[/bold]")
+    async def sync_sample(self, sample: ActiveSample) -> None:
+        sandboxes = sample.sandboxes
+        show_sandboxes = (
+            len([sandbox for sandbox in sandboxes.values() if sandbox.container]) > 0
+        )
 
-        sandboxes_widget = self.query_one("#sandboxes")
-        sandboxes_widget.styles.margin = (
-            (0, 0, 1, 0) if len(sandboxes) > 1 else (0, 0, 0, 0)
-        )
-        await sandboxes_widget.remove_children()
-        await sandboxes_widget.mount_all(
-            [
-                Static(sandbox.container)
-                for sandbox in sandboxes.values()
-                if sandbox.container
-            ]
-        )
+        if show_sandboxes:
+            self.display = True
+            sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
+            sandboxes_caption.update("[bold]sandbox containers:[/bold]")
+
+            sandboxes_list = self.query_one("#sandboxes-list")
+            sandboxes_list.styles.margin = (
+                (0, 0, 1, 0) if len(sandboxes) > 1 else (0, 0, 0, 0)
+            )
+            await sandboxes_list.remove_children()
+            await sandboxes_list.mount_all(
+                [
+                    Static(sandbox.container)
+                    for sandbox in sandboxes.values()
+                    if sandbox.container
+                ]
+            )
+        else:
+            self.display = False
 
 
 class SampleToolbar(Horizontal):
