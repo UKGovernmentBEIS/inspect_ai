@@ -7,10 +7,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 
-from ._file import log_files_from_ls, write_log_dir_manifest
+from ._file import (
+    log_files_from_ls,
+    write_log_dir_manifest_async,
+)
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -21,6 +25,26 @@ DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "www", "dist")
 
 
 def bundle_log_dir(
+    log_dir: str | None = None,
+    output_dir: str | None = None,
+    overwrite: bool = False,
+    fs_options: dict[str, Any] = {},
+) -> None:
+    r"""Bundle a log_dir into a statically deployable viewer
+
+    Args:
+        log_dir: (str | None): The log_dir to bundle
+        output_dir: (str | None): The directory to place bundled output. If no directory
+            is specified, the env variable `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` will be used.
+        overwrite: (bool): Optional. Whether to overwrite files in the output directory.
+            Defaults to False.
+        fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+            to the filesystem provider (e.g. `S3FileSystem`).
+    """
+    run_coroutine(bundle_log_dir_async(log_dir, output_dir, overwrite, fs_options))
+
+
+async def bundle_log_dir_async(
     log_dir: str | None = None,
     output_dir: str | None = None,
     overwrite: bool = False,
@@ -73,7 +97,7 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
 
             # Always regenerate the manifest
-            write_log_dir_manifest(view_logs_dir)
+            await write_log_dir_manifest_async(view_logs_dir)
             p.update(25)
 
             # update the index html to embed the log_dir

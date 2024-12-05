@@ -1,31 +1,32 @@
 import hashlib
 import logging
 from copy import deepcopy
-from typing import Any, Callable, Literal, NamedTuple, Set, cast
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic_core import to_json
 from rich.status import Status
 from tenacity import (
     RetryCallState,
-    Retrying,
+    retry,
     retry_if_not_result,
     stop_after_attempt,
     wait_exponential,
 )
 from typing_extensions import Unpack
 
+from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
-from inspect_ai.log._bundle import bundle_log_dir
+from inspect_ai.log._bundle import bundle_log_dir_async
 from inspect_ai.log._file import (
     EvalLogInfo,
-    list_eval_logs,
-    read_eval_log,
-    read_eval_log_headers,
-    write_log_dir_manifest,
+    list_eval_logs_async,
+    read_eval_log_async,
+    read_eval_log_headers_async,
+    write_log_dir_manifest_async,
 )
 from inspect_ai.model import (
     GenerateConfigArgs,
@@ -35,7 +36,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 
-from .eval import eval, eval_init
+from .eval import eval_async, eval_init
 from .loader import ResolvedTask, resolve_task_args
 from .task import Epochs, Tasks
 from .task.task import PreviousTask, Task
@@ -158,13 +159,170 @@ def eval_set(
         Tuple of bool (whether all tasks completed successfully) and list of EvalLog
         (one for each task)
     """
+    return run_coroutine(
+        eval_set_async(
+            tasks=tasks,
+            log_dir=log_dir,
+            retry_attempts=retry_attempts,
+            retry_wait=retry_wait,
+            retry_connections=retry_connections,
+            retry_cleanup=retry_cleanup,
+            model=model,
+            model_base_url=model_base_url,
+            model_args=model_args,
+            task_args=task_args,
+            sandbox=sandbox,
+            sandbox_cleanup=sandbox_cleanup,
+            solver=solver,
+            tags=tags,
+            trace=trace,
+            approval=approval,
+            score=score,
+            log_level=log_level,
+            log_level_transcript=log_level_transcript,
+            log_format=log_format,
+            limit=limit,
+            epochs=epochs,
+            fail_on_error=fail_on_error,
+            debug_errors=debug_errors,
+            message_limit=message_limit,
+            token_limit=token_limit,
+            time_limit=time_limit,
+            max_samples=max_samples,
+            max_tasks=max_tasks,
+            max_subprocesses=max_subprocesses,
+            log_samples=log_samples,
+            log_images=log_images,
+            log_buffer=log_buffer,
+            bundle_dir=bundle_dir,
+            bundle_overwrite=bundle_overwrite,
+            **kwargs,
+        )
+    )
+
+
+async def eval_set_async(
+    tasks: Tasks,
+    log_dir: str,
+    retry_attempts: int | None = None,
+    retry_wait: float | None = None,
+    retry_connections: float | None = None,
+    retry_cleanup: bool | None = None,
+    model: str | Model | list[str] | list[Model] | None = None,
+    model_base_url: str | None = None,
+    model_args: dict[str, Any] | str = dict(),
+    task_args: dict[str, Any] | str = dict(),
+    sandbox: SandboxEnvironmentType | None = None,
+    sandbox_cleanup: bool | None = None,
+    solver: Solver | list[Solver] | SolverSpec | None = None,
+    tags: list[str] | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
+    score: bool = True,
+    log_level: str | None = None,
+    log_level_transcript: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
+    limit: int | tuple[int, int] | None = None,
+    epochs: int | Epochs | None = None,
+    fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
+    time_limit: int | None = None,
+    max_samples: int | None = None,
+    max_tasks: int | None = None,
+    max_subprocesses: int | None = None,
+    log_samples: bool | None = None,
+    log_images: bool | None = None,
+    log_buffer: int | None = None,
+    bundle_dir: str | None = None,
+    bundle_overwrite: bool = False,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> tuple[bool, list[EvalLog]]:
+    r"""Evaluate a set of tasks.
+
+    Args:
+        tasks: (Tasks): Task(s) to evaluate. If None, attempt
+            to evaluate a task in the current working directory
+        log_dir (str): Output path for logging results
+           (required to ensure that a unique storage scope is assigned for the set).
+        retry_attempts: (int | None): Maximum number of retry attempts before giving up
+          (defaults to 10).
+        retry_wait (float | None): Time to wait between attempts, increased exponentially.
+          (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
+          per-retry will in no case by longer than 1 hour.
+        retry_connections (float | None): Reduce max_connections at this rate with each retry
+          (defaults to 0.5)
+        retry_cleanup (bool | None): Cleanup failed log files after retries
+          (defaults to True)
+        model (str | Model | list[str] | list[Model] | None): Model(s) for
+          evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+          environment variable.
+        model_base_url: (str | None): Base URL for communicating
+          with the model API.
+        model_args (dict[str,Any] | str): Model creation args
+          (as a dictionary or as a path to a JSON or YAML config file)
+        task_args (dict[str,Any] | str): Task creation arguments
+          (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
+        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
+          (defaults to True)
+        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
+           evaluating task(s). ptional (uses task solver by default).
+        tags (list[str] | None): Tags to associate with this evaluation run.
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
+        score (bool): Score output (defaults to True)
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
+        log_format (Literal["eval", "json"] | None): Format for writing
+          log files (defaults to "eval", the native high-performance format).
+        limit (int | tuple[int, int] | None): Limit evaluated samples
+           (defaults to all samples).
+        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+           reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
+        debug_errors (bool | None): Raise task errors (rather than logging them)
+           so they can be debugged (defaults to False).
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
+        max_samples (int | None): Maximum number of samples to run in parallel
+           (default is max_connections)
+        max_tasks (int | None): Maximum number of tasks to run in parallel
+           (default is 1)
+        max_subprocesses (int | None): Maximum number of subprocesses to
+           run in parallel (default is os.cpu_count())
+        log_samples: (bool | None): Log detailed samples and scores (defaults to True)
+        log_images: (bool | None): Log base64 encoded version of images,
+            even if specified as a filename or URL (defaults to False)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        bundle_dir: (str | None): If specified, the log viewer and logs generated
+            by this eval set will be bundled into this directory.
+        bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
+            (defaults to False).
+        **kwargs (GenerateConfigArgs): Model generation options.
+
+    Returns:
+        Tuple of bool (whether all tasks completed successfully) and list of EvalLog
+        (one for each task)
+    """
 
     # helper function to run a set of evals
-    def run_eval(
+    async def run_eval(
         tasks: list[Task] | list[PreviousTask], models: list[Model]
     ) -> list[EvalLog]:
         # run evals
-        results = eval(
+        results = await eval_async(
             tasks=tasks,
             model=models,
             model_base_url=model_base_url,
@@ -203,7 +361,7 @@ def eval_set(
 
         # if specified, bundle the output directory
         if bundle_dir:
-            bundle_log_dir(
+            await bundle_log_dir_async(
                 log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
             )
 
@@ -211,9 +369,11 @@ def eval_set(
         return results
 
     # helper function to run a list of task groups
-    def run_task_groups(
+    async def run_task_groups(
         task_groups: list[TaskGroup],
-        run_tasks: Callable[[list[ResolvedTask]], list[Task] | list[PreviousTask]],
+        run_tasks: Callable[
+            [list[ResolvedTask]], Awaitable[list[Task] | list[PreviousTask]]
+        ],
     ) -> list[EvalLog]:
         logs: list[EvalLog] = []
         for task_group in task_groups:
@@ -227,8 +387,8 @@ def eval_set(
 
             # run the evals
             logs.extend(
-                run_eval(
-                    tasks=run_tasks(group_tasks),
+                await run_eval(
+                    tasks=await run_tasks(group_tasks),
                     models=group_models.models,
                 )
             )
@@ -256,7 +416,7 @@ def eval_set(
     # validate that:
     #  (1) All tasks have a unique identifier
     #  (2) All logs have identifiers that map to tasks
-    validate_eval_set_prerequisites(resolved_tasks, list_all_eval_logs(log_dir))
+    validate_eval_set_prerequisites(resolved_tasks, await list_all_eval_logs(log_dir))
 
     # resolve some parameters
     retry_connections = retry_connections or 0.5
@@ -296,11 +456,20 @@ def eval_set(
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
-    def try_eval() -> list[EvalLog]:
+    @retry(
+        retry=retry_if_not_result(all_evals_succeeded),
+        retry_error_callback=return_last_value,
+        reraise=True,
+        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
+        wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
+        before_sleep=before_sleep,
+        before=before,
+    )
+    async def try_eval() -> list[EvalLog]:
         # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
+        all_logs = await list_all_eval_logs(log_dir)
         if len(all_logs) > 0:
-            write_log_dir_manifest(log_dir)
+            await write_log_dir_manifest_async(log_dir)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -314,10 +483,14 @@ def eval_set(
 
         # we have some pending tasks yet to run, run them
         if len(task_groups) > 0:
+
+            async def run_resolved_tasks(tasks: list[ResolvedTask]) -> list[Task]:
+                return [task.task for task in tasks]
+
             # run the tasks
-            run_logs = run_task_groups(
+            run_logs = await run_task_groups(
                 task_groups=task_groups,
-                run_tasks=lambda tasks: [task.task for task in tasks],
+                run_tasks=run_resolved_tasks,
             )
 
             # if this was the entire list of resolved tasks, return results
@@ -326,7 +499,7 @@ def eval_set(
             # otherwise query the filesystem
             else:
                 latest_logs = latest_completed_task_eval_logs(
-                    logs=list_all_eval_logs(log_dir), cleanup_older=False
+                    logs=await list_all_eval_logs(log_dir), cleanup_older=False
                 )
                 return [log.header for log in latest_logs]
 
@@ -347,7 +520,9 @@ def eval_set(
                 task_groups = schedule_retry_tasks(failed_tasks)
 
                 # execute task groups (run previous task so we get the samples from the log)
-                def run_previous_tasks(tasks: list[ResolvedTask]) -> list[PreviousTask]:
+                async def run_previous_tasks(
+                    tasks: list[ResolvedTask],
+                ) -> list[PreviousTask]:
                     def task_to_failed_log(task: ResolvedTask) -> Log:
                         resolved_task_identifier = task_identifier(task)
                         return next(
@@ -372,13 +547,13 @@ def eval_set(
                                 id=log.header.eval.task_id,
                                 task=prev_task,
                                 task_args=resolve_task_args(task.task),
-                                log=read_eval_log(log.info),
+                                log=await read_eval_log_async(log.info),
                             )
                         )
 
                     return previous_tasks
 
-                retried_logs = run_task_groups(
+                retried_logs = await run_task_groups(
                     task_groups=task_groups, run_tasks=run_previous_tasks
                 )
 
@@ -389,23 +564,12 @@ def eval_set(
             else:
                 return [log.header for log in success_logs]
 
-    # create retry policy
-    retry = Retrying(
-        retry=retry_if_not_result(all_evals_succeeded),
-        retry_error_callback=return_last_value,
-        reraise=True,
-        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
-        wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
-        before_sleep=before_sleep,
-        before=before,
-    )
-
     # execute w/ retry
-    results = retry(try_eval)
+    results = await try_eval()
 
     # final sweep to remove failed log files
     if retry_cleanup:
-        cleanup_older_eval_logs(log_dir)
+        await cleanup_older_eval_logs(log_dir)
 
     # report final status
     success = all_evals_succeeded(results)
@@ -416,7 +580,7 @@ def eval_set(
     console.print(f"{msg}")
 
     # update manifest
-    write_log_dir_manifest(log_dir)
+    await write_log_dir_manifest_async(log_dir)
 
     # return status + results
     return success, results
@@ -449,9 +613,9 @@ class Log(NamedTuple):
 
 
 # list all eval logs
-def list_all_eval_logs(log_dir: str) -> list[Log]:
-    log_files = list_eval_logs(log_dir)
-    log_headers = read_eval_log_headers(log_files)
+async def list_all_eval_logs(log_dir: str) -> list[Log]:
+    log_files = await list_eval_logs_async(log_dir)
+    log_headers = await read_eval_log_headers_async(log_files)
     task_identifiers = [task_identifier(log_header) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)
@@ -474,9 +638,9 @@ def list_latest_eval_logs(
 
 
 # cleanup logs that aren't the latest
-def cleanup_older_eval_logs(log_dir: str) -> None:
+async def cleanup_older_eval_logs(log_dir: str) -> None:
     latest_completed_task_eval_logs(
-        logs=list_all_eval_logs(log_dir), cleanup_older=True
+        logs=await list_all_eval_logs(log_dir), cleanup_older=True
     )
 
 
