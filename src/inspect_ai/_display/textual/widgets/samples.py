@@ -210,11 +210,8 @@ class SampleInfo(Horizontal):
         self._show_sandboxes = False
 
     def compose(self) -> ComposeResult:
-        if self._sample is not None and len(self._sample.sandboxes) > 0:
-            with Collapsible(title=""):
-                yield SandboxesView()
-        else:
-            yield Static()
+        with Collapsible(title=""):
+            yield SampleDetails()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         # bail if we've already processed this sample
@@ -241,7 +238,7 @@ class SampleInfo(Horizontal):
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
             if show_sandboxes:
                 self.query_one(Collapsible).title = title
-                sandboxes = self.query_one(SandboxesView)
+                sandboxes = self.query_one(SampleDetails)
                 await sandboxes.sync_sandboxes(sample.sandboxes)
             else:
                 self.query_one(Static).update(title)
@@ -249,14 +246,14 @@ class SampleInfo(Horizontal):
             self.display = False
 
 
-class SandboxesView(Vertical):
+class SampleDetails(Vertical):
     DEFAULT_CSS = """
-    SandboxesView {
+    SampleDetails {
         padding: 0 0 1 0;
         background: transparent;
         height: auto;
     }
-    SandboxesView Static {
+    SampleDetails Static {
         background: transparent;
     }
     """
@@ -265,7 +262,7 @@ class SandboxesView(Vertical):
         super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Static(id="sandboxes-caption", markup=True)
+        yield Static(id="sample-details-caption", markup=True)
         yield Vertical(id="sandboxes")
         yield Static(
             "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
@@ -274,7 +271,7 @@ class SandboxesView(Vertical):
         )
 
     async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
-        caption = cast(Static, self.query_one("#sandboxes-caption"))
+        caption = cast(Static, self.query_one("#sample-details-caption"))
         caption.update("[bold]sandbox containers:[/bold]")
 
         sandboxes_widget = self.query_one("#sandboxes")
