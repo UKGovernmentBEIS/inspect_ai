@@ -33,9 +33,9 @@ class SampleSummary(BaseModel):
     epoch: int
     input: str | list[ChatMessage]
     target: str | list[str]
-    scores: dict[str, Score] | None
-    error: str | None
-    limit: str | None
+    scores: dict[str, Score] | None = Field(default=None)
+    error: str | None = Field(default=None)
+    limit: str | None = Field(default=None)
 
 
 class LogStart(BaseModel):
@@ -83,20 +83,20 @@ class EvalRecorder(FileRecorder):
 
     @override
     def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
-        # file to write to
-        file = location or self._log_file_path(eval)
+        # if the file exists then read summaries
+        if location is not None:
+            with ZipFile(location, "r") as zip:
+                log_start = _read_start(zip)
+                summary_counter = _read_summary_counter(zip)
+                summaries = _read_all_summaries(zip, summary_counter)
+        else:
+            log_start = None
+            summary_counter = 0
+            summaries = []
 
         # create zip wrapper
+        file = location or self._log_file_path(eval)
         zip_log_file = ZipLogFile(file=file)
-
-        # Initialize the summary counter and existing summaries
-        summary_counter = _read_summary_counter(zip_log_file.zip)
-        summaries = _read_all_summaries(zip_log_file.zip, summary_counter)
-
-        # Initialize the eval header (without results)
-        log_start = _read_start(zip_log_file.zip)
-
-        # The zip log file
         zip_log_file.init(log_start, summary_counter, summaries)
 
         # track zip
