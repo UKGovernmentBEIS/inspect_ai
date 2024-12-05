@@ -17,7 +17,6 @@ import rich
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
-from inspect_ai.log._log import EvalScore
 from inspect_ai.model import GenerateConfig, ModelName
 
 

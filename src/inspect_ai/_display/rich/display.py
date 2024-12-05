@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Coroutine, Iterator, Set
+from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
 import rich
 from rich.console import Console, RenderableType
@@ -14,7 +14,6 @@ from typing_extensions import override
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.display import display_type
 from inspect_ai._util.throttle import throttle
-from inspect_ai.log._log import EvalScore
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._trace import trace_enabled
 

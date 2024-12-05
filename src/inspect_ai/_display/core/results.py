@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Sequence, Set
 
+import numpy as np
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -174,10 +175,15 @@ def task_metric(metrics: list[TaskDisplayMetric]) -> str:
     )
 
     metric = metrics[0]
-    if show_reducer:
-        return f"{metric.name}/{metric.reducer}: {metric.value:.2f}"
+    if np.isnan(metric.value):
+        value = " n/a"
     else:
-        return f"{metric.name}: {metric.value:.2f}"
+        value = f"{metric.value:.2f}"
+
+    if show_reducer:
+        return f"{metric.name}/{metric.reducer}: {value}"
+    else:
+        return f"{metric.name}: {value}"
 
 
 def task_metrics(scores: list[EvalScore]) -> str:

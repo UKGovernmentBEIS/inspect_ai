@@ -300,16 +300,33 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # initial progress
                     td.sample_complete(complete=0, total=len(samples))
+
+                    # Update metrics to empty state
+                    update_metrics_display(
+                        len(progress_results),
+                        progress_results,
+                        scorers,
+                        task.epochs_reducer,
+                        task.metrics,
+                    )
+
                     sample_results = await asyncio.gather(*sample_coroutines)
 
                 # compute and record metrics if we have scores
-                results, reductions = compute_metrics(
-                    sample_count=profile.samples,
-                    sample_scores=sample_scores,
-                    reducers=task.epochs_reducer,
-                    scorers=scorers,
-                    metrics=task.metrics,
-                )
+                completed_scores = [
+                    score_dict
+                    for score_dict in sample_results
+                    if isinstance(score_dict, dict)
+                ]
+
+                if len(completed_scores) > 0:
+                    results, reductions = eval_results(
+                        samples=profile.samples,
+                        scores=completed_scores,
+                        reducers=task.epochs_reducer,
+                        scorers=scorers,
+                        metrics=task.metrics,
+                    )
 
                 # collect eval data
                 collect_eval_data(stats)
@@ -376,31 +393,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         return eval_log
 
 
-def compute_metrics(
-    sample_count: int,
-    sample_scores: list[dict[str, SampleScore]],
-    scorers: list[Scorer] | None,
-    reducers: ScoreReducer | list[ScoreReducer] | None,
-    metrics: list[Metric] | dict[str, list[Metric]] | None,
-) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
-    # compute and record metrics if we have scores
-    completed_scores = [
-        score_dict for score_dict in sample_scores if isinstance(score_dict, dict)
-    ]
-
-    if len(completed_scores) > 0:
-        results, reductions = eval_results(
-            samples=sample_count,
-            scores=completed_scores,
-            reducers=reducers,
-            scorers=scorers,
-            metrics=metrics,
-        )
-        return results, reductions
-    else:
-        return EvalResults(), None
-
-
 def update_metrics_display_fn(
     td: TaskDisplay, initial_interval: float = 0, min_interval: float = 0.9
 ) -> Callable[
@@ -426,11 +418,11 @@ def update_metrics_display_fn(
         time_start = time.perf_counter()
         if time_start >= next_compute_time:
             # compute metrics
-            results, _reductions = compute_metrics(
-                sample_count=sample_count,
-                sample_scores=sample_scores,
-                scorers=scorers,
+            results, reductions = eval_results(
+                samples=sample_count,
+                scores=sample_scores,
                 reducers=reducers,
+                scorers=scorers,
                 metrics=metrics,
             )
 
@@ -446,7 +438,7 @@ def update_metrics_display_fn(
                                 reducer=score.reducer,
                             )
                         )
-            td.update_metrics(task_metrics)
+                td.update_metrics(task_metrics)
 
             # determine how long to wait before recomputing metrics
             time_end = time.perf_counter()
