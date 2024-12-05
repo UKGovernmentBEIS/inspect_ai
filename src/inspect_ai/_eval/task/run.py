@@ -97,8 +97,7 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 # the remainder are increments of progress within a sample (and
 # must sum to the total_progress_units when the sample is complete)
 SAMPLE_TOTAL_PROGRESS_UNITS = 10
-SAMPLE_INIT_PROGRESS_UNITS = 2
-SAMPLE_SCORE_PROGRESS_UNITS = 1
+SAMPLE_INIT_PROGRESS_UNITS = 3
 SAMPLE_COMPLETE_PROGRESS_UNITS = 7
 
 
@@ -553,8 +552,6 @@ async def task_run_sample(
                                     ScoreEvent(score=score_result, target=sample.target)
                                 )
                                 results[scorer_name] = sample_score
-                # increment progress for scoring
-                progress(SAMPLE_SCORE_PROGRESS_UNITS)
 
         except asyncio.CancelledError:
             if active.interrupt_action:
