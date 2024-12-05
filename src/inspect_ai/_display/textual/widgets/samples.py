@@ -207,7 +207,6 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
-        self._show_sandboxes = False
 
     def compose(self) -> ComposeResult:
         with Collapsible(title=""):
@@ -221,27 +220,12 @@ class SampleInfo(Horizontal):
         # set sample
         self._sample = sample
 
-        # compute whether we should show connection and recompose as required
-        show_sandboxes = (
-            sample is not None
-            and len(
-                [sandbox for sandbox in sample.sandboxes.values() if sandbox.container]
-            )
-            > 0
-        )
-        if show_sandboxes != self._show_sandboxes:
-            await self.recompose()
-        self._show_sandboxes = show_sandboxes
-
         if sample is not None:
             self.display = True
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
-            if show_sandboxes:
-                self.query_one(Collapsible).title = title
-                sandboxes = self.query_one(SampleDetails)
-                await sandboxes.sync_sandboxes(sample.sandboxes)
-            else:
-                self.query_one(Static).update(title)
+            self.query_one(Collapsible).title = title
+            sandboxes = self.query_one(SampleDetails)
+            await sandboxes.sync_sandboxes(sample.sandboxes)
         else:
             self.display = False
 
