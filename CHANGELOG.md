@@ -5,8 +5,7 @@
 - Task display: Show completed sample count and align progress to samples rather than steps.
 - Tools: Improved typing/schema support (unions, optional params, enums)
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
-- Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed)
-- Log recorder: Methods are now all async which will improve performance for fsspec backends with variable latency (e.g. S3)
+- Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed) 
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images)
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
