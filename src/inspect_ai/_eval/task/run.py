@@ -243,6 +243,18 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         config, generate_config, model.api
                     )
 
+                    # track when samples complete and update progress as we go
+                    progress_results = []
+
+                    def sample_complete(sample_score: dict[str, SampleScore]) -> None:
+                        # Capture the result
+                        progress_results.append(sample_score)
+
+                        # Increment the segment progress
+                        td.sample_complete(
+                            complete=len(progress_results), total=len(samples)
+                        )
+
                     # create sample coroutines
                     sample_coroutines = [
                         task_run_sample(
@@ -259,6 +271,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             log_images=log_images,
                             sample_source=sample_source,
                             sample_error=sample_error_handler,
+                            sample_complete=sample_complete,
                             fails_on_error=(
                                 config.fail_on_error is None
                                 or config.fail_on_error is True
@@ -269,7 +282,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         for (sample, state) in zip(samples, states)
                     ]
 
-                    # run them in parallel (subject to config.max_samples)
+
+                    # initial progress
+                    td.sample_complete(complete=0, total=len(samples))
                     sample_results = await asyncio.gather(*sample_coroutines)
 
                 # compute and record metrics if we have scores
@@ -367,6 +382,7 @@ async def task_run_sample(
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: Callable[[BaseException], EvalError],
+    sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
     semaphore: asyncio.Semaphore | None,
@@ -590,6 +606,8 @@ async def task_run_sample(
 
         # return
         if error is None:
+            if results is not None:
+                sample_complete(results)
             return results
         else:
             return None
