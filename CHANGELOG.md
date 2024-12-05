@@ -9,6 +9,7 @@
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images)
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
+- Bugfix: Correctly restore sample summaries from log file after abend.
   
 ## v0.3.49 (03 December 2024)
 
