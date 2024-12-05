@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Task display: Show completed sample count and align progress to samples rather than steps.
 - Tools: Improved typing/schema support (unions, optional params, enums)
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed)
