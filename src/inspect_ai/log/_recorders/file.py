@@ -27,14 +27,14 @@ class FileRecorder(Recorder):
 
     @override
     @classmethod
-    def read_log_sample(
+    async def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
             eval_log = cls.__last_read_sample_log[1]
         else:
-            eval_log = cls.read_log(location)
+            eval_log = await cls.read_log(location)
             cls.__last_read_sample_log = (location, eval_log)
 
         # throw if no samples
