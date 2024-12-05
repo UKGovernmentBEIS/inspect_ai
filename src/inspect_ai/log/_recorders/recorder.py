@@ -14,27 +14,20 @@ from inspect_ai.log._log import (
 
 
 class Recorder(abc.ABC):
-    @classmethod
     @abc.abstractmethod
-    def handles_location(cls, location: str) -> bool: ...
+    def log_init(self, eval: EvalSpec, location: str | None = None) -> str: ...
 
     @abc.abstractmethod
-    def default_log_buffer(self) -> int: ...
+    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
     @abc.abstractmethod
-    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str: ...
+    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
 
     @abc.abstractmethod
-    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
+    def flush(self, eval: EvalSpec) -> None: ...
 
     @abc.abstractmethod
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
-
-    @abc.abstractmethod
-    async def flush(self, eval: EvalSpec) -> None: ...
-
-    @abc.abstractmethod
-    async def log_finish(
+    def log_finish(
         self,
         eval: EvalSpec,
         status: Literal["success", "cancelled", "error"],
@@ -44,16 +37,23 @@ class Recorder(abc.ABC):
         error: EvalError | None = None,
     ) -> EvalLog: ...
 
-    @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    def default_log_buffer(self) -> int: ...
 
     @classmethod
     @abc.abstractmethod
-    async def read_log_sample(
+    def handles_location(cls, location: str) -> bool: ...
+
+    @classmethod
+    @abc.abstractmethod
+    def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+
+    @classmethod
+    @abc.abstractmethod
+    def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample: ...
 
     @classmethod
     @abc.abstractmethod
-    async def write_log(cls, location: str, log: EvalLog) -> None: ...
+    def write_log(cls, location: str, log: EvalLog) -> None: ...
