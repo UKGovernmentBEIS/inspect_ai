@@ -8,6 +8,7 @@
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
 - Human approval: Use fullcreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
+- Log recorder: Methods are now all async which will improve performance for fsspec backends with variable latency (e.g. S3)
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images).
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
