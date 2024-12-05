@@ -12,7 +12,6 @@ from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import (
     SandboxConnection,
-    SandboxConnectionContainer,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
 )
@@ -425,10 +424,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # return container login
         if container:
-            return SandboxConnectionContainer(
+            return SandboxConnection(
                 command=f"docker exec -it {container} /bin/bash --login",
                 container=container,
-                working_dir=self._working_dir,
             )
 
         # error (not currently running)
