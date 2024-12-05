@@ -130,6 +130,7 @@ class TaskProgressView(Widget):
         self.description_width = description_width
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
+        self.segments = Static()
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
@@ -141,6 +142,7 @@ class TaskProgressView(Widget):
             progress_model_name(self.t.profile.model, self.model_name_width, pad=True)
         )
         yield self.progress_bar
+        yield self.segments
         yield Clock()
 
     def on_mount(self) -> None:
@@ -158,6 +160,9 @@ class TaskProgressView(Widget):
         except NoMatches:
             pass
         self.task_progress.complete()
+
+    def sample_complete(self, complete: int, total: int) -> None:
+        self.segments.update(f"[{complete:,}/{total:,}]")
 
 
 class TaskStatusIcon(Static):
