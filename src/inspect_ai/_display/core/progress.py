@@ -62,9 +62,13 @@ class RichProgress(Progress):
         )
 
     def update_count(self, complete: int, total: int) -> None:
-        self.progress.update(
-            task_id=self.task_id, count=f"[{complete:,}/{total:,}]", refresh=True
-        )
+        # Pad the display to keep it stable
+        total_str = f"{total:,}"
+        complete_str = f"{complete:,}"
+        padding = max(0, len(total_str) - len(complete_str))
+        count_str = " " * padding + f"[{complete_str}/{total_str}]"
+
+        self.progress.update(task_id=self.task_id, count=count_str, refresh=True)
         if self.on_update:
             self.on_update()
 
