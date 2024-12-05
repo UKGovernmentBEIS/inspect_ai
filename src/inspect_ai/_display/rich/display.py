@@ -276,6 +276,10 @@ class RichTaskDisplay(TaskDisplay):
         yield self.p
 
     @override
+    def sample_complete(self, complete: int, total: int) -> None:
+        self.p.update_count(complete, total)
+
+    @override
     def complete(self, result: TaskResult) -> None:
         self.status.result = result
         self.p.complete()

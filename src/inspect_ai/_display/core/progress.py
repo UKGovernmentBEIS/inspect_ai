@@ -32,13 +32,18 @@ class RichProgress(Progress):
         model: str = "",
         status: Callable[[], str] | None = None,
         on_update: Callable[[], None] | None = None,
+        count: str = "0",
     ) -> None:
         self.total = total
         self.progress = progress
         self.status = status if status else lambda: ""
         self.on_update = on_update
         self.task_id = progress.add_task(
-            description, total=PROGRESS_TOTAL, model=model, status=self.status()
+            description,
+            total=PROGRESS_TOTAL,
+            model=model,
+            status=self.status(),
+            count=count,
         )
 
     @override
@@ -56,6 +61,13 @@ class RichProgress(Progress):
             task_id=self.task_id, completed=PROGRESS_TOTAL, status=self.status()
         )
 
+    def update_count(self, complete: int, total: int) -> None:
+        self.progress.update(
+            task_id=self.task_id, count=f"[{complete:,}/{total:,}]", refresh=True
+        )
+        if self.on_update:
+            self.on_update()
+
 
 def rich_progress() -> RProgress:
     console = rich.get_console()
@@ -65,6 +77,7 @@ def rich_progress() -> RProgress:
         TextColumn("{task.fields[model]}"),
         BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
         TaskProgressColumn(),
+        TextColumn("{task.fields[count]}"),
         TimeElapsedColumn(),
         transient=True,
         console=console,
