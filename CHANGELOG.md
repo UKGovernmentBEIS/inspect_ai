@@ -5,6 +5,7 @@
 - Tools: Improved typing/schema support (unions, optional params, enums)
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed)
+- Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps)
 - Task display: Show sample messages/tokens used (plus limits if specified)
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images)
