@@ -13,6 +13,7 @@ from textual.widgets import ProgressBar, Static
 from typing_extensions import override
 
 from inspect_ai._display.textual.widgets.clock import Clock
+from inspect_ai.log._log import EvalScore
 
 from ...core.display import (
     Progress,
@@ -26,6 +27,7 @@ from ...core.display import (
 from ...core.progress import (
     MAX_DESCRIPTION_WIDTH,
     MAX_MODEL_NAME_WIDTH,
+    progress_count,
     progress_description,
     progress_model_name,
 )
@@ -107,8 +109,8 @@ class TaskProgressView(Widget):
         height: auto;
         width: 1fr;
         layout: grid;
-        grid-size: 5 1;
-        grid-columns: auto auto auto 1fr auto;
+        grid-size: 7 1;
+        grid-columns: auto auto auto 1fr auto auto auto;
         grid-gutter: 1;
     }
     TaskProgressView Bar {
@@ -130,7 +132,8 @@ class TaskProgressView(Widget):
         self.description_width = description_width
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
-        self.segments = Static()
+        self.count_display = Static()
+        self.metrics_display = Static()
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
@@ -142,8 +145,9 @@ class TaskProgressView(Widget):
             progress_model_name(self.t.profile.model, self.model_name_width, pad=True)
         )
         yield self.progress_bar
-        yield self.segments
+        yield self.count_display
         yield Clock()
+        yield self.metrics_display
 
     def on_mount(self) -> None:
         self.query_one(Clock).start(datetime.now().timestamp())
@@ -162,7 +166,14 @@ class TaskProgressView(Widget):
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
-        self.segments.update(f"[{complete:,}/{total:,}]")
+        self.count_display.update(progress_count(complete, total))
+
+    def update_metrics(self, scores: list[EvalScore]) -> None:
+        if len(scores) > 0:
+            metrics = list(scores[0].metrics.values())
+            if len(metrics) > 0:
+                metric = metrics[0]
+                self.metrics_display.update(f"{metric.name}: {metric.value:.2f}")
 
 
 class TaskStatusIcon(Static):

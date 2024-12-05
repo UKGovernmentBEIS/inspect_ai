@@ -1,11 +1,12 @@
 import asyncio
 import contextlib
 import sys
+import time
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import Callable, Literal, cast
+from typing import Callable, Literal, Tuple, cast
 
 from typing_extensions import Unpack
 
@@ -16,6 +17,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
+from inspect_ai._display.core.display import TaskDisplay
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -60,7 +62,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score
+from inspect_ai.scorer._metric import Metric, SampleScore, Score
+from inspect_ai.scorer._reducer.types import ScoreReducer
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
@@ -248,6 +251,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
+                    update_metrics_display = update_metrics_display_fn(td)
 
                     def sample_complete(sample_score: dict[str, SampleScore]) -> None:
                         # Capture the result
@@ -256,6 +260,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         # Increment the segment progress
                         td.sample_complete(
                             complete=len(progress_results), total=len(samples)
+                        )
+
+                        # Update metrics
+                        update_metrics_display(
+                            len(progress_results),
+                            progress_results,
+                            scorers,
+                            task.epochs_reducer,
+                            task.metrics,
                         )
 
                     # create sample coroutines
@@ -290,20 +303,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     sample_results = await asyncio.gather(*sample_coroutines)
 
                 # compute and record metrics if we have scores
-                completed_scores = [
-                    score_dict
-                    for score_dict in sample_results
-                    if isinstance(score_dict, dict)
-                ]
-
-                if len(completed_scores) > 0:
-                    results, reductions = eval_results(
-                        samples=profile.samples,
-                        scores=completed_scores,
-                        reducers=task.epochs_reducer,
-                        scorers=scorers,
-                        metrics=task.metrics,
-                    )
+                results, reductions = compute_metrics(
+                    sample_count=profile.samples,
+                    sample_scores=sample_scores,
+                    reducers=task.epochs_reducer,
+                    scorers=scorers,
+                    metrics=task.metrics,
+                )
 
                 # collect eval data
                 collect_eval_data(stats)
@@ -368,6 +374,75 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # return eval log
         return eval_log
+
+
+def compute_metrics(
+    sample_count: int,
+    sample_scores: list[dict[str, SampleScore]],
+    scorers: list[Scorer] | None,
+    reducers: ScoreReducer | list[ScoreReducer] | None,
+    metrics: list[Metric] | dict[str, list[Metric]] | None,
+) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
+    # compute and record metrics if we have scores
+    completed_scores = [
+        score_dict for score_dict in sample_scores if isinstance(score_dict, dict)
+    ]
+
+    if len(completed_scores) > 0:
+        results, reductions = eval_results(
+            samples=sample_count,
+            scores=completed_scores,
+            reducers=reducers,
+            scorers=scorers,
+            metrics=metrics,
+        )
+        return results, reductions
+    else:
+        return EvalResults(), None
+
+
+def update_metrics_display_fn(
+    td: TaskDisplay, initial_interval: float = 0, min_interval: float = 0.9
+) -> Callable[
+    [
+        int,
+        list[dict[str, SampleScore]],
+        list[Scorer] | None,
+        ScoreReducer | list[ScoreReducer] | None,
+        list[Metric] | dict[str, list[Metric]] | None,
+    ],
+    None,
+]:
+    next_compute_time = time.perf_counter() + initial_interval
+
+    def compute(
+        sample_count: int,
+        sample_scores: list[dict[str, SampleScore]],
+        scorers: list[Scorer] | None,
+        reducers: ScoreReducer | list[ScoreReducer] | None,
+        metrics: list[Metric] | dict[str, list[Metric]] | None,
+    ) -> None:
+        nonlocal next_compute_time
+        time_start = time.perf_counter()
+        if time_start >= next_compute_time:
+            # compute metrics
+            results, _reductions = compute_metrics(
+                sample_count=sample_count,
+                sample_scores=sample_scores,
+                scorers=scorers,
+                reducers=reducers,
+                metrics=metrics,
+            )
+
+            # determine how long to wait before recomputing metrics
+            time_end = time.perf_counter()
+            elapsed_time = time_end - time_start
+            wait = max(min_interval, elapsed_time * 10)
+            next_compute_time = time_end + wait
+
+            td.update_metrics(results.scores)
+
+    return compute
 
 
 async def task_run_sample(

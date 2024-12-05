@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import rich
 from rich.console import RenderableType
 from rich.panel import Panel
@@ -16,6 +18,10 @@ def task_panel(
     profile: TaskProfile,
     show_model: bool,
     body: RenderableType,
+    subtitle: RenderableType
+    | str
+    | Tuple[RenderableType | str, RenderableType | str]
+    | None,
     footer: RenderableType | tuple[RenderableType, RenderableType] | None,
     log_location: str | None,
 ) -> Panel:
@@ -25,22 +31,39 @@ def task_panel(
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
     jupyter = console.is_jupyter
 
-    # setup table
+    # root table
     table = Table.grid(expand=True)
     table.add_column()
-    table.add_column(justify="right")
+
+    # setup table
+    if subtitle is not None:
+        subtitle_table = Table.grid(expand=True)
+        subtitle_table.add_column()
+        if isinstance(subtitle, tuple):
+            subtitle_table.add_column(justify="right")
+            subtitle_table.add_row(
+                to_renderable(subtitle[0]), to_renderable(subtitle[1], style=theme.meta)
+            )
+        else:
+            subtitle_table.add_row(to_renderable(subtitle))
+
+        table.add_row(subtitle_table)
 
     # main progress and task info
-    targets = Text.from_markup(task_targets(profile), style=theme.meta)
-    table.add_row(body, targets)
+    table.add_row()
+    table.add_row(body)
+    table.add_row()
 
     # footer if specified
     if footer:
-        table.add_row()
+        footer_table = Table.grid(expand=True)
+        footer_table.add_column()
         if isinstance(footer, tuple):
-            table.add_row(footer[0], footer[1])
+            footer_table.add_column(justify="right")
+            footer_table.add_row(footer[0], footer[1])
         else:
-            table.add_row(footer)
+            footer_table.add_row(footer)
+        table.add_row(footer_table)
 
     # enclose in outer table for log link footer
     root = table
@@ -73,6 +96,13 @@ def task_panel(
         expand=True,
     )
     return panel
+
+
+def to_renderable(item: RenderableType | str, style: str = "") -> RenderableType:
+    if isinstance(item, str):
+        return Text.from_markup(item, style=style)
+    else:
+        return item
 
 
 def tasks_title(completed: int, total: int) -> str:

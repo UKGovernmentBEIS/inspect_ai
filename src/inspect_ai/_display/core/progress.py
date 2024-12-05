@@ -32,7 +32,8 @@ class RichProgress(Progress):
         model: str = "",
         status: Callable[[], str] | None = None,
         on_update: Callable[[], None] | None = None,
-        count: str = "0",
+        count: str = "",
+        metrics: str = "",
     ) -> None:
         self.total = total
         self.progress = progress
@@ -44,6 +45,7 @@ class RichProgress(Progress):
             model=model,
             status=self.status(),
             count=count,
+            metrics=metrics,
         )
 
     @override
@@ -62,15 +64,14 @@ class RichProgress(Progress):
         )
 
     def update_count(self, complete: int, total: int) -> None:
-        # Pad the display to keep it stable
-        total_str = f"{total:,}"
-        complete_str = f"{complete:,}"
-        padding = max(0, len(total_str) - len(complete_str))
-        count_str = " " * padding + f"[{complete_str}/{total_str}]"
-
-        self.progress.update(task_id=self.task_id, count=count_str, refresh=True)
+        self.progress.update(
+            task_id=self.task_id, count=progress_count(complete, total), refresh=True
+        )
         if self.on_update:
             self.on_update()
+
+    def update_metrics(self, metrics: str) -> None:
+        self.progress.update(task_id=self.task_id, metrics=metrics)
 
 
 def rich_progress() -> RProgress:
@@ -83,9 +84,10 @@ def rich_progress() -> RProgress:
         TaskProgressColumn(),
         TextColumn("{task.fields[count]}"),
         TimeElapsedColumn(),
+        TextColumn("{task.fields[metrics]}"),
         transient=True,
         console=console,
-        expand=not is_vscode_notebook(console),
+        expand=True,
     )
 
 
@@ -126,3 +128,11 @@ def progress_time(time: float) -> str:
     minutes, seconds = divmod(time, 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}"
+
+
+def progress_count(complete: int, total: int) -> str:
+    # Pad the display to keep it stable
+    total_str = f"{total:,}"
+    complete_str = f"{complete:,}"
+    padding = max(0, len(total_str) - len(complete_str))
+    return " " * padding + f"[{complete_str}/{total_str}]"

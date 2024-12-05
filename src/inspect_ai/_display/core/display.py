@@ -17,6 +17,7 @@ import rich
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
+from inspect_ai.log._log import EvalScore
 from inspect_ai.model import GenerateConfig, ModelName
 
 
@@ -102,6 +103,8 @@ class TaskDisplay(Protocol):
     def progress(self) -> Iterator[Progress]: ...
 
     def sample_complete(self, complete: int, total: int) -> None: ...
+
+    def update_metrics(self, scores: list[EvalScore]) -> None: ...
 
     def complete(self, result: TaskResult) -> None: ...
 

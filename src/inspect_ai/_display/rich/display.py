@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
 import rich
-from rich.console import Console, Group, RenderableType
+from rich.console import Console, RenderableType
 from rich.live import Live
 from rich.panel import Panel
 from rich.progress import Progress as RProgress
@@ -14,6 +14,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.display import display_type
 from inspect_ai._util.throttle import throttle
+from inspect_ai.log._log import EvalScore
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._trace import trace_enabled
 
@@ -30,7 +31,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.panel import task_panel, task_title, tasks_title
+from ..core.panel import task_panel, task_targets, task_title, tasks_title
 from ..core.progress import (
     RichProgress,
     progress_description,
@@ -280,6 +281,14 @@ class RichTaskDisplay(TaskDisplay):
         self.p.update_count(complete, total)
 
     @override
+    def update_metrics(self, scores: list[EvalScore]) -> None:
+        if len(scores) > 0:
+            metrics = list(scores[0].metrics.values())
+            if len(metrics) > 0:
+                metric = metrics[0]
+                self.p.update_metrics(f"{metric.name}: {metric.value:.2f}")
+
+    @override
     def complete(self, result: TaskResult) -> None:
         self.status.result = result
         self.p.complete()
@@ -287,15 +296,18 @@ class RichTaskDisplay(TaskDisplay):
 
 def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
     theme = rich_theme()
-    body: list[RenderableType] = ["", progress]
-    config = task_config(tasks[0].profile, style=theme.light)
-    if config:
-        body = [config] + body
 
+    # the panel contents
+    config = task_config(tasks[0].profile, style=theme.light)
+    targets = task_targets(tasks[0].profile)
+    subtitle = config, targets
+
+    # the panel
     return task_panel(
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
-        body=Group(*body),
+        body=progress,
+        subtitle=subtitle,
         footer=task_footer(theme.light),
         log_location=None,
     )
@@ -325,9 +337,16 @@ def tasks_live_status(
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
+    # build a layout table
+    layout_table = Table.grid(expand=True)
+    layout_table.add_column()
+    layout_table.add_row(config)
+    layout_table.add_row(progress)
+    layout_table.add_row(footer_table)
+
     # create panel w/ title
     panel = Panel(
-        Group(config, progress, footer_table, fit=False),
+        layout_table,
         title=f"[bold][{theme.meta}]{tasks_title(completed, total_tasks)}[/{theme.meta}][/bold]",
         title_align="left",
         width=width,
