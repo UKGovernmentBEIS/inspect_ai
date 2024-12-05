@@ -169,6 +169,7 @@ async def eval_run(
                     metadata=task.metadata,
                     recorder=recorder,
                 )
+                await logger.init()
 
                 # append task
                 task_run_options.append(

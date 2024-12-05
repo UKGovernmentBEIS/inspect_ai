@@ -4,11 +4,13 @@
 
 - Tools: Improved typing/schema support (unions, optional params, enums)
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
-- Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed) 
+- Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed)
+- Log recorder: Methods are now all async which will improve performance for fsspec backends with variable latency (e.g. S3)
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images)
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
+- Bugfix: Correctly restore sample summaries from log file after abend.
   
 ## v0.3.49 (03 December 2024)
 
