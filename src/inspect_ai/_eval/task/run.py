@@ -272,19 +272,38 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         for (sample, state) in zip(samples, states)
                     ]
 
-                    # run them in parallel (subject to config.max_samples)
-                    sample_results = []
-                    td.sample_complete(complete=0, total=len(samples))
-                    for coroutine in asyncio.as_completed(sample_coroutines):
-                        result = await coroutine
+                    # the actual tasks we're running
+                    sample_tasks = [
+                        asyncio.create_task(coroutine)
+                        for coroutine in sample_coroutines
+                    ]
 
-                        # Capture the result
-                        sample_results.append(result)
+                    # run the tasks
+                    try:
+                        sample_results = []
+                        td.sample_complete(complete=0, total=len(samples))
+                        for coroutine in asyncio.as_completed(sample_tasks):
+                            result = await coroutine
 
-                        # Increment the segment progress
-                        td.sample_complete(
-                            complete=len(sample_results), total=len(samples)
-                        )
+                            # Capture the result
+                            sample_results.append(result)
+
+                            # Increment the segment progress
+                            td.sample_complete(
+                                complete=len(sample_results), total=len(samples)
+                            )
+
+                    # if one of the samples errors, cancel the remaining tasks
+                    except:
+                        # cancel pending tasks
+                        #
+                        for sample_task in sample_tasks:
+                            if not sample_task.done():
+                                sample_task.cancel()
+
+                        # await the tasks finishing the cancel
+                        await asyncio.gather(*sample_tasks, return_exceptions=True)
+                        raise
 
                 # compute and record metrics if we have scores
                 completed_scores = [
