@@ -21,11 +21,7 @@ from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
-from inspect_ai.util._sandbox import (
-    SandboxConnection,
-    SandboxConnectionContainer,
-    SandboxConnectionLocal,
-)
+from inspect_ai.util._sandbox import SandboxConnection
 
 from ...core.progress import progress_time
 from .clock import Clock
@@ -229,7 +225,13 @@ class SampleInfo(Horizontal):
         self._sample = sample
 
         # compute whether we should show connection and recompose as required
-        show_sandboxes = sample is not None and len(sample.sandboxes) > 0
+        show_sandboxes = (
+            sample is not None
+            and len(
+                [sandbox for sandbox in sample.sandboxes.values() if sandbox.container]
+            )
+            > 0
+        )
         if show_sandboxes != self._show_sandboxes:
             await self.recompose()
         self._show_sandboxes = show_sandboxes
@@ -272,26 +274,8 @@ class SandboxesView(Vertical):
         )
 
     async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
-        def sandbox_connection_type() -> str:
-            connection = list(sandboxes.values())[0]
-            if isinstance(connection, SandboxConnectionLocal):
-                return "directories"
-            elif isinstance(connection, SandboxConnectionContainer):
-                return "containers"
-            else:
-                return "hosts"
-
-        def sandbox_connection_target(sandbox: SandboxConnection) -> str:
-            if isinstance(sandbox, SandboxConnectionLocal):
-                target = sandbox.working_dir
-            elif isinstance(sandbox, SandboxConnectionContainer):
-                target = sandbox.container
-            else:
-                target = sandbox.destination
-            return target.strip()
-
         caption = cast(Static, self.query_one("#sandboxes-caption"))
-        caption.update(f"[bold]sandbox {sandbox_connection_type()}:[/bold]")
+        caption.update("[bold]sandbox containers:[/bold]")
 
         sandboxes_widget = self.query_one("#sandboxes")
         sandboxes_widget.styles.margin = (
@@ -300,8 +284,9 @@ class SandboxesView(Vertical):
         await sandboxes_widget.remove_children()
         await sandboxes_widget.mount_all(
             [
-                Static(sandbox_connection_target(sandbox))
+                Static(sandbox.container)
                 for sandbox in sandboxes.values()
+                if sandbox.container
             ]
         )
 
