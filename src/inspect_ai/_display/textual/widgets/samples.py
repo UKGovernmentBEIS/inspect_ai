@@ -1,5 +1,6 @@
 from typing import cast
 
+from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
@@ -9,6 +10,7 @@ from textual.containers import (
     Vertical,
     VerticalGroup,
 )
+from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
     Button,
@@ -21,7 +23,6 @@ from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
-from inspect_ai.util._sandbox import SandboxConnection
 
 from ...core.progress import progress_time
 from .clock import Clock
@@ -194,7 +195,7 @@ class SampleInfo(Horizontal):
     }
     SampleInfo Collapsible Contents {
         padding: 1 0 1 2;
-        overflow-y: hidden;
+        height: auto;
         overflow-x: auto;
     }
     SampleInfo Static {
@@ -207,57 +208,88 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
-        self._show_sandboxes = False
 
     def compose(self) -> ComposeResult:
-        if self._sample is not None and len(self._sample.sandboxes) > 0:
-            with Collapsible(title=""):
-                yield SandboxesView()
-        else:
-            yield Static()
+        with Collapsible(title=""):
+            yield SampleLimits()
+            yield SandboxesView()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        # bail if we've already processed this sample
-        if self._sample == sample:
-            return
+        if sample is None:
+            self.display = False
+            self._sample = None
+        else:
+            # update sample limits
+            limits = self.query_one(SampleLimits)
+            await limits.sync_sample(sample)
 
-        # set sample
-        self._sample = sample
+            # bail if we've already processed this sample
+            if self._sample == sample:
+                return
 
-        # compute whether we should show connection and recompose as required
-        show_sandboxes = (
-            sample is not None
-            and len(
-                [sandbox for sandbox in sample.sandboxes.values() if sandbox.container]
-            )
-            > 0
-        )
-        if show_sandboxes != self._show_sandboxes:
-            await self.recompose()
-        self._show_sandboxes = show_sandboxes
+            # set sample
+            self._sample = sample
 
-        if sample is not None:
+            # update UI
             self.display = True
             title = f"{registry_unqualified_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
-            if show_sandboxes:
-                self.query_one(Collapsible).title = title
-                sandboxes = self.query_one(SandboxesView)
-                await sandboxes.sync_sandboxes(sample.sandboxes)
-            else:
-                self.query_one(Static).update(title)
-        else:
-            self.display = False
+            self.query_one(Collapsible).title = title
+            sandboxes = self.query_one(SandboxesView)
+            await sandboxes.sync_sample(sample)
+
+
+class SampleLimits(Widget):
+    DEFAULT_CSS = """
+    SampleLimits {
+        padding: 0 0 0 0;
+        color: $secondary;
+        background: transparent;
+        height: auto;
+    }
+    SampleLimits Static {
+        background: transparent;
+        color: $secondary;
+    }
+    """
+
+    messages = reactive(0)
+    message_limit = reactive(0)
+    tokens = reactive(0)
+    token_limit = reactive(0)
+    started = reactive(0)
+    time_limit = reactive(0)
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def render(self) -> RenderableType:
+        limits = f"[bold]messages[/bold]: {self.messages}"
+        if self.message_limit:
+            limits = f"{limits} (limit {self.message_limit})"
+        limits = f"{limits}, [bold]tokens[/bold]: {self.tokens:,}"
+        if self.token_limit:
+            limits = f"{limits} ({self.token_limit:,})"
+        return limits
+
+    async def sync_sample(self, sample: ActiveSample) -> None:
+        self.messages = sample.total_messages
+        self.message_limit = sample.message_limit or 0
+        self.tokens = sample.total_tokens
+        self.token_limit = sample.token_limit or 0
 
 
 class SandboxesView(Vertical):
     DEFAULT_CSS = """
     SandboxesView {
-        padding: 0 0 1 0;
+        padding: 1 0 1 0;
         background: transparent;
         height: auto;
     }
     SandboxesView Static {
         background: transparent;
+    }
+    .clipboard-message {
+        margin-top: 1;
     }
     """
 
@@ -266,29 +298,37 @@ class SandboxesView(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Static(id="sandboxes-caption", markup=True)
-        yield Vertical(id="sandboxes")
-        yield Static(
-            "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
-            id="sandboxes-footer",
-            markup=True,
+        yield Vertical(id="sandboxes-list")
+
+    async def sync_sample(self, sample: ActiveSample) -> None:
+        sandboxes = sample.sandboxes
+        show_sandboxes = (
+            len([sandbox for sandbox in sandboxes.values() if sandbox.container]) > 0
         )
 
-    async def sync_sandboxes(self, sandboxes: dict[str, SandboxConnection]) -> None:
-        caption = cast(Static, self.query_one("#sandboxes-caption"))
-        caption.update("[bold]sandbox containers:[/bold]")
+        if show_sandboxes:
+            self.display = True
+            sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
+            sandboxes_caption.update("[bold]sandbox containers:[/bold]")
 
-        sandboxes_widget = self.query_one("#sandboxes")
-        sandboxes_widget.styles.margin = (
-            (0, 0, 1, 0) if len(sandboxes) > 1 else (0, 0, 0, 0)
-        )
-        await sandboxes_widget.remove_children()
-        await sandboxes_widget.mount_all(
-            [
-                Static(sandbox.container)
-                for sandbox in sandboxes.values()
-                if sandbox.container
-            ]
-        )
+            sandboxes_list = self.query_one("#sandboxes-list")
+            await sandboxes_list.remove_children()
+            await sandboxes_list.mount_all(
+                [
+                    Static(sandbox.container)
+                    for sandbox in sandboxes.values()
+                    if sandbox.container
+                ]
+            )
+            sandboxes_list.mount(
+                Static(
+                    "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
+                    classes="clipboard-message",
+                    markup=True,
+                )
+            )
+        else:
+            self.display = False
 
 
 class SampleToolbar(Horizontal):
