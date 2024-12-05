@@ -4,9 +4,6 @@ from .context import sandbox, sandbox_with
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
     SandboxConnection,
-    SandboxConnectionContainer,
-    SandboxConnectionLocal,
-    SandboxConnectionSSH,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxEnvironments,
@@ -27,9 +24,6 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxConnection",
-    "SandboxConnectionContainer",
-    "SandboxConnectionLocal",
-    "SandboxConnectionSSH",
     "sandboxenv",
     "sandbox",
     "sandbox_with",
