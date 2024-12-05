@@ -33,7 +33,7 @@ class RichProgress(Progress):
         status: Callable[[], str] | None = None,
         on_update: Callable[[], None] | None = None,
         count: str = "",
-        metrics: str = "",
+        score: str = "",
     ) -> None:
         self.total = total
         self.progress = progress
@@ -45,7 +45,7 @@ class RichProgress(Progress):
             model=model,
             status=self.status(),
             count=count,
-            metrics=metrics,
+            score=score,
         )
 
     @override
@@ -70,8 +70,8 @@ class RichProgress(Progress):
         if self.on_update:
             self.on_update()
 
-    def update_metrics(self, metrics: str) -> None:
-        self.progress.update(task_id=self.task_id, metrics=metrics)
+    def update_score(self, score: str) -> None:
+        self.progress.update(task_id=self.task_id, score=score)
 
 
 def rich_progress() -> RProgress:
@@ -84,7 +84,7 @@ def rich_progress() -> RProgress:
         TaskProgressColumn(),
         TextColumn("{task.fields[count]}"),
         TimeElapsedColumn(),
-        TextColumn("{task.fields[metrics]}"),
+        TextColumn("{task.fields[score]}"),
         transient=True,
         console=console,
         expand=True,

@@ -12,13 +12,14 @@ from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
 from typing_extensions import override
 
+from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
-from inspect_ai.log._log import EvalScore
 
 from ...core.display import (
     Progress,
     TaskCancelled,
     TaskDisplay,
+    TaskDisplayMetric,
     TaskError,
     TaskResult,
     TaskSpec,
@@ -168,12 +169,9 @@ class TaskProgressView(Widget):
     def sample_complete(self, complete: int, total: int) -> None:
         self.count_display.update(progress_count(complete, total))
 
-    def update_metrics(self, scores: list[EvalScore]) -> None:
-        if len(scores) > 0:
-            metrics = list(scores[0].metrics.values())
-            if len(metrics) > 0:
-                metric = metrics[0]
-                self.metrics_display.update(f"{metric.name}: {metric.value:.2f}")
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        if len(metrics) > 0:
+            self.metrics_display.update(task_metric(metrics))
 
 
 class TaskStatusIcon(Static):

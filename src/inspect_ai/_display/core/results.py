@@ -11,6 +11,7 @@ from inspect_ai.log._log import EvalScore, rich_traceback
 from .config import task_config, task_dict
 from .display import (
     TaskCancelled,
+    TaskDisplayMetric,
     TaskError,
     TaskProfile,
     TaskSuccess,
@@ -162,6 +163,21 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
         )
 
     return message
+
+
+def task_metric(metrics: list[TaskDisplayMetric]) -> str:
+    reducer_names: Set[str] = {
+        metric.reducer for metric in metrics if metric.reducer is not None
+    }
+    show_reducer = len(reducer_names) > 1 or (
+        len(reducer_names) == 1 and "avg" not in reducer_names
+    )
+
+    metric = metrics[0]
+    if show_reducer:
+        return f"{metric.name}/{metric.reducer}: {metric.value:.2f}"
+    else:
+        return f"{metric.name}: {metric.value:.2f}"
 
 
 def task_metrics(scores: list[EvalScore]) -> str:

@@ -17,7 +17,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplay
+from inspect_ai._display.core.display import TaskDisplay, TaskDisplayMetric
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -434,13 +434,25 @@ def update_metrics_display_fn(
                 metrics=metrics,
             )
 
+            # Name, reducer, value
+            task_metrics = []
+            if len(results.scores) > 0:
+                for score in results.scores:
+                    for key, metric in score.metrics.items():
+                        task_metrics.append(
+                            TaskDisplayMetric(
+                                name=metric.name,
+                                value=metric.value,
+                                reducer=score.reducer,
+                            )
+                        )
+            td.update_metrics(task_metrics)
+
             # determine how long to wait before recomputing metrics
             time_end = time.perf_counter()
             elapsed_time = time_end - time_start
             wait = max(min_interval, elapsed_time * 10)
             next_compute_time = time_end + wait
-
-            td.update_metrics(results.scores)
 
     return compute
 

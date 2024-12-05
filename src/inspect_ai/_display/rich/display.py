@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
+from typing import Any, AsyncIterator, Callable, Coroutine, Iterator, Set
 
 import rich
 from rich.console import Console, RenderableType
@@ -24,6 +24,7 @@ from ..core.display import (
     Display,
     Progress,
     TaskDisplay,
+    TaskDisplayMetric,
     TaskProfile,
     TaskResult,
     TaskScreen,
@@ -39,7 +40,7 @@ from ..core.progress import (
     progress_status_icon,
     rich_progress,
 )
-from ..core.results import tasks_results
+from ..core.results import task_metric, tasks_results
 from ..core.rich import (
     is_vscode_notebook,
     record_console_input,
@@ -281,12 +282,9 @@ class RichTaskDisplay(TaskDisplay):
         self.p.update_count(complete, total)
 
     @override
-    def update_metrics(self, scores: list[EvalScore]) -> None:
-        if len(scores) > 0:
-            metrics = list(scores[0].metrics.values())
-            if len(metrics) > 0:
-                metric = metrics[0]
-                self.p.update_metrics(f"{metric.name}: {metric.value:.2f}")
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        if len(metrics) > 0:
+            self.p.update_score(task_metric(metrics))
 
     @override
     def complete(self, result: TaskResult) -> None:
