@@ -198,20 +198,6 @@ def write_log_dir_manifest(
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
-    run_coroutine(
-        write_log_dir_manifest_async(
-            log_dir, filename=filename, output_dir=output_dir, fs_options=fs_options
-        )
-    )
-
-
-async def write_log_dir_manifest_async(
-    log_dir: str,
-    *,
-    filename: str = "logs.json",
-    output_dir: str | None = None,
-    fs_options: dict[str, Any] = {},
-) -> None:
     """Write a manifest for a log directory.
 
     A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples)
@@ -229,11 +215,11 @@ async def write_log_dir_manifest_async(
     log_dir = fs.info(log_dir).name
 
     # list eval logs
-    logs = await list_eval_logs_async(log_dir)
+    logs = list_eval_logs(log_dir)
 
     # resolve to manifest (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
-    headers = await read_eval_log_headers_async(logs)
+    headers = read_eval_log_headers(logs)
     manifest_logs = dict(zip(names, headers))
 
     # form target path and write

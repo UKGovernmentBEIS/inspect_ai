@@ -199,8 +199,7 @@ def test_schedule_pending_tasks() -> None:
     assert_schedule(schedule[2], [openai], [task1, task2, task4])
 
 
-@pytest.mark.asyncio
-async def test_latest_completed_task_eval_logs() -> None:
+def test_latest_completed_task_eval_logs() -> None:
     # cleanup previous tests
     TEST_EVAL_SET_PATH = Path("tests/test_eval_set")
     clean_dir = TEST_EVAL_SET_PATH / "clean"
@@ -208,7 +207,7 @@ async def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir.as_posix())
 
     # verify we correctly select only the most recent log
-    all_logs = await list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
+    all_logs = list_all_eval_logs(TEST_EVAL_SET_PATH.as_posix())
     assert len(all_logs) == 2
     latest = latest_completed_task_eval_logs(all_logs, False)
     assert len(latest) == 1
@@ -219,7 +218,7 @@ async def test_latest_completed_task_eval_logs() -> None:
         for filename in TEST_EVAL_SET_PATH.glob("*.json"):
             destination = clean_dir / filename.name
             shutil.copy2(filename, destination)
-        all_logs = await list_all_eval_logs(clean_dir.as_posix())
+        all_logs = list_all_eval_logs(clean_dir.as_posix())
         latest = latest_completed_task_eval_logs(all_logs, True)
         assert len(list_eval_logs(clean_dir.as_posix())) == 1
     finally:
