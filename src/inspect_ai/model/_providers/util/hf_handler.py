@@ -1,6 +1,5 @@
 import json
 import re
-import textwrap
 from logging import getLogger
 
 from shortuuid import uuid
@@ -10,7 +9,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
 from ..._chat_message import ChatMessageAssistant
-from .chatapi import ChatAPIHandler, ChatAPIMessage
+from .chatapi import ChatAPIHandler
 from .util import parse_tool_call, tool_parse_error_message
 
 logger = getLogger(__name__)
@@ -21,9 +20,12 @@ logger = getLogger(__name__)
 
 
 class HFHandler(ChatAPIHandler):
+    def __init__(self, model_name: str) -> None:
+        self.model_name = model_name
+
     @override
     def parse_assistant_response(
-        self, response: str, tools: list[ToolInfo], model_name: str
+        self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
         """Parse content and tool calls from a model response.
 
@@ -31,7 +33,9 @@ class HFHandler(ChatAPIHandler):
         prompt that asks the model to use the <tool_call>...</tool_call> syntax)
         """
         # extract tool calls
-        content, tool_calls_content = model_specific_tool_parse(response, model_name)
+        content, tool_calls_content = model_specific_tool_parse(
+            response, self.model_name
+        )
         # if there are tool calls proceed with parsing
         if len(tool_calls_content) > 0:
             # parse each tool call (if there are parsing error that occur
@@ -156,7 +160,7 @@ def json_extract(raw_string: str) -> tuple[list[str], str]:
     return function_calls, remaining_content
 
 
-def json_extract_raw(raw_string: str) -> tuple[list[dict], str]:
+def json_extract_raw(raw_string: str) -> tuple[list[str], str]:
     """Extract tools in form `{...}` and return the remaining content."""
     # Regex to extract sequences starting with '{' and ending with '}}'
     json_like_regex = r"\{.*?\}\}"

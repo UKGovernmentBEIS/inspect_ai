@@ -1,8 +1,8 @@
 import asyncio
-import functools
-import os
-import json
 import copy
+import functools
+import json
+import os
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
@@ -20,6 +20,7 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -116,7 +117,9 @@ class HuggingFaceAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput:
         # create handler
-        handler: ChatAPIHandler | None = HFHandler() if len(tools) > 0 else None
+        handler: ChatAPIHandler | None = (
+            HFHandler(self.model_name) if len(tools) > 0 else None
+        )
 
         # create chat
         chat = self.hf_chat(input, tools)
@@ -184,7 +187,6 @@ class HuggingFaceAPI(ModelAPI):
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
-            source="generate",
         )
 
         # return output
@@ -243,15 +245,16 @@ def shorten_tool_id(messages: list[ChatMessage]) -> list[ChatMessage]:
     for i, message in enumerate(messages):
         if message.role == "tool":
             # Trim tool_call_id in tool messages
-            message.tool_call_id = message.tool_call_id[-9:]
+            if message.tool_call_id is not None:
+                message.tool_call_id = message.tool_call_id[-9:]
         elif message.role == "assistant" and hasattr(message, "tool_calls"):
             # Trim tool_call IDs inside tool_calls for assistant messages
-            for tool_call in message.tool_calls:
+            for tool_call in message.tool_calls or []:
                 tool_call.id = tool_call.id[-9:]
     return messages
 
 
-def tools_to_mistral_format(tools: list[dict]) -> list[dict]:
+def tools_to_mistral_format(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert tools to the format required for Mistral."""
     mistral_tools = []
     for tool in tools:
@@ -282,7 +285,10 @@ def inspect_tools_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
                     tool_content += f'\n```json\n{{"name": "{tool_call.function}", "arguments": {json.dumps(tool_call.arguments)}}}\n```'
             # remove the tool call from the message
             message.tool_calls = None
-            message.content += tool_content
+            if isinstance(message.content, str):
+                message.content += tool_content
+            else:
+                message.content.append(ContentText(text=tool_content))
     return messages
 
 
@@ -293,11 +299,9 @@ def chat_completion_assistant_message(
     model_name: str,
 ) -> ChatMessageAssistant:
     if handler:
-        return handler.parse_assistant_response(response.output, tools, model_name)
+        return handler.parse_assistant_response(response.output, tools)
     else:
-        return ChatMessageAssistant(
-            content=response.output,
-        )
+        return ChatMessageAssistant(content=response.output, source="generate")
 
 
 def set_random_seeds(seed: int | None = None) -> None:
