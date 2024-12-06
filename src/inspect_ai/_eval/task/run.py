@@ -96,9 +96,7 @@ EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 # represents the total units of progress for an individual sample
 # the remainder are increments of progress within a sample (and
 # must sum to the total_progress_units when the sample is complete)
-SAMPLE_TOTAL_PROGRESS_UNITS = 10
-SAMPLE_INIT_PROGRESS_UNITS = 3
-SAMPLE_COMPLETE_PROGRESS_UNITS = 7
+SAMPLE_TOTAL_PROGRESS_UNITS = 1
 
 
 @dataclass
@@ -461,9 +459,6 @@ async def task_run_sample(
             transcript=sample_transcript,
         ) as active,
     ):
-        # Initial progress
-        progress(SAMPLE_INIT_PROGRESS_UNITS)
-
         error: EvalError | None = None
         try:
             async with timeout_cm:
@@ -586,7 +581,7 @@ async def task_run_sample(
             error = handle_error(ex)
 
         # complete the sample
-        progress(SAMPLE_COMPLETE_PROGRESS_UNITS)
+        progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
         # log it
         if logger is not None:
