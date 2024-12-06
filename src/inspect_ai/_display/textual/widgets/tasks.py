@@ -190,13 +190,38 @@ class TaskStatusIcon(Static):
             return Text("⠿", style=running)
 
 
+min_progress_percent = 0.02
+max_progress_percent = 0.98
+
+
 class TaskProgress(Progress):
     def __init__(self, progress_bar: ProgressBar) -> None:
         self.progress_bar = progress_bar
+        self.current_progress = 0
+
+        # always show a minimum amount of progress
+        minimum_steps = (
+            min_progress_percent * progress_bar.total
+            if progress_bar.total is not None
+            else 0
+        )
+        self.progress_bar.update(progress=minimum_steps)
 
     @override
     def update(self, n: int = 1) -> None:
-        self.progress_bar.update(advance=n)
+        self.current_progress = self.current_progress + n
+
+        # enforce a maximum cap on task progress
+        max_progress = (
+            max_progress_percent * self.progress_bar.total
+            if self.progress_bar.total is not None
+            else 0
+        )
+        if (
+            self.current_progress > self.progress_bar.progress
+            and self.current_progress < max_progress
+        ):
+            self.progress_bar.update(progress=self.current_progress)
 
     @override
     def complete(self) -> None:
