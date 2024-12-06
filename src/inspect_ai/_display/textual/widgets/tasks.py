@@ -107,8 +107,8 @@ class TaskProgressView(Widget):
         height: auto;
         width: 1fr;
         layout: grid;
-        grid-size: 5 1;
-        grid-columns: auto auto auto 1fr auto;
+        grid-size: 6 1;
+        grid-columns: auto auto auto 1fr auto auto;
         grid-gutter: 1;
     }
     TaskProgressView Bar {
@@ -130,7 +130,7 @@ class TaskProgressView(Widget):
         self.description_width = description_width
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
-        self.segments = Static()
+        self.count_display = Static()
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
@@ -142,7 +142,7 @@ class TaskProgressView(Widget):
             progress_model_name(self.t.profile.model, self.model_name_width, pad=True)
         )
         yield self.progress_bar
-        yield self.segments
+        yield self.count_display
         yield Clock()
 
     def on_mount(self) -> None:
@@ -162,7 +162,7 @@ class TaskProgressView(Widget):
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
-        self.segments.update(f"[{complete:,}/{total:,}]")
+        self.count_display.update(f"[{complete:,}/{total:,}]")
 
 
 class TaskStatusIcon(Static):
@@ -190,13 +190,38 @@ class TaskStatusIcon(Static):
             return Text("⠿", style=running)
 
 
+MAX_PROGRESS_PERCENT = 0.02
+MIN_PROGRESS_PERCENT = 0.98
+
+
 class TaskProgress(Progress):
     def __init__(self, progress_bar: ProgressBar) -> None:
         self.progress_bar = progress_bar
+        self.current_progress = 0
+
+        # always show a minimum amount of progress
+        minimum_steps = (
+            MAX_PROGRESS_PERCENT * progress_bar.total
+            if progress_bar.total is not None
+            else 0
+        )
+        self.progress_bar.update(progress=minimum_steps)
 
     @override
     def update(self, n: int = 1) -> None:
-        self.progress_bar.update(advance=n)
+        self.current_progress = self.current_progress + n
+
+        # enforce a maximum cap on task progress
+        max_progress = (
+            MIN_PROGRESS_PERCENT * self.progress_bar.total
+            if self.progress_bar.total is not None
+            else 0
+        )
+        if (
+            self.current_progress > self.progress_bar.progress
+            and self.current_progress < max_progress
+        ):
+            self.progress_bar.update(progress=self.current_progress)
 
     @override
     def complete(self) -> None:
