@@ -160,9 +160,7 @@ def json_extract_raw(raw_string: str) -> tuple[list[dict], str]:
     """Extract tools in form `{...}` and return the remaining content."""
     # Regex to extract sequences starting with '{' and ending with '}}'
     json_like_regex = r"\{.*?\}\}"
-
     function_calls = re.findall(json_like_regex, raw_string)
-
     remaining_content = re.sub(json_like_regex, "", raw_string).strip()
 
     return function_calls, remaining_content
@@ -188,6 +186,8 @@ def parse_unknown_tool_calls(response: str) -> tuple[list[str], str]:
         return xml_extract(response, "tool_call")
     elif "<function>" in response:
         return xml_extract(response, "function")
+    elif "{" in response and "}}" in response:
+        return json_extract_raw(response)
     else:
         return [], response
 
