@@ -28,38 +28,17 @@ SampleCleanup = Callable[
 ]
 
 
-class SandboxConnectionBase(BaseModel):
+class SandboxConnection(BaseModel):
+    """Information required to connect to sandbox."""
+
     command: str
     """Shell command to connect to sandbox."""
 
-    working_dir: str
-    """Agent working directory."""
+    vscode_command: list[str] | None = Field(default=None)
+    """Optional vscode command (+args) to connect to sandbox."""
 
-
-class SandboxConnectionLocal(SandboxConnectionBase):
-    type: Literal["local"] = Field(default="local")
-
-
-class SandboxConnectionContainer(SandboxConnectionBase):
-    type: Literal["container"] = Field(default="container")
-    """Sandbox login type."""
-
-    container: str
-    """Container name."""
-
-
-class SandboxConnectionSSH(SandboxConnectionBase):
-    type: Literal["ssh"] = Field(default="ssh")
-    """Sandbox login type."""
-
-    destination: str
-    """SSH destination server."""
-
-
-SandboxConnection = Union[
-    SandboxConnectionContainer, SandboxConnectionLocal, SandboxConnectionSSH
-]
-"""Information required to connect to sandbox."""
+    container: str | None = Field(default=None)
+    """Optional container name (will not apply to all sandboxes)."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -243,6 +222,15 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     async def connection(self) -> SandboxConnection:
+        """Information required to connect to sandbox environment.
+
+        Returns:
+           SandboxConnection: connection information
+
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
         raise NotImplementedError("connection not implemented")
 
 

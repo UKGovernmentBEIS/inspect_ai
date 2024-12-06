@@ -362,7 +362,7 @@ def chat_completion_assistant_message(
         return handler.parse_assistant_response(response.content, tools)
     else:
         return ChatMessageAssistant(
-            content=response.content,
+            content=response.content or "",
             tool_calls=[
                 chat_completion_tool_call(call, tools) for call in response.tool_calls
             ]

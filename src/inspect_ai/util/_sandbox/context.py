@@ -94,7 +94,7 @@ async def sandbox_connections() -> dict[str, SandboxConnection]:
         for name, environment in environments.items():
             try:
                 connections[name] = await environment.connection()
-            except NotImplementedError:
+            except (NotImplementedError, ConnectionError):
                 pass
         return connections
     else:

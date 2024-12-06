@@ -92,6 +92,12 @@ py_logger = getLogger(__name__)
 
 EvalSampleSource = Callable[[int | str, int], EvalSample | None]
 
+# Units allocated for sample progress - the total units
+# represents the total units of progress for an individual sample
+# the remainder are increments of progress within a sample (and
+# must sum to the total_progress_units when the sample is complete)
+SAMPLE_TOTAL_PROGRESS_UNITS = 1
+
 
 @dataclass
 class TaskRunOptions:
@@ -183,11 +189,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             else ["(none)"]
         )
 
-        # compute steps (steps = samples * steps in plan + 1 for scorer)
-        steps = len(samples) * (
-            len(plan.steps) + (1 if plan.finish else 0) + (1)  # scorer
-        )
-
         # compute an eval directory relative log location if we can
         if PurePath(logger.location).is_relative_to(PurePath(eval_wd)):
             log_location = PurePath(logger.location).relative_to(eval_wd).as_posix()
@@ -202,7 +203,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             dataset=task.dataset.name or "(samples)",
             scorer=", ".join(scorer_profiles),
             samples=len(samples),
-            steps=steps,
+            steps=len(samples) * SAMPLE_TOTAL_PROGRESS_UNITS,
             eval_config=config,
             task_args=logger.eval.task_args,
             generate_config=generate_config,
@@ -217,8 +218,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                 with td.progress() as p:
                     # forward progress
-                    def progress() -> None:
-                        p.update(1)
+                    def progress(number: int) -> None:
+                        p.update(number)
 
                     # provide solvers a function that they can use to generate output
                     async def generate(
@@ -243,6 +244,18 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         config, generate_config, model.api
                     )
 
+                    # track when samples complete and update progress as we go
+                    progress_results: list[dict[str, SampleScore]] = []
+
+                    def sample_complete(sample_score: dict[str, SampleScore]) -> None:
+                        # Capture the result
+                        progress_results.append(sample_score)
+
+                        # Increment the segment progress
+                        td.sample_complete(
+                            complete=len(progress_results), total=len(samples)
+                        )
+
                     # create sample coroutines
                     sample_coroutines = [
                         task_run_sample(
@@ -259,6 +272,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             log_images=log_images,
                             sample_source=sample_source,
                             sample_error=sample_error_handler,
+                            sample_complete=sample_complete,
                             fails_on_error=(
                                 config.fail_on_error is None
                                 or config.fail_on_error is True
@@ -269,7 +283,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         for (sample, state) in zip(samples, states)
                     ]
 
-                    # run them in parallel (subject to config.max_samples)
+                    # initial progress
+                    td.sample_complete(complete=0, total=len(samples))
                     sample_results = await asyncio.gather(*sample_coroutines)
 
                 # compute and record metrics if we have scores
@@ -362,11 +377,12 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     generate: Generate,
-    progress: Callable[..., None],
+    progress: Callable[[int], None],
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
     sample_error: Callable[[BaseException], EvalError],
+    sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
     semaphore: asyncio.Semaphore | None,
@@ -375,9 +391,9 @@ async def task_run_sample(
     if sample_source and sample.id is not None:
         previous_sample = sample_source(sample.id, state.epoch)
         if previous_sample:
-            # tick off progress
-            for _ in range(0, len(plan.steps) + 1 + (1 if plan.finish else 0)):
-                progress()
+            # tick off progress for this sample
+            progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+
             # log if requested
             if logger:
                 logger.log_sample(previous_sample, flush=False)
@@ -436,6 +452,9 @@ async def task_run_sample(
             model=str(state.model),
             sample=sample,
             epoch=state.epoch,
+            message_limit=state.message_limit,
+            token_limit=state.token_limit,
+            time_limit=time_limit,
             fails_on_error=fails_on_error,
             transcript=sample_transcript,
         ) as active,
@@ -454,7 +473,6 @@ async def task_run_sample(
                 )
 
                 # set progress for plan then run it
-                plan.progress = progress
                 state = await plan(state, generate)
 
         except TimeoutError:
@@ -562,7 +580,8 @@ async def task_run_sample(
             # handle error (this will throw if we've exceeded the limit)
             error = handle_error(ex)
 
-        progress()
+        # complete the sample
+        progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
         # log it
         if logger is not None:
@@ -587,6 +606,8 @@ async def task_run_sample(
 
         # return
         if error is None:
+            if results is not None:
+                sample_complete(results)
             return results
         else:
             return None
