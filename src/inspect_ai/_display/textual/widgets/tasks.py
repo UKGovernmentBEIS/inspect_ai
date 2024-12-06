@@ -190,8 +190,8 @@ class TaskStatusIcon(Static):
             return Text("⠿", style=running)
 
 
-min_progress_percent = 0.02
-max_progress_percent = 0.98
+MAX_PROGRESS_PERCENT = 0.02
+MIN_PROGRESS_PERCENT = 0.98
 
 
 class TaskProgress(Progress):
@@ -201,7 +201,7 @@ class TaskProgress(Progress):
 
         # always show a minimum amount of progress
         minimum_steps = (
-            min_progress_percent * progress_bar.total
+            MAX_PROGRESS_PERCENT * progress_bar.total
             if progress_bar.total is not None
             else 0
         )
@@ -213,7 +213,7 @@ class TaskProgress(Progress):
 
         # enforce a maximum cap on task progress
         max_progress = (
-            max_progress_percent * self.progress_bar.total
+            MIN_PROGRESS_PERCENT * self.progress_bar.total
             if self.progress_bar.total is not None
             else 0
         )
