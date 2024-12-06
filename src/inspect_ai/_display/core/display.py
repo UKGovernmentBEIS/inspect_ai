@@ -15,10 +15,11 @@ from typing import (
 
 import rich
 from rich.console import Console
-from textual.widget import Widget
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
+
+from .input import InputPanel
 
 
 @runtime_checkable
@@ -82,7 +83,7 @@ class TaskWithResult:
 
 TR = TypeVar("TR")
 
-TW = TypeVar("TW", bound=Widget)
+TP = TypeVar("TP", bound=InputPanel)
 
 
 class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
@@ -98,9 +99,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     ) -> Iterator[Console]:
         yield rich.get_console()
 
-    def input_panel(
-        self, title: str, widget: type[TW], *args: Any, **kwargs: Any
-    ) -> TW:
+    def input_panel(self, title: str, panel: type[TP]) -> TP:
         raise NotImplementedError("input_panel not implemented by current display")
 
 

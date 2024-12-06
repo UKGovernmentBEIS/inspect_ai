@@ -9,7 +9,6 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.css.query import NoMatches
 from textual.events import Print
-from textual.widget import Widget
 from textual.widgets import TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
@@ -20,8 +19,8 @@ from inspect_ai.log._transcript import InputEvent, transcript
 
 from ..core.config import task_config
 from ..core.display import (
+    TP,
     TR,
-    TW,
     TaskDisplay,
     TaskProfile,
     TaskScreen,
@@ -29,6 +28,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
+from ..core.input import InputPanel
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .theme import inspect_dark, inspect_light
@@ -194,21 +194,6 @@ class TaskScreenApp(App[TR]):
             with TabPane("Console", id="console"):
                 yield ConsoleView()
 
-    def add_tab(self, title: str, pane: Widget) -> None:
-        tabs = self.query_one(TabbedContent)
-        tabs.add_pane(TabPane(title, pane, id=as_tab_id(title)))
-
-    def get_tab(self, title: str) -> Widget | None:
-        try:
-            tab_pane = self.query_one(f"#{as_tab_id(title)}")
-            return tab_pane.children[0]
-        except NoMatches:
-            return None
-
-    def remove_tab(self, title: str) -> None:
-        tabs = self.query_one(TabbedContent)
-        tabs.remove_pane(as_html_id(as_tab_id(title), title))
-
     def on_mount(self) -> None:
         # register and set theme
         self.register_theme(inspect_dark)
@@ -236,6 +221,8 @@ class TaskScreenApp(App[TR]):
         self.update_tasks()
         self.update_samples()
         self.update_footer()
+        for input_panel in self.query(".task-input-panel"):
+            cast(InputPanel, input_panel).update()
 
     # update the header title
     def update_title(self) -> None:
@@ -327,6 +314,36 @@ class TaskScreenApp(App[TR]):
             self._worker.cancel()
             self.update_title()
 
+    # dynamic input panels
+    def add_input_panel(self, title: str, panel: InputPanel) -> None:
+        tabs = self.query_one(TabbedContent)
+        tabs.add_pane(TabPane(title, panel, id=as_input_panel_id(title)))
+
+    def get_input_panel(self, title: str) -> InputPanel | None:
+        try:
+            tab_pane = self.query_one(f"#{as_input_panel_id(title)}")
+            return cast(InputPanel, tab_pane.children[0])
+        except NoMatches:
+            return None
+
+    def remove_input_panel(self, title: str) -> None:
+        tabs = self.query_one(TabbedContent)
+        tabs.remove_pane(as_html_id(as_input_panel_id(title), title))
+
+    class InputPanelHost(InputPanel.Host):
+        def __init__(self, app: "TaskScreenApp[TR]", tab_id: str) -> None:
+            self.app = app
+            self.tab_id = tab_id
+
+        def activate(self) -> None:
+            tabs = self.app.query_one(TabbedContent)
+            tabs.active = self.tab_id
+
+        def close(self) -> None:
+            tabs = self.app.query_one(TabbedContent)
+            tabs.active = "tasks"
+            tabs.remove_pane(self.tab_id)
+
 
 class TextualTaskScreen(TaskScreen, Generic[TR]):
     def __init__(self, app: TaskScreenApp[TR]) -> None:
@@ -382,15 +399,15 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                     console.width = old_width
 
     @override
-    def input_panel(
-        self, title: str, widget: type[TW], *args: Any, **kwargs: Any
-    ) -> TW:
-        panel_widget = self.app.get_tab(title)
+    def input_panel(self, title: str, panel: type[TP]) -> TP:
+        panel_widget = self.app.get_input_panel(title)
         if panel_widget is None:
-            panel_widget = widget(*args, **kwargs)
-            self.app.add_tab(title, panel_widget)
-        return cast(TW, panel_widget)
+            panel_widget = panel(
+                TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
+            )
+            self.app.add_input_panel(title, panel_widget)
+        return cast(TP, panel_widget)
 
 
-def as_tab_id(title: str) -> str:
-    return as_html_id("id-tab", title)
+def as_input_panel_id(title: str) -> str:
+    return as_html_id("id-input-panel", title)
