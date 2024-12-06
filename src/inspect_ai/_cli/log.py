@@ -16,7 +16,7 @@ from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json,
     read_eval_log,
-    read_eval_log_headers,
+    read_eval_logs,
 )
 
 
@@ -166,7 +166,7 @@ def headers_command(files: tuple[str]) -> None:
 
 def headers(files: tuple[str]) -> None:
     """Print log file headers as JSON."""
-    headers = read_eval_log_headers(list(files))
+    headers = read_eval_logs(list(files), header_only=True)
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
 
 

@@ -24,7 +24,7 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
     read_eval_log,
-    read_eval_log_headers,
+    read_eval_logs,
     write_log_dir_manifest,
 )
 from inspect_ai.model import (
@@ -451,7 +451,7 @@ class Log(NamedTuple):
 # list all eval logs
 def list_all_eval_logs(log_dir: str) -> list[Log]:
     log_files = list_eval_logs(log_dir)
-    log_headers = read_eval_log_headers(log_files)
+    log_headers = read_eval_logs(log_files, header_only=True)
     task_identifiers = [task_identifier(log_header) for log_header in log_headers]
     return [
         Log(info=info, header=header, task_identifier=task_identifier)

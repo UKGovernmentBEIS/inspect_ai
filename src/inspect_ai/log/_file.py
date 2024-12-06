@@ -17,6 +17,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._recorders.recorder import Recorder
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
@@ -202,7 +203,7 @@ def write_log_dir_manifest(
 
     # resolve to manifest (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
-    headers = read_eval_log_headers(logs)
+    headers = read_eval_logs(logs, header_only=True)
     manifest_logs = dict(zip(names, headers))
 
     # form target path and write
@@ -227,7 +228,7 @@ def read_eval_log(
     Args:
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
+         the "samples" field). Defaults to False.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -247,27 +248,59 @@ def read_eval_log(
         recorder_type = recorder_type_for_format(format)
     log = recorder_type.read_log(log_file, header_only)
 
-    # resolve attachement if requested
-    if resolve_attachments and log.samples:
-        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
-
-    # provide sample ids if they aren't there
-    if log.eval.dataset.sample_ids is None and log.samples is not None:
-        sample_ids: dict[str | int, None] = {}
-        for sample in log.samples:
-            if sample.id not in sample_ids:
-                sample_ids[sample.id] = None
-        log.eval.dataset.sample_ids = list(sample_ids.keys())
+    # resolve samples as required
+    resolve_log_file_samples(log, resolve_attachments)
 
     logger.debug(f"Completed reading eval log from {log_file}")
 
     return log
 
 
-def read_eval_log_headers(
+def read_eval_logs(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+    header_only: bool = False,
+    resolve_attachments: bool = False,
 ) -> list[EvalLog]:
-    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+    """Read a set of eval logs.
+
+    Read a set of eval logs (in parallel if possible). Parallel reading
+    depends on the recorder type and back end filesystem. Currently,
+    `eval` files on async filesystems (e.g. S3) are read in parallel.
+
+    Args:
+       log_files (list[str] | list[FileInfo] | list[EvalLogInfo]):
+         Log files to read.
+       header_only (bool): Read only the header (i.e. exclude
+         the "samples" field). Defaults to False.
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
+
+    Returns:
+       list[EvalLog]: List of eval logs
+    """
+    log_files = [
+        log_file if isinstance(log_file, str) else log_file.name
+        for log_file in log_files
+    ]
+
+    # divide into recorder types
+    log_batches: dict[type[Recorder], list[str]] = {}
+    for log_file in log_files:
+        recorder_type = recorder_type_for_location(log_file)
+        if recorder_type not in log_batches:
+            log_batches[recorder_type] = []
+        log_batches[recorder_type].append(log_file)
+
+    # fetch logs in recorder type batches
+    log_results: dict[str, EvalLog] = {}
+    for recorder, log_files in log_batches.items():
+        logs = recorder.read_logs(log_files, header_only=header_only)
+        for log_file, log in zip(log_files, logs):
+            resolve_log_file_samples(log, resolve_attachments)
+            log_results[log_file] = log
+
+    # return list in original order
+    return [log_results[log_file] for log_file in log_files]
 
 
 def read_eval_log_sample(
@@ -368,6 +401,20 @@ def read_eval_log_samples(
             except IndexError:
                 if all_samples_required:
                     raise
+
+
+def resolve_log_file_samples(log: EvalLog, resolve_attachments: bool) -> None:
+    # resolve attachement if requested
+    if resolve_attachments and log.samples:
+        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+
+    # provide sample ids if they aren't there
+    if log.eval.dataset.sample_ids is None and log.samples is not None:
+        sample_ids: dict[str | int, None] = {}
+        for sample in log.samples:
+            if sample.id not in sample_ids:
+                sample_ids[sample.id] = None
+        log.eval.dataset.sample_ids = list(sample_ids.keys())
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:

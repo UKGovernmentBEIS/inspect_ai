@@ -50,6 +50,12 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
+    def read_logs(
+        cls, locations: list[str], header_only: bool = False
+    ) -> list[EvalLog]: ...
+
+    @classmethod
+    @abc.abstractmethod
     def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample: ...

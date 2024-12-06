@@ -1,11 +1,14 @@
 import asyncio
 from textwrap import dedent
 
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import ExecResult, sandbox, sandbox_service
 
 
+@pytest.mark.slow
 def test_sandbox_service():
     log = eval(Task(solver=math_service()), model="mockllm/model", sandbox="docker")[0]
     assert log.status == "success"

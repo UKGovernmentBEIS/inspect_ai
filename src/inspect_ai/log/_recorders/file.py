@@ -57,6 +57,13 @@ class FileRecorder(Recorder):
         else:
             return eval_sample
 
+    @override
+    @classmethod
+    def read_logs(
+        cls, locations: list[str], header_only: bool = False
+    ) -> list[EvalLog]:
+        return [cls.read_log(log, header_only=header_only) for log in locations]
+
     def _log_file_key(self, eval: EvalSpec) -> str:
         # clean underscores, slashes, and : from the log file key (so we can reliably parse it
         # later without worrying about underscores)

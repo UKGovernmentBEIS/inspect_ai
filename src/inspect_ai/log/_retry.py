@@ -2,7 +2,7 @@ from logging import getLogger
 
 from inspect_ai._util.logger import warn_once
 
-from ._file import EvalLogInfo, read_eval_log_headers
+from ._file import EvalLogInfo, read_eval_logs
 
 logger = getLogger(__name__)
 
@@ -26,7 +26,7 @@ def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
     )
 
     # first collect up all of the headers (so we can look at status)
-    log_headers = read_eval_log_headers(logs)
+    log_headers = read_eval_logs(logs, header_only=True)
 
     # build a set of completed task ids
     completed_task_ids = set(
