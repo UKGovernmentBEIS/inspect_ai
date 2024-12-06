@@ -176,6 +176,7 @@ class TaskProgressView(Widget):
         if len(metrics) > 0:
             self.metrics_display.update(task_metric(metrics))
 
+
 class TaskStatusIcon(Static):
     result: reactive[TaskResult | None] = reactive(None)
 
