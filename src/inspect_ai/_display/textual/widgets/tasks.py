@@ -123,6 +123,9 @@ class TaskProgressView(Widget):
             color: $success;
         }
     }
+    #task-metrics {
+        color:$text-secondary;
+    }
     """
 
     def __init__(
@@ -134,7 +137,7 @@ class TaskProgressView(Widget):
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
         self.count_display = Static()
-        self.metrics_display = Static()
+        self.metrics_display = Static(id="task-metrics")
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
@@ -147,8 +150,8 @@ class TaskProgressView(Widget):
         )
         yield self.progress_bar
         yield self.count_display
-        yield Clock()
         yield self.metrics_display
+        yield Clock()
 
     def on_mount(self) -> None:
         self.query_one(Clock).start(datetime.now().timestamp())
