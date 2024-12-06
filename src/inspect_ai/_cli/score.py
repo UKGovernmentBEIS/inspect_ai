@@ -61,7 +61,7 @@ async def score(
 
     # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)
-    eval_log = await recorder.read_log(log_file)
+    eval_log = recorder.read_log(log_file)
 
     # check that there are samples therein
     if eval_log.samples is None or len(eval_log.samples) == 0:
@@ -88,7 +88,7 @@ async def score(
     scored = f"{SCORED_SUFFIX}{ext}"
     if not overwrite and not log_file.endswith(scored):
         log_file = log_file.removesuffix(ext) + scored
-    await recorder.write_log(log_file, eval_log)
+    recorder.write_log(log_file, eval_log)
 
     # print results
     display().print(f"\n{eval_log.eval.task}")
