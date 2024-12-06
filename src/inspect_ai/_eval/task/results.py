@@ -175,7 +175,10 @@ def scorer_for_metrics(
         )
 
         # process metric values
-        metric_value = metric(scores)
+        if len(scores) > 0:
+            metric_value = metric(scores)
+        else:
+            metric_value = float("Nan")
         base_metric_name = registry_log_name(metric)
 
         # If the metric value is a dictionary, turn each of the entries
@@ -231,6 +234,10 @@ def scorers_from_metric_dict(
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
+
+    # if there are no scores, then nothing to resolve
+    if len(scores) == 0:
+        return []
 
     # Expand any metric keys
     resolved_metrics = resolve_glob_metric_keys(metrics, scores[0])

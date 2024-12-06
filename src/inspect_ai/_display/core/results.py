@@ -1,22 +1,24 @@
 from datetime import datetime
 from typing import Sequence, Set
 
+import numpy as np
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
 from inspect_ai.log import EvalStats
-from inspect_ai.log._log import rich_traceback
+from inspect_ai.log._log import EvalScore, rich_traceback
 
 from .config import task_config, task_dict
 from .display import (
     TaskCancelled,
+    TaskDisplayMetric,
     TaskError,
     TaskProfile,
     TaskSuccess,
     TaskWithResult,
 )
-from .panel import task_panel
+from .panel import task_panel, task_targets
 from .rich import rich_theme
 
 
@@ -37,10 +39,18 @@ def tasks_results(tasks: Sequence[TaskWithResult]) -> RenderableType:
 def task_result_cancelled(
     profile: TaskProfile, cancelled: TaskCancelled
 ) -> RenderableType:
+    # The contents of the panel
+    config = task_config(profile)
+    targets = task_targets(profile)
+    subtitle = config, targets
+    body = task_stats(cancelled.stats)
+
+    # The panel
     return task_panel(
         profile=profile,
         show_model=True,
-        body=task_stats(profile, cancelled.stats),
+        body=body,
+        subtitle=subtitle,
         footer=task_interrupted(profile, cancelled.samples_completed),
         log_location=profile.log_location,
     )
@@ -50,36 +60,7 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
     theme = rich_theme()
 
     # do we have more than one scorer name?
-    results = success.results
-    scorer_names: Set[str] = {score.name for score in results.scores}
-    reducer_names: Set[str] = {
-        score.reducer for score in results.scores if score.reducer is not None
-    }
-    show_reducer = len(reducer_names) > 1 or "avg" not in reducer_names
-    output: dict[str, str] = {}
-    for score in results.scores:
-        for name, metric in score.metrics.items():
-            value = (
-                "1.0"
-                if metric.value == 1
-                else (
-                    str(metric.value)
-                    if isinstance(metric.value, int)
-                    else f"{metric.value:.3g}"
-                )
-            )
-            name = (
-                rf"{name}\[{score.reducer}]"
-                if show_reducer and score.reducer is not None
-                else name
-            )
-            key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
-            output[key] = value
-
-    if output:
-        message = f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
-    else:
-        message = ""
+    message = task_metrics(success.results.scores)
 
     # note if some of our samples had errors
     if success.samples_completed < profile.samples:
@@ -93,10 +74,18 @@ def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
 
 
 def task_result_summary(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
+    # The contents of the panel
+    config = task_config(profile)
+    targets = task_targets(profile)
+    subtitle = config, targets
+    body = task_stats(success.stats)
+
+    # the panel
     return task_panel(
         profile=profile,
         show_model=True,
-        body=task_stats(profile, success.stats),
+        body=body,
+        subtitle=subtitle,
         footer=task_results(profile, success),
         log_location=profile.log_location,
     )
@@ -107,20 +96,17 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
         profile=profile,
         show_model=True,
         body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
+        subtitle=None,
         footer=task_interrupted(profile, error.samples_completed),
         log_location=profile.log_location,
     )
 
 
-def task_stats(profile: TaskProfile, stats: EvalStats) -> RenderableType:
+def task_stats(stats: EvalStats) -> RenderableType:
     theme = rich_theme()
     panel = Table.grid(expand=True)
     panel.add_column()
-    config = task_config(profile)
-    if config:
-        panel.add_row(config)
-        panel.add_row()
-    elif len(stats.model_usage) < 2:
+    if len(stats.model_usage) < 2:
         panel.add_row()
 
     table = Table.grid(expand=True)
@@ -178,3 +164,56 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
         )
 
     return message
+
+
+def task_metric(metrics: list[TaskDisplayMetric]) -> str:
+    reducer_names: Set[str] = {
+        metric.reducer for metric in metrics if metric.reducer is not None
+    }
+    show_reducer = len(reducer_names) > 1 or (
+        len(reducer_names) == 1 and "avg" not in reducer_names
+    )
+
+    metric = metrics[0]
+    if np.isnan(metric.value):
+        value = " n/a"
+    else:
+        value = f"{metric.value:.2f}"
+
+    if show_reducer:
+        return f"{metric.name}/{metric.reducer}: {value}"
+    else:
+        return f"{metric.name}: {value}"
+
+
+def task_metrics(scores: list[EvalScore]) -> str:
+    theme = rich_theme()
+    scorer_names: Set[str] = {score.name for score in scores}
+    reducer_names: Set[str] = {
+        score.reducer for score in scores if score.reducer is not None
+    }
+    show_reducer = len(reducer_names) > 1 or "avg" not in reducer_names
+    output: dict[str, str] = {}
+    for score in scores:
+        for name, metric in score.metrics.items():
+            value = (
+                "1.0"
+                if metric.value == 1
+                else (
+                    str(metric.value)
+                    if isinstance(metric.value, int)
+                    else f"{metric.value:.3g}"
+                )
+            )
+            name = (
+                rf"{name}\[{score.reducer}]"
+                if show_reducer and score.reducer is not None
+                else name
+            )
+            key = f"{score.name}/{name}" if (len(scorer_names) > 1) else name
+            output[key] = value
+
+    if output:
+        return f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
+    else:
+        return ""
