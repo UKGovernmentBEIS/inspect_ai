@@ -32,7 +32,8 @@ class RichProgress(Progress):
         model: str = "",
         status: Callable[[], str] | None = None,
         on_update: Callable[[], None] | None = None,
-        count: str = "0",
+        count: str = "",
+        score: str = "",
     ) -> None:
         self.total = total
         self.progress = progress
@@ -44,6 +45,7 @@ class RichProgress(Progress):
             model=model,
             status=self.status(),
             count=count,
+            score=score,
         )
 
     @override
@@ -63,10 +65,13 @@ class RichProgress(Progress):
 
     def update_count(self, complete: int, total: int) -> None:
         self.progress.update(
-            task_id=self.task_id, count=f"[{complete:,}/{total:,}]", refresh=True
+            task_id=self.task_id, count=progress_count(complete, total), refresh=True
         )
         if self.on_update:
             self.on_update()
+
+    def update_score(self, score: str) -> None:
+        self.progress.update(task_id=self.task_id, score=score)
 
 
 def rich_progress() -> RProgress:
@@ -78,10 +83,11 @@ def rich_progress() -> RProgress:
         BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
         TaskProgressColumn(),
         TextColumn("{task.fields[count]}"),
+        TextColumn("{task.fields[score]}"),
         TimeElapsedColumn(),
         transient=True,
         console=console,
-        expand=not is_vscode_notebook(console),
+        expand=True,
     )
 
 
@@ -122,3 +128,11 @@ def progress_time(time: float) -> str:
     minutes, seconds = divmod(time, 60)
     hours, minutes = divmod(minutes, 60)
     return f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}"
+
+
+def progress_count(complete: int, total: int) -> str:
+    # Pad the display to keep it stable
+    total_str = f"{total:,}"
+    complete_str = f"{complete:,}"
+    padding = max(0, len(total_str) - len(complete_str))
+    return " " * padding + f"[{complete_str}/{total_str}]"

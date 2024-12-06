@@ -12,12 +12,14 @@ from textual.widget import Widget
 from textual.widgets import ProgressBar, Static
 from typing_extensions import override
 
+from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
 
 from ...core.display import (
     Progress,
     TaskCancelled,
     TaskDisplay,
+    TaskDisplayMetric,
     TaskError,
     TaskResult,
     TaskSpec,
@@ -26,6 +28,7 @@ from ...core.display import (
 from ...core.progress import (
     MAX_DESCRIPTION_WIDTH,
     MAX_MODEL_NAME_WIDTH,
+    progress_count,
     progress_description,
     progress_model_name,
 )
@@ -107,8 +110,8 @@ class TaskProgressView(Widget):
         height: auto;
         width: 1fr;
         layout: grid;
-        grid-size: 6 1;
-        grid-columns: auto auto auto 1fr auto auto;
+        grid-size: 7 1;
+        grid-columns: auto auto auto 1fr auto auto auto;
         grid-gutter: 1;
     }
     TaskProgressView Bar {
@@ -119,6 +122,9 @@ class TaskProgressView(Widget):
         &> .bar--complete {
             color: $success;
         }
+    }
+    #task-metrics {
+        color:$text-secondary;
     }
     """
 
@@ -131,6 +137,7 @@ class TaskProgressView(Widget):
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
         self.count_display = Static()
+        self.metrics_display = Static(id="task-metrics")
         self.task_progress = TaskProgress(self.progress_bar)
 
     def compose(self) -> ComposeResult:
@@ -143,6 +150,7 @@ class TaskProgressView(Widget):
         )
         yield self.progress_bar
         yield self.count_display
+        yield self.metrics_display
         yield Clock()
 
     def on_mount(self) -> None:
@@ -162,7 +170,11 @@ class TaskProgressView(Widget):
         self.task_progress.complete()
 
     def sample_complete(self, complete: int, total: int) -> None:
-        self.count_display.update(f"[{complete:,}/{total:,}]")
+        self.count_display.update(progress_count(complete, total))
+
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        if len(metrics) > 0:
+            self.metrics_display.update(task_metric(metrics))
 
 
 class TaskStatusIcon(Static):

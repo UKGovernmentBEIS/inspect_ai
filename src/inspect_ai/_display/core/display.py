@@ -96,12 +96,21 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         yield rich.get_console()
 
 
+@dataclass
+class TaskDisplayMetric:
+    name: str
+    value: float | int
+    reducer: str | None
+
+
 @runtime_checkable
 class TaskDisplay(Protocol):
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]: ...
 
     def sample_complete(self, complete: int, total: int) -> None: ...
+
+    def update_metrics(self, scores: list[TaskDisplayMetric]) -> None: ...
 
     def complete(self, result: TaskResult) -> None: ...
 
