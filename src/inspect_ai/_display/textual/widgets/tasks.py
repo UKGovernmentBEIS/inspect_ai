@@ -107,8 +107,8 @@ class TaskProgressView(Widget):
         height: auto;
         width: 1fr;
         layout: grid;
-        grid-size: 5 1;
-        grid-columns: auto auto auto 1fr auto;
+        grid-size: 6 1;
+        grid-columns: auto auto auto 1fr auto auto;
         grid-gutter: 1;
     }
     TaskProgressView Bar {
