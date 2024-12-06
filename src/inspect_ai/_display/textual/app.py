@@ -1,23 +1,27 @@
 import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, Coroutine, Generic, Iterator
+from typing import Any, AsyncIterator, Coroutine, Generic, Iterator, cast
 
 import rich
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.css.query import NoMatches
 from textual.events import Print
+from textual.widget import Widget
 from textual.widgets import TabbedContent, TabPane
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
+from inspect_ai._util.html import as_html_id
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
 
 from ..core.config import task_config
 from ..core.display import (
     TR,
+    TW,
     TaskDisplay,
     TaskProfile,
     TaskScreen,
@@ -190,6 +194,21 @@ class TaskScreenApp(App[TR]):
             with TabPane("Console", id="console"):
                 yield ConsoleView()
 
+    def add_tab(self, title: str, pane: Widget) -> None:
+        tabs = self.query_one(TabbedContent)
+        tabs.add_pane(TabPane(title, pane, id=as_tab_id(title)))
+
+    def get_tab(self, title: str) -> Widget | None:
+        try:
+            tab_pane = self.query_one(f"#{as_tab_id(title)}")
+            return tab_pane.children[0]
+        except NoMatches:
+            return None
+
+    def remove_tab(self, title: str) -> None:
+        tabs = self.query_one(TabbedContent)
+        tabs.remove_pane(as_html_id(as_tab_id(title), title))
+
     def on_mount(self) -> None:
         # register and set theme
         self.register_theme(inspect_dark)
@@ -361,3 +380,17 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                 # reset width
                 if old_width:
                     console.width = old_width
+
+    @override
+    def input_panel(
+        self, title: str, widget: type[TW], *args: Any, **kwargs: Any
+    ) -> TW:
+        panel_widget = self.app.get_tab(title)
+        if panel_widget is None:
+            panel_widget = widget(*args, **kwargs)
+            self.app.add_tab(title, panel_widget)
+        return cast(TW, panel_widget)
+
+
+def as_tab_id(title: str) -> str:
+    return as_html_id("id-tab", title)
