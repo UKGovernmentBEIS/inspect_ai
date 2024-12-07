@@ -1,3 +1,4 @@
+from asyncio import CancelledError
 from typing import Callable, Literal
 
 from rich.console import Group, RenderableType
@@ -39,11 +40,17 @@ async def panel_approval(
     task_screen().input_panel(PANEL_TITLE, ApprovalInputPanel)
 
     # submit to human approval manager (will be picked up by panel)
-    return await human_approval_manager().approve(
+    approvals = human_approval_manager()
+    id = approvals.request_approval(
         ApprovalRequest(
             message=message, call=call, view=view, state=state, choices=choices
         )
     )
+    try:
+        return await approvals.wait_for_approval(id)
+    except CancelledError:
+        approvals.withdraw_request(id)
+        raise
 
 
 class ApprovalInputPanel(InputPanel):

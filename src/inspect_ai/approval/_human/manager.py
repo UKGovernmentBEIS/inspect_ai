@@ -33,7 +33,7 @@ class HumanApprovalManager:
         ] = {}
         self._change_callbacks: list[Callable[[Literal["add", "remove"]], None]] = []
 
-    async def approve(self, request: ApprovalRequest) -> Approval:
+    def request_approval(self, request: ApprovalRequest) -> str:
         from inspect_ai.log._samples import sample_active
 
         id = str(uuid.uuid4())
@@ -50,6 +50,14 @@ class HumanApprovalManager:
         )
         self._approval_requests[id] = (pending, future)
         self._notify_change("add")
+        return id
+
+    def withdraw_request(self, id: str) -> None:
+        del self._approval_requests[id]
+        self._notify_change("remove")
+
+    async def wait_for_approval(self, id: str) -> Approval:
+        _, future = self._approval_requests[id]
         return await future
 
     def on_change(
