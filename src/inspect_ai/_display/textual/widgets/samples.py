@@ -332,18 +332,23 @@ class SandboxesView(Vertical):
 
 
 class SampleToolbar(Horizontal):
-    DEFAULT_CSS = """
-    SampleToolbar Button {
+    CANCEL_SCORE_OUTPUT = "cancel_score_output"
+    CANCEL_RAISE_ERROR = "cancel_raise_error"
+    PENDING_STATUS = "pending_status"
+    PENDING_CAPTION = "pending_caption"
+
+    DEFAULT_CSS = f"""
+    SampleToolbar Button {{
         margin-bottom: 1;
         margin-right: 2;
         min-width: 20;
-    }
-    SampleToolbar #cancel-score-output {
+    }}
+    SampleToolbar #{CANCEL_SCORE_OUTPUT} {{
         color: $primary-darken-3;
-    }
-    SampleToolbar #cancel-raise-error {
+    }}
+    SampleToolbar #{CANCEL_RAISE_ERROR} {{
         color: $warning-darken-3;
-    }
+    }}
     """
 
     def __init__(self) -> None:
@@ -351,30 +356,30 @@ class SampleToolbar(Horizontal):
         self.sample: ActiveSample | None = None
 
     def compose(self) -> ComposeResult:
-        with VerticalGroup(id="pending-status"):
-            yield Static("Executing...", id="pending-caption")
+        with VerticalGroup(id=self.PENDING_STATUS):
+            yield Static("Executing...", id=self.PENDING_CAPTION)
             yield HorizontalGroup(EventLoadingIndicator(), Clock())
         yield Button(
             Text("Cancel (Score)"),
-            id="cancel-score-output",
+            id=self.CANCEL_SCORE_OUTPUT,
             tooltip="Cancel the sample and score whatever output has been generated so far.",
         )
         yield Button(
             Text("Cancel (Error)"),
-            id="cancel-raise-error",
+            id=self.CANCEL_RAISE_ERROR,
             tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
         )
 
     def on_mount(self) -> None:
-        self.query_one("#pending-status").visible = False
-        self.query_one("#cancel-score-output").display = False
-        self.query_one("#cancel-raise-error").display = False
+        self.query_one("#" + self.PENDING_STATUS).visible = False
+        self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
+        self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
-            if event.button.id == "cancel-score-output":
+            if event.button.id == self.CANCEL_SCORE_OUTPUT:
                 self.sample.interrupt("score")
-            elif event.button.id == "cancel-raise-error":
+            elif event.button.id == self.CANCEL_RAISE_ERROR:
                 self.sample.interrupt("error")
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
@@ -383,10 +388,12 @@ class SampleToolbar(Horizontal):
         # track the sample
         self.sample = sample
 
-        pending_status = self.query_one("#pending-status")
+        pending_status = self.query_one("#" + self.PENDING_STATUS)
         clock = self.query_one(Clock)
-        cancel_score_output = cast(Button, self.query_one("#cancel-score-output"))
-        cancel_with_error = cast(Button, self.query_one("#cancel-raise-error"))
+        cancel_score_output = cast(
+            Button, self.query_one("#" + self.CANCEL_SCORE_OUTPUT)
+        )
+        cancel_with_error = cast(Button, self.query_one("#" + self.CANCEL_RAISE_ERROR))
         if sample and not sample.completed:
             # update visibility and button status
             self.display = True
@@ -401,7 +408,9 @@ class SampleToolbar(Horizontal):
             )
             if last_event and last_event.pending:
                 pending_status.visible = True
-                pending_caption = cast(Static, self.query_one("#pending-caption"))
+                pending_caption = cast(
+                    Static, self.query_one("#" + self.PENDING_CAPTION)
+                )
                 pending_caption_text = (
                     "Generating..."
                     if isinstance(last_event, ModelEvent)
