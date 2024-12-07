@@ -10,6 +10,7 @@ export const SampleTools = (props) => {
     epoch,
     setEpoch,
     filter,
+    filterError,
     filterChanged,
     sort,
     setSort,
@@ -44,19 +45,19 @@ export const SampleTools = (props) => {
   }
 
   tools.push(
-    html`<${SampleFilter}
-      filter=${filter}
-      filterChanged=${filterChanged}
-      descriptor=${sampleDescriptor}
-    />`,
-  );
-
-  tools.push(
     html`<${SortFilter}
       sampleDescriptor=${sampleDescriptor}
       sort=${sort}
       setSort=${setSort}
       epochs=${hasEpochs}
+    />`,
+  );
+
+  tools.push(
+    html`<${SampleFilter}
+      filter=${filter}
+      filterError=${filterError}
+      filterChanged=${filterChanged}
     />`,
   );
 
