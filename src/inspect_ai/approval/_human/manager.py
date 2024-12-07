@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from asyncio import Future
 from contextvars import ContextVar
-from typing import Callable, NamedTuple, cast
+from typing import Callable, Literal, NamedTuple, cast
 
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -18,21 +18,43 @@ class ApprovalRequest(NamedTuple):
     choices: list[ApprovalDecision]
 
 
+class PendingApprovalRequest(NamedTuple):
+    request: ApprovalRequest
+    task: str
+    model: str
+    id: int | str
+    epoch: int
+
+
 class HumanApprovalManager:
     def __init__(self) -> None:
         self._approval_requests: dict[
-            str, tuple[ApprovalRequest, Future[Approval]]
+            str, tuple[PendingApprovalRequest, Future[Approval]]
         ] = {}
-        self._change_callbacks: list[Callable[[], None]] = []
+        self._change_callbacks: list[Callable[[Literal["add", "remove"]], None]] = []
 
     async def approve(self, request: ApprovalRequest) -> Approval:
+        from inspect_ai.log._samples import sample_active
+
         id = str(uuid.uuid4())
         future = cast(Future[Approval], asyncio.get_event_loop().create_future())
-        self._approval_requests[id] = (request, future)
-        self._notify_change()
+        sample = sample_active()
+        assert sample
+        assert sample.sample.id
+        pending = PendingApprovalRequest(
+            request=request,
+            task=sample.task,
+            model=sample.model,
+            id=sample.sample.id,
+            epoch=sample.epoch,
+        )
+        self._approval_requests[id] = (pending, future)
+        self._notify_change("add")
         return await future
 
-    def on_change(self, callback: Callable[[], None]) -> Callable[[], None]:
+    def on_change(
+        self, callback: Callable[[Literal["add", "remove"]], None]
+    ) -> Callable[[], None]:
         self._change_callbacks.append(callback)
 
         def unsubscribe() -> None:
@@ -41,7 +63,7 @@ class HumanApprovalManager:
 
         return unsubscribe
 
-    def approval_requests(self) -> list[tuple[str, ApprovalRequest]]:
+    def approval_requests(self) -> list[tuple[str, PendingApprovalRequest]]:
         return [(aid, data) for aid, (data, _) in self._approval_requests.items()]
 
     def complete_approval(self, id: str, result: Approval) -> None:
@@ -50,7 +72,7 @@ class HumanApprovalManager:
             if not future.done():
                 future.set_result(result)
             del self._approval_requests[id]
-            self._notify_change()
+            self._notify_change("remove")
 
     def fail_approval(self, id: str, error: Exception) -> None:
         if id in self._approval_requests:
@@ -58,11 +80,11 @@ class HumanApprovalManager:
             if not future.done():
                 future.set_exception(error)
             del self._approval_requests[id]
-            self._notify_change()
+            self._notify_change("remove")
 
-    def _notify_change(self) -> None:
+    def _notify_change(self, action: Literal["add", "remove"]) -> None:
         for callback in self._change_callbacks:
-            callback()
+            callback(action)
 
 
 def human_approval_manager() -> HumanApprovalManager:
