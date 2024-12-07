@@ -23,6 +23,7 @@ def model():
         ),
         # this allows us to run base models with the chat message scaffolding:
         chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
+        tokenizer_call_args={"truncation": True, "max_length": 2},
     )
 
 
@@ -33,6 +34,7 @@ def model():
 async def test_hf_api(model) -> None:
     message = ChatMessageUser(content="Lorem ipsum dolor")
     response = await model.generate(input=[message])
+    assert response.usage.input_tokens == 2
     assert len(response.completion) >= 1
 
 
