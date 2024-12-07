@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import datetime
 import io
 import os
@@ -8,7 +9,7 @@ import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Literal, cast, overload
+from typing import Any, AsyncIterator, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
 import fsspec  # type: ignore  # type: ignore
@@ -283,15 +284,28 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     return FileSystem(fs)
 
 
-def async_fileystem(log_file: str, fs_options: dict[str, Any] = {}) -> AsyncFileSystem:
+@contextlib.asynccontextmanager
+async def async_fileystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
     # determine protocol
-    protocol, _ = split_protocol(log_file)
+    protocol, _ = split_protocol(location)
     protocol = protocol or "file"
-    # create filesystem
-    options = default_fs_options(log_file)
+
+    # build options
+    options = default_fs_options(location)
     options.update(fs_options)
-    options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
-    return fsspec.filesystem(protocol, **options)
+
+    if protocol == "s3":
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
 
 
 def absolute_file_path(file: str) -> str:

@@ -108,25 +108,25 @@ async def list_eval_logs_async(
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
     if fs.is_async():
-        async_fs = async_fileystem(log_dir, fs_options=fs_options)
-        if await async_fs._exists(log_dir):
-            # prevent caching of listings
-            async_fs.invalidate_cache(log_dir)
-            # list logs
-            if recursive:
-                files: list[dict[str, Any]] = []
-                async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                    files.extend(filenames.values())
+        async with async_fileystem(log_dir, fs_options=fs_options) as async_fs:
+            if await async_fs._exists(log_dir):
+                # prevent caching of listings
+                async_fs.invalidate_cache(log_dir)
+                # list logs
+                if recursive:
+                    files: list[dict[str, Any]] = []
+                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
+                        files.extend(filenames.values())
+                else:
+                    files = cast(
+                        list[dict[str, Any]],
+                        await async_fs._ls(log_dir, detail=True),
+                    )
+                logs = [fs._file_info(file) for file in files]
+                # resolve to eval logs
+                return log_files_from_ls(logs, formats, descending)
             else:
-                files = cast(
-                    list[dict[str, Any]],
-                    async_fs._ls(log_dir, detail=True),
-                )
-            logs = [fs._file_info(file) for file in files]
-            # resolve to eval logs
-            return log_files_from_ls(logs, formats, descending)
-        else:
-            return []
+                return []
     else:
         return list_eval_logs(
             log_dir=log_dir,

@@ -1,13 +1,9 @@
 import tempfile
 from typing import Any
 
-from fsspec.asyn import AsyncFileSystem  # type: ignore
 from typing_extensions import override
 
-from inspect_ai._util.file import (
-    async_fileystem,
-    filesystem,
-)
+from inspect_ai._util.file import async_fileystem, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalLog, EvalSample, EvalSpec
@@ -26,11 +22,6 @@ class FileRecorder(Recorder):
         # initialise filesystem
         self.fs = filesystem(log_dir, fs_options)
         self.fs.mkdir(self.log_dir, exist_ok=True)
-
-        # create an aysnc filesystem interface that runs on the current eventloop
-        self.fs_async: AsyncFileSystem | None = None
-        if self.fs.is_async():
-            self.fs_async = async_fileystem(log_dir)
 
     def is_local(self) -> bool:
         return self.fs.is_local()
@@ -89,9 +80,9 @@ async def _async_download_to_temp_log(location: str) -> str | None:
         with tempfile.NamedTemporaryFile(delete=False) as temp:
             temp_log = temp.name
 
-        # copy it down async
-        fs_async = async_fileystem(location)
-        await fs_async._get_file(location, temp_log)
+        # async download the file
+        async with async_fileystem(location) as async_fs:
+            await async_fs._get_file(location, temp_log)
 
         # return the filename
         return temp_log

@@ -5,7 +5,6 @@ import tempfile
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from fsspec.asyn import AsyncFileSystem  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
@@ -13,7 +12,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import dirname, file
+from inspect_ai._util.file import async_fileystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
@@ -100,7 +99,7 @@ class EvalRecorder(FileRecorder):
 
         # create zip wrapper
         zip_file = location or self._log_file_path(eval)
-        zip_log_file = ZipLogFile(file=zip_file, fs_async=self.fs_async)
+        zip_log_file = ZipLogFile(file=zip_file)
         await zip_log_file.init(log_start, summary_counter, summaries)
 
         # track zip
@@ -284,10 +283,10 @@ class ZipLogFile:
 
     _zip: ZipFile
 
-    def __init__(self, file: str, fs_async: AsyncFileSystem | None) -> None:
+    def __init__(self, file: str) -> None:
         self._file = file
+        self._fs = filesystem(file)
         self._lock = asyncio.Lock()
-        self._fs_async = fs_async
         self._temp_file = cast(
             BinaryIO,
             tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX),
@@ -369,8 +368,9 @@ class ZipLogFile:
             self._temp_file.seek(0)
             bytes = self._temp_file.read()
 
-            if self._fs_async:
-                await self._fs_async._pipe_file(self._file, bytes)
+            if self._fs.is_async():
+                async with async_fileystem(self._file) as async_fs:
+                    await async_fs._pipe_file(self._file, bytes)
             else:
                 with file(self._file, "wb") as f:
                     f.write(bytes)

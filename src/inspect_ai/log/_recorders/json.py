@@ -187,11 +187,11 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        # write async for async filesystems
+        # write async for async filesystemsx
         fs = filesystem(location)
         if fs.is_async():
-            fs_async = async_fileystem(location)
-            await fs_async._pipe_file(location, log_bytes)
+            async with async_fileystem(location) as async_fs:
+                await async_fs._pipe_file(location, log_bytes)
 
         # otherwise use sync
         else:
