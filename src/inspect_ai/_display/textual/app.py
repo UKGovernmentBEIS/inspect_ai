@@ -329,7 +329,10 @@ class TaskScreenApp(App[TR]):
     def get_input_panel(self, title: str) -> InputPanel | None:
         try:
             tab_pane = self.query_one(f"#{as_input_panel_id(title)}")
-            return cast(InputPanel, tab_pane.children[0])
+            if len(tab_pane.children) > 0:
+                return cast(InputPanel, tab_pane.children[0])
+            else:
+                return None
         except NoMatches:
             return None
 
@@ -365,6 +368,7 @@ class TaskScreenApp(App[TR]):
 class TextualTaskScreen(TaskScreen, Generic[TR]):
     def __init__(self, app: TaskScreenApp[TR]) -> None:
         self.app = app
+        self.lock = asyncio.Lock()
 
     def __exit__(self, *excinfo: Any) -> None:
         pass
@@ -417,13 +421,14 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
 
     @override
     async def input_panel(self, title: str, panel: type[TP]) -> TP:
-        panel_widget = self.app.get_input_panel(title)
-        if panel_widget is None:
-            panel_widget = panel(
-                TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
-            )
-            await self.app.add_input_panel(title, panel_widget)
-        return cast(TP, panel_widget)
+        async with self.lock:
+            panel_widget = self.app.get_input_panel(title)
+            if panel_widget is None:
+                panel_widget = panel(
+                    TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
+                )
+                await self.app.add_input_panel(title, panel_widget)
+            return cast(TP, panel_widget)
 
 
 def as_input_panel_id(title: str) -> str:
