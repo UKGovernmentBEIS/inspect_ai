@@ -138,18 +138,13 @@ class ApprovalRequestContent(ScrollableContainer):
 
     approval: reactive[ApprovalRequest | None] = reactive(None)
 
-    def compose(self) -> ComposeResult:
-        yield Static()
-
-    def watch_approval(self, approval: ApprovalRequest | None) -> None:
-        content = self.query_one(Static)
+    async def watch_approval(self, approval: ApprovalRequest | None) -> None:
+        await self.remove_children()
         if approval:
-            content.update(
-                Group(*render_tool_approval(approval.message, approval.view))
+            self.mount_all(
+                Static(r) for r in render_tool_approval(approval.message, approval.view)
             )
             self.scroll_end(animate=False)
-        else:
-            content.update("")
 
 
 class ApprovalRequestActions(Horizontal):
@@ -160,7 +155,6 @@ class ApprovalRequestActions(Horizontal):
 
     DEFAULT_CSS = f"""
     ApprovalRequestActions Button {{
-        margin-bottom: 1;
         margin-right: 1;
         min-width: 20;
     }}
