@@ -322,9 +322,9 @@ class TaskScreenApp(App[TR]):
             self.update_title()
 
     # dynamic input panels
-    def add_input_panel(self, title: str, panel: InputPanel) -> None:
+    async def add_input_panel(self, title: str, panel: InputPanel) -> None:
         tabs = self.query_one(TabbedContent)
-        tabs.add_pane(TabPane(title, panel, id=as_input_panel_id(title)))
+        await tabs.add_pane(TabPane(title, panel, id=as_input_panel_id(title)))
 
     def get_input_panel(self, title: str) -> InputPanel | None:
         try:
@@ -333,9 +333,9 @@ class TaskScreenApp(App[TR]):
         except NoMatches:
             return None
 
-    def remove_input_panel(self, title: str) -> None:
+    async def remove_input_panel(self, title: str) -> None:
         tabs = self.query_one(TabbedContent)
-        tabs.remove_pane(as_html_id(as_input_panel_id(title), title))
+        await tabs.remove_pane(as_html_id(as_input_panel_id(title), title))
 
     class InputPanelHost(InputPanel.Host):
         def __init__(self, app: "TaskScreenApp[TR]", tab_id: str) -> None:
@@ -416,13 +416,13 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                     console.width = old_width
 
     @override
-    def input_panel(self, title: str, panel: type[TP]) -> TP:
+    async def input_panel(self, title: str, panel: type[TP]) -> TP:
         panel_widget = self.app.get_input_panel(title)
         if panel_widget is None:
             panel_widget = panel(
                 TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
             )
-            self.app.add_input_panel(title, panel_widget)
+            await self.app.add_input_panel(title, panel_widget)
         return cast(TP, panel_widget)
 
 

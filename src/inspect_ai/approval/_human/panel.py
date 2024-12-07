@@ -37,7 +37,7 @@ async def panel_approval(
     from inspect_ai._display.core.active import task_screen
 
     # ensure the approvals panel is shown
-    task_screen().input_panel(PANEL_TITLE, ApprovalInputPanel)
+    await task_screen().input_panel(PANEL_TITLE, ApprovalInputPanel)
 
     # submit to human approval manager (will be picked up by panel)
     approvals = human_approval_manager()

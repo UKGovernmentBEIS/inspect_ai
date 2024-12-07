@@ -99,7 +99,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     ) -> Iterator[Console]:
         yield rich.get_console()
 
-    def input_panel(self, title: str, panel: type[TP]) -> TP:
+    async def input_panel(self, title: str, panel: type[TP]) -> TP:
         raise NotImplementedError("input_panel not implemented by current display")
 
 
