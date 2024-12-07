@@ -1,7 +1,7 @@
 from asyncio import CancelledError
 from typing import Callable, Literal
 
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer
