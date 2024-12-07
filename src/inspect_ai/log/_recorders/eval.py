@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import tempfile
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -27,7 +28,7 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
-from .file import FileRecorder
+from .file import FileRecorder, _async_download_to_temp_log
 
 
 class SampleSummary(BaseModel):
@@ -190,30 +191,44 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
-                evalLog = _read_header(zip, location)
-                if REDUCTIONS_JSON in zip.namelist():
-                    with zip.open(REDUCTIONS_JSON, "r") as f:
-                        reductions = [
-                            EvalSampleReductions(**reduction)
-                            for reduction in json.load(f)
-                        ]
-                        if evalLog.results is not None:
-                            evalLog.reductions = reductions
+        # if we are fetching the entire file and its an async filesystem, then
+        # download the file async first and then read it from a temp file. if
+        # its header only then it will be a few small fetches so we'd rather have
+        # that than bringing down the entire file
+        temp_log = (
+            await _async_download_to_temp_log(location) if not header_only else None
+        )
+        read_location = temp_log or location
 
-                samples: list[EvalSample] | None = None
-                if not header_only:
-                    samples = []
-                    for name in zip.namelist():
-                        if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(
-                            ".json"
-                        ):
-                            with zip.open(name, "r") as f:
-                                samples.append(EvalSample(**json.load(f)))
-                    sort_samples(samples)
-                    evalLog.samples = samples
-                return evalLog
+        try:
+            # read the file
+            with file(read_location, "rb") as z:
+                with ZipFile(z, mode="r") as zip:
+                    evalLog = _read_header(zip, location)
+                    if REDUCTIONS_JSON in zip.namelist():
+                        with zip.open(REDUCTIONS_JSON, "r") as f:
+                            reductions = [
+                                EvalSampleReductions(**reduction)
+                                for reduction in json.load(f)
+                            ]
+                            if evalLog.results is not None:
+                                evalLog.reductions = reductions
+
+                    samples: list[EvalSample] | None = None
+                    if not header_only:
+                        samples = []
+                        for name in zip.namelist():
+                            if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(
+                                ".json"
+                            ):
+                                with zip.open(name, "r") as f:
+                                    samples.append(EvalSample(**json.load(f)))
+                        sort_samples(samples)
+                        evalLog.samples = samples
+                    return evalLog
+        finally:
+            if temp_log:
+                os.unlink(temp_log)
 
     @override
     @classmethod

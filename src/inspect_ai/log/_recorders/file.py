@@ -1,3 +1,4 @@
+import tempfile
 from typing import Any
 
 from fsspec.asyn import AsyncFileSystem  # type: ignore
@@ -79,3 +80,20 @@ class FileRecorder(Recorder):
 
     def _log_file_path(self, eval: EvalSpec) -> str:
         return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"
+
+
+async def _async_download_to_temp_log(location: str) -> str | None:
+    fs = filesystem(location)
+    if fs.is_async():
+        # allocate a temp log file name
+        with tempfile.NamedTemporaryFile(delete=False) as temp:
+            temp_log = temp.name
+
+        # copy it down async
+        fs_async = async_fileystem(location)
+        await fs_async._get_file(location, temp_log)
+
+        # return the filename
+        return temp_log
+    else:
+        return None
