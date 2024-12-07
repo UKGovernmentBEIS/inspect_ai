@@ -378,13 +378,13 @@ class ZipLogFile:
 
             # read the temp_file (leaves pointer at end for subsequent appends)
             self._temp_file.seek(0)
-            bytes = self._temp_file.read()
+            log_bytes = self._temp_file.read()
 
             if self._async_fs:
-                await self._async_fs._pipe_file(self._file, bytes)
+                await self._async_fs._pipe_file(self._file, log_bytes)
             else:
                 with file(self._file, "wb") as f:
-                    f.write(bytes)
+                    f.write(log_bytes)
 
             # re-open zip file w/ self.temp_file pointer at end
             self._open()
