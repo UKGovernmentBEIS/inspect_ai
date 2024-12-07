@@ -7,6 +7,11 @@ from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
 from inspect_ai.util._trace import trace_enabled
 
+HUMAN_APPROVED = "Human operator approved tool call."
+HUMAN_REJECTED = "Human operator rejected the tool call."
+HUMAN_TERMINATED = "Human operator asked that the sample be terminated."
+HUMAN_ESCALATED = "Human operator escalated the tool call approval."
+
 
 def render_tool_approval(message: str, view: ToolCallView) -> list[RenderableType]:
     renderables: list[RenderableType] = []

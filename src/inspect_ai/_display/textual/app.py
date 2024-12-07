@@ -342,16 +342,16 @@ class TaskScreenApp(App[TR]):
 
         def activate(self) -> None:
             tabs = self.app.query_one(TabbedContent)
-            tabs.active = self.tab_id
+            tabs.show_tab(self.tab_id)
 
         def deactivate(self) -> None:
             tabs = self.app.query_one(TabbedContent)
             if tabs.active == self.tab_id:
-                tabs.active = "tasks"
+                tabs.show_tab("tasks")
 
         def close(self) -> None:
             tabs = self.app.query_one(TabbedContent)
-            tabs.active = "tasks"
+            tabs.show_tab("tasks")
             tabs.remove_pane(self.tab_id)
 
 

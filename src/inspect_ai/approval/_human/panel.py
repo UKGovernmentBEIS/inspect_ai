@@ -10,12 +10,18 @@ from typing_extensions import override
 
 from inspect_ai._display.core.input import InputPanel
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from .._approval import Approval, ApprovalDecision
 from .manager import ApprovalRequest, PendingApprovalRequest, human_approval_manager
+from .util import (
+    HUMAN_APPROVED,
+    HUMAN_ESCALATED,
+    HUMAN_REJECTED,
+    HUMAN_TERMINATED,
+    render_tool_approval,
+)
 
 PANEL_TITLE = "Approvals"
 
@@ -76,20 +82,22 @@ class ApprovalInputPanel(InputPanel):
         actions = self.query_one(ApprovalRequestActions)
         self._approvals = human_approval_manager().approval_requests()
         if len(self._approvals) > 0:
-            approval_request = self._approvals[0][1]
+            approval_id, approval_request = self._approvals[0]
             self.set_title(f"{PANEL_TITLE} ({len(self._approvals):,})")
             heading.request = approval_request
             content.approval = approval_request.request
-            actions.approval = approval_request.request
+            actions.approval_request = approval_id, approval_request
             if action == "add":
                 self.activate()
                 actions.activate()
+            self.visible = True
         else:
             self.set_title(PANEL_TITLE)
             heading.request = None
             content.approval = None
-            actions.approval = None
+            actions.approval_request = None
             self.deactivate()
+            self.visible = False
 
 
 class ApprovalRequestHeading(Static):
@@ -129,13 +137,12 @@ class ApprovalRequestContent(ScrollableContainer):
     def watch_approval(self, approval: ApprovalRequest | None) -> None:
         content = self.query_one(Static)
         if approval:
-            self.display = True
             content.update(
                 Group(*render_tool_approval(approval.message, approval.view))
             )
             self.scroll_end(animate=False)
         else:
-            self.display = False
+            content.update("")
 
 
 class ApprovalRequestActions(Horizontal):
@@ -166,7 +173,9 @@ class ApprovalRequestActions(Horizontal):
     }}
     """
 
-    approval: reactive[ApprovalRequest | None] = reactive(None)
+    approval_request: reactive[tuple[str, PendingApprovalRequest] | None] = reactive(
+        None
+    )
 
     def compose(self) -> ComposeResult:
         yield Button(
@@ -195,10 +204,26 @@ class ApprovalRequestActions(Horizontal):
         approve.focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        pass
+        if self.approval_request is not None:
+            id, _ = self.approval_request
+            if event.button.id == self.APPROVE_TOOL_CALL:
+                approval = Approval(decision="approve", explanation=HUMAN_APPROVED)
+            elif event.button.id == self.REJECT_TOOL_CALL:
+                approval = Approval(decision="reject", explanation=HUMAN_REJECTED)
+            elif event.button.id == self.ESCALATE_TOOL_CALL:
+                approval = Approval(decision="escalate", explanation=HUMAN_ESCALATED)
+            elif event.button.id == self.TERMINATE_TOOL_CALL_SAMPLE:
+                approval = Approval(decision="terminate", explanation=HUMAN_TERMINATED)
+            else:
+                raise ValueError(f"Unexpected button id: {event.button.id}")
+            human_approval_manager().complete_approval(id, approval)
 
-    def watch_approval(self, approval: ApprovalRequest | None) -> None:
-        choices = approval.choices if approval is not None else []
+    def watch_approval_request(
+        self, approval_request: tuple[str, PendingApprovalRequest] | None
+    ) -> None:
+        choices = (
+            approval_request[1].request.choices if approval_request is not None else []
+        )
 
         def update_visible(id: str, choice: ApprovalDecision) -> None:
             self.query_one(f"#{id}").display = choice in choices

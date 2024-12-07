@@ -4,7 +4,13 @@ from inspect_ai._util.transcript import transcript_panel
 from inspect_ai.tool._tool_call import ToolCallView
 
 from .._approval import Approval, ApprovalDecision
-from .util import render_tool_approval
+from .util import (
+    HUMAN_APPROVED,
+    HUMAN_ESCALATED,
+    HUMAN_REJECTED,
+    HUMAN_TERMINATED,
+    render_tool_approval,
+)
 
 
 def console_approval(
@@ -41,29 +47,17 @@ def console_approval(
 
             if decision == "a":
                 return render_approval(
-                    Approval(
-                        decision="approve",
-                        explanation="Human operator approved tool call.",
-                    )
+                    Approval(decision="approve", explanation=HUMAN_APPROVED)
                 )
             elif decision == "r":
                 return render_approval(
-                    Approval(
-                        decision="reject",
-                        explanation="Human operator rejected the tool call.",
-                    )
+                    Approval(decision="reject", explanation=HUMAN_REJECTED)
                 )
             elif decision == "t":
                 return render_approval(
-                    Approval(
-                        decision="terminate",
-                        explanation="Human operator asked that the sample be terminated.",
-                    )
+                    Approval(decision="terminate", explanation=HUMAN_TERMINATED)
                 )
             elif decision == "e":
                 return render_approval(
-                    Approval(
-                        decision="escalate",
-                        explanation="Human operator escalated the tool call approval.",
-                    )
+                    Approval(decision="escalate", explanation=HUMAN_ESCALATED)
                 )
