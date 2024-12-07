@@ -11,6 +11,7 @@
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images).
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
 - Hugging Face: Support for native HF tool calling for Llama, Mistral, Qwen, and others if they conform to various standard schemas.
+- Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.
@@ -109,7 +110,6 @@
 - Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
 - Support all JSON and CSV dataset arguments in `file_dataset()` function.
-
 
 ## v0.3.42 (23 October 2024)
 
