@@ -224,4 +224,4 @@ def python_allowlist(
 
 if __name__ == "__main__":
     approval = (Path(__file__).parent / "approval.yaml").as_posix()
-    eval(approval_demo(), approval=approval, trace=True)
+    eval(approval_demo(), approval=approval)
