@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import io
 import os
@@ -10,8 +11,9 @@ from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
-import fsspec  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
+import fsspec  # type: ignore  # type: ignore
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
@@ -277,8 +279,19 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     options.update(fs_options)
 
     # create filesystem
-    fs, path = fsspec.core.url_to_fs(path)
+    fs, path = fsspec.core.url_to_fs(path, **options)
     return FileSystem(fs)
+
+
+def async_fileystem(log_file: str, fs_options: dict[str, Any] = {}) -> AsyncFileSystem:
+    # determine protocol
+    protocol, _ = split_protocol(log_file)
+    protocol = protocol or "file"
+    # create filesystem
+    options = default_fs_options(log_file)
+    options.update(fs_options)
+    options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+    return fsspec.filesystem(protocol, **options)
 
 
 def absolute_file_path(file: str) -> str:

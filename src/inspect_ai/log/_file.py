@@ -13,6 +13,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
+    async_fileystem,
     file,
     filesystem,
 )
@@ -532,13 +533,3 @@ def eval_log_json(log: EvalLog) -> str:
         exclude_none=True,
         fallback=lambda _x: None,
     ).decode()
-
-
-def async_fileystem(log_file: str, fs_options: dict[str, Any] = {}) -> AsyncFileSystem:
-    # determine protocol
-    protocol, _ = split_protocol(log_file)
-    protocol = protocol or "file"
-    # create filesystem
-    fs_options = fs_options.copy()
-    fs_options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
-    return fsspec.filesystem(protocol, **fs_options)

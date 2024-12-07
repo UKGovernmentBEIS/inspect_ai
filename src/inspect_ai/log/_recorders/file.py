@@ -1,12 +1,10 @@
-import asyncio
 from typing import Any
 
-import fsspec  # type: ignore
 from fsspec.asyn import AsyncFileSystem  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.file import (
+    async_fileystem,
     filesystem,
 )
 from inspect_ai._util.registry import registry_unqualified_name
@@ -30,12 +28,8 @@ class FileRecorder(Recorder):
 
         # create an aysnc filesystem interface that runs on the current eventloop
         self.fs_async: AsyncFileSystem | None = None
-        if isinstance(self.fs, AsyncFileSystem):
-            protocol, _ = split_protocol(self.log_dir)
-            if protocol:
-                self.fs_async = fsspec.filesystem(
-                    protocol, asynchronous=True, loop=asyncio.get_event_loop()
-                )
+        if self.fs.is_async():
+            self.fs_async = async_fileystem(log_dir)
 
     def is_local(self) -> bool:
         return self.fs.is_local()
