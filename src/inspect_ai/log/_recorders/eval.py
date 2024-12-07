@@ -2,9 +2,11 @@ import asyncio
 import json
 import os
 import tempfile
+from contextlib import _AsyncGeneratorContextManager
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from fsspec.asyn import AsyncFileSystem  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
@@ -305,8 +307,12 @@ class ZipLogFile:
         async with self._lock:
             # connect to async filesystem if we can
             if self._fs.is_async():
-                self._async_fs = await async_fileystem(self._file).__aenter__()
+                self._async_fs_context: (
+                    _AsyncGeneratorContextManager[AsyncFileSystem] | None
+                ) = async_fileystem(self._file)
+                self._async_fs = await self._async_fs_context.__aenter__()
             else:
+                self._async_fs_context = None
                 self._async_fs = None
 
             self._open()
@@ -386,8 +392,8 @@ class ZipLogFile:
     async def close(self) -> None:
         async with self._lock:
             self._temp_file.close()
-            if self._async_fs:
-                await self._async_fs.__aexit__()
+            if self._async_fs_context:
+                await self._async_fs_context.__aexit__(None, None, None)
 
     def _open(self) -> None:
         self._zip = ZipFile(
