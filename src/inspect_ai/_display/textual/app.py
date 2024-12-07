@@ -10,6 +10,7 @@ from textual.app import App, ComposeResult
 from textual.css.query import NoMatches
 from textual.events import Print
 from textual.widgets import TabbedContent, TabPane
+from textual.widgets.tabbed_content import ContentTabs
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
@@ -294,6 +295,12 @@ class TaskScreenApp(App[TR]):
 
         self.watch(tabs, "active", set_active_tab)
 
+    # activate the tasks tab
+    def activate_tasks_tab(self) -> None:
+        tasks = self.query_one(TasksView)
+        tasks.tasks.focus()  # force the tab to switch by focusing a child
+        self.query_one(ContentTabs).focus()  # focus the tab control
+
     # capture output and route to console view and our buffer
     def on_print(self, event: Print) -> None:
         # remove trailing newline
@@ -347,11 +354,11 @@ class TaskScreenApp(App[TR]):
         def deactivate(self) -> None:
             tabs = self.app.query_one(TabbedContent)
             if tabs.active == self.tab_id:
-                tabs.show_tab("tasks")
+                self.app.activate_tasks_tab()
 
         def close(self) -> None:
+            self.app.activate_tasks_tab()
             tabs = self.app.query_one(TabbedContent)
-            tabs.show_tab("tasks")
             tabs.remove_pane(self.tab_id)
 
 
