@@ -1,3 +1,5 @@
+from typing import Callable
+
 from textual.app import ComposeResult
 from textual.widgets import Static
 from typing_extensions import override
@@ -7,7 +9,9 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from .._approval import Approval, ApprovalDecision
-from .queue import ApprovalRequest, human_approval_manager
+from .manager import ApprovalRequest, human_approval_manager
+
+PANEL_TITLE = "Approvals"
 
 
 async def panel_approval(
@@ -20,7 +24,7 @@ async def panel_approval(
     from inspect_ai._display.core.active import task_screen
 
     # ensure the approvals panel is shown and activate it
-    panel = task_screen().input_panel("Approvals", ApprovalInputPanel)
+    panel = task_screen().input_panel(PANEL_TITLE, ApprovalInputPanel)
     panel.activate()
 
     # submit to human approval manager (will be picked up by panel)
@@ -32,15 +36,26 @@ async def panel_approval(
 
 
 class ApprovalInputPanel(InputPanel):
+    _approvals: list[tuple[str, ApprovalRequest]] = []
+    _approvals_unsubscribe: Callable[[], None] | None = None
+
     @override
     def compose(self) -> ComposeResult:
         yield Static("Approval")
 
     def on_mount(self) -> None:
-        # TODO: hookup to events from approval manager
-        pass
+        self._approvals_unsubscribe = human_approval_manager().on_change(
+            self.on_approvals_changed
+        )
 
-    @override
-    def update(self) -> None:
-        # don't think we need to poll here?
-        pass
+    def on_unmount(self) -> None:
+        if self._approvals_unsubscribe is not None:
+            self._approvals_unsubscribe()
+
+    def on_approvals_changed(self) -> None:
+        self._approvals = human_approval_manager().approval_requests()
+        if len(self._approvals) > 0:
+            self.set_title(f"{PANEL_TITLE} ({len(self._approvals):,})")
+        else:
+            self.set_title(PANEL_TITLE)
+            self.deactivate()

@@ -335,9 +335,19 @@ class TaskScreenApp(App[TR]):
             self.app = app
             self.tab_id = tab_id
 
+        def set_title(self, title: str) -> None:
+            tabs = self.app.query_one(TabbedContent)
+            tab = tabs.get_tab(self.tab_id)
+            tab.label = Text.from_markup(title)
+
         def activate(self) -> None:
             tabs = self.app.query_one(TabbedContent)
             tabs.active = self.tab_id
+
+        def deactivate(self) -> None:
+            tabs = self.app.query_one(TabbedContent)
+            if tabs.active == self.tab_id:
+                tabs.active = "tasks"
 
         def close(self) -> None:
             tabs = self.app.query_one(TabbedContent)

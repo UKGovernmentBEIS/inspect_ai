@@ -1,7 +1,7 @@
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.hooks import init_hooks
 from inspect_ai._util.logger import init_http_rate_limit_count, init_logger
-from inspect_ai.approval._human.queue import init_human_approval_manager
+from inspect_ai.approval._human.manager import init_human_approval_manager
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
 from inspect_ai.model._model import init_active_model, init_model_usage
