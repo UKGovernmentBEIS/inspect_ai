@@ -18,7 +18,7 @@ def render_tool_approval(message: str, view: ToolCallView) -> list[RenderableTyp
     text_highlighter = ReprHighlighter()
 
     # ignore content if trace enabled
-    message = message if not trace_enabled() else ""
+    message = message.strip() if not trace_enabled() else ""
 
     def add_view_content(view_content: ToolCallContent) -> None:
         if view_content.title:
@@ -43,7 +43,7 @@ def render_tool_approval(message: str, view: ToolCallView) -> list[RenderableTyp
     # tool call view
     if view.call:
         if message or view.context:
-            renderables.append(Rule("", style="bold", align="left"))
+            renderables.append(Rule("", style="#282c34", align="left", characters="․"))
         renderables.append(Text())
         add_view_content(view.call)
         renderables.append(Text())
