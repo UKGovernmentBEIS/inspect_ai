@@ -10,7 +10,8 @@ class TestWebEnvironment(parameterized.TestCase):
     def setUp(self, MockCrawler):
         self._mock_crawler = MagicMock()
         MockCrawler.return_value = self._mock_crawler
-        self._web_env = web_environment.WebEnvironment()
+        self._mock_browser_context = MagicMock()
+        self._web_env = web_environment.WebEnvironment(self._mock_browser_context)
 
     def test_step_go_to_command(self):
         self._web_env.step("web_go https://en.wikipedia.org/wiki/Sun ignored_param")

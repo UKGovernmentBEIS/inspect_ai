@@ -12,6 +12,7 @@ import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { InputEventView } from "./InputEventView.mjs";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
+import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 
@@ -94,6 +95,13 @@ export const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+
+    case "sample_limit":
+      return html`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
         style=${style}
@@ -211,6 +219,7 @@ const fixupEventStream = (events) => {
       action: "begin",
       type: null,
       name: "sample_init",
+      pending: false,
     });
 
     fixedUp.splice(initEventIndex + 2, 0, {
@@ -219,6 +228,7 @@ const fixupEventStream = (events) => {
       action: "end",
       type: null,
       name: "sample_init",
+      pending: false,
     });
   }
 

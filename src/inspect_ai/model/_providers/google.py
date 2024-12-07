@@ -1,3 +1,4 @@
+import functools
 import json
 from copy import copy
 from typing import Any, cast
@@ -60,9 +61,12 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 from .util import model_base_url
 
@@ -122,12 +126,17 @@ class GoogleAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
 
         # google-native messages
@@ -136,6 +145,19 @@ class GoogleAPI(ModelAPI):
         # tools
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
+
+        # response for ModelCall
+        response: AsyncGenerateContentResponse | None = None
+
+        def model_call() -> ModelCall:
+            return build_model_call(
+                contents=contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                response=response,
+            )
 
         # cast to AsyncGenerateContentResponse since we passed stream=False
         try:
@@ -150,7 +172,7 @@ class GoogleAPI(ModelAPI):
                 ),
             )
         except InvalidArgument as ex:
-            return self.handle_invalid_argument(ex)
+            return self.handle_invalid_argument(ex), model_call()
 
         # build output
         output = ModelOutput(
@@ -163,18 +185,8 @@ class GoogleAPI(ModelAPI):
             ),
         )
 
-        # build call
-        call = model_call(
-            contents=contents,
-            safety_settings=self.safety_settings,
-            generation_config=parameters,
-            tools=gemini_tools,
-            tool_config=gemini_tool_config,
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call()
 
     def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput:
         if "size exceeds the limit" in ex.message.lower():
@@ -197,13 +209,13 @@ class GoogleAPI(ModelAPI):
         return self.model_name
 
 
-def model_call(
+def build_model_call(
     contents: list[ContentDict],
     generation_config: GenerationConfig,
     safety_settings: SafetySettingDict,
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
-    response: AsyncGenerateContentResponse,
+    response: AsyncGenerateContentResponse | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
@@ -217,7 +229,7 @@ def model_call(
             if tool_config is not None
             else None,
         ),
-        response=response.to_dict(),
+        response=response.to_dict() if response is not None else {},
         filter=model_call_filter,
     )
 
@@ -261,8 +273,31 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentDict]:
     # (if there is no first user message then prepend one)
     prepend_system_messages(chat_messages, system_messages)
 
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(consective_tool_message_reducer, chat_messages, [])
+
     # return messages
     return chat_messages
+
+
+def consective_tool_message_reducer(
+    messages: list[ContentDict],
+    message: ContentDict,
+) -> list[ContentDict]:
+    if (
+        message["role"] == "function"
+        and len(messages) > 0
+        and messages[-1]["role"] == "function"
+    ):
+        messages[-1] = ContentDict(
+            role="function", parts=messages[-1]["parts"] + message["parts"]
+        )
+    else:
+        messages.append(message)
+    return messages
+
+
+NO_CONTENT = "(no content)"
 
 
 async def content_dict(
@@ -272,27 +307,38 @@ async def content_dict(
         return ContentDict(
             role="user",
             parts=(
-                [PartDict(text=message.content)]
+                [PartDict(text=message.content or NO_CONTENT)]
                 if isinstance(message.content, str)
                 else [await content_part(content) for content in message.content]
             ),
         )
     elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[Part] = []
+        # tool call parts
         if message.tool_calls is not None:
-            content_parts = [
-                Part(
-                    function_call=FunctionCall(
-                        name=tool_call.function,
-                        args=dict_to_struct(tool_call.arguments),
+            content_parts.extend(
+                [
+                    Part(
+                        function_call=FunctionCall(
+                            name=tool_call.function,
+                            args=dict_to_struct(tool_call.arguments),
+                        )
                     )
-                )
-                for tool_call in message.tool_calls
-            ]
-            if message.content:
-                content_parts.append(Part(text=message.content))
-            return ContentDict(role="model", parts=content_parts)
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        # content parts
+        if isinstance(message.content, str):
+            content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            return ContentDict(role="model", parts=[Part(text=message.content)])
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        # return parts
+        return ContentDict(role="model", parts=content_parts)
+
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
             name=message.tool_call_id,
@@ -318,9 +364,9 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
 
 async def content_part(content: Content | str) -> PartDict:
     if isinstance(content, str):
-        return PartDict(text=content)
+        return PartDict(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
-        return PartDict(text=content.text)
+        return PartDict(text=content.text or NO_CONTENT)
     else:
         return PartDict(inline_data=await chat_content_image_to_blob(content))
 
@@ -350,7 +396,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=schema_from_param(tool.parameters),
+            parameters=schema_from_param(tool.parameters)
+            if len(tool.parameters.properties) > 0
+            else None,
         )
         for tool in tools
     ]
@@ -441,7 +489,8 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    # build choide
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -449,6 +498,27 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    # add logprobs if provided
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(

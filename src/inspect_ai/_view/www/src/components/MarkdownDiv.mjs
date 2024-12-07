@@ -2,7 +2,7 @@ import markdownit from "markdown-it";
 import { html } from "htm/preact";
 
 export const MarkdownDiv = (props) => {
-  const { markdown, style } = props;
+  const { markdown, style, contentRef } = props;
 
   // Escape all tags
   const escaped = markdown ? escape(markdown) : "";
@@ -33,6 +33,7 @@ export const MarkdownDiv = (props) => {
   const markup = { __html: withCode };
 
   return html`<div
+    ref=${contentRef}
     dangerouslySetInnerHTML=${markup}
     style=${style}
     class="${props.class ? `${props.class} ` : ""}markdown-content"

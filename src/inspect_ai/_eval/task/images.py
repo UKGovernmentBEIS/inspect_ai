@@ -94,13 +94,10 @@ def message_without_base64_image(message: ChatMessage) -> ChatMessage:
 
 async def chat_content_with_base64_image(content: Content) -> Content:
     if isinstance(content, ContentImage):
-        if isinstance(content.image, str):
-            return ContentImage(image=await image_as_data_uri(content.image))
-        else:
-            return ContentImage(
-                image=await image_as_data_uri(content.image.url),
-                detail=content.image.detail,
-            )
+        return ContentImage(
+            image=await image_as_data_uri(content.image),
+            detail=content.detail,
+        )
     else:
         return content
 

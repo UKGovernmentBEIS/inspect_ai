@@ -57,7 +57,7 @@ async def score(
     log_level_transcript: str | None,
 ) -> None:
     # init eval context
-    init_eval_context(None, log_level, log_level_transcript)
+    init_eval_context(log_level, log_level_transcript)
 
     # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)

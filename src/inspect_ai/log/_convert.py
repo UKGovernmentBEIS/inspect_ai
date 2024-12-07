@@ -44,16 +44,23 @@ def convert_eval_logs(
         # compute input and ensure output dir exists
         input_name, _ = os.path.splitext(input_file)
         input_dir = os.path.dirname(input_name.replace("\\", "/"))
-        target_dir = f"{output_dir}{fs.sep}{input_dir}"
+
+        # Compute paths, handling directories being converted
+        # and files being converted specially
+        path_is_dir = fs.info(path).type == "directory"
+        if path_is_dir:
+            target_dir = f"{output_dir}{fs.sep}{input_dir}"
+            input_file = f"{path}{fs.sep}{input_file}"
+            output_file_basename = input_name
+        else:
+            target_dir = output_dir
+            output_file_basename = os.path.basename(input_name)
+
         output_fs = filesystem(target_dir)
         output_fs.mkdir(target_dir, exist_ok=True)
 
-        # compute file input file based on path
-        if fs.info(path).type == "directory":
-            input_file = f"{path}{fs.sep}{input_file}"
-
         # compute full output file and enforce overwrite
-        output_file = f"{output_dir}{fs.sep}{input_name}.{to}"
+        output_file = f"{output_dir}{fs.sep}{output_file_basename}.{to}"
         if exists(output_file) and not overwrite:
             raise FileExistsError(
                 "Output file {output_file} already exists (use --overwrite to overwrite existing files)"

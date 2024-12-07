@@ -62,3 +62,49 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
     except Exception as ex:
         logger.warning(f"Unexpected error occurred truncating string: {ex}")
         return None
+
+
+def str_to_float(s: str) -> float:
+    """Convert a str to float, including handling exponent characters.
+
+    The Python isnumeric() function returns True for strings that include exponents
+    (e.g. 5²) however the float() function doesn't handle exponents. This function
+    will correctly handle these exponents when converting from str to float.
+
+    Args:
+       s (str): String to convert to float
+
+    Returns:
+       float: Converted value
+
+    Raises:
+       ValueError: If the string is not a valid numeric value.
+    """
+    # handle empty input
+    if not s:
+        raise ValueError("Input string is empty.")
+
+    superscript_map = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+    superscript_chars = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+
+    base_part = ""
+    exponent_part = ""
+    for idx, char in enumerate(s):
+        if char in superscript_chars:
+            base_part = s[:idx]
+            exponent_part = s[idx:]
+            break
+    else:
+        base_part = s
+
+    # handle empty base (e.g., '²')
+    base = float(base_part) if base_part else 1.0
+
+    # handle exponent part
+    if exponent_part:
+        exponent_str = exponent_part.translate(superscript_map)
+        exponent = int(exponent_str)
+    else:
+        exponent = 1  # Default exponent is 1 if no superscript is present
+
+    return base**exponent

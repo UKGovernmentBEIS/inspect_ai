@@ -11,6 +11,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string} props.id - The id of the event
  * @param {string} props.classes - The classes for this element
  * @param {string | undefined} props.title - The name of the event
+ * @param {string} props.subTitle - The subtitle for the event
  * @param {string | undefined} props.text - Secondary text for the event
  * @param {string | undefined} props.icon - The icon of the event
  * @param {number | undefined} props.titleColor - The title color of this item
@@ -24,6 +25,7 @@ export const EventPanel = ({
   id,
   classes,
   title,
+  subTitle,
   text,
   icon,
   titleColor,
@@ -63,6 +65,9 @@ export const EventPanel = ({
     gridColumns.push("max-content");
   }
   gridColumns.push("minmax(0, max-content)");
+  if (subTitle) {
+    gridColumns.push("minmax(0, max-content)");
+  }
   gridColumns.push("auto");
   gridColumns.push("minmax(0, max-content)");
   gridColumns.push("minmax(0, max-content)");
@@ -70,6 +75,7 @@ export const EventPanel = ({
   const titleEl =
     title || icon || filteredArrChildren.length > 1
       ? html`<div
+          title=${subTitle}
           style=${{
             display: "grid",
             gridTemplateColumns: gridColumns.join(" "),

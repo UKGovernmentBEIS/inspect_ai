@@ -100,6 +100,12 @@ class ModelOutput(BaseModel):
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
 
+    time: float | None = Field(default=None)
+    """Time elapsed (in seconds) for call to generate."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional metadata associated with model output."""
+
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
 

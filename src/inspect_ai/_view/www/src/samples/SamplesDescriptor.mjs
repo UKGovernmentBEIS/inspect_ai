@@ -7,7 +7,7 @@ import {
   inputString,
   arrayToString,
 } from "../utils/Format.mjs";
-import { RenderedContent } from "../components/RenderedContent.mjs";
+import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
 import { isNumeric } from "../utils/Type.mjs";
 import {
   kScoreTypeCategorical,
@@ -57,9 +57,18 @@ import {
 /**
  * Describes the shape of the messages based on their sizes.
  * @typedef {Object} MessageShape
- * @property {number} input - Normalized size of the input message.
- * @property {number} target - Normalized size of the target message.
- * @property {number} answer - Normalized size of the answer message.
+ * @property {Object} raw
+ * @property {number} raw.id - Normalized size of the id
+ * @property {number} raw.input - Normalized size of the input message.
+ * @property {number} raw.target - Normalized size of the target message.
+ * @property {number} raw.answer - Normalized size of the answer message.
+ * @property {number} raw.limit - Normalized size of the limit message.
+ * @property {Object} normalized
+ * @property {number} normalized.id - Normalized size of the id
+ * @property {number} normalized.input - Normalized size of the input message.
+ * @property {number} normalized.target - Normalized size of the target message.
+ * @property {number} normalized.answer - Normalized size of the answer message.
+ * @property {number} normalized.limit - Normalized size of the limit message.
  */
 
 /**
@@ -68,7 +77,6 @@ import {
  * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
- * @param {import("..//Types.mjs").RenderContext} context - The application context
  * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
  * @returns {SamplesDescriptor} The SamplesDescriptor
  */
@@ -76,7 +84,6 @@ export const createsSamplesDescriptor = (
   scorers,
   samples,
   epochs,
-  context,
   selectedScore,
 ) => {
   if (!samples) {
@@ -151,7 +158,6 @@ export const createsSamplesDescriptor = (
     }
     return undefined;
   };
-
   const uniqScoreValues = [
     ...new Set(
       samples
@@ -188,11 +194,7 @@ export const createsSamplesDescriptor = (
   /** @type {ScoreDescriptor} */
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context,
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -202,6 +204,7 @@ export const createsSamplesDescriptor = (
   const sizes = samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
+      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
       previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -214,17 +217,54 @@ export const createsSamplesDescriptor = (
         ),
         300,
       );
+      previous[3] = Math.min(
+        Math.max(previous[3], current.limit ? current.limit.length : 0),
+        50,
+      );
+      previous[4] = Math.min(
+        Math.max(previous[4], String(current.id).length),
+        10,
+      );
+      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+
       return previous;
     },
-    [0, 0, 0],
+    [0, 0, 0, 0, 0, 0],
   );
 
   // normalize to base 1
-  const base = sizes[0] + sizes[1] + sizes[2] || 1;
+  const maxSizes = {
+    input: Math.min(sizes[0], 300),
+    target: Math.min(sizes[1], 300),
+    answer: Math.min(sizes[2], 300),
+    limit: Math.min(sizes[3], 50),
+    id: Math.min(sizes[4], 10),
+    score: Math.min(sizes[4], 30),
+  };
+  const base =
+    maxSizes.input +
+      maxSizes.target +
+      maxSizes.answer +
+      maxSizes.limit +
+      maxSizes.id +
+      maxSizes.score || 1;
   const messageShape = {
-    input: sizes[0] / base,
-    target: sizes[1] / base,
-    answer: sizes[2] / base,
+    raw: {
+      input: sizes[0],
+      target: sizes[1],
+      answer: sizes[2],
+      limit: sizes[3],
+      id: sizes[4],
+      score: sizes[5],
+    },
+    normalized: {
+      input: maxSizes.input / base,
+      target: maxSizes.target / base,
+      answer: maxSizes.answer / base,
+      limit: maxSizes.limit / base,
+      id: maxSizes.id / base,
+      score: maxSizes.score / base,
+    },
   };
 
   const scoreRendered = (sample) => {
@@ -327,7 +367,7 @@ export const createsSamplesDescriptor = (
 
 /**
  * @typedef {Object} ScoreCategorizer
- * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[], context?: import("../Types.mjs").RenderContext) => ScoreDescriptor} describe
+ * @property {(values: import("../types/log").Value2[], types?: ("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]) => ScoreDescriptor} describe
  */
 const scoreCategorizers = [
   {
@@ -500,13 +540,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -516,7 +553,6 @@ const scoreCategorizers = [
           return html`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         },
       };

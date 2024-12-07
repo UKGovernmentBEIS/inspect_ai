@@ -6,6 +6,7 @@ import pytest
 from pydantic_core import PydanticSerializationError
 
 from inspect_ai import Task, eval
+from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
@@ -90,6 +91,21 @@ def test_read_sample():
         write_eval_log(log, eval_log_path)
         sample = read_eval_log_sample(eval_log_path, 1, 1)
         assert sample.target == " Yes"
+
+
+def test_log_location():
+    json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
+    check_log_location(json_log_file)
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
+    check_log_location(eval_log_file)
+
+
+def check_log_location(log_file: str):
+    location = filesystem(log_file).info(log_file).name
+    log = read_eval_log(location)
+    assert log.location == location
+    log = read_eval_log(location, header_only=True)
+    assert log.location == location
 
 
 def check_log_raises(log_file):

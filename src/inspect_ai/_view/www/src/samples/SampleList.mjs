@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback } from "preact/hooks";
+import { useCallback, useState } from "preact/hooks";
 import { useEffect, useMemo } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
@@ -11,7 +11,7 @@ import { SampleError } from "./SampleError.mjs";
 import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
 import { inputString } from "../utils/Format.mjs";
 
 const kSampleHeight = 88;
@@ -35,6 +35,11 @@ export const SampleList = (props) => {
   if (items.length === 0) {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [items]);
 
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
@@ -140,6 +145,7 @@ export const SampleList = (props) => {
   );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit, answer } = gridColumns(sampleDescriptor);
 
   const headerRow = html`<div
     style=${{
@@ -153,11 +159,12 @@ export const SampleList = (props) => {
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
-    <div>Answer</div>
-    <div>Score</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
+    <div>${limit !== "0" ? "Limit" : ""}</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
 
   const sampleCount = items?.reduce((prev, current) => {
@@ -192,14 +199,31 @@ export const SampleList = (props) => {
     }
   }, 0);
 
+  // Count limits
+  const limitCount = items?.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+
   const percentError = (errorCount / sampleCount) * 100;
+  const percentLimit = (limitCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
-      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
-      : undefined;
+      ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      : limitCount
+        ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
+        : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningBand} message=${warningMessage} />`
+    ? html`<${MessageBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+        type="info"
+      />`
     : "";
 
   return html` <div
@@ -276,7 +300,12 @@ const SampleRow = ({
         overflowY: "hidden",
       }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
+      <div
+        class="sample-id"
+        style=${{ ...cellStyle, ...ApplicationStyles.threeLineClamp }}
+      >
+        ${sample.id}
+      </div>
       <div
         class="sample-input"
         style=${{
@@ -317,16 +346,27 @@ const SampleRow = ({
             `
           : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+          fontSize: FontSize.small,
+          ...ApplicationStyles.threeLineClamp,
+          ...cellStyle,
+        }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
           fontSize: FontSize.small,
           ...cellStyle,
           display: "flex",
+          justifySelf: "center",
         }}
       >
         ${sample.error
-          ? html`<${SampleError} message=${sample.error.message} />`
+          ? html`<${SampleError} message=${sample.error} />`
           : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
@@ -334,28 +374,53 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
-
+  const { input, target, answer, limit, id, score } =
+    gridColumns(sampleDescriptor);
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em",
+    gridGap: "10px",
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem",
   };
 };
 
 const gridColumns = (sampleDescriptor) => {
   const input =
-    sampleDescriptor?.messageShape.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.input)
+    sampleDescriptor?.messageShape.normalized.input > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.target)
+    sampleDescriptor?.messageShape.normalized.target > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+    sampleDescriptor?.messageShape.normalized.answer > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
-  return { input, target, answer };
+  const limit =
+    sampleDescriptor?.messageShape.normalized.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
+      : 0;
+  const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor?.messageShape.raw.score),
+  );
+
+  const frSize = (val) => {
+    if (val === 0) {
+      return "0";
+    } else {
+      return `${val}fr`;
+    }
+  };
+
+  return {
+    input: frSize(input),
+    target: frSize(target),
+    answer: frSize(answer),
+    limit: frSize(limit),
+    id: `${id}rem`,
+    score: `${score}rem`,
+  };
 };

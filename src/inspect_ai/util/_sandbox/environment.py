@@ -1,18 +1,44 @@
+from __future__ import annotations
+
 import abc
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
 
+from pydantic import BaseModel, Field
+
 from .._subprocess import ExecResult
 
-TaskInit = Callable[[str, str | None], Awaitable[None]]
-TaskCleanup = Callable[[str, str | None, bool], Awaitable[None]]
+TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
+TaskCleanup = Callable[
+    [str, Union["SandboxEnvironmentConfigType", None], bool], Awaitable[None]
+]
 
 SampleInit = Callable[
-    [str, str | None, dict[str, str]], Awaitable[dict[str, "SandboxEnvironment"]]
+    [str, Union["SandboxEnvironmentConfigType", None], dict[str, str]],
+    Awaitable[dict[str, "SandboxEnvironment"]],
 ]
 SampleCleanup = Callable[
-    [str, str | None, dict[str, "SandboxEnvironment"], bool], Awaitable[None]
+    [
+        str,
+        Union["SandboxEnvironmentConfigType", None],
+        dict[str, "SandboxEnvironment"],
+        bool,
+    ],
+    Awaitable[None],
 ]
+
+
+class SandboxConnection(BaseModel):
+    """Information required to connect to sandbox."""
+
+    command: str
+    """Shell command to connect to sandbox."""
+
+    vscode_command: list[str] | None = Field(default=None)
+    """Optional vscode command (+args) to connect to sandbox."""
+
+    container: str | None = Field(default=None)
+    """Optional container name (will not apply to all sandboxes)."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -28,28 +54,35 @@ class SandboxEnvironment(abc.ABC):
         return []
 
     @classmethod
-    async def task_init(cls, task_name: str, config: str | None) -> None:
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
         """Called at task startup initialize resources.
 
         Args:
           task_name (str): Name of task using the sandbox environment.
-          config (str): Implementation defined configuration file (optional).
+          config (SandboxEnvironmentConfigType): Implementation defined configuration (optional).
         """
         pass
 
     @classmethod
     async def sample_init(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
     ) -> dict[str, "SandboxEnvironment"]:
         """Initialize sandbox environments for a sample.
 
         Args:
           task_name (str): Name of task using the sandbox environment.
-          config (str): Implementation defined configuration file (optional).
+          config (SandboxEnvironmentConfigType): Implementation defined configuration (optional).
           metadata (dict[str,str]): Sample `metadata` field
 
         Returns:
-          Dictionary of named sandbox environments.
+          Dictionary of named sandbox environments. The environment which represents
+          the default environment (resolved by `sandbox("default")` or `sandbox()`) must
+          be the first key/value pair in the dictionary.
         """
         return {}
 
@@ -58,7 +91,7 @@ class SandboxEnvironment(abc.ABC):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, "SandboxEnvironment"],
         interrupted: bool,
     ) -> None:
@@ -66,7 +99,7 @@ class SandboxEnvironment(abc.ABC):
 
         Args:
           task_name (str): Name of task using the sandbox environment.
-          config (str): Implementation defined configuration file (optional).
+          config (SandboxEnvironmentConfigType): Implementation defined configuration (optional).
           environments (dict[str,SandboxEnvironment]): Sandbox environments created for this sample.
           interrupted (bool): Was the task interrupted by an error or cancellation
         """
@@ -74,13 +107,13 @@ class SandboxEnvironment(abc.ABC):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         """Called at task exit as a last chance to cleanup resources.
 
         Args:
           task_name (str): Name of task using the sandbox environment.
-          config (str): Implementation defined configuration file (optional).
+          config (SandboxEnvironmentConfigType): Implementation defined configuration (optional).
           cleanup (bool): Whether to actually cleanup environment resources
             (False if `--no-sandbox-cleanup` was specified)
         """
@@ -111,8 +144,7 @@ class SandboxEnvironment(abc.ABC):
         filesystem context.
 
         Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, an
-        `OutputLimitExceededError` will be raised. This will not cause the command to be
-        terminated.
+        `OutputLimitExceededError` will be raised.
 
         Args:
           cmd (str | list[str]): Command or command and arguments to execute.
@@ -189,6 +221,18 @@ class SandboxEnvironment(abc.ABC):
         """
         ...
 
+    async def connection(self) -> SandboxConnection:
+        """Information required to connect to sandbox environment.
+
+        Returns:
+           SandboxConnection: connection information
+
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
+        raise NotImplementedError("connection not implemented")
+
 
 @dataclass
 class SandboxEnvironments:
@@ -208,8 +252,10 @@ class SandboxEnvironmentSpec(NamedTuple):
     """Specification of a SandboxEnvironment."""
 
     type: str
-    config: str | None = None
+    config: SandboxEnvironmentConfigType | None = None
 
+
+SandboxEnvironmentConfigType = BaseModel | str
 
 SandboxEnvironmentType = SandboxEnvironmentSpec | str | tuple[str, str]
 """SandboxEnvironmentSpec and str and tuple shorthands for it.

@@ -1,7 +1,9 @@
 import { html } from "htm/preact";
+import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
+import { MessageBand } from "./MessageBand.mjs";
 
 export const LargeModal = (props) => {
   const {
@@ -15,12 +17,37 @@ export const LargeModal = (props) => {
     onHide,
     showProgress,
     children,
+    initialScrollPositionRef,
+    setInitialScrollPosition,
+    warning,
+    warningHidden,
+    setWarningHidden,
   } = props;
 
   // The footer
   const modalFooter = footer
     ? html`<div class="modal-footer">${footer}</div>`
     : "";
+
+  // Support restoring the scroll position
+  // but only do this for the first time that the children are set
+  const scrollRef = useRef();
+  useEffect(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== initialScrollPositionRef?.current) {
+          scrollRef.current.scrollTop = initialScrollPositionRef?.current;
+        }
+      }, 0);
+    }
+  }, []);
+
+  const onScroll = useCallback(
+    (e) => {
+      setInitialScrollPosition(e.srcElement.scrollTop);
+    },
+    [setInitialScrollPosition],
+  );
 
   // Capture header elements
   const headerEls = [];
@@ -124,7 +151,18 @@ export const LargeModal = (props) => {
             backgroundColor: "var(--bs-body-bg)",
           }}
         />
-        <div class="modal-body">${children}</div>
+
+        ${warning
+          ? html`<${MessageBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+              type="warning"
+            />`
+          : ""}
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>

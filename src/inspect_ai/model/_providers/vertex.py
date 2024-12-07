@@ -1,3 +1,4 @@
+import functools
 import json
 from copy import copy
 from typing import Any, cast
@@ -39,9 +40,12 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 
 SAFETY_SETTINGS = "safety_settings"
@@ -107,12 +111,17 @@ class VertexAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            seed=config.seed,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            response_logprobs=config.logprobs,
+            logprobs=config.top_logprobs,
         )
 
         messages = await as_chat_messages(input)
@@ -176,7 +185,7 @@ def model_call(
     return ModelCall.create(
         request=dict(
             contents=[model_call_content(content) for content in contents],
-            generation_config=generation_config,
+            generation_config=generation_config.to_dict(),
             safety_settings=safety_settings,
             tools=[tool.to_dict() for tool in tools] if tools is not None else None,
         ),
@@ -211,8 +220,31 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[VertexContent]:
     # (if there is no first user message then prepend one)
     prepend_system_messages(chat_messages, system_messages)
 
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(consective_tool_message_reducer, chat_messages, [])
+
     # return messages
     return chat_messages
+
+
+def consective_tool_message_reducer(
+    messages: list[VertexContent],
+    message: VertexContent,
+) -> list[VertexContent]:
+    if (
+        message.role == "function"
+        and len(messages) > 0
+        and messages[-1].role == "function"
+    ):
+        messages[-1] = VertexContent(
+            role="function", parts=messages[-1].parts + message.parts
+        )
+    else:
+        messages.append(message)
+    return messages
+
+
+NO_CONTENT = "(no content)"
 
 
 async def content_dict(
@@ -220,31 +252,39 @@ async def content_dict(
 ) -> VertexContent:
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
-            parts = [Part.from_text(message.content)]
+            parts = [Part.from_text(message.content or NO_CONTENT)]
         else:
             parts = [await content_part(content) for content in message.content]
 
         return VertexContent(role="user", parts=parts)
     elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[Part] = []
         if message.tool_calls is not None:
-            content_parts = [
-                # For some reason there's no `Parts.from_function_call`
-                # function, but there's a generic `from_dict` instead
-                Part.from_dict(
-                    {
-                        "function_call": {
-                            "name": tool_call.function,
-                            "args": tool_call.arguments,
+            content_parts.extend(
+                [
+                    # For some reason there's no `Parts.from_function_call`
+                    # function, but there's a generic `from_dict` instead
+                    Part.from_dict(
+                        {
+                            "function_call": {
+                                "name": tool_call.function,
+                                "args": tool_call.arguments,
+                            }
                         }
-                    }
-                )
-                for tool_call in message.tool_calls
-            ]
-            if message.content:
-                content_parts.append(Part.from_text(message.content))
-            return VertexContent(role="model", parts=content_parts)
+                    )
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        if isinstance(message.content, str):
+            content_parts.append(Part.from_text(message.content or NO_CONTENT))
         else:
-            return VertexContent(role="model", parts=[Part.from_text(message.content)])
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        return VertexContent(role="model", parts=content_parts)
+
     elif isinstance(message, ChatMessageTool):
         return VertexContent(
             role="function",
@@ -265,9 +305,9 @@ async def content_dict(
 
 async def content_part(content: Content | str) -> Part:
     if isinstance(content, str):
-        return Part.from_text(content)
+        return Part.from_text(content or NO_CONTENT)
     elif isinstance(content, ContentText):
-        return Part.from_text(content.text)
+        return Part.from_text(content.text or NO_CONTENT)
     else:
         image_bytes, mime_type = await image_as_data(content.image)
         return Part.from_image(image=Image.from_bytes(data=image_bytes))
@@ -329,7 +369,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -337,6 +377,26 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(

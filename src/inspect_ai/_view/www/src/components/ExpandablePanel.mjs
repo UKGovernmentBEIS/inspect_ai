@@ -1,10 +1,16 @@
 import { html } from "htm/preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 
-export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
+export const ExpandablePanel = ({
+  collapse,
+  border,
+  lines = 15,
+  style,
+  children,
+}) => {
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
@@ -16,21 +22,25 @@ export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
     setCollapsed(collapse);
   }, [children, collapse]);
 
+  const refreshCollapse = useCallback(() => {
+    if (collapse && contentsRef.current) {
+      const isScrollable =
+        contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
+      setShowToggle(isScrollable);
+    }
+  }, [collapse, setShowToggle, contentsRef]);
+
+  useEffect(() => {
+    refreshCollapse();
+  }, [children]);
+
   // Determine whether we should show the toggle
   useEffect(() => {
-    const checkScrollable = () => {
-      if (collapse && contentsRef.current) {
-        const isScrollable =
-          contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-        setShowToggle(isScrollable);
-      }
-    };
-
     // When an entry is visible, check to see whether it is scrolling
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          checkScrollable();
+          refreshCollapse();
         }
       });
     });
@@ -39,15 +49,12 @@ export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
       observerRef.current.observe(contentsRef.current);
     }
 
-    // Initial check
-    checkScrollable();
-
     return () => {
       if (observerRef.current && contentsRef.current) {
         observerRef.current.unobserve(contentsRef.current);
       }
     };
-  }, [collapse, contentsRef, observerRef]);
+  }, [contentsRef, observerRef]);
 
   // Enforce the line clamp if need be
   let contentsStyle = { fontSize: FontSize.base };
@@ -70,7 +77,7 @@ export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   return html`<div
       class="expandable-panel"
       ref=${contentsRef}
-      style=${contentsStyle}
+      style=${{ ...contentsStyle, ...style }}
     >
       ${children}
     </div>
@@ -79,11 +86,12 @@ export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
           collapsed=${collapsed}
           setCollapsed=${setCollapsed}
           border=${!border}
+          style=${style}
         />`
       : ""}`;
 };
 
-const MoreToggle = ({ collapsed, border, setCollapsed }) => {
+const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
   const text = collapsed ? "more" : "less";
   const icon = collapsed
     ? ApplicationIcons["expand-down"]
@@ -92,6 +100,7 @@ const MoreToggle = ({ collapsed, border, setCollapsed }) => {
   const topStyle = {
     display: "flex",
     marginBottom: "0.5em",
+    ...style,
   };
 
   if (border) {

@@ -5,6 +5,7 @@ from .chatapi import (
     chat_api_request,
     is_chat_api_rate_limit,
 )
+from .hf_handler import HFHandler
 from .llama31 import Llama31Handler
 from .util import (
     as_stop_reason,
@@ -26,4 +27,5 @@ __all__ = [
     "ChatAPIHandler",
     "ChatAPIMessage",
     "Llama31Handler",
+    "HFHandler",
 ]

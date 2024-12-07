@@ -24,5 +24,6 @@ s3fs>=2023
 semver>=3.0.0
 shortuuid
 tenacity
+textual>=0.86.2
 typing_extensions>=4.9.0
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability

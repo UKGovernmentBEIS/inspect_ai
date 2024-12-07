@@ -273,6 +273,10 @@ class TaskState:
         """Set limit on total messages allowed per conversation."""
         self._message_limit = messages
 
+        from inspect_ai.log._samples import set_active_sample_message_limit
+
+        set_active_sample_message_limit(messages)
+
     @property
     def token_limit(self) -> int | None:
         """Limit on total tokens allowed per conversation."""
@@ -283,10 +287,18 @@ class TaskState:
         """Set limit on total tokens allowed per conversation."""
         self._token_limit = tokens
 
+        from inspect_ai.log._samples import set_active_sample_token_limit
+
+        set_active_sample_token_limit(tokens)
+
     @property
     def completed(self) -> bool:
         """Is the task completed."""
-        from inspect_ai.log._transcript import transcript
+        # update messages
+        from inspect_ai.log._samples import set_active_sample_total_messages
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        set_active_sample_total_messages(len(self.messages))
 
         if self._completed:
             return True
@@ -294,16 +306,24 @@ class TaskState:
             # log if this is the first time we hit this
             if not self._message_limit_exceeded:
                 self._message_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded message limit ({self.message_limit})"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="message",
+                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
+                        limit=self.message_limit,
+                    )
                 )
             return True
         elif self.token_limit and sample_total_tokens() >= self.token_limit:
             # log if this is the first time we hit this
             if not self._token_limit_exceeded:
                 self._token_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded token limit ({self.token_limit:,})"
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="token",
+                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
+                        limit=self.token_limit,
+                    )
                 )
             return True
         else:

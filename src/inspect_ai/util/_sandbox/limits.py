@@ -7,8 +7,8 @@ from inspect_ai.util._subprocess import ExecResult
 class SandboxEnvironmentLimits:
     """Encapsulates limits for sandbox environments."""
 
-    MAX_EXEC_OUTPUT_SIZE = 1024**2
-    MAX_EXEC_OUTPUT_SIZE_STR = "1 MiB"
+    MAX_EXEC_OUTPUT_SIZE = 10 * 1024**2
+    MAX_EXEC_OUTPUT_SIZE_STR = "10 MiB"
 
     MAX_READ_FILE_SIZE = 100 * 1024**2
     MAX_READ_FILE_SIZE_STR = "100 MiB"

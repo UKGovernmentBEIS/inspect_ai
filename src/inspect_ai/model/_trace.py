@@ -1,11 +1,12 @@
 from rich.console import RenderableType
-from rich.markdown import Markdown
 from rich.text import Text
 
-from inspect_ai._util.format import format_function_call
+from inspect_ai._util.rich import lines_display
+from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.util._trace import trace_enabled, trace_panel
 
 from ._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from ._render import messages_preceding_assistant, render_tool_calls
 
 MESSAGE_TITLE = "Message"
 
@@ -13,19 +14,8 @@ MESSAGE_TITLE = "Message"
 def trace_tool_mesage(message: ChatMessageTool) -> None:
     if trace_enabled():
         # truncate output to 100 lines
-        MAX_LINES = 100
         output = message.error.message if message.error else message.text.strip()
-        lines = output.splitlines()
-        if len(lines) > MAX_LINES:
-            content: list[RenderableType] = ["\n".join(lines[0:MAX_LINES])]
-            content.append(Text())
-            content.append(
-                Text.from_markup(
-                    f"[italic]Output truncated ({len(lines) - MAX_LINES} additional lines)...[/italic]"
-                )
-            )
-        else:
-            content = [output]
+        content = lines_display(output, 100)
 
         trace_panel(
             title=f"Tool Output: {message.function}",
@@ -38,31 +28,21 @@ def trace_assistant_message(
 ) -> None:
     if trace_enabled():
         # print precding messages that aren't tool or assistant
-        preceding: list[ChatMessage] = []
-        for m in reversed(input):
-            if not isinstance(m, ChatMessageTool | ChatMessageAssistant):
-                preceding.append(m)
-            else:
-                break
-        for m in reversed(preceding):
+        for m in messages_preceding_assistant(input):
             trace_panel(
                 title=m.role.capitalize(),
-                content=m.text,
+                content=transcript_markdown(m.text, escape=True),
             )
 
         # start with assistant content
-        content: list[RenderableType] = [message.text] if message.text else []
+        content: list[RenderableType] = (
+            [transcript_markdown(message.text, escape=True)] if message.text else []
+        )
 
         # print tool calls
         if message.tool_calls:
-            if content:
-                content.append(Text())
-            tool_calls: list[str] = []
-            for call in message.tool_calls:
-                tool_calls.append(format_function_call(call.function, call.arguments))
-            content.append(
-                Markdown("```python\n" + "\n\n".join(tool_calls) + "\n```\n"),
-            )
+            content.append(Text())
+            content.append(render_tool_calls(message.tool_calls))
 
         # print the assistant message
         trace_panel(title="Assistant", content=content)

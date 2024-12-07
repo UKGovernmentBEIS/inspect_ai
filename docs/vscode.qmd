@@ -80,6 +80,11 @@ The activity bar has four panels:
 
 -   **Task** provides a way to tweak the CLI arguments passed to `inspect eval` when it is run from the user interface.
 
+## Python Environments
+
+When running and debugging Inspect evaluations, the Inspect extension will attempt to use python environments that it discovers in the task subfolder and its parent folders (all the way to the workspace root). It will use the first environment that it discovers, otherwise it will use the python interpreter configured for the workspace. Note that since the extension will use the sub-environments, Inspect must be installed in any of the environments to be used.
+
+You can control this behavior with the `Use Subdirectory Environments`. If you disable this setting, the globally configured interpreter will always be used when running or debugging evaluations, even when environments are present in subdirectories.
 
 ## Troubleshooting
 

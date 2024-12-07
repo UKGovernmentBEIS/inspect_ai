@@ -20,7 +20,7 @@ from inspect_ai.log._file import (
     eval_log_json,
     list_eval_logs_async,
     read_eval_log,
-    read_eval_log_headers_async,
+    read_eval_log_headers,
 )
 
 from .notify import view_last_eval_time
@@ -245,7 +245,7 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
 
 
 async def log_headers_response(files: list[str]) -> web.Response:
-    headers = await read_eval_log_headers_async(files)
+    headers = read_eval_log_headers(files)
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
 
 

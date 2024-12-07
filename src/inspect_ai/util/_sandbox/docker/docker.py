@@ -10,8 +10,16 @@ from typing_extensions import override
 
 from inspect_ai.util._subprocess import ExecResult
 
-from ..environment import SandboxEnvironment
-from ..limits import verify_exec_result_size, verify_read_file_size
+from ..environment import (
+    SandboxConnection,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+)
+from ..limits import (
+    SandboxEnvironmentLimits,
+    verify_exec_result_size,
+    verify_read_file_size,
+)
 from ..registry import sandboxenv
 from .cleanup import (
     cli_cleanup,
@@ -27,6 +35,7 @@ from .compose import (
     compose_command,
     compose_cp,
     compose_exec,
+    compose_ps,
     compose_pull,
     compose_services,
     compose_up,
@@ -46,7 +55,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return CONFIG_FILES + [DOCKERFILE]
 
     @classmethod
-    async def task_init(cls, task_name: str, config: str | None) -> None:
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
         # validate prereqs
         await validate_prereqs()
 
@@ -93,13 +104,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @override
     @classmethod
     async def sample_init(
-        cls, task_name: str, config: str | None, metadata: dict[str, str]
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
         sandbox_log("setup")
 
         # create environment variables for sample metadata
         env: dict[str, str] = {}
-        if config and Path(config).exists():
+        if isinstance(config, str) and Path(config).exists():
             # read the config file
             with open(config, "r") as f:
                 config_text = f.read()
@@ -170,7 +184,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -186,7 +200,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         await project_cleanup_shutdown(cleanup)
 
@@ -236,6 +250,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
             timeout=timeout,
             input=input,
+            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
         verify_exec_result_size(exec_result)
         if exec_result.returncode == 126 and "permission denied" in exec_result.stdout:
@@ -364,6 +379,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     dest=os.path.basename(dest_file),
                     project=self._project,
                     cwd=os.path.dirname(dest_file),
+                    output_limit=SandboxEnvironmentLimits.MAX_READ_FILE_SIZE,
                 )
             except RuntimeError as ex:
                 # extract the message and normalise case
@@ -392,6 +408,32 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             else:
                 async with aiofiles.open(dest_file, "rb") as f:
                     return await f.read()
+
+    @override
+    async def connection(self) -> SandboxConnection:
+        # find container for service
+        services = await compose_ps(project=self._project)
+        container = next(
+            (
+                service["Name"]
+                for service in services
+                if service["Service"] == self._service
+            ),
+            None,
+        )
+
+        # return container login
+        if container:
+            return SandboxConnection(
+                command=f"docker exec -it {container} /bin/bash --login",
+                container=container,
+            )
+
+        # error (not currently running)
+        else:
+            raise ConnectionError(
+                f"Service '{self._service} is not currently running.'"
+            )
 
     def container_file(self, file: str) -> str:
         path = Path(file)

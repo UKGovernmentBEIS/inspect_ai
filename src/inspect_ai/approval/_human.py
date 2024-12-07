@@ -1,14 +1,14 @@
 from rich.console import RenderableType
 from rich.highlighter import ReprHighlighter
-from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.text import Text
 
+from inspect_ai._util.transcript import transcript_markdown, transcript_panel
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.util._console import input_screen
-from inspect_ai.util._trace import TracePanel, trace_enabled
+from inspect_ai.util._trace import trace_enabled
 
 from ._approval import Approval, ApprovalDecision
 from ._approver import Approver
@@ -40,8 +40,12 @@ def human_approver(
             message = message if not trace_enabled() else ""
 
             def add_view_content(view_content: ToolCallContent) -> None:
+                if view_content.title:
+                    renderables.append(
+                        Text.from_markup(f"[bold]{view_content.title}[/bold]\n")
+                    )
                 if view_content.format == "markdown":
-                    renderables.append(Markdown(view_content.content))
+                    renderables.append(transcript_markdown(view_content.content))
                 else:
                     text_content = text_highlighter(Text(view_content.content))
                     renderables.append(text_content)
@@ -65,7 +69,7 @@ def human_approver(
                 add_view_content(view.call)
                 renderables.append(Text())
 
-            console.print(TracePanel(title="Approve Tool", content=renderables))
+            console.print(transcript_panel(title="Approve Tool", content=renderables))
 
             # provide choices
             prompts: dict[str, str] = {}

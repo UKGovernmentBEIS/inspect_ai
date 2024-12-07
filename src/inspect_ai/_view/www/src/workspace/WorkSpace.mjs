@@ -1,6 +1,12 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import { useEffect, useRef } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
@@ -15,12 +21,13 @@ import { Navbar } from "../navbar/Navbar.mjs";
 
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants.mjs";
+import { debounce } from "../utils/sync.mjs";
 
 /**
  * Renders the Main Application
@@ -66,7 +73,10 @@ import {
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {string} props.selectedTab - The selected tab id
  * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
- * @param {import("../Types.mjs").RenderContext} props.renderContext - is this off canvas
+ * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - The initial scroll position for the sample
+ * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
+ * @param {import("preact/hooks").MutableRef<number>} props.workspaceTabScrollPositionRef - The initial scroll position for the workspace tabs
+ * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
  * @returns {import("preact").JSX.Element | string} The Workspace component.
  */
 export const WorkSpace = ({
@@ -109,13 +119,21 @@ export const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext,
+  sampleScrollPositionRef,
+  setSampleScrollPosition,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition,
 }) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
 
   if (!evalSpec) {
     return "";
   }
+
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [logFileName]);
 
   // Display the log
   useEffect(() => {
@@ -124,174 +142,221 @@ export const WorkSpace = ({
     }
   }, [divRef, task_id]);
 
-  // Tabs that are available within the app
-  // Include the tab contents as well as any tools that the tab provides
-  // when it is displayed
-  const resolvedTabs = {};
+  const resolvedTabs = useMemo(() => {
+    // Tabs that are available within the app
+    // Include the tab contents as well as any tools that the tab provides
+    // when it is displayed
+    const resolvedTabs = {};
 
-  // The samples tab
-  // Currently only appears when the result is successful
-  if (evalStatus !== "error" && sampleMode !== "none") {
-    resolvedTabs.samples = {
-      id: kEvalWorkspaceTabId,
-      scrollable: samples.length === 1,
-      label: samples?.length > 1 ? "Samples" : "Sample",
+    // The samples tab
+    // Currently only appears when the result is successful
+    if (evalStatus !== "error" && sampleMode !== "none") {
+      resolvedTabs.samples = {
+        id: kEvalWorkspaceTabId,
+        scrollable: samples.length === 1,
+        label: samples?.length > 1 ? "Samples" : "Sample",
+        content: () => {
+          return html` <${SamplesTab}
+            task_id=${task_id}
+            selectedScore=${score}
+            sample=${selectedSample}
+            sampleStatus=${sampleStatus}
+            sampleError=${sampleError}
+            showingSampleDialog=${showingSampleDialog}
+            setShowingSampleDialog=${setShowingSampleDialog}
+            samples=${samples}
+            sampleMode=${sampleMode}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
+            sampleDescriptor=${samplesDescriptor}
+            selectedSampleTab=${selectedSampleTab}
+            setSelectedSampleTab=${setSelectedSampleTab}
+            filter=${filter}
+            sort=${sort}
+            epoch=${epoch}
+            sampleScrollPositionRef=${sampleScrollPositionRef}
+            setSampleScrollPosition=${setSampleScrollPosition}
+          />`;
+        },
+        tools: () => {
+          // Don't show tools if there is a single sample
+          if (sampleMode === "single") {
+            return "";
+          }
+          const sampleTools = [
+            html`<${SampleTools}
+              epoch=${epoch}
+              epochs=${epochs}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              filterChanged=${setFilter}
+              sort=${sort}
+              setSort=${setSort}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              sampleDescriptor=${samplesDescriptor}
+            />`,
+          ];
+          if (evalStatus === "started") {
+            sampleTools.push(
+              html`<${ToolButton}
+                name=${html`Refresh`}
+                icon="${ApplicationIcons.refresh}"
+                onclick="${refreshLog}"
+              />`,
+            );
+          }
+
+          return sampleTools;
+        },
+      };
+    }
+
+    // The info tab
+    resolvedTabs.config = {
+      id: kInfoWorkspaceTabId,
+      label: "Info",
+      scrollable: true,
       content: () => {
-        return html` <${SamplesTab}
-          task_id=${task_id}
-          selectedScore=${score}
-          sample=${selectedSample}
-          sampleStatus=${sampleStatus}
-          sampleError=${sampleError}
-          showingSampleDialog=${showingSampleDialog}
-          setShowingSampleDialog=${setShowingSampleDialog}
-          samples=${samples}
-          sampleMode=${sampleMode}
-          groupBy=${groupBy}
-          groupByOrder=${groupByOrder}
-          selectedSampleIndex=${selectedSampleIndex}
-          setSelectedSampleIndex=${setSelectedSampleIndex}
-          sampleDescriptor=${samplesDescriptor}
-          selectedSampleTab=${selectedSampleTab}
-          setSelectedSampleTab=${setSelectedSampleTab}
-          filter=${filter}
-          sort=${sort}
-          epoch=${epoch}
-          context=${renderContext}
+        const infoCards = [];
+        infoCards.push([
+          html`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults?.scores}
+          />`,
+        ]);
+
+        if (evalStatus !== "started") {
+          infoCards.push(html`<${UsageCard} stats=${evalStats} />`);
+        }
+
+        // If there is error or progress, includes those within info
+        if (evalStatus === "error" && evalError) {
+          infoCards.unshift(html`<${TaskErrorCard} evalError=${evalError} />`);
+        }
+
+        const warnings = [];
+        if (
+          (!samples || samples.length === 0) &&
+          evalSpec?.dataset?.samples > 0 &&
+          evalStatus === "success"
+        ) {
+          warnings.push(
+            html`<${MessageBand}
+              message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
+              type="warning"
+            />`,
+          );
+        }
+
+        return html` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
+        </div>`;
+      },
+    };
+
+    // The JSON Tab
+    resolvedTabs.json = {
+      id: kJsonWorkspaceTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats,
+        };
+        const json = JSON.stringify(evalHeader, null, 2);
+        return html`<${JsonTab}
+          logFileName=${logFileName}
+          json=${json}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonWorkspaceTabId}
         />`;
       },
       tools: () => {
-        if (evalStatus === "started") {
-          return html`<${ToolButton}
-            name=${html`Refresh`}
-            icon="${ApplicationIcons.refresh}"
-            onclick="${refreshLog}"
-          />`;
-        }
-
-        // Don't show tools if there is a single sample
-        if (sampleMode === "single") {
-          return "";
-        }
-        return html`<${SampleTools}
-          epoch=${epoch}
-          epochs=${epochs}
-          setEpoch=${setEpoch}
-          filter=${filter}
-          filterChanged=${setFilter}
-          sort=${sort}
-          setSort=${setSort}
-          score=${score}
-          setScore=${setScore}
-          scores=${scores}
-          sampleDescriptor=${samplesDescriptor}
-        />`;
+        return [
+          html`<${ToolButton}
+            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`,
+        ];
       },
     };
-  }
 
-  // The info tab
-  resolvedTabs.config = {
-    id: kInfoWorkspaceTabId,
-    label: "Info",
-    scrollable: true,
-    content: () => {
-      const infoCards = [];
-      infoCards.push([
-        html`<${PlanCard}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          scores=${evalResults?.scores}
-          context=${renderContext}
-        />`,
-      ]);
-
-      if (evalStatus !== "started") {
-        infoCards.push(
-          html`<${UsageCard} stats=${evalStats} context=${renderContext} />`,
-        );
+    const copyFeedback = (e) => {
+      const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
+      const iconEl = e.currentTarget.querySelector("i.bi");
+      if (textEl) {
+        const oldText = textEl.innerText;
+        const oldIconClz = iconEl.className;
+        textEl.innerText = "Copied!";
+        iconEl.className = `${ApplicationIcons.confirm}`;
+        setTimeout(() => {
+          window.getSelection().removeAllRanges();
+        }, 50);
+        setTimeout(() => {
+          textEl.innerText = oldText;
+          iconEl.className = oldIconClz;
+        }, 1250);
       }
+    };
 
-      // If there is error or progress, includes those within info
-      if (evalStatus === "error" && evalError) {
-        infoCards.unshift(html`<${TaskErrorCard} evalError=${evalError} />`);
-      }
-
-      const warnings = [];
-      if (
-        (!samples || samples.length === 0) &&
-        evalSpec?.dataset?.samples > 0 &&
-        evalStatus === "success"
-      ) {
-        warnings.push(
-          html`<${WarningBand}
-            message="Unable to display samples (this evaluation log may be too large)."
-          />`,
-        );
-      }
-
-      return html` <div style=${{ width: "100%" }}>
-        ${warnings}
-        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
-        </div>
-      </div>`;
-    },
-  };
-
-  // The JSON Tab
-  resolvedTabs.json = {
-    id: kJsonWorkspaceTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const evalHeader = {
-        version: evalVersion,
-        status: evalStatus,
-        eval: evalSpec,
-        plan: evalPlan,
-        error: evalError,
-        results: evalResults,
-        stats: evalStats,
-      };
-      const json = JSON.stringify(evalHeader, null, 2);
-      return html`<${JsonTab}
-        logFileName=${logFileName}
-        json=${json}
-        capabilities=${capabilities}
-        selected=${selectedTab === kJsonWorkspaceTabId}
-      />`;
-    },
-    tools: () => {
-      return [
-        html`<${ToolButton}
-          name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-          icon="${ApplicationIcons.copy}"
-          classes="task-btn-json-copy clipboard-button"
-          data-clipboard-target="#task-json-contents"
-          onclick="${copyFeedback}"
-        />`,
-      ];
-    },
-  };
-
-  const copyFeedback = (e) => {
-    const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
-    const iconEl = e.currentTarget.querySelector("i.bi");
-    if (textEl) {
-      const oldText = textEl.innerText;
-      const oldIconClz = iconEl.className;
-      textEl.innerText = "Copied!";
-      iconEl.className = `${ApplicationIcons.confirm}`;
-      setTimeout(() => {
-        window.getSelection().removeAllRanges();
-      }, 50);
-      setTimeout(() => {
-        textEl.innerText = oldText;
-        iconEl.className = oldIconClz;
-      }, 1250);
-    }
-  };
+    return resolvedTabs;
+  }, [
+    evalStatus,
+    sampleMode,
+    samples,
+    task_id,
+    score,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
+    groupBy,
+    groupByOrder,
+    selectedSampleIndex,
+    setSelectedSampleIndex,
+    samplesDescriptor,
+    selectedSampleTab,
+    setSelectedSampleTab,
+    filter,
+    sort,
+    epoch,
+    sampleScrollPositionRef,
+    setSampleScrollPosition,
+    epochs,
+    setEpoch,
+    setFilter,
+    setSort,
+    setScore,
+    scores,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    evalError,
+    logFileName,
+    capabilities,
+    selectedTab,
+  ]);
 
   return html`<${WorkspaceDisplay}
     logFileName=${logFileName}
@@ -299,6 +364,7 @@ export const WorkSpace = ({
     evalSpec=${evalSpec}
     evalPlan=${evalPlan}
     evalResults=${evalResults}
+    evalStats=${evalStats}
     samples=${samples}
     status=${evalStatus}
     tabs=${resolvedTabs}
@@ -306,6 +372,8 @@ export const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
+    workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 
@@ -314,6 +382,7 @@ const WorkspaceDisplay = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   showToggle,
@@ -322,6 +391,8 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   offcanvas,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition,
 }) => {
   if (evalSpec === undefined) {
     return html`<${EmptyPanel} />`;
@@ -344,12 +415,52 @@ const WorkspaceDisplay = ({
         }
       });
 
+    const onScroll = useCallback(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition],
+    );
+
+    const onSelected = useCallback(
+      (e) => {
+        const id = e.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab],
+    );
+
+    // Compute tab panels anytime the tabs change
+    const tabPanels = useMemo(() => {
+      return Object.keys(tabs).map((key) => {
+        const tab = tabs[key];
+        return html`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${useCallback(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll],
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
+
     return html`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
+      evalStats=${evalStats}
       samples=${samples}
       status=${status}
       file=${logFileName}
@@ -389,20 +500,7 @@ const WorkspaceDisplay = ({
                 fontWeight: 600,
               },
             }} >
-              ${Object.keys(tabs).map((key) => {
-                const tab = tabs[key];
-                return html`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e) => {
-                  const id = e.currentTarget.id;
-                  setSelectedTab(id);
-                }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
-                  ${tab.content()}
-                </${TabPanel}>`;
-              })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;

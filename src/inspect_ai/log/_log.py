@@ -64,6 +64,9 @@ class EvalConfig(BaseModel):
     token_limit: int | None = Field(default=None)
     """Maximum tokens to allow in a chat conversation."""
 
+    time_limit: int | None = Field(default=None)
+    """Maximum seconds for chat conversation."""
+
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
 
@@ -100,6 +103,14 @@ class EvalConfig(BaseModel):
         if max_messages:
             values["message_limit"] = max_messages
         return values
+
+
+class EvalSampleLimit(BaseModel):
+    type: Literal["context", "time", "message", "token", "operator"]
+    """The type of limit"""
+
+    limit: int
+    """The limit value"""
 
 
 class EvalSample(BaseModel):
@@ -157,6 +168,9 @@ class EvalSample(BaseModel):
     Resolve attachments for a sample (replacing attachment://* references with
     attachment content) with the resolve_sample_attachments() function.
     """
+
+    limit: EvalSampleLimit | None = Field(default=None)
+    """The limit that halted the sample"""
 
     # deprecated properties
 
@@ -547,6 +561,9 @@ class EvalLog(BaseModel):
 
     reductions: list[EvalSampleReductions] | None = Field(default=None)
     """Reduced sample values"""
+
+    location: str = Field(default_factory=str, exclude=True)
+    """Location that the log file was read from."""
 
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":

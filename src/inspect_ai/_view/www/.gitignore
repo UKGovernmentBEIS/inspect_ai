@@ -2,4 +2,3 @@ node_modules/
 .env
 __pycache__/
 dist/assets/*.js.map
-logs/

@@ -105,6 +105,7 @@ class JSONRecorder(FileRecorder):
         if reductions:
             log.data.reductions = reductions
         self.write_log(log.file, log.data)
+        log.data.location = log.file
 
         # stop tracking this data
         del self.data[self._log_file_key(spec)]
@@ -142,6 +143,7 @@ class JSONRecorder(FileRecorder):
             # parse w/ pydantic
             raw_data = from_json(f.read())
             log = EvalLog(**raw_data)
+            log.location = location
 
             # fail for unknown version
             _validate_version(log.version)
@@ -238,4 +240,5 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         status=status,
         version=version,
         error=error if has_error else None,
+        location=log_file,
     )

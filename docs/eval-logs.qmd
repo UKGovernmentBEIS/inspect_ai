@@ -55,14 +55,6 @@ See the [Amazon S3](#sec-amazon-s3) section below for details on logging evaluat
 
 ## Log Format {#sec-log-format}
 
-::: {.callout-note appearance="simple"}
-The `.eval` format described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Inspect log files use JSON to represent the hierarchy of data produced by an evaluation. Depending on your configuration and what version of Inspect you are running, the log JSON will be stored in one of two file types:
 
 | Type | Description |
@@ -76,7 +68,7 @@ Both formats are fully supported by the [Log File API](#sec-log-file-api) and [L
 
 ### Format Option
 
-Inspect currently defaults to using `.json` format, but will soon switch to `.eval` as the default because of its size and speed advantages. You can control the log format globally in your `.env` file:
+Beginning with Inspect v0.3.46, `.eval` is the default log file format. You can explicitly control the global log format default in your `.env` file:
 
 ``` {.bash filename=".env"}
 INSPECT_LOG_FORMAT=eval
@@ -98,26 +90,12 @@ If you do need to interact with the underlying JSON (e.g., when reading logs fro
 
 ## Image Logging
 
-If you are doing a multi-modal evaluation with images, there are some special considerations regarding whether full copies of the images are included in the log:
+By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
-1.  When using the higher-performance `eval` log format described above, base64 encoded versions of images are *included* in logs by default.
-
-2.  When using the `json` log format, base64 encoded versions of images are *excluded* by default. This is because very large (\>100MB) `json` log files can easily overwhelm Inspect View, and evaluations with images often exceed this threshold.
-
-You can customise this behaviour using the `--log-images/--no-log-images` flag. For example:
+You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
 ``` bash
-# does not log images (default behavior for 'json')
-inspect eval images.py
-
-# logs images (override default for 'json')
-inspect eval images.py --log-images
-
-# logs images (default behavior for 'eval')
-inspect eval images.py --log-format eval   
-
-# does not log images (override default) 
-inspect eval images.py --log-format eval --no-log-images
+inspect eval images.py --log-format=json --no-log-images
 ```
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
@@ -152,15 +130,49 @@ if log.status == "success":
 
 In the section below we'll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).
 
+### Location
+
+The `EvalLog` object returned from `eval()` and `read_eval_log()` has a `location` property that indicates the storage location it was written to or read from.
+
+The `write_eval_log()` function will use this `location` if it isn't passed an explicit `location` to write to. This enables you to modify the contents of a log file return from `eval()` as follows:
+
+``` python
+log = eval(my_task())[0]
+# edit EvalLog as required
+write_eval_log(log)
+```
+
+Or alternatively for an `EvalLog` read from a filesystem:
+
+``` python
+log = read_eval_log(log_file_path)
+# edit EvalLog as required
+write_eval_log(log)
+```
+
+If you are working with the results of an [Eval Set](eval-sets.qmd), the returned logs are headers rather than the full log with all samples. If you want to edit logs returned from `eval_set` you should read them fully, edit them, and then write them. For example:
+
+``` python
+success, logs = eval_set(tasks)
+ 
+for log in logs:
+    log = read_eval_log(log.location)
+    # edit EvalLog as required
+    write_eval_log(log)
+```
+
+Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+
 ### Functions
 
 You can enumerate, read, and write `EvalLog` objects using the following helper functions from the `inspect_ai.log` module:
 
 | Function | Description |
-|------------------|------------------------------------------------------|
+|----------------------|--------------------------------------------------|
 | `list_eval_logs` | List all of the eval logs at a given location. |
 | `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
 | `read_eval_log_sample` | Read a single `EvalSample` from a log file |
+| `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
 | `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of evaluations, then calling `list_eval_logs()` to analyse the results when all the work is done:
@@ -179,15 +191,38 @@ logs = list_eval_logs()
 
 Note that `list_eval_logs()` lists log files recursively. Pass `recursive=False` to list only the log files at the root level.
 
-### Attachments
+### Streaming
 
-::: {.callout-note appearance="simple"}
-Note that the attachments feature described below is available only in the development version of Inspect. You can install the development version with:
+If you are working with log files that are too large to comfortably fit in memory, we recommend the following options and workflow to stream them rather than loading them into memory all at once :
 
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+1.  Use the `.eval` log file format which supports compression and incremental access to samples (see details on this in the [Log Format](#sec-log-format) section above). If you have existing `.json` files you can easily batch convert them to `.eval` using the [Log Commands](#converting-logs) described below.
+
+2.  If you only need access to the "header" of the log file (which includes general eval metadata as well as the evaluation results) use the `header_only` option of `read_eval_log()`:
+
+    ``` python
+    log = read_eval_log(log_file, header_only = True)
+    ```
+
+3.  If you want to read individual samples, either read them selectively using `read_eval_log_sample()`, or read them iteratively using `read_eval_log_samples()` (which will ensure that only one sample at a time is read into memory):
+
+    ``` python
+    # read a single sample
+    sample = read_eval_log_sample(log_file, id = 42)
+
+    # read all samples using a generator
+    for sample in read_eval_log_samples(log_file):
+        ...
+    ```
+
+Note that `read_eval_log_samples()` will raise an error if you pass it a log that does not have `status=="success"` (this is because it can't read all of the samples in an incomplete log). If you want to read the samples anyway, pass the `all_samples_required=False` option:
+
+``` python
+# will not raise an error if the log file has an "error" or "cancelled" status
+for sample in read_eval_log_samples(log_file, all_samples_required=False):
+    ...
 ```
-:::
+
+### Attachments
 
 Sample logs often include large pieces of content (e.g. images) that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.
 
@@ -231,14 +266,6 @@ AWS_DEFAULT_REGION=eu-west-2
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
 
 ## Log Commands {#sec-log-commands}
-
-::: {.callout-note appearance="simple"}
-The log commands described below are supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 We've shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
 
@@ -285,7 +312,7 @@ $ inspect log dump file:///home/user/log/logfile.json
 $ inspect log dump s3://my-evals-bucket/logfile.json
 ```
 
-### Converting Logs
+### Converting Logs {#converting-logs}
 
 You can convert between the two underlying [log formats](#sec-log-format) using the `inspect log convert` command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (`--to` and `--output-dir`). For example:
 

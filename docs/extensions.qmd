@@ -127,7 +127,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_init(
-        cls, task_name: str, config: str | None
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
         ...
 
@@ -135,7 +135,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_init(
         cls, 
         task_name: str, 
-        config: str | None, 
+        config: SandboxEnvironmentConfigType | None, 
         metadata: dict[str, str]
     ) -> dict[str, SandboxEnvironment]:
         ...
@@ -144,7 +144,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -152,7 +152,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        cleanup: bool,
     ) -> None:
        ...
 
@@ -184,6 +187,10 @@ The class methods take care of various stages of initialisation, setup, and tear
 | `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
+
+::: {.callout-note appearance="simple"}
+The "default" `SandboxEnvironment` i.e. that named "default" or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
+:::
 
 The `task_cleanup()` has a number of important functions:
 
@@ -246,6 +253,22 @@ Sandbox environments can be invoked with an optional configuration parameter, wh
 Task(
     ...,
     sandbox=("podman","config.yaml")
+)
+```
+
+Specialised configuration types which derive from Pydantic's `BaseModel` can also be passed as the `config` argument to `SandboxEnvironmentSpec`. Note: they must be hashable (i.e. `frozen=True`).
+
+``` python
+class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):
+    socket: str
+    runtime: str
+
+Task(
+    ...,
+    sandbox=SandboxEnvironmentSpec(
+        "podman",
+        PodmanSandboxEnvironmentConfig(socket="/podman-socket", runtime="crun"),
+    )
 )
 ```
 

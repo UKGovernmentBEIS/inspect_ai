@@ -1,7 +1,12 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { AsyncQueue } from "../utils/queue.mjs";
-import { openRemoteZipFile } from "../utils/remoteZipFile.mjs";
+import {
+  FileSizeLimitError,
+  openRemoteZipFile,
+} from "../utils/remoteZipFile.mjs";
+
+const MAX_BYTES = 12582912;
 
 /**
  * @typedef {Object} SampleEntry
@@ -35,16 +40,23 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
   /**
    * Reads and parses a JSON file from the zip.
    * @param {string} file - The name of the file to read.
+   * @param {number} [maxBytes] - the max bytes
    * @returns {Promise<Object>} The parsed JSON content.
    */
-  const readJSONFile = async (file) => {
+  const readJSONFile = async (file, maxBytes) => {
     try {
-      const data = await remoteZipFile.readFile(file);
+      const data = await remoteZipFile.readFile(file, maxBytes);
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
       return asyncJsonParse(jsonString);
     } catch (error) {
-      throw new Error(`Failed to read or parse file ${file}: ${error.message}`);
+      if (error instanceof FileSizeLimitError) {
+        throw error;
+      } else {
+        throw new Error(
+          `Failed to read or parse file ${file}: ${error.message}`,
+        );
+      }
     }
   };
 
@@ -73,10 +85,10 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
    * @param {number} epoch - The epoch of the sample.
    * @returns {Promise<Object>} The content of the sample file.
    */
-  const readSample = (sampleId, epoch) => {
+  const readSample = async (sampleId, epoch) => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return readJSONFile(sampleFile);
+      return readJSONFile(sampleFile, MAX_BYTES);
     } else {
       console.log({ dir: remoteZipFile.centralDirectory });
       throw new Error(

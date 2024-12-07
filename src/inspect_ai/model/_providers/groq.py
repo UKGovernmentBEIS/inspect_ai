@@ -1,7 +1,8 @@
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
+import httpx
 from groq import (
     AsyncGroq,
     RateLimitError,
@@ -9,6 +10,9 @@ from groq import (
 from groq.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartParam,
+    ChatCompletionContentPartTextParam,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
     ChatCompletionSystemMessageParam,
@@ -18,6 +22,9 @@ from groq.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import Content
+from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.url import is_data_uri, is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -73,6 +80,7 @@ class GroqAPI(ModelAPI):
             ),
             timeout=config.timeout if config.timeout is not None else 60.0,
             **model_args,
+            http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )
 
     async def generate(
@@ -99,6 +107,20 @@ class GroqAPI(ModelAPI):
             **params,
         )
 
+        # extract metadata
+        metadata: dict[str, Any] = {
+            "id": response.id,
+            "system_fingerprint": response.system_fingerprint,
+            "created": response.created,
+        }
+        if response.usage:
+            metadata = metadata | {
+                "queue_time": response.usage.queue_time,
+                "prompt_time": response.usage.prompt_time,
+                "completion_time": response.usage.completion_time,
+                "total_time": response.usage.total_time,
+            }
+
         # extract output
         choices = self._chat_choices_from_response(response, tools)
         output = ModelOutput(
@@ -113,6 +135,7 @@ class GroqAPI(ModelAPI):
                 if response.usage
                 else None
             ),
+            metadata=metadata,
         )
 
         # record call
@@ -189,7 +212,12 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
         return ChatCompletionSystemMessageParam(role="system", content=message.text)
 
     elif isinstance(message, ChatMessageUser):
-        return ChatCompletionUserMessageParam(role="user", content=message.text)
+        content: str | Iterable[ChatCompletionContentPartParam] = (
+            message.content
+            if isinstance(message.content, str)
+            else [await as_chat_completion_part(content) for content in message.content]
+        )
+        return ChatCompletionUserMessageParam(role="user", content=content)
 
     elif isinstance(message, ChatMessageAssistant):
         return ChatCompletionAssistantMessageParam(
@@ -212,6 +240,25 @@ async def groq_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
             role="tool",
             content=message.text,
             tool_call_id=str(message.tool_call_id),
+        )
+
+
+async def as_chat_completion_part(
+    content: Content,
+) -> ChatCompletionContentPartParam:
+    if content.type == "text":
+        return ChatCompletionContentPartTextParam(type="text", text=content.text)
+    else:
+        # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
+        image_url = content.image
+        detail = content.detail
+
+        if not is_http_url(image_url) and not is_data_uri(image_url):
+            image_url = await image_as_data_uri(image_url)
+
+        return ChatCompletionContentPartImageParam(
+            type="image_url",
+            image_url=dict(url=image_url, detail=detail),
         )
 
 

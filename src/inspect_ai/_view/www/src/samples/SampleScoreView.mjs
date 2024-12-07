@@ -18,7 +18,6 @@ export const SampleScoreView = ({
   sampleDescriptor,
   style,
   scorer,
-  context,
 }) => {
   if (!sampleDescriptor) {
     return "";
@@ -176,7 +175,6 @@ export const SampleScoreView = ({
                     classes="tab-pane"
                     entries="${sample?.score?.metadata}"
                     style=${{ marginTop: "1em" }}
-                    context=${context}
                   />
                 </td>
               </tr>

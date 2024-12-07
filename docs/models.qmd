@@ -21,12 +21,13 @@ Inspect has built in support for a variety of language model API providers and c
 | Hugging Face | `pip install transformers` | None required |
 | vLLM | `pip install vllm` | None required |
 | Ollama | `pip install openai` | None required |
+| llama-cpp-python | `pip install openai` | None required |
 | Vertex | `pip install google-cloud-aiplatform` | None required |
 
 : {tbl-colwidths="\[18,45,37\]"}
 
 ::: {.callout-note appearance="minimal"}
-Note that some providers ([Grok](https://docs.x.ai/api/integrations#openai-sdk), [Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
+Note that some providers ([Grok](https://docs.x.ai/api/integrations#openai-sdk), [Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md), [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/server/) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
 :::
 
 ## Using Models
@@ -43,6 +44,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
 | vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
 | Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
+| llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
 | TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
 | AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
 | Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
@@ -80,19 +82,20 @@ If are using Google, Azure AI, AWS Bedrock, Hugging Face, or vLLM you should add
 
 Each model also can use a different base URL than the default (e.g. if running through a proxy server). The base URL can be specified with the same prefix as the `API_KEY`, for example, the following are all valid base URLs:
 
-| Provider    | Environment Variable  |
-|-------------|-----------------------|
-| OpenAI      | `OPENAI_BASE_URL`     |
-| Anthropic   | `ANTHROPIC_BASE_URL`  |
-| Google      | `GOOGLE_BASE_URL`     |
-| Mistral     | `MISTRAL_BASE_URL`    |
-| Grok        | `GROK_BASE_URL`    |
-| TogetherAI  | `TOGETHER_BASE_URL`   |
-| Ollama      | `OLLAMA_BASE_URL`     |
-| AWS Bedrock | `BEDROCK_BASE_URL`    |
-| Azure AI    | `AZUREAI_BASE_URL`    |
-| Groq        | `GROQ_BASE_URL`       |
-| Cloudflare  | `CLOUDFLARE_BASE_URL` |
+| Provider         | Environment Variable        |
+|------------------|-----------------------------|
+| OpenAI           | `OPENAI_BASE_URL`           |
+| Anthropic        | `ANTHROPIC_BASE_URL`        |
+| Google           | `GOOGLE_BASE_URL`           |
+| Mistral          | `MISTRAL_BASE_URL`          |
+| Grok             | `GROK_BASE_URL`             |
+| TogetherAI       | `TOGETHER_BASE_URL`         |
+| Ollama           | `OLLAMA_BASE_URL`           |
+| llama-cpp-python | `LLAMA_CPP_PYTHON_BASE_URL` |
+| AWS Bedrock      | `BEDROCK_BASE_URL`          |
+| Azure AI         | `AZUREAI_BASE_URL`          |
+| Groq             | `GROQ_BASE_URL`             |
+| Cloudflare       | `CLOUDFLARE_BASE_URL`       |
 
 : {tbl-colwidths="\[50,50\]"}
 
@@ -349,7 +352,7 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 $ inspect eval popularity --model vllm/local -M model_path=./my-model
 ```
 
-#### vLLM Server
+#### vLLM Server {#sec-vllm-server}
 
 vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
 
@@ -413,19 +416,20 @@ inspect eval popularity --model google/gemini-1.0-pro -M transport:grpc
 
 The additional `model_args` are forwarded as follows for the various providers:
 
-| Provider     | Forwarded to                           |
-|--------------|----------------------------------------|
-| OpenAI       | `AsyncOpenAI`                          |
-| Anthropic    | `AsyncAnthropic`                       |
-| Google       | `genai.configure`                      |
-| Mistral      | `Mistral`                   |
-| Hugging Face | `AutoModelForCausalLM.from_pretrained` |
-| vLLM         | `SamplingParams`                       |
-| Ollama       | `AsyncOpenAI`                          |
-| TogetherAI   | `AsyncOpenAI`                          |
-| Groq         | `AsyncGroq`                            |
-| AzureAI      | Chat HTTP Post Body                    |
-| Cloudflare   | Chat HTTP Post Body                    |
+| Provider         | Forwarded to                           |
+|------------------|----------------------------------------|
+| OpenAI           | `AsyncOpenAI`                          |
+| Anthropic        | `AsyncAnthropic`                       |
+| Google           | `genai.configure`                      |
+| Mistral          | `Mistral`                              |
+| Hugging Face     | `AutoModelForCausalLM.from_pretrained` |
+| vLLM             | `SamplingParams`                       |
+| Ollama           | `AsyncOpenAI`                          |
+| llama-cpp-python | `AsyncOpenAI`                          |
+| TogetherAI       | `AsyncOpenAI`                          |
+| Groq             | `AsyncGroq`                            |
+| AzureAI          | Chat HTTP Post Body                    |
+| Cloudflare       | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
 

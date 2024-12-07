@@ -4,6 +4,7 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { JSONPanel } from "../../components/JsonPanel.mjs";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -30,7 +31,7 @@ export const InfoEventView = ({ id, event, style }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
+  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style}>
     ${panels}
   </${EventPanel}>`;
 };

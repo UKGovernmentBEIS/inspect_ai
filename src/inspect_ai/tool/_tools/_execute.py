@@ -7,10 +7,12 @@ from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 # custom viewer for bash and python code blocks
 def code_viewer(language: str, code_param: str) -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        code = tool_call.arguments.get(code_param, tool_call.function).strip()
+        code = tool_call.arguments.get(code_param, None)
+        code = (code or tool_call.function).strip()
         call = ToolCallContent(
+            title=language,
             format="markdown",
-            content=f"{language}\n\n```{language}\n" + code + "\n```\n",
+            content=f"```{language}\n" + code + "\n```\n",
         )
         return ToolCallView(call=call)
 
@@ -43,7 +45,7 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
         """
         # execute the command
         result = await sandbox().exec(
-            cmd=["bash", "-c", cmd], timeout=timeout, user=user
+            cmd=["bash", "--login", "-c", cmd], timeout=timeout, user=user
         )
         # return output (including stderr if any)
         output = ""

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from pathlib import Path
@@ -8,6 +7,7 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
+from inspect_ai._display.core.active import display
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
@@ -33,6 +33,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._trace import init_trace
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -64,6 +65,7 @@ def eval(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -117,6 +119,7 @@ def eval(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -138,8 +141,11 @@ def eval(
     # standard platform init for top level entry points
     platform_init()
 
-    return asyncio.run(
-        eval_async(
+    # resolve eval trace
+    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples, model)
+
+    return display().run_task_app(
+        main=eval_async(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
@@ -161,6 +167,7 @@ def eval(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -195,6 +202,7 @@ async def eval_async(
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    time_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -247,13 +255,13 @@ async def eval_async(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
-
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
@@ -291,7 +299,6 @@ async def eval_async(
             model_args=model_args,
             task_args=task_args,
             sandbox=sandbox,
-            trace=trace,
             approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
@@ -346,6 +353,7 @@ async def eval_async(
             fail_on_error=fail_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -375,6 +383,7 @@ async def eval_async(
                         tasks=task_batch,
                         parallel=parallel,
                         eval_config=eval_config,
+                        eval_sandbox=sandbox,
                         recorder=recorder,
                         model_args=model_args,
                         epochs_reducer=epochs_reducer,
@@ -399,6 +408,7 @@ async def eval_async(
                 tasks=resolved_tasks,
                 parallel=parallel,
                 eval_config=eval_config,
+                eval_sandbox=sandbox,
                 recorder=recorder,
                 model_args=model_args,
                 epochs_reducer=epochs_reducer,
@@ -485,10 +495,14 @@ def eval_retry(
     Returns:
         List of EvalLog (one for each task)
     """
+    # standard platform init for top level entry points
     platform_init()
 
-    return asyncio.run(
-        eval_retry_async(
+    # resolve eval trace
+    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples)
+
+    return display().run_task_app(
+        main=eval_retry_async(
             tasks=tasks,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -498,7 +512,6 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
-            trace=trace,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
@@ -508,7 +521,7 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             max_connections=max_connections,
-        )
+        ),
     )
 
 
@@ -522,7 +535,6 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
-    trace: bool | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -553,7 +565,6 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
-        trace (bool | None): Trace message interactions with evaluated model to terminal.
         fail_on_error (bool | float | None): `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
@@ -635,10 +646,10 @@ async def eval_retry_async(
             if eval_log.eval.config.epochs
             else None
         )
-        trace = eval_log.eval.config.trace or trace
         approval = eval_log.eval.config.approval
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
+        time_limit = eval_log.eval.config.time_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -681,7 +692,6 @@ async def eval_retry_async(
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
                 tags=tags,
-                trace=trace,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -693,6 +703,7 @@ async def eval_retry_async(
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
+                time_limit=time_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -717,7 +728,6 @@ def eval_init(
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
-    trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
@@ -725,7 +735,7 @@ def eval_init(
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
+    init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
     # resolve model and task args
     model_args = resolve_args(model_args)
@@ -744,10 +754,13 @@ def eval_init(
 
     # resolve tasks (set active model to resolve uses of the
     # 'default' model in tools, solvers, and scorers)
-    resolved_tasks: list[ResolvedTask] = []
-    for m in models:
-        init_active_model(m, generate_config)
-        resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+    from inspect_ai._display.core.active import display
+
+    with display().suspend_task_app():
+        resolved_tasks: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, generate_config)
+            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
     # resolve approval
     if isinstance(approval, str | ApprovalPolicyConfig):
@@ -755,6 +768,33 @@ def eval_init(
     init_tool_approval(approval)
 
     return models, approval, resolved_tasks
+
+
+def init_eval_trace(
+    trace: bool | None,
+    max_tasks: int | None,
+    max_samples: int | None,
+    model: Any = None,
+) -> tuple[int | None, int | None]:
+    # init trace setting
+    init_trace(trace)
+
+    # adapt task/samples as required
+    if trace:
+        # single task at a time
+        if max_tasks is not None:
+            max_tasks = 1
+
+        # single sample at a time
+        max_samples = 1
+
+        # multiple models not allowed in trace mode
+        if isinstance(model, list) and len(model) > 1:
+            raise PrerequisiteError(
+                "Trace mode cannot be used when evaluating multiple models."
+            )
+
+    return max_tasks, max_samples
 
 
 # A list of eval logs is returned from eval(). We've already displayed

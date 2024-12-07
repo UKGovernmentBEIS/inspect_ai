@@ -113,6 +113,7 @@ inspect = "inspect_ai._cli.main:main"
 dev = [
     "anthropic", 
     "aioboto3", 
+    "azure-ai-inference",
     "google-cloud-aiplatform",
     "google-generativeai", 
     "groq", 
@@ -128,7 +129,8 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.7.1", # match version specified in .pre-commit-config.yaml
+    "ruff==0.8.2", # match version specified in .pre-commit-config.yaml
+    "textual-dev>=0.86.2",
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",

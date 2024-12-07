@@ -21,7 +21,6 @@ from inspect_ai.solver._solver import SolverSpec
 from .common import (
     CommonOptions,
     common_options,
-    log_images_flag,
     process_common_options,
 )
 from .util import parse_cli_args, parse_cli_config, parse_sandbox
@@ -200,6 +199,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
+        "--time-limit",
+        type=int,
+        help="Limit on total execution time for each sample.",
+        envvar="INSPECT_EVAL_TIME_LIMIT",
+    )
+    @click.option(
         "--fail-on-error",
         type=float,
         is_flag=False,
@@ -225,9 +230,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-images/--no-log-images",
         type=bool,
-        default=False,
+        default=True,
         is_flag=True,
-        callback=log_images_flag,
         help=LOG_IMAGES_HELP,
     )
     @click.option(
@@ -261,13 +265,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--frequency-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_FREQUENCY_PENALTY",
     )
     @click.option(
         "--presence-penalty",
         type=float,
-        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Grok, Groq, and vLLM only.",
+        help="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.",
         envvar="INSPECT_EVAL_PRESENCE_PENALTY",
     )
     @click.option(
@@ -279,7 +283,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--seed",
         type=int,
-        help="Random seed. OpenAI, Mistral, HuggingFace, and vLLM only.",
+        help="Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.",
         envvar="INSPECT_EVAL_SEED",
     )
     @click.option(
@@ -322,13 +326,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, vLLM only.",
+        help="Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
@@ -410,6 +414,7 @@ def eval_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -455,6 +460,7 @@ def eval_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -560,6 +566,7 @@ def eval_set_command(
     cache_prompt: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -607,6 +614,7 @@ def eval_set_command(
         limit=limit,
         message_limit=message_limit,
         token_limit=token_limit,
+        time_limit=time_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -656,6 +664,7 @@ def eval_exec(
     limit: str | None,
     message_limit: int | None,
     token_limit: int | None,
+    time_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -702,7 +711,7 @@ def eval_exec(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = True if log_images else None
+    log_images = False if log_images is False else None
     trace = True if trace else None
     score = False if no_score else True
 
@@ -730,6 +739,7 @@ def eval_exec(
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
+            time_limit=time_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -850,9 +860,8 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 @click.option(
     "--log-images/--no-log-images",
     type=bool,
-    default=False,
+    default=True,
     is_flag=True,
-    callback=log_images_flag,
     help=LOG_IMAGES_HELP,
     envvar="INSPECT_EVAL_LOG_IMAGES",
 )
@@ -902,7 +911,7 @@ def eval_retry_command(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
-    log_images = True if log_images else None
+    log_images = False if log_images is False else None
     score = False if no_score else True
 
     # resolve fail_on_error

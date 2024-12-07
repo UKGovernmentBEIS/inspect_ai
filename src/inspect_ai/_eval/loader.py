@@ -99,7 +99,7 @@ def resolve_tasks(
         loaded_tasks_args: list[dict[str, Any]] = []
         for previous_task in previous_tasks:
             if isinstance(previous_task.task, Task):
-                loaded_task_args = task_args
+                loaded_task_args = previous_task.task_args
                 loaded_task = previous_task.task
             else:
                 loaded_task_args = previous_task.task_args
@@ -198,7 +198,7 @@ def resolve_task_sandbox(
                     break
 
         # resolve relative paths
-        if resolved_sandbox.config is not None:
+        if isinstance(resolved_sandbox.config, str):
             file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
                 file_path = Path(task_run_dir(task)) / file_path

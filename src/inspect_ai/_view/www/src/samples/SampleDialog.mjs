@@ -23,7 +23,8 @@ import { ErrorPanel } from "../components/ErrorPanel.mjs";
  * @param {(showing: boolean) => void} props.setShowingSampleDialog - function to set whether the dialog is showing
  * @param {() => void} [props.nextSample] - function to move to next sample
  * @param {() => void} [props.prevSample] - function to move to previous sample
- * @param {import("../Types.mjs").RenderContext} props.context - the app context
+ * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
+ * @param {(position: number) => void} props.setSampleScrollPosition - set the sample scroll position
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const SampleDialog = ({
@@ -39,7 +40,8 @@ export const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
-  context,
+  sampleScrollPositionRef,
+  setSampleScrollPosition,
 }) => {
   const tools = useMemo(() => {
     const nextTool = {
@@ -83,6 +85,22 @@ export const SampleDialog = ({
     [prevSample, nextSample],
   );
 
+  const children = useMemo(() => {
+    return sampleError
+      ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
+      : html`<${SampleDisplay}
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+        />`;
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
+
+  const onHide = useCallback(() => {
+    setShowingSampleDialog(false);
+  }, [setShowingSampleDialog]);
+
   // Provide the dialog
   return html`
     <${LargeModal} 
@@ -91,22 +109,11 @@ export const SampleDialog = ({
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
       visible=${showingSampleDialog}
-      onHide=${() => {
-        setShowingSampleDialog(false);
-      }}
+      onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
+      initialScrollPositionRef=${sampleScrollPositionRef}
+      setInitialScrollPosition=${setSampleScrollPosition}
     >
-        ${
-          sampleError
-            ? html`<${ErrorPanel} title="Sample Error" error=${sampleError} />`
-            : html`<${SampleDisplay}
-                id=${id}
-                sample=${sample}
-                sampleDescriptor=${sampleDescriptor}
-                selectedTab=${selectedTab}
-                setSelectedTab=${setSelectedTab}
-                context=${context}
-              />`
-        }
+        ${children}
     </${LargeModal}>`;
 };

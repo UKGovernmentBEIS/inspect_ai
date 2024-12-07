@@ -4,6 +4,7 @@ from typing import cast
 
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai.dataset import Sample
+from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.model import ChatMessage, ChatMessageUser
 
 from ..task import Task
@@ -33,3 +34,15 @@ def task_file(task: Task, relative: bool = False) -> str | None:
             return file
     else:
         return None
+
+
+def slice_dataset(
+    dataset: Dataset,
+    limit: int | tuple[int, int] | None,
+) -> Dataset:
+    dataset_limit = (
+        slice(0, len(dataset))
+        if limit is None
+        else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
+    )
+    return dataset[dataset_limit]

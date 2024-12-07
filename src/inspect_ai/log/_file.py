@@ -1,24 +1,27 @@
 import asyncio
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Literal, cast
+from logging import getLogger
+from typing import Any, Callable, Generator, Literal, cast
 
 import fsspec  # type: ignore
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_json
 
-from inspect_ai._util.constants import ALL_LOG_FORMATS
+from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
     file,
     filesystem,
 )
+from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
+
+logger = getLogger(__name__)
 
 
 class EvalLogInfo(FileInfo):
@@ -61,9 +64,11 @@ def list_eval_logs(
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
+        logger.debug(f"Listing eval logs for {log_dir}")
         eval_logs = log_files_from_ls(
             fs.ls(log_dir, recursive=recursive), formats, descending
         )
+        logger.debug(f"Listing eval logs for {log_dir} completed")
     else:
         return []
 
@@ -81,7 +86,6 @@ def list_eval_logs(
 async def list_eval_logs_async(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
-    filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
     descending: bool = True,
     fs_options: dict[str, Any] = {},
@@ -95,9 +99,6 @@ async def list_eval_logs_async(
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
       formats (Literal["eval", "json"]): Formats to list (default
         to listing all formats)
-      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
-         Note that the EvalLog instance passed to the filter has only
-         the EvalLog header (i.e. does not have the samples or logging output).
       recursive (bool): List log files recursively (defaults to True).
       descending (bool): List in descending order.
       fs_options (dict[str, Any]): Optional. Additional arguments to pass through
@@ -125,22 +126,13 @@ async def list_eval_logs_async(
                 )
             logs = [fs._file_info(file) for file in files]
             # resolve to eval logs
-            eval_logs = log_files_from_ls(logs, formats, descending)
+            return log_files_from_ls(logs, formats, descending)
         else:
             return []
-        # apply filter if requested
-        if filter:
-            log_headers = await read_eval_log_headers_async(eval_logs)
-            return [
-                log for header, log in zip(log_headers, eval_logs) if filter(header)
-            ]
-        else:
-            return eval_logs
     else:
         return list_eval_logs(
             log_dir=log_dir,
             formats=formats,
-            filter=filter,
             recursive=recursive,
             descending=descending,
             fs_options=fs_options,
@@ -149,25 +141,37 @@ async def list_eval_logs_async(
 
 def write_eval_log(
     log: EvalLog,
-    log_file: str | FileInfo,
+    location: str | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> None:
     """Write an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log to write.
-       log_file (str | FileInfo): Location to write log to.
+       location (str | FileInfo): Location to write log to.
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
-    log_file = log_file if isinstance(log_file, str) else log_file.name
+    # resolve location
+    if location is None:
+        if log.location:
+            location = log.location
+        else:
+            raise ValueError(
+                "EvalLog passe to write_eval_log does not have a location, so you must pass an explicit location"
+            )
+    location = location if isinstance(location, str) else location.name
+
+    logger.debug(f"Writing eval log to {location}")
 
     # get recorder type
     if format == "auto":
-        recorder_type = recorder_type_for_location(log_file)
+        recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    recorder_type.write_log(log_file, log)
+    recorder_type.write_log(location, log)
+
+    logger.debug(f"Writing eval log to {location} completed")
 
 
 def write_log_dir_manifest(
@@ -234,6 +238,7 @@ def read_eval_log(
     """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
+    logger.debug(f"Reading eval log from {log_file}")
 
     # get recorder type
     if format == "auto":
@@ -242,33 +247,27 @@ def read_eval_log(
         recorder_type = recorder_type_for_format(format)
     log = recorder_type.read_log(log_file, header_only)
 
+    # resolve attachement if requested
     if resolve_attachments and log.samples:
         log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+
+    # provide sample ids if they aren't there
+    if log.eval.dataset.sample_ids is None and log.samples is not None:
+        sample_ids: dict[str | int, None] = {}
+        for sample in log.samples:
+            if sample.id not in sample_ids:
+                sample_ids[sample.id] = None
+        log.eval.dataset.sample_ids = list(sample_ids.keys())
+
+    logger.debug(f"Completed reading eval log from {log_file}")
+
     return log
 
 
 def read_eval_log_headers(
     log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    with ThreadPoolExecutor() as executor:
-        futures = [
-            executor.submit(read_eval_log, log_file, header_only=True)
-            for log_file in log_files
-        ]
-        results = [future.result() for future in futures]
-    return results
-
-
-async def read_eval_log_headers_async(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
-) -> list[EvalLog]:
-    results = await asyncio.gather(
-        *[
-            asyncio.to_thread(read_eval_log, log_file, header_only=True)
-            for log_file in log_files
-        ]
-    )
-    return results
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
 
 
 def read_eval_log_sample(
@@ -291,6 +290,9 @@ def read_eval_log_sample(
 
     Returns:
        EvalSample object read from file.
+
+    Raises:
+       IndexError: If the passed id and epoch are not found.
     """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
@@ -305,6 +307,67 @@ def read_eval_log_sample(
         sample = resolve_sample_attachments(sample)
 
     return sample
+
+
+def read_eval_log_samples(
+    log_file: str | FileInfo,
+    all_samples_required: bool = True,
+    resolve_attachments: bool = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> Generator[EvalSample, None, None]:
+    """Read all samples from an evaluation log incrementally.
+
+    Generator for samples in a log file. Only one sample at a time
+    will be read into memory and yielded to the caller.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       all_samples_required (bool): All samples must be included in
+          the file or an IndexError is thrown.
+       resolve_attachments (bool): Resolve attachments (e.g. images)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       Generator of EvalSample objects in the log file.
+
+    Raises:
+       IndexError: If `all_samples_required` is `True` and one of the target
+          samples does not exist in the log file.
+    """
+    # read header
+    log_header = read_eval_log(log_file, header_only=True, format=format)
+
+    # do we have the list of samples?
+    if log_header.eval.dataset.sample_ids is None:
+        raise RuntimeError(
+            "This log file does not include sample_ids "
+            + "(fully reading and re-writing the log will add sample_ids)"
+        )
+
+    # if the status is not success and all_samples_required, this is an error
+    if log_header.status != "success" and all_samples_required:
+        raise RuntimeError(
+            f"This log does not have all samples (status={log_header.status}). "
+            + "Specify all_samples_required=False to read the samples that exist."
+        )
+
+    # loop over samples and epochs
+    for sample_id in log_header.eval.dataset.sample_ids:
+        for epoch_id in range(1, (log_header.eval.config.epochs or 1) + 1):
+            try:
+                sample = read_eval_log_sample(
+                    log_file=log_file,
+                    id=sample_id,
+                    epoch=epoch_id,
+                    resolve_attachments=resolve_attachments,
+                    format=format,
+                )
+                yield sample
+            except IndexError:
+                if all_samples_required:
+                    raise
 
 
 def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
@@ -340,9 +403,13 @@ log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
 def is_log_file(file: str, extensions: list[str]) -> bool:
     parts = file.replace("\\", "/").split("/")
     name = parts[-1]
-    return re.match(log_file_pattern, name) is not None and any(
-        [name.endswith(suffix) for suffix in extensions]
-    )
+
+    if name.endswith(f".{EVAL_LOG_FORMAT}"):
+        return True
+    else:
+        return re.match(log_file_pattern, name) is not None and any(
+            [name.endswith(suffix) for suffix in extensions]
+        )
 
 
 def log_file_info(info: FileInfo) -> "EvalLogInfo":
@@ -381,7 +448,10 @@ def eval_log_json(log: EvalLog) -> str:
     # pass around 'live' objects -- this is fine to do and we
     # don't want to prevent it at the serialization level
     return to_json(
-        value=log, indent=2, exclude_none=True, fallback=lambda _x: None
+        value=jsonable_python(log),
+        indent=2,
+        exclude_none=True,
+        fallback=lambda _x: None,
     ).decode()
 
 

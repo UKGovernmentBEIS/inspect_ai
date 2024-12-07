@@ -74,6 +74,17 @@ export const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 };
 
+const sortId = (a, b) => {
+  if (isNumeric(a.id) && isNumeric(b.id)) {
+    return Number(a.id) - Number(b.id);
+  } else {
+    // Note that if there are mixed types of ids (e.g. a string
+    // and a number), we need to be sure we're working with strings
+    // to performan the comparison
+    return String(a.id).localeCompare(String(b.id));
+  }
+};
+
 /**
  * Sorts a list of samples
  *
@@ -85,28 +96,39 @@ export const bySample = (sort) => {
 export const sortSamples = (sort, samples, samplesDescriptor) => {
   const sortedSamples = samples.sort((a, b) => {
     switch (sort) {
-      case kSampleAscVal:
-        if (isNumeric(a.id) && isNumeric(b.id)) {
-          return Number(a.id) - Number(b.id);
+      case kSampleAscVal: {
+        const result = sortId(a, b);
+        if (result !== 0) {
+          return result;
         } else {
-          // Note that if there are mixed types of ids (e.g. a string
-          // and a number), we need to be sure we're working with strings
-          // to performan the comparison
-          return String(a.id).localeCompare(String(b.id));
+          return a.epoch - b.epoch;
         }
-      case kSampleDescVal:
-        if (isNumeric(a.id) && isNumeric(b.id)) {
-          return Number(b.id) - Number(a.id);
+      }
+      case kSampleDescVal: {
+        const result = sortId(b, a);
+        if (result !== 0) {
+          return result;
         } else {
-          // Note that if there are mixed types of ids (e.g. a string
-          // and a number), we need to be sure we're working with strings
-          // to perform the comparison
-          return String(b.id).localeCompare(String(a.id));
+          return a.epoch - b.epoch;
         }
-      case kEpochAscVal:
-        return a.epoch - b.epoch;
-      case kEpochDescVal:
-        return b.epoch - a.epoch;
+      }
+      case kEpochAscVal: {
+        const result = a.epoch - b.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a, b);
+        }
+      }
+      case kEpochDescVal: {
+        const result = b.epoch - a.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a, b);
+        }
+      }
+
       case kScoreAscVal:
         return samplesDescriptor.scoreDescriptor.compare(
           samplesDescriptor.selectedScore(a).value,

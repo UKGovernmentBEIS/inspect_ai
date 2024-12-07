@@ -18,6 +18,7 @@ import { inspectBinPath } from "../../inspect/props";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { findOpenPort } from "../../core/port";
 import { log } from "../../core/log";
+import { findEnvPythonPath } from "../../core/python";
 
 export async function activateEvalManager(
   stateManager: WorkspaceStateManager,
@@ -113,6 +114,10 @@ export class InspectEvalManager {
       });
     }
 
+    // Find the python environment
+    const useSubdirectoryEnvironments = workspace.getConfiguration("inspect_ai").get("useSubdirectoryEnvironments");
+    const pythonPath = useSubdirectoryEnvironments ? findEnvPythonPath(file.dirname(), activeWorkspacePath()) : undefined;
+
     // If we're debugging, launch using the debugger
     if (debug) {
       // Handle debugging
@@ -136,16 +141,17 @@ export class InspectEvalManager {
         args,
         workspaceDir.path,
         debugPort,
-        env
+        env,
+        pythonPath ? pythonPath : undefined
       );
     } else {
       // Run the command
-      runEvalCmd(args, workspaceDir.path);
+      runEvalCmd(args, workspaceDir.path, pythonPath ? pythonPath : undefined);
     }
   }
 }
 
-const runEvalCmd = (args: string[], cwd: string) => {
+const runEvalCmd = (args: string[], cwd: string, python?: AbsolutePath) => {
   // See if there a non-busy terminal that we can re-use
   const name = "Inspect Eval";
   let terminal = window.terminals.find((t) => {
@@ -156,7 +162,18 @@ const runEvalCmd = (args: string[], cwd: string) => {
   }
   terminal.show();
   terminal.sendText(`cd ${cwd}`);
-  terminal.sendText(["inspect", ...args].join(" "));
+
+  const cmd = [];
+  if (python) {
+    cmd.push(`${python.path}`);
+    cmd.push("-m");
+    cmd.push("inspect_ai");
+  } else {
+    cmd.push("inspect");
+  }
+  cmd.push(...args);
+
+  terminal.sendText(cmd.join(" "));
 };
 
 const runDebugger = async (
@@ -164,7 +181,8 @@ const runDebugger = async (
   args: string[],
   cwd: string,
   port: number,
-  env?: Record<string, string>
+  env?: Record<string, string>,
+  pythonPath?: AbsolutePath
 ) => {
   const name = "Inspect Eval";
   const debugConfiguration: DebugConfiguration = {
@@ -178,6 +196,7 @@ const runDebugger = async (
     port,
     env,
     justMyCode: false,
+    pythonPath: pythonPath?.path
   };
   await debug.startDebugging(activeWorkspaceFolder(), debugConfiguration);
 };

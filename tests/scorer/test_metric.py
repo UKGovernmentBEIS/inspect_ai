@@ -211,43 +211,27 @@ def test_complex_metrics() -> None:
     check_log(log)
 
 
-@metric
-def is_string() -> Metric:
-    """Demonstrates that a string arrives on the scene."""
-
-    def metric(scores: list[Score]) -> float:
-        string_count = 0
-        for s in scores:
-            if isinstance(s.value, str):
-                string_count = string_count + 1
-        return string_count / len(scores)
-
-    return metric
-
-
-@scorer(metrics=[is_string()])
-def string_scorer() -> Scorer:
+@scorer(
+    metrics=[
+        {"*": [mean()]},
+    ]
+)
+def wildcard_scorer() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        return Score(value="e")
+        return Score(value={"one": 1, "two": 2, "three": 3})
 
     return score
 
 
-def test_string_score_metric() -> None:
+def test_wildcard() -> None:
     def check_log(log):
-        assert (
-            log.results
-            and (list(log.results.scores[0].metrics.keys()) == ["is_string"])
-            and (log.results.scores[0].metrics["is_string"].value == 1.0)
-        )
+        assert len(log.results.scores) == 4
+        assert log.results.scores[1].name == "one"
+        assert log.results.scores[1].metrics["mean"].value == 1
 
     task = Task(
-        dataset=[
-            Sample(
-                input="What is the fifth letter of the US alphabet?", target=["e", "E"]
-            )
-        ],
-        scorer=string_scorer(),
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=wildcard_scorer(),
     )
 
     # normal eval

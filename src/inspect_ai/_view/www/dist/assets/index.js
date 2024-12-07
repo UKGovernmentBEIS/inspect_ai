@@ -80,23 +80,23 @@ function C$1(n2) {
     return C$1(n2);
   }
 }
-function M(n2) {
-  (!n2.__d && (n2.__d = true) && i$2.push(n2) && !P$1.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(P$1);
+function S(n2) {
+  (!n2.__d && (n2.__d = true) && i$2.push(n2) && !M.__r++ || o$1 !== l$1.debounceRendering) && ((o$1 = l$1.debounceRendering) || r$2)(M);
 }
-function P$1() {
+function M() {
   var n2, u2, t2, o2, r2, e2, c2, s2;
   for (i$2.sort(f$1); n2 = i$2.shift(); ) n2.__d && (u2 = i$2.length, o2 = void 0, e2 = (r2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((o2 = d$1({}, r2)).__v = r2.__v + 1, l$1.vnode && l$1.vnode(o2), O(t2.__P, o2, r2, t2.__n, t2.__P.namespaceURI, 32 & r2.__u ? [e2] : null, c2, null == e2 ? x$1(r2) : e2, !!(32 & r2.__u), s2), o2.__v = r2.__v, o2.__.__k[o2.__i] = o2, j$1(c2, o2, s2), o2.__e != e2 && C$1(o2)), i$2.length > u2 && i$2.sort(f$1));
-  P$1.__r = 0;
+  M.__r = 0;
 }
-function S(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
+function P$1(n2, l2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
   var a2, p2, y2, d2, w2, _2 = t2 && t2.__k || v$1, g2 = l2.length;
-  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && N(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
+  for (u2.__d = e2, $(u2, l2, _2), e2 = u2.__d, a2 = 0; a2 < g2; a2++) null != (y2 = u2.__k[a2]) && (p2 = -1 === y2.__i ? h$1 : _2[y2.__i] || h$1, y2.__i = a2, O(n2, y2, p2, i, o2, r2, f2, e2, c2, s2), d2 = y2.__e, y2.ref && p2.ref != y2.ref && (p2.ref && E(p2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 65536 & y2.__u || p2.__k === y2.__k ? e2 = I(y2, e2, n2) : "function" == typeof y2.type && void 0 !== y2.__d ? e2 = y2.__d : d2 && (e2 = d2.nextSibling), y2.__d = void 0, y2.__u &= -196609);
   u2.__d = e2, u2.__e = w2;
 }
 function $(n2, l2, u2) {
   var t2, i, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
   for (n2.__k = [], t2 = 0; t2 < e2; t2++) null != (i = l2[t2]) && "boolean" != typeof i && "function" != typeof i ? (r2 = t2 + a2, (i = n2.__k[t2] = "string" == typeof i || "number" == typeof i || "bigint" == typeof i || i.constructor == String ? g(null, i, null, null, null) : y$1(i) ? g(b, { children: i }, null, null, null) : void 0 === i.constructor && i.__b > 0 ? g(i.type, i.props, i.key, i.ref ? i.ref : null, i.__v) : i).__ = n2, i.__b = n2.__b + 1, o2 = null, -1 !== (f2 = i.__i = L(i, u2, r2, s2)) && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i.type && (i.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : (f2 > r2 ? a2-- : a2++, i.__u |= 65536))) : i = n2.__k[t2] = null;
-  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), V(o2, o2));
+  if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x$1(o2)), N(o2, o2));
 }
 function I(n2, l2, u2) {
   var t2, i;
@@ -113,7 +113,7 @@ function I(n2, l2, u2) {
 function L(n2, l2, u2, t2) {
   var i = n2.key, o2 = n2.type, r2 = u2 - 1, f2 = u2 + 1, e2 = l2[u2];
   if (null === e2 || e2 && i == e2.key && o2 === e2.type && 0 == (131072 & e2.__u)) return u2;
-  if (t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
+  if (("function" != typeof o2 || o2 === b || i) && t2 > (null != e2 && 0 == (131072 & e2.__u) ? 1 : 0)) for (; r2 >= 0 || f2 < l2.length; ) {
     if (r2 >= 0) {
       if ((e2 = l2[r2]) && 0 == (131072 & e2.__u) && i == e2.key && o2 === e2.type) return r2;
       r2--;
@@ -152,38 +152,38 @@ function F(n2) {
       var t2 = this.l[u2.type + n2];
       if (null == u2.t) u2.t = e$3++;
       else if (u2.t < t2.u) return;
-      return t2(l$1.event ? l$1.event(u2) : u2);
+      return l$1.event && (u2 = l$1.event(u2)), "handleEvent" in t2 ? t2.handleEvent(u2) : t2(u2);
     }
   };
 }
 function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
-  var a2, h2, v2, p2, w2, _2, g2, m2, x, C2, M2, P2, $2, I2, H, L2, T2 = u2.type;
+  var a2, h2, v2, p2, w2, _2, g2, m2, x, C2, S2, M2, $2, I2, H, L2, T2 = u2.type;
   if (void 0 !== u2.constructor) return null;
   128 & t2.__u && (c2 = !!(32 & t2.__u), r2 = [e2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
   n: if ("function" == typeof T2) try {
-    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], M2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, M2) : (u2.__c = h2 = new k$1(m2, M2), h2.constructor = T2, h2.render = q$1), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+    if (m2 = u2.props, x = "prototype" in T2 && T2.prototype.render, C2 = (a2 = T2.contextType) && i[a2.__c], S2 = a2 ? C2 ? C2.props.value : a2.__ : i, t2.__c ? g2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (x ? u2.__c = h2 = new T2(m2, S2) : (u2.__c = h2 = new k$1(m2, S2), h2.constructor = T2, h2.render = V), C2 && C2.sub(h2), h2.props = m2, h2.state || (h2.state = {}), h2.context = S2, h2.__n = i, v2 = h2.__d = true, h2.__h = [], h2._sb = []), x && null == h2.__s && (h2.__s = h2.state), x && null != T2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = d$1({}, h2.__s)), d$1(h2.__s, T2.getDerivedStateFromProps(m2, h2.__s))), p2 = h2.props, w2 = h2.state, h2.__v = u2, v2) x && null == T2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), x && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
     else {
-      if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, M2) || u2.__v === t2.__v)) {
+      if (x && null == T2.getDerivedStateFromProps && m2 !== p2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(m2, S2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(m2, h2.__s, S2) || u2.__v === t2.__v)) {
         for (u2.__v !== t2.__v && (h2.props = m2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
           n3 && (n3.__ = u2);
-        }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
+        }), M2 = 0; M2 < h2._sb.length; M2++) h2.__h.push(h2._sb[M2]);
         h2._sb = [], h2.__h.length && f2.push(h2);
         break n;
       }
-      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, M2), x && null != h2.componentDidUpdate && h2.__h.push(function() {
+      null != h2.componentWillUpdate && h2.componentWillUpdate(m2, h2.__s, S2), x && null != h2.componentDidUpdate && h2.__h.push(function() {
         h2.componentDidUpdate(p2, w2, _2);
       });
     }
-    if (h2.context = M2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x) {
+    if (h2.context = S2, h2.props = m2, h2.__P = n2, h2.__e = false, $2 = l$1.__r, I2 = 0, x) {
       for (h2.state = h2.__s, h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), H = 0; H < h2._sb.length; H++) h2.__h.push(h2._sb[H]);
       h2._sb = [];
     } else do {
       h2.__d = false, $2 && $2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
     } while (h2.__d && ++I2 < 25);
-    h2.state = h2.__s, null != h2.getChildContext && (i = d$1(d$1({}, i), h2.getChildContext())), x && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), S(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
+    h2.state = h2.__s, null != h2.getChildContext && (i = d$1(d$1({}, i), h2.getChildContext())), x && !v2 && null != h2.getSnapshotBeforeUpdate && (_2 = h2.getSnapshotBeforeUpdate(p2, w2)), P$1(n2, y$1(L2 = null != a2 && a2.type === b && null == a2.key ? a2.props.children : a2) ? L2 : [L2], u2, t2, i, o2, r2, f2, e2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && f2.push(h2), g2 && (h2.__E = h2.__ = null);
   } catch (n3) {
     if (u2.__v = null, c2 || null != r2) {
-      for (u2.__u |= c2 ? 160 : 32; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
+      for (u2.__u |= c2 ? 160 : 128; e2 && 8 === e2.nodeType && e2.nextSibling; ) e2 = e2.nextSibling;
       r2[r2.indexOf(e2)] = null, u2.__e = e2;
     } else u2.__e = t2.__e, u2.__k = t2.__k;
     l$1.__e(n3, u2, t2);
@@ -193,7 +193,7 @@ function O(n2, u2, t2, i, o2, r2, f2, e2, c2, s2) {
 }
 function j$1(n2, u2, t2) {
   u2.__d = void 0;
-  for (var i = 0; i < t2.length; i++) N(t2[i], t2[++i], t2[++i]);
+  for (var i = 0; i < t2.length; i++) E(t2[i], t2[++i], t2[++i]);
   l$1.__c && l$1.__c(u2, n2), n2.some(function(u3) {
     try {
       n2 = u3.__h, u3.__h = [], n2.some(function(n3) {
@@ -227,12 +227,12 @@ function z$1(u2, t2, i, o2, r2, f2, e2, c2, s2) {
     }
     for (a2 in k2) _2 = k2[a2], "children" == a2 ? d2 = _2 : "dangerouslySetInnerHTML" == a2 ? v2 = _2 : "value" == a2 ? g2 = _2 : "checked" == a2 ? m2 = _2 : c2 && "function" != typeof _2 || b2[a2] === _2 || A$1(u2, a2, _2, b2[a2], r2);
     if (v2) c2 || p2 && (v2.__html === p2.__html || v2.__html === u2.innerHTML) || (u2.innerHTML = v2.__html), t2.__k = [];
-    else if (p2 && (u2.innerHTML = ""), S(u2, y$1(d2) ? d2 : [d2], t2, i, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i.__k && x$1(i, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
+    else if (p2 && (u2.innerHTML = ""), P$1(u2, y$1(d2) ? d2 : [d2], t2, i, o2, "foreignObject" === C2 ? "http://www.w3.org/1999/xhtml" : r2, f2, e2, f2 ? f2[0] : i.__k && x$1(i, 0), c2, s2), null != f2) for (a2 = f2.length; a2--; ) w$1(f2[a2]);
     c2 || (a2 = "value", "progress" === C2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === C2 && !g2 || "option" === C2 && g2 !== b2[a2]) && A$1(u2, a2, g2, b2[a2], r2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && A$1(u2, a2, m2, b2[a2], r2));
   }
   return u2;
 }
-function N(n2, u2, t2) {
+function E(n2, u2, t2) {
   try {
     if ("function" == typeof n2) {
       var i = "function" == typeof n2.__u;
@@ -242,9 +242,9 @@ function N(n2, u2, t2) {
     l$1.__e(n3, t2);
   }
 }
-function V(n2, u2, t2) {
+function N(n2, u2, t2) {
   var i, o2;
-  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || N(i, null, u2)), null != (i = n2.__c)) {
+  if (l$1.unmount && l$1.unmount(n2), (i = n2.ref) && (i.current && i.current !== n2.__e || E(i, null, u2)), null != (i = n2.__c)) {
     if (i.componentWillUnmount) try {
       i.componentWillUnmount();
     } catch (n3) {
@@ -252,13 +252,13 @@ function V(n2, u2, t2) {
     }
     i.base = i.__P = null;
   }
-  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && V(i[o2], u2, t2 || "function" != typeof n2.type);
+  if (i = n2.__k) for (o2 = 0; o2 < i.length; o2++) i[o2] && N(i[o2], u2, t2 || "function" != typeof n2.type);
   t2 || w$1(n2.__e), n2.__c = n2.__ = n2.__e = n2.__d = void 0;
 }
-function q$1(n2, l2, u2) {
+function V(n2, l2, u2) {
   return this.constructor(n2, u2);
 }
-function B$1(u2, t2, i) {
+function q$1(u2, t2, i) {
   var o2, r2, f2, e2;
   l$1.__ && l$1.__(u2, t2), r2 = (o2 = "function" == typeof i) ? null : t2.__k, f2 = [], e2 = [], O(t2, u2 = (!o2 && i || t2).__k = _(b, null, [u2]), r2 || h$1, h$1, t2.namespaceURI, !o2 && i ? [i] : r2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, f2, !o2 && i ? i : r2 ? r2.__e : t2.firstChild, o2, e2), j$1(f2, u2, e2);
 }
@@ -271,12 +271,12 @@ n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
   throw n2;
 } }, u$1 = 0, k$1.prototype.setState = function(n2, l2) {
   var u2;
-  u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = d$1({}, this.state), "function" == typeof n2 && (n2 = n2(d$1({}, u2), this.props)), n2 && d$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M(this));
+  u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = d$1({}, this.state), "function" == typeof n2 && (n2 = n2(d$1({}, u2), this.props)), n2 && d$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), S(this));
 }, k$1.prototype.forceUpdate = function(n2) {
-  this.__v && (this.__e = true, n2 && this.__h.push(n2), M(this));
+  this.__v && (this.__e = true, n2 && this.__h.push(n2), S(this));
 }, k$1.prototype.render = b, i$2 = [], r$2 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, f$1 = function(n2, l2) {
   return n2.__v.__b - l2.__v.__b;
-}, P$1.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
+}, M.__r = 0, e$3 = 0, c$2 = F(false), s$1 = F(true);
 var n$1 = function(t2, s2, r2, e2) {
   var u2;
   s2[0] = 0;
@@ -2297,9 +2297,9 @@ var clipboard = { exports: {} };
           279: (
             /***/
             function(module2) {
-              function E() {
+              function E2() {
               }
-              E.prototype = {
+              E2.prototype = {
                 on: function(name, callback, ctx) {
                   var e2 = this.e || (this.e = {});
                   (e2[name] || (e2[name] = [])).push({
@@ -2341,8 +2341,8 @@ var clipboard = { exports: {} };
                   return this;
                 }
               };
-              module2.exports = E;
-              module2.exports.TinyEmitter = E;
+              module2.exports = E2;
+              module2.exports.TinyEmitter = E2;
             }
           )
           /******/
@@ -3581,7 +3581,7 @@ function orderModifiers(modifiers) {
     }));
   }, []);
 }
-function debounce(fn2) {
+function debounce$1(fn2) {
   var pending;
   return function() {
     if (!pending) {
@@ -3702,7 +3702,7 @@ function popperGenerator(generatorOptions) {
       },
       // Async and optimistically optimized update – it will not be executed if
       // not necessary (debounced to run at most once-per-tick)
-      update: debounce(function() {
+      update: debounce$1(function() {
         return new Promise(function(resolve) {
           instance.forceUpdate();
           resolve(state);
@@ -7473,13 +7473,13 @@ function p(n2, u2, i) {
       if (u3.every(function(n4) {
         return !n4.__N;
       })) return !c2 || c2.call(this, n3, t2, r2);
-      var i2 = false;
+      var i2 = o2.__c.props !== n3;
       return u3.forEach(function(n4) {
         if (n4.__N) {
           var t3 = n4.__[0];
           n4.__ = n4.__N, n4.__N = void 0, t3 !== n4.__[0] && (i2 = true);
         }
-      }), !(!i2 && o2.__c.props === n3) && (!c2 || c2.call(this, n3, t2, r2));
+      }), c2 && c2.call(this, n3, t2, r2) || i2;
     };
     r$1.u = true;
     var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
@@ -7662,6 +7662,23 @@ function formatNumber(num) {
     maximumFractionDigits: 5
   });
 }
+function formatDateTime(date) {
+  const options = {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  };
+  return new Intl.DateTimeFormat(void 0, options).format(date);
+}
+function formatDuration(start2, end2) {
+  const durationMs = end2.getTime() - start2.getTime();
+  const durationSec = durationMs / 1e3;
+  return formatTime(durationSec);
+}
 const filename = (path) => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
@@ -7709,6 +7726,36 @@ function throttle(func, wait, options) {
       if (!timeout) context = args = null;
     } else if (!timeout && options.trailing !== false) {
       timeout = setTimeout(later, remaining);
+    }
+    return result;
+  };
+}
+function debounce(func, wait, options = {}) {
+  let timeout, context, args, result;
+  let lastCallTime = null;
+  const later = () => {
+    const last = Date.now() - lastCallTime;
+    if (last < wait && last >= 0) {
+      timeout = setTimeout(later, wait - last);
+    } else {
+      timeout = null;
+      if (!options.leading) {
+        result = func.apply(context, args);
+        if (!timeout) context = args = null;
+      }
+    }
+  };
+  return function() {
+    context = this;
+    args = arguments;
+    lastCallTime = Date.now();
+    const callNow = options.leading && !timeout;
+    if (!timeout) {
+      timeout = setTimeout(later, wait);
+    }
+    if (callNow) {
+      result = func.apply(context, args);
+      context = args = null;
     }
     return result;
   };
@@ -7769,6 +7816,13 @@ const ApplicationIcons = {
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
+  limits: {
+    messages: "bi bi-chat-right-text",
+    context: "bi bi-person-workspace",
+    operator: "bi bi-person-workspace",
+    tokens: "bi bi-list",
+    time: "bi bi-stopwatch"
+  },
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
@@ -7832,6 +7886,9 @@ const TextStyle = {
   },
   secondary: {
     color: "var(--bs-secondary)"
+  },
+  tertiary: {
+    color: "var(--bs-tertiary-color)"
   }
 };
 const ErrorPanel = ({ id, classes, title, error: error2 }) => {
@@ -7879,7 +7936,7 @@ const ErrorPanel = ({ id, classes, title, error: error2 }) => {
         >
           <div>
             Error: ${message || ""}
-            ${stack2 && m$1`
+            ${stack2 && error2.displayStack !== false && m$1`
               <pre
                 style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
               >
@@ -7933,7 +7990,8 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
   const progressContainerStyle = {
     width: "100%",
     height: "2px",
-    ...containerStyle
+    ...containerStyle,
+    background: "#ffffff00"
   };
   const progressBarStyle = {
     width: "5%",
@@ -7958,6 +8016,52 @@ const ProgressBar = ({ style, containerStyle, animating }) => {
       </div>
     </div>
   `;
+};
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
 };
 const Sidebar = ({
   offcanvas,
@@ -8077,10 +8181,20 @@ const Sidebar = ({
                 </div>
                 <${EvalStatus} logHeader=${logHeader} />
               </div>
-              <div style=${{ marginTop: "1em" }}>
+              <div
+                style=${{
+      marginTop: "1em",
+      ...ApplicationStyles.threeLineClamp
+    }}
+              >
                 <small class="mb-1">
                   ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-      return `${key2}: ${hyperparameters[key2]}`;
+      const val = hyperparameters[key2];
+      if (Array.isArray(val) || typeof val === "object") {
+        return `${key2}: ${JSON.stringify(val)}`;
+      } else {
+        return `${key2}: ${val}`;
+      }
     }).join(", ") : ""}
                 </small>
               </div>
@@ -8372,17 +8486,35 @@ const TabPanel = ({
   style,
   scrollable,
   classes,
+  scrollPosition,
+  setScrollPosition,
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
+  const tabContentsRef = A();
+  y(() => {
+    setTimeout(() => {
+      if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+        tabContentsRef.current.scrollTop = scrollPosition;
+      }
+    }, 0);
+  });
+  const onScroll = q(
+    (e2) => {
+      setScrollPosition(e2.srcElement.scrollTop);
+    },
+    [setScrollPosition]
+  );
   return m$1`<div
     id="${tabContentsId}"
+    ref=${tabContentsRef}
     class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
     style=${{
     flex: "1",
     overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
     ...style
   }}
+    onscroll=${onScroll}
   >
     ${children}
   </div>`;
@@ -9342,6 +9474,11 @@ const OutputRun = ({ outputRun }) => {
   return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
+};
+const Buckets = {
+  first: 0,
+  intermediate: 10,
+  final: 1e3
 };
 const decodeCache = {};
 function getDecodeCache(exclude) {
@@ -14508,7 +14645,7 @@ MarkdownIt.prototype.renderInline = function(src, env) {
   return this.renderer.render(this.parseInline(src, env), this.options, env);
 };
 const MarkdownDiv = (props) => {
-  const { markdown, style } = props;
+  const { markdown, style, contentRef } = props;
   const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
   const protectedText = protectMarkdown(preRendered);
@@ -14527,6 +14664,7 @@ const MarkdownDiv = (props) => {
   const withCode = unescapeCodeHtmlEntities(unescaped);
   const markup = { __html: withCode };
   return m$1`<div
+    ref=${contentRef}
     dangerouslySetInnerHTML=${markup}
     style=${style}
     class="${props.class ? `${props.class} ` : ""}markdown-content"
@@ -14902,7 +15040,13 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
+const ExpandablePanel = ({
+  collapse,
+  border,
+  lines = 15,
+  style,
+  children
+}) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -14910,30 +15054,32 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   y(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
+  const refreshCollapse = q(() => {
+    if (collapse && contentsRef.current) {
+      const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
+      setShowToggle(isScrollable);
+    }
+  }, [collapse, setShowToggle, contentsRef]);
   y(() => {
-    const checkScrollable = () => {
-      if (collapse && contentsRef.current) {
-        const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-        setShowToggle(isScrollable);
-      }
-    };
+    refreshCollapse();
+  }, [children]);
+  y(() => {
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          checkScrollable();
+          refreshCollapse();
         }
       });
     });
     if (contentsRef.current) {
       observerRef.current.observe(contentsRef.current);
     }
-    checkScrollable();
     return () => {
       if (observerRef.current && contentsRef.current) {
         observerRef.current.unobserve(contentsRef.current);
       }
     };
-  }, [collapse, contentsRef, observerRef]);
+  }, [contentsRef, observerRef]);
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
     contentsStyle = {
@@ -14951,7 +15097,7 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   return m$1`<div
       class="expandable-panel"
       ref=${contentsRef}
-      style=${contentsStyle}
+      style=${{ ...contentsStyle, ...style }}
     >
       ${children}
     </div>
@@ -14959,14 +15105,16 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
           collapsed=${collapsed}
           setCollapsed=${setCollapsed}
           border=${!border}
+          style=${style}
         />` : ""}`;
 };
-const MoreToggle = ({ collapsed, border, setCollapsed }) => {
+const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
   const text2 = collapsed ? "more" : "less";
   const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
   const topStyle = {
     display: "flex",
-    marginBottom: "0.5em"
+    marginBottom: "0.5em",
+    ...style
   };
   if (border) {
     topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
@@ -15017,6 +15165,7 @@ const ToolCallView = ({
   functionCall,
   input,
   inputType,
+  view,
   output,
   mode
 }) => {
@@ -15030,10 +15179,17 @@ const ToolCallView = ({
   const codeIndent = mode === "compact" ? "" : "";
   return m$1`<div>
     ${icon}
-    <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>
+    ${!view || view.title ? m$1`<code style=${{ fontSize: FontSize.small }}
+          >${(view == null ? void 0 : view.title) || functionCall}</code
+        >` : ""}
     <div>
       <div style=${{ marginLeft: `${codeIndent}` }}>
-        <${ToolInput} type=${inputType} contents=${input} />
+        <${ToolInput}
+          type=${inputType}
+          contents=${input}
+          view=${view}
+          style=${{ marginBottom: "1em" }}
+        />
         ${output ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
@@ -15042,39 +15198,71 @@ const ToolCallView = ({
     </div>
   </div>`;
 };
-const ToolInput = ({ type, contents }) => {
+const ToolInput = ({ type, contents, view, style }) => {
   if (!contents) {
     return "";
   }
-  const toolInputRef = A(
-    /** @type {HTMLElement|null} */
-    null
-  );
-  if (typeof contents === "object" || Array.isArray(contents)) {
-    contents = JSON.stringify(contents);
+  if (view) {
+    const toolInputRef = A(
+      /** @type {HTMLElement|null} */
+      null
+    );
+    y(() => {
+      if (toolInputRef.current) {
+        for (const child of toolInputRef.current.base.children) {
+          if (child.tagName === "PRE") {
+            const childChild = child.firstElementChild;
+            if (childChild && childChild.tagName === "CODE") {
+              const hasLanguageClass = Array.from(childChild.classList).some(
+                (className) => className.startsWith("language-")
+              );
+              if (hasLanguageClass) {
+                child.classList.add("tool-output");
+                Prism$1.highlightElement(childChild);
+              }
+            }
+          }
+        }
+      }
+    }, [toolInputRef.current]);
+    return m$1`<${MarkdownDiv}
+      markdown=${view.content}
+      ref=${toolInputRef}
+      style=${style}
+    />`;
+  } else {
+    const toolInputRef = A(
+      /** @type {HTMLElement|null} */
+      null
+    );
+    y(() => {
+      const tokens = Prism$1.languages[type];
+      if (toolInputRef.current && tokens) {
+        let resolvedContents = contents;
+        if (typeof contents === "object" || Array.isArray(contents)) {
+          resolvedContents = JSON.stringify(contents);
+        }
+        const html = Prism$1.highlight(resolvedContents, tokens, type);
+        toolInputRef.current.innerHTML = html;
+      }
+    }, [toolInputRef.current, contents, type, view]);
+    return m$1`<pre
+      class="tool-output"
+      style=${{
+      padding: "0.5em",
+      marginTop: "0.25em",
+      marginBottom: "1rem",
+      ...style
+    }}
+    >
+        <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
+      overflowWrap: "anywhere",
+      whiteSpace: "pre-wrap"
+    }}>
+          ${contents}
+          </code>
+      </pre>`;
   }
-  y(() => {
-    const tokens = Prism$1.languages[type];
-    if (toolInputRef.current && tokens) {
-      const html = Prism$1.highlight(contents, tokens, type);
-      toolInputRef.current.innerHTML = html;
-    }
-  }, [toolInputRef.current, contents, type]);
-  return m$1`<pre
-    class="tool-output"
-    style=${{
-    padding: "0.5em",
-    marginTop: "0.25em",
-    marginBottom: "1rem"
-  }}
-  >
-      <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
-    overflowWrap: "anywhere",
-    whiteSpace: "pre-wrap"
-  }}>
-        ${contents}
-        </code>
-    </pre>`;
 };
 const ToolOutput = ({ output, style }) => {
   if (!output) {
@@ -15149,8 +15337,15 @@ const extractInput = (inputKey, args) => {
   };
   if (args) {
     if (Object.keys(args).length === 1) {
+      const inputRaw = args[Object.keys(args)[0]];
+      let input;
+      if (Array.isArray(inputRaw) || typeof inputRaw === "object") {
+        input = JSON.stringify(inputRaw, void 0, 2);
+      } else {
+        input = String(inputRaw);
+      }
       return {
-        input: args[Object.keys(args)[0]],
+        input,
         args: []
       };
     } else if (args[inputKey]) {
@@ -15236,6 +15431,7 @@ const messageRenderers = {
 const ChatView = ({
   id,
   messages,
+  toolCallStyle,
   style,
   indented,
   numbered = true
@@ -15245,10 +15441,10 @@ const ChatView = ({
     if (message.role === "tool") {
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
-        msg.toolOutput = message;
+        msg.toolMessages.push(message);
       }
     } else {
-      resolvedMessages.push({ message });
+      resolvedMessages.push({ message, toolMessages: [] });
     }
   }
   const systemMessages = [];
@@ -15296,16 +15492,18 @@ const ChatView = ({
             <${ChatMessage}
               id=${`${id}-chat-messages`}
               message=${msg.message}
-              toolMessage=${msg.toolOutput}
+              toolMessages=${msg.toolMessages}
               indented=${indented}
+              toolCallStyle=${toolCallStyle}
             />
           </div>`;
     } else {
       return m$1` <${ChatMessage}
             id=${`${id}-chat-messages`}
             message=${msg.message}
-            toolMessage=${msg.toolOutput}
+            toolMessages=${msg.toolMessages}
             indented=${indented}
+            toolCallStyle=${toolCallStyle}
           />`;
     }
   })}
@@ -15323,7 +15521,13 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessage, indented }) => {
+const ChatMessage = ({
+  id,
+  message,
+  toolMessages,
+  indented,
+  toolCallStyle
+}) => {
   const collapse = message.role === "system";
   return m$1`
     <div
@@ -15354,15 +15558,16 @@ const ChatMessage = ({ id, message, toolMessage, indented }) => {
         <${MessageContents}
           key=${`${id}-contents`}
           message=${message}
-          toolMessage=${toolMessage}
+          toolMessages=${toolMessages}
+          toolCallStyle=${toolCallStyle}
         />
       </${ExpandablePanel}>
       </div>
     </div>
   `;
 };
-const MessageContents = ({ message, toolMessage }) => {
-  if (message.tool_calls && message.tool_calls.length) {
+const MessageContents = ({ message, toolMessages, toolCallStyle }) => {
+  if (message.role === "assistant" && message.tool_calls && message.tool_calls.length) {
     const result = [];
     if (message.content) {
       result.push(
@@ -15371,18 +15576,30 @@ const MessageContents = ({ message, toolMessage }) => {
         </div>`
       );
     }
-    const toolCalls = message.tool_calls.map((tool_call) => {
+    const toolCalls = message.tool_calls.map((tool_call, idx) => {
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
         tool_call.arguments
       );
+      let toolMessage;
+      if (tool_call.id) {
+        toolMessage = toolMessages.find((msg) => {
+          return msg.tool_call_id === tool_call.id;
+        });
+      } else {
+        toolMessage = toolMessages[idx];
+      }
       const resolvedToolOutput = resolveToolMessage(toolMessage);
-      return m$1`<${ToolCallView}
-        functionCall=${functionCall}
-        input=${input}
-        inputType=${inputType}
-        output=${resolvedToolOutput}
-      />`;
+      if (toolCallStyle === "compact") {
+        return m$1`<code>tool: ${functionCall}</code>`;
+      } else {
+        return m$1`<${ToolCallView}
+          functionCall=${functionCall}
+          input=${input}
+          inputType=${inputType}
+          output=${resolvedToolOutput}
+        />`;
+      }
     });
     if (toolCalls) {
       result.push(...toolCalls);
@@ -15406,11 +15623,10 @@ const iconForMsg = (msg) => {
   }
 };
 const resolveToolMessage = (toolMessage) => {
-  var _a2;
   if (!toolMessage) {
     return void 0;
   }
-  const content = ((_a2 = toolMessage.error) == null ? void 0 : _a2.message) || toolMessage.tool_error || toolMessage.content;
+  const content = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
   if (typeof content === "string") {
     return [
       {
@@ -15439,13 +15655,89 @@ const resolveToolMessage = (toolMessage) => {
     });
   }
 };
-const RenderedContent = ({
-  id,
-  entry,
-  context,
-  defaultRendering,
-  options
-}) => {
+const NavPills = ({ children }) => {
+  const [activeItem, setActiveItem] = h(children[0].props["title"]);
+  const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
+    const active = activeItem2 === title;
+    return m$1` <li class="nav-item">
+      <button
+        type="button"
+        role="tab"
+        aria-selected=${active}
+        style=${{
+      minWidth: "4rem",
+      ...TextStyle.label,
+      fontSize: FontSize.small,
+      padding: "0.1rem  0.6rem",
+      borderRadius: "var(--bs-border-radius)"
+    }}
+        class="nav-link ${active ? "active " : ""}"
+        onclick=${() => {
+      setActiveItem2(title);
+    }}
+      >
+        ${title}
+      </button>
+    </li>`;
+  };
+  const navPills = children.map((nav, idx) => {
+    var _a2;
+    const title = typeof nav === "object" ? ((_a2 = nav["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+    return m$1`<${NavPill}
+      title=${title}
+      activeItem=${activeItem}
+      setActiveItem=${setActiveItem}
+    />`;
+  });
+  const navBodies = children.map((child) => {
+    var _a2;
+    return m$1` <div
+      style=${{
+      display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none"
+    }}
+    >
+      ${child}
+    </div>`;
+  });
+  return m$1`<ul
+      class="nav nav-pills card-header-pills"
+      style=${{ marginRight: "0" }}
+      role="tablist"
+      aria-orientation="horizontal"
+    >
+      ${navPills}
+    </ul>
+    ${navBodies}`;
+};
+const ChatMessageRenderer = {
+  bucket: Buckets.first,
+  canRender: (entry) => {
+    var _a2, _b2;
+    const val = entry.value;
+    return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+  },
+  render: (id, entry) => {
+    return {
+      rendered: m$1`
+        <${NavPills}>
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
+        </${NavPills}>
+        `
+    };
+  }
+};
+const ChatSummary = ({ id, messages }) => {
+  const summaryMessages = [];
+  for (const message of messages.slice().reverse()) {
+    summaryMessages.unshift(message);
+    if (message.role === "user") {
+      break;
+    }
+  }
+  return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
+};
+const RenderedContent = ({ id, entry }) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -15458,26 +15750,12 @@ const RenderedContent = ({
   });
   let value = entry.value;
   if (renderer) {
-    const { rendered, afterBody } = renderer.render(
-      id,
-      entry,
-      defaultRendering,
-      options,
-      context
-    );
+    const { rendered } = renderer.render(id, entry);
     if (rendered !== void 0) {
       value = rendered;
-      if (afterBody !== void 0) {
-        context.afterBody(afterBody);
-      }
     }
   }
   return m$1`${value}`;
-};
-const Buckets = {
-  first: 0,
-  intermediate: 10,
-  final: 1e3
 };
 const contentRenderers = {
   AnsiString: {
@@ -15503,7 +15781,7 @@ const contentRenderers = {
     }
   },
   Boolean: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
@@ -15513,7 +15791,7 @@ const contentRenderers = {
     }
   },
   Number: {
-    order: Buckets.intermediate,
+    bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
@@ -15549,7 +15827,7 @@ const contentRenderers = {
         return false;
       }
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const arrayMap = {};
       entry.value.forEach((entry2, index) => {
         arrayMap[`[${index}]`] = entry2;
@@ -15559,25 +15837,12 @@ const contentRenderers = {
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
-        context=${context}
         compact
       />`;
       return { rendered: arrayRendered };
     }
   },
-  ChatMessage: {
-    bucket: Buckets.first,
-    canRender: (entry) => {
-      var _a2, _b2;
-      const val = entry.value;
-      return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-    },
-    render: (_id, entry) => {
-      return {
-        rendered: m$1`<${ChatView} messages=${entry.value} />`
-      };
-    }
-  },
+  ChatMessage: ChatMessageRenderer,
   web_search: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
@@ -15634,12 +15899,23 @@ ${entry.value}</pre
       };
     }
   },
+  Image: {
+    bucket: Buckets.intermediate,
+    canRender: (entry) => {
+      return typeof entry.value === "string" && entry.value.startsWith("data:image/");
+    },
+    render: (id, entry) => {
+      return {
+        rendered: m$1`<img src=${entry.value} />`
+      };
+    }
+  },
   Object: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry, _defaultRendering, _options, context) => {
+    render: (id, entry) => {
       const summary = [];
       const keys = Object.keys(entry.value);
       if (keys.length > 4) {
@@ -15655,7 +15931,6 @@ ${entry.value}</pre
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
-          context=${context}
           compact
         />`
       };
@@ -15669,8 +15944,6 @@ const MetaDataView = ({
   style,
   entries,
   tableOptions,
-  context,
-  expanded,
   compact
 }) => {
   const baseId = baseClass || "metadataview";
@@ -15717,12 +15990,7 @@ const MetaDataView = ({
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </td>
     </tr>`;
   });
@@ -15747,7 +16015,7 @@ const MetaDataView = ({
   </table>`;
 };
 const kPlanCardBodyId = "task-plan-card-body";
-const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
+const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -15760,7 +16028,6 @@ const PlanCard = ({ evalSpec, evalPlan, scores, context }) => {
           evaluation=${evalSpec}
           plan=${evalPlan}
           scores=${scores}
-          context=${context}
         />
       </${CardBody}>
     </${Card}>
@@ -15776,7 +16043,7 @@ const planSepStyle = {
   marginTop: "em",
   marginBottom: "-0.1em"
 };
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   if (scores.length > 1) {
     params["scores"] = scores;
   }
@@ -15784,11 +16051,10 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
-const DatasetDetailView = ({ dataset, context, style }) => {
+const DatasetDetailView = ({ dataset, style }) => {
   const filtered = Object.fromEntries(
     Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
   );
@@ -15800,21 +16066,16 @@ const DatasetDetailView = ({ dataset, context, style }) => {
   return m$1`<${MetaDataView}
     entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
   const details = steps == null ? void 0 : steps.map((step, index) => {
     return m$1`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -15827,7 +16088,7 @@ const SolversDetailView = ({ steps, context }) => {
     ${details}
   </div>`;
 };
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
   return m$1`
     <div style=${style}>
@@ -15841,14 +16102,13 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${m$1`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
   `;
 };
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -15919,17 +16179,12 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: m$1`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`
+    contents: m$1`<${DatasetDetailView} dataset=${evaluation.dataset} />`
   });
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: m$1`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `
+    contents: m$1` <${SolversDetailView} steps=${steps} /> `
   });
   if (scores) {
     const scorers = scores.reduce((accum, score) => {
@@ -15950,7 +16205,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key2}
           scores=${scorers[key2].scores}
           params=${scorers[key2].params}
-          context=${context}
         />`;
       });
       taskColumns.push({
@@ -15978,7 +16232,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `
   });
@@ -15992,7 +16245,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16007,7 +16259,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16022,7 +16273,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config2}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16037,7 +16287,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16052,7 +16301,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `
     });
@@ -16118,6 +16366,45 @@ const PlanColumn = ({ title, classes, style, children }) => {
     </div>
   `;
 };
+const MessageBand = ({ message, hidden, setHidden, type }) => {
+  const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
+  const color = "var(--bs-" + type === "info" ? "secondary" : "undefined-text-emphasis)";
+  return m$1`
+    <div
+      style=${{
+    gridTemplateColumns: "max-content auto max-content",
+    alignItems: "center",
+    columnGap: "0.5em",
+    fontSize: FontSize.small,
+    color,
+    background: bgColor,
+    borderBottom: "solid 1px var(--bs-light-border-subtle)",
+    padding: "0.3em 1em",
+    display: hidden ? "none" : "grid"
+  }}
+    >
+      <i class=${ApplicationIcons.logging[type]} />
+      ${message}
+      <button
+        title="Close"
+        style=${{
+    fontSize: FontSize["title-secondary"],
+    margin: "0",
+    padding: "0",
+    color: "var(--bs-" + type + "-text-emphasis)",
+    height: FontSize["title-secondary"],
+    lineHeight: FontSize["title-secondary"]
+  }}
+        class="btn"
+        onclick=${() => {
+    setHidden(true);
+  }}
+      >
+        <i class=${ApplicationIcons.close}></i>
+      </button>
+    </div>
+  `;
+};
 const LargeModal = (props) => {
   const {
     id,
@@ -16129,9 +16416,30 @@ const LargeModal = (props) => {
     visible,
     onHide,
     showProgress,
-    children
+    children,
+    initialScrollPositionRef,
+    setInitialScrollPosition,
+    warning,
+    warningHidden,
+    setWarningHidden
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
+  const scrollRef = A();
+  y(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
+          scrollRef.current.scrollTop = initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current;
+        }
+      }, 0);
+    }
+  }, []);
+  const onScroll = q(
+    (e2) => {
+      setInitialScrollPosition(e2.srcElement.scrollTop);
+    },
+    [setInitialScrollPosition]
+  );
   const headerEls = [];
   headerEls.push(
     m$1`<div
@@ -16223,7 +16531,16 @@ const LargeModal = (props) => {
     backgroundColor: "var(--bs-body-bg)"
   }}
         />
-        <div class="modal-body">${children}</div>
+
+        ${warning ? m$1`<${MessageBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+              type="warning"
+            />` : ""}
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>
@@ -16256,52 +16573,6 @@ const isVscode = () => {
     return attr.includes("data-vscode-");
   });
 };
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
-};
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
   if (scores.length === 1) {
@@ -16333,8 +16604,7 @@ const SampleScoreView = ({
   sample,
   sampleDescriptor,
   style,
-  scorer,
-  context
+  scorer
 }) => {
   var _a2, _b2, _c;
   if (!sampleDescriptor) {
@@ -16487,7 +16757,6 @@ const SampleScoreView = ({
                     classes="tab-pane"
                     entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
                     style=${{ marginTop: "1em" }}
-                    context=${context}
                   />
                 </td>
               </tr>
@@ -16500,6 +16769,7 @@ const EventPanel = ({
   id,
   classes,
   title,
+  subTitle,
   text: text2,
   icon,
   titleColor,
@@ -16529,10 +16799,14 @@ const EventPanel = ({
     gridColumns2.push("max-content");
   }
   gridColumns2.push("minmax(0, max-content)");
+  if (subTitle) {
+    gridColumns2.push("minmax(0, max-content)");
+  }
   gridColumns2.push("auto");
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
   const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
+          title=${subTitle}
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -16686,15 +16960,7 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
     </button>
   </li>`;
 };
-const MetaDataGrid = ({
-  id,
-  entries,
-  classes,
-  context,
-  style,
-  expanded,
-  plain
-}) => {
+const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
   const baseId = "metadata-grid";
   const cellKeyStyle = {
     fontWeight: "400",
@@ -16738,12 +17004,7 @@ const MetaDataGrid = ({
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id2}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </div>
     `;
   });
@@ -16808,7 +17069,7 @@ const SampleInitEventView = ({ id, event, style }) => {
   `);
   }
   return m$1`
-  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample}>
+  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
@@ -18421,7 +18682,7 @@ const StateEventView = ({ id, event, style }) => {
   }
   const title = event.event === "state" ? "State Updated" : "Store Updated";
   return m$1`
-  <${EventPanel} id=${id} title="${title}" text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style}>
     ${tabs}
   </${EventPanel}>`;
 };
@@ -18566,6 +18827,7 @@ const StepEventView = ({ event, children, style }) => {
     id=${`step-${event.name}`}
     classes="transcript-step"
     title="${title}"
+    subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}
@@ -18694,7 +18956,7 @@ const SubtaskEventView = ({ id, event, style, depth }) => {
         `;
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style} collapse=${false}>
       ${body}
     </${EventPanel}>`;
 };
@@ -18715,7 +18977,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
-    <${Rendered} values=${result} />
+    <div>
+      <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 const Rendered = ({ values }) => {
@@ -18794,11 +19058,14 @@ const TokenRow = ({ model, usage }) => {
   </tr>`;
 };
 const kUsageCardBodyId = "usage-card-body";
-const UsageCard = ({ stats, context }) => {
+const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
-  const totalDuration = duration(stats);
+  const totalDuration = formatDuration(
+    new Date(stats.started_at),
+    new Date(stats.completed_at)
+  );
   const usageMetadataStyle = {
     fontSize: FontSize.smaller
   };
@@ -18827,7 +19094,6 @@ const UsageCard = ({ stats, context }) => {
     ["Duration"]: totalDuration
   }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>
@@ -18915,17 +19181,18 @@ const ModelUsagePanel = ({ usage }) => {
   })}
   </div>`;
 };
-const duration = (stats) => {
-  const start2 = new Date(stats.started_at);
-  const end2 = new Date(stats.completed_at);
-  const durationMs = end2.getTime() - start2.getTime();
-  const durationSec = durationMs / 1e3;
-  return formatTime(durationSec);
-};
 const ModelEventView = ({ id, event, style }) => {
   var _a2, _b2;
   const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
-  const subtitle = totalUsage ? `(${formatNumber(totalUsage)} tokens)` : "";
+  const callTime = event.output.time;
+  const subItems = [];
+  if (totalUsage) {
+    subItems.push(`${formatNumber(totalUsage)} tokens`);
+  }
+  if (callTime) {
+    subItems.push(`${formatPrettyDecimal(callTime)} sec`);
+  }
+  const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
   const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
     return choice.message;
   });
@@ -18938,7 +19205,7 @@ const ModelEventView = ({ id, event, style }) => {
     justifySelf: "start"
   };
   const userMessages = [];
-  for (const msg of event.input.reverse()) {
+  for (const msg of event.input.slice().reverse()) {
     if (msg.role === "user") {
       userMessages.push(msg);
     } else {
@@ -18946,7 +19213,7 @@ const ModelEventView = ({ id, event, style }) => {
     }
   }
   return m$1`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style}>
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
@@ -18954,6 +19221,7 @@ const ModelEventView = ({ id, event, style }) => {
       messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
       numbered=${false}
+      toolCallStyle="compact"
       />
     </div>
 
@@ -19156,14 +19424,14 @@ const InfoEventView = ({ id, event, style }) => {
     );
   }
   return m$1`
-  <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
+  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style}>
     ${panels}
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
   const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
   return m$1`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
+  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"
@@ -19250,7 +19518,6 @@ const decisionIcon = (decision) => {
   }
 };
 const ToolEventView = ({ id, event, style, depth }) => {
-  var _a2;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
@@ -19259,58 +19526,83 @@ const ToolEventView = ({ id, event, style, depth }) => {
     return e2.event === "approval";
   });
   const title = `Tool: ${event.function}`;
-  const output = event.result || ((_a2 = event.error) == null ? void 0 : _a2.message);
   return m$1`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
-        ${!output ? "(No output)" : m$1`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
-            <${ToolOutput}
-              output=${output}
-            />
-          </${ExpandablePanel}>`}
-        ${approvalEvent ? m$1`<${ApprovalEventView}
-                id="${id}-approval"
-                event=${approvalEvent}
-                style=${{ border: "none", padding: 0, marginBottom: 0 }}
-              />` : ""}
-    </div>
-    
-  
-  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
       output=${event.result}
       mode="compact"
+      view=${event.view}
       />
-        ${event.events.length > 0 ? m$1`<${TranscriptView}
-                id="${id}-subtask"
-                name="Transcript"
-                events=${event.events}
-                depth=${depth + 1}
-              />` : ""}
-
+      ${approvalEvent ? m$1`<${ApprovalEventView}
+              id="${id}-approval"
+              event=${approvalEvent}
+              style=${{ border: "none", padding: 0, marginBottom: 0 }}
+            />` : ""}
   </div>
+    ${event.events.length > 0 ? m$1`<${TranscriptView}
+            id="${id}-subtask"
+            name="Transcript"
+            events=${event.events}
+            depth=${depth + 1}
+          />` : ""}
   </${EventPanel}>`;
 };
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
+  <${EventPanel} id=${id} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const InputEventView = ({ id, event, style }) => {
   return m$1`
-  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style}>
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
+  </${EventPanel}>`;
+};
+const SampleLimitEventView = ({ id, event, style }) => {
+  const resolve_title = (type) => {
+    switch (type) {
+      case "context":
+        return "Context Limit Exceeded";
+      case "time":
+        return "Time Limit Execeeded";
+      case "message":
+        return "Message Limit Exceeded";
+      case "token":
+        return "Token Limit Exceeded";
+      case "operator":
+        return "Operator Canceled";
+    }
+  };
+  const resolve_icon = (type) => {
+    switch (type) {
+      case "context":
+        return ApplicationIcons.limits.context;
+      case "time":
+        return ApplicationIcons.limits.time;
+      case "message":
+        return ApplicationIcons.limits.messages;
+      case "token":
+        return ApplicationIcons.limits.tokens;
+      case "operator":
+        return ApplicationIcons.limits.operator;
+    }
+  };
+  const title = resolve_title(event.type);
+  const icon = resolve_icon(event.type);
+  return m$1`
+  <${EventPanel} id=${id} title=${title} icon=${icon} style=${style}>
+    ${event.message}
   </${EventPanel}>`;
 };
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").SampleLimitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -19366,6 +19658,12 @@ const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "sample_limit":
+      return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
         style=${style}
@@ -19461,14 +19759,16 @@ const fixupEventStream = (events) => {
       event: "step",
       action: "begin",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
     fixedUp.splice(initEventIndex + 2, 0, {
       timestamp: initEvent.timestamp,
       event: "step",
       action: "end",
       type: null,
-      name: "sample_init"
+      name: "sample_init",
+      pending: false
     });
   }
   return fixedUp;
@@ -19523,7 +19823,9 @@ const SampleError = ({ message, align, style }) => {
     height: FontSize.small
   }}
     />
-    <div>${errorType(message)}</div>
+    <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
+      ${errorType(message)}
+    </div>
   </div>`;
 };
 const FlatSampleError = ({ message, style }) => {
@@ -19625,30 +19927,27 @@ const InlineSampleDisplay = ({
   sampleError,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
-  return m$1`<div
-    style=${{ flexDirection: "row", width: "100%", margin: "0 1em 1em 1em" }}
-  >
+  return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
       animating=${sampleStatus === "loading"}
       containerStyle=${{
     background: "var(--bs-body-bg)"
   }}
     />
-    <div style=${{ height: "1em" }} />
-    ${sampleError ? m$1`<${ErrorPanel}
-          title="Unable to load sample"
-          error=${sampleError}
-        />` : m$1` <${SampleDisplay}
-          id=${id}
-          sample=${sample}
-          sampleDescriptor=${sampleDescriptor}
-          selectedTab=${selectedTab}
-          setSelectedTab=${setSelectedTab}
-          context=${context}
-        />`}
+    <div style=${{ margin: "1em 1em 1em 1em" }}>
+      ${sampleError ? m$1`<${ErrorPanel}
+            title="Unable to load sample"
+            error=${sampleError}
+          />` : m$1` <${SampleDisplay}
+            id=${id}
+            sample=${sample}
+            sampleDescriptor=${sampleDescriptor}
+            selectedTab=${selectedTab}
+            setSelectedTab=${setSelectedTab}
+          />`}
+    </div>
   </div>`;
 };
 const SampleDisplay = ({
@@ -19656,8 +19955,7 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   selectedTab,
-  setSelectedTab,
-  context
+  setSelectedTab
 }) => {
   const baseId = `sample-dialog`;
   if (!sample) {
@@ -19692,7 +19990,6 @@ const SampleDisplay = ({
       <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
-          context=${context}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
           style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19705,7 +20002,6 @@ const SampleDisplay = ({
         <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
-            context=${context}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
             style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
@@ -19713,11 +20009,7 @@ const SampleDisplay = ({
         </${TabPanel}>`);
     }
   }
-  const sampleMetadatas = metadataViewsForSample(
-    `${baseId}-${id}`,
-    sample,
-    context
-  );
+  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
   if (sampleMetadatas.length > 0) {
     tabs.push(
       m$1`
@@ -19839,7 +20131,7 @@ const SampleDisplay = ({
     ${tabs}
   </${TabSet}>`;
 };
-const metadataViewsForSample = (id, sample, context) => {
+const metadataViewsForSample = (id, sample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(m$1`
@@ -19861,7 +20153,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
         </${Card}>`
@@ -19878,7 +20169,6 @@ const metadataViewsForSample = (id, sample, context) => {
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
-            context=${context}
           />
         </${CardBody}>
       </${Card}>`
@@ -19887,9 +20177,14 @@ const metadataViewsForSample = (id, sample, context) => {
   return sampleMetadatas;
 };
 const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
-  const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
-  const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
-  const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
+  const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
+  const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
+  const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
+  const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+  const idSize = Math.max(
+    2,
+    Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
+  );
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -19903,7 +20198,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   columns.push({
     label: "Id",
     value: id,
-    size: "minmax(min-content, max-content)"
+    size: `${idSize}em`
   });
   columns.push({
     label: "Input",
@@ -19934,6 +20229,14 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
           />` : "",
       size: `${answer}fr`,
       clamp: true
+    });
+  }
+  if (sample.limit && limitSize > 0) {
+    columns.push({
+      label: "Limit",
+      value: sample.limit.type,
+      size: `${limitSize}fr`,
+      center: true
     });
   }
   columns.push({
@@ -20000,7 +20303,8 @@ const SampleDialog = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
-  context
+  sampleScrollPositionRef,
+  setSampleScrollPosition
 }) => {
   const tools = T(() => {
     const nextTool = {
@@ -20040,6 +20344,18 @@ const SampleDialog = ({
     },
     [prevSample, nextSample]
   );
+  const children = T(() => {
+    return sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
+          id=${id}
+          sample=${sample}
+          sampleDescriptor=${sampleDescriptor}
+          selectedTab=${selectedTab}
+          setSelectedTab=${setSelectedTab}
+        />`;
+  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
+  const onHide = q(() => {
+    setShowingSampleDialog(false);
+  }, [setShowingSampleDialog]);
   return m$1`
     <${LargeModal} 
       id=${id} 
@@ -20047,19 +20363,12 @@ const SampleDialog = ({
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
       visible=${showingSampleDialog}
-      onHide=${() => {
-    setShowingSampleDialog(false);
-  }}
+      onHide=${onHide}
       showProgress=${sampleStatus === "loading"}
+      initialScrollPositionRef=${sampleScrollPositionRef}
+      setInitialScrollPosition=${setSampleScrollPosition}
     >
-        ${sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
-                id=${id}
-                sample=${sample}
-                sampleDescriptor=${sampleDescriptor}
-                selectedTab=${selectedTab}
-                setSelectedTab=${setSelectedTab}
-                context=${context}
-              />`}
+        ${children}
     </${LargeModal}>`;
 };
 const STYLE_INNER = "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -20132,44 +20441,6 @@ class VirtualList extends k$1 {
     return rows;
   }
 }
-const WarningBand = ({ message }) => {
-  const [hidden, setHidden] = h(false);
-  return m$1`
-    <div
-      style=${{
-    gridTemplateColumns: "max-content auto max-content",
-    alignItems: "center",
-    columnGap: "0.5em",
-    fontSize: FontSize.small,
-    color: "var(--bs-warning-text-emphasis)",
-    background: "var(--bs-warning-bg-subtle)",
-    borderBottom: "solid 1px var(--bs-light-border-subtle)",
-    padding: "0.3em 1em",
-    display: hidden ? "none" : "grid"
-  }}
-    >
-      <i class=${ApplicationIcons.logging.warning} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-    fontSize: FontSize["title-secondary"],
-    margin: "0",
-    padding: "0",
-    color: "var(--bs-warning-text-emphasis)",
-    height: FontSize["title-secondary"],
-    lineHeight: FontSize["title-secondary"]
-  }}
-        class="btn"
-        onclick=${() => {
-    setHidden(true);
-  }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
-};
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 const SampleList = (props) => {
@@ -20188,6 +20459,10 @@ const SampleList = (props) => {
   if (items.length === 0) {
     return m$1`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [items]);
   const heightForType = (type) => {
     return type === "sample" ? kSampleHeight : kSeparatorHeight;
   };
@@ -20277,6 +20552,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { limit, answer } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20289,11 +20565,12 @@ const SampleList = (props) => {
     borderBottom: "solid var(--bs-light-border-subtle) 1px"
   }}
   >
-    <div>#</div>
+    <div>Id</div>
     <div>Input</div>
     <div>Target</div>
-    <div>Answer</div>
-    <div>Score</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
+    <div>${limit !== "0" ? "Limit" : ""}</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
   const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -20323,9 +20600,22 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
+  const limitCount = items == null ? void 0 : items.reduce((previous, item) => {
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
   const percentError = errorCount / sampleCount * 100;
-  const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
-  const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
+  const percentLimit = limitCount / sampleCount * 100;
+  const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
+  const warningRow = warningMessage ? m$1`<${MessageBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+        type="info"
+      />` : "";
   return m$1` <div
     style=${{ display: "flex", flexDirection: "column", width: "100%" }}
   >
@@ -20394,7 +20684,12 @@ const SampleRow = ({
     overflowY: "hidden"
   }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
+      <div
+        class="sample-id"
+        style=${{ ...cellStyle, ...ApplicationStyles.threeLineClamp }}
+      >
+        ${sample.id}
+      </div>
       <div
         class="sample-input"
         style=${{
@@ -20433,33 +20728,64 @@ const SampleRow = ({
               />
             ` : ""}
       </div>
+      <div
+        class="sample-limit"
+        style=${{
+    fontSize: FontSize.small,
+    ...ApplicationStyles.threeLineClamp,
+    ...cellStyle
+  }}
+      >
+        ${sample.limit}
+      </div>
 
       <div
         style=${{
     fontSize: FontSize.small,
     ...cellStyle,
-    display: "flex"
+    display: "flex",
+    justifySelf: "center"
   }}
       >
-        ${sample.error ? m$1`<${SampleError} message=${sample.error.message} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError} message=${sample.error} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
 };
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
+  const { input, target, answer, limit, id, score } = gridColumns(sampleDescriptor);
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em"
+    gridGap: "10px",
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem"
   };
 };
 const gridColumns = (sampleDescriptor) => {
-  const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.input) : 0;
-  const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.target) : 0;
-  const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.answer) : 0;
-  return { input, target, answer };
+  const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
+  const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
+  const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
+  const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+  const id = Math.max(2, Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.score)
+  );
+  const frSize = (val) => {
+    if (val === 0) {
+      return "0";
+    } else {
+      return `${val}fr`;
+    }
+  };
+  return {
+    input: frSize(input),
+    target: frSize(target),
+    answer: frSize(answer),
+    limit: frSize(limit),
+    id: `${id}rem`,
+    score: `${score}rem`
+  };
 };
 const SamplesTab = ({
   task_id,
@@ -20478,7 +20804,8 @@ const SamplesTab = ({
   setShowingSampleDialog,
   selectedSampleTab,
   setSelectedSampleTab,
-  context
+  sampleScrollPositionRef,
+  setSampleScrollPosition
 }) => {
   const [items, setItems] = h([]);
   const [sampleItems, setSampleItems] = h([]);
@@ -20565,7 +20892,6 @@ const SamplesTab = ({
         sampleDescriptor=${sampleDescriptor}
         selectedTab=${selectedSampleTab}
         setSelectedTab=${setSelectedSampleTab}
-        context=${context}
       />`
     );
   } else if (sampleMode === "many") {
@@ -20604,7 +20930,8 @@ const SamplesTab = ({
       setSelectedTab=${setSelectedSampleTab}
       nextSample=${nextSample}
       prevSample=${previousSample}
-      context=${context}
+      sampleScrollPositionRef=${sampleScrollPositionRef}
+      setSampleScrollPosition=${setSampleScrollPosition}
     />
   `);
   return elements;
@@ -22641,6 +22968,22 @@ try {
   tds = 1;
 } catch (e2) {
 }
+class FileSizeLimitError extends Error {
+  /**
+   * Creates a new FileSizeLimitError.
+   *
+   * @param {string} file - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(file, maxBytes) {
+    super(
+      `File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`
+    );
+    this.name = "FileSizeLimitError";
+    this.file = file;
+    this.maxBytes = maxBytes;
+  }
+}
 const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
   const contentLength = await fetchContentLength(url);
   const eocdrBuffer = await fetchBytes(
@@ -22659,7 +23002,7 @@ const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes
   const centralDirectory = parseCentralDirectory(centralDirBuffer);
   return {
     centralDirectory,
-    readFile: async (file) => {
+    readFile: async (file, maxBytes) => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
@@ -22673,6 +23016,9 @@ const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes
       const filenameLength = headerData[26] + (headerData[27] << 8);
       const extraFieldLength = headerData[28] + (headerData[29] << 8);
       const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+      if (maxBytes && totalSizeToFetch > maxBytes) {
+        throw new FileSizeLimitError(file, maxBytes);
+      }
       const fileData = await fetchBytes(
         url,
         entry.fileOffset,
@@ -23013,6 +23359,7 @@ class AsyncQueue {
     }
   }
 }
+const MAX_BYTES = 12582912;
 const openRemoteLogFile = async (api2, url, concurrency) => {
   const queue = new AsyncQueue(concurrency);
   const remoteZipFile = await openRemoteZipFile(
@@ -23020,14 +23367,20 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
     api2.eval_log_size,
     api2.eval_log_bytes
   );
-  const readJSONFile = async (file) => {
+  const readJSONFile = async (file, maxBytes) => {
     try {
-      const data = await remoteZipFile.readFile(file);
+      const data = await remoteZipFile.readFile(file, maxBytes);
       const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
       return asyncJsonParse(jsonString);
     } catch (error2) {
-      throw new Error(`Failed to read or parse file ${file}: ${error2.message}`);
+      if (error2 instanceof FileSizeLimitError) {
+        throw error2;
+      } else {
+        throw new Error(
+          `Failed to read or parse file ${file}: ${error2.message}`
+        );
+      }
     }
   };
   const listSamples = async () => {
@@ -23041,10 +23394,10 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
       };
     });
   };
-  const readSample = (sampleId, epoch) => {
+  const readSample = async (sampleId, epoch) => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return readJSONFile(sampleFile);
+      return readJSONFile(sampleFile, MAX_BYTES);
     } else {
       console.log({ dir: remoteZipFile.centralDirectory });
       throw new Error(
@@ -23146,6 +23499,25 @@ const openRemoteLogFile = async (api2, url, concurrency) => {
 const isEvalFile = (file) => {
   return file.endsWith(".eval");
 };
+class SampleSizeLimitedExceededError extends Error {
+  /**
+   * Creates a new SizeLimitedExceededError.
+   *
+   * @param {string | number} id - The name of the file that caused the error.
+   * @param {number} epoch - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(id, epoch, maxBytes) {
+    super(
+      `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+    );
+    this.name = "SampleSizeLimitedExceededError";
+    this.id = id;
+    this.epoch = epoch;
+    this.maxBytes = maxBytes;
+    this.displayStack = false;
+  }
+}
 const clientApi = (api2) => {
   let current_log = void 0;
   let current_path = void 0;
@@ -23187,13 +23559,15 @@ const clientApi = (api2) => {
     } else {
       const logContents = await get_log(log_file);
       const sampleSummaries = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample) => {
+        var _a3;
         return {
           id: sample.id,
           epoch: sample.epoch,
           input: sample.input,
           target: sample.target,
           scores: sample.scores,
-          metadata: sample.metadata
+          metadata: sample.metadata,
+          error: (_a3 = sample.error) == null ? void 0 : _a3.message
         };
       }) : [];
       const parsed = logContents.parsed;
@@ -23212,8 +23586,16 @@ const clientApi = (api2) => {
   const get_log_sample = async (log_file, id, epoch) => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file, true);
-      const sample = await remoteLogFile.readSample(id, epoch);
-      return sample;
+      try {
+        const sample = await remoteLogFile.readSample(id, epoch);
+        return sample;
+      } catch (error2) {
+        if (error2 instanceof FileSizeLimitError) {
+          throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
+        } else {
+          throw error2;
+        }
+      }
     } else {
       const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
@@ -23463,25 +23845,48 @@ const byEpoch = (sort) => {
 const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 };
+const sortId = (a2, b2) => {
+  if (isNumeric(a2.id) && isNumeric(b2.id)) {
+    return Number(a2.id) - Number(b2.id);
+  } else {
+    return String(a2.id).localeCompare(String(b2.id));
+  }
+};
 const sortSamples = (sort, samples, samplesDescriptor) => {
   const sortedSamples = samples.sort((a2, b2) => {
     switch (sort) {
-      case kSampleAscVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(a2.id) - Number(b2.id);
+      case kSampleAscVal: {
+        const result = sortId(a2, b2);
+        if (result !== 0) {
+          return result;
         } else {
-          return String(a2.id).localeCompare(String(b2.id));
+          return a2.epoch - b2.epoch;
         }
-      case kSampleDescVal:
-        if (isNumeric(a2.id) && isNumeric(b2.id)) {
-          return Number(b2.id) - Number(a2.id);
+      }
+      case kSampleDescVal: {
+        const result = sortId(b2, a2);
+        if (result !== 0) {
+          return result;
         } else {
-          return String(b2.id).localeCompare(String(a2.id));
+          return a2.epoch - b2.epoch;
         }
-      case kEpochAscVal:
-        return a2.epoch - b2.epoch;
-      case kEpochDescVal:
-        return b2.epoch - a2.epoch;
+      }
+      case kEpochAscVal: {
+        const result = a2.epoch - b2.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a2, b2);
+        }
+      }
+      case kEpochDescVal: {
+        const result = b2.epoch - a2.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a2, b2);
+        }
+      }
       case kScoreAscVal:
         return samplesDescriptor.scoreDescriptor.compare(
           samplesDescriptor.selectedScore(a2).value,
@@ -23835,6 +24240,7 @@ const SecondaryBar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   style
@@ -23865,7 +24271,7 @@ const SecondaryBar = ({
   const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
-    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
+    value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
     <${ScorerSummary} 
       scorers=${evalResults == null ? void 0 : evalResults.scores} />
   </${LabeledValue}>`
@@ -23878,7 +24284,19 @@ const SecondaryBar = ({
     </${LabeledValue}>`
     });
   }
+  const totalDuration = formatDuration(
+    new Date(evalStats.started_at),
+    new Date(evalStats.completed_at)
+  );
+  values.push({
+    size: "minmax(12%, auto)",
+    value: m$1`
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
+        ${totalDuration}
+      </${LabeledValue}>`
+  });
   return m$1`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
     margin: "0",
@@ -23888,14 +24306,14 @@ const SecondaryBar = ({
     borderTop: "1px solid var(--bs-border-color)",
     gridTemplateColumns: `${values.map((val) => {
       return val.size;
-    }).join(" ")}`,
-    ...style
+    }).join(" ")}`
   }}
     >
       ${values.map((val) => {
     return val.value;
   })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 const DatasetSummary = ({ dataset, samples, epochs, style }) => {
@@ -23923,7 +24341,12 @@ const ParamSummary = ({ params }) => {
     return "";
   }
   const paraValues = Object.keys(params).map((key2) => {
-    return `${key2}: ${params[key2]}`;
+    const val = params[key2];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key2}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key2}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
@@ -23938,6 +24361,7 @@ const Navbar = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   showToggle,
   offcanvas,
@@ -24075,6 +24499,7 @@ const Navbar = ({
           evalSpec=${evalSpec}
           evalPlan=${evalPlan}
           evalResults=${evalResults}
+          evalStats=${evalStats}
           samples=${samples}
           status=${status}
           style=${{ gridColumn: "1/-1" }}
@@ -24317,7 +24742,10 @@ const WorkSpace = ({
   scores,
   selectedTab,
   setSelectedTab,
-  renderContext
+  sampleScrollPositionRef,
+  setSampleScrollPosition,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition
 }) => {
   const divRef = A(
     /** @type {HTMLElement|null} */
@@ -24326,164 +24754,215 @@ const WorkSpace = ({
   if (!evalSpec) {
     return "";
   }
+  const [hidden, setHidden] = h(false);
+  y(() => {
+    setHidden(false);
+  }, [logFileName]);
   y(() => {
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
   }, [divRef, task_id]);
-  const resolvedTabs = {};
-  if (evalStatus !== "error" && sampleMode !== "none") {
-    resolvedTabs.samples = {
-      id: kEvalWorkspaceTabId,
-      scrollable: samples.length === 1,
-      label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
+  const resolvedTabs = T(() => {
+    const resolvedTabs2 = {};
+    if (evalStatus !== "error" && sampleMode !== "none") {
+      resolvedTabs2.samples = {
+        id: kEvalWorkspaceTabId,
+        scrollable: samples.length === 1,
+        label: (samples == null ? void 0 : samples.length) > 1 ? "Samples" : "Sample",
+        content: () => {
+          return m$1` <${SamplesTab}
+            task_id=${task_id}
+            selectedScore=${score}
+            sample=${selectedSample}
+            sampleStatus=${sampleStatus}
+            sampleError=${sampleError}
+            showingSampleDialog=${showingSampleDialog}
+            setShowingSampleDialog=${setShowingSampleDialog}
+            samples=${samples}
+            sampleMode=${sampleMode}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
+            sampleDescriptor=${samplesDescriptor}
+            selectedSampleTab=${selectedSampleTab}
+            setSelectedSampleTab=${setSelectedSampleTab}
+            filter=${filter}
+            sort=${sort}
+            epoch=${epoch}
+            sampleScrollPositionRef=${sampleScrollPositionRef}
+            setSampleScrollPosition=${setSampleScrollPosition}
+          />`;
+        },
+        tools: () => {
+          if (sampleMode === "single") {
+            return "";
+          }
+          const sampleTools = [
+            m$1`<${SampleTools}
+              epoch=${epoch}
+              epochs=${epochs}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              filterChanged=${setFilter}
+              sort=${sort}
+              setSort=${setSort}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              sampleDescriptor=${samplesDescriptor}
+            />`
+          ];
+          if (evalStatus === "started") {
+            sampleTools.push(
+              m$1`<${ToolButton}
+                name=${m$1`Refresh`}
+                icon="${ApplicationIcons.refresh}"
+                onclick="${refreshLog}"
+              />`
+            );
+          }
+          return sampleTools;
+        }
+      };
+    }
+    resolvedTabs2.config = {
+      id: kInfoWorkspaceTabId,
+      label: "Info",
+      scrollable: true,
       content: () => {
-        return m$1` <${SamplesTab}
-          task_id=${task_id}
-          selectedScore=${score}
-          sample=${selectedSample}
-          sampleStatus=${sampleStatus}
-          sampleError=${sampleError}
-          showingSampleDialog=${showingSampleDialog}
-          setShowingSampleDialog=${setShowingSampleDialog}
-          samples=${samples}
-          sampleMode=${sampleMode}
-          groupBy=${groupBy}
-          groupByOrder=${groupByOrder}
-          selectedSampleIndex=${selectedSampleIndex}
-          setSelectedSampleIndex=${setSelectedSampleIndex}
-          sampleDescriptor=${samplesDescriptor}
-          selectedSampleTab=${selectedSampleTab}
-          setSelectedSampleTab=${setSelectedSampleTab}
-          filter=${filter}
-          sort=${sort}
-          epoch=${epoch}
-          context=${renderContext}
+        var _a2;
+        const infoCards = [];
+        infoCards.push([
+          m$1`<${PlanCard}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults == null ? void 0 : evalResults.scores}
+          />`
+        ]);
+        if (evalStatus !== "started") {
+          infoCards.push(m$1`<${UsageCard} stats=${evalStats} />`);
+        }
+        if (evalStatus === "error" && evalError) {
+          infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
+        }
+        const warnings = [];
+        if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
+          warnings.push(
+            m$1`<${MessageBand}
+              message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
+              type="warning"
+            />`
+          );
+        }
+        return m$1` <div style=${{ width: "100%" }}>
+          ${warnings}
+          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
+            ${infoCards}
+          </div>
+        </div>`;
+      }
+    };
+    resolvedTabs2.json = {
+      id: kJsonWorkspaceTabId,
+      label: "JSON",
+      scrollable: true,
+      content: () => {
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats
+        };
+        const json = JSON.stringify(evalHeader, null, 2);
+        return m$1`<${JsonTab}
+          logFileName=${logFileName}
+          json=${json}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonWorkspaceTabId}
         />`;
       },
       tools: () => {
-        if (evalStatus === "started") {
-          return m$1`<${ToolButton}
-            name=${m$1`Refresh`}
-            icon="${ApplicationIcons.refresh}"
-            onclick="${refreshLog}"
-          />`;
-        }
-        if (sampleMode === "single") {
-          return "";
-        }
-        return m$1`<${SampleTools}
-          epoch=${epoch}
-          epochs=${epochs}
-          setEpoch=${setEpoch}
-          filter=${filter}
-          filterChanged=${setFilter}
-          sort=${sort}
-          setSort=${setSort}
-          score=${score}
-          setScore=${setScore}
-          scores=${scores}
-          sampleDescriptor=${samplesDescriptor}
-        />`;
+        return [
+          m$1`<${ToolButton}
+            name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`
+        ];
       }
     };
-  }
-  resolvedTabs.config = {
-    id: kInfoWorkspaceTabId,
-    label: "Info",
-    scrollable: true,
-    content: () => {
-      var _a2;
-      const infoCards = [];
-      infoCards.push([
-        m$1`<${PlanCard}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          scores=${evalResults == null ? void 0 : evalResults.scores}
-          context=${renderContext}
-        />`
-      ]);
-      if (evalStatus !== "started") {
-        infoCards.push(
-          m$1`<${UsageCard} stats=${evalStats} context=${renderContext} />`
-        );
+    const copyFeedback = (e2) => {
+      const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
+      const iconEl = e2.currentTarget.querySelector("i.bi");
+      if (textEl) {
+        const oldText = textEl.innerText;
+        const oldIconClz = iconEl.className;
+        textEl.innerText = "Copied!";
+        iconEl.className = `${ApplicationIcons.confirm}`;
+        setTimeout(() => {
+          window.getSelection().removeAllRanges();
+        }, 50);
+        setTimeout(() => {
+          textEl.innerText = oldText;
+          iconEl.className = oldIconClz;
+        }, 1250);
       }
-      if (evalStatus === "error" && evalError) {
-        infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
-      }
-      const warnings = [];
-      if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
-        warnings.push(
-          m$1`<${WarningBand}
-            message="Unable to display samples (this evaluation log may be too large)."
-          />`
-        );
-      }
-      return m$1` <div style=${{ width: "100%" }}>
-        ${warnings}
-        <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-          ${infoCards}
-        </div>
-      </div>`;
-    }
-  };
-  resolvedTabs.json = {
-    id: kJsonWorkspaceTabId,
-    label: "JSON",
-    scrollable: true,
-    content: () => {
-      const evalHeader = {
-        version: evalVersion,
-        status: evalStatus,
-        eval: evalSpec,
-        plan: evalPlan,
-        error: evalError,
-        results: evalResults,
-        stats: evalStats
-      };
-      const json = JSON.stringify(evalHeader, null, 2);
-      return m$1`<${JsonTab}
-        logFileName=${logFileName}
-        json=${json}
-        capabilities=${capabilities}
-        selected=${selectedTab === kJsonWorkspaceTabId}
-      />`;
-    },
-    tools: () => {
-      return [
-        m$1`<${ToolButton}
-          name=${m$1`<span class="task-btn-copy-content">Copy JSON</span>`}
-          icon="${ApplicationIcons.copy}"
-          classes="task-btn-json-copy clipboard-button"
-          data-clipboard-target="#task-json-contents"
-          onclick="${copyFeedback}"
-        />`
-      ];
-    }
-  };
-  const copyFeedback = (e2) => {
-    const textEl = e2.currentTarget.querySelector(".task-btn-copy-content");
-    const iconEl = e2.currentTarget.querySelector("i.bi");
-    if (textEl) {
-      const oldText = textEl.innerText;
-      const oldIconClz = iconEl.className;
-      textEl.innerText = "Copied!";
-      iconEl.className = `${ApplicationIcons.confirm}`;
-      setTimeout(() => {
-        window.getSelection().removeAllRanges();
-      }, 50);
-      setTimeout(() => {
-        textEl.innerText = oldText;
-        iconEl.className = oldIconClz;
-      }, 1250);
-    }
-  };
+    };
+    return resolvedTabs2;
+  }, [
+    evalStatus,
+    sampleMode,
+    samples,
+    task_id,
+    score,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
+    groupBy,
+    groupByOrder,
+    selectedSampleIndex,
+    setSelectedSampleIndex,
+    samplesDescriptor,
+    selectedSampleTab,
+    setSelectedSampleTab,
+    filter,
+    sort,
+    epoch,
+    sampleScrollPositionRef,
+    setSampleScrollPosition,
+    epochs,
+    setEpoch,
+    setFilter,
+    setSort,
+    setScore,
+    scores,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    evalError,
+    logFileName,
+    capabilities,
+    selectedTab
+  ]);
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
     divRef=${divRef}
     evalSpec=${evalSpec}
     evalPlan=${evalPlan}
     evalResults=${evalResults}
+    evalStats=${evalStats}
     samples=${samples}
     status=${evalStatus}
     tabs=${resolvedTabs}
@@ -24491,6 +24970,8 @@ const WorkSpace = ({
     showToggle=${showToggle}
     offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
+    workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 const WorkspaceDisplay = ({
@@ -24498,6 +24979,7 @@ const WorkspaceDisplay = ({
   evalSpec,
   evalPlan,
   evalResults,
+  evalStats,
   samples,
   status,
   showToggle,
@@ -24505,7 +24987,9 @@ const WorkspaceDisplay = ({
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas
+  offcanvas,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition
 }) => {
   if (evalSpec === void 0) {
     return m$1`<${EmptyPanel} />`;
@@ -24523,12 +25007,48 @@ const WorkspaceDisplay = ({
         return "";
       }
     });
+    const onScroll = q(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition]
+    );
+    const onSelected = q(
+      (e2) => {
+        const id = e2.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab]
+    );
+    const tabPanels = T(() => {
+      return Object.keys(tabs).map((key2) => {
+        const tab = tabs[key2];
+        return m$1`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${q(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll]
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
     return m$1`
+    
     
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
+      evalStats=${evalStats}
       samples=${samples}
       status=${status}
       file=${logFileName}
@@ -24568,20 +25088,7 @@ const WorkspaceDisplay = ({
         fontWeight: 600
       }
     }} >
-              ${Object.keys(tabs).map((key2) => {
-      const tab = tabs[key2];
-      return m$1`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e2) => {
-        const id = e2.currentTarget.id;
-        setSelectedTab(id);
-      }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
-                  ${tab.content()}
-                </${TabPanel}>`;
-    })}
+            ${tabPanels}
             </${TabSet}>
             </div>
           </div>`;
@@ -24728,7 +25235,7 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
-const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedScore) => {
+const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   if (!samples) {
     return void 0;
   }
@@ -24795,11 +25302,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
   ];
   let scoreDescriptor;
   for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(
-      uniqScoreValues,
-      uniqScoreTypes,
-      context
-    );
+    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
     if (scoreDescriptor) {
       break;
     }
@@ -24808,6 +25311,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
     (previous, current) => {
       var _a2;
       const text2 = inputString(current.input).join(" ");
+      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
       previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -24820,15 +25324,45 @@ const createsSamplesDescriptor = (scorers, samples, epochs, context, selectedSco
         ),
         300
       );
+      previous[3] = Math.min(
+        Math.max(previous[3], current.limit ? current.limit.length : 0),
+        50
+      );
+      previous[4] = Math.min(
+        Math.max(previous[4], String(current.id).length),
+        10
+      );
+      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
       return previous;
     },
-    [0, 0, 0]
+    [0, 0, 0, 0, 0, 0]
   );
-  const base2 = sizes[0] + sizes[1] + sizes[2] || 1;
+  const maxSizes = {
+    input: Math.min(sizes[0], 300),
+    target: Math.min(sizes[1], 300),
+    answer: Math.min(sizes[2], 300),
+    limit: Math.min(sizes[3], 50),
+    id: Math.min(sizes[4], 10),
+    score: Math.min(sizes[4], 30)
+  };
+  const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
   const messageShape = {
-    input: sizes[0] / base2,
-    target: sizes[1] / base2,
-    answer: sizes[2] / base2
+    raw: {
+      input: sizes[0],
+      target: sizes[1],
+      answer: sizes[2],
+      limit: sizes[3],
+      id: sizes[4],
+      score: sizes[5]
+    },
+    normalized: {
+      input: maxSizes.input / base2,
+      target: maxSizes.target / base2,
+      answer: maxSizes.answer / base2,
+      limit: maxSizes.limit / base2,
+      id: maxSizes.id / base2,
+      score: maxSizes.score / base2
+    }
   };
   const scoreRendered = (sample) => {
     const score2 = scoreValue(sample);
@@ -25071,13 +25605,10 @@ const scoreCategorizers = [
   },
   {
     /**
-     * @param {import("../types/log").Value2[]} values - the currently selected score
-     * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-     * @param {import("../Types.mjs").RenderContext} [context] - the application context
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     // @ts-ignore
-    describe: (values, types, context) => {
+    describe: () => {
       return {
         scoreType: kScoreTypeOther,
         compare: () => {
@@ -25087,7 +25618,6 @@ const scoreCategorizers = [
           return m$1`<${RenderedContent}
             id="other-score-value"
             entry=${{ value: score }}
-            context=${context}
           />`;
         }
       };
@@ -25312,7 +25842,7 @@ function App({
   saveInitialState = void 0,
   pollForLogs = true
 }) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const [logs, setLogs] = h(
     (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
   );
@@ -25343,7 +25873,11 @@ function App({
   const [selectedSampleTab, setSelectedSampleTab] = h(
     initialState2 == null ? void 0 : initialState2.selectedSampleTab
   );
+  const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
   const loadingSampleIndexRef = A(null);
+  const workspaceTabScrollPosition = A(
+    (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
+  );
   const [showingSampleDialog, setShowingSampleDialog] = h(
     initialState2 == null ? void 0 : initialState2.showingSampleDialog
   );
@@ -25374,12 +25908,7 @@ function App({
     (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
   );
   const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    }
-  };
-  y(() => {
+  const saveState = q(() => {
     const state = {
       logs,
       selectedLogIndex,
@@ -25404,11 +25933,64 @@ function App({
       score,
       filteredSamples,
       groupBy,
-      groupByOrder
+      groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current
     };
     if (saveInitialState) {
       saveInitialState(state);
     }
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder
+  ]);
+  const saveStateRef = A(saveState);
+  y(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
+  const setSampleScrollPosition = q(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      saveStateRef.current();
+    }, 1e3),
+    []
+  );
+  const setWorkspaceTabScrollPosition = q(
+    debounce((tab, position) => {
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position
+        };
+        saveStateRef.current();
+      }
+    }, 1e3),
+    []
+  );
+  y(() => {
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
@@ -25479,13 +26061,15 @@ function App({
     setGroupBy(grouping);
     setGroupByOrder(order2);
   }, [selectedLog, filter, sort, epoch]);
-  const samplesDescriptor = createsSamplesDescriptor(
-    scores,
-    (_a2 = selectedLog.contents) == null ? void 0 : _a2.sampleSummaries,
-    ((_d = (_c = (_b2 = selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs) || 1,
-    context,
-    score
-  );
+  const samplesDescriptor = T(() => {
+    var _a3, _b3, _c2, _d2;
+    return createsSamplesDescriptor(
+      scores,
+      (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
+      score
+    );
+  }, [selectedLog, scores, score]);
   const refreshSampleTab = q(
     (sample) => {
       if (selectedSampleTab === void 0) {
@@ -25528,6 +26112,7 @@ function App({
         );
         sample.events = resolveAttachments(sample.events, sample.attachments);
         sample.attachments = {};
+        sampleScrollPosition.current = 0;
         setSelectedSample(sample);
         refreshSampleTab(sample);
         setSampleStatus("ok");
@@ -25535,6 +26120,7 @@ function App({
       }).catch((e2) => {
         setSampleStatus("error");
         setSampleError(e2);
+        sampleScrollPosition.current = 0;
         setSelectedSample(void 0);
         loadingSampleIndexRef.current = null;
       });
@@ -25586,29 +26172,13 @@ function App({
      * @param {import("./api/Types.mjs").EvalSummary} log
      */
     (log) => {
-      var _a3, _b3, _c2, _d2;
       const hasSamples = !!log.sampleSummaries && log.sampleSummaries.length > 0;
       const showSamples = log.status !== "error" && hasSamples;
       setSelectedWorkspaceTab(
         showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
       );
-      const scorer = ((_a3 = log.results) == null ? void 0 : _a3.scores[0]) ? {
-        name: (_b3 = log.results) == null ? void 0 : _b3.scores[0].name,
-        scorer: (_c2 = log.results) == null ? void 0 : _c2.scores[0].scorer
-      } : void 0;
-      const scorers = (((_d2 = log.results) == null ? void 0 : _d2.scores) || []).map((score2) => {
-        return {
-          name: score2.name,
-          scorer: score2.scorer
-        };
-      }).reduce((accum, scorer2) => {
-        if (!accum.find((sc) => {
-          return scorer2.scorer === sc.scorer && scorer2.name === sc.name;
-        })) {
-          accum.push(scorer2);
-        }
-        return accum;
-      }, []);
+      const scorer = defaultScorer(log);
+      const scorers = defaultScorers(log);
       setScores(scorers);
       setScore(scorer);
       setEpoch("all");
@@ -25621,6 +26191,7 @@ function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab]
   );
@@ -25861,7 +26432,7 @@ function App({
     }
   }, [showFind, setShowFind]);
   const showToggle = logs.files.length > 1 || logs.log_dir;
-  const sampleMode = ((_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
+  const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
   return m$1`
     <${AppErrorBoundary}>
     ${sidebar}
@@ -25884,15 +26455,15 @@ function App({
               title="An error occurred while loading this task."
               error=${status.error}
             />` : m$1`<${WorkSpace}
-              task_id=${(_g = (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval) == null ? void 0 : _g.task_id}
+              task_id=${(_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id}
               logFileName=${selectedLog == null ? void 0 : selectedLog.name}
-              evalStatus=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.status}
-              evalError=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.error}
-              evalVersion=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.version}
-              evalSpec=${(_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval}
-              evalPlan=${(_l = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _l.plan}
-              evalStats=${(_m = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _m.stats}
-              evalResults=${(_n = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _n.results}
+              evalStatus=${(_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status}
+              evalError=${(_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error}
+              evalVersion=${(_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version}
+              evalSpec=${(_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval}
+              evalPlan=${(_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan}
+              evalStats=${(_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats}
+              evalResults=${(_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results}
               showToggle=${showToggle}
               samples=${filteredSamples}
               sampleMode=${sampleMode}
@@ -25916,7 +26487,7 @@ function App({
               setSelectedSampleTab=${setSelectedSampleTab}
               sort=${sort}
               setSort=${setSort}
-              epochs=${(_q = (_p = (_o = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _o.eval) == null ? void 0 : _p.config) == null ? void 0 : _q.epochs}
+              epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
@@ -25924,19 +26495,60 @@ function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
+              sampleScrollPositionRef=${sampleScrollPosition}
+              setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`}
     </div>
     ${afterBodyElements}
     </${AppErrorBoundary}>
   `;
 }
+const defaultScorer = (log) => {
+  var _a2, _b2, _c;
+  const scorer = ((_a2 = log.results) == null ? void 0 : _a2.scores[0]) ? {
+    name: (_b2 = log.results) == null ? void 0 : _b2.scores[0].name,
+    scorer: (_c = log.results) == null ? void 0 : _c.scores[0].scorer
+  } : log.sampleSummaries.length > 0 ? {
+    name: Object.keys(log.sampleSummaries[0].scores)[0],
+    scorer: Object.keys(log.sampleSummaries[0].scores)[0]
+  } : void 0;
+  return scorer;
+};
+const defaultScorers = (log) => {
+  var _a2, _b2;
+  if ((_a2 = log.results) == null ? void 0 : _a2.scores) {
+    return (((_b2 = log.results) == null ? void 0 : _b2.scores) || []).map((score) => {
+      return {
+        name: score.name,
+        scorer: score.scorer
+      };
+    }).reduce((accum, scorer) => {
+      if (!accum.find((sc) => {
+        return scorer.scorer === sc.scorer && scorer.name === sc.name;
+      })) {
+        accum.push(scorer);
+      }
+      return accum;
+    }, []);
+  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
+    return Object.keys(log.sampleSummaries[0].scores).map((key2) => {
+      return {
+        name: key2,
+        scorer: key2
+      };
+    });
+  } else {
+    return [];
+  }
+};
 const vscode = getVscodeApi();
 let initialState = void 0;
 if (vscode) {
   initialState = vscode.getState();
 }
-B$1(m$1`<${App}
+q$1(m$1`<${App}
     api=${api}
     initialState=${initialState}
     saveInitialState=${throttle((state) => {

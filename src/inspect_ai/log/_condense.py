@@ -3,11 +3,11 @@ from typing import (
     Callable,
 )
 
-import mmh3
 from pydantic import JsonValue
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
@@ -304,11 +304,3 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(update=dict(text=content_fn(content.text)))
     elif isinstance(content, ContentImage):
         return content.model_copy(update=dict(image=content_fn(content.image)))
-
-
-def mm3_hash(message: str) -> str:
-    # Generate the 128-bit hash as two 64-bit integers
-    h1, h2 = mmh3.hash64(message.encode("utf-8"))
-
-    # Convert to unsigned integers and then to hexadecimal
-    return f"{h1 & 0xFFFFFFFFFFFFFFFF:016x}{h2 & 0xFFFFFFFFFFFFFFFF:016x}"

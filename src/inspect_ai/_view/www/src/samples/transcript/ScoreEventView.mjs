@@ -5,6 +5,7 @@ import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { TextStyle } from "../../appearance/Fonts.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -23,7 +24,7 @@ export const ScoreEventView = ({ id, event, style }) => {
     : undefined;
 
   return html`
-  <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
+  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style}>
   
     <div
       name="Explanation"

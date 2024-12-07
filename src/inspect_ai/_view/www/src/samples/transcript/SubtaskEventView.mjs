@@ -5,6 +5,7 @@ import { EventPanel } from "./EventPanel.mjs";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the StateEventView component.
@@ -53,7 +54,7 @@ export const SubtaskEventView = ({ id, event, style, depth }) => {
   // Is this a traditional subtask or a fork?
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return html`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style} collapse=${false}>
       ${body}
     </${EventPanel}>`;
 };
@@ -83,7 +84,9 @@ const SubtaskSummary = ({ input, result }) => {
     <div style=${{ fontSize: FontSize["title-secondary"], padding: "0 2em" }}>
       <i class="${ApplicationIcons.arrows.right}" />
     </div>
-    <${Rendered} values=${result} />
+    <div>
+      <${Rendered} values=${result} />
+    </div>
   </div>`;
 };
 

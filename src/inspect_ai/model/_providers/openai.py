@@ -1,7 +1,6 @@
 import json
 import os
-from copy import copy
-from typing import Any, cast
+from typing import Any
 
 from openai import (
     APIConnectionError,
@@ -30,10 +29,9 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 from openai.types.shared_params.function_definition import FunctionDefinition
-from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
+from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import image_as_data_uri
@@ -42,6 +40,7 @@ from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
+from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
@@ -158,6 +157,17 @@ class OpenAIAPI(ModelAPI):
                 **self.completion_params(config, False),
             )
 
+        # setup request and response for ModelCall
+        request: dict[str, Any] = {}
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=request,
+                response=response,
+                filter=image_url_filter,
+            )
+
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
@@ -177,33 +187,32 @@ class OpenAIAPI(ModelAPI):
 
         try:
             # generate completion
-            response: ChatCompletion = await self.client.chat.completions.create(
+            completion: ChatCompletion = await self.client.chat.completions.create(
                 **request
             )
 
+            # save response for model_call
+            response = completion.model_dump()
+
             # parse out choices
-            choices = self._chat_choices_from_response(response, tools)
+            choices = self._chat_choices_from_response(completion, tools)
 
             # return output and call
             return ModelOutput(
-                model=response.model,
+                model=completion.model,
                 choices=choices,
                 usage=(
                     ModelUsage(
-                        input_tokens=response.usage.prompt_tokens,
-                        output_tokens=response.usage.completion_tokens,
-                        total_tokens=response.usage.total_tokens,
+                        input_tokens=completion.usage.prompt_tokens,
+                        output_tokens=completion.usage.completion_tokens,
+                        total_tokens=completion.usage.total_tokens,
                     )
-                    if response.usage
+                    if completion.usage
                     else None
                 ),
-            ), ModelCall.create(
-                request=request,
-                response=response.model_dump(),
-                filter=model_call_filter,
-            )
+            ), model_call()
         except BadRequestError as e:
-            return self.handle_bad_request(e)
+            return self.handle_bad_request(e), model_call()
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
@@ -409,26 +418,13 @@ async def as_chat_completion_part(
     else:
         # API takes URL or base64 encoded file. If it's a remote file or
         # data URL leave it alone, otherwise encode it
-        image_url, detail = (
-            (content.image, "auto")
-            if isinstance(content.image, str)
-            else (content.image, content.detail)
-        )
+        image_url = content.image
+        detail = content.detail
 
         if not is_http_url(image_url) and not is_data_uri(image_url):
             image_url = await image_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=cast(Any, detail)),
+            image_url=dict(url=image_url, detail=detail),
         )
-
-
-def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
-    # remove images from raw api call
-    if key == "image_url" and isinstance(value, dict) and "url" in value:
-        url = str(value.get("url"))
-        if url.startswith("data:"):
-            value = copy(value)
-            value.update(url=BASE_64_DATA_REMOVED)
-    return value

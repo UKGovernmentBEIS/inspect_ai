@@ -4,10 +4,12 @@ import functools
 import json
 import logging
 import os
+import time
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Callable, Literal, Type, cast
 
+from shortuuid import uuid
 from tenacity import (
     retry,
     retry_if_exception,
@@ -328,43 +330,59 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    await self._record_model_interaction(
+                    self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
                         config=config,
-                        output=existing,
                         cache="read",
+                        output=existing,
                         call=None,
                     )
                     return existing
 
+            # verify that model apis are allowed
+            self.verify_model_apis()
+
+            # record the interaction before the call to generate
+            # (we'll update it with the results once we have them)
+            complete = self._record_model_interaction(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                cache="write" if cache else None,
+            )
+
+            generate_id = uuid()
+            logger.debug(f"model generate {generate_id} ({str(self)})")
+            time_start = time.perf_counter()
             result = await self.api.generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
             )
+            time_elapsed = time.perf_counter() - time_start
+            logger.debug(f"model generate {generate_id} (completed)")
             if isinstance(result, tuple):
                 output, call = result
             else:
                 output = result
                 call = None
 
-            # write to transcript
-            await self._record_model_interaction(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                output=output,
-                cache="write" if cache else None,
-                call=call,
-            )
+            # update output with time elapsed
+            output.time = time_elapsed
+
+            # complete the transcript event
+            complete(output, call)
 
             # record usage
             if output.usage:
+                # record usage
                 record_model_usage(f"{self}", output.usage)
+
+                # send telemetry if its hooked up
                 await send_telemetry(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
@@ -380,6 +398,14 @@ class Model:
 
         # return results
         return model_output
+
+    # function to verify that its okay to call model apis
+    def verify_model_apis(self) -> None:
+        if (
+            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
+            and ModelName(self).api != "mockllm"
+        ):
+            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
 
     # semaphore for model generate requests. these can be shared across
     # instances of Model.  This is so that each distinct model endpoint/account
@@ -406,32 +432,50 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    async def _record_model_interaction(
+    def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        output: ModelOutput,
         cache: Literal["read", "write"] | None,
-        call: ModelCall | None,
-    ) -> None:
+        output: ModelOutput | None = None,
+        call: ModelCall | None = None,
+    ) -> Callable[[ModelOutput, ModelCall | None], None]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        trace_assistant_message(input, output.choices[0].message)
-
-        transcript()._event(
-            ModelEvent(
-                model=str(self),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                output=output,
-                cache=cache,
-                call=call,
-            )
+        # create event and add it to the transcript
+        model = str(self)
+        event = ModelEvent(
+            model=model,
+            input=input,
+            tools=tools,
+            tool_choice=tool_choice,
+            config=config,
+            output=output if output else ModelOutput.from_content(model, ""),
+            cache=cache,
+            call=call,
+            pending=output is None,
         )
+        transcript()._event(event)
+
+        # callable that can be used to update the interaction w/ output
+        def complete(
+            updated_output: ModelOutput, updated_call: ModelCall | None
+        ) -> None:
+            # trace
+            trace_assistant_message(input, updated_output.choices[0].message)
+
+            # update event
+            event.output = updated_output
+            event.call = updated_call
+            event.pending = None
+
+        # if we have output then complete it now
+        if output:
+            complete(output, call)
+
+        return complete
 
 
 class ModelName:
@@ -726,6 +770,11 @@ def init_sample_model_usage() -> None:
 def record_model_usage(model: str, usage: ModelUsage) -> None:
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
+
+    # update active sample
+    from inspect_ai.log._samples import set_active_sample_total_tokens
+
+    set_active_sample_total_tokens(sample_total_tokens())
 
 
 def set_model_usage(

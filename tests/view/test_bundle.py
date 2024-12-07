@@ -82,6 +82,6 @@ def test_bundle() -> None:
         non_manifest_logs = [
             f
             for f in os.listdir(os.path.join(output_dir, "logs"))
-            if f.endswith(".json") and f != "logs.json"
+            if f.endswith(".eval") and f != "logs.eval"
         ]
         assert len(non_manifest_logs) == 2

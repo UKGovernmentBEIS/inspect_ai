@@ -13,7 +13,9 @@ from inspect_ai.log import read_eval_log, write_eval_log
 def original_log():
     """Fixture to provide a starting log file."""
     log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
-    return read_eval_log(log_file)
+    log = read_eval_log(log_file)
+    log.location = None
+    return log
 
 
 @pytest.fixture
@@ -34,6 +36,7 @@ def test_log_format_round_trip_single(original_log, temp_dir):
 
         # Read the new log file
         new_log = read_eval_log(new_log_path, format=format)
+        new_log.location = None
 
         # Compare the logs
         assert original_log == new_log, f"Round-trip failed for {format} format"
@@ -47,6 +50,7 @@ def test_log_format_round_trip_cross(original_log, temp_dir):
 
     # Read the EVAL log
     eval_log = read_eval_log(eval_log_path, format="eval")
+    eval_log.location = None
 
     # Write it back to JSON
     new_json_log_path = (temp_dir / "cross_format.json").as_posix()
@@ -54,6 +58,7 @@ def test_log_format_round_trip_cross(original_log, temp_dir):
 
     # Read the new JSON log
     new_json_log = read_eval_log(new_json_log_path, format="json")
+    new_json_log.location = None
 
     # Compare the logs
     assert original_log == new_json_log, "Cross-format round-trip failed"
@@ -70,7 +75,9 @@ def test_log_format_equality(original_log, temp_dir):
 
     # Read both logs back
     json_log = read_eval_log(json_log_path, format="json")
+    json_log.location = None
     eval_log = read_eval_log(eval_log_path, format="eval")
+    eval_log.location = None
 
     # Compare the logs
     assert json_log == eval_log, "Logs in different formats are not identical"
@@ -87,7 +94,9 @@ def test_log_format_detection(original_log, temp_dir):
 
     # Read both logs back using auto format
     json_log = read_eval_log(json_log_path, format="auto")
+    json_log.location = None
     eval_log = read_eval_log(eval_log_path, format="auto")
+    eval_log.location = None
 
     # Compare the logs
     assert json_log == eval_log, "Auto format detection failed"
@@ -140,6 +149,7 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
 
     # Read the new JSON log
     new_json_log = read_eval_log(new_json_log_path, format="json")
+    new_json_log.location = None
 
     # Compare the original and new JSON logs
     assert (

@@ -7,16 +7,29 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._display import display
-from inspect_ai._display._display import clear_task_screen, init_task_screen
+from inspect_ai._display.core.active import (
+    clear_task_screen,
+    init_task_screen,
+)
+from inspect_ai._display.core.display import TaskSpec
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.path import chdir
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs
+from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model._model import ModelName
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    SandboxEnvironmentType,
+    TaskCleanup,
+    TaskInit,
+    resolve_sandbox_environment,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
@@ -25,7 +38,7 @@ from .loader import (
     solver_from_spec,
 )
 from .task.log import TaskLogger
-from .task.run import TaskRunOptions, create_sample_semaphore, task_run
+from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
 from .task.util import task_run_dir
@@ -38,6 +51,7 @@ async def eval_run(
     tasks: list[ResolvedTask],
     parallel: int,
     eval_config: EvalConfig,
+    eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
@@ -52,14 +66,6 @@ async def eval_run(
     multiple_run_dirs = any([task_run_dir(task.task) != run_dir for task in tasks])
     has_sandbox = next((task.has_sandbox for task in tasks), None)
 
-    # if we have a sandbox then we need to enforce sample concurrency at
-    # this level of the eval (so we don't explode the # of sandboxes)
-    sample_semaphore: asyncio.Semaphore | None = (
-        create_sample_semaphore(eval_config, GenerateConfig(**kwargs))
-        if has_sandbox
-        else None
-    )
-
     # get cwd before switching to task dir
     eval_wd = os.getcwd()
 
@@ -68,7 +74,7 @@ async def eval_run(
     if has_sandbox:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
-            tasks, cleanup
+            resolve_sandbox_environment(eval_sandbox), tasks, cleanup
         )
 
     # resolve solver and solver spec
@@ -88,7 +94,7 @@ async def eval_run(
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
                 # tasks can provide their epochs, message_limit,
-                # token_limit, and fail_on_error so broadcast these
+                # token_limit, time_limit, and fail_on_error so broadcast these
                 # into the eval config (so long as they aren't overriding a
                 # value specified from eval() or the CLI)
                 task = resolved_task.task
@@ -126,6 +132,12 @@ async def eval_run(
                     task_eval_config.token_limit = task.token_limit
                 else:
                     task.token_limit = task_eval_config.token_limit
+
+                # sample time limit
+                if task_eval_config.time_limit is None:
+                    task_eval_config.time_limit = task.time_limit
+                else:
+                    task.time_limit = task_eval_config.time_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:
@@ -172,7 +184,6 @@ async def eval_run(
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
-                        sample_semaphore=sample_semaphore,
                         kwargs=kwargs,
                     )
                 )
@@ -210,9 +221,10 @@ async def eval_run(
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
     # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
 
-    with display().task_screen(total_tasks=len(tasks), parallel=False) as screen:
+    async with display().task_screen(task_specs(tasks), parallel=False) as screen:
         init_task_screen(screen)
         asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
+
         try:
             return await asyncio.gather(*asyncio_tasks)
         except asyncio.CancelledError:
@@ -224,9 +236,9 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
                     task.cancel()
                     await task
                     results.append(task.result())
+            return results
         finally:
             clear_task_screen()
-        return results
 
 
 # multiple mode -- run multiple logical tasks (requires some smart
@@ -288,8 +300,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 break
 
     # with task display
-    with display().task_screen(total_tasks=len(tasks), parallel=True) as screen:
-        # set screen
+    async with display().task_screen(task_specs(tasks), parallel=True) as screen:
+        # init screen
         init_task_screen(screen)
 
         # start worker tasks
@@ -315,31 +327,36 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
 
 async def startup_sandbox_environments(
-    tasks: list[ResolvedTask], cleanup: bool
+    eval_sandbox: SandboxEnvironmentSpec | None,
+    tasks: list[ResolvedTask],
+    cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
     sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
         for sample in task.task.dataset:
-            sandbox = resolve_sandbox_for_task(task.task, sample)
+            sandbox = resolve_sandbox_for_task(eval_sandbox, task.task, sample)
             if sandbox is not None and sandbox not in sandboxenvs:
                 sandboxenvs.add(sandbox)
 
     # initialiase sandboxenvs (track cleanups)
-    cleanups: list[tuple[TaskCleanup, str | None, str]] = []
-    for sandboxenv in sandboxenvs:
-        # find type
-        sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+    cleanups: list[tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]] = []
+    with display().suspend_task_app():
+        for sandboxenv in sandboxenvs:
+            # find type
+            sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
 
-        # run startup
-        task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-        with chdir(sandboxenv.run_dir):
-            await task_init("startup", sandboxenv.sandbox.config)
+            # run startup
+            task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+            with chdir(sandboxenv.run_dir):
+                await task_init("startup", sandboxenv.sandbox.config)
 
-        # append cleanup method
-        task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
-        cleanups.append((task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir))
+            # append cleanup method
+            task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+            cleanups.append(
+                (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+            )
 
     # return shutdown method
     async def shutdown() -> None:
@@ -354,3 +371,10 @@ async def startup_sandbox_environments(
                 )
 
     return shutdown
+
+
+def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
+    return [
+        TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
+        for task in tasks
+    ]

@@ -6,6 +6,7 @@ from typing import (
     Any,
     Iterator,
     Literal,
+    Sequence,
     TypeAlias,
     Union,
 )
@@ -41,6 +42,9 @@ class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
 
+    pending: bool | None = Field(default=None)
+    """Is this event pending?"""
+
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.astimezone().isoformat()
@@ -57,6 +61,22 @@ class SampleInitEvent(BaseEvent):
 
     state: JsonValue
     """Initial state."""
+
+
+class SampleLimitEvent(BaseEvent):
+    """The sample was unable to finish processing due to a limit"""
+
+    event: Literal["sample_limit"] = Field(default="sample_limit")
+    """Event type."""
+
+    type: Literal["message", "time", "token", "operator"]
+    """Type of limit that halted processing"""
+
+    message: str
+    """A message associated with this limit"""
+
+    limit: int | None = Field(default=None)
+    """The limit value (if any)"""
 
 
 class StoreEvent(BaseEvent):
@@ -128,20 +148,33 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
-    result: ToolResult
+    view: ToolCallContent | None = Field(default=None)
+    """Custom view of tool call input."""
+
+    result: ToolResult = Field(default_factory=str)
     """Function return value."""
 
     truncated: tuple[int, int] | None = Field(default=None)
     """Bytes truncated (from,to) if truncation occurred"""
 
-    view: ToolCallContent | None = Field(default=None)
-    """Custom view of tool call output."""
-
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
+
+    def set_result(
+        self,
+        result: ToolResult,
+        truncated: tuple[int, int] | None,
+        error: ToolCallError | None,
+        events: list["Event"],
+    ) -> None:
+        self.result = result
+        self.truncated = truncated
+        self.error = error
+        self.events = events
+        self.pending = None
 
 
 class ApprovalEvent(BaseEvent):
@@ -262,12 +295,13 @@ class SubtaskEvent(BaseEvent):
     result: Any = Field(default=None)
     """Subtask function result."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
 
 
 Event: TypeAlias = Union[
     SampleInitEvent
+    | SampleLimitEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
@@ -289,7 +323,7 @@ class Transcript:
 
     def __init__(self, name: str = "") -> None:
         self.name = name
-        self.events: list[Event] = []
+        self._events: list[Event] = []
 
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -317,8 +351,12 @@ class Transcript:
         # end step event
         self._event(StepEvent(action="end", name=name, type=type))
 
+    @property
+    def events(self) -> Sequence[Event]:
+        return self._events
+
     def _event(self, event: Event) -> None:
-        self.events.append(event)
+        self._events.append(event)
 
 
 def transcript() -> Transcript:

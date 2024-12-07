@@ -338,6 +338,27 @@ task = Task(
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
+When working with complex score values and metrics, you may use globs as keys for mapping metrics to scores. For example, a more succinct way to write the previous example:
+
+``` python
+@scorer(
+    metrics={
+        "*": [mean(), stderr()], 
+    }
+)
+```
+
+Glob keys will each be resolved and a complete list of matching metrics will be applied to each score key. For example to compute `mean` for all score keys, and only compute `stderr` for `e_count` you could write:
+
+``` python
+@scorer(
+    metrics={
+        "*": [mean()], 
+        "e_count": [stderr()]
+    }
+)
+```
+
 ### Scorer with Complex Metrics 
 
 Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:

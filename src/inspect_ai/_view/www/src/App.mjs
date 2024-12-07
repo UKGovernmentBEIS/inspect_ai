@@ -19,7 +19,7 @@ import {
 // Registration component
 import "./Register.mjs";
 
-import { sleep } from "./utils/sync.mjs";
+import { debounce, sleep } from "./utils/sync.mjs";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -102,8 +102,11 @@ export function App({
   const [selectedSampleTab, setSelectedSampleTab] = useState(
     initialState?.selectedSampleTab,
   );
-
+  const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
   const loadingSampleIndexRef = useRef(null);
+  const workspaceTabScrollPosition = useRef(
+    initialState?.workspaceTabScrollPosition || {},
+  );
 
   const [showingSampleDialog, setShowingSampleDialog] = useState(
     initialState?.showingSampleDialog,
@@ -165,17 +168,7 @@ export function App({
   );
 
   const afterBodyElements = [];
-
-  /** @type {import("./Types.mjs").RenderContext} */
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    },
-  };
-
-  // Save state when it changes, so that we can restore it later
-  //
-  useEffect(() => {
+  const saveState = useCallback(() => {
     const state = {
       logs,
       selectedLogIndex,
@@ -201,10 +194,70 @@ export function App({
       filteredSamples,
       groupBy,
       groupByOrder,
+      sampleScrollPosition: sampleScrollPosition.current,
+      workspaceTabScrollPosition: workspaceTabScrollPosition.current,
     };
     if (saveInitialState) {
       saveInitialState(state);
     }
+  }, [
+    logs,
+    selectedLogIndex,
+    logHeaders,
+    headersLoading,
+    selectedLog,
+    selectedSampleIndex,
+    selectedWorkspaceTab,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    capabilities,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+    filteredSamples,
+    groupBy,
+    groupByOrder,
+  ]);
+
+  const saveStateRef = useRef(saveState);
+  // Update the ref whenever saveState changes
+  useEffect(() => {
+    saveStateRef.current = saveState;
+  }, [saveState]);
+
+  const setSampleScrollPosition = useCallback(
+    debounce((position) => {
+      sampleScrollPosition.current = position;
+      saveStateRef.current();
+    }, 1000),
+    [],
+  );
+
+  const setWorkspaceTabScrollPosition = useCallback(
+    debounce((tab, position) => {
+      if (workspaceTabScrollPosition.current[tab] !== position) {
+        workspaceTabScrollPosition.current = {
+          ...workspaceTabScrollPosition.current,
+          [tab]: position,
+        };
+        saveStateRef.current();
+      }
+    }, 1000),
+    [],
+  );
+
+  // Save state when it changes, so that we can restore it later
+  //
+  useEffect(() => {
+    saveStateRef.current();
   }, [
     logs,
     selectedLogIndex,
@@ -285,13 +338,14 @@ export function App({
     setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
 
-  const samplesDescriptor = createsSamplesDescriptor(
-    scores,
-    selectedLog.contents?.sampleSummaries,
-    selectedLog.contents?.eval?.config?.epochs || 1,
-    context,
-    score,
-  );
+  const samplesDescriptor = useMemo(() => {
+    return createsSamplesDescriptor(
+      scores,
+      selectedLog.contents?.sampleSummaries,
+      selectedLog.contents?.eval?.config?.epochs || 1,
+      score,
+    );
+  }, [selectedLog, scores, score]);
 
   const refreshSampleTab = useCallback(
     (sample) => {
@@ -365,6 +419,7 @@ export function App({
           sample.events = resolveAttachments(sample.events, sample.attachments);
           sample.attachments = {};
 
+          sampleScrollPosition.current = 0;
           setSelectedSample(sample);
 
           refreshSampleTab(sample);
@@ -375,7 +430,10 @@ export function App({
         .catch((e) => {
           setSampleStatus("error");
           setSampleError(e);
+
+          sampleScrollPosition.current = 0;
           setSelectedSample(undefined);
+
           loadingSampleIndexRef.current = null;
         });
     }
@@ -455,29 +513,8 @@ export function App({
       );
 
       // Select the default scorer to use
-      const scorer = log.results?.scores[0]
-        ? {
-            name: log.results?.scores[0].name,
-            scorer: log.results?.scores[0].scorer,
-          }
-        : undefined;
-      const scorers = (log.results?.scores || [])
-        .map((score) => {
-          return {
-            name: score.name,
-            scorer: score.scorer,
-          };
-        })
-        .reduce((accum, scorer) => {
-          if (
-            !accum.find((sc) => {
-              return scorer.scorer === sc.scorer && scorer.name === sc.name;
-            })
-          ) {
-            accum.push(scorer);
-          }
-          return accum;
-        }, []);
+      const scorer = defaultScorer(log);
+      const scorers = defaultScorers(log);
 
       // Reset state
       setScores(scorers);
@@ -495,6 +532,8 @@ export function App({
       } else {
         setSelectedSampleIndex(-1);
       }
+
+      workspaceTabScrollPosition.current = {};
     },
     [setSelectedWorkspaceTab],
   );
@@ -872,7 +911,10 @@ export function App({
               score=${score}
               setScore=${setScore}
               scores=${scores}
-              renderContext=${context}
+              sampleScrollPositionRef=${sampleScrollPosition}
+              setSampleScrollPosition=${setSampleScrollPosition}
+              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
+              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
             />`
       }
     </div>
@@ -880,3 +922,62 @@ export function App({
     </${AppErrorBoundary}>
   `;
 }
+
+/**
+ * Determines the default scorer for a log
+ *
+ * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @returns {{name: string, scorer: string} | undefined} A scorer object with name and scorer properties, or undefined
+ */
+const defaultScorer = (log) => {
+  // Select the default scorer to use
+  const scorer = log.results?.scores[0]
+    ? {
+        name: log.results?.scores[0].name,
+        scorer: log.results?.scores[0].scorer,
+      }
+    : log.sampleSummaries.length > 0
+      ? {
+          name: Object.keys(log.sampleSummaries[0].scores)[0],
+          scorer: Object.keys(log.sampleSummaries[0].scores)[0],
+        }
+      : undefined;
+  return scorer;
+};
+
+/**
+ * Determines the default scorers for a log
+ *
+ * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @returns {Array<{name: string, scorer: string}>} An array of scorer objects with name and scorer properties, or an empty array if no scorers are found.
+ */
+const defaultScorers = (log) => {
+  if (log.results?.scores) {
+    return (log.results?.scores || [])
+      .map((score) => {
+        return {
+          name: score.name,
+          scorer: score.scorer,
+        };
+      })
+      .reduce((accum, scorer) => {
+        if (
+          !accum.find((sc) => {
+            return scorer.scorer === sc.scorer && scorer.name === sc.name;
+          })
+        ) {
+          accum.push(scorer);
+        }
+        return accum;
+      }, []);
+  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
+    return Object.keys(log.sampleSummaries[0].scores).map((key) => {
+      return {
+        name: key,
+        scorer: key,
+      };
+    });
+  } else {
+    return [];
+  }
+};

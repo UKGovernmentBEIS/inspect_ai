@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.39",
+  "version": "0.3.44",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -141,6 +141,16 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.logListingCopyLogPath",
+        "title": "Copy Path",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.logListingCopyEditorPath",
+        "title": "Copy Editor URL",
+        "enablement": "workspaceFolderCount != 0"
+      },      
+      {
         "command": "inspect.logListingReveal",
         "title": "Reveal Log Listing",
         "category": "Inspect",
@@ -242,8 +252,17 @@
           "default": true,
           "description": "Limit evaluation to one sample when debugging.",
           "order": 5
+        },
+        "inspect_ai.useSubdirectoryEnvironments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run and debug inspect commands using subdirectory environments when present.",
+          "order": 2
         }
       }
+    },
+    "configurationDefaults": {
+      "terminal.integrated.macOptionClickForcesSelection": true
     },
     "viewsContainers": {
       "activitybar": [
@@ -353,8 +372,18 @@
           "when": "view == inspect_ai.logs-view && viewItem =~ /file\\+local\\+json/"
         },
         {
+          "command": "inspect.logListingCopyLogPath",
+          "group": "1_copycommands@1",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
+        },
+        {
+          "command": "inspect.logListingCopyEditorPath",
+          "group": "1_copycommands@2",
+          "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file\\+remote/"
+        },
+        {
           "command": "inspect.logListingDeleteLogFile",
-          "group": "1_modification",
+          "group": "2_modification",
           "when": "view == inspect_ai.logs-view && inspect_ai.haveEvalLogFormat && viewItem =~ /file/"
         }
       ],

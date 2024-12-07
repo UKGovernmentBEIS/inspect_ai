@@ -1,9 +1,36 @@
 //@ts-check
 import { openRemoteLogFile } from "../log/remoteLogFile.mjs";
+import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
 
 const isEvalFile = (file) => {
   return file.endsWith(".eval");
 };
+
+/**
+ * Represents an error thrown when a file exceeds the maximum allowed size.
+ *
+ * @class
+ * @extends {Error}
+ */
+export class SampleSizeLimitedExceededError extends Error {
+  /**
+   * Creates a new SizeLimitedExceededError.
+   *
+   * @param {string | number} id - The name of the file that caused the error.
+   * @param {number} epoch - The name of the file that caused the error.
+   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
+   */
+  constructor(id, epoch, maxBytes) {
+    super(
+      `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`,
+    );
+    this.name = "SampleSizeLimitedExceededError";
+    this.id = id;
+    this.epoch = epoch;
+    this.maxBytes = maxBytes;
+    this.displayStack = false;
+  }
+}
 
 /**
  * This provides an API implementation that will serve a single
@@ -90,6 +117,7 @@ export const clientApi = (api) => {
               target: sample.target,
               scores: sample.scores,
               metadata: sample.metadata,
+              error: sample.error?.message,
             };
           })
         : [];
@@ -119,8 +147,16 @@ export const clientApi = (api) => {
   const get_log_sample = async (log_file, id, epoch) => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file, true);
-      const sample = await remoteLogFile.readSample(id, epoch);
-      return sample;
+      try {
+        const sample = await remoteLogFile.readSample(id, epoch);
+        return sample;
+      } catch (error) {
+        if (error instanceof FileSizeLimitError) {
+          throw new SampleSizeLimitedExceededError(id, epoch, error.maxBytes);
+        } else {
+          throw error;
+        }
+      }
     } else {
       const logContents = await get_log(log_file, true);
       if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
