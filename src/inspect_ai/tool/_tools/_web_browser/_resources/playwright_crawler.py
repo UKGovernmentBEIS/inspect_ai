@@ -285,10 +285,12 @@ class PlaywrightCrawler:
           the currently active webpage rendered using given format.
         """
         match output_format:
+            case CrawlerOutputFormat.HTML:
+                return self._page.content()
             case CrawlerOutputFormat.AT:
                 return self._render_at()
             case _:
-                # TODO: Implement DOM, HTML, PIXELS formats
+                # TODO: Implement DOM, PIXELS formats
                 raise NotImplementedError(
                     "Playwright crawler does not currently support"
                     f" {output_format} output."

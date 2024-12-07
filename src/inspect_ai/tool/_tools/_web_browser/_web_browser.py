@@ -1,3 +1,4 @@
+import enum
 import re
 from textwrap import dedent
 
@@ -11,20 +12,36 @@ from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_D
 from inspect_ai.util._store import store
 
 
-def web_browser(interactive: bool = True) -> list[Tool]:
+class CrawlerOutputFormat(enum.Enum):
+    # Raw HTML.
+    HTML = 0
+    # Raw Document Object Model.
+    DOM = 1
+    # Accessibility tree.
+    AT = 2
+    # A pixel-based rending of the webpage.
+    PIXELS = 3
+
+
+def web_browser(
+    interactive: bool = True,
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> list[Tool]:
     """Tools used for web browser navigation.
 
     Args:
        interactive (bool): Provide interactive tools (enable
          clicking, typing, and submitting forms). Defaults
          to True.
+       output_format (CrawlerOutputFormat): Output format for
+         web browser tools. Defaults to CrawlerOutputFormat.AT.
 
     Returns:
        List of tools used for web browser navigation.
 
     """
     # start with go tool (excluding interactive docs if necessary)
-    go = web_browser_go()
+    go = web_browser_go(output_format)
     if not interactive:
         go = go_without_interactive_docs(go)
     tools = [go]
@@ -32,22 +49,22 @@ def web_browser(interactive: bool = True) -> list[Tool]:
     # add interactive tools if requested
     if interactive:
         tools = tools + [
-            web_browser_click(),
-            web_browser_type_submit(),
-            web_browser_type(),
+            web_browser_click(output_format),
+            web_browser_type_submit(output_format),
+            web_browser_type(output_format),
         ]
 
     # add navigational tools
     return tools + [
-        web_browser_scroll(),
-        web_browser_back(),
-        web_browser_forward(),
-        web_browser_refresh(),
+        web_browser_scroll(output_format),
+        web_browser_back(output_format),
+        web_browser_forward(output_format),
+        web_browser_refresh(output_format),
     ]
 
 
 @tool(parallel=False)
-def web_browser_go() -> Tool:
+def web_browser_go(output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT) -> Tool:
     """Web Browser tool for navigation to a URL.
 
     Returns:
@@ -57,7 +74,9 @@ def web_browser_go() -> Tool:
     async def execute(url: str) -> str:
         """Navigate the web browser to a URL.
 
-        Once you have navigated to a page, you will be presented with a web accessibilty tree of the elements on the page. Each element has an ID, which is displayed in brackets at the beginning of its line. For example:
+        Once you have navigated to a page, you will be presented with HTML or a web accessibility tree of the elements on the page.
+
+        In web accessibility trees each element has an ID, which is displayed in brackets at the beginning of its line. For example:
 
         ```
         [1] RootWebArea "Google" [focused: True, url: https://www.google.com/]
@@ -78,9 +97,9 @@ def web_browser_go() -> Tool:
           url (str): URL to navigate to.
 
         Returns:
-          Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_go", url)
+        return await web_browser_cmd("web_go", output_format, url)
 
     return execute
 
@@ -97,11 +116,15 @@ def go_without_interactive_docs(tool: Tool) -> Tool:
 # custom viewer for interactive tool calls that shows a truncated
 # version of current the web accessiblity tree if available
 
+WEB_BROWSER_HTML = "web_browser:html"
 WEB_BROWSER_AT = "web_browser:at"
 
 
-def web_at_viewer(call: ToolCall) -> ToolCallView:
-    # get the web accessiblity tree, if we have it create a view from it
+def web_viewer(call: ToolCall) -> ToolCallView:
+    web_html = store().get(WEB_BROWSER_HTML, "")
+    if web_html:
+        return ToolCallView(context=ToolCallContent(format="text", content=web_html))
+
     web_at = store().get(WEB_BROWSER_AT, "")
     element_id = call.arguments.get("element_id", 0)
     if web_at and element_id:
@@ -126,8 +149,10 @@ def web_at_viewer(call: ToolCall) -> ToolCallView:
     return ToolCallView()
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_click() -> Tool:
+@tool(viewer=web_viewer, parallel=False)
+def web_browser_click(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
     Returns:
@@ -137,7 +162,7 @@ def web_browser_click() -> Tool:
     async def execute(element_id: int) -> str:
         """Click an element on the page currently displayed by the web browser.
 
-        For example, with the following web accessibilty tree:
+        For example, with the following web accessibility tree:
 
         ```
         [304] RootWebArea "Poetry Foundation" [focused: True, url: https://www.poetryfoundation.org/]
@@ -154,15 +179,17 @@ def web_browser_click() -> Tool:
            element_id (int): ID of the element to click.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+           HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_click", str(element_id))
+        return await web_browser_cmd("web_click", output_format, str(element_id))
 
     return execute
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type_submit() -> Tool:
+@tool(viewer=web_viewer, parallel=False)
+def web_browser_type_submit(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for typing and submitting input.
 
     Returns:
@@ -192,15 +219,19 @@ def web_browser_type_submit() -> Tool:
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_type_submit", str(element_id), text)
+        return await web_browser_cmd(
+            "web_type_submit", output_format, str(element_id), text
+        )
 
     return execute
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type() -> Tool:
+@tool(viewer=web_viewer, parallel=False)
+def web_browser_type(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for typing into inputs.
 
     Returns:
@@ -230,15 +261,17 @@ def web_browser_type() -> Tool:
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_type", str(element_id), text)
+        return await web_browser_cmd("web_type", output_format, str(element_id), text)
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_scroll() -> Tool:
+def web_browser_scroll(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for scrolling up or down one page.
 
     Returns:
@@ -260,15 +293,17 @@ def web_browser_scroll() -> Tool:
            direction (str): "up" or "down"
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_scroll", direction)
+        return await web_browser_cmd("web_scroll", output_format, direction)
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_back() -> Tool:
+def web_browser_back(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for navigating back in the browser history.
 
     Returns:
@@ -281,15 +316,17 @@ def web_browser_back() -> Tool:
         If you want to view a page that you have previously browsed (or perhaps just didn't find what you were looking for on a page and want to backtrack) use the web_browser_back tool.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_back")
+        return await web_browser_cmd("web_back", output_format)
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_forward() -> Tool:
+def web_browser_forward(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for navigating forward in the browser history.
 
     Returns:
@@ -302,15 +339,17 @@ def web_browser_forward() -> Tool:
         If you have navigated back in the browser history and then want to navigate forward use the web_browser_forward tool.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_forward")
+        return await web_browser_cmd("web_forward", output_format)
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_refresh() -> Tool:
+def web_browser_refresh(
+    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+) -> Tool:
     """Web Browser tool for refreshing the current page.
 
     Returns:
@@ -323,9 +362,9 @@ def web_browser_refresh() -> Tool:
         If you have interacted with a page by clicking buttons and want to reset it to its original state, use the web_browser_refresh tool.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
+          HTML or web accessibility tree of the visible elements of the web page. If the latter, the element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_refresh")
+        return await web_browser_cmd("web_refresh", output_format)
 
     return execute
 
@@ -335,7 +374,9 @@ WEB_CLIENT_NEW_SESSION = "/app/web_browser/web_client_new_session.py"
 BROWSER_SESSION_ID = "BROWSER_SESSION_ID"
 
 
-async def web_browser_cmd(cmd: str, *args: str) -> str:
+async def web_browser_cmd(
+    cmd: str, output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT, *args: str
+) -> str:
     sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
     session_flag = ""
     if sandbox_env:
@@ -369,18 +410,28 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
         )
     else:
         response = parse_web_browser_output(result.stdout)
-        if "web_at" in response:
-            web_at = (
-                str(response.get("web_at")) or "(no web accessiblity tree available)"
-            )
-            # Remove base64 data from images.
-            web_at_lines = web_at.split("\n")
-            web_at_lines = [
-                line.partition("data:image/png;base64")[0] for line in web_at_lines
-            ]
-            web_at = "\n".join(web_at_lines)
-            store().set(WEB_BROWSER_AT, web_at)
-            return web_at
+        if "web_html" or "web_at" in response:
+            if output_format == CrawlerOutputFormat.HTML:
+                html_content = (
+                    str(response.get("web_html")) or "(no HTML content available)"
+                )
+                store().set(WEB_BROWSER_HTML, html_content)
+                return html_content
+            elif output_format == CrawlerOutputFormat.AT:
+                web_at = (
+                    str(response.get("web_at"))
+                    or "(no web accessiblity tree available)"
+                )
+                # Remove base64 data from images.
+                web_at_lines = web_at.split("\n")
+                web_at_lines = [
+                    line.partition("data:image/png;base64")[0] for line in web_at_lines
+                ]
+                web_at = "\n".join(web_at_lines)
+                store().set(WEB_BROWSER_AT, web_at)
+                return web_at
+            else:
+                raise ValueError(f"Unknown output format: {output_format}")
         elif "error" in response:
             raise ToolError(str(response.get("error")) or "(unknown error)")
         else:
@@ -418,7 +469,9 @@ async def web_browser_sandbox() -> SandboxEnvironment:
 
 
 def parse_web_browser_output(output: str) -> dict[str, str]:
-    response: dict[str, str] = dict(web_url="", web_at="", info="", error="")
+    response: dict[str, str] = dict(
+        web_url="", web_at="", web_html="", info="", error=""
+    )
     active_field: str | None = None
     active_field_lines: list[str] = []
 
@@ -428,7 +481,9 @@ def parse_web_browser_output(output: str) -> dict[str, str]:
         active_field_lines.clear()
 
     for line in output.splitlines():
-        field_match = re.match(r"^(error|web_at|web_url|info)\s*:\s*(.+)$", line)
+        field_match = re.match(
+            r"^(error|web_at|web_html|web_url|info)\s*:\s*(.+)$", line
+        )
         if field_match:
             collect_active_field()
             active_field = field_match.group(1)
