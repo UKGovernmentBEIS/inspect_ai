@@ -14,7 +14,7 @@ from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
-    eval_log_json,
+    eval_log_json_str,
     read_eval_log,
     read_eval_log_headers,
 )
@@ -127,7 +127,7 @@ def list_command(
 def dump_command(path: str, header_only: bool) -> None:
     """Print log file contents as JSON."""
     log = read_eval_log(path, header_only=header_only)
-    print(eval_log_json(log))
+    print(eval_log_json_str(log))
 
 
 @log_command.command("convert")

@@ -190,7 +190,7 @@ async def log_file_response(file: str, header_only_param: str | None) -> web.Res
         if header_only:
             try:
                 log = await read_eval_log_async(file, header_only=True)
-                contents = eval_log_json(log).encode()
+                contents = eval_log_json(log)
             except ValueError as ex:
                 logger.info(
                     f"Unable to read headers from log file {file}: {ex}. "
@@ -199,7 +199,7 @@ async def log_file_response(file: str, header_only_param: str | None) -> web.Res
 
         if contents is None:  # normal read
             log = await read_eval_log_async(file, header_only=False)
-            contents = eval_log_json(log).encode()
+            contents = eval_log_json(log)
 
         return web.Response(body=contents, content_type="application/json")
 

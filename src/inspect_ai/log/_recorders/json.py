@@ -10,7 +10,9 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     absolute_file_path,
+    async_fileystem,
     file,
+    filesystem,
 )
 
 from .._log import (
@@ -173,8 +175,19 @@ class JSONRecorder(FileRecorder):
         if log.samples:
             sort_samples(log.samples)
 
-        with file(location, "w") as f:
-            f.write(eval_log_json(log))
+        # get log as bytes
+        log_bytes = eval_log_json(log)
+
+        # write async for async filesystems
+        fs = filesystem(location)
+        if fs.is_async():
+            fs_async = async_fileystem(location)
+            await fs_async._pipe_file(location, log_bytes)
+
+        # otherwise use sync
+        else:
+            with file(location, "wb") as f:
+                f.write(log_bytes)
 
 
 def _validate_version(ver: int) -> None:

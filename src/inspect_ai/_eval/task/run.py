@@ -42,7 +42,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import eval_log_json
+from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
 from inspect_ai.log._samples import active_sample
 from inspect_ai.log._transcript import (
@@ -383,7 +383,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         view_notify_eval(logger.location)
 
         try:
-            await send_telemetry("eval_log", eval_log_json(eval_log))
+            await send_telemetry("eval_log", eval_log_json_str(eval_log))
         except Exception as ex:
             py_logger.warning(
                 f"Error occurred sending telemetry: {exception_message(ex)}"

@@ -518,7 +518,7 @@ def log_file_info(info: FileInfo) -> "EvalLogInfo":
     )
 
 
-def eval_log_json(log: EvalLog) -> str:
+def eval_log_json(log: EvalLog) -> bytes:
     # serialize to json (ignore values that are unserializable)
     # these values often result from solvers using metadata to
     # pass around 'live' objects -- this is fine to do and we
@@ -528,4 +528,8 @@ def eval_log_json(log: EvalLog) -> str:
         indent=2,
         exclude_none=True,
         fallback=lambda _x: None,
-    ).decode()
+    )
+
+
+def eval_log_json_str(log: EvalLog) -> str:
+    return eval_log_json(log).decode()
