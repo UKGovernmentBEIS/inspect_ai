@@ -303,6 +303,12 @@ class ZipLogFile:
         summaries: list[SampleSummary],
     ) -> None:
         async with self._lock:
+            # connect to async filesystem if we can
+            if self._fs.is_async():
+                self._async_fs = await async_fileystem(self._file).__aenter__()
+            else:
+                self._async_fs = None
+
             self._open()
             self._summary_counter = summary_counter
             self._summaries = summaries
@@ -368,9 +374,8 @@ class ZipLogFile:
             self._temp_file.seek(0)
             bytes = self._temp_file.read()
 
-            if self._fs.is_async():
-                async with async_fileystem(self._file) as async_fs:
-                    await async_fs._pipe_file(self._file, bytes)
+            if self._async_fs:
+                await self._async_fs._pipe_file(self._file, bytes)
             else:
                 with file(self._file, "wb") as f:
                     f.write(bytes)
@@ -381,6 +386,8 @@ class ZipLogFile:
     async def close(self) -> None:
         async with self._lock:
             self._temp_file.close()
+            if self._async_fs:
+                await self._async_fs.__aexit__()
 
     def _open(self) -> None:
         self._zip = ZipFile(
