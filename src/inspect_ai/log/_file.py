@@ -1,12 +1,8 @@
-import asyncio
 import os
 import re
 from logging import getLogger
 from typing import Any, Callable, Generator, Literal, cast
 
-import fsspec  # type: ignore
-from fsspec.asyn import AsyncFileSystem  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_json
 
 from inspect_ai._util._async import run_coroutine
