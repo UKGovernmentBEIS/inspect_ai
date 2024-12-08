@@ -15,7 +15,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import async_fileystem, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
@@ -259,14 +259,17 @@ class ZipLogFile:
     TEMP_LOG_FILE_MAX = 20 * 1024 * 1024
 
     _zip: ZipFile
+    _temp_file: BinaryIO
+    _fs: FileSystem
+    _async_fs_context: _AsyncGeneratorContextManager[AsyncFileSystem] | None = None
+    _async_fs: AsyncFileSystem | None = None
 
     def __init__(self, file: str) -> None:
         self._file = file
         self._fs = filesystem(file)
         self._lock = asyncio.Lock()
         self._temp_file = cast(
-            BinaryIO,
-            tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX),
+            BinaryIO, tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX)
         )
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
@@ -282,13 +285,8 @@ class ZipLogFile:
         async with self._lock:
             # connect to async filesystem if we can
             if self._fs.is_async():
-                self._async_fs_context: (
-                    _AsyncGeneratorContextManager[AsyncFileSystem] | None
-                ) = async_fileystem(self._file)
+                self._async_fs_context = async_fileystem(self._file)
                 self._async_fs = await self._async_fs_context.__aenter__()
-            else:
-                self._async_fs_context = None
-                self._async_fs = None
 
             self._open()
             self._summary_counter = summary_counter
