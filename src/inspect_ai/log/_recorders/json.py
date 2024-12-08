@@ -1,4 +1,3 @@
-import os
 from logging import getLogger
 from typing import Any, Literal, get_args
 
@@ -27,7 +26,7 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
-from .file import FileRecorder, _async_download_to_temp_log
+from .file import FileRecorder
 
 logger = getLogger(__name__)
 
@@ -144,39 +143,31 @@ class JSONRecorder(FileRecorder):
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
 
-        # if its an async filesystem, then download the file async first and then
-        # read it from a temp file
-        temp_log = await _async_download_to_temp_log(location)
-        read_location = temp_log or location
+        # full reads (and fallback to streaing reads if they encounter invalid json characters)
+        with file(location, "r") as f:
+            # parse w/ pydantic
+            raw_data = from_json(f.read())
+            log = EvalLog(**raw_data)
+            log.location = location
 
-        try:
-            with file(read_location, "r") as f:
-                # parse w/ pydantic
-                raw_data = from_json(f.read())
-                log = EvalLog(**raw_data)
-                log.location = location
+            # fail for unknown version
+            _validate_version(log.version)
 
-                # fail for unknown version
-                _validate_version(log.version)
+            # set the version to the schema version we'll be returning
+            log.version = LOG_SCHEMA_VERSION
 
-                # set the version to the schema version we'll be returning
-                log.version = LOG_SCHEMA_VERSION
+            # prune if header_only
+            if header_only:
+                # exclude samples
+                log.samples = None
 
-                # prune if header_only
-                if header_only:
-                    # exclude samples
-                    log.samples = None
+                # prune sample reductions
+                if log.results is not None:
+                    log.results.sample_reductions = None
+                    log.reductions = None
 
-                    # prune sample reductions
-                    if log.results is not None:
-                        log.results.sample_reductions = None
-                        log.reductions = None
-
-                # return log
-                return log
-        finally:
-            if temp_log:
-                os.unlink(temp_log)
+            # return log
+            return log
 
     @override
     @classmethod

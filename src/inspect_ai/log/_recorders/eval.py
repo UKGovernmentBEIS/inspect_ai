@@ -30,7 +30,7 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
-from .file import FileRecorder, _async_download_to_temp_log
+from .file import FileRecorder
 
 logger = getLogger(__name__)
 
@@ -190,17 +190,19 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
-        # if we are fetching the entire file and its an async filesystem, then
-        # download the file async first and then read it from a temp file. if
-        # its header only then it will be a few small fetches so we'd rather have
-        # that than bringing down the entire file
-        temp_log = (
-            await _async_download_to_temp_log(location) if not header_only else None
-        )
-        read_location = temp_log or location
+        # if the log is not stored in the local filesystem then download it first,
+        # and then read it from a temp file (eliminates the possiblity of hundreds
+        # of small fetches from the zip file streams)
+        temp_log: str | None = None
+        fs = filesystem(location)
+        if not fs.is_local():
+            with tempfile.NamedTemporaryFile(delete=False) as temp:
+                temp_log = temp.name
+                fs.get_file(location, temp_log)
 
+        # read log (use temp_log if we have it)
         try:
-            with file(read_location, "rb") as z:
+            with file(temp_log or location, "rb") as z:
                 return _read_log(z, location, header_only)
         finally:
             if temp_log:
