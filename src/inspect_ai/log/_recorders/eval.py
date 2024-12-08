@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 from contextlib import _AsyncGeneratorContextManager
+from logging import getLogger
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -30,6 +31,8 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder, _async_download_to_temp_log
+
+logger = getLogger(__name__)
 
 
 class SampleSummary(BaseModel):
@@ -175,19 +178,14 @@ class EvalRecorder(FileRecorder):
             status=log_results.status,
             error=log_results.error,
         )
-
-        # write the results
         await log.write(HEADER_JSON, eval_header)
-
-        # flush and close the file
-        await log.flush()
-        await log.close()
 
         # stop tracking this eval
         del self.data[key]
 
-        # return the full EvalLog
-        return await self.read_log(log._file)
+        # flush and write the results
+        await log.flush()
+        return await log.close()
 
     @classmethod
     @override
@@ -202,31 +200,8 @@ class EvalRecorder(FileRecorder):
         read_location = temp_log or location
 
         try:
-            # read the file
             with file(read_location, "rb") as z:
-                with ZipFile(z, mode="r") as zip:
-                    evalLog = _read_header(zip, location)
-                    if REDUCTIONS_JSON in zip.namelist():
-                        with zip.open(REDUCTIONS_JSON, "r") as f:
-                            reductions = [
-                                EvalSampleReductions(**reduction)
-                                for reduction in json.load(f)
-                            ]
-                            if evalLog.results is not None:
-                                evalLog.reductions = reductions
-
-                    samples: list[EvalSample] | None = None
-                    if not header_only:
-                        samples = []
-                        for name in zip.namelist():
-                            if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(
-                                ".json"
-                            ):
-                                with zip.open(name, "r") as f:
-                                    samples.append(EvalSample(**json.load(f)))
-                        sort_samples(samples)
-                        evalLog.samples = samples
-                    return evalLog
+                return _read_log(z, location, header_only)
         finally:
             if temp_log:
                 os.unlink(temp_log)
@@ -389,11 +364,23 @@ class ZipLogFile:
             # re-open zip file w/ self.temp_file pointer at end
             self._open()
 
-    async def close(self) -> None:
+    async def close(self) -> EvalLog:
         async with self._lock:
-            self._temp_file.close()
-            if self._async_fs_context:
-                await self._async_fs_context.__aexit__(None, None, None)
+            # close the async context if we have one
+            try:
+                if self._async_fs_context:
+                    await self._async_fs_context.__aexit__(None, None, None)
+            except Exception as ex:
+                logger.warning(
+                    f"Error occurred while closing async fs for {self._file}: {ex}"
+                )
+
+            # read the log from the temp file then close it
+            try:
+                self._temp_file.seek(0)
+                return _read_log(self._temp_file, self._file)
+            finally:
+                self._temp_file.close()
 
     def _open(self) -> None:
         self._zip = ZipFile(
@@ -414,6 +401,29 @@ class ZipLogFile:
                 fallback=lambda _x: None,
             ),
         )
+
+
+def _read_log(f: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+    with ZipFile(f, mode="r") as zip:
+        evalLog = _read_header(zip, location)
+        if REDUCTIONS_JSON in zip.namelist():
+            with zip.open(REDUCTIONS_JSON, "r") as f:
+                reductions = [
+                    EvalSampleReductions(**reduction) for reduction in json.load(f)
+                ]
+                if evalLog.results is not None:
+                    evalLog.reductions = reductions
+
+        samples: list[EvalSample] | None = None
+        if not header_only:
+            samples = []
+            for name in zip.namelist():
+                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
+                    with zip.open(name, "r") as f:
+                        samples.append(EvalSample(**json.load(f)))
+            sort_samples(samples)
+            evalLog.samples = samples
+        return evalLog
 
 
 def _read_start(zip: ZipFile) -> LogStart | None:
