@@ -256,8 +256,6 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
 
 
 class ZipLogFile:
-    TEMP_LOG_FILE_MAX = 20 * 1024 * 1024
-
     _zip: ZipFile
     _temp_file: BinaryIO
     _fs: FileSystem
@@ -268,9 +266,7 @@ class ZipLogFile:
         self._file = file
         self._fs = filesystem(file)
         self._lock = asyncio.Lock()
-        self._temp_file = cast(
-            BinaryIO, tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX)
-        )
+        self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
         self._summaries: list[SampleSummary] = []
