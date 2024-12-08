@@ -16,9 +16,16 @@ from inspect_ai.solver import Generate, TaskState, solver
 
 
 @solver
-def looping_solver():
+def looping_solver(check_tokens: bool = False):
     async def solve(state: TaskState, generate: Generate):
+        # first generate
         state = await generate(state)
+
+        # verify we are successfully tracking tokens if requested
+        if check_tokens:
+            assert state.token_usage > 0
+
+        # keep generating until we hit a limit
         while not state.completed:
             state.messages.append(state.user_prompt)
             state = await generate(state)
@@ -58,7 +65,7 @@ def test_token_limit_complete():
     token_limit = 10
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
-        solver=looping_solver(),
+        solver=looping_solver(check_tokens=True),
         scorer=match(),
         token_limit=token_limit,
     )
