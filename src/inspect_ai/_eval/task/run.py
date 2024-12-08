@@ -144,8 +144,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         results: EvalResults | None = None
         reductions: list[EvalSampleReductions] | None = None
         stats = EvalStats(started_at=iso_now())
-        error: EvalError | None = None
-        cancelled = False
 
         # handle sample errors (raise as required)
         sample_error_handler = SampleErrorHandler(
@@ -329,6 +327,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 # collect eval data
                 collect_eval_data(stats)
 
+                # finish w/ success status
+                eval_log = await logger.log_finish(
+                    "success", stats, results, reductions
+                )
+
                 # display task summary
                 td.complete(
                     TaskSuccess(
@@ -339,11 +342,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 )
 
             except asyncio.CancelledError:
-                # flag as cancelled
-                cancelled = True
-
                 # collect eval data
                 collect_eval_data(stats)
+
+                # finish w/ cancelled status
+                eval_log = await logger.log_finish(
+                    "cancelled", stats, results, reductions
+                )
 
                 # display task cancelled
                 td.complete(TaskCancelled(logger.samples_completed, stats))
@@ -363,20 +368,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     # collect eval data
                     collect_eval_data(stats)
 
+                    # finish with error status
+                    eval_log = await logger.log_finish(
+                        "error", stats, results, reductions, error
+                    )
+
                     # display it
                     td.complete(
                         TaskError(logger.samples_completed, type, value, traceback)
                     )
-
-        # log as appropriate
-        if cancelled:
-            eval_log = await logger.log_finish("cancelled", stats, results, reductions)
-        elif error:
-            eval_log = await logger.log_finish(
-                "error", stats, results, reductions, error
-            )
-        else:
-            eval_log = await logger.log_finish("success", stats, results, reductions)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
