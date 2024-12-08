@@ -1,4 +1,5 @@
 import os
+from logging import getLogger
 from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
@@ -27,6 +28,8 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder, _async_download_to_temp_log
+
+logger = getLogger(__name__)
 
 
 class JSONRecorder(FileRecorder):
@@ -187,14 +190,21 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        # write async for async filesystemsx
-        fs = filesystem(location)
-        if fs.is_async():
-            async with async_fileystem(location) as async_fs:
-                await async_fs._pipe_file(location, log_bytes)
+        # try to write async for async filesystems
+        written = False
+        try:
+            fs = filesystem(location)
+            if fs.is_async():
+                async with async_fileystem(location) as async_fs:
+                    await async_fs._pipe_file(location, log_bytes)
+                    written = True
+        except Exception as ex:
+            logger.warning(
+                f"Error occurred during async write to {location}: {ex}. Falling back to sync write."
+            )
 
         # otherwise use sync
-        else:
+        if not written:
             with file(location, "wb") as f:
                 f.write(log_bytes)
 

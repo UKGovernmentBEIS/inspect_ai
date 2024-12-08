@@ -353,9 +353,19 @@ class ZipLogFile:
             self._temp_file.seek(0)
             log_bytes = self._temp_file.read()
 
-            if self._async_fs:
-                await self._async_fs._pipe_file(self._file, log_bytes)
-            else:
+            # attempt async write
+            written = False
+            try:
+                if self._async_fs:
+                    await self._async_fs._pipe_file(self._file, log_bytes)
+                    written = True
+            except Exception as ex:
+                logger.warning(
+                    f"Error occurred during async write to {self._file}: {ex}. Falling back to sync write."
+                )
+
+            # write sync if we need to
+            if not written:
                 with file(self._file, "wb") as f:
                     f.write(log_bytes)
 
@@ -401,8 +411,8 @@ class ZipLogFile:
         )
 
 
-def _read_log(f: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
-    with ZipFile(f, mode="r") as zip:
+def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+    with ZipFile(log, mode="r") as zip:
         evalLog = _read_header(zip, location)
         if REDUCTIONS_JSON in zip.namelist():
             with zip.open(REDUCTIONS_JSON, "r") as f:

@@ -1,4 +1,5 @@
 import tempfile
+from logging import getLogger
 from typing import Any
 
 from typing_extensions import override
@@ -8,6 +9,8 @@ from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalLog, EvalSample, EvalSpec
 from .recorder import Recorder
+
+logger = getLogger(__name__)
 
 
 class FileRecorder(Recorder):
@@ -74,17 +77,23 @@ class FileRecorder(Recorder):
 
 
 async def _async_download_to_temp_log(location: str) -> str | None:
-    fs = filesystem(location)
-    if fs.is_async():
-        # allocate a temp log file name
-        with tempfile.NamedTemporaryFile(delete=False) as temp:
-            temp_log = temp.name
+    try:
+        fs = filesystem(location)
+        if fs.is_async():
+            # allocate a temp log file name
+            with tempfile.NamedTemporaryFile(delete=False) as temp:
+                temp_log = temp.name
 
-        # async download the file
-        async with async_fileystem(location) as async_fs:
-            await async_fs._get_file(location, temp_log)
+            # async download the file
+            async with async_fileystem(location) as async_fs:
+                await async_fs._get_file(location, temp_log)
 
-        # return the filename
-        return temp_log
-    else:
-        return None
+            # return the filename
+            return temp_log
+    except Exception as ex:
+        logger.warning(
+            f"Error occurred during async read of {location}: {ex}. Falling back to sync read."
+        )
+
+    # no async download
+    return None
