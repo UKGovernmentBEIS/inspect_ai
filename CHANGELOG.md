@@ -18,6 +18,7 @@
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.
+= Bugfix: Report errors that occur during task finalisation.
   
 ## v0.3.49 (03 December 2024)
 
