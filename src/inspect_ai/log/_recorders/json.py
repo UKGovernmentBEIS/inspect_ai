@@ -1,3 +1,5 @@
+import os
+from logging import getLogger
 from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
@@ -10,7 +12,9 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     absolute_file_path,
+    async_fileystem,
     file,
+    filesystem,
 )
 
 from .._log import (
@@ -23,7 +27,9 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
-from .file import FileRecorder
+from .file import FileRecorder, _async_download_to_temp_log
+
+logger = getLogger(__name__)
 
 
 class JSONRecorder(FileRecorder):
@@ -57,7 +63,7 @@ class JSONRecorder(FileRecorder):
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
@@ -75,19 +81,19 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
 
     @override
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
 
     @override
-    def log_finish(
+    async def log_finish(
         self,
         spec: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
@@ -104,7 +110,7 @@ class JSONRecorder(FileRecorder):
             log.data.error = error
         if reductions:
             log.data.reductions = reductions
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
         log.data.location = log.file
 
         # stop tracking this data
@@ -114,13 +120,13 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
-    def flush(self, eval: EvalSpec) -> None:
+    async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
 
     @override
     @classmethod
-    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         if header_only:
             try:
                 return _read_header_streaming(location)
@@ -138,43 +144,69 @@ class JSONRecorder(FileRecorder):
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
 
-        # parse full log (also used as a fallback for header_only encountering NaN or Inf)
-        with file(location, "r") as f:
-            # parse w/ pydantic
-            raw_data = from_json(f.read())
-            log = EvalLog(**raw_data)
-            log.location = location
+        # if its an async filesystem, then download the file async first and then
+        # read it from a temp file
+        temp_log = await _async_download_to_temp_log(location)
+        read_location = temp_log or location
 
-            # fail for unknown version
-            _validate_version(log.version)
+        try:
+            with file(read_location, "r") as f:
+                # parse w/ pydantic
+                raw_data = from_json(f.read())
+                log = EvalLog(**raw_data)
+                log.location = location
 
-            # set the version to the schema version we'll be returning
-            log.version = LOG_SCHEMA_VERSION
+                # fail for unknown version
+                _validate_version(log.version)
 
-            # prune if header_only
-            if header_only:
-                # exclude samples
-                log.samples = None
+                # set the version to the schema version we'll be returning
+                log.version = LOG_SCHEMA_VERSION
 
-                # prune sample reductions
-                if log.results is not None:
-                    log.results.sample_reductions = None
-                    log.reductions = None
+                # prune if header_only
+                if header_only:
+                    # exclude samples
+                    log.samples = None
 
-            # return log
-            return log
+                    # prune sample reductions
+                    if log.results is not None:
+                        log.results.sample_reductions = None
+                        log.reductions = None
+
+                # return log
+                return log
+        finally:
+            if temp_log:
+                os.unlink(temp_log)
 
     @override
     @classmethod
-    def write_log(cls, location: str, log: EvalLog) -> None:
+    async def write_log(cls, location: str, log: EvalLog) -> None:
         from inspect_ai.log._file import eval_log_json
 
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
 
-        with file(location, "w") as f:
-            f.write(eval_log_json(log))
+        # get log as bytes
+        log_bytes = eval_log_json(log)
+
+        # try to write async for async filesystems
+        written = False
+        try:
+            fs = filesystem(location)
+            if fs.is_async():
+                async with async_fileystem(location) as async_fs:
+                    await async_fs._pipe_file(location, log_bytes)
+                    written = True
+        except Exception as ex:
+            logger.warning(
+                f"Error occurred during async write to {location}: {ex}. Falling back to sync write."
+            )
+
+        # otherwise use sync
+        if not written:
+            with file(location, "wb") as f:
+                f.write(log_bytes)
 
 
 def _validate_version(ver: int) -> None:

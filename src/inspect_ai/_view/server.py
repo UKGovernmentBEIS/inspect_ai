@@ -19,8 +19,8 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
     list_eval_logs_async,
-    read_eval_log,
-    read_eval_log_headers,
+    read_eval_log_async,
+    read_eval_log_headers_async,
 )
 
 from .notify import view_last_eval_time
@@ -60,7 +60,7 @@ def view_server(
 
         # header_only is based on a size threshold
         header_only = request.query.get("header-only", None)
-        return log_file_response(file, header_only)
+        return await log_file_response(file, header_only)
 
     @routes.get("/api/log-size/{log}")
     async def api_log_size(request: web.Request) -> web.Response:
@@ -180,7 +180,7 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
     return web.json_response(response)
 
 
-def log_file_response(file: str, header_only_param: str | None) -> web.Response:
+async def log_file_response(file: str, header_only_param: str | None) -> web.Response:
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None
     header_only = resolve_header_only(file, header_only_mb)
@@ -189,8 +189,8 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
         contents: bytes | None = None
         if header_only:
             try:
-                log = read_eval_log(file, header_only=True)
-                contents = eval_log_json(log).encode()
+                log = await read_eval_log_async(file, header_only=True)
+                contents = eval_log_json(log)
             except ValueError as ex:
                 logger.info(
                     f"Unable to read headers from log file {file}: {ex}. "
@@ -198,8 +198,8 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
                 )
 
         if contents is None:  # normal read
-            log = read_eval_log(file, header_only=False)
-            contents = eval_log_json(log).encode()
+            log = await read_eval_log_async(file, header_only=False)
+            contents = eval_log_json(log)
 
         return web.Response(body=contents, content_type="application/json")
 
@@ -245,7 +245,7 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
 
 
 async def log_headers_response(files: list[str]) -> web.Response:
-    headers = read_eval_log_headers(files)
+    headers = await read_eval_log_headers_async(files)
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
 
 

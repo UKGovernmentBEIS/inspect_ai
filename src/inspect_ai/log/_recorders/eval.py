@@ -1,8 +1,13 @@
+import asyncio
 import json
+import os
 import tempfile
+from contextlib import _AsyncGeneratorContextManager
+from logging import getLogger
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from fsspec.asyn import AsyncFileSystem  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
@@ -10,7 +15,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import dirname, file
+from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
@@ -25,7 +30,9 @@ from .._log import (
     EvalStats,
     sort_samples,
 )
-from .file import FileRecorder
+from .file import FileRecorder, _async_download_to_temp_log
+
+logger = getLogger(__name__)
 
 
 class SampleSummary(BaseModel):
@@ -82,7 +89,7 @@ class EvalRecorder(FileRecorder):
         self.data: dict[str, ZipLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # if the file exists then read summaries
         if location is not None and self.fs.exists(location):
             with file(location, "rb") as f:
@@ -98,7 +105,7 @@ class EvalRecorder(FileRecorder):
         # create zip wrapper
         zip_file = location or self._log_file_path(eval)
         zip_log_file = ZipLogFile(file=zip_file)
-        zip_log_file.init(log_start, summary_counter, summaries)
+        await zip_log_file.init(log_start, summary_counter, summaries)
 
         # track zip
         self.data[self._log_file_key(eval)] = zip_log_file
@@ -107,31 +114,29 @@ class EvalRecorder(FileRecorder):
         return zip_file
 
     @override
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+        log = self.data[self._log_file_key(eval)]
         start = LogStart(version=LOG_SCHEMA_VERSION, eval=eval, plan=plan)
-        self._write(eval, _journal_path(START_JSON), start)
-
-        log = self.data[self._log_file_key(eval)]  # noqa: F841
-        log.log_start = start
+        await log.start(start)
 
     @override
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
-        log = self.data[self._log_file_key(eval)]  # noqa: F841
-        log.samples.append(sample)
+    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.buffer_sample(sample)
 
     @override
-    def flush(self, eval: EvalSpec) -> None:
+    async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
 
         # write the buffered samples
-        self._write_buffered_samples(eval)
+        await log.write_buffered_samples()
 
         # flush to underlying stream
-        log.flush()
+        await log.flush()
 
     @override
-    def log_finish(
+    async def log_finish(
         self,
         eval: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
@@ -145,18 +150,14 @@ class EvalRecorder(FileRecorder):
         log = self.data[key]
 
         # write the buffered samples
-        self._write_buffered_samples(eval)
+        await log.write_buffered_samples()
 
         # write consolidated summaries
-        self._write(eval, SUMMARIES_JSON, log.summaries)
+        await log.write(SUMMARIES_JSON, log._summaries)
 
         # write reductions
         if reductions is not None:
-            self._write(
-                eval,
-                REDUCTIONS_JSON,
-                reductions,
-            )
+            await log.write(REDUCTIONS_JSON, reductions)
 
         # Get the results
         log_results = LogResults(
@@ -166,7 +167,7 @@ class EvalRecorder(FileRecorder):
         # add the results to the original eval log from start.json
         log_start = log.log_start
         if log_start is None:
-            raise RuntimeError("Unexpectedly issing the log start value")
+            raise RuntimeError("Log not properly initialised")
 
         eval_header = EvalLog(
             version=log_start.version,
@@ -177,50 +178,37 @@ class EvalRecorder(FileRecorder):
             status=log_results.status,
             error=log_results.error,
         )
-
-        # write the results
-        self._write(eval, HEADER_JSON, eval_header)
-
-        # close the file
-        log.close()
+        await log.write(HEADER_JSON, eval_header)
 
         # stop tracking this eval
         del self.data[key]
 
-        # return the full EvalLog
-        return self.read_log(log.file)
+        # flush and write the results
+        await log.flush()
+        return await log.close()
 
     @classmethod
     @override
-    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
-        with file(location, "rb") as z:
-            with ZipFile(z, mode="r") as zip:
-                evalLog = _read_header(zip, location)
-                if REDUCTIONS_JSON in zip.namelist():
-                    with zip.open(REDUCTIONS_JSON, "r") as f:
-                        reductions = [
-                            EvalSampleReductions(**reduction)
-                            for reduction in json.load(f)
-                        ]
-                        if evalLog.results is not None:
-                            evalLog.reductions = reductions
+    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+        # if we are fetching the entire file and its an async filesystem, then
+        # download the file async first and then read it from a temp file. if
+        # its header only then it will be a few small fetches so we'd rather have
+        # that than bringing down the entire file
+        temp_log = (
+            await _async_download_to_temp_log(location) if not header_only else None
+        )
+        read_location = temp_log or location
 
-                samples: list[EvalSample] | None = None
-                if not header_only:
-                    samples = []
-                    for name in zip.namelist():
-                        if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(
-                            ".json"
-                        ):
-                            with zip.open(name, "r") as f:
-                                samples.append(EvalSample(**json.load(f)))
-                    sort_samples(samples)
-                    evalLog.samples = samples
-                return evalLog
+        try:
+            with file(read_location, "rb") as z:
+                return _read_log(z, location, header_only)
+        finally:
+            if temp_log:
+                os.unlink(temp_log)
 
     @override
     @classmethod
-    def read_log_sample(
+    async def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         with file(location, "rb") as z:
@@ -235,66 +223,16 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
-    def write_log(cls, location: str, log: EvalLog) -> None:
+    async def write_log(cls, location: str, log: EvalLog) -> None:
         # write using the recorder (so we get all of the extra streams)
         recorder = EvalRecorder(dirname(location))
-        recorder.log_init(log.eval, location)
-        recorder.log_start(log.eval, log.plan)
+        await recorder.log_init(log.eval, location)
+        await recorder.log_start(log.eval, log.plan)
         for sample in log.samples or []:
-            recorder.log_sample(log.eval, sample)
-        recorder.log_finish(
+            await recorder.log_sample(log.eval, sample)
+        await recorder.log_finish(
             log.eval, log.status, log.stats, log.results, log.reductions, log.error
         )
-
-    # write to the zip file
-    def _write(self, eval: EvalSpec, filename: str, data: Any) -> None:
-        log = self.data[self._log_file_key(eval)]
-        zip_write(log.zip, filename, data)
-
-    # write buffered samples to the zip file
-    def _write_buffered_samples(self, eval: EvalSpec) -> None:
-        # get the log
-        log = self.data[self._log_file_key(eval)]
-
-        # Write the buffered samples
-        summaries: list[SampleSummary] = []
-        for sample in log.samples:
-            # Write the sample
-            self._write(eval, _sample_filename(sample.id, sample.epoch), sample)
-
-            # Capture the summary
-            summaries.append(
-                SampleSummary(
-                    id=sample.id,
-                    epoch=sample.epoch,
-                    input=text_inputs(sample.input),
-                    target=sample.target,
-                    scores=sample.scores,
-                    error=sample.error.message if sample.error is not None else None,
-                    limit=f"{sample.limit.type}" if sample.limit is not None else None,
-                )
-            )
-        log.samples.clear()
-
-        # write intermediary summaries and add to master list
-        if len(summaries) > 0:
-            log.summary_counter += 1
-            summary_file = _journal_summary_file(log.summary_counter)
-            summary_path = _journal_summary_path(summary_file)
-            self._write(eval, summary_path, summaries)
-            log.summaries.extend(summaries)
-
-
-def zip_write(zip: ZipFile, filename: str, data: Any) -> None:
-    zip.writestr(
-        filename,
-        to_json(
-            value=jsonable_python(data),
-            indent=2,
-            exclude_none=True,
-            fallback=lambda _x: None,
-        ),
-    )
 
 
 def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
@@ -318,51 +256,178 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
 
 
 class ZipLogFile:
-    TEMP_LOG_FILE_MAX = 20 * 1024 * 1024
-
-    zip: ZipFile
-    temp_file: BinaryIO
+    _zip: ZipFile
+    _temp_file: BinaryIO
+    _fs: FileSystem
+    _async_fs_context: _AsyncGeneratorContextManager[AsyncFileSystem] | None = None
+    _async_fs: AsyncFileSystem | None = None
 
     def __init__(self, file: str) -> None:
-        self.file = file
-        self.temp_file = cast(
-            BinaryIO,
-            tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX),
-        )
-        self._open()
-        self.samples: list[EvalSample] = []
-        self.summary_counter = 0
-        self.summaries: list[SampleSummary] = []
-        self.log_start: LogStart | None = None
+        self._file = file
+        self._fs = filesystem(file)
+        self._lock = asyncio.Lock()
+        self._temp_file = tempfile.TemporaryFile()
+        self._samples: list[EvalSample] = []
+        self._summary_counter = 0
+        self._summaries: list[SampleSummary] = []
+        self._log_start: LogStart | None = None
 
-    def init(
+    async def init(
         self,
         log_start: LogStart | None,
         summary_counter: int,
         summaries: list[SampleSummary],
     ) -> None:
-        self.summary_counter = summary_counter
-        self.summaries = summaries
-        self.log_start = log_start
+        async with self._lock:
+            # connect to async filesystem if we can
+            if self._fs.is_async():
+                self._async_fs_context = async_fileystem(self._file)
+                self._async_fs = await self._async_fs_context.__aenter__()
 
-    def flush(self) -> None:
-        self.zip.close()
-        self.temp_file.seek(0)
-        with file(self.file, "wb") as f:
-            f.write(self.temp_file.read())
-        self._open()
+            self._open()
+            self._summary_counter = summary_counter
+            self._summaries = summaries
+            self._log_start = log_start
 
-    def close(self) -> None:
-        self.flush()
-        self.temp_file.close()
+    @property
+    def log_start(self) -> LogStart | None:
+        return self._log_start
+
+    async def start(self, start: LogStart) -> None:
+        async with self._lock:
+            self._log_start = start
+            self._zip_writestr(_journal_path(START_JSON), start)
+
+    async def buffer_sample(self, sample: EvalSample) -> None:
+        async with self._lock:
+            self._samples.append(sample)
+
+    async def write_buffered_samples(self) -> None:
+        async with self._lock:
+            # Write the buffered samples
+            summaries: list[SampleSummary] = []
+            for sample in self._samples:
+                # Write the sample
+                self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
+
+                # Capture the summary
+                summaries.append(
+                    SampleSummary(
+                        id=sample.id,
+                        epoch=sample.epoch,
+                        input=text_inputs(sample.input),
+                        target=sample.target,
+                        scores=sample.scores,
+                        error=sample.error.message
+                        if sample.error is not None
+                        else None,
+                        limit=f"{sample.limit.type}"
+                        if sample.limit is not None
+                        else None,
+                    )
+                )
+            self._samples.clear()
+
+            # write intermediary summaries and add to master list
+            if len(summaries) > 0:
+                self._summary_counter += 1
+                summary_file = _journal_summary_file(self._summary_counter)
+                summary_path = _journal_summary_path(summary_file)
+                self._zip_writestr(summary_path, summaries)
+                self._summaries.extend(summaries)
+
+    async def write(self, filename: str, data: Any) -> None:
+        async with self._lock:
+            self._zip_writestr(filename, data)
+
+    async def flush(self) -> None:
+        async with self._lock:
+            # close the zip file so it is flushed
+            self._zip.close()
+
+            # read the temp_file (leaves pointer at end for subsequent appends)
+            self._temp_file.seek(0)
+            log_bytes = self._temp_file.read()
+
+            # attempt async write
+            written = False
+            try:
+                if self._async_fs:
+                    await self._async_fs._pipe_file(self._file, log_bytes)
+                    written = True
+            except Exception as ex:
+                logger.warning(
+                    f"Error occurred during async write to {self._file}: {ex}. Falling back to sync write."
+                )
+
+            # write sync if we need to
+            if not written:
+                with file(self._file, "wb") as f:
+                    f.write(log_bytes)
+
+            # re-open zip file w/ self.temp_file pointer at end
+            self._open()
+
+    async def close(self) -> EvalLog:
+        async with self._lock:
+            # close the async context if we have one
+            try:
+                if self._async_fs_context:
+                    await self._async_fs_context.__aexit__(None, None, None)
+            except Exception as ex:
+                logger.warning(
+                    f"Error occurred while closing async fs for {self._file}: {ex}"
+                )
+
+            # read the log from the temp file then close it
+            try:
+                self._temp_file.seek(0)
+                return _read_log(self._temp_file, self._file)
+            finally:
+                self._temp_file.close()
 
     def _open(self) -> None:
-        self.zip = ZipFile(
-            self.temp_file,
+        self._zip = ZipFile(
+            self._temp_file,
             mode="a",
             compression=ZIP_DEFLATED,
             compresslevel=5,
         )
+
+    # raw unsynchronized version of write
+    def _zip_writestr(self, filename: str, data: Any) -> None:
+        self._zip.writestr(
+            filename,
+            to_json(
+                value=jsonable_python(data),
+                indent=2,
+                exclude_none=True,
+                fallback=lambda _x: None,
+            ),
+        )
+
+
+def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLog:
+    with ZipFile(log, mode="r") as zip:
+        evalLog = _read_header(zip, location)
+        if REDUCTIONS_JSON in zip.namelist():
+            with zip.open(REDUCTIONS_JSON, "r") as f:
+                reductions = [
+                    EvalSampleReductions(**reduction) for reduction in json.load(f)
+                ]
+                if evalLog.results is not None:
+                    evalLog.reductions = reductions
+
+        samples: list[EvalSample] | None = None
+        if not header_only:
+            samples = []
+            for name in zip.namelist():
+                if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
+                    with zip.open(name, "r") as f:
+                        samples.append(EvalSample(**json.load(f)))
+            sort_samples(samples)
+            evalLog.samples = samples
+        return evalLog
 
 
 def _read_start(zip: ZipFile) -> LogStart | None:

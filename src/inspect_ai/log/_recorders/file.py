@@ -1,14 +1,16 @@
+import tempfile
+from logging import getLogger
 from typing import Any
 
 from typing_extensions import override
 
-from inspect_ai._util.file import (
-    filesystem,
-)
+from inspect_ai._util.file import async_fileystem, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalLog, EvalSample, EvalSpec
 from .recorder import Recorder
+
+logger = getLogger(__name__)
 
 
 class FileRecorder(Recorder):
@@ -18,23 +20,25 @@ class FileRecorder(Recorder):
         self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
     ) -> None:
         self.log_dir = log_dir.rstrip("/\\")
+        self.suffix = suffix
+
+        # initialise filesystem
         self.fs = filesystem(log_dir, fs_options)
         self.fs.mkdir(self.log_dir, exist_ok=True)
-        self.suffix = suffix
 
     def is_local(self) -> bool:
         return self.fs.is_local()
 
     @override
     @classmethod
-    def read_log_sample(
+    async def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
             eval_log = cls.__last_read_sample_log[1]
         else:
-            eval_log = cls.read_log(location)
+            eval_log = await cls.read_log(location)
             cls.__last_read_sample_log = (location, eval_log)
 
         # throw if no samples
@@ -70,3 +74,26 @@ class FileRecorder(Recorder):
 
     def _log_file_path(self, eval: EvalSpec) -> str:
         return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"
+
+
+async def _async_download_to_temp_log(location: str) -> str | None:
+    try:
+        fs = filesystem(location)
+        if fs.is_async():
+            # allocate a temp log file name
+            with tempfile.NamedTemporaryFile(delete=False) as temp:
+                temp_log = temp.name
+
+            # async download the file
+            async with async_fileystem(location) as async_fs:
+                await async_fs._get_file(location, temp_log)
+
+            # return the filename
+            return temp_log
+    except Exception as ex:
+        logger.warning(
+            f"Error occurred during async read of {location}: {ex}. Falling back to sync read."
+        )
+
+    # no async download
+    return None
