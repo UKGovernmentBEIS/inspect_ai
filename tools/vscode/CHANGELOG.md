@@ -1,5 +1,7 @@
 # Changelog
 
+## 0.3.45
+
 ## 0.3.44
 
 - Fix incorrect url encoding when copying links to remote log files.
