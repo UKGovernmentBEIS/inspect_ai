@@ -18,6 +18,7 @@ from inspect_ai._util.html import as_html_id
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
 
+from ...util._panel import InputPanel
 from ..core.config import task_config
 from ..core.display import (
     TP,
@@ -29,7 +30,6 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.input import InputPanel
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .theme import inspect_dark, inspect_light
@@ -222,7 +222,7 @@ class TaskScreenApp(App[TR]):
         self.update_tasks()
         self.update_samples()
         self.update_footer()
-        for input_panel in self.query(".task-input-panel"):
+        for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
             cast(InputPanel, input_panel).update()
 
     # update the header title
@@ -425,7 +425,10 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
             panel_widget = self.app.get_input_panel(title)
             if panel_widget is None:
                 panel_widget = panel(
-                    TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
+                    title,
+                    TaskScreenApp[TR].InputPanelHost(
+                        self.app, as_input_panel_id(title)
+                    ),
                 )
                 await self.app.add_input_panel(title, panel_widget)
             return cast(TP, panel_widget)

@@ -2,6 +2,7 @@ from rich.prompt import Prompt
 
 from inspect_ai._util.transcript import transcript_panel
 from inspect_ai.tool._tool_call import ToolCallView
+from inspect_ai.util._console import input_screen
 
 from .._approval import Approval, ApprovalDecision
 from .util import (
@@ -16,9 +17,7 @@ from .util import (
 def console_approval(
     message: str, view: ToolCallView, choices: list[ApprovalDecision]
 ) -> Approval:
-    from inspect_ai._display.core.active import task_screen
-
-    with task_screen().input_screen(width=None) as console:
+    with input_screen(width=None) as console:
         console.print(
             transcript_panel(
                 title="Approve Tool", content=render_tool_approval(message, view)
