@@ -4,6 +4,7 @@ from ._basic_agent import basic_agent
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
+from ._human.human_user import human_user
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
 from ._prompt import (
@@ -26,6 +27,7 @@ __all__ = [
     "system_message",
     "self_critique",
     "use_tools",
+    "human_user",
     "plan",
     "Plan",
     "Solver",

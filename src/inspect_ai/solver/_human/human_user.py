@@ -1,6 +1,7 @@
 import asyncio
+from typing import cast
 
-from inspect_ai.util import input_panel
+from inspect_ai.util import input_panel, sandbox
 
 from .._solver import Generate, Solver, solver
 from .._task_state import TaskState
@@ -15,7 +16,9 @@ def human_user() -> Solver:
         await configure_sandbox()
 
         # open input panel for control/progress
-        async with await input_panel("User", HumanUserPanel):
+        async with await input_panel("User", HumanUserPanel) as panel:
+            panel = cast(HumanUserPanel, panel)
+            panel.connection = await sandbox().connection()
             # run sandbox service
 
             # sleep forever

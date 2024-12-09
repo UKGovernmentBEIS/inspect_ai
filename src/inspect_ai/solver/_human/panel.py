@@ -1,4 +1,5 @@
 from typing import cast
+
 from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widgets import Link, Static
@@ -20,4 +21,4 @@ class HumanUserPanel(InputPanel):
 
     def watch_connection(self, new_value: SandboxConnection | None) -> None:
         ui = cast(Static, self.query_one("#sandbox-connection"))
-        ui.update(new_value.container or "" if new_value else "")
+        ui.update(new_value.command if new_value else "")

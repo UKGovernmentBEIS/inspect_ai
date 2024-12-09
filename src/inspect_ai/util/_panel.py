@@ -50,7 +50,7 @@ class InputPanel(Container):
         pass
 
 
-TP = TypeVar("TP", bound=InputPanel)
+TP = TypeVar("TP", bound=InputPanel, covariant=True)
 
 
 async def input_panel(title: str, panel: type[TP]) -> TP:
