@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.45
+
+- `.eval` file links are now clickable in the terminal when an evaluation completes
+- Improve task listing performance when rendering the task list in the activity bar
+
 ## 0.3.44
 
 - Fix incorrect url encoding when copying links to remote log files.
