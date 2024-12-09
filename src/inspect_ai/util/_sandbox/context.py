@@ -24,6 +24,10 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
 
     Return:
       SandboxEnvironment instance.
+
+    Raises:
+      RuntimeError: If there are no sandboxes available.
+      ValueError: If an invalid sandbox name is specified.
     """
     # verify we have a context
     environments = sandbox_environments_context_var.get(None)
