@@ -1,6 +1,5 @@
-import path, { join } from "path";
+import path, { basename, join } from "path";
 import { AbsolutePath, activeWorkspacePath } from "../../core/path";
-import { inspectListTasks } from "../../inspect/list";
 import { Event, EventEmitter, ExtensionContext, FileSystemWatcher, workspace } from "vscode";
 
 import { throttle } from "lodash";
@@ -13,9 +12,9 @@ export function activateWorkspaceTaskProvider(inspectManager: InspectManager, co
   const taskManager = new WorkspaceTaskManager();
 
   // If the interpreter changes, refresh the tasks
-  context.subscriptions.push(inspectManager.onInspectChanged((e: InspectChangedEvent) => {
+  context.subscriptions.push(inspectManager.onInspectChanged(async (e: InspectChangedEvent) => {
     if (e.available) {
-      taskManager.refresh();
+      await taskManager.refresh();
     }
   }));
 
@@ -47,9 +46,9 @@ export class WorkspaceTaskManager {
       false,
       false
     );
-    const onChange = throttle(() => {
-      this.refresh();
-    }, 1000, { leading: true, trailing: true });
+    const onChange = throttle(async () => {
+      await this.refresh();
+    }, 5000, { leading: true, trailing: true });
     this.watcher.onDidCreate(onChange);
     this.watcher.onDidDelete(onChange);
     this.watcher.onDidChange(onChange);
@@ -58,11 +57,11 @@ export class WorkspaceTaskManager {
   private tasks_: TaskPath[] = [];
   private watcher: FileSystemWatcher;
 
-  public refresh() {
+  public async refresh() {
     const workspace = activeWorkspacePath();
 
     try {
-      const tasks = inspectTaskData(workspace);
+      const tasks = await inspectTaskData(workspace);
       this.setTasks(tasks);
     } catch (err: unknown) {
       console.log("Unable to read inspect task data.");
@@ -90,9 +89,62 @@ export class WorkspaceTaskManager {
     this.onTasksChanged_.event;
 }
 
-function inspectTaskData(folder: AbsolutePath) {
+
+interface TaskDescriptor {
+  file: string,
+  name: string,
+}
+
+// Regexes to identify tasks
+const kTaskRegex = /@task/;
+const kTaskNameRegex = /^[ \t]*@task(?:\([^)]*\))?[ \t]*\r?\n[ \t]*def\s+([A-Za-z_]\w*)\s*\(/gm;
+
+// Cache tasks cache (caches task info per file)
+const taskFileCache: Record<string, { updated: number, descriptors: TaskDescriptor[] }> = {};
+
+async function workspaceTasks(): Promise<TaskDescriptor[]> {
+  const tasks: TaskDescriptor[] = [];
+  const files = await workspace.findFiles('**/*.py', '**/{.venv,env,__pycache__,conda_env,envs}/**');
+
+  for (const file of files) {
+    const stat = await workspace.fs.stat(file);
+    const cached = taskFileCache[file.toString()];
+
+    // Check to see if we can use the cached version of the result
+    if (cached && cached.updated === stat.mtime) {
+      tasks.push(...cached.descriptors);
+    } else {
+      // We can't use a cached version of the result
+      const fileData = await workspace.fs.readFile(file);
+      const fileContent = new TextDecoder().decode(fileData);
+      const fileTasks = [];
+      if (kTaskRegex.test(fileContent)) {
+        // Extract the task name
+        const matches = fileContent.matchAll(kTaskNameRegex);
+        for (const match of matches) {
+          if (match[1]) {
+            fileTasks.push({
+              file: basename(file.fsPath),
+              name: match[1]
+            });
+          }
+        }
+        // Add the tasks to the cache
+        taskFileCache[file.toString()] = { updated: stat.mtime, descriptors: fileTasks };
+        tasks.push(...fileTasks);
+      }
+    }
+  }
+  return tasks;
+}
+
+
+async function inspectTaskData(folder: AbsolutePath) {
   // Read the list of tasks
-  const taskDescriptors = inspectListTasks(folder);
+  const start = performance.now();
+  const taskDescriptors = await workspaceTasks();
+  const end = performance.now();
+  console.log(`tasks took ${(end - start).toFixed(2)}ms`);
 
   // Keep a map so we can quickly look up parents
   const treeMap: Map<string, TaskPath> = new Map();

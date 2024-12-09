@@ -56,6 +56,7 @@ export async function activateTaskOutline(
     command: EditSelectedTaskCommand.id,
   });
 
+
   const checkInspect = async () => {
     const inspectAvailable = inspectVersion() !== null;
     await commands.executeCommand(
@@ -64,7 +65,7 @@ export async function activateTaskOutline(
       !inspectAvailable
     );
     if (inspectAvailable) {
-      treeDataProvider.refresh();
+      await treeDataProvider.refresh();
     } else {
       treeDataProvider.clear();
     }
@@ -255,8 +256,8 @@ export class TaskOutLineTreeDataProvider
         )
       )
     );
-    this.workspaceMgr.refresh();
   }
+
   private disposables_: Disposable[] = [];
   dispose() {
     this.disposables_.forEach((disposable) => {
@@ -272,8 +273,8 @@ export class TaskOutLineTreeDataProvider
   readonly onDidChangeTreeData: Event<TaskTreeItem | undefined | null | void> =
     this.onDidChangeTreeData_.event;
 
-  refresh() {
-    this.workspaceMgr.refresh();
+  async refresh() {
+    await this.workspaceMgr.refresh();
   }
 
   clear() {
