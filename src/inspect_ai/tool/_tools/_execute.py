@@ -75,7 +75,7 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         Use the python function to execute Python code.
 
         The python function will only return you the stdout of the script,
-        oo make sure to use print to see the output.
+        so make sure to use print to see the output.
 
         Args:
           code (str): The python code to execute.

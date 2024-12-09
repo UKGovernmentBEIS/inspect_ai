@@ -18,6 +18,7 @@
 - Hugging Face: Support for native HF tool calling for Llama, Mistral, Qwen, and others if they conform to various standard schemas.
 - Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
+- Display: Throttle updating of sample list based on number of samples.
 - Bugfix: `hf_dataset` now explicitly requires the `split` argument (previously, it would crash when not specified).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.
