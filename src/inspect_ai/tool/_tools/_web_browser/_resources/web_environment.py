@@ -18,7 +18,7 @@ from dm_env import specs
 class WebEnvironment(dm_env.Environment):
     """A DM environment where an agent controls a web browser."""
 
-    DEFAULT_OBSERVATIONS = ["web_url", "web_at", "error", "info"]
+    DEFAULT_OBSERVATIONS = ["web_url", "web_at", "web_html", "error", "info"]
 
     def __init__(self, browser_context):
         """Initializes the environment."""
@@ -115,6 +115,7 @@ class WebEnvironment(dm_env.Environment):
         obs_shapes = {
             "web_url": specs.Array(shape=(), dtype=str, name="web_url"),
             "web_at": specs.Array(shape=(), dtype=str, name="web_at"),
+            "web_html": specs.Array(shape=(), dtype=str, name="web_html"),
             "error": specs.Array(shape=(), dtype=str, name="error"),
             "info": specs.Array(shape=(), dtype=str, name="info"),
         }
@@ -158,6 +159,7 @@ class WebEnvironment(dm_env.Environment):
         obs_map = {
             "web_url": lambda: self._web.url.split("?")[0],
             "web_at": render(playwright_crawler.CrawlerOutputFormat.AT),
+            "web_html": render(playwright_crawler.CrawlerOutputFormat.HTML),
             "error": lambda: self._last_error,
             "info": lambda: json.dumps(self.info),
         }
