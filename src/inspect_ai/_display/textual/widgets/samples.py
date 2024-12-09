@@ -1,3 +1,4 @@
+import time
 from typing import cast
 
 from rich.console import RenderableType
@@ -46,6 +47,7 @@ class SamplesView(Widget):
     def __init__(self) -> None:
         super().__init__()
         self.samples: list[ActiveSample] = []
+        self.last_updated = time.perf_counter()
 
     def compose(self) -> ComposeResult:
         yield SamplesList()
@@ -62,7 +64,12 @@ class SamplesView(Widget):
         await self.query_one(TranscriptView).notify_active(active)
 
     def set_samples(self, samples: list[ActiveSample]) -> None:
-        self.query_one(SamplesList).set_samples(samples)
+        # throttle to no more than 1 second per 100 samples
+        throttle = round(max(len(samples) / 100, 1))
+        current = time.perf_counter()
+        if (current - self.last_updated) > throttle:
+            self.query_one(SamplesList).set_samples(samples)
+            self.last_updated = current
 
     async def set_highlighted_sample(self, highlighted: int | None) -> None:
         sample_info = self.query_one(SampleInfo)
