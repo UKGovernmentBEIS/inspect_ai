@@ -425,7 +425,10 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
             panel_widget = self.app.get_input_panel(title)
             if panel_widget is None:
                 panel_widget = panel(
-                    TaskScreenApp[TR].InputPanelHost(self.app, as_input_panel_id(title))
+                    title,
+                    TaskScreenApp[TR].InputPanelHost(
+                        self.app, as_input_panel_id(title)
+                    ),
                 )
                 await self.app.add_input_panel(title, panel_widget)
             return cast(TP, panel_widget)

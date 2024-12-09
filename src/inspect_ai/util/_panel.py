@@ -12,8 +12,9 @@ class InputPanel(Container):
         def deactivate(self) -> None: ...
         def close(self) -> None: ...
 
-    def __init__(self, host: Host) -> None:
+    def __init__(self, title: str, host: Host) -> None:
         super().__init__()
+        self._title = title
         self._host = host
 
     async def __aenter__(self) -> "InputPanel":
@@ -26,7 +27,13 @@ class InputPanel(Container):
     ) -> None:
         self.close()
 
-    def set_title(self, title: str) -> None:
+    @property
+    def title(self) -> str:
+        return self._title
+
+    @title.setter
+    def title(self, title: str) -> None:
+        self._title = title
         self._host.set_title(title)
 
     def activate(self) -> None:
