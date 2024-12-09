@@ -4,6 +4,8 @@ from textual.containers import Container
 
 
 class InputPanel(Container):
+    DEFAULT_CLASSES = "task-input-panel"
+
     class Host(Protocol):
         def set_title(self, title: str) -> None: ...
         def activate(self) -> None: ...
@@ -11,7 +13,7 @@ class InputPanel(Container):
         def close(self) -> None: ...
 
     def __init__(self, host: Host) -> None:
-        super().__init__(classes="task-input-panel")
+        super().__init__()
         self._host = host
 
     async def __aenter__(self) -> "InputPanel":

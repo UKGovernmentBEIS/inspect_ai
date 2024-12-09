@@ -222,7 +222,7 @@ class TaskScreenApp(App[TR]):
         self.update_tasks()
         self.update_samples()
         self.update_footer()
-        for input_panel in self.query(".task-input-panel"):
+        for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
             cast(InputPanel, input_panel).update()
 
     # update the header title
