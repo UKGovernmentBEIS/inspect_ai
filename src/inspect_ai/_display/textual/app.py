@@ -18,6 +18,7 @@ from inspect_ai._util.html import as_html_id
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
 
+from ...util._panel import InputPanel
 from ..core.config import task_config
 from ..core.display import (
     TP,
@@ -29,7 +30,6 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.input import InputPanel
 from ..core.panel import task_targets, task_title, tasks_title
 from ..core.rich import record_console_input, rich_initialise, rich_theme
 from .theme import inspect_dark, inspect_light

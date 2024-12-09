@@ -1,4 +1,4 @@
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from textual.containers import Container
 
@@ -41,3 +41,28 @@ class InputPanel(Container):
     def update(self) -> None:
         """Update method (called periodically e.g. once every second)"""
         pass
+
+
+TP = TypeVar("TP", bound=InputPanel)
+
+
+async def input_panel(title: str, panel: type[TP]) -> TP:
+    """Create an input panel in the task display.
+
+    There can only be a single instance of an InputPanel with a given
+    'title' running at once. Therefore, if the panel doesn't exist it
+    is created, otherwise a reference to the existing panel is returned.
+
+    Args:
+       title (str): Input panel title.
+       panel (type[TP]): Type of panel widget (must derive from `InputPanel`)
+
+    Returns:
+       InputPanel: Instance of widget running in the task display.
+
+    Raises:
+       NotImplementedError: If Inspect is not running in display='full' model.
+    """
+    from inspect_ai._display.core.active import task_screen
+
+    return await task_screen().input_panel(title, panel)

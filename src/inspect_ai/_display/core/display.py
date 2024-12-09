@@ -19,7 +19,7 @@ from rich.console import Console
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
 
-from .input import InputPanel
+from ...util._panel import InputPanel
 
 
 @runtime_checkable
