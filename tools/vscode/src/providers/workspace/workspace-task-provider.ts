@@ -98,14 +98,15 @@ interface TaskDescriptor {
 // Regexes to identify tasks
 const kTaskRegex = /@task/;
 const kTaskNameRegex = /^[ \t]*@task(?:\([^)]*\))?[ \t]*\r?\n[ \t]*def\s+([A-Za-z_]\w*)\s*\(/gm;
+const kExcludeGlob = '**/{.venv,venv,__pycache__,.git,node_modules,env,envs,conda-env}/**';
 
 // Cache tasks cache (caches task info per file)
 const taskFileCache: Record<string, { updated: number, descriptors: TaskDescriptor[] }> = {};
 
 async function workspaceTasks(): Promise<TaskDescriptor[]> {
   const tasks: TaskDescriptor[] = [];
-  const files = await workspace.findFiles('**/*.py', '**/{.venv,env,__pycache__,conda_env,envs}/**');
 
+  const files = await workspace.findFiles('**/*.py', kExcludeGlob);
   for (const file of files) {
     const stat = await workspace.fs.stat(file);
     const cached = taskFileCache[file.toString()];
@@ -123,10 +124,14 @@ async function workspaceTasks(): Promise<TaskDescriptor[]> {
         const matches = fileContent.matchAll(kTaskNameRegex);
         for (const match of matches) {
           if (match[1]) {
-            fileTasks.push({
-              file: basename(file.fsPath),
-              name: match[1]
-            });
+            const taskName = match[1];
+            const taskFile = basename(file.fsPath);
+            if (!taskFile.startsWith("_") && !taskFile.startsWith(".")) {
+              fileTasks.push({
+                file: taskFile,
+                name: taskName
+              });
+            }
           }
         }
         // Add the tasks to the cache
