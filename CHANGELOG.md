@@ -8,6 +8,7 @@
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
 - Human approval: Use fullcreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
+- Added `input_panel()` API for adding custom panels to the fullscreen task display.
 - Log recorder: Methods are now async which will improve performance for fsspec filesystems with async implementations (e.g. S3)
 - Log recorder: Improve `.eval` log reading performance for remote filesystem (eaglery fetch log to local buffer).
 - Add `token_usage` property to `TaskState` which has current total tokens used across all calls to `generate()` (same value that is used for enforcing token limits).
