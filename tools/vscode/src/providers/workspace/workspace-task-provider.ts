@@ -1,4 +1,4 @@
-import path, { basename, join } from "path";
+import path, { join, relative } from "path";
 import { AbsolutePath, activeWorkspacePath } from "../../core/path";
 import { Event, EventEmitter, ExtensionContext, FileSystemWatcher, workspace } from "vscode";
 
@@ -103,7 +103,7 @@ const kExcludeGlob = '**/{.venv,venv,__pycache__,.git,node_modules,env,envs,cond
 // Cache tasks cache (caches task info per file)
 const taskFileCache: Record<string, { updated: number, descriptors: TaskDescriptor[] }> = {};
 
-async function workspaceTasks(): Promise<TaskDescriptor[]> {
+async function workspaceTasks(workspacePath: AbsolutePath): Promise<TaskDescriptor[]> {
   const tasks: TaskDescriptor[] = [];
 
   const files = await workspace.findFiles('**/*.py', kExcludeGlob);
@@ -125,7 +125,7 @@ async function workspaceTasks(): Promise<TaskDescriptor[]> {
         for (const match of matches) {
           if (match[1]) {
             const taskName = match[1];
-            const taskFile = basename(file.fsPath);
+            const taskFile = relative(workspacePath.path, file.fsPath);
             if (!taskFile.startsWith("_") && !taskFile.startsWith(".")) {
               fileTasks.push({
                 file: taskFile,
@@ -146,7 +146,7 @@ async function workspaceTasks(): Promise<TaskDescriptor[]> {
 
 async function inspectTaskData(folder: AbsolutePath) {
   // Read the list of tasks
-  const taskDescriptors = await workspaceTasks();
+  const taskDescriptors = await workspaceTasks(folder);
 
   // Keep a map so we can quickly look up parents
   const treeMap: Map<string, TaskPath> = new Map();
