@@ -141,10 +141,7 @@ async function workspaceTasks(): Promise<TaskDescriptor[]> {
 
 async function inspectTaskData(folder: AbsolutePath) {
   // Read the list of tasks
-  const start = performance.now();
   const taskDescriptors = await workspaceTasks();
-  const end = performance.now();
-  console.log(`tasks took ${(end - start).toFixed(2)}ms`);
 
   // Keep a map so we can quickly look up parents
   const treeMap: Map<string, TaskPath> = new Map();
