@@ -60,6 +60,22 @@ async def input_panel(title: str, panel: type[TP]) -> TP:
     'title' running at once. Therefore, if the panel doesn't exist it
     is created, otherwise a reference to the existing panel is returned.
 
+    Examples:
+        Create/activate an input panel (the panel will remain after
+        the scope exits -- see below for open/close semantics)
+
+        ```python
+        panel = await input_panel("Custom", CustomPanel)
+        panel.activate()
+        ```
+
+        Activate and close an input panel using a context manager:
+
+        ```python
+        async with await input_panel("Custom", CustomPanel) as panel:
+            ...
+        ```
+
     Args:
        title (str): Input panel title.
        panel (type[TP]): Type of panel widget (must derive from `InputPanel`)

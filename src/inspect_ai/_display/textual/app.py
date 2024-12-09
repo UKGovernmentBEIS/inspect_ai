@@ -351,8 +351,20 @@ class TaskScreenApp(App[TR]):
             tab.label = Text.from_markup(title)
 
         def activate(self) -> None:
+            # show the tab
             tabs = self.app.query_one(TabbedContent)
             tabs.show_tab(self.tab_id)
+
+            # focus the first focuable child (this seems to be necessary
+            # to get textual to reliably make the switch). after that, focus
+            # the tabs control so the user can switch back w/ the keyboard
+            tab_pane = self.app.query_one(f"#{self.tab_id}")
+            panel = cast(InputPanel, tab_pane.children[0])
+            for child in panel.children:
+                if child.focusable:
+                    child.focus()
+                    self.app.query_one(ContentTabs).focus()
+                    break
 
         def deactivate(self) -> None:
             tabs = self.app.query_one(TabbedContent)
@@ -360,9 +372,9 @@ class TaskScreenApp(App[TR]):
                 self.app.activate_tasks_tab()
 
         def close(self) -> None:
-            self.app.activate_tasks_tab()
             tabs = self.app.query_one(TabbedContent)
             tabs.remove_pane(self.tab_id)
+            self.app.activate_tasks_tab()
 
 
 class TextualTaskScreen(TaskScreen, Generic[TR]):
