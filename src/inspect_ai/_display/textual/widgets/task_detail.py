@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 
-from rich.console import RenderableType
-from rich.table import Table
 from textual.app import ComposeResult
-from textual.containers import Center, Grid, Vertical
+from textual.containers import Center, Grid
 from textual.reactive import Reactive, reactive
 from textual.widget import Widget
-from textual.widgets import DataTable, Label, Rule, Static
+from textual.widgets import Static
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
