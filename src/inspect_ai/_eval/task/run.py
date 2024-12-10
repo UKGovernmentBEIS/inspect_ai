@@ -756,7 +756,6 @@ async def resolve_dataset(
     # TODO: Test with new UI - does error just appear before UI
     # TODO: check eval set behavior
     # TODO: pass 2 evals command line, second eval has error (UI experience should be good for second eval)
-    ensure_unique_ids(dataset)
 
     # apply limit to dataset
     dataset = slice_dataset(dataset, limit)
@@ -876,24 +875,3 @@ def create_sample_semaphore(
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)
-
-
-def ensure_unique_ids(dataset: Dataset) -> None:
-    """
-    Validates that all samples in the dataset have unique IDs.
-
-    Raises a error if duplicates are found.
-
-    Args:
-        dataset (Datatset): The dataset
-
-    Raises:
-        PrerequisiteError: If duplicate IDs are found in the dataset.
-    """
-    seen_ids = set()
-    for sample in dataset:
-        if sample.id in seen_ids:
-            raise PrerequisiteError(
-                f"The dataset contains duplicate sample ids (duplicate id: {sample.id}). Please ensure each sample has a unique id."
-            )
-        seen_ids.add(sample.id)
