@@ -24,7 +24,7 @@ from inspect_ai._util.constants import (
     SAMPLE_SUBTASK,
 )
 from inspect_ai._util.datetime import iso_now
-from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
@@ -752,11 +752,6 @@ async def resolve_dataset(
     message_limit: int | None,
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
-    # TODO: throw prerequisite error for duplicate samples ids
-    # TODO: Test with new UI - does error just appear before UI
-    # TODO: check eval set behavior
-    # TODO: pass 2 evals command line, second eval has error (UI experience should be good for second eval)
-
     # apply limit to dataset
     dataset = slice_dataset(dataset, limit)
 

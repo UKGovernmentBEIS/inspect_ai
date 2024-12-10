@@ -151,9 +151,6 @@ async def eval_run(
                     if sample.id is None:
                         sample.id = id + 1
 
-                # Ensure sample ids are unique
-                # ensure_unique_ids(task.dataset)
-
                 # create and track the logger
                 logger = TaskLogger(
                     task_name=task.name,
