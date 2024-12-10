@@ -31,10 +31,16 @@ import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import { getVscodeApi } from "./utils/vscode.mjs";
 import { kDefaultSort } from "./constants.mjs";
-import { createsSamplesDescriptor } from "./samples/SamplesDescriptor.mjs";
+import {
+  createEvalDescriptor,
+  createSamplesDescriptor,
+} from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import { filterFnForType } from "./samples/tools/filters.mjs";
+import {
+  addFragmentToFilter,
+  filterExpression,
+} from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -159,6 +165,7 @@ export function App({
   const [score, setScore] = useState(initialState?.score);
 
   // Re-filter the samples
+  const [filterError, setFilterError] = useState(initialState?.filterError);
   const [filteredSamples, setFilteredSamples] = useState(
     initialState?.filteredSamples || [],
   );
@@ -166,6 +173,14 @@ export function App({
   const [groupByOrder, setGroupByOrder] = useState(
     initialState?.groupByOrder || "asc",
   );
+
+  const addToFilterExpression = (fragment) => {
+    setFilter(addFragmentToFilter(filter, fragment));
+    const filterInput = document.getElementById("sample-filter-input");
+    if (filterInput) {
+      filterInput.focus();
+    }
+  };
 
   const afterBodyElements = [];
   const saveState = useCallback(() => {
@@ -303,6 +318,7 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
+    var newFilterError = undefined;
     const filtered = samples.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
@@ -312,9 +328,14 @@ export function App({
       }
 
       // Apply the filter
-      const filterFn = filterFnForType(filter);
-      if (filterFn && filter.value) {
-        return filterFn(samplesDescriptor, sample, filter.value);
+      if (filter.value) {
+        const { matches, error } = filterExpression(
+          evalDescriptor,
+          sample,
+          filter.value,
+        );
+        newFilterError ||= error;
+        return matches;
       } else {
         return true;
       }
@@ -325,7 +346,7 @@ export function App({
 
     // Set the grouping
     let grouping = "none";
-    if (samplesDescriptor?.epochs > 1) {
+    if (samplesDescriptor?.evalDescriptor?.epochs > 1) {
       if (byEpoch(sort) || epoch !== "all") {
         grouping = "epoch";
       } else if (bySample(sort)) {
@@ -333,18 +354,22 @@ export function App({
       }
     }
 
+    setFilterError(newFilterError);
     setFilteredSamples(sorted);
     setGroupBy(grouping);
     setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
 
-  const samplesDescriptor = useMemo(() => {
-    return createsSamplesDescriptor(
+  const evalDescriptor = useMemo(() => {
+    return createEvalDescriptor(
       scores,
       selectedLog.contents?.sampleSummaries,
       selectedLog.contents?.eval?.config?.epochs || 1,
-      score,
     );
+  }, [selectedLog, scores]);
+
+  const samplesDescriptor = useMemo(() => {
+    return createSamplesDescriptor(evalDescriptor, score);
   }, [selectedLog, scores, score]);
 
   const refreshSampleTab = useCallback(
@@ -907,7 +932,9 @@ export function App({
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
+              filterError=${filterError}
               setFilter=${setFilter}
+              addToFilterExpression=${addToFilterExpression}
               score=${score}
               setScore=${setScore}
               scores=${scores}
