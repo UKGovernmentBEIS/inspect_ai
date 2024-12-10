@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Update Bedrock models help link to point to more helpful page.
+
 ## 0.3.45
 
 - `.eval` file links are now clickable in the terminal when an evaluation completes

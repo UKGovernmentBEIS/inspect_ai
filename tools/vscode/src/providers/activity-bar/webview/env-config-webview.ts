@@ -18,7 +18,7 @@ const kModelInfo: Record<string, string> = {
   mistral: "https://docs.mistral.ai/platform/endpoints/",
   hf: "https://huggingface.co/models?pipeline_tag=text-generation&sort=trending",
   together: "https://docs.together.ai/docs/inference-models#chat-models",
-  bedrock: "https://aws.amazon.com/bedrock/",
+  bedrock: "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
   azureai: "https://ai.azure.com/explore/models",
   cf: "https://developers.cloudflare.com/workers-ai/models/#text-generation",
 };
