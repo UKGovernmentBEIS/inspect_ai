@@ -1,10 +1,10 @@
 import asyncio
 from typing import cast
 
+from inspect_ai.solver._solver import Generate, Solver, solver
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import input_panel, sandbox
 
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
 from .panel import HumanUserPanel
 from .sandbox import configure_sandbox
 
