@@ -18,6 +18,7 @@ def human_user() -> Solver:
         # open input panel for control/progress
         async with await input_panel("User", HumanUserPanel) as panel:
             panel = cast(HumanUserPanel, panel)
+
             panel.connection = await sandbox().connection()
             # run sandbox service
 
