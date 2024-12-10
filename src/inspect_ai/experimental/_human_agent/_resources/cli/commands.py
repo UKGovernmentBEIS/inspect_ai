@@ -6,7 +6,7 @@ import sys
 
 def start():
     parser = argparse.ArgumentParser(description="Start the clock")
-    args = parser.parse_args(sys.argv[2:])
+    parser.parse_args(sys.argv[2:])
     print("starting the clock")
 
 
