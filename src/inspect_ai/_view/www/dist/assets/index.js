@@ -15224,7 +15224,7 @@ const ToolInput = ({ type, contents, view, style }) => {
           }
         }
       }
-    }, [toolInputRef.current]);
+    }, [contents, view, style]);
     return m$1`<${MarkdownDiv}
       markdown=${view.content}
       ref=${toolInputRef}
@@ -15238,14 +15238,9 @@ const ToolInput = ({ type, contents, view, style }) => {
     y(() => {
       const tokens = Prism$1.languages[type];
       if (toolInputRef.current && tokens) {
-        let resolvedContents = contents;
-        if (typeof contents === "object" || Array.isArray(contents)) {
-          resolvedContents = JSON.stringify(contents);
-        }
-        const html = Prism$1.highlight(resolvedContents, tokens, type);
-        toolInputRef.current.innerHTML = html;
+        Prism$1.highlightElement(toolInputRef.current);
       }
-    }, [toolInputRef.current, contents, type, view]);
+    }, [contents, type, view]);
     return m$1`<pre
       class="tool-output"
       style=${{
@@ -15255,11 +15250,13 @@ const ToolInput = ({ type, contents, view, style }) => {
       ...style
     }}
     >
-        <code ref=${toolInputRef} class="sourceCode${type ? ` language-${type}` : ""}" style=${{
+        <code ref=${toolInputRef} 
+          key=${contents}
+          class="sourceCode${type ? ` language-${type}` : ""}" style=${{
       overflowWrap: "anywhere",
       whiteSpace: "pre-wrap"
     }}>
-          ${contents}
+          ${typeof contents === "object" || Array.isArray(contents) ? JSON.stringify(contents) : contents}
           </code>
       </pre>`;
   }
