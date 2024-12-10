@@ -12,14 +12,18 @@ from .sandbox import configure_sandbox
 @solver
 def human_agent() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # get sandbox connection
+        connection = await sandbox().connection()
+
         # configure sandbox
         await configure_sandbox()
 
         # open input panel for control/progress
         async with await input_panel("User", HumanAgentPanel) as panel:
+            # configure panel
             panel = cast(HumanAgentPanel, panel)
+            panel.connection = connection
 
-            panel.connection = await sandbox().connection()
             # run sandbox service
 
             # sleep forever
