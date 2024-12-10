@@ -107,11 +107,11 @@ export const ToolCallView = ({
  * @param {string} props.type - The function call
  * @param {string | undefined } props.contents - The main input for this call
  * @param {Record<string, string>} [props.style] - The style
- * @param {import("../types/log").ToolCallContent} props.view - The tool call view
+ * @param {import("../types/log").ToolCallContent} [props.view] - The tool call view
  * @returns {import("preact").JSX.Element | string} The SampleTranscript component.
  */
 export const ToolInput = ({ type, contents, view, style }) => {
-  if (!contents) {
+  if (!contents && !view?.content) {
     return "";
   }
 

@@ -15281,7 +15281,7 @@ const ToolCallView = ({
   </div>`;
 };
 const ToolInput = ({ type, contents, view, style }) => {
-  if (!contents) {
+  if (!contents && !(view == null ? void 0 : view.content)) {
     return "";
   }
   if (view) {
