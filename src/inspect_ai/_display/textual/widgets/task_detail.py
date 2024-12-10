@@ -46,6 +46,8 @@ class TaskDetail(Widget):
             self.add_class("hidden")
         self.existing_metrics: dict[str, TaskMetrics] = {}
         self.grid = Grid()
+        self.by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
+        self.metrics: list[TaskDisplayMetric] = []
 
     def watch_hidden(self, hidden: bool) -> None:
         """React to changes in the `visible` property."""
@@ -57,12 +59,17 @@ class TaskDetail(Widget):
     def compose(self) -> ComposeResult:
         yield self.grid
 
+    def on_mount(self) -> None:
+        self.refresh_grid()
+
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         # Group by reducer then scorer within reducers
-        by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
+        self.metrics = metrics
         for metric in metrics:
             reducer_group = (
-                by_reducer[metric.reducer] if metric.reducer in by_reducer else {}
+                self.by_reducer[metric.reducer]
+                if metric.reducer in self.by_reducer
+                else {}
             )
 
             by_scorer_metrics = (
@@ -70,16 +77,20 @@ class TaskDetail(Widget):
             )
             by_scorer_metrics.append(TaskMetric(name=metric.name, value=metric.value))
             reducer_group[metric.scorer] = by_scorer_metrics
-            by_reducer[metric.reducer] = reducer_group
+            self.by_reducer[metric.reducer] = reducer_group
 
+        if self.grid.is_attached:
+            self.refresh_grid()
+
+    def refresh_grid(self) -> None:
         # Makes keys for tracking Task Metric widgets
         def metric_key(reducer: str | None, scorer: str) -> str:
             reducer = reducer or "none"
             return f"task-{reducer}-{scorer}-tbl"
 
         # Compute the row and column count
-        row_count = len(by_reducer)
-        col_count = len(next(iter(by_reducer.values())))
+        row_count = len(self.by_reducer)
+        col_count = len(next(iter(self.by_reducer.values())))
 
         # If this can fit in a single row, make it fit
         # otherwise place each reducer on their own row
@@ -93,14 +104,14 @@ class TaskDetail(Widget):
 
         # Remove keys that are no longer present
         existing_keys = set(self.existing_metrics.keys())
-        new_keys = set(metric_key(m.reducer, m.scorer) for m in metrics)
+        new_keys = set(metric_key(m.reducer, m.scorer) for m in self.metrics)
         to_remove = existing_keys - new_keys
         for remove in to_remove:
             task_metric = self.existing_metrics[remove]
             task_metric.remove()
 
         # add or update widgets with metrics
-        for reducer, scorers in by_reducer.items():
+        for reducer, scorers in self.by_reducer.items():
             for scorer, scores in scorers.items():
                 key = metric_key(reducer=reducer, scorer=scorer)
                 if key in self.existing_metrics:
