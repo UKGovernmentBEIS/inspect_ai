@@ -14337,8 +14337,8 @@ body[class^="vscode-"] {
   --bs-secondary-bg: var(--vscode-list-inactiveSelectionBackground);
   --bs-border-color: var(--vscode-editorGroup-border);
   --bs-card-border-color: var(--vscode-editorGroup-border);
-  --bs-warning-bg-subtle: var(--vscode-statusBarItem-warningBackground);
-  --bs-warning-text-emphasis: var(--vscode-statusBarItem-warningForeground);
+  --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
+  --bs-warning-text-emphasis: var(--vscode-input-foreground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
   --inspect-input-background: var(--vscode-input-background);

@@ -1,6 +1,8 @@
 // @ts-check
 /// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
+import murmurhash from "murmurhash";
+
 import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
@@ -105,11 +107,11 @@ export const ToolCallView = ({
  * @param {string} props.type - The function call
  * @param {string | undefined } props.contents - The main input for this call
  * @param {Record<string, string>} [props.style] - The style
- * @param {import("../types/log").ToolCallContent} props.view - The tool call view
+ * @param {import("../types/log").ToolCallContent} [props.view] - The tool call view
  * @returns {import("preact").JSX.Element | string} The SampleTranscript component.
  */
 export const ToolInput = ({ type, contents, view, style }) => {
-  if (!contents) {
+  if (!contents && !view?.content) {
     return "";
   }
 
@@ -133,7 +135,7 @@ export const ToolInput = ({ type, contents, view, style }) => {
           }
         }
       }
-    }, [toolInputRef.current]);
+    }, [contents, view, style]);
     return html`<${MarkdownDiv}
       markdown=${view.content}
       ref=${toolInputRef}
@@ -144,14 +146,15 @@ export const ToolInput = ({ type, contents, view, style }) => {
     useEffect(() => {
       const tokens = Prism.languages[type];
       if (toolInputRef.current && tokens) {
-        let resolvedContents = contents;
-        if (typeof contents === "object" || Array.isArray(contents)) {
-          resolvedContents = JSON.stringify(contents);
-        }
-        const html = Prism.highlight(resolvedContents, tokens, type);
-        toolInputRef.current.innerHTML = html;
+        Prism.highlightElement(toolInputRef.current);
       }
-    }, [toolInputRef.current, contents, type, view]);
+    }, [contents, type, view]);
+
+    contents =
+      typeof contents === "object" || Array.isArray(contents)
+        ? JSON.stringify(contents)
+        : contents;
+    const key = murmurhash.v3(contents);
 
     return html`<pre
       class="tool-output"
@@ -162,9 +165,9 @@ export const ToolInput = ({ type, contents, view, style }) => {
         ...style,
       }}
     >
-        <code ref=${toolInputRef} class="sourceCode${type
-      ? ` language-${type}`
-      : ""}" style=${{
+        <code ref=${toolInputRef} 
+          key=${key}
+          class="sourceCode${type ? ` language-${type}` : ""}" style=${{
       overflowWrap: "anywhere",
       whiteSpace: "pre-wrap",
     }}>

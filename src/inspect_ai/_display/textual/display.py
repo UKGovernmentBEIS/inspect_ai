@@ -53,7 +53,7 @@ class TextualDisplay(Display):
     @override
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
-        if getattr(self, "app", None):
+        if getattr(self, "app", None) and self.app.is_running:
             with self.app.suspend_app():
                 yield
         else:
