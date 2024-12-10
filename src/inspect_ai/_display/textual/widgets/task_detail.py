@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from textual.app import ComposeResult
-from textual.containers import Center, Grid
+from textual.containers import Center, Grid, Horizontal
 from textual.reactive import Reactive, reactive
 from textual.widget import Widget
 from textual.widgets import Static
@@ -19,7 +19,7 @@ class TaskDetail(Widget):
     hidden = reactive(False)
     DEFAULT_CSS = """
     TaskDetail {
-        background: $surface-lighten-1;
+        background: $boost;
         width: 100%;
         height: auto;
         padding: 1 0 1 0;
@@ -142,6 +142,22 @@ class TaskMetrics(Widget):
     TaskMetrics Center Static {
         width: auto;
     }
+    TaskMetrics Center Horizontal {
+        width: auto;
+        height: auto;
+    }
+    TaskMetrics Center Horizontal Static {
+        width: auto;
+        height: auto;
+    }
+    TaskMetrics .scorer {
+        padding: 0 1 0 0;
+        text-style: bold;
+    }
+    TaskMetrics .reducer {
+        color: $foreground-darken-1;
+        text-style: italic;
+    }
     """
 
     metrics: Reactive[list[TaskMetric]] = reactive([])
@@ -164,20 +180,23 @@ class TaskMetrics(Widget):
 
     def compose(self) -> ComposeResult:
         # Just yield a single DataTable widget
-        yield Center(Static(self.title()))
+        yield Center(self.title())
         with Grid():
             for metric in self.metrics:
                 yield Static(metric.name)
                 self.value_widgets[metric.name] = Static(f"{metric.value:,.3f}")
                 yield self.value_widgets[metric.name]
 
-    def title(self) -> str:
+    def title(self) -> Widget:
         if self.scorer is None:
-            return ""
+            return Static("")
         elif self.reducer is None:
-            return self.scorer
+            return Static(self.scorer)
         else:
-            return f"{self.scorer}/{self.reducer}"
+            return Horizontal(
+                Static(self.scorer, classes="scorer"),
+                Static(self.reducer, classes="reducer"),
+            )
 
     def update(self, metrics: list[TaskMetric]) -> None:
         for metric in metrics:
