@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import numpy as np
 from textual.app import ComposeResult
 from textual.containers import Center, Grid, Horizontal
 from textual.reactive import Reactive, reactive
@@ -155,7 +156,7 @@ class TaskMetrics(Widget):
         text-style: bold;
     }
     TaskMetrics .reducer {
-        color: $foreground-darken-1;
+        color: $foreground-darken-2;
         text-style: italic;
     }
     """
@@ -184,7 +185,12 @@ class TaskMetrics(Widget):
         with Grid():
             for metric in self.metrics:
                 yield Static(metric.name)
-                self.value_widgets[metric.name] = Static(f"{metric.value:,.3f}")
+                if np.isnan(metric.value):
+                    value = " n/a "
+                else:
+                    value = f"{metric.value:.3f}"
+
+                self.value_widgets[metric.name] = Static(value)
                 yield self.value_widgets[metric.name]
 
     def title(self) -> Widget:
