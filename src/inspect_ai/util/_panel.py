@@ -1,6 +1,7 @@
 from typing import Any, Protocol, TypeVar
 
 from textual.containers import Container
+from typing_extensions import Self
 
 
 class InputPanel(Container):
@@ -17,7 +18,7 @@ class InputPanel(Container):
         self._title = title
         self._host = host
 
-    async def __aenter__(self) -> "InputPanel":
+    async def __aenter__(self) -> Self:
         self.activate()
         return self
 

@@ -1,5 +1,4 @@
 import asyncio
-from typing import cast
 
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
@@ -21,7 +20,6 @@ def human_agent() -> Solver:
         # open input panel for control/progress
         async with await input_panel("User", HumanAgentPanel) as panel:
             # configure panel
-            panel = cast(HumanAgentPanel, panel)
             panel.connection = connection
 
             # run sandbox service
