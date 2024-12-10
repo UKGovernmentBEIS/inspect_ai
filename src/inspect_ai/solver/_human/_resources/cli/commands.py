@@ -18,18 +18,16 @@ def note():
     print("making a note")
 
 
+_commands: dict = {"start": start, "stop": stop, "note": note}
+
 if len(sys.argv) > 0:
     command = os.path.basename(sys.argv[1])
-    match command:
-        case "start":
-            start()
-        case "stop":
-            stop()
-        case "note":
-            note()
-        case _:
-            sys.stderr.write(f"command not recognized: {command}")
-            sys.exit(1)
+    handler = _commands.get(command, None)
+    if handler:
+        handler()
+    else:
+        sys.stderr.write(f"command not recognized: {command}")
+        sys.exit(1)
 else:
     sys.stderr.write("no command specified (usage command.py <cmd>)")
     sys.exit(1)
