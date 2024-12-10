@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from inspect_ai.util import sandbox
-from inspect_ai.util._subprocess import ExecResult
 
 
 async def configure_sandbox() -> None:
@@ -11,24 +10,28 @@ async def configure_sandbox() -> None:
 async def install_human_cli() -> None:
     # copy cli src files and make them executable
     INSTALL_DIR = "human_cli_install"
-    check(await sandbox().exec(["mkdir", "-p", INSTALL_DIR]))
+    await checked_exec(["mkdir", "-p", INSTALL_DIR])
     cli_package_dir = Path(__file__).parent / "_resources" / "cli"
     for package_file in cli_package_dir.iterdir():
         with open(package_file, "r") as f:
             contents = f.read()
         file = f"{INSTALL_DIR}/{package_file.name}"
-        check(await write_sandbox_file(file, contents))
-        check(await sandbox().exec(["chmod", "+x", file]))
+        await checked_write_file(file, contents)
+        await checked_exec(["chmod", "+x", file])
 
     # run install script then remove directory
-    check(await sandbox().exec(["./install.sh"], cwd=INSTALL_DIR))
-    check(await sandbox().exec(["rm", "-rf", INSTALL_DIR]))
+    await checked_exec(["./install.sh"], cwd=INSTALL_DIR)
+    await checked_exec(["rm", "-rf", INSTALL_DIR])
 
 
-async def write_sandbox_file(file: str, contents: str) -> ExecResult[str]:
-    return await sandbox().exec(["tee", "--", file], input=contents)
+async def checked_exec(
+    cmd: list[str], input: str | bytes | None = None, cwd: str | None = None
+) -> str:
+    result = await sandbox().exec(cmd, input=input, cwd=cwd)
+    if not result.success:
+        raise RuntimeError(f"Error executing command {' '.join(cmd)}: {result.stderr}")
+    return result.stdout
 
 
-def check(result: ExecResult[str]) -> None:
-    print(result.stdout)
-    print(result.stderr)
+async def checked_write_file(file: str, contents: str) -> None:
+    await checked_exec(["tee", "--", file], input=contents)
