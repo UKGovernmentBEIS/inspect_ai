@@ -1,4 +1,4 @@
-import { ExtensionContext, Disposable, commands } from "vscode";
+import { ExtensionContext, Disposable, commands, workspace, RelativePattern, Uri, FileSystemWatcher } from "vscode";
 
 
 import { join } from "node:path";
@@ -26,27 +26,27 @@ export class InspectCommandDispatcher implements Disposable {
     this.commandsDir_ = inspectCommandsDir(stateManager);
     this.collectCommandsRequest();
 
-    // watch for commands
-    log.appendLine(`Watching for commands (${this.commandsDir_})`);
-    this.watchInterval_ = setInterval(() => {
-      (async () => {
-        const commandsRequest = this.collectCommandsRequest();
-        if (commandsRequest) {
-          for (const command of commandsRequest) {
-            log.appendLine(`Found command: ${command.command}`);
-            log.appendLine(`Executing VS Code command ${command.command}`);
-
-            // TODO: some extension activation 
-            // ms-vscode-remote.remote-containers
-
+    this.commandsWatcher_ = workspace.createFileSystemWatcher(
+      new RelativePattern(Uri.file(this.commandsDir_), "*"),
+      false,
+      true,
+      true
+    );
+    this.commandsWatcher_.onDidCreate(async () => {
+      const commandsRequest = this.collectCommandsRequest();
+      if (commandsRequest) {
+        for (const command of commandsRequest) {
+          log.appendLine(`Found command: ${command.command}`);
+          log.appendLine(`Executing VS Code command ${command.command}`);
+          try {
             await commands.executeCommand(command.command, ...command.args);
+          } catch (error) {
+            log.error(error instanceof Error ? error : String(error));
           }
         }
-      })().catch(error => {
-        // Handle errors if needed
-        console.error(error);
-      });
-    }, 1000);
+      }
+    });
+    log.appendLine(`Watching for commands`);
   }
 
   collectCommandsRequest(): Array<{ command: string, args: unknown[] }> | null {
@@ -63,14 +63,14 @@ export class InspectCommandDispatcher implements Disposable {
   }
 
   dispose() {
-    if (this.watchInterval_) {
+    if (this.commandsWatcher_) {
       log.appendLine("Stopping watching for commands");
-      clearTimeout(this.watchInterval_);
+      this.commandsWatcher_.dispose();
     }
   }
 
   private commandsDir_: string;
-  private watchInterval_: NodeJS.Timeout;
+  private commandsWatcher_: FileSystemWatcher;
 }
 
 
