@@ -27,6 +27,7 @@ import { InspectLogsWatcher } from "./providers/inspect/inspect-logs-watcher";
 import { activateLogNotify } from "./providers/lognotify";
 import { activateOpenLog } from "./providers/openlog";
 import { activateProtocolHandler } from "./providers/protocol-handler";
+import { activateInspectCommands } from "./providers/inspect/inspect-commands";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -78,6 +79,9 @@ export async function activate(context: ExtensionContext) {
     stateManager,
     context
   );
+
+  // Activate commands interface
+  activateInspectCommands(stateManager, context);
 
   // Activate a watcher which inspects the active document and determines
   // the active task (if any)
