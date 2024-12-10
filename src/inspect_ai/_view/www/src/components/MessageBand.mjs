@@ -8,7 +8,7 @@ export const MessageBand = ({ message, hidden, setHidden, type }) => {
   const bgColor =
     type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
   const color =
-    "var(--bs-" + type === "info" ? "secondary" : undefined + "-text-emphasis)";
+    "var(--bs-" + (type === "info" ? "secondary" : type) + "-text-emphasis)";
 
   return html`
     <div

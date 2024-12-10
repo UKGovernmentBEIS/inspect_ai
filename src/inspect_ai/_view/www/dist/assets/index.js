@@ -16368,7 +16368,7 @@ const PlanColumn = ({ title, classes, style, children }) => {
 };
 const MessageBand = ({ message, hidden, setHidden, type }) => {
   const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
-  const color = "var(--bs-" + type === "info" ? "secondary" : "undefined-text-emphasis)";
+  const color = "var(--bs-" + (type === "info" ? "secondary" : type) + "-text-emphasis)";
   return m$1`
     <div
       style=${{
@@ -24954,7 +24954,9 @@ const WorkSpace = ({
     evalError,
     logFileName,
     capabilities,
-    selectedTab
+    selectedTab,
+    setHidden,
+    hidden
   ]);
   return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}
