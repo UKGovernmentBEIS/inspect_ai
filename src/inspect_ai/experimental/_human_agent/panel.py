@@ -12,7 +12,7 @@ from inspect_ai.util import InputPanel
 from inspect_ai.util._sandbox.environment import SandboxConnection
 
 
-class HumanUserPanel(InputPanel):
+class HumanAgentPanel(InputPanel):
     connection: reactive[SandboxConnection | None] = reactive(None)
 
     def compose(self) -> ComposeResult:

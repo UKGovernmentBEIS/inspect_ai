@@ -1,3 +1,3 @@
-from ._human_user.human_user import human_user
+from ._human_agent.human_agent import human_agent
 
-__all__ = ["human_user"]
+__all__ = ["human_agent"]

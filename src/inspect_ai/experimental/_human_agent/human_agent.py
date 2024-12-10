@@ -5,19 +5,19 @@ from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import input_panel, sandbox
 
-from .panel import HumanUserPanel
+from .panel import HumanAgentPanel
 from .sandbox import configure_sandbox
 
 
 @solver
-def human_user() -> Solver:
+def human_agent() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # configure sandbox
         await configure_sandbox()
 
         # open input panel for control/progress
-        async with await input_panel("User", HumanUserPanel) as panel:
-            panel = cast(HumanUserPanel, panel)
+        async with await input_panel("User", HumanAgentPanel) as panel:
+            panel = cast(HumanAgentPanel, panel)
 
             panel.connection = await sandbox().connection()
             # run sandbox service
