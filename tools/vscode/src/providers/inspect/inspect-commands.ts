@@ -35,6 +35,10 @@ export class InspectCommandDispatcher implements Disposable {
           for (const command of commandsRequest) {
             log.appendLine(`Found command: ${command.command}`);
             log.appendLine(`Executing VS Code command ${command.command}`);
+
+            // TODO: some extension activation 
+            // ms-vscode-remote.remote-containers
+
             await commands.executeCommand(command.command, ...command.args);
           }
         }

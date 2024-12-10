@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, Union, overload
 
 from pydantic import BaseModel, Field
 
@@ -34,7 +34,7 @@ class SandboxConnection(BaseModel):
     command: str
     """Shell command to connect to sandbox."""
 
-    vscode_command: list[str] | None = Field(default=None)
+    vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
 
     container: str | None = Field(default=None)

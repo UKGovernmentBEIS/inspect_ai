@@ -25,6 +25,10 @@ class HumanUserPanel(InputPanel):
             "Open Terminal",
             id="open-terminal",
         )
+        yield Button(
+            "Open VS Code",
+            id="open-vscode",
+        )
         yield Static(id="sandbox-connection")
 
     def watch_connection(self, new_value: SandboxConnection | None) -> None:
@@ -32,13 +36,21 @@ class HumanUserPanel(InputPanel):
         ui.update(new_value.command if new_value else "")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "open-terminal" and self.connection:
-            execute_vscode_commands(
-                [
-                    VSCodeCommand(command="workbench.action.terminal.new"),
+        if self.connection:
+            if event.button.id == "open-terminal":
+                execute_vscode_commands(
+                    [
+                        VSCodeCommand(command="workbench.action.terminal.new"),
+                        VSCodeCommand(
+                            command="workbench.action.terminal.sendSequence",
+                            args=[{"text": f"{self.connection.command}\n"}],
+                        ),
+                    ]
+                )
+            elif event.button.id == "open-vscode" and self.connection.vscode_command:
+                execute_vscode_commands(
                     VSCodeCommand(
-                        command="workbench.action.terminal.sendSequence",
-                        args=[{"text": f"{self.connection.command}\n"}],
-                    ),
-                ]
-            )
+                        command=self.connection.vscode_command[0],
+                        args=self.connection.vscode_command[1:],
+                    )
+                )
