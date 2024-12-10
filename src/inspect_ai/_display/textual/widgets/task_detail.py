@@ -41,8 +41,6 @@ class TaskDetail(Widget):
     ) -> None:
         super().__init__(id=id, classes=classes)
         self.hidden = hidden
-        if self.hidden:
-            self.add_class("hidden")
         self.existing_metrics: dict[str, TaskMetrics] = {}
         self.grid = Grid()
         self.by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
@@ -78,14 +76,13 @@ class TaskDetail(Widget):
             reducer_group[metric.scorer] = by_scorer_metrics
             self.by_reducer[metric.reducer] = reducer_group
 
-        if self.grid.is_attached:
-            self.refresh_grid()
+        self.refresh_grid()
 
     def refresh_grid(self) -> None:
-        # Makes keys for tracking Task Metric widgets
-        def metric_key(reducer: str | None, scorer: str) -> str:
-            reducer = reducer or "none"
-            return f"task-{reducer}-{scorer}-tbl"
+        # Don't refresh the grid if not attached
+        # since we may explicitly mount new widgets
+        if self.grid.is_attached:
+            return
 
         # Compute the row and column count
         row_count = len(self.by_reducer)
@@ -100,6 +97,13 @@ class TaskDetail(Widget):
         else:
             self.grid.styles.grid_size_columns = col_count
             self.grid.styles.grid_size_rows = row_count
+
+        # In order to reduce flashing the below tracks use of widgets
+        # and updates them when possible (removing and adding them as needed)
+        # Makes keys for tracking Task Metric widgets
+        def metric_key(reducer: str | None, scorer: str) -> str:
+            reducer = reducer or "none"
+            return f"task-{reducer}-{scorer}-tbl"
 
         # Remove keys that are no longer present
         existing_keys = set(self.existing_metrics.keys())
@@ -181,19 +185,24 @@ class TaskMetrics(Widget):
 
     def compose(self) -> ComposeResult:
         # Just yield a single DataTable widget
-        yield Center(self.title())
+        yield Center(self._title())
         with Grid():
             for metric in self.metrics:
-                yield Static(metric.name)
-                if np.isnan(metric.value):
-                    value = " n/a "
-                else:
-                    value = f"{metric.value:.3f}"
+                # Add the value static but keep it around
+                # for future updates
+                self.value_widgets[metric.name] = Static(
+                    self._metric_value(metric.value)
+                )
 
-                self.value_widgets[metric.name] = Static(value)
+                yield Static(metric.name)
                 yield self.value_widgets[metric.name]
 
-    def title(self) -> Widget:
+    def update(self, metrics: list[TaskMetric]) -> None:
+        for metric in metrics:
+            widget = self.value_widgets[metric.name]
+            widget.update(content=f"{metric.value:,.3f}")
+
+    def _title(self) -> Widget:
         if self.scorer is None:
             return Static("")
         elif self.reducer is None:
@@ -204,7 +213,8 @@ class TaskMetrics(Widget):
                 Static(self.reducer, classes="reducer"),
             )
 
-    def update(self, metrics: list[TaskMetric]) -> None:
-        for metric in metrics:
-            widget = self.value_widgets[metric.name]
-            widget.update(content=f"{metric.value:,.3f}")
+    def _metric_value(self, val: float) -> str:
+        if np.isnan(val):
+            return " n/a "
+        else:
+            return f"{val:.3f}"
