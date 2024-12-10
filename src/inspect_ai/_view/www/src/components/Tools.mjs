@@ -1,6 +1,8 @@
 // @ts-check
 /// <reference path="../types/prism.d.ts" />
 import Prism from "prismjs";
+import murmurhash from "murmurhash";
+
 import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
@@ -148,6 +150,12 @@ export const ToolInput = ({ type, contents, view, style }) => {
       }
     }, [contents, type, view]);
 
+    contents =
+      typeof contents === "object" || Array.isArray(contents)
+        ? JSON.stringify(contents)
+        : contents;
+    const key = murmurhash.v3(contents);
+
     return html`<pre
       class="tool-output"
       style=${{
@@ -158,14 +166,12 @@ export const ToolInput = ({ type, contents, view, style }) => {
       }}
     >
         <code ref=${toolInputRef} 
-          key=${contents}
+          key=${key}
           class="sourceCode${type ? ` language-${type}` : ""}" style=${{
       overflowWrap: "anywhere",
       whiteSpace: "pre-wrap",
     }}>
-          ${typeof contents === "object" || Array.isArray(contents)
-      ? JSON.stringify(contents)
-      : contents}
+          ${contents}
           </code>
       </pre>`;
   }
