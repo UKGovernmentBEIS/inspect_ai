@@ -4,7 +4,10 @@ from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widgets import Button, Link, Static
 
-from inspect_ai._util.vscode import execute_vscode_command
+from inspect_ai._util.vscode import (
+    VSCodeCommand,
+    execute_vscode_commands,
+)
 from inspect_ai.util import InputPanel
 from inspect_ai.util._sandbox.environment import SandboxConnection
 
@@ -30,7 +33,12 @@ class HumanUserPanel(InputPanel):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "open-terminal" and self.connection:
-            execute_vscode_command(
-                "workbench.action.terminal.new",
-                [{"shellArgs": ["-c", self.connection.command]}],
+            execute_vscode_commands(
+                [
+                    VSCodeCommand(command="workbench.action.terminal.new"),
+                    VSCodeCommand(
+                        command="workbench.action.terminal.sendSequence",
+                        args=[{"text": f"{self.connection.command}\n"}],
+                    ),
+                ]
             )

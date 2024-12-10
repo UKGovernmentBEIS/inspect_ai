@@ -24,28 +24,35 @@ export class InspectCommandDispatcher implements Disposable {
   constructor(stateManager: WorkspaceStateManager) {
     // init commands dir and remove any existing commands
     this.commandsDir_ = inspectCommandsDir(stateManager);
-    this.collectCommand();
+    this.collectCommandsRequest();
 
     // watch for commands
     log.appendLine(`Watching for commands (${this.commandsDir_})`);
     this.watchInterval_ = setInterval(() => {
-      const command = this.collectCommand();
-      if (command) {
-        log.appendLine(`Found command: ${command.command}`);
-        log.appendLine(`Executing VS Code command ${command.command}`);
-        void commands.executeCommand(command.command, { shellArgs: "echo 'foobar" });
-      }
+      (async () => {
+        const commandsRequest = this.collectCommandsRequest();
+        if (commandsRequest) {
+          for (const command of commandsRequest) {
+            log.appendLine(`Found command: ${command.command}`);
+            log.appendLine(`Executing VS Code command ${command.command}`);
+            await commands.executeCommand(command.command, ...command.args);
+          }
+        }
+      })().catch(error => {
+        // Handle errors if needed
+        console.error(error);
+      });
     }, 1000);
   }
 
-  collectCommand(): { command: string, args: unknown[] } | null {
+  collectCommandsRequest(): Array<{ command: string, args: unknown[] }> | null {
     const commandFiles = readdirSync(this.commandsDir_);
     if (commandFiles.length > 0) {
       // read at most a single command and remove all of the others
       const commandFile = commandFiles[0];
       const commandContents = readFileSync(join(this.commandsDir_, commandFile), { encoding: "utf-8" });
       removeFilesSync(commandFiles.map(file => join(this.commandsDir_, file)));
-      return JSON.parse(commandContents) as { command: string, args: unknown[] };
+      return JSON.parse(commandContents) as Array<{ command: string, args: unknown[] }>;
     } else {
       return null;
     }

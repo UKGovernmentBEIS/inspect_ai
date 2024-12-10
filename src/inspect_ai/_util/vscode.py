@@ -1,18 +1,24 @@
-import json
 import os
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
+from pydantic_core import to_json
 from shortuuid import uuid
 
 from .appdirs import inspect_data_dir
 
 
-def vscode_workspace_id() -> str | None:
-    return os.environ.get("INSPECT_WORKSPACE_ID", None)
+class VSCodeCommand(BaseModel):
+    command: str
+    args: list[Any] = Field(default_factory=list)
 
 
-def execute_vscode_command(command: str, args: list[Any] = []) -> None:
+def execute_vscode_commands(commands: VSCodeCommand | list[VSCodeCommand]) -> None:
+    # resolve to list
+    commands = commands if isinstance(commands, list) else [commands]
+
+    # ensure there is someone listening
     command_dir = vs_code_commands_dir()
     if command_dir is None:
         raise NotImplementedError(
@@ -20,8 +26,9 @@ def execute_vscode_command(command: str, args: list[Any] = []) -> None:
         )
 
     command_file = command_dir / uuid()
+    print(command_file)
     with open(command_file, "w") as f:
-        f.write(json.dumps({"command": command, "args": args}))
+        f.write(to_json(commands).decode())
 
 
 def can_execute_vscode_commands() -> bool:
@@ -39,3 +46,7 @@ def vs_code_commands_dir() -> Path | None:
             return None
     else:
         return None
+
+
+def vscode_workspace_id() -> str | None:
+    return os.environ.get("INSPECT_WORKSPACE_ID", None)
