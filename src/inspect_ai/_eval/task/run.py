@@ -24,7 +24,7 @@ from inspect_ai._util.constants import (
     SAMPLE_SUBTASK,
 )
 from inspect_ai._util.datetime import iso_now
-from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
