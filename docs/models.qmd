@@ -46,7 +46,7 @@ To select a model for use in an evaluation task you specify it using a *model na
 | Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
 | llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
 | TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
-| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
+| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) |
 | Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
 | Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
 | Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
