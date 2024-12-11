@@ -1,7 +1,11 @@
 from typing import cast
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, HorizontalGroup
+from textual.containers import (
+    Container,
+    Horizontal,
+    ScrollableContainer,
+)
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
@@ -32,7 +36,7 @@ class HumanAgentPanel(InputPanel):
     #sandbox-connection {{
         margin-top: 1;
         margin-bottom: 1;
-        color: $primary;
+        color: $secondary;
     }}
     HumanAgentPanel VSCodeLink {{
         margin-left: 1;
@@ -48,7 +52,7 @@ class HumanAgentPanel(InputPanel):
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):
             yield LoadingView()
-            with Container(id=self.SANDBOX_VIEW_ID):
+            with ScrollableContainer(id=self.SANDBOX_VIEW_ID):
                 yield Static(id="sandbox-instructions")
                 yield Static(id="sandbox-connection")
                 with Horizontal():
