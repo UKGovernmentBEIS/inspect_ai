@@ -16674,6 +16674,67 @@ const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
     </div>`;
   }
 };
+const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
+  const baseId = "metadata-grid";
+  const cellKeyStyle = {
+    fontWeight: "400",
+    whiteSpace: "nowrap",
+    ...TextStyle.label,
+    ...TextStyle.secondary
+  };
+  const cellValueStyle = {
+    whiteSpace: "pre-wrap",
+    wordWrap: "anywhere",
+    fontSize: FontSize.small
+  };
+  const cellKeyTextStyle = {
+    fontSize: FontSize.small
+  };
+  const entryRecords = (entries2) => {
+    if (!entries2) {
+      return [];
+    }
+    if (!Array.isArray(entries2)) {
+      return Object.entries(entries2 || {}).map(([key2, value]) => {
+        return { name: key2, value };
+      });
+    } else {
+      return entries2;
+    }
+  };
+  const entryEls = entryRecords(entries).map((entry, index) => {
+    const id2 = `${baseId}-value-${index}`;
+    return m$1`
+      <div
+        style=${{
+      gridColumn: "1 / -1",
+      borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
+    }}
+      ></div>
+      <div
+        class="${baseId}-key"
+        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </div>
+      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
+        <${RenderedContent} id=${id2} entry=${entry} />
+      </div>
+    `;
+  });
+  return m$1`<div
+    ...${{ id }}
+    class="${classes || ""}"
+    style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    columnGap: "1em",
+    ...style
+  }}
+  >
+    ${entryEls}
+  </div>`;
+};
 const labelStyle = {
   paddingRight: "2em",
   paddingLeft: "0",
@@ -16687,7 +16748,6 @@ const SampleScoreView = ({
   style,
   scorer
 }) => {
-  var _a2, _b2, _c;
   if (!sampleDescriptor) {
     return "";
   }
@@ -16703,16 +16763,20 @@ const SampleScoreView = ({
   const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
+  const metadata = scorerDescriptor.metadata();
   return m$1`
-    <div
-      class="container-fluid"
-      style=${{
-    paddingTop: "1em",
+  <div
+    class="container-fluid"
+    style=${{
+    marginTop: "0.5em",
     paddingLeft: "0",
     fontSize: FontSize.base,
     ...style
   }}
-    >
+  >
+    <${Card}>
+    <${CardHeader} label="Score"/>
+    <${CardBody}>
       <div>
         <div style=${{ ...labelStyle }}>Input</div>
         <div>
@@ -16725,7 +16789,7 @@ const SampleScoreView = ({
 
       <table
         class="table"
-        style=${{ width: "100%", marginBottom: "0", marginTop: "1em" }}
+        style=${{ width: "100%", marginBottom: "1em" }}
       >
         <thead style=${{ borderBottomColor: "#00000000" }}>
           <tr>
@@ -16781,68 +16845,34 @@ const SampleScoreView = ({
           </tr>
         </tbody>
       </table>
+    </${CardBody}>
+    </${Card}>
 
-      ${explanation && explanation !== answer ? m$1` <table
-            class="table"
-            style=${{ width: "100%", marginBottom: "0" }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style=${{
-    paddingBottom: "0",
-    paddingLeft: "0",
-    ...labelStyle,
-    fontWeight: "400"
-  }}
-                >
-                  Explanation
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv}
-                    markdown=${arrayToString(explanation)}
-                    style=${{ paddingLeft: "0" }}
-                    class="no-last-para-padding"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>` : ""}
-      ${((_a2 = sample == null ? void 0 : sample.score) == null ? void 0 : _a2.metadata) && Object.keys((_b2 = sample == null ? void 0 : sample.score) == null ? void 0 : _b2.metadata).length > 0 ? m$1` <table
-            class="table"
-            style=${{ width: "100%", marginBottom: "0" }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style=${{
-    paddingBottom: "0",
-    paddingLeft: "0",
-    ...labelStyle,
-    fontWeight: "400"
-  }}
-                >
-                  Metadata
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style=${{ paddingLeft: "0" }}>
-                  <${MetaDataView}
-                    id="task-sample-score-metadata"
-                    classes="tab-pane"
-                    entries="${(_c = sample == null ? void 0 : sample.score) == null ? void 0 : _c.metadata}"
-                    style=${{ marginTop: "1em" }}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>` : ""}
+    ${explanation && explanation !== answer ? m$1` 
+    <${Card}>
+      <${CardHeader} label="Explanation"/>
+      <${CardBody}>
+        <${MarkdownDiv}
+            markdown=${arrayToString(explanation)}
+            style=${{ paddingLeft: "0" }}
+            class="no-last-para-padding"
+          />
+
+      </${CardBody}>
+    </${Card}>` : ""}
+
+    ${metadata && Object.keys(metadata).length > 0 ? m$1`
+    <${Card}>
+      <${CardHeader} label="Metadata"/>
+      <${CardBody}>
+        <${MetaDataGrid}
+          id="task-sample-score-metadata"
+          classes="tab-pane"
+          entries="${metadata}"
+          style=${{ marginTop: "0" }}
+        />
+      </${CardBody}>
+    </${Card}>` : ""}
     </div>
   `;
 };
@@ -17040,67 +17070,6 @@ const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
       ${title}
     </button>
   </li>`;
-};
-const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
-  const baseId = "metadata-grid";
-  const cellKeyStyle = {
-    fontWeight: "400",
-    whiteSpace: "nowrap",
-    ...TextStyle.label,
-    ...TextStyle.secondary
-  };
-  const cellValueStyle = {
-    whiteSpace: "pre-wrap",
-    wordWrap: "anywhere",
-    fontSize: FontSize.small
-  };
-  const cellKeyTextStyle = {
-    fontSize: FontSize.small
-  };
-  const entryRecords = (entries2) => {
-    if (!entries2) {
-      return [];
-    }
-    if (!Array.isArray(entries2)) {
-      return Object.entries(entries2 || {}).map(([key2, value]) => {
-        return { name: key2, value };
-      });
-    } else {
-      return entries2;
-    }
-  };
-  const entryEls = entryRecords(entries).map((entry, index) => {
-    const id2 = `${baseId}-value-${index}`;
-    return m$1`
-      <div
-        style=${{
-      gridColumn: "1 / -1",
-      borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
-    }}
-      ></div>
-      <div
-        class="${baseId}-key"
-        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
-      >
-        ${entry.name}
-      </div>
-      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry} />
-      </div>
-    `;
-  });
-  return m$1`<div
-    ...${{ id }}
-    class="${classes || ""}"
-    style=${{
-    display: "grid",
-    gridTemplateColumns: "max-content auto",
-    columnGap: "1em",
-    ...style
-  }}
-  >
-    ${entryEls}
-  </div>`;
 };
 const EventSection = ({ title, style, children }) => {
   return m$1`<div
@@ -20074,7 +20043,6 @@ const SampleDisplay = ({
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
-          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
@@ -20086,7 +20054,6 @@ const SampleDisplay = ({
             sample=${sample}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
-            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -20101,7 +20068,7 @@ const SampleDisplay = ({
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === kSampleMetdataTabId}>
-         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0", marginTop: "0.5em" }}> 
           ${sampleMetadatas}
         </div>
       </${TabPanel}>`
@@ -25361,6 +25328,15 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
     }
     return void 0;
   };
+  const scoreMetadata = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.metadata) {
+        return sampleScore.metadata;
+      }
+    }
+    return void 0;
+  };
   const uniqScoreValues = [
     ...new Set(
       samples.filter((sample) => !!sample.scores).filter((sample) => {
@@ -25460,6 +25436,9 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   };
   const scorerDescriptor = (sample, scorer) => {
     return {
+      metadata: () => {
+        return scoreMetadata(sample, scorer);
+      },
       explanation: () => {
         return scoreExplanation(sample, scorer);
       },
