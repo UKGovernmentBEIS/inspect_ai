@@ -81,7 +81,7 @@ class TaskDetail(Widget):
     def refresh_grid(self) -> None:
         # Don't refresh the grid if not attached
         # since we may explicitly mount new widgets
-        if self.grid.is_attached:
+        if not self.grid.is_attached:
             return
 
         # Compute the row and column count
@@ -160,8 +160,7 @@ class TaskMetrics(Widget):
         text-style: bold;
     }
     TaskMetrics .reducer {
-        color: $foreground-darken-2;
-        text-style: italic;
+        color: $foreground-darken-3;
     }
     """
 
@@ -210,7 +209,7 @@ class TaskMetrics(Widget):
         else:
             return Horizontal(
                 Static(self.scorer, classes="scorer"),
-                Static(self.reducer, classes="reducer"),
+                Static(f"({self.reducer})", classes="reducer"),
             )
 
     def _metric_value(self, val: float) -> str:
