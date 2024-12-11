@@ -425,14 +425,13 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # return container connection
         if container:
             return SandboxConnection(
-                command=f"docker exec -it {container} /bin/bash --login",
+                command=f"docker exec -it {container} bash --login",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
                 container=container,
             )
-
         # error (not currently running)
         else:
             raise ConnectionError(
