@@ -34,16 +34,19 @@ class HumanAgentPanel(InputPanel):
     LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
 
+    LINK_LABEL_CLASS = "link-label"
+
     DEFAULT_CSS = f"""
     #{SANDBOX_INSTRUCTIONS_ID} {{
-        color: $text;
+        color: $text-muted;
+        margin-bottom: 1;
     }}
     #{SANDBOX_CONNECTION_ID} {{
         margin-top: 1;
         margin-bottom: 1;
         color: $secondary;
     }}
-    HumanAgentPanel Label {{
+    HumanAgentPanel .{LINK_LABEL_CLASS} {{
         color: $text-muted;
     }}
     HumanAgentPanel VSCodeLink {{
@@ -61,15 +64,16 @@ class HumanAgentPanel(InputPanel):
         with ContentSwitcher(initial=LoadingView.ID):
             yield LoadingView()
             with ScrollableContainer(id=self.SANDBOX_VIEW_ID):
+                yield StatusBar()
                 yield Static(id=self.SANDBOX_INSTRUCTIONS_ID)
                 yield Static(id=self.SANDBOX_CONNECTION_ID)
                 with Horizontal():
-                    yield Label("Login:")
+                    yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
                         "VS Code Terminal",
                         id=self.LOGIN_VSCODE_TERMINAL_ID,
                     )
-                    yield Label("Login:")
+                    yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
                         "VS Code Window",
                         id=self.LOGIN_VSCODE_WINDOW_ID,
@@ -123,6 +127,29 @@ class HumanAgentPanel(InputPanel):
                 ]
             else:
                 window_btn.display = False
+
+
+class StatusBar(Horizontal):
+    DEFAULT_CSS = """
+    StatusBar {
+        width: 1fr;
+        layout: grid;
+        grid-size: 5 1;
+        grid-columns: auto auto auto auto 1fr;
+        grid-gutter: 1;
+    }
+    StatusBar Link {
+        dock: right;
+        margin-right: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield Label("Status:")
+        yield Static("Running ▶️ ⏸ ")
+        yield Label("Total Time:")
+        yield Static("0:45:23")
+        yield Link("Help")
 
 
 class LoadingView(Container):
