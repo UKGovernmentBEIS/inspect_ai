@@ -433,6 +433,7 @@ def update_metrics_display_fn(
                     for key, metric in score.metrics.items():
                         task_metrics.append(
                             TaskDisplayMetric(
+                                scorer=score.name,
                                 name=metric.name,
                                 value=metric.value,
                                 reducer=score.reducer,

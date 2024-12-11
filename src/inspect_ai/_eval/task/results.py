@@ -235,12 +235,10 @@ def scorers_from_metric_dict(
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
 
-    # if there are no scores, then nothing to resolve
-    if len(scores) == 0:
-        return []
-
     # Expand any metric keys
-    resolved_metrics = resolve_glob_metric_keys(metrics, scores[0])
+    resolved_metrics = (
+        resolve_glob_metric_keys(metrics, scores[0]) if len(scores) > 0 else metrics
+    )
 
     for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
@@ -265,9 +263,13 @@ def scorers_from_metric_dict(
         for target_metric in metric_list:
             # compute the metric value
             metric_name = registry_log_name(target_metric)
+            if len(metric_scores) > 0:
+                value = target_metric(metric_scores)
+            else:
+                value = float("Nan")
             result_metrics[metric_name] = EvalMetric(
                 name=metric_name,
-                value=cast(float, target_metric(metric_scores)),
+                value=cast(float, value),
             )
 
         # create a scorer result for this metric

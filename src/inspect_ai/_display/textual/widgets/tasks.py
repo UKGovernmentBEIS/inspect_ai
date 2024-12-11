@@ -4,6 +4,7 @@ from typing import Iterator, cast
 
 from rich.console import RenderableType
 from rich.text import Text
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer
 from textual.css.query import NoMatches
@@ -14,6 +15,8 @@ from typing_extensions import override
 
 from inspect_ai._display.core.results import task_metric
 from inspect_ai._display.textual.widgets.clock import Clock
+from inspect_ai._display.textual.widgets.task_detail import TaskDetail
+from inspect_ai._display.textual.widgets.toggle import Toggle
 
 from ...core.display import (
     Progress,
@@ -110,9 +113,10 @@ class TaskProgressView(Widget):
         height: auto;
         width: 1fr;
         layout: grid;
-        grid-size: 7 1;
-        grid-columns: auto auto auto 1fr auto auto auto;
-        grid-gutter: 1;
+        grid-size: 8 2;
+        grid-columns: auto auto auto auto 1fr auto auto auto;
+        grid-rows: auto auto;
+        grid-gutter: 0 1;
     }
     TaskProgressView Bar {
         width: 1fr;
@@ -126,6 +130,12 @@ class TaskProgressView(Widget):
     #task-metrics {
         color:$text-secondary;
     }
+    #task-detail {
+        column-span: 8;
+    }
+    .hidden {
+        display: none;
+    }
     """
 
     def __init__(
@@ -133,6 +143,7 @@ class TaskProgressView(Widget):
     ) -> None:
         super().__init__()
         self.t = task
+
         self.description_width = description_width
         self.model_name_width = model_name_width
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
@@ -140,7 +151,11 @@ class TaskProgressView(Widget):
         self.metrics_display = Static(id="task-metrics")
         self.task_progress = TaskProgress(self.progress_bar)
 
+        self.toggle = Toggle()
+        self.task_detail = TaskDetail(id="task-detail", classes="hidden")
+
     def compose(self) -> ComposeResult:
+        yield self.toggle
         yield TaskStatusIcon()
         yield Static(
             progress_description(self.t.profile, self.description_width, pad=True)
@@ -152,6 +167,12 @@ class TaskProgressView(Widget):
         yield self.count_display
         yield self.metrics_display
         yield Clock()
+        yield self.task_detail
+
+    @on(Toggle.Toggled)
+    def handle_title_toggle(self, event: Toggle.Toggled) -> None:
+        self.task_detail.hidden = not self.toggle.toggled
+        event.stop()
 
     def on_mount(self) -> None:
         self.query_one(Clock).start(datetime.now().timestamp())
@@ -175,6 +196,7 @@ class TaskProgressView(Widget):
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if len(metrics) > 0:
             self.metrics_display.update(task_metric(metrics))
+            self.task_detail.update_metrics(metrics)
 
 
 class TaskStatusIcon(Static):
