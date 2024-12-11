@@ -35,12 +35,16 @@ class HumanAgentPanel(InputPanel):
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
 
     DEFAULT_CSS = f"""
-    #{SANDBOX_VIEW_ID} {{
+    #{SANDBOX_INSTRUCTIONS_ID} {{
+        color: $text;
     }}
     #{SANDBOX_CONNECTION_ID} {{
         margin-top: 1;
         margin-bottom: 1;
         color: $secondary;
+    }}
+    HumanAgentPanel Label {{
+        color: $text-muted;
     }}
     HumanAgentPanel VSCodeLink {{
         margin-left: 1;
