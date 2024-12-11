@@ -50,7 +50,7 @@ async def panel_approval(
 
 
 class ApprovalInputPanel(InputPanel):
-    TITLE = "Approval"
+    DEFAULT_TITLE = "Approval"
 
     DEFAULT_CSS = """
     ApprovalInputPanel {
@@ -88,7 +88,7 @@ class ApprovalInputPanel(InputPanel):
         self._approvals = human_approval_manager().approval_requests()
         if len(self._approvals) > 0:
             approval_id, approval_request = self._approvals[0]
-            self.title = f"{self.TITLE} ({len(self._approvals):,})"
+            self.title = f"{self.DEFAULT_TITLE} ({len(self._approvals):,})"
             heading.request = approval_request
             content.approval = approval_request.request
             actions.approval_request = approval_id, approval_request
@@ -97,7 +97,7 @@ class ApprovalInputPanel(InputPanel):
                 actions.activate()
             self.visible = True
         else:
-            self.title = self.TITLE
+            self.title = self.DEFAULT_TITLE
             heading.request = None
             content.approval = None
             actions.approval_request = None

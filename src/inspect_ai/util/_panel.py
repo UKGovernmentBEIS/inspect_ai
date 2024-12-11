@@ -5,7 +5,7 @@ from typing_extensions import Self
 
 
 class InputPanel(Container):
-    TITLE = "Panel"
+    DEFAULT_TITLE = "Panel"
 
     DEFAULT_CLASSES = "task-input-panel"
 
@@ -23,11 +23,15 @@ class InputPanel(Container):
         you should define reactive props and/or methods that perform
         initialisation).
 
-        You should also override the `TITLE` variable for your panel to
-        provide a default tab title.
+        You should also override the `DEFAULT_TITLE` variable for your panel to
+        provide a default tab title (you can change the table dynamically as
+        required using the `title` property).
+
+        Args:
+           host (InputPanel.Host): Interface to UI host of input panel.
         """
         super().__init__()
-        self._title = self.TITLE
+        self._title = self.DEFAULT_TITLE
         self._host = host
 
     async def __aenter__(self) -> Self:
