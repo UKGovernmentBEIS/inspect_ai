@@ -10,16 +10,16 @@ from inspect_ai.solver import TaskState, use_tools
 
 
 def null_generate(
-        state: TaskState,
-        tool_calls: Literal["loop", "single", "none"] = "loop",
-        cache: bool | CachePolicy = False,
-        **kwargs: Unpack[GenerateConfigArgs],
-    ) -> TaskState:
-        return state
+    state: TaskState,
+    tool_calls: Literal["loop", "single", "none"] = "loop",
+    cache: bool | CachePolicy = False,
+    **kwargs: Unpack[GenerateConfigArgs],
+) -> TaskState:
+    return state
+
 
 @pytest.mark.asyncio
 async def test_use_tools():
-
     state = simple_task_state()
 
     addition_tool = addition()
@@ -44,9 +44,9 @@ async def test_use_tools():
     assert state.tools == [addition_tool]
     assert state.tool_choice == "auto"
 
+
 @pytest.mark.asyncio
 async def test_use_tools_append():
-
     state = simple_task_state()
 
     addition_tool = addition()
@@ -56,8 +56,10 @@ async def test_use_tools_append():
     state = await (use_tools([addition_tool, read_file_tool]))(state, null_generate)
     assert state.tools == [addition_tool, read_file_tool]
 
-    state = await (use_tools([list_files_tool]))(state, null_generate)
+    # append to the tools
+    state = await (use_tools([list_files_tool], append=True))(state, null_generate)
     assert state.tools == [addition_tool, read_file_tool, list_files_tool]
 
-    state = await (use_tools([addition_tool, read_file_tool]))(state, null_generate)
-    assert state.tools == [addition_tool, read_file_tool]
+    # now replace the tools
+    state = await (use_tools([addition_tool]))(state, null_generate)
+    assert state.tools == [addition_tool]
