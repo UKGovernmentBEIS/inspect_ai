@@ -62,37 +62,40 @@ class HumanAgentPanel(InputPanel):
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
         if connection:
+            # switch to sandbox view
             self.query_one(ContentSwitcher).current = self.SANDBOX_VIEW_ID
-            # get references to ui
-            connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
-            terminal_btn = self.query_one("#open-terminal")
-            vscode_btn = self.query_one("#open-vscode")
 
+            connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
             connection_lbl.update(connection.command)
+
+            terminal_btn = self.query_one("#open-terminal")
             terminal_btn.display = can_execute_vscode_commands()
+
+            vscode_btn = self.query_one("#open-vscode")
             vscode_btn.display = (
                 can_execute_vscode_commands() and connection.vscode_command is not None
             )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if self.connection:
-            if event.button.id == "open-terminal":
-                execute_vscode_commands(
-                    [
-                        VSCodeCommand(command="workbench.action.terminal.new"),
-                        VSCodeCommand(
-                            command="workbench.action.terminal.sendSequence",
-                            args=[{"text": f"{self.connection.command}\n"}],
-                        ),
-                    ]
-                )
-            elif event.button.id == "open-vscode" and self.connection.vscode_command:
-                execute_vscode_commands(
+        assert self.connection
+
+        if event.button.id == "open-terminal":
+            execute_vscode_commands(
+                [
+                    VSCodeCommand(command="workbench.action.terminal.new"),
                     VSCodeCommand(
-                        command=self.connection.vscode_command[0],
-                        args=self.connection.vscode_command[1:],
-                    )
+                        command="workbench.action.terminal.sendSequence",
+                        args=[{"text": f"{self.connection.command}\n"}],
+                    ),
+                ]
+            )
+        elif event.button.id == "open-vscode" and self.connection.vscode_command:
+            execute_vscode_commands(
+                VSCodeCommand(
+                    command=self.connection.vscode_command[0],
+                    args=self.connection.vscode_command[1:],
                 )
+            )
 
 
 class LoadingView(Container):
