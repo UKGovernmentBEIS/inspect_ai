@@ -37,6 +37,9 @@ class HumanAgentPanel(InputPanel):
     LINK_LABEL_CLASS = "link-label"
 
     DEFAULT_CSS = f"""
+    #{SANDBOX_VIEW_ID} {{
+        scrollbar-size-vertical: 1;
+    }}
     #{SANDBOX_INSTRUCTIONS_ID} {{
         color: $text-muted;
         margin-bottom: 1;
@@ -57,8 +60,11 @@ class HumanAgentPanel(InputPanel):
 
     connection: reactive[SandboxConnection | None] = reactive(None)
 
-    async def show_cmd(self, cmd: str) -> None:
-        pass
+    def set_status(self, status: str) -> None:
+        self.query_one(StatusBar).status = status
+
+    def set_time(self, time: float) -> None:
+        self.query_one(StatusBar).time = time
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):
@@ -91,7 +97,7 @@ class HumanAgentPanel(InputPanel):
             instructions_lbl = cast(
                 Static, self.query_one(f"#{self.SANDBOX_INSTRUCTIONS_ID}")
             )
-            instructions = f"""You are completing a computing task on a Linux system (task instructions will be presented when you login). Login to the system with the following command{' (or use the links below to access the system within VS Code)' if vscode else ''}:"""
+            instructions = f"""You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command{' (or use the links below to access the system within VS Code)' if vscode else ''}:"""
             instructions_lbl.update(instructions)
 
             # connection command
@@ -130,26 +136,54 @@ class HumanAgentPanel(InputPanel):
 
 
 class StatusBar(Horizontal):
-    DEFAULT_CSS = """
-    StatusBar {
+    STATUS_ID = "task-status"
+    TIME_ID = "task-time"
+
+    LABEL_CLASS = "status-label"
+    VALUE_CLASS = "status-value"
+
+    DEFAULT_CSS = f"""
+    StatusBar {{
         width: 1fr;
+        height: 1;
+        background: $surface;
+        margin-bottom: 1;
         layout: grid;
-        grid-size: 5 1;
+        grid-size: 6 1;
         grid-columns: auto auto auto auto 1fr;
         grid-gutter: 1;
-    }
-    StatusBar Link {
+    }}
+    .{LABEL_CLASS} {{
+        color: $primary;
+    }}
+    .{VALUE_CLASS} {{
+        color: $foreground;
+    }}
+    StatusBar Link {{
         dock: right;
         margin-right: 1;
-    }
+    }}
     """
 
+    status: reactive[str] = reactive("Started")
+    time: reactive[float] = reactive(0)
+
     def compose(self) -> ComposeResult:
-        yield Label("Status:")
-        yield Static("Running ▶️ ⏸ ")
-        yield Label("Total Time:")
-        yield Static("0:45:23")
+        yield Label("Status:", classes=self.LABEL_CLASS)
+        yield Static("Started", id=self.STATUS_ID, classes=self.VALUE_CLASS)
+        yield Label(" Time:", classes=self.LABEL_CLASS)
+        yield Static("0:45:23", id=self.TIME_ID, classes=self.VALUE_CLASS)
+        # yield Static("  ⏸")  # ▶️
         yield Link("Help")
+
+    def watch_status(self, status: str) -> None:
+        cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(status)
+
+    def watch_time(self, time: float) -> None:
+        minutes, seconds = divmod(time, 60)
+        hours, minutes = divmod(minutes, 60)
+        time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
+        cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
 
 
 class LoadingView(Container):

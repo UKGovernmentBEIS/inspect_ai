@@ -22,10 +22,10 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option, Separator
 
+from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 
-from ...core.progress import progress_time
 from .clock import Clock
 from .transcript import TranscriptView
 
@@ -147,7 +147,9 @@ class SamplesList(OptionList):
             table.add_column(width=1)
             task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(18, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
+            task_time = Text.from_markup(
+                f"{format_progress_time(sample.execution_time)}"
+            )
             table.add_row(task_name, task_time, " ")
             sample_id = Text.from_markup(f"id: {sample.sample.id}")
             sample_id.truncate(18, overflow="ellipsis", pad=True)

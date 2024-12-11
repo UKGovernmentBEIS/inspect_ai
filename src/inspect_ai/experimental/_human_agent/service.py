@@ -6,13 +6,13 @@ from .view import HumanAgentView
 
 async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> None:
     async def start() -> None:
-        await view.show_cmd("start")
+        pass
 
     async def stop() -> None:
-        await view.show_cmd("stop")
+        pass
 
     async def note() -> None:
-        await view.show_cmd("note")
+        pass
 
     return await sandbox_service(
         name="human_agent",
