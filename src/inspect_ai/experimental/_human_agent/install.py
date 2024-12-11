@@ -3,13 +3,9 @@ from pathlib import Path
 from inspect_ai.util import sandbox
 
 
-async def configure_sandbox() -> None:
-    await install_human_cli()
-
-
-async def install_human_cli() -> None:
-    # copy cli src files and make them executable
-    INSTALL_DIR = "human_cli_install"
+async def install_human_agent() -> None:
+    # copy agent src files and make them executable
+    INSTALL_DIR = "human_agent_install"
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
     cli_package_dir = Path(__file__).parent / "_resources" / "cli"
     for package_file in cli_package_dir.iterdir():

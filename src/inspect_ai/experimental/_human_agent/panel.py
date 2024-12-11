@@ -1,8 +1,9 @@
 from typing import cast
 
 from textual.app import ComposeResult
+from textual.containers import Container, Vertical
 from textual.reactive import reactive
-from textual.widgets import Button, Link, Static
+from textual.widgets import Button, Link, RichLog, Static
 
 from inspect_ai._util.vscode import (
     VSCodeCommand,
@@ -16,23 +17,37 @@ from inspect_ai.util._sandbox.environment import SandboxConnection
 class HumanAgentPanel(InputPanel):
     DEFAULT_TITLE = "Human Agent"
 
+    DEFAULT_CSS = """
+    HumanAgentPanel {
+        layout: grid;
+        grid-size: 2 1;
+    }
+    """
+
     connection: reactive[SandboxConnection | None] = reactive(None)
+    error: reactive[Exception | None] = reactive(None)
+
+    async def show_cmd(self, cmd: str) -> None:
+        self.query_one(RichLog).write(cmd)
 
     def compose(self) -> ComposeResult:
-        yield Link(
-            "Go to textualize.io",
-            url="https://textualize.io",
-            tooltip="Click me",
-        )
-        yield Button(
-            "Open Terminal",
-            id="open-terminal",
-        )
-        yield Button(
-            "Open VS Code",
-            id="open-vscode",
-        )
-        yield Static(id="sandbox-connection")
+        with Vertical():
+            yield Link(
+                "Go to textualize.io",
+                url="https://textualize.io",
+                tooltip="Click me",
+            )
+            yield Button(
+                "Open Terminal",
+                id="open-terminal",
+            )
+            yield Button(
+                "Open VS Code",
+                id="open-vscode",
+            )
+            yield Static(id="sandbox-connection")
+        with Vertical():
+            yield RichLog()
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
         # get references to ui
@@ -72,3 +87,8 @@ class HumanAgentPanel(InputPanel):
                         args=self.connection.vscode_command[1:],
                     )
                 )
+
+
+class LoadingView(Container):
+    def compose(self) -> ComposeResult:
+        yield Static("Loading...")

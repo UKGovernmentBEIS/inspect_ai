@@ -54,9 +54,6 @@ class ApprovalInputPanel(InputPanel):
 
     DEFAULT_CSS = """
     ApprovalInputPanel {
-        width: 1fr;
-        height: 1fr;
-        padding: 0 1 1 1;
         layout: grid;
         grid-size: 1 3;
         grid-rows: auto 1fr auto;

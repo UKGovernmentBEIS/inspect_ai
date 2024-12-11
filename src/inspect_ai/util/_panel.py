@@ -9,6 +9,12 @@ class InputPanel(Container):
 
     DEFAULT_CLASSES = "task-input-panel"
 
+    DEFAULT_CSS = """
+    InputPanel {
+        padding: 0 1 1 1;
+    }
+    """
+
     class Host(Protocol):
         def set_title(self, title: str) -> None: ...
         def activate(self) -> None: ...

@@ -3,19 +3,22 @@ import argparse
 import os
 import sys
 
+sys.path.append("/tmp/inspect-sandbox-services/human_agent")
+import human_agent
+
 
 def start():
     parser = argparse.ArgumentParser(description="Start the clock")
     parser.parse_args(sys.argv[2:])
-    print("starting the clock")
+    human_agent.call_human_agent("start")
 
 
 def stop():
-    print("stopping the clock")
+    human_agent.call_human_agent("stop")
 
 
 def note():
-    print("making a note")
+    human_agent.call_human_agent("note")
 
 
 _commands: dict = {"start": start, "stop": stop, "note": note}
