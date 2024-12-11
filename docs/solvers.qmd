@@ -14,7 +14,7 @@ Solvers are the heart of Inspect evaluations and can serve a wide variety of pur
 5.  Multi-turn dialog
 6.  Running an agent scaffold
 
-Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other sovlers composed together. Solvers can therefore play two differnet roles: 
+Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two differnet roles: 
 
 1. _Composite_ specifications for task execution; and
 
@@ -65,7 +65,7 @@ def theory_of_mind():
 
 Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
 
-This section covers mostly solvers as components (both built in and creating your own). The [Agents](agents.qmd) section describes fully custom sovlers in more depth.
+This section covers mostly solvers as components (both built in and creating your own). The [Agents](agents.qmd) section describes fully custom solvers in more depth.
 
 ## Task States
 
