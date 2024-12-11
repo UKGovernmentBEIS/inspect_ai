@@ -3,7 +3,14 @@ from typing import cast
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.reactive import reactive
-from textual.widgets import Button, Link, RichLog, Static
+from textual.widgets import (
+    Button,
+    ContentSwitcher,
+    Link,
+    LoadingIndicator,
+    RichLog,
+    Static,
+)
 
 from inspect_ai._util.vscode import (
     VSCodeCommand,
@@ -17,15 +24,36 @@ from inspect_ai.util._sandbox.environment import SandboxConnection
 class HumanAgentPanel(InputPanel):
     DEFAULT_TITLE = "Human Agent"
 
+    connection: reactive[SandboxConnection | None] = reactive(None)
+
+    async def show_cmd(self, cmd: str) -> None:
+        await self.query_one(SandboxView).show_cmd(cmd)
+
+    def compose(self) -> ComposeResult:
+        with ContentSwitcher(initial=LoadingView.ID):
+            yield LoadingView()
+            yield SandboxView()
+
+    def watch_connection(self, connection: SandboxConnection | None) -> None:
+        if connection:
+            self.query_one(ContentSwitcher).current = SandboxView.ID
+            self.query_one(SandboxView).connection = connection
+
+
+class SandboxView(Container):
+    ID = "human-agent-sandbox_view"
+
     DEFAULT_CSS = """
-    HumanAgentPanel {
+    SandboxView {
         layout: grid;
         grid-size: 2 1;
     }
     """
 
     connection: reactive[SandboxConnection | None] = reactive(None)
-    error: reactive[Exception | None] = reactive(None)
+
+    def __init__(self) -> None:
+        super().__init__(id=self.ID)
 
     async def show_cmd(self, cmd: str) -> None:
         self.query_one(RichLog).write(cmd)
@@ -50,23 +78,17 @@ class HumanAgentPanel(InputPanel):
             yield RichLog()
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
-        # get references to ui
-        connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
-        terminal_btn = self.query_one("#open-terminal")
-        vscode_btn = self.query_one("#open-vscode")
+        if connection:
+            # get references to ui
+            connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
+            terminal_btn = self.query_one("#open-terminal")
+            vscode_btn = self.query_one("#open-vscode")
 
-        # populate for connection
-        if connection is not None:
             connection_lbl.update(connection.command)
             terminal_btn.display = can_execute_vscode_commands()
             vscode_btn.display = (
                 can_execute_vscode_commands() and connection.vscode_command is not None
             )
-        # hide for no connection
-        else:
-            connection_lbl.update("")
-            terminal_btn.display = False
-            vscode_btn.display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.connection:
@@ -90,5 +112,11 @@ class HumanAgentPanel(InputPanel):
 
 
 class LoadingView(Container):
+    ID = "human-agent-loading-view"
+
+    def __init__(self) -> None:
+        super().__init__(id=self.ID)
+
     def compose(self) -> ComposeResult:
-        yield Static("Loading...")
+        yield LoadingIndicator()
+        yield Button()  # add focusable widget so the tab can activate

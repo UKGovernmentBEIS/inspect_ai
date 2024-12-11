@@ -1,11 +1,7 @@
-from typing import Protocol
-
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox import sandbox, sandbox_service
 
-
-class HumanAgentView(Protocol):
-    async def show_cmd(self, cmd: str) -> None: ...
+from .view import HumanAgentView
 
 
 async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> None:

@@ -11,18 +11,12 @@ from .service import run_human_agent_service
 def human_agent() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         async with await input_panel(HumanAgentPanel) as panel:
-            try:
-                # install human agent tools in sandbox
-                await install_human_agent()
+            # install agent tool and hookup sandbox connection
+            await install_human_agent()
+            panel.connection = await sandbox().connection()
 
-                # hookup sandbox connection
-                panel.connection = await sandbox().connection()
-
-                # run sandbox service
-                await run_human_agent_service(state, panel)
-
-            except Exception:
-                pass
+            # run sandbox service
+            await run_human_agent_service(state, panel)
 
         return state
 
