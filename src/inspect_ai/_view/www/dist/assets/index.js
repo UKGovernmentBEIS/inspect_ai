@@ -17285,8 +17285,9 @@ const RenderableChangeTypes = [
 ];
 const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
+    var _a2;
     const toolName = toolDefinition.name;
-    const toolArgs = Object.keys(toolDefinition.parameters.properties);
+    const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
     return m$1`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
   });
 };
