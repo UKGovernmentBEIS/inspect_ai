@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Literal, cast
 
 from textual.app import ComposeResult
 from textual.containers import (
@@ -60,11 +60,13 @@ class HumanAgentPanel(InputPanel):
 
     connection: reactive[SandboxConnection | None] = reactive(None)
 
-    def set_status(self, status: str) -> None:
-        self.query_one(StatusBar).status = status
+    def start_task(self) -> None:
+        status_bar = self.query_one(StatusBar)
+        status_bar.status = "Started"
 
-    def set_time(self, time: float) -> None:
-        self.query_one(StatusBar).time = time
+    def stop_task(self) -> None:
+        status_bar = self.query_one(StatusBar)
+        status_bar.status = "Stopped"
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):
@@ -165,25 +167,34 @@ class StatusBar(Horizontal):
     }}
     """
 
-    status: reactive[str] = reactive("Started")
-    time: reactive[float] = reactive(0)
+    status: reactive[Literal["Started", "Stopped"]] = reactive("Started")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.time: float = 0
+        self.timer = self.app.set_interval(1, self.on_tick)
 
     def compose(self) -> ComposeResult:
         yield Label("Status:", classes=self.LABEL_CLASS)
         yield Static("Started", id=self.STATUS_ID, classes=self.VALUE_CLASS)
         yield Label(" Time:", classes=self.LABEL_CLASS)
-        yield Static("0:45:23", id=self.TIME_ID, classes=self.VALUE_CLASS)
+        yield Static("0:00:00", id=self.TIME_ID, classes=self.VALUE_CLASS)
         # yield Static("  ⏸")  # ▶️
         yield Link("Help")
 
+    def on_tick(self) -> None:
+        if self.status == "Started":
+            self.time = self.time + 1
+            minutes, seconds = divmod(self.time, 60)
+            hours, minutes = divmod(minutes, 60)
+            time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
+            cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
+
+    def on_unmount(self) -> None:
+        self.timer.stop()
+
     def watch_status(self, status: str) -> None:
         cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(status)
-
-    def watch_time(self, time: float) -> None:
-        minutes, seconds = divmod(time, 60)
-        hours, minutes = divmod(minutes, 60)
-        time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
-        cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
 
 
 class LoadingView(Container):

@@ -5,11 +5,13 @@ from .view import HumanAgentView
 
 
 async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> None:
+    view.start_task()
+
     async def start() -> None:
-        pass
+        view.start_task()
 
     async def stop() -> None:
-        pass
+        view.stop_task()
 
     async def note() -> None:
         pass
