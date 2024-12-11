@@ -24,61 +24,45 @@ from inspect_ai.util._sandbox.environment import SandboxConnection
 class HumanAgentPanel(InputPanel):
     DEFAULT_TITLE = "Human Agent"
 
-    connection: reactive[SandboxConnection | None] = reactive(None)
+    SANDBOX_VIEW_ID = "human-agent-sandbox-view"
 
-    async def show_cmd(self, cmd: str) -> None:
-        await self.query_one(SandboxView).show_cmd(cmd)
-
-    def compose(self) -> ComposeResult:
-        with ContentSwitcher(initial=LoadingView.ID):
-            yield LoadingView()
-            yield SandboxView()
-
-    def watch_connection(self, connection: SandboxConnection | None) -> None:
-        if connection:
-            self.query_one(ContentSwitcher).current = SandboxView.ID
-            self.query_one(SandboxView).connection = connection
-
-
-class SandboxView(Container):
-    ID = "human-agent-sandbox_view"
-
-    DEFAULT_CSS = """
-    SandboxView {
+    DEFAULT_CSS = f"""
+    #{SANDBOX_VIEW_ID} {{
         layout: grid;
         grid-size: 2 1;
-    }
+    }}
     """
 
     connection: reactive[SandboxConnection | None] = reactive(None)
-
-    def __init__(self) -> None:
-        super().__init__(id=self.ID)
 
     async def show_cmd(self, cmd: str) -> None:
         self.query_one(RichLog).write(cmd)
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Link(
-                "Go to textualize.io",
-                url="https://textualize.io",
-                tooltip="Click me",
-            )
-            yield Button(
-                "Open Terminal",
-                id="open-terminal",
-            )
-            yield Button(
-                "Open VS Code",
-                id="open-vscode",
-            )
-            yield Static(id="sandbox-connection")
-        with Vertical():
-            yield RichLog()
+        with ContentSwitcher(initial=LoadingView.ID):
+            yield LoadingView()
+            with Container(id=self.SANDBOX_VIEW_ID):
+                with Vertical():
+                    yield Link(
+                        "Go to textualize.io",
+                        url="https://textualize.io",
+                        tooltip="Click me",
+                    )
+                    yield Button(
+                        "Open Terminal",
+                        id="open-terminal",
+                    )
+                    yield Button(
+                        "Open VS Code",
+                        id="open-vscode",
+                    )
+                    yield Static(id="sandbox-connection")
+                with Vertical():
+                    yield RichLog()
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
         if connection:
+            self.query_one(ContentSwitcher).current = self.SANDBOX_VIEW_ID
             # get references to ui
             connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
             terminal_btn = self.query_one("#open-terminal")
