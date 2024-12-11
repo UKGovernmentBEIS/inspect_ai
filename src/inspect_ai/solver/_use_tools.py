@@ -9,6 +9,7 @@ from ._task_state import TaskState
 def use_tools(
     *tools: Tool | list[Tool],
     tool_choice: ToolChoice | None = "auto",
+    append: bool = False,
 ) -> Solver:
     """
     Inject tools into the task state to be used in generate().
@@ -20,6 +21,9 @@ def use_tools(
         tool_choice (ToolChoice | None): Directive indicating which
           tools the model should use. If `None` is passed, then no
           change to `tool_choice` is made.
+        append (bool): If `True`, then the passed-in tools are appended
+            to the existing tools; otherwise any existing tools are
+            replaced (the default)
 
     Returns:
         A solver that injects the tools and tool_choice into the task state.
@@ -42,7 +46,11 @@ def use_tools(
             else:
                 add_tool(tool)
         if len(tools_update) > 0:
-            state.tools = tools_update
+            if append:
+                existing_tools = state.tools
+                state.tools = existing_tools + tools_update
+            else:
+                state.tools = tools_update
 
         # set tool choice if specified
         if tool_choice is not None:
