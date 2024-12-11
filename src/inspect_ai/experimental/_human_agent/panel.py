@@ -29,11 +29,15 @@ class HumanAgentPanel(InputPanel):
     DEFAULT_TITLE = "Human Agent"
 
     SANDBOX_VIEW_ID = "human-agent-sandbox-view"
+    SANDBOX_CONNECTION_ID = "sandbox-connection"
+    SANDBOX_INSTRUCTIONS_ID = "sandbox-instructions"
+    LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
+    LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
 
     DEFAULT_CSS = f"""
     #{SANDBOX_VIEW_ID} {{
     }}
-    #sandbox-connection {{
+    #{SANDBOX_CONNECTION_ID} {{
         margin-top: 1;
         margin-bottom: 1;
         color: $secondary;
@@ -53,18 +57,18 @@ class HumanAgentPanel(InputPanel):
         with ContentSwitcher(initial=LoadingView.ID):
             yield LoadingView()
             with ScrollableContainer(id=self.SANDBOX_VIEW_ID):
-                yield Static(id="sandbox-instructions")
-                yield Static(id="sandbox-connection")
+                yield Static(id=self.SANDBOX_INSTRUCTIONS_ID)
+                yield Static(id=self.SANDBOX_CONNECTION_ID)
                 with Horizontal():
                     yield Label("Login:")
                     yield VSCodeLink(
                         "VS Code Terminal",
-                        id="login-vscode-terminal",
+                        id=self.LOGIN_VSCODE_TERMINAL_ID,
                     )
                     yield Label("Login:")
                     yield VSCodeLink(
                         "VS Code Window",
-                        id="login-vscode-window",
+                        id=self.LOGIN_VSCODE_WINDOW_ID,
                     )
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
@@ -76,15 +80,21 @@ class HumanAgentPanel(InputPanel):
             vscode = can_execute_vscode_commands()
 
             # update instructions
-            instructions_lbl = cast(Static, self.query_one("#sandbox-instructions"))
+            instructions_lbl = cast(
+                Static, self.query_one(f"#{self.SANDBOX_INSTRUCTIONS_ID}")
+            )
             instructions = f"""You are completing a computing task on a Linux system (task instructions will be presented when you login). Login to the system with the following command{' (or use the links below to access the system within VS Code)' if vscode else ''}:"""
             instructions_lbl.update(instructions)
 
             # connection command
-            connection_lbl = cast(Static, self.query_one("#sandbox-connection"))
+            connection_lbl = cast(
+                Static, self.query_one(f"#{self.SANDBOX_CONNECTION_ID}")
+            )
             connection_lbl.update(connection.command)
 
-            terminal_btn = cast(VSCodeLink, self.query_one("#login-vscode-terminal"))
+            terminal_btn = cast(
+                VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_TERMINAL_ID}")
+            )
             terminal_btn.display = vscode
             terminal_btn.commands = [
                 VSCodeCommand(command="workbench.action.terminal.new"),
@@ -94,7 +104,9 @@ class HumanAgentPanel(InputPanel):
                 ),
             ]
 
-            window_btn = cast(VSCodeLink, self.query_one("#login-vscode-window"))
+            window_btn = cast(
+                VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_ID}")
+            )
             if connection.vscode_command is not None:
                 window_btn.display = vscode
                 window_btn.commands = [
