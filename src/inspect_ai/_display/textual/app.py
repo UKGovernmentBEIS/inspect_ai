@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.css.query import NoMatches
 from textual.events import Print
+from textual.widget import Widget
 from textual.widgets import TabbedContent, TabPane
 from textual.widgets.tabbed_content import ContentTabs
 from textual.worker import Worker, WorkerState
@@ -358,7 +359,7 @@ class TaskScreenApp(App[TR]):
             # the tabs control so the user can switch back w/ the keyboard
             tab_pane = self.app.query_one(f"#{self.tab_id}")
             panel = cast(InputPanel, tab_pane.children[0])
-            for child in panel.children:
+            for child in panel.walk_children(Widget):
                 if child.focusable:
                     child.focus()
                     self.app.query_one(ContentTabs).focus()
