@@ -101,7 +101,9 @@ class HumanAgentPanel(InputPanel):
             )
             terminal_btn.display = vscode
             terminal_btn.commands = [
-                VSCodeCommand(command="workbench.action.terminal.new"),
+                VSCodeCommand(
+                    command="workbench.action.terminal.new", args=[{"location": 2}]
+                ),
                 VSCodeCommand(
                     command="workbench.action.terminal.sendSequence",
                     args=[{"text": f"{connection.command}\n"}],
