@@ -26,7 +26,6 @@ def execute_vscode_commands(commands: VSCodeCommand | list[VSCodeCommand]) -> No
         )
 
     command_file = command_dir / uuid()
-    print(command_file)
     with open(command_file, "w") as f:
         f.write(to_json(commands).decode())
 
