@@ -3,16 +3,28 @@
 ## Unreleased
 
 - Tools: Improved typing/schema support (unions, optional params, enums).
+- Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed).
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
+- Inspect View: Fix issue with incorrectly displayed custom tool views.
+- Human approval: Use fullcreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
+- Added `input_panel()` API for adding custom panels to the fullscreen task display.
+- Log recorder: Methods are now async which will improve performance for fsspec filesystems with async implementations (e.g. S3)
+- Log recorder: Improve `.eval` log reading performance for remote filesystem (eaglery fetch log to local buffer).
+- Add `token_usage` property to `TaskState` which has current total tokens used across all calls to `generate()` (same value that is used for enforcing token limits).
 - Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
 - Web browser: Remove base64 images from web page contents (prevent filling up model context with large images).
 - Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
+- Hugging Face: Support for native HF tool calling for Llama, Mistral, Qwen, and others if they conform to various standard schemas.
+- Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
+- Display: Throttle updating of sample list based on number of samples.
+- Bugfix: `hf_dataset` now explicitly requires the `split` argument (previously, it would crash when not specified).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.
+- Bugfix: Report errors that occur during task finalisation.
   
 ## v0.3.49 (03 December 2024)
 
@@ -108,7 +120,6 @@
 - Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
 - Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
 - Support all JSON and CSV dataset arguments in `file_dataset()` function.
-
 
 ## v0.3.42 (23 October 2024)
 

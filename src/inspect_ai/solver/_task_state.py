@@ -292,6 +292,11 @@ class TaskState:
         set_active_sample_token_limit(tokens)
 
     @property
+    def token_usage(self) -> int:
+        """Total tokens used for the current sample."""
+        return sample_total_tokens()
+
+    @property
     def completed(self) -> bool:
         """Is the task completed."""
         # update messages
@@ -314,7 +319,7 @@ class TaskState:
                     )
                 )
             return True
-        elif self.token_limit and sample_total_tokens() >= self.token_limit:
+        elif self.token_limit and self.token_usage >= self.token_limit:
             # log if this is the first time we hit this
             if not self._token_limit_exceeded:
                 self._token_limit_exceeded = True

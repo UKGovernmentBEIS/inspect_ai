@@ -21,9 +21,9 @@ from .._util import data_to_samples, record_to_sample_fn
 
 def hf_dataset(
     path: str,
+    split: str,
     name: str | None = None,
     data_dir: str | None = None,
-    split: str | None = None,
     revision: str | None = None,
     sample_fields: FieldSpec | RecordToSample | None = None,
     auto_id: bool = False,
@@ -44,10 +44,10 @@ def hf_dataset(
           builder that is used comes from a generic dataset script (JSON, CSV,
           Parquet, text etc.) or from the dataset script (a python file) inside
           the dataset directory.
+        split (str): Which split of the data to load.
         name (str | None): Name of the dataset configuration.
         data_dir (str | None): data_dir of the dataset configuration
           to read data from.
-        split (str | None): Which split of the data to load.
         revision (str | None): Specific revision to load (e.g. "main", a branch
           name, or a specific commit SHA). When using `revision` the `cached` option
           is ignored and datasets are revalidated on Hugging Face before loading.

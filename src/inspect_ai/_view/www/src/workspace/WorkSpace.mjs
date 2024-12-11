@@ -356,6 +356,8 @@ export const WorkSpace = ({
     logFileName,
     capabilities,
     selectedTab,
+    setHidden,
+    hidden,
   ]);
 
   return html`<${WorkspaceDisplay}

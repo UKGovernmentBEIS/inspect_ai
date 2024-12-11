@@ -10,7 +10,7 @@ import { userDataDir, userRuntimeDir } from "../core/appdirs";
 import { kInspectChangeEvalSignalVersion } from "../providers/inspect/inspect-constants";
 import { existsSync } from "fs";
 
-const kPythonPackageName = "inspect_ai";
+export const kPythonPackageName = "inspect_ai";
 
 export interface VersionDescriptor {
   raw: string;
@@ -182,13 +182,13 @@ export function inspectBinPath(): AbsolutePath | null {
   }
 }
 
-export function inspectLastEvalPaths(): AbsolutePath[]  {
+export function inspectLastEvalPaths(): AbsolutePath[] {
   const descriptor = inspectVersionDescriptor();
   const fileName =
     descriptor && descriptor.version.compare(kInspectChangeEvalSignalVersion) < 0
       ? "last-eval"
       : "last-eval-result";
-  
+
   return [userRuntimeDir(kPythonPackageName), userDataDir(kPythonPackageName)]
     .map(dir => join(dir, "view", fileName))
     .map(toAbsolutePath);
