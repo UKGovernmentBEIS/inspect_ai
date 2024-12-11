@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Tools: Improved typing/schema support (unions, optional params, enums).
+- Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed).
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
