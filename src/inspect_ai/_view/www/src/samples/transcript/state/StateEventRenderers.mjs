@@ -154,7 +154,7 @@ export const RenderableChangeTypes = [
  * @typedef {Object} ToolDefinition
  * @property {string} name - The name of the tool (e.g., "python").
  * @property {string} description - A brief description of what the tool does.
- * @property {ToolParameters} parameters - An object describing the parameters that the tool accepts.
+ * @property {ToolParameters} [parameters] - An object describing the parameters that the tool accepts.
  */
 
 /**
@@ -168,7 +168,9 @@ export const RenderableChangeTypes = [
 export const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
     const toolName = toolDefinition.name;
-    const toolArgs = Object.keys(toolDefinition.parameters.properties);
+    const toolArgs = toolDefinition.parameters?.properties
+      ? Object.keys(toolDefinition.parameters.properties)
+      : [];
     return html`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
   });
 };

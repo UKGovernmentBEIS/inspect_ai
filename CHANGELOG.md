@@ -6,6 +6,7 @@
 - Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
 - Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
 - Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed).
+- Task display: Show all task scores in realtime (expand task progress to see scores).
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
 - Inspect View: Fix issue with incorrectly displayed custom tool views.
