@@ -14,6 +14,8 @@ from inspect_ai.util._sandbox.environment import SandboxConnection
 
 
 class HumanAgentPanel(InputPanel):
+    TITLE = "Human Agent"
+
     connection: reactive[SandboxConnection | None] = reactive(None)
 
     def compose(self) -> ComposeResult:

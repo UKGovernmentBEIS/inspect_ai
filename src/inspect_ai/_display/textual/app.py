@@ -322,23 +322,21 @@ class TaskScreenApp(App[TR]):
             self.update_title()
 
     # dynamic input panels
-    async def add_input_panel(self, title: str, panel: InputPanel) -> None:
+    async def add_input_panel(self, panel: InputPanel) -> None:
         tabs = self.query_one(TabbedContent)
-        await tabs.add_pane(TabPane(title, panel, id=as_input_panel_id(title)))
+        await tabs.add_pane(
+            TabPane(panel.title, panel, id=as_input_panel_id(type(panel)))
+        )
 
-    def get_input_panel(self, title: str) -> InputPanel | None:
+    def get_input_panel(self, panel_type: type) -> InputPanel | None:
         try:
-            tab_pane = self.query_one(f"#{as_input_panel_id(title)}")
+            tab_pane = self.query_one(f"#{as_input_panel_id(panel_type)}")
             if len(tab_pane.children) > 0:
                 return cast(InputPanel, tab_pane.children[0])
             else:
                 return None
         except NoMatches:
             return None
-
-    async def remove_input_panel(self, title: str) -> None:
-        tabs = self.query_one(TabbedContent)
-        await tabs.remove_pane(as_html_id(as_input_panel_id(title), title))
 
     class InputPanelHost(InputPanel.Host):
         def __init__(self, app: "TaskScreenApp[TR]", tab_id: str) -> None:
@@ -432,19 +430,18 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                     console.width = old_width
 
     @override
-    async def input_panel(self, title: str, panel: type[TP]) -> TP:
+    async def input_panel(self, panel_type: type[TP]) -> TP:
         async with self.lock:
-            panel_widget = self.app.get_input_panel(title)
+            panel_widget = self.app.get_input_panel(panel_type)
             if panel_widget is None:
-                panel_widget = panel(
-                    title,
+                panel_widget = panel_type(
                     TaskScreenApp[TR].InputPanelHost(
-                        self.app, as_input_panel_id(title)
+                        self.app, as_input_panel_id(panel_type)
                     ),
                 )
-                await self.app.add_input_panel(title, panel_widget)
+                await self.app.add_input_panel(panel_widget)
             return cast(TP, panel_widget)
 
 
-def as_input_panel_id(title: str) -> str:
-    return as_html_id("id-input-panel", title)
+def as_input_panel_id(panel_type: type) -> str:
+    return as_html_id("id-input-panel", panel_type.__name__)

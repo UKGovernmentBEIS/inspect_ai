@@ -7,6 +7,9 @@ from inspect_ai.util import input_panel, sandbox
 from .panel import HumanAgentPanel
 from .sandbox import configure_sandbox
 
+# TODO: add a panel that can show when we get shell commands
+# TODO: fill out the shell commands and the instructions
+
 
 @solver
 def human_agent() -> Solver:
@@ -18,7 +21,7 @@ def human_agent() -> Solver:
         await configure_sandbox()
 
         # open input panel for control/progress
-        async with await input_panel("User", HumanAgentPanel) as panel:
+        async with await input_panel(HumanAgentPanel) as panel:
             # configure panel
             panel.connection = connection
 
