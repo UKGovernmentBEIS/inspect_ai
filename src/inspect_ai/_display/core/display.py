@@ -105,6 +105,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
 
 @dataclass
 class TaskDisplayMetric:
+    scorer: str
     name: str
     value: float | int
     reducer: str | None
