@@ -1,6 +1,7 @@
 from typing import Protocol
 
+from .state import HumanAgentState
+
 
 class HumanAgentView(Protocol):
-    def start_task(self) -> None: ...
-    def stop_task(self) -> None: ...
+    def update_state(self, state: HumanAgentState) -> None: ...

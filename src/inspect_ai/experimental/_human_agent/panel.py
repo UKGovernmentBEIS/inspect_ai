@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import cast
 
 from textual.app import ComposeResult
 from textual.containers import (
@@ -16,6 +16,7 @@ from textual.widgets import (
     Static,
 )
 
+from inspect_ai._util.throttle import throttle
 from inspect_ai._util.vscode import (
     VSCodeCommand,
     can_execute_vscode_commands,
@@ -23,6 +24,8 @@ from inspect_ai._util.vscode import (
 )
 from inspect_ai.util import InputPanel
 from inspect_ai.util._sandbox.environment import SandboxConnection
+
+from .state import HumanAgentState
 
 
 class HumanAgentPanel(InputPanel):
@@ -60,13 +63,11 @@ class HumanAgentPanel(InputPanel):
 
     connection: reactive[SandboxConnection | None] = reactive(None)
 
-    def start_task(self) -> None:
+    @throttle(1)
+    def update_state(self, state: HumanAgentState) -> None:
         status_bar = self.query_one(StatusBar)
-        status_bar.status = "Started"
-
-    def stop_task(self) -> None:
-        status_bar = self.query_one(StatusBar)
-        status_bar.status = "Stopped"
+        status_bar.running = state.running
+        status_bar.time = state.time
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):
@@ -167,12 +168,11 @@ class StatusBar(Horizontal):
     }}
     """
 
-    status: reactive[Literal["Started", "Stopped"]] = reactive("Started")
+    running: reactive[bool] = reactive(True)
+    time: reactive[float] = reactive(0)
 
     def __init__(self) -> None:
         super().__init__()
-        self.time: float = 0
-        self.timer = self.app.set_interval(1, self.on_tick)
 
     def compose(self) -> ComposeResult:
         yield Label("Status:", classes=self.LABEL_CLASS)
@@ -182,19 +182,16 @@ class StatusBar(Horizontal):
         # yield Static("  ⏸")  # ▶️
         yield Link("Help")
 
-    def on_tick(self) -> None:
-        if self.status == "Started":
-            self.time = self.time + 1
-            minutes, seconds = divmod(self.time, 60)
-            hours, minutes = divmod(minutes, 60)
-            time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
-            cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
+    def watch_running(self, running: bool) -> None:
+        cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(
+            "Started" if running else "Stopped"
+        )
 
-    def on_unmount(self) -> None:
-        self.timer.stop()
-
-    def watch_status(self, status: str) -> None:
-        cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(status)
+    def watch_time(self, time: float) -> None:
+        minutes, seconds = divmod(self.time, 60)
+        hours, minutes = divmod(minutes, 60)
+        time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
+        cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
 
 
 class LoadingView(Container):
