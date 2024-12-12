@@ -34,16 +34,18 @@ class HumanAgentPanel(InputPanel):
     SANDBOX_VIEW_ID = "human-agent-sandbox-view"
     SANDBOX_CONNECTION_ID = "sandbox-connection"
     SANDBOX_INSTRUCTIONS_ID = "sandbox-instructions"
+    VSCODE_INSTRUCTIONS_ID = "vscode-instructions"
     LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
 
+    INSTRUCTIONS_CLASS = "instructions"
     LINK_LABEL_CLASS = "link-label"
 
     DEFAULT_CSS = f"""
     #{SANDBOX_VIEW_ID} {{
         scrollbar-size-vertical: 1;
     }}
-    #{SANDBOX_INSTRUCTIONS_ID} {{
+    HumanAgentPanel .{INSTRUCTIONS_CLASS} {{
         color: $text-muted;
         margin-bottom: 1;
     }}
@@ -74,8 +76,13 @@ class HumanAgentPanel(InputPanel):
             yield LoadingView()
             with ScrollableContainer(id=self.SANDBOX_VIEW_ID):
                 yield StatusBar()
-                yield Static(id=self.SANDBOX_INSTRUCTIONS_ID)
+                yield Static(
+                    id=self.SANDBOX_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
+                )
                 yield Static(id=self.SANDBOX_CONNECTION_ID)
+                yield Static(
+                    id=self.VSCODE_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
+                )
                 with Horizontal():
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
@@ -100,15 +107,25 @@ class HumanAgentPanel(InputPanel):
             instructions_lbl = cast(
                 Static, self.query_one(f"#{self.SANDBOX_INSTRUCTIONS_ID}")
             )
-            instructions = f"""You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command{' (or use the links below to access the system within VS Code)' if vscode else ''}:"""
+            instructions = """You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command. Hold down Alt (or Option) to select text for copying:"""
             instructions_lbl.update(instructions)
 
-            # connection command
+            # connection command (always available)
             connection_lbl = cast(
                 Static, self.query_one(f"#{self.SANDBOX_CONNECTION_ID}")
             )
             connection_lbl.update(connection.command)
 
+            # vscode instructions
+            vscode_instructions_lbl = cast(
+                Static, self.query_one(f"#{self.VSCODE_INSTRUCTIONS_ID}")
+            )
+            vscode_instructions_lbl.display = vscode
+            vscode_instructions_lbl.update(
+                "Alternatively, login to the system within VS Code:"
+            )
+
+            # login: vscode terminanl
             terminal_btn = cast(
                 VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_TERMINAL_ID}")
             )
@@ -123,6 +140,7 @@ class HumanAgentPanel(InputPanel):
                 ),
             ]
 
+            # login: vscode window
             window_btn = cast(
                 VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_ID}")
             )
