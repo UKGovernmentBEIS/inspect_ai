@@ -65,7 +65,6 @@ class TaskScreenApp(App[TR]):
             tooltip="Interrupt the app and return to the command prompt.",
             show=False,
             priority=True,
-            system=True,
         )
     ]
 
