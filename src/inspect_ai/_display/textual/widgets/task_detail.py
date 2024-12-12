@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -103,7 +104,7 @@ class TaskDetail(Widget):
         # Makes keys for tracking Task Metric widgets
         def metric_key(reducer: str | None, scorer: str) -> str:
             reducer = reducer or "none"
-            return f"task-{reducer}-{scorer}-tbl"
+            return valid_id(f"task-{reducer}-{scorer}-tbl")
 
         # Remove keys that are no longer present
         existing_keys = set(self.existing_metrics.keys())
@@ -217,3 +218,15 @@ class TaskMetrics(Widget):
             return " n/a "
         else:
             return f"{val:.3f}"
+
+
+def valid_id(identifier: str) -> str:
+    # Remove invalid characters
+    valid_part = re.sub(r"[^a-zA-Z0-9_-]", "_", identifier)
+
+    # Ensure it doesn't start with a number
+    if valid_part and valid_part[0].isdigit():
+        valid_part = "_" + valid_part
+
+    # If the string is empty return a default valid identifier
+    return valid_part or "default_identifier"
