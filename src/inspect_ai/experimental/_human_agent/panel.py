@@ -33,6 +33,7 @@ class HumanAgentPanel(InputPanel):
 
     SANDBOX_VIEW_ID = "human-agent-sandbox-view"
     SANDBOX_INSTRUCTIONS_ID = "sandbox-instructions"
+    VSCODE_LINKS_ID = "vscode-links"
     LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
     COMMAND_INSTRUCTIONS_ID = "command-instructions"
@@ -59,7 +60,7 @@ class HumanAgentPanel(InputPanel):
         margin-left: 1;
         margin-right: 2;
     }}
-    HumanAgentPanel Horizontal {{
+    HumanAgentPanel #{VSCODE_LINKS_ID} {{
         height: 1;
         margin-bottom: 1;
     }}
@@ -81,7 +82,7 @@ class HumanAgentPanel(InputPanel):
                 yield Static(
                     id=self.SANDBOX_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
                 )
-                with Horizontal():
+                with Horizontal(id=self.VSCODE_LINKS_ID):
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
                         "VS Code Terminal",
@@ -118,11 +119,12 @@ class HumanAgentPanel(InputPanel):
             instructions = f"""You are completing a task on a Linux system (task instructions will be presented when you login). {instructions_vscode if vscode else instructions_command}"""
             instructions_lbl.update(instructions)
 
-            # login: vscode terminanl
+            # login: vscode terminal
+            vscode_links = self.query_one(f"#{self.VSCODE_LINKS_ID}")
+            vscode_links.display = vscode
             terminal_btn = cast(
                 VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_TERMINAL_ID}")
             )
-            terminal_btn.display = vscode
             terminal_btn.commands = [
                 VSCodeCommand(
                     command="workbench.action.terminal.new", args=[{"location": 2}]
@@ -138,15 +140,12 @@ class HumanAgentPanel(InputPanel):
                 VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_ID}")
             )
             if connection.vscode_command is not None:
-                window_btn.display = vscode
                 window_btn.commands = [
                     VSCodeCommand(
                         command=connection.vscode_command[0],
                         args=connection.vscode_command[1:],
                     )
                 ]
-            else:
-                window_btn.display = False
 
             # command (always available)
             command_instructions_lbl = cast(
