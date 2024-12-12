@@ -4,7 +4,7 @@ from textual.app import ComposeResult
 from textual.containers import (
     Container,
     Horizontal,
-    ScrollableContainer,
+    VerticalScroll,
 )
 from textual.reactive import reactive
 from textual.widgets import (
@@ -32,11 +32,11 @@ class HumanAgentPanel(InputPanel):
     DEFAULT_TITLE = "Human Agent"
 
     SANDBOX_VIEW_ID = "human-agent-sandbox-view"
-    SANDBOX_CONNECTION_ID = "sandbox-connection"
     SANDBOX_INSTRUCTIONS_ID = "sandbox-instructions"
-    VSCODE_INSTRUCTIONS_ID = "vscode-instructions"
     LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
+    COMMAND_INSTRUCTIONS_ID = "command-instructions"
+    SANDBOX_COMMAND_ID = "sandbox-command"
 
     INSTRUCTIONS_CLASS = "instructions"
     LINK_LABEL_CLASS = "link-label"
@@ -49,9 +49,7 @@ class HumanAgentPanel(InputPanel):
         color: $text-muted;
         margin-bottom: 1;
     }}
-    #{SANDBOX_CONNECTION_ID} {{
-        margin-top: 1;
-        margin-bottom: 1;
+    #{SANDBOX_COMMAND_ID} {{
         color: $secondary;
     }}
     HumanAgentPanel .{LINK_LABEL_CLASS} {{
@@ -60,6 +58,10 @@ class HumanAgentPanel(InputPanel):
     HumanAgentPanel VSCodeLink {{
         margin-left: 1;
         margin-right: 2;
+    }}
+    HumanAgentPanel Horizontal {{
+        height: 1;
+        margin-bottom: 1;
     }}
     """
 
@@ -74,14 +76,10 @@ class HumanAgentPanel(InputPanel):
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial=LoadingView.ID):
             yield LoadingView()
-            with ScrollableContainer(id=self.SANDBOX_VIEW_ID):
+            with VerticalScroll(id=self.SANDBOX_VIEW_ID):
                 yield StatusBar()
                 yield Static(
                     id=self.SANDBOX_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
-                )
-                yield Static(id=self.SANDBOX_CONNECTION_ID)
-                yield Static(
-                    id=self.VSCODE_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
                 )
                 with Horizontal():
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
@@ -94,6 +92,10 @@ class HumanAgentPanel(InputPanel):
                         "VS Code Window",
                         id=self.LOGIN_VSCODE_WINDOW_ID,
                     )
+                yield Static(
+                    id=self.COMMAND_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
+                )
+                yield Static(id=self.SANDBOX_COMMAND_ID)
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
         if connection:
@@ -103,27 +105,18 @@ class HumanAgentPanel(InputPanel):
             # note whether we are in vscode
             vscode = can_execute_vscode_commands()
 
+            # suffix for instructions based on whether we are in vscode
+            instructions_command = "Login to the system with the following command. Hold down Alt (or Option) to select text for copying:"
+            instructions_vscode = (
+                "Use the links below to login to the system within VS Code:"
+            )
+
             # update instructions
             instructions_lbl = cast(
                 Static, self.query_one(f"#{self.SANDBOX_INSTRUCTIONS_ID}")
             )
-            instructions = """You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command. Hold down Alt (or Option) to select text for copying:"""
+            instructions = f"""You are completing a task on a Linux system (task instructions will be presented when you login). {instructions_vscode if vscode else instructions_command}"""
             instructions_lbl.update(instructions)
-
-            # connection command (always available)
-            connection_lbl = cast(
-                Static, self.query_one(f"#{self.SANDBOX_CONNECTION_ID}")
-            )
-            connection_lbl.update(connection.command)
-
-            # vscode instructions
-            vscode_instructions_lbl = cast(
-                Static, self.query_one(f"#{self.VSCODE_INSTRUCTIONS_ID}")
-            )
-            vscode_instructions_lbl.display = vscode
-            vscode_instructions_lbl.update(
-                "Alternatively, login to the system within VS Code:"
-            )
 
             # login: vscode terminanl
             terminal_btn = cast(
@@ -154,6 +147,17 @@ class HumanAgentPanel(InputPanel):
                 ]
             else:
                 window_btn.display = False
+
+            # command (always available)
+            command_instructions_lbl = cast(
+                Static, self.query_one(f"#{self.COMMAND_INSTRUCTIONS_ID}")
+            )
+            command_instructions_lbl.display = vscode
+            command_instructions_lbl.update(
+                instructions_command.replace("Login", "Alternatively, login", 1)
+            )
+            command_lbl = cast(Static, self.query_one(f"#{self.SANDBOX_COMMAND_ID}"))
+            command_lbl.update(connection.command)
 
 
 class StatusBar(Horizontal):
