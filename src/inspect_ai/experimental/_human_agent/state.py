@@ -36,6 +36,19 @@ class HumanAgentState:
         return self._accumulated_time + running_time
 
     @property
+    def answer(self) -> str | None:
+        return self._get(self.ANSWER, None)
+
+    @answer.setter
+    def answer(self, answer: str | None) -> None:
+        self._set(self.ANSWER, answer)
+        self._set(self.COMPLETED, True)
+
+    @property
+    def completed(self) -> bool:
+        return self._get(self.COMPLETED, False)
+
+    @property
     def status(self) -> dict[str, JsonValue]:
         return dict(running=self.running, time=self.time)
 
@@ -65,3 +78,5 @@ class HumanAgentState:
     RUNNING = "running"
     STARTED_RUNNING = "started_running"
     ACCUMULATED_TIME = "accumulated_time"
+    ANSWER = "answer"
+    COMPLETED = "completed"

@@ -1,5 +1,6 @@
 from pydantic import JsonValue
 
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox import sandbox, sandbox_service
 
@@ -7,7 +8,7 @@ from .state import HumanAgentState
 from .view import HumanAgentView
 
 
-async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> None:
+async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> TaskState:
     # initialise agent state
     agent_state = HumanAgentState(state.store)
 
@@ -20,18 +21,27 @@ async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> Non
     async def stop() -> None:
         agent_state.running = False
 
-    async def note() -> None:
-        pass
+    async def submit(answer: str | None) -> None:
+        agent_state.running = False
+        agent_state.answer = answer
 
     # callback to check if task is completed (use this to periodically
     # update the view with the current state)
-    def task_is_complete() -> bool:
+    def task_is_completed() -> bool:
         view.update_state(agent_state)
-        return False
+        return agent_state.completed
 
-    return await sandbox_service(
+    # run the service
+    await sandbox_service(
         name="human_agent",
-        methods=[status, start, stop, note],
-        until=task_is_complete,
+        methods=[status, start, stop, submit],
+        until=task_is_completed,
         sandbox=sandbox(),
     )
+
+    # set the answer if we have one
+    if agent_state.answer is not None:
+        state.output = ModelOutput.from_content("human_agent", agent_state.answer)
+
+    # return state
+    return state

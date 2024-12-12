@@ -4,29 +4,36 @@ import os
 import sys
 
 sys.path.append("/tmp/inspect-sandbox-services/human_agent")
-import human_agent
+from human_agent import call_human_agent
 
 
 def status():
-    status = human_agent.call_human_agent("status")
+    status = call_human_agent("status")
     print(status)
 
 
 def start():
-    parser = argparse.ArgumentParser(description="Start the clock")
+    parser = argparse.ArgumentParser()
     parser.parse_args(sys.argv[2:])
-    human_agent.call_human_agent("start")
+    call_human_agent("start")
 
 
 def stop():
-    human_agent.call_human_agent("stop")
+    call_human_agent("stop")
 
 
-def note():
-    human_agent.call_human_agent("note")
+def submit():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "answer",
+        nargs="?",
+        help="Answer to submit for scoring (optional, not required for all tasks)",
+    )
+    args = parser.parse_args(sys.argv[2:])
+    call_human_agent("submit", **vars(args))
 
 
-_commands: dict = {"status": status, "start": start, "stop": stop, "note": note}
+_commands: dict = {"status": status, "start": start, "stop": stop, "submit": submit}
 
 if len(sys.argv) > 0:
     command = os.path.basename(sys.argv[1])
