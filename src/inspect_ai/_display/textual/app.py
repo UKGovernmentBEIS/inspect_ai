@@ -1,12 +1,13 @@
 import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, Coroutine, Generic, Iterator, cast
+from typing import Any, AsyncIterator, ClassVar, Coroutine, Generic, Iterator, cast
 
 import rich
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.binding import Binding, BindingType
 from textual.css.query import NoMatches
 from textual.events import Print
 from textual.widgets import TabbedContent, TabPane
@@ -54,6 +55,18 @@ class TaskScreenResult(Generic[TR]):
 
 class TaskScreenApp(App[TR]):
     CSS_PATH = "app.tcss"
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding(
+            "ctrl+c",
+            "quit",
+            "Interrupt",
+            tooltip="Interrupt the app and return to the command prompt.",
+            show=False,
+            priority=True,
+            system=True,
+        )
+    ]
 
     def __init__(self) -> None:
         # call super

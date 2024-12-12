@@ -23,6 +23,7 @@
 - Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
 - Display: Throttle updating of sample list based on number of samples.
+- Display: Add explicit 'ctrl+c' keybinding (as textual now disables this by default).
 - Bugfix: `hf_dataset` now explicitly requires the `split` argument (previously, it would crash when not specified).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.
