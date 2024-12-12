@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.50 (12 December 2024)
 
 - Tools: Improved typing/schema support (unions, optional params, enums).
 - Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
