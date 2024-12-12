@@ -409,7 +409,7 @@ const scoreCategorizers = [
      */
     describe: (values) => {
       if (
-        (values.length === 1 || values.length === 2) &&
+        (values.length === 2) &&
         values.every((val) => {
           return val === 1 || val === 0;
         })
