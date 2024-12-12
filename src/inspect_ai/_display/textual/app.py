@@ -15,6 +15,7 @@ from textual.widgets.tabbed_content import ContentTabs
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
+from inspect_ai._display.core.textual import textual_enable_mouse_support
 from inspect_ai._util.html import as_html_id
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
@@ -87,6 +88,12 @@ class TaskScreenApp(App[TR]):
 
         # enable rich hooks
         rich_initialise()
+
+    def _watch_app_focus(self, focus: bool) -> None:
+        super()._watch_app_focus(focus)
+
+        if focus and self.app._driver:
+            textual_enable_mouse_support(self.app._driver)
 
     def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
         # create the worker
