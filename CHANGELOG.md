@@ -9,6 +9,7 @@
 - Task display: Show all task scores in realtime (expand task progress to see scores).
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
+- Task display: Resolve issue where task display would lose mouse input after VS Code reload.
 - Datasets: Validate that all IDs in datasets are unique (as several downstream problems occur w/ duplicate IDs).
 - Inspect View: Fix issue with incorrectly displayed custom tool views.
 - Human approval: Use fullcreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
