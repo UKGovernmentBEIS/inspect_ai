@@ -25449,35 +25449,22 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
         if (!sample || !sample.scores) {
           return [];
         }
-        const scoreNames = scorers.map((score2) => {
+        scorers.map((score2) => {
           return score2.name;
         });
         const sampleScorer = sample.scores[scorer];
         const scoreVal = sampleScorer.value;
         if (typeof scoreVal === "object") {
           const names = Object.keys(scoreVal);
-          if (names.find((name) => {
-            return !scoreNames.includes(name);
-          })) {
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                }
+          const scores = names.map((name) => {
+            return {
+              name,
+              rendered: () => {
+                return scoreDescriptor.render(scoreVal[name]);
               }
-            ];
-          } else {
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                }
-              };
-            });
-            return scores;
-          }
+            };
+          });
+          return scores;
         } else {
           return [
             {
@@ -25530,7 +25517,7 @@ const scoreCategorizers = [
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     describe: (values) => {
-      if ((values.length === 1 || values.length === 2) && values.every((val) => {
+      if (values.length === 2 && values.every((val) => {
         return val === 1 || val === 0;
       })) {
         return booleanScoreCategorizer();
