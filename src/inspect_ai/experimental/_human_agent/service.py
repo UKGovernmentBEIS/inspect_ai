@@ -1,3 +1,5 @@
+from pydantic import JsonValue
+
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox import sandbox, sandbox_service
 
@@ -8,6 +10,9 @@ from .view import HumanAgentView
 async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> None:
     # initialise agent state
     agent_state = HumanAgentState(state.store)
+
+    async def status() -> dict[str, JsonValue]:
+        return agent_state.status
 
     async def start() -> None:
         agent_state.running = True
@@ -26,7 +31,7 @@ async def run_human_agent_service(state: TaskState, view: HumanAgentView) -> Non
 
     return await sandbox_service(
         name="human_agent",
-        methods=[start, stop, note],
+        methods=[status, start, stop, note],
         until=task_is_complete,
         sandbox=sandbox(),
     )

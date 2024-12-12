@@ -7,6 +7,11 @@ sys.path.append("/tmp/inspect-sandbox-services/human_agent")
 import human_agent
 
 
+def status():
+    status = human_agent.call_human_agent("status")
+    print(status)
+
+
 def start():
     parser = argparse.ArgumentParser(description="Start the clock")
     parser.parse_args(sys.argv[2:])
@@ -21,7 +26,7 @@ def note():
     human_agent.call_human_agent("note")
 
 
-_commands: dict = {"start": start, "stop": stop, "note": note}
+_commands: dict = {"status": status, "start": start, "stop": stop, "note": note}
 
 if len(sys.argv) > 0:
     command = os.path.basename(sys.argv[1])

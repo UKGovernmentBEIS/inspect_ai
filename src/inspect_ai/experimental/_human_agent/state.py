@@ -1,6 +1,8 @@
 import time
 from typing import Any, TypeVar
 
+from pydantic import JsonValue
+
 from inspect_ai.util._store import Store
 
 VT = TypeVar("VT")
@@ -32,6 +34,10 @@ class HumanAgentState:
     def time(self) -> float:
         running_time = time.time() - self._started_running if self.running else 0
         return self._accumulated_time + running_time
+
+    @property
+    def status(self) -> dict[str, JsonValue]:
+        return dict(running=self.running, time=self.time)
 
     @property
     def _started_running(self) -> float:
