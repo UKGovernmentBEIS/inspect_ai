@@ -158,6 +158,23 @@ export const createsSamplesDescriptor = (
     }
     return undefined;
   };
+
+  // Retrieve the metadata for a sample
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {string} scorer - the scorer name
+   * @returns {Object} The explanation
+   */
+  const scoreMetadata = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.metadata) {
+        return sampleScore.metadata;
+      }
+    }
+    return undefined;
+  };
+
   const uniqScoreValues = [
     ...new Set(
       samples
@@ -280,6 +297,9 @@ export const createsSamplesDescriptor = (
 
   const scorerDescriptor = (sample, scorer) => {
     return {
+      metadata: () => {
+        return scoreMetadata(sample, scorer);
+      },
       explanation: () => {
         return scoreExplanation(sample, scorer);
       },
