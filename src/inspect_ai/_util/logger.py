@@ -1,6 +1,6 @@
 import os
-from contextvars import ContextVar
 from logging import (
+    DEBUG,
     INFO,
     WARNING,
     FileHandler,
@@ -130,7 +130,7 @@ def init_logger(
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        _logHandler = LogHandler(min(HTTP, levelno), transcript_levelno)
+        _logHandler = LogHandler(min(DEBUG, levelno), transcript_levelno)
         getLogger().addHandler(_logHandler)
 
     # establish default capture level
@@ -140,6 +140,7 @@ def init_logger(
     getLogger().setLevel(capture_level)
     getLogger(PKG_NAME).setLevel(capture_level)
     getLogger("httpx").setLevel(capture_level)
+    getLogger("botocore").setLevel(DEBUG)
 
     # set the levelno on the global handler
     _logHandler.display_level = levelno
@@ -154,19 +155,27 @@ def notify_logger_record(record: LogRecord, write: bool) -> None:
 
     if write:
         transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
-    if record.levelno <= INFO and "429" in record.getMessage():
-        _rate_limit_count_context_var.set(_rate_limit_count_context_var.get() + 1)
+    global _rate_limit_count
+    if (record.levelno <= INFO and "429" in record.getMessage()) or (
+        record.levelno == DEBUG
+        # See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#validating-retry-attempts
+        # for boto retry logic / log messages (this is tracking standard or adapative retries)
+        and "botocore.retries.standard" in record.name
+        and "Retry needed, retrying request after delay of:" in record.getMessage()
+    ):
+        _rate_limit_count = _rate_limit_count + 1
 
 
-_rate_limit_count_context_var = ContextVar[int]("rate_limit_count", default=0)
+_rate_limit_count = 0
 
 
 def init_http_rate_limit_count() -> None:
-    _rate_limit_count_context_var.set(0)
+    global _rate_limit_count
+    _rate_limit_count = 0
 
 
 def http_rate_limit_count() -> int:
-    return _rate_limit_count_context_var.get()
+    return _rate_limit_count
 
 
 def warn_once(logger: Logger, message: str) -> None:
