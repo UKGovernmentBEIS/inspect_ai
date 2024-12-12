@@ -310,12 +310,7 @@ class SandboxesView(Vertical):
         yield Vertical(id="sandboxes-list")
 
     async def sync_sample(self, sample: ActiveSample) -> None:
-        sandboxes = sample.sandboxes
-        show_sandboxes = (
-            len([sandbox for sandbox in sandboxes.values() if sandbox.container]) > 0
-        )
-
-        if show_sandboxes:
+        if len(sample.sandboxes) > 0:
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
             sandboxes_caption.update("[bold]sandbox containers:[/bold]")
@@ -323,11 +318,7 @@ class SandboxesView(Vertical):
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
             await sandboxes_list.mount_all(
-                [
-                    Static(sandbox.container)
-                    for sandbox in sandboxes.values()
-                    if sandbox.container
-                ]
+                [Static(sandbox.command) for sandbox in sample.sandboxes.values()]
             )
             sandboxes_list.mount(
                 Static(
