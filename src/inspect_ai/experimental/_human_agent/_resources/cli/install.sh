@@ -7,7 +7,7 @@ cp commands.py $HUMAN_AGENT
 
 # create bash aliases for commands
 create_alias() {
-    echo "alias $1=\"$HUMAN_AGENT/commands.py $1\"" >> ~/.bashrc
+    echo "alias t$1=\"$HUMAN_AGENT/commands.py $1\"" >> ~/.bashrc
 }
 for cmd in status start stop note; do
     create_alias $cmd
