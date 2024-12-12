@@ -4,6 +4,10 @@ from inspect_ai.util import sandbox
 
 
 async def install_human_agent() -> None:
+    # see if we have already installed
+    if not (await sandbox().exec(["mkdir", "/opt/human_agent"])).success:
+        return
+
     # copy agent src files and make them executable
     INSTALL_DIR = "human_agent_install"
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
