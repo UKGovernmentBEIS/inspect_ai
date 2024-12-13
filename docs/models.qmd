@@ -189,13 +189,6 @@ $ inspect eval --model azureai/llama-2-70b-chat-wnsnw
 
 #### Tool Emulation
 
-::: {.callout-note appearance="simple"}
-The `emulate_tools` model argument described below is supported only in the development version of Inspect. To install the development version from GitHub:
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 When using the `azureai` model provider, tool calling support can be 'emulated' for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the `emulate_tools` model arg to force tool emulation:
 
 ```bash

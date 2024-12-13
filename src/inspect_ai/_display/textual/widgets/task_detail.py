@@ -63,6 +63,9 @@ class TaskDetail(Widget):
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         # Group by reducer then scorer within reducers
         self.metrics = metrics
+
+        # clear the existing computed reducers
+        self.by_reducer = {}
         for metric in metrics:
             reducer_group = (
                 self.by_reducer[metric.reducer]
@@ -117,6 +120,7 @@ class TaskDetail(Widget):
         for remove in to_remove:
             task_metric = self.existing_metrics[remove]
             task_metric.remove()
+            del self.existing_metrics[remove]
 
         # add or update widgets with metrics
         for reducer, scorers in self.by_reducer.items():
@@ -187,24 +191,49 @@ class TaskMetrics(Widget):
         self.grid: Grid = Grid()
         self.value_widgets: dict[str, Static] = {}
 
-    def compose(self) -> ComposeResult:
-        # Just yield a single DataTable widget
-        yield Center(self._title())
-        with Grid():
-            for metric in self.metrics:
-                # Add the value static but keep it around
-                # for future updates
-                self.value_widgets[metric.name] = Static(
-                    self._metric_value(metric.value)
-                )
+    def grid_id(self) -> str:
+        return f"{self.id}-grid"
 
-                yield Static(metric.name)
-                yield self.value_widgets[metric.name]
+    def compose(self) -> ComposeResult:
+        # Yield the title and base grid
+        yield Center(self._title())
+        yield Grid(id=self.grid_id())
 
     def update(self, metrics: list[TaskMetric]) -> None:
+        self.metrics = metrics
+
+        # We assume that generally the initial metric names will
+        # always match future updates (so we can just update values in line)
+        # but if an unrecognized metric appears on the scene, just
+        # recompute the whole grid
+        need_recompute = False
         for metric in metrics:
-            widget = self.value_widgets[metric.name]
-            widget.update(content=f"{metric.value:,.3f}")
+            widget = self.value_widgets.get(metric.name)
+            if widget:
+                # Just update the values themselves
+                widget.update(content=f"{metric.value:,.3f}")
+            else:
+                # Don't have a widget for this, recompute the whole grid
+                need_recompute = True
+                break
+
+        if need_recompute:
+            self.recompute_grid()
+
+    def on_mount(self) -> None:
+        self.recompute_grid()
+
+    def recompute_grid(self) -> None:
+        grid = self.query_one(f"#{self.grid_id()}")
+
+        grid.remove_children()
+        for metric in self.metrics:
+            # Add the value static but keep it around
+            # for future updates
+            self.value_widgets[metric.name] = Static(self._metric_value(metric.value))
+
+            grid.mount(Static(metric.name))
+            grid.mount(self.value_widgets[metric.name])
 
     def _title(self) -> Widget:
         if self.scorer is None:

@@ -350,7 +350,17 @@ const metadataViewsForSample = (id, sample) => {
   return sampleMetadatas;
 };
 
-const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
+/**
+ * Component to display a sample with relevant context and visibility control.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.parent_id - The id of the parent com
+ * @param {import("../types/log").EvalSample} [props.sample] - the sample
+ * @param {Object} [props.style] - Inline styles for the table element.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
   const input =
     sampleDescriptor?.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
@@ -386,7 +396,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const columns = [];
   columns.push({
     label: "Id",
-    value: id,
+    value: sample.id,
     size: `${idSize}em`,
   });
 
@@ -412,7 +422,8 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
 
   const fullAnswer =
     sample && sampleDescriptor
-      ? sampleDescriptor.selectedScorer(sample).answer()
+      ? // @ts-ignore
+        sampleDescriptor.selectedScorer(sample).answer()
       : undefined;
   if (fullAnswer) {
     columns.push({
@@ -445,14 +456,16 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
           message=${sample.error.message}
           style=${{ marginTop: "0.4rem" }}
         />`
-      : sampleDescriptor?.selectedScore(sample).render(),
+      : // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
+        // @ts-ignore
+        sampleDescriptor?.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true,
   });
 
   return html`
     <div
-      id=${`sample-heading-${id}`}
+      id=${`sample-heading-${parent_id}`}
       style=${{
         display: "grid",
         gridTemplateColumns: `${columns
