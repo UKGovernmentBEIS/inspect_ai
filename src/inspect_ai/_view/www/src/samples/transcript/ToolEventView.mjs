@@ -29,7 +29,7 @@ export const ToolEventView = ({ id, event, style, depth }) => {
     return e.event === "approval";
   });
 
-  const title = `Tool: ${event.function}`;
+  const title = `Tool: ${event.view?.title || event.function}`;
   return html`
   <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
   <div name="Summary" style=${{ margin: "0.5em 0" }}>

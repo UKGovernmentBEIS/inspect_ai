@@ -63,26 +63,12 @@ export const ToolCallView = ({
   output,
   mode,
 }) => {
-  const icon =
-    mode === "compact"
-      ? ""
-      : html`<i
-          class="bi bi-tools"
-          style=${{
-            marginRight: "0.2rem",
-            opacity: "0.4",
-          }}
-        ></i>`;
-  const codeIndent = mode === "compact" ? "" : "";
   return html`<div>
-    ${icon}
-    ${!view || view.title
-      ? html`<code style=${{ fontSize: FontSize.small }}
-          >${view?.title || functionCall}</code
-        >`
+    ${mode !== "compact" && (!view || view.title)
+      ? html`<${ToolTitle} title=${view?.title || functionCall} />`
       : ""}
     <div>
-      <div style=${{ marginLeft: `${codeIndent}` }}>
+      <div>
         <${ToolInput}
           type=${inputType}
           contents=${input}
