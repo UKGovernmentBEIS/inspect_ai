@@ -2,8 +2,15 @@ import { html } from "htm/preact";
 import { MarkdownDiv } from "./MarkdownDiv.mjs";
 import { ToolOutput } from "./Tools.mjs";
 
-export const MessageContent = (props) => {
-  const { contents } = props;
+/**
+ * Renders message content based on its type.
+ * Supports rendering strings, images, and tools using specific renderers.
+ *
+ * @param {Object} props - The props object.
+ * @param {string|string[]| (import("../types/log").ContentText | import("../types/log").ContentImage | import("../Types.mjs").ContentTool)[]} props.contents - The content or array of contents to render.
+ * @returns {import("preact").JSX.Element | import("preact").JSX.Element[]} The component.
+ */
+export const MessageContent = ({ contents }) => {
   if (Array.isArray(contents)) {
     return contents.map((content, index) => {
       if (typeof content === "string") {

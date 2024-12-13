@@ -711,6 +711,12 @@ pre[class*="language-"].tool-output,
   background-color: #333333;
 }
 
+pre[class*="language-"].tool-output {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: var(--bs-border-radius) !important;
+}
+
 
 /* jsondiffpatch */
 
