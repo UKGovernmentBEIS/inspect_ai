@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.52 (13 December 2024)
 
 - Eval: `--sample-id` option for evaluating specific sample id(s).
 - Bedrock: Detect and report HTTP rate limit errors.
@@ -9,7 +9,6 @@
 - Inspect View: Correct display of sample ID for single sample tasks.
 - Trace: Show custom tool views in `--trace` mode.
 - Bugfix: Support for dynamic metric names in realtime scoring display.
-
 
 ## v0.3.51 (13 December 2024)
 
