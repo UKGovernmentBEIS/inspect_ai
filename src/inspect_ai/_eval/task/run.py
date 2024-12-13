@@ -162,6 +162,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             dataset=task.dataset,
             model_name=model_name,
             limit=config.limit,
+            sample_id=config.sample_id,
             epochs=epochs,
             log_images=log_images,
             message_limit=config.message_limit,
@@ -748,13 +749,14 @@ async def resolve_dataset(
     dataset: Dataset,
     model_name: ModelName,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str | int] | None,
     epochs: int,
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
-    # apply limit to dataset
-    dataset = slice_dataset(dataset, limit)
+    # slice dataset
+    dataset = slice_dataset(dataset, limit, sample_id)
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []
