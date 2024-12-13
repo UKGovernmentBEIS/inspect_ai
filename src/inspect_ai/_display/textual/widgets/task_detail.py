@@ -85,6 +85,10 @@ class TaskDetail(Widget):
         if not self.grid.is_attached:
             return
 
+        # don't refresh the grid if there are no scores
+        if len(self.by_reducer) == 0:
+            return
+
         # Compute the row and column count
         row_count = len(self.by_reducer)
         col_count = len(next(iter(self.by_reducer.values())))

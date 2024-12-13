@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.51 (13 December 2024)
+
+- Bugfix: Task display fails to load when no scorers are defined for a task.
+
 ## v0.3.50 (12 December 2024)
 
 - Tools: Improved typing/schema support (unions, optional params, enums).
