@@ -42,7 +42,7 @@ def trace_assistant_message(
         # print tool calls
         if message.tool_calls:
             content.append(Text())
-            content.append(render_tool_calls(message.tool_calls))
+            content.extend(render_tool_calls(message.tool_calls))
 
         # print the assistant message
         trace_panel(title="Assistant", content=content)

@@ -1,8 +1,7 @@
 from rich.console import RenderableType
 
-from inspect_ai._util.format import format_function_call
-from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_transcript import transcript_tool_call
 
 from ._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageTool
 
@@ -17,8 +16,10 @@ def messages_preceding_assistant(messages: list[ChatMessage]) -> list[ChatMessag
     return list(reversed(preceding))
 
 
-def render_tool_calls(tool_calls: list[ToolCall]) -> RenderableType:
-    formatted_calls: list[str] = []
+def render_tool_calls(tool_calls: list[ToolCall]) -> list[RenderableType]:
+    formatted_calls: list[RenderableType] = []
+
     for call in tool_calls:
-        formatted_calls.append(format_function_call(call.function, call.arguments))
-    return transcript_markdown("```python\n" + "\n\n".join(formatted_calls) + "\n```\n")
+        formatted_calls.extend(transcript_tool_call(call))
+
+    return formatted_calls
