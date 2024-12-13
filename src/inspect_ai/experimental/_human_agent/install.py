@@ -25,7 +25,6 @@ async def install_human_agent(
         return
 
     # setup installation directory
-
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
 
     # generate and write documentation files
