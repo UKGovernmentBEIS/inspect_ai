@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Trace: Show custom tool views in `--trace` mode.
+
 ## v0.3.51 (13 December 2024)
 
 - Bugfix: Task display fails to load when no scorers are defined for a task.
