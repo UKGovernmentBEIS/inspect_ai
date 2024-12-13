@@ -214,6 +214,10 @@ are some of the more useful ones:
 # limit to 10 samples
 $ inspect eval theory.py --limit 10
 
+# limit to specific sample id(s)
+$ inspect eval theory.py --sample-id 10
+$ insepct eval theory.py --sample_id 9,10
+
 # limit tokens
 $ inspect eval theory.py --max-tokens 128
 

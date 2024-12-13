@@ -8,14 +8,14 @@ evaluations. Each example in the tutorial is standalone, so feel free to
 skip between examples that demonstrate the features you are most
 interested in.
 
-| Example                               | Demonstrates                                                           |
-|---------------------------------------|------------------------------------------------------------------------|
-| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
-| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
-| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.                        |
-| [Mathematics](#sec-mathematics)       | Creating custom scorers; Developing with larger datasets.              |
-| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools.                                  |
-| [InterCode CTF](#sec-intercode-ctf)   | Tool using agents; reading complex datasets.                           |
+| Example | Demonstrates |
+|----|----|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
+| [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
+| [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
+| [Mathematics](#sec-mathematics) | Creating custom scorers; Developing with larger datasets. |
+| [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
+| [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
 
 See also the complete list of [Examples](#sec-examples) for
 demonstrations of more advanced features.
@@ -35,9 +35,9 @@ Evals](https://github.com/openai/evals) repository. This eval tests how
 well models are doing at providing cybersecurity guidance. Here are some
 examples from the dataset:
 
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| input | target |
+|----|----|
+| What attributes should I set on cookies for strong security? | secure samesite and httponly |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 ### Setup
@@ -190,10 +190,10 @@ word problems. The dataset was created to support the task of question
 answering on basic mathematical problems that require multi-step
 reasoning. Here are some samples from the dataset:
 
-| question                                                                                                           | answer                                                                                                                                                                                    |
-|--------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?             | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
-| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10**                                                      |
+| question | answer |
+|----|----|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
 
 Note that the final numeric answers are contained at the end of the
 **answer** field after the `####` delimiter.
@@ -326,10 +326,10 @@ full step-by-step solution which can be used to teach models to generate
 answer derivations and explanations. Here are some samples from the
 dataset:
 
-| Question                                                                                                                                                         | Answer |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------:|
+| Question | Answer |
+|----|---:|
 | How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
-| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$                                              |   1112 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
 
 ### Setup
 

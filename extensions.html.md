@@ -169,10 +169,10 @@ more sophisticated infrastructure (e.g. creating network hosts for a
 cybersecurity eval). Inspect comes with two sandbox environments built
 in:
 
-| Environment Type | Description                                                                                                                                                      |
-|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
+| Environment Type | Description |
+|----|----|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container |
 
 To create a custom sandbox environment, derive a class from
 `SandboxEnvironment`, implement the required static and instance
@@ -256,14 +256,14 @@ registration of sandboxes from the importing of libraries they require
 The class methods take care of various stages of initialisation, setup,
 and teardown:
 
-| Method             | Lifecycle                                                                                             | Purpose                                                                               |
-|--------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| `config_files()`   | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |                                                                                       |
-| `task_init()`      | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `sample_init()`    | Called at the beginning of each `Sample`.                                                             | Create `SandboxEnvironment` instances for the sample.                                 |
-| `sample_cleanup()` | Called at the end of each `Sample`                                                                    | Cleanup `SandboxEnvironment` instances for the sample.                                |
-| `task_cleanup()`   | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.  | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()`    | Called via `inspect sandbox cleanup`                                                                  | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.         |
+| Method | Lifecycle | Purpose |
+|----|----|----|
+| `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same
 working directory, the `task_init()` and `task_cleanup()` functions will

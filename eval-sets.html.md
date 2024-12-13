@@ -97,12 +97,12 @@ was created by a function decorated with `@solver`.
 There are a number of options that control the retry behaviour of eval
 sets:
 
-| **Option**            | Description                                                                                                            |
-|-----------------------|------------------------------------------------------------------------------------------------------------------------|
-| `--retry-attempts`    | Maximum number of retry attempts (defaults to 10)                                                                      |
-| `--retry-wait`        | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5)                                                  |
-| `--no-retry-cleanup`  | Do not cleanup failed log files after retries.                                                                         |
+| **Option** | Description |
+|----|----|
+| `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 For example, here we specify a base wait time of 120 seconds:
 
@@ -127,9 +127,9 @@ eval_set(
 You can bundle a standalone version of the log viewer for an eval set
 using the bundling options:
 
-| **Option**           | Description                                                        |
-|----------------------|--------------------------------------------------------------------|
-| `--bundle-dir`       | Directory to write standalone log viewer files to.                 |
+| **Option** | Description |
+|----|----|
+| `--bundle-dir` | Directory to write standalone log viewer files to. |
 | `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
 The bundle directory can then be deployed to any static web server
