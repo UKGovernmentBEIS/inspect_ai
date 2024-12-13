@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Inspect View: Various improvements to appearance of tool calls in transcript.
+
 ## v0.3.52 (13 December 2024)
 
 - Eval: `--sample-id` option for evaluating specific sample id(s).
