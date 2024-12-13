@@ -32,7 +32,7 @@ export const ToolEventView = ({ id, event, style, depth }) => {
   const title = `Tool: ${event.view?.title || event.function}`;
   return html`
   <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
-  <div name="Summary" style=${{ margin: "0.5em 0" }}>
+  <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
