@@ -3,7 +3,9 @@
 ## Unreleased
 
 - Azure AI: Add `emulate_tools` model arg to force tool emulation (emulation is enabled by default for Llama models).
+- Basic agent: Add `max_tool_output` parameter to override default max tool output from generate config.
 - Trace: Show custom tool views in `--trace` mode.
+
 
 ## v0.3.51 (13 December 2024)
 
