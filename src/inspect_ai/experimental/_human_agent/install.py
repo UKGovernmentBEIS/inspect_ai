@@ -30,12 +30,11 @@ async def install_human_agent(
     await checked_write_file(f"{INSTALL_DIR}/commands.py", commands_py, executable=True)
 
     # write installation script
-    with open(Path(__file__).parent / "install.sh", "r") as f:
-        install_sh = f.read()
+    install_sh = human_agent_install_sh(commands)
     await checked_write_file(f"{INSTALL_DIR}/install.sh", install_sh, executable=True)
 
     # run install script then remove directory
-    await checked_exec(["./install.sh"], cwd=INSTALL_DIR)
+    await checked_exec(["bash", "./install.sh"], cwd=INSTALL_DIR)
     await checked_exec(["rm", "-rf", INSTALL_DIR])
 
 
@@ -94,7 +93,43 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
         sys.exit(1)
     """)
 
-    return PREFIX + "\n\n" + code + "\n\n" + registration + "\n\n" + SUFFIX
+    return "\n\n".join([PREFIX, code, registration, SUFFIX])
+
+
+def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
+    PREFIX = dedent("""
+    #!/usr/bin/env bash
+
+    # install commands
+    HUMAN_AGENT="/opt/human_agent"
+    mkdir -p $HUMAN_AGENT
+    cp commands.py $HUMAN_AGENT
+
+    # copy documentation
+    cp welcome.txt ../welcome.txt
+    cp instructions.txt ../instructions.txt
+
+    # create bash aliases for commands
+    create_alias() {
+        echo "alias t$1='python3 $HUMAN_AGENT/commands.py $1'" >> ~/.bashrc
+    }
+    """)
+
+    registration = dedent(f"""
+    for cmd in {' '.join([command.name for command in commands])}; do
+        create_alias $cmd
+    done
+    """)
+
+    SUFFIX = dedent("""
+    # add welcome login content
+    echo 'cat <<- "EOF"' >> ~/.bashrc
+    cat welcome_login.txt >> ~/.bashrc
+    echo '' >> ~/.bashrc
+    echo 'EOF' >> ~/.bashrc
+    """)
+
+    return "\n\n".join([PREFIX, registration, SUFFIX])
 
 
 async def checked_exec(
