@@ -11,7 +11,7 @@ cp instructions.txt ../instructions.txt
 
 # create bash aliases for commands
 create_alias() {
-    echo "alias t$1=\"$HUMAN_AGENT/commands.py $1\"" >> ~/.bashrc
+    echo "alias t$1=\"python3 $HUMAN_AGENT/commands.py $1\"" >> ~/.bashrc
 }
 for cmd in status start stop submit; do
     create_alias $cmd
