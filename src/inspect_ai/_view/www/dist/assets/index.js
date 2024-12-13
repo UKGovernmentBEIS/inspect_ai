@@ -20241,7 +20241,7 @@ const metadataViewsForSample = (id, sample) => {
   }
   return sampleMetadatas;
 };
-const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
+const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
@@ -20262,7 +20262,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const columns = [];
   columns.push({
     label: "Id",
-    value: id,
+    value: sample.id,
     size: `${idSize}em`
   });
   columns.push({
@@ -20315,7 +20315,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-heading-${id}`}
+      id=${`sample-heading-${parent_id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
