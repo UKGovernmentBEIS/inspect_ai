@@ -20225,7 +20225,7 @@ const metadataViewsForSample = (id, sample) => {
   }
   return sampleMetadatas;
 };
-const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
+const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
   const input = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
   const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
   const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
@@ -20246,7 +20246,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   const columns = [];
   columns.push({
     label: "Id",
-    value: id,
+    value: sample.id,
     size: `${idSize}em`
   });
   columns.push({
@@ -20299,7 +20299,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-heading-${id}`}
+      id=${`sample-heading-${parent_id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
@@ -25449,22 +25449,35 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
         if (!sample || !sample.scores) {
           return [];
         }
-        scorers.map((score2) => {
+        const scoreNames = scorers.map((score2) => {
           return score2.name;
         });
         const sampleScorer = sample.scores[scorer];
         const scoreVal = sampleScorer.value;
         if (typeof scoreVal === "object") {
           const names = Object.keys(scoreVal);
-          const scores = names.map((name) => {
-            return {
-              name,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal[name]);
+          if (names.find((name) => {
+            return scoreNames.includes(name);
+          })) {
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal[name]);
+                }
+              };
+            });
+            return scores;
+          } else {
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                }
               }
-            };
-          });
-          return scores;
+            ];
+          }
         } else {
           return [
             {
