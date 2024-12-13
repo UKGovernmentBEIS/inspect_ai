@@ -168,7 +168,7 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     cp {INSTRUCTIONS_FILE} ..
     """)
 
-    # add recording to .bash_profile
+    # bash profile init (recording and source .bashrc)
     PROFILE_INIT = dedent(f"""
     cat {PROFILE_SH} >> ~/.bash_profile
     """)
