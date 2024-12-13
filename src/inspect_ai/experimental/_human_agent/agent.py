@@ -20,6 +20,6 @@ def human_agent(intermediate_scoring: bool = False) -> Solver:
             panel.connection = await sandbox().connection()
 
             # run sandbox service
-            return await run_human_agent_service(state, panel)
+            return await run_human_agent_service(state, commands, panel)
 
     return solve
