@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Azure AI: Add `emulate_tools` model arg to force tool emulation (emulation is enabled by default for Llama models).
 - Trace: Show custom tool views in `--trace` mode.
 
 ## v0.3.51 (13 December 2024)
