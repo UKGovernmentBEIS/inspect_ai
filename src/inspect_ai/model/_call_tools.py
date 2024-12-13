@@ -68,10 +68,6 @@ async def call_tools(
             # create a transript for this call
             init_transcript(Transcript(name=call.function))
 
-            # Amend the tool call with a custom view
-            view = tool_call_view(call, tdefs)
-            call.view = view
-
             result: Any = ""
             tool_error: ToolCallError | None = None
             try:
@@ -142,7 +138,7 @@ async def call_tools(
                 arguments=call.arguments,
                 result=content,
                 truncated=truncated,
-                view=view,
+                view=call.view,
                 error=tool_error,
                 events=list(transcript().events),
             )
@@ -163,7 +159,7 @@ async def call_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
-                view=tool_call_view(call, tdefs),
+                view=call.view,
                 pending=True,
             )
             transcript()._event(event)

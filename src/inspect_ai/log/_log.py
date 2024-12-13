@@ -37,6 +37,9 @@ class EvalConfig(BaseModel):
     limit: int | tuple[int, int] | None = Field(default=None)
     """Sample limit (number of samples or range of samples)."""
 
+    sample_id: str | int | list[str | int] | None = Field(default=None)
+    """Evaluate specific sample(s)."""
+
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
