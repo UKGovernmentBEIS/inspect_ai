@@ -254,7 +254,7 @@ $ inspect eval --model azureai/llama-2-70b-chat-wnsnw
 
 > [!NOTE]
 >
-> The `emulated_tool` model argument described below is supported only
+> The `emulate_tools` model argument described below is supported only
 > in the development version of Inspect. To install the development
 > version from GitHub:
 >
@@ -265,14 +265,14 @@ $ inspect eval --model azureai/llama-2-70b-chat-wnsnw
 When using the `azureai` model provider, tool calling support can be
 ‘emulated’ for models that Azure AI has not yet implemented tool calling
 for. This occurs by default for Llama models. For other models, use the
-`emulated_tool` model arg to force tool emulation:
+`emulate_tools` model arg to force tool emulation:
 
 ``` bash
 inspect eval ctf.py -M emulate_tools=true
 ```
 
 You can also use this option to disable tool emulation for Llama models
-with `emulated_tool=false`.
+with `emulate_tools=false`.
 
 ### AWS Bedrock
 
