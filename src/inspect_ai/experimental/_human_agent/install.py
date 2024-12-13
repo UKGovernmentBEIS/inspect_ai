@@ -1,5 +1,4 @@
 import inspect
-from pathlib import Path
 from textwrap import dedent
 
 from typing_extensions import TypedDict
