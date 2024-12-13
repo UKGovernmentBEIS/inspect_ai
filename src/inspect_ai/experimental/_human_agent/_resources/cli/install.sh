@@ -6,8 +6,8 @@ mkdir -p $HUMAN_AGENT
 cp commands.py $HUMAN_AGENT
 
 # copy documentation
-cp welcome.txt ~/welcome.txt
-cp instructions.txt ~/instructions.txt
+cp welcome.txt ../welcome.txt
+cp instructions.txt ../instructions.txt
 
 # create bash aliases for commands
 create_alias() {
