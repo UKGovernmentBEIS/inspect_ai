@@ -19595,7 +19595,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
   const title = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
-  <div name="Summary" style=${{ margin: "0.5em 0" }}>
+  <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
