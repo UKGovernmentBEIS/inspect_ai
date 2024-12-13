@@ -12,13 +12,14 @@ INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
 COMMANDS_PY = "commands.py"
 INSTALL_SH = "install.sh"
+PROFILE_SH = "profile.sh"
 WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
 
 
 async def install_human_agent(
-    state: TaskState, commands: list[HumanAgentCommand]
+    state: TaskState, commands: list[HumanAgentCommand], record_session: bool
 ) -> None:
     # see if we have already installed
     if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
@@ -30,6 +31,11 @@ async def install_human_agent(
     # generate and write documentation files
     for doc, content in human_agent_docs(state, commands).items():
         await checked_write_file(f"{INSTALL_DIR}/{doc}.txt", str(content))
+
+    # write profile.sh
+    await checked_write_file(
+        f"{INSTALL_DIR}/{PROFILE_SH}", profile_init(record_session)
+    )
 
     # generate and write commands.py
     commands_py = human_agent_commands_py(commands)
@@ -135,7 +141,7 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
 
 
 def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
-    PREFIX = dedent(f"""
+    ALIASES = dedent(f"""
     #!/usr/bin/env bash
 
     # install commands
@@ -143,32 +149,62 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     mkdir -p $HUMAN_AGENT
     cp {COMMANDS_PY} $HUMAN_AGENT
 
-    # copy documentation
-    cp {WELCOME_FILE} ..
-    cp {INSTRUCTIONS_FILE} ..
-
     # create bash aliases for commands
     create_alias() {{
         echo "alias $1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> ~/.bashrc
     }}
     """)
 
-    registration = dedent(f"""
+    # create command aliases in .bashrc
+    REGISTRATION = dedent(f"""
     for cmd in {' '.join([command.name for command in commands])}; do
         create_alias $cmd
     done
     """)
 
-    SUFFIX = dedent(f"""
-    # add welcome login content
-    echo 'cat <<- "EOF"' >> ~/.bashrc
-    cat {WELCOME_FILE} >> ~/.bashrc
-    cat {WELCOME_LOGIN_FILE} >> ~/.bashrc
-    echo '' >> ~/.bashrc
-    echo 'EOF' >> ~/.bashrc
+    DOCUMENTATION = dedent(f"""
+    # copy documentation
+    cp {WELCOME_FILE} ..
+    cp {INSTRUCTIONS_FILE} ..
     """)
 
-    return "\n\n".join([PREFIX, registration, SUFFIX])
+    # add recording to .bash_profile
+    PROFILE_INIT = dedent(f"""
+    cat {PROFILE_SH} >> ~/.bash_profile
+    """)
+
+    # add welcome banner to .bash_profile
+    WELCOME = dedent(f"""
+    echo 'cat <<- "EOF"' >> ~/.bash_profile
+    cat {WELCOME_FILE} >> ~/.bash_profile
+    cat {WELCOME_LOGIN_FILE} >> ~/.bash_profile
+    echo '' >> ~/.bash_profile
+    echo 'EOF' >> ~/.bash_profile
+    """)
+
+    return "\n\n".join([ALIASES, REGISTRATION, DOCUMENTATION, PROFILE_INIT, WELCOME])
+
+
+def profile_init(record_session: bool) -> str:
+    RECORD_SCRIPT = dedent("""
+    if [ -z "$SCRIPT_RUNNING" ]; then
+        export SCRIPT_RUNNING=1
+        LOGDIR=/tmp/inspect-session-log
+        mkdir -p $LOGDIR
+        LOGFILE="$LOGDIR/session.log"
+        TIMINGFILE="$LOGDIR/session.time"
+        # Run script quietly (-q), flush output (-f), and produce a timing file (-t)
+        exec script -q -f -T "$TIMINGFILE" "$LOGFILE" -c "bash --login -i"
+    fi
+    """)
+
+    SOURCE_BASHRC = dedent("""
+    if [ -f ~/.bashrc ]; then
+        source ~/.bashrc
+    fi
+    """)
+
+    return "\n\n".join([SOURCE_BASHRC, RECORD_SCRIPT if record_session else ""])
 
 
 async def checked_exec(
