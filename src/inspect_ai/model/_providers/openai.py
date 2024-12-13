@@ -273,7 +273,8 @@ class OpenAIAPI(ModelAPI):
             params["top_logprobs"] = config.top_logprobs
         if tools and config.parallel_tool_calls is not None:
             params["parallel_tool_calls"] = config.parallel_tool_calls
-
+        if config.response_format is not None:
+            params["response_format"] = config.response_format
         return params
 
     # convert some well known bad request errors into ModelOutput
