@@ -111,7 +111,7 @@ In addition, there are separate base URL variables for running various frontier 
 
 ## Generation Config
 
-There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
+There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, `response_format`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
 
 You can specify generation options either on the command line or in direct calls to `eval()`. For example:
 
