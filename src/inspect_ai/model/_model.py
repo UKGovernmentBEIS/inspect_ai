@@ -268,10 +268,10 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
 
-        # see if we can get tooldefs (used to populate toolview)
-
-        # resolve many tool types into one
+        # extract tool defs if we can
         tdefs = tool_defs([tool for tool in tools if not isinstance(tool, ToolInfo)])
+
+        # resolve all tools into tool_info
         tools = tools_info(tools)
 
         # if we have a specific tool selected then filter out the others
