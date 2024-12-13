@@ -58,7 +58,7 @@ def human_agent_docs(
 ) -> HumanAgentDocs:
     commands_text = "\n".join(
         [
-            f"- t{command.name}: {command.description}"
+            f"- {command.name}: {command.description}"
             for command in commands
             if not command.hidden
         ]
@@ -150,7 +150,7 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
 
     # create bash aliases for commands
     create_alias() {{
-        echo "alias t$1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> ~/.bashrc
+        echo "alias $1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> ~/.bashrc
     }}
     """)
 
