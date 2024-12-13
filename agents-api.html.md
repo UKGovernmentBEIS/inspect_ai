@@ -175,14 +175,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason | Description |
-|----|----|
-| `stop` | The model hit a natural stop point or a provided stop sequence |
-| `max_tokens` | The maximum number of tokens specified in the request was reached. |
-| `model_length` | The model’s context length was exceeded. |
-| `tool_calls` | The model called a tool |
-| `content_filter` | Content was omitted due to a content filter. |
-| `unknown` | Unknown (e.g. unexpected runtime error) |
+| Stop Reason      | Description                                                        |
+|------------------|--------------------------------------------------------------------|
+| `stop`           | The model hit a natural stop point or a provided stop sequence     |
+| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
+| `model_length`   | The model’s context length was exceeded.                           |
+| `tool_calls`     | The model called a tool                                            |
+| `content_filter` | Content was omitted due to a content filter.                       |
+| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
 
 ### Error Handling
 

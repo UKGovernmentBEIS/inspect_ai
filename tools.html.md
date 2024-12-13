@@ -591,16 +591,16 @@ If you review the transcripts of a sample with access to the web browser
 tool, you’ll notice that there are several distinct tools made available
 for control of the web browser. These tools include:
 
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| Tool                                        | Description                                                                           |
+|---------------------------------------------|---------------------------------------------------------------------------------------|
+| `web_browser_go(url)`                       | Navigate the web browser to a URL.                                                    |
+| `web_browser_click(element_id)`             | Click an element on the page currently displayed by the web browser.                  |
+| `web_browser_type(element_id)`              | Type text into an input on a web browser page.                                        |
 | `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
+| `web_browser_scroll(direction)`             | Scroll the web browser up or down by one page.                                        |
+| `web_browser_forward()`                     | Navigate the web browser forward in the browser history.                              |
+| `web_browser_back()`                        | Navigate the web browser back in the browser history.                                 |
+| `web_browser_refresh()`                     | Refresh the current page of the web browser.                                          |
 
 The return value of each of these tools is a [web accessibility
 tree](https://web.dev/articles/the-accessibility-tree) for the page,

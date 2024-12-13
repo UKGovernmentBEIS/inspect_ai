@@ -129,18 +129,18 @@ repository at
 There are several options available for customising the behaviour of the
 basic agent:
 
-| Option | Type | Description |
-|----|----|----|
-| `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
-| `tools` | `list[Tool]` | List of tools available to the agent. |
-| `max_attempts` | `int` | Maximum number of submission attempts to accept. |
-| `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
-| `token_limit` | `int` | Limit on in conversation before terminating agent. |
-| `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
-| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
-| `continue_message` | `str` | User message to urge the model to continue when it doesn’t make a tool call. |
-| `submit_name` | `str` | Name for tool used to make submissions (defaults to ‘submit’). |
-| `submit_description` | `str` | Description of submit tool (defaults to ‘Submit an answer for evaluation’) |
+| Option               | Type                    | Description                                                                                                       |
+|----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `init`               | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`).                                                                   |
+| `tools`              | `list[Tool]`            | List of tools available to the agent.                                                                             |
+| `max_attempts`       | `int`                   | Maximum number of submission attempts to accept.                                                                  |
+| `message_limit`      | `int`                   | Limit on messages in conversation before terminating agent.                                                       |
+| `token_limit`        | `int`                   | Limit on in conversation before terminating agent.                                                                |
+| `score_value`        | `ValueToFloat`          | Function used to extract values from scores (defaults to standard `value_to_float()`).                            |
+| `incorrect_message`  | `str`                   | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
+| `continue_message`   | `str`                   | User message to urge the model to continue when it doesn’t make a tool call.                                      |
+| `submit_name`        | `str`                   | Name for tool used to make submissions (defaults to ‘submit’).                                                    |
+| `submit_description` | `str`                   | Description of submit tool (defaults to ‘Submit an answer for evaluation’)                                        |
 
 For multiple attempts, submissions are evaluated using the task’s main
 scorer, with value of 1.0 indicating a correct answer. Scorer values are
@@ -225,14 +225,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason | Description |
-|----|----|
-| `stop` | The model hit a natural stop point or a provided stop sequence |
-| `max_tokens` | The maximum number of tokens specified in the request was reached. |
-| `model_length` | The model’s context length was exceeded. |
-| `tool_calls` | The model called a tool |
-| `content_filter` | Content was omitted due to a content filter. |
-| `unknown` | Unknown (e.g. unexpected runtime error) |
+| Stop Reason      | Description                                                        |
+|------------------|--------------------------------------------------------------------|
+| `stop`           | The model hit a natural stop point or a provided stop sequence     |
+| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
+| `model_length`   | The model’s context length was exceeded.                           |
+| `tool_calls`     | The model called a tool                                            |
+| `content_filter` | Content was omitted due to a content filter.                       |
+| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
 
 ### Error Handling
 
@@ -629,10 +629,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|----|----|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to
@@ -717,11 +717,11 @@ file (`compose.yaml`).
 Here is how Docker sandbox environments are created based on the
 presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
-|----|----|
-| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a sandbox environment by building the image. |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+| Config Files   | Behavior                                                                                                           |
+|----------------|--------------------------------------------------------------------------------------------------------------------|
+| None           | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                               |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                            |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will
 automatically generate one as needed. Note that the automatically
