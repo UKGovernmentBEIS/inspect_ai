@@ -5,7 +5,8 @@
 - Eval: `--sample-id` option for evaluating specific sample id(s).
 - Bedrock: Detect and report HTTP rate limit errors.
 - Azure AI: Add `emulate_tools` model arg to force tool emulation (emulation is enabled by default for Llama models).
-- Basic agent: Add `max_tool_output` parameter to override default max tool output from generate config.
+- Basic Agent: Add `max_tool_output` parameter to override default max tool output from generate config.
+- Inspect View: Correct display of sample ID for single sample tasks.
 - Trace: Show custom tool views in `--trace` mode.
 
 
