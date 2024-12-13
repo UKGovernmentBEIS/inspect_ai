@@ -8,6 +8,7 @@
 - Basic Agent: Add `max_tool_output` parameter to override default max tool output from generate config.
 - Inspect View: Correct display of sample ID for single sample tasks.
 - Trace: Show custom tool views in `--trace` mode.
+- Bugfix: Support for dynamic metric names in realtime scoring display.
 
 
 ## v0.3.51 (13 December 2024)
