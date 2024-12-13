@@ -8,7 +8,12 @@ from inspect_ai.util import sandbox
 
 from .commands import HumanAgentCommand
 
+INSTALL_DIR = "human_agent_install"
+HUMAN_AGENT_DIR = "/opt/human_agent"
+COMMANDS_PY = "commands.py"
+INSTALL_SH = "install.sh"
 WELCOME_FILE = "welcome.txt"
+WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
 
 
@@ -16,11 +21,11 @@ async def install_human_agent(
     state: TaskState, commands: list[HumanAgentCommand]
 ) -> None:
     # see if we have already installed
-    if not (await sandbox().exec(["mkdir", "/opt/human_agent"])).success:
+    if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
         return
 
     # setup installation directory
-    INSTALL_DIR = "human_agent_install"
+
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
 
     # generate and write documentation files
@@ -29,14 +34,16 @@ async def install_human_agent(
 
     # generate and write commands.py
     commands_py = human_agent_commands_py(commands)
-    await checked_write_file(f"{INSTALL_DIR}/commands.py", commands_py, executable=True)
+    await checked_write_file(
+        f"{INSTALL_DIR}/{COMMANDS_PY}", commands_py, executable=True
+    )
 
     # write installation script
     install_sh = human_agent_install_sh(commands)
-    await checked_write_file(f"{INSTALL_DIR}/install.sh", install_sh, executable=True)
+    await checked_write_file(f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, executable=True)
 
     # run install script then remove directory
-    await checked_exec(["bash", "./install.sh"], cwd=INSTALL_DIR)
+    await checked_exec(["bash", f"./{INSTALL_SH}"], cwd=INSTALL_DIR)
     await checked_exec(["rm", "-rf", INSTALL_DIR])
 
 
@@ -121,7 +128,7 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
             sys.stderr.write(f"command not recognized: {command}")
             sys.exit(1)
     else:
-        sys.stderr.write("no command specified (usage command.py <cmd>)")
+        sys.stderr.write("no command specified")
         sys.exit(1)
     """)
 
@@ -133,9 +140,9 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     #!/usr/bin/env bash
 
     # install commands
-    HUMAN_AGENT="/opt/human_agent"
+    HUMAN_AGENT="{HUMAN_AGENT_DIR}"
     mkdir -p $HUMAN_AGENT
-    cp commands.py $HUMAN_AGENT
+    cp {COMMANDS_PY} $HUMAN_AGENT
 
     # copy documentation
     cp {WELCOME_FILE} ..
@@ -143,7 +150,7 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
 
     # create bash aliases for commands
     create_alias() {{
-        echo "alias t$1='python3 $HUMAN_AGENT/commands.py $1'" >> ~/.bashrc
+        echo "alias t$1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> ~/.bashrc
     }}
     """)
 
@@ -153,11 +160,11 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     done
     """)
 
-    SUFFIX = dedent("""
+    SUFFIX = dedent(f"""
     # add welcome login content
     echo 'cat <<- "EOF"' >> ~/.bashrc
-    cat welcome.txt >> ~/.bashrc
-    cat welcome_login.txt >> ~/.bashrc
+    cat {WELCOME_FILE} >> ~/.bashrc
+    cat {WELCOME_LOGIN_FILE} >> ~/.bashrc
     echo '' >> ~/.bashrc
     echo 'EOF' >> ~/.bashrc
     """)
