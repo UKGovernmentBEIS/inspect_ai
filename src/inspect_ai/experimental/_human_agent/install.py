@@ -1,5 +1,5 @@
 import inspect
-from textwrap import dedent
+from textwrap import dedent, indent
 
 from typing_extensions import TypedDict
 
@@ -7,6 +7,9 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import sandbox
 
 from .commands import HumanAgentCommand
+
+WELCOME_FILE = "welcome.txt"
+INSTRUCTIONS_FILE = "instructions.txt"
 
 
 async def install_human_agent(
@@ -46,8 +49,38 @@ class HumanAgentDocs(TypedDict):
 def human_agent_docs(
     state: TaskState, commands: list[HumanAgentCommand]
 ) -> HumanAgentDocs:
+    commands_text = "\n".join(
+        [
+            f"- t{command.name}: {command.description}"
+            for command in commands
+            if not command.hidden
+        ]
+    )
+
+    instructions = "\n\n".join([message.text for message in state.messages])
+
+    welcome = dedent(f"""
+    =================================================================================
+                            WELCOME TO YOUR INSPECT TASK!
+    =================================================================================
+
+    Please use the following commands as you complete your work:
+
+{indent(commands_text, "    ")}
+
+    """)
+
+    welcome_login = dedent(f"""
+    The command reference will also be saved in the file {WELCOME_FILE}.
+    Task instructions are at {INSTRUCTIONS_FILE} and are also displayed below.
+
+    =================================================================================
+
+{indent(instructions, "    ")}
+    """).lstrip()
+
     return HumanAgentDocs(
-        welcome="welcome!", welcome_login="welcome login!", instructions="instructions"
+        welcome=welcome, welcome_login=welcome_login, instructions=instructions
     )
 
 
@@ -96,7 +129,7 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
 
 
 def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
-    PREFIX = dedent("""
+    PREFIX = dedent(f"""
     #!/usr/bin/env bash
 
     # install commands
@@ -105,13 +138,13 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     cp commands.py $HUMAN_AGENT
 
     # copy documentation
-    cp welcome.txt ../welcome.txt
-    cp instructions.txt ../instructions.txt
+    cp {WELCOME_FILE} ..
+    cp {INSTRUCTIONS_FILE} ..
 
     # create bash aliases for commands
-    create_alias() {
+    create_alias() {{
         echo "alias t$1='python3 $HUMAN_AGENT/commands.py $1'" >> ~/.bashrc
-    }
+    }}
     """)
 
     registration = dedent(f"""
@@ -123,6 +156,7 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     SUFFIX = dedent("""
     # add welcome login content
     echo 'cat <<- "EOF"' >> ~/.bashrc
+    cat welcome.txt >> ~/.bashrc
     cat welcome_login.txt >> ~/.bashrc
     echo '' >> ~/.bashrc
     echo 'EOF' >> ~/.bashrc
