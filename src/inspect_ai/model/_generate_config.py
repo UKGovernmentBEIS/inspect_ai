@@ -71,7 +71,8 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
-
+    response_format: dict[str, str] | None
+    """Specifying a format for the model response, e.g. {"type":"json_object"} """
 
 class GenerateConfig(BaseModel):
     """Base class for model generation configs."""
@@ -138,7 +139,10 @@ class GenerateConfig(BaseModel):
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
-
+    
+    response_format: dict[str,str] | None = Field(default=None)
+    """Specifying a format for the model response, e.g. {"type":"json_object"} """
+    
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
     ) -> "GenerateConfig":
