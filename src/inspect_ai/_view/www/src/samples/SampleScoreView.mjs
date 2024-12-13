@@ -3,7 +3,8 @@ import { arrayToString, inputString } from "../utils/Format.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleScores } from "./SampleScores.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { MetaDataView } from "../components/MetaDataView.mjs";
+import { MetaDataGrid } from "../components/MetaDataGrid.mjs";
+import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 
 const labelStyle = {
   paddingRight: "2em",
@@ -22,6 +23,7 @@ export const SampleScoreView = ({
   if (!sampleDescriptor) {
     return "";
   }
+
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
     scoreInput.push("");
@@ -35,17 +37,21 @@ export const SampleScoreView = ({
   const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
+  const metadata = scorerDescriptor.metadata();
 
   return html`
-    <div
-      class="container-fluid"
-      style=${{
-        paddingTop: "1em",
-        paddingLeft: "0",
-        fontSize: FontSize.base,
-        ...style,
-      }}
-    >
+  <div
+    class="container-fluid"
+    style=${{
+      marginTop: "0.5em",
+      paddingLeft: "0",
+      fontSize: FontSize.base,
+      ...style,
+    }}
+  >
+    <${Card}>
+    <${CardHeader} label="Score"/>
+    <${CardBody}>
       <div>
         <div style=${{ ...labelStyle }}>Input</div>
         <div>
@@ -58,7 +64,7 @@ export const SampleScoreView = ({
 
       <table
         class="table"
-        style=${{ width: "100%", marginBottom: "0", marginTop: "1em" }}
+        style=${{ width: "100%", marginBottom: "1em" }}
       >
         <thead style=${{ borderBottomColor: "#00000000" }}>
           <tr>
@@ -114,73 +120,42 @@ export const SampleScoreView = ({
           </tr>
         </tbody>
       </table>
+    </${CardBody}>
+    </${Card}>
 
-      ${explanation && explanation !== answer
-        ? html` <table
-            class="table"
-            style=${{ width: "100%", marginBottom: "0" }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style=${{
-                    paddingBottom: "0",
-                    paddingLeft: "0",
-                    ...labelStyle,
-                    fontWeight: "400",
-                  }}
-                >
-                  Explanation
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style=${{ paddingLeft: "0" }}>
-                  <${MarkdownDiv}
-                    markdown=${arrayToString(explanation)}
-                    style=${{ paddingLeft: "0" }}
-                    class="no-last-para-padding"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>`
-        : ""}
-      ${sample?.score?.metadata &&
-      Object.keys(sample?.score?.metadata).length > 0
-        ? html` <table
-            class="table"
-            style=${{ width: "100%", marginBottom: "0" }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style=${{
-                    paddingBottom: "0",
-                    paddingLeft: "0",
-                    ...labelStyle,
-                    fontWeight: "400",
-                  }}
-                >
-                  Metadata
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style=${{ paddingLeft: "0" }}>
-                  <${MetaDataView}
-                    id="task-sample-score-metadata"
-                    classes="tab-pane"
-                    entries="${sample?.score?.metadata}"
-                    style=${{ marginTop: "1em" }}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>`
-        : ""}
+    ${
+      explanation && explanation !== answer
+        ? html` 
+    <${Card}>
+      <${CardHeader} label="Explanation"/>
+      <${CardBody}>
+        <${MarkdownDiv}
+            markdown=${arrayToString(explanation)}
+            style=${{ paddingLeft: "0" }}
+            class="no-last-para-padding"
+          />
+
+      </${CardBody}>
+    </${Card}>`
+        : ""
+    }
+
+    ${
+      metadata && Object.keys(metadata).length > 0
+        ? html`
+    <${Card}>
+      <${CardHeader} label="Metadata"/>
+      <${CardBody}>
+        <${MetaDataGrid}
+          id="task-sample-score-metadata"
+          classes="tab-pane"
+          entries="${metadata}"
+          style=${{ marginTop: "0" }}
+        />
+      </${CardBody}>
+    </${Card}>`
+        : ""
+    }
     </div>
   `;
 };

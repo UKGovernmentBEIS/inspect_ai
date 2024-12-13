@@ -150,7 +150,6 @@ export const SampleDisplay = ({
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
           scorer=${Object.keys(sample.scores)[0]}
-          style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
         />
       </${TabPanel}>`);
   } else {
@@ -164,7 +163,6 @@ export const SampleDisplay = ({
             sample=${sample}
             sampleDescriptor=${sampleDescriptor}
             scorer=${scorer}
-            style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}
           />
         </${TabPanel}>`);
     }
@@ -180,7 +178,7 @@ export const SampleDisplay = ({
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === kSampleMetdataTabId}>
-         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0.8em", marginTop: "1em" }}> 
+         <div style=${{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "1em", paddingLeft: "0", marginTop: "0.5em" }}> 
           ${sampleMetadatas}
         </div>
       </${TabPanel}>`,

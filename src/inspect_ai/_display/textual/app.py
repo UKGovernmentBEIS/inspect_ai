@@ -1,12 +1,13 @@
 import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, Coroutine, Generic, Iterator, cast
+from typing import Any, AsyncIterator, ClassVar, Coroutine, Generic, Iterator, cast
 
 import rich
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.binding import Binding, BindingType
 from textual.css.query import NoMatches
 from textual.events import Print
 from textual.widget import Widget
@@ -15,6 +16,7 @@ from textual.widgets.tabbed_content import ContentTabs
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
 
+from inspect_ai._display.core.textual import textual_enable_mouse_support
 from inspect_ai._util.html import as_html_id
 from inspect_ai.log._samples import active_samples
 from inspect_ai.log._transcript import InputEvent, transcript
@@ -56,6 +58,17 @@ class TaskScreenResult(Generic[TR]):
 class TaskScreenApp(App[TR]):
     CSS_PATH = "app.tcss"
 
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding(
+            "ctrl+c",
+            "quit",
+            "Interrupt",
+            tooltip="Interrupt the app and return to the command prompt.",
+            show=False,
+            priority=True,
+        )
+    ]
+
     def __init__(self) -> None:
         # call super
         super().__init__()
@@ -75,6 +88,12 @@ class TaskScreenApp(App[TR]):
 
         # enable rich hooks
         rich_initialise()
+
+    def _watch_app_focus(self, focus: bool) -> None:
+        super()._watch_app_focus(focus)
+
+        if focus and self.app._driver:
+            textual_enable_mouse_support(self.app._driver)
 
     def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
         # create the worker

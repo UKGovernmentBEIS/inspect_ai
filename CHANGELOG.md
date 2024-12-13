@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.50 (12 December 2024)
 
 - Tools: Improved typing/schema support (unions, optional params, enums).
 - Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
@@ -9,6 +9,8 @@
 - Task display: Show all task scores in realtime (expand task progress to see scores).
 - Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
 - Task display: Show sample messages/tokens used (plus limits if specified).
+- Task display: Resolve issue where task display would lose mouse input after VS Code reload.
+- Datasets: Validate that all IDs in datasets are unique (as several downstream problems occur w/ duplicate IDs).
 - Inspect View: Fix issue with incorrectly displayed custom tool views.
 - Human approval: Use fullcreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
 - Added `input_panel()` API for adding custom panels to the fullscreen task display.
@@ -22,6 +24,8 @@
 - Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
 - Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
 - Display: Throttle updating of sample list based on number of samples.
+- Display: Add explicit 'ctrl+c' keybinding (as textual now disables this by default).
+- Bugfix: Correct rate limit error display when running in fullscreen mode.
 - Bugfix: `hf_dataset` now explicitly requires the `split` argument (previously, it would crash when not specified).
 - Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
 - Bugfix: Correctly restore sample summaries from log file after abend.

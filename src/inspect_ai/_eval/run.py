@@ -12,9 +12,10 @@ from inspect_ai._display.core.active import (
     init_task_screen,
 )
 from inspect_ai._display.core.display import TaskSpec
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai.dataset._dataset import Dataset
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
@@ -149,6 +150,9 @@ async def eval_run(
                 for id, sample in enumerate(task.dataset):
                     if sample.id is None:
                         sample.id = id + 1
+
+                # Ensure sample ids are unique
+                ensure_unique_ids(task.dataset)
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -385,3 +389,24 @@ def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
         TaskSpec(registry_unqualified_name(task.task.name), ModelName(task.model))
         for task in tasks
     ]
+
+
+def ensure_unique_ids(dataset: Dataset) -> None:
+    """
+    Validates that all samples in the dataset have unique IDs.
+
+    Raises a error if duplicates are found.
+
+    Args:
+        dataset (Datatset): The dataset
+
+    Raises:
+        PrerequisiteError: If duplicate IDs are found in the dataset.
+    """
+    seen_ids = set()
+    for sample in dataset:
+        if sample.id in seen_ids:
+            raise PrerequisiteError(
+                f"The dataset contains duplicate sample ids (duplicate id: {sample.id}). Please ensure each sample has a unique id."
+            )
+        seen_ids.add(sample.id)

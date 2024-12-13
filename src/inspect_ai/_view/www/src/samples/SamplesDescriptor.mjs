@@ -158,6 +158,23 @@ export const createsSamplesDescriptor = (
     }
     return undefined;
   };
+
+  // Retrieve the metadata for a sample
+  /**
+   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {string} scorer - the scorer name
+   * @returns {Object} The explanation
+   */
+  const scoreMetadata = (sample, scorer) => {
+    if (sample) {
+      const sampleScore = score(sample, scorer);
+      if (sampleScore && sampleScore.metadata) {
+        return sampleScore.metadata;
+      }
+    }
+    return undefined;
+  };
+
   const uniqScoreValues = [
     ...new Set(
       samples
@@ -280,6 +297,9 @@ export const createsSamplesDescriptor = (
 
   const scorerDescriptor = (sample, scorer) => {
     return {
+      metadata: () => {
+        return scoreMetadata(sample, scorer);
+      },
       explanation: () => {
         return scoreExplanation(sample, scorer);
       },
@@ -300,24 +320,18 @@ export const createsSamplesDescriptor = (
         });
         const sampleScorer = sample.scores[scorer];
         const scoreVal = sampleScorer.value;
+
         if (typeof scoreVal === "object") {
           const names = Object.keys(scoreVal);
+
+          // See if this is a dictionary of score names
+          // if any of the score names match, treat it
+          // as a scorer dictionary
           if (
             names.find((name) => {
-              return !scoreNames.includes(name);
+              return scoreNames.includes(name);
             })
           ) {
-            // Since this dictionary contains keys which are not scores
-            // we just treat it like an opaque dictionary
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                },
-              },
-            ];
-          } else {
             // Since this dictionary contains keys which are  scores
             // we actually render the individual scores
             const scores = names.map((name) => {
@@ -329,6 +343,17 @@ export const createsSamplesDescriptor = (
               };
             });
             return scores;
+          } else {
+            // Since this dictionary contains keys which are not scores
+            // we just treat it like an opaque dictionary
+            return [
+              {
+                name: scorer,
+                rendered: () => {
+                  return scoreDescriptor.render(scoreVal);
+                },
+              },
+            ];
           }
         } else {
           return [
@@ -389,7 +414,7 @@ const scoreCategorizers = [
      */
     describe: (values) => {
       if (
-        (values.length === 1 || values.length === 2) &&
+        values.length === 2 &&
         values.every((val) => {
           return val === 1 || val === 0;
         })
