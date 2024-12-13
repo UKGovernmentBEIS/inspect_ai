@@ -1,27 +1,48 @@
 from pathlib import Path
 
+from typing_extensions import TypedDict
+
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import sandbox
 
 
-async def install_human_agent() -> None:
+async def install_human_agent(state: TaskState, intermediate_scoring: bool) -> None:
     # see if we have already installed
     if not (await sandbox().exec(["mkdir", "/opt/human_agent"])).success:
         return
 
-    # copy agent src files and make them executable
+    # setup installation directory
     INSTALL_DIR = "human_agent_install"
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
-    cli_package_dir = Path(__file__).parent / "_resources" / "cli"
-    for package_file in cli_package_dir.iterdir():
-        with open(package_file, "r") as f:
+
+    # generate and documentation files
+    for doc, content in human_agent_docs(state, intermediate_scoring).items():
+        await checked_write_file(f"{INSTALL_DIR}/{doc}.txt", str(content))
+
+    # copy agent cli files and make them executable
+    cli_dir = Path(__file__).parent / "_resources" / "cli"
+    for cli_file in cli_dir.iterdir():
+        with open(cli_file, "r") as f:
             contents = f.read()
-        file = f"{INSTALL_DIR}/{package_file.name}"
+        file = f"{INSTALL_DIR}/{cli_file.name}"
         await checked_write_file(file, contents)
         await checked_exec(["chmod", "+x", file])
 
     # run install script then remove directory
     await checked_exec(["./install.sh"], cwd=INSTALL_DIR)
     await checked_exec(["rm", "-rf", INSTALL_DIR])
+
+
+class HumanAgentDocs(TypedDict):
+    welcome: str
+    welcome_login: str
+    instructions: str
+
+
+def human_agent_docs(state: TaskState, intermediate_scoring: bool) -> HumanAgentDocs:
+    return HumanAgentDocs(
+        welcome="welcome!", welcome_login="welcome login!", instructions="instructions"
+    )
 
 
 async def checked_exec(
