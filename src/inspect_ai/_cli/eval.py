@@ -12,7 +12,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_RETRIES,
 )
 from inspect_ai._util.file import filesystem
-from inspect_ai._util.samples import parse_samples_limit
+from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.scorer._reducer import create_reducers
@@ -143,6 +143,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         help="Limit samples to evaluate e.g. 10 or 10-20",
         envvar="INSPECT_EVAL_LIMIT",
+    )
+    @click.option(
+        "--sample-id",
+        type=str,
+        help="Evaluate specific sample(s) (comma separated list of ids)",
+        envvar="INSPECT_EVAL_SAMPLE_ID",
     )
     @click.option(
         "--epochs",
@@ -391,6 +397,7 @@ def eval_command(
     epochs: int | None,
     epochs_reducer: str | None,
     limit: str | None,
+    sample_id: str | None,
     max_retries: int | None,
     timeout: int | None,
     max_connections: int | None,
@@ -458,6 +465,7 @@ def eval_command(
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         limit=limit,
+        sample_id=sample_id,
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
@@ -543,6 +551,7 @@ def eval_set_command(
     epochs: int | None,
     epochs_reducer: str | None,
     limit: str | None,
+    sample_id: str | None,
     max_retries: int | None,
     timeout: int | None,
     max_connections: int | None,
@@ -612,6 +621,7 @@ def eval_set_command(
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         limit=limit,
+        sample_id=sample_id,
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
@@ -662,6 +672,7 @@ def eval_exec(
     epochs: int | None,
     epochs_reducer: str | None,
     limit: str | None,
+    sample_id: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -699,8 +710,9 @@ def eval_exec(
         else None
     )
 
-    # resolve range
+    # resolve range and sample id
     eval_limit = parse_samples_limit(limit)
+    eval_sample_id = parse_sample_id(sample_id)
 
     # resolve fail_on_error
     if no_fail_on_error is True:
@@ -734,6 +746,7 @@ def eval_exec(
             log_dir=log_dir,
             log_format=log_format,
             limit=eval_limit,
+            sample_id=eval_sample_id,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,

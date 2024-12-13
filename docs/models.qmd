@@ -187,6 +187,23 @@ $ export AZUREAI_BASE_URL=https://your-url-at.azure.com
 $ inspect eval --model azureai/llama-2-70b-chat-wnsnw
 ```
 
+#### Tool Emulation
+
+::: {.callout-note appearance="simple"}
+The `emulate_tools` model argument described below is supported only in the development version of Inspect. To install the development version from GitHub:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+When using the `azureai` model provider, tool calling support can be 'emulated' for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the `emulate_tools` model arg to force tool emulation:
+
+```bash
+inspect eval ctf.py -M emulate_tools=true
+```
+
+You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
+
 ### AWS Bedrock {#aws-bedrock}
 
 [AWS Bedrock](https://aws.amazon.com/bedrock/) provides hosting of models from Anthropic as well as a wide variety of other open models. Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Eval: `--sample-id` option for evaluating specific sample id(s).
+- Azure AI: Add `emulate_tools` model arg to force tool emulation (emulation is enabled by default for Llama models).
+- Basic agent: Add `max_tool_output` parameter to override default max tool output from generate config.
+- Trace: Show custom tool views in `--trace` mode.
+
+
+## v0.3.51 (13 December 2024)
+
+- Bugfix: Task display fails to load when no scorers are defined for a task.
+
 ## v0.3.50 (12 December 2024)
 
 - Tools: Improved typing/schema support (unions, optional params, enums).

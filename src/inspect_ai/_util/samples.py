@@ -7,3 +7,10 @@ def parse_samples_limit(limit: str | None) -> int | tuple[int, int] | None:
             return (limit_split[0] - 1, limit_split[1])
     else:
         return None
+
+
+def parse_sample_id(sample_id: str | None) -> list[str] | None:
+    if sample_id is not None:
+        return [id.strip() for id in sample_id.split(",")]
+    else:
+        return None
