@@ -10,14 +10,13 @@ from .commands import HumanAgentCommand
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
-COMMANDS_PY = "commands.py"
+TASK_PY = "task.py"
 INSTALL_SH = "install.sh"
 BASHRC = ".bashrc"
 WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
 RECORD_SESSION_DIR = "/var/tmp/user-sessions"
-COMMAND_PREFIX = "t"
 
 
 async def install_human_agent(
@@ -30,11 +29,9 @@ async def install_human_agent(
     # setup installation directory
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
 
-    # generate commands.py
-    commands_py = human_agent_commands(commands)
-    await checked_write_file(
-        f"{INSTALL_DIR}/{COMMANDS_PY}", commands_py, executable=True
-    )
+    # generate task.py
+    task_py = human_agent_commands(commands)
+    await checked_write_file(f"{INSTALL_DIR}/{TASK_PY}", task_py, executable=True)
 
     # generate .bashrc
     bash_rc = human_agent_bashrc(commands, record_session)
@@ -114,34 +111,25 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     fi
     """)
 
-    # command aliases
-    COMMANDS = "\n".join(
-        ["# shell aliases for human agent commands"]
-        + [
-            f"alias {COMMAND_PREFIX}{command.name}='python3 {HUMAN_AGENT_DIR}/{COMMANDS_PY} {command.name}'"
-            for command in commands
-        ]
-    )
+    # shell alias and completions
+    command_names = " ".join([f"{command.name}" for command in commands])
+    COMMANDS = dedent(f"""
+    # shell alias for human agent commands
+    alias task='python3 {HUMAN_AGENT_DIR}/{TASK_PY}'
 
-    # completions
-    command_names = [f"{COMMAND_PREFIX}{command.name}" for command in commands]
-    all_commands = " ".join(command_names)
-    completions_fn = dedent(f"""
-    _commands_py_completion() {{
+    # completion handler
+    _task_completion() {{
         local cur
-        _init_completion || return
-        COMPREPLY=( $(compgen -W "{all_commands}" -- "$cur") )
-    }}
-    """).strip()
+        cur="${{COMP_WORDS[COMP_CWORD]}}"
+        if [ "$COMP_CWORD" -eq 1 ]; then
+            local commands="{command_names}"
 
-    COMPLETIONS = "\n".join(
-        ["", "# completions for human agent commands"]
-        + [completions_fn]
-        + [
-            f"complete -F _commands_py_completion {command}"
-            for command in command_names
-        ]
-    )
+            # Generate completion matches
+            COMPREPLY=($(compgen -W "${{commands}}" -- ${{cur}}))
+        fi
+    }}
+    complete -F _task_completion task
+    """)
 
     # session recording
     if record_session:
@@ -168,7 +156,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     """).lstrip()
 
     # return .bashrc
-    return "\n".join([TERMINAL_CHECK, COMMANDS, COMPLETIONS, RECORDING, WELCOME])
+    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, WELCOME])
 
 
 class HumanAgentDocs(TypedDict):
@@ -182,7 +170,7 @@ def human_agent_docs(
 ) -> HumanAgentDocs:
     commands_text = "\n".join(
         [
-            f"- {COMMAND_PREFIX}{command.name}: {command.description}"
+            f"- task {command.name}: {command.description}"
             for command in commands
             if not command.hidden
         ]
@@ -225,7 +213,7 @@ def human_agent_install_sh() -> str:
     mkdir -p $HUMAN_AGENT
 
     # copy commands
-    cp {COMMANDS_PY} $HUMAN_AGENT
+    cp {TASK_PY} $HUMAN_AGENT
 
     # append to bash rc
     cat {BASHRC} >> ~/{BASHRC}
