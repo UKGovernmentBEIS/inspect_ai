@@ -4,7 +4,6 @@ from textual.app import ComposeResult
 from textual.containers import (
     Container,
     Horizontal,
-    HorizontalGroup,
     VerticalScroll,
 )
 from textual.reactive import reactive
