@@ -49,48 +49,68 @@ async def install_human_agent(
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
-    PREFIX = dedent("""
-    #!/usr/bin/env python3
+    # standard imports (including any dependencies that call methods carry)
+    imports = dedent("""
     import argparse
-    import os
     import sys
+    from argparse import Namespace
     from pathlib import Path
 
     sys.path.append("/var/tmp/sandbox-services/human_agent")
     from human_agent import call_human_agent
     """)
 
-    code = "\n\n".join(
+    # command handler source code (extracted from call methods)
+    command_handlers = "\n\n".join(
         dedent(
             inspect.getsource(command.call).replace(
-                "call(self)", f"{command.name}()", 1
+                "call(self, ", f"{command.name}(", 1
             )
         )
         for command in commands
     )
 
-    command_map = (
-        "{"
-        + ", ".join([f'"{command.name}": {command.name}' for command in commands])
-        + "}"
-    )
-    registration = f"_commands: dict = {command_map}"
+    # parse commands
+    command_parsers: list[str] = []
+    for command in commands:
+        help = f'"{command.description}"' if not command.hidden else "argparse.SUPPRESS"
+        command_parsers.append(
+            dedent(f"""
+        {command.name}_parser = subparsers.add_parser("{command.name}", help={help})
+        """).lstrip()
+        )
+        for arg in command.args:
+            command_parsers.append(
+                dedent(f"""
+                {command.name}_parser.add_argument("{arg.name}", nargs={1 if arg.required else '"?"'}, help="{arg.description}")
+                """).strip()
+            )
 
-    SUFFIX = dedent("""
-    if len(sys.argv) > 0:
-        command = os.path.basename(sys.argv[1])
-        handler = _commands.get(command, None)
-        if handler:
-            handler()
-        else:
-            sys.stderr.write(f"command not recognized: {command}")
-            sys.exit(1)
-    else:
-        sys.stderr.write("no command specified")
-        sys.exit(1)
+    parse = (
+        dedent("""
+    parser = argparse.ArgumentParser(description="Human agent tools.")
+    subparsers = parser.add_subparsers(dest="command")
     """)
+        + "\n"
+        + "\n".join(command_parsers)
+    )
 
-    return "\n\n".join([PREFIX, code, registration, SUFFIX])
+    # dispatch commands
+    command_dispatchers: list[str] = []
+    for i, command in enumerate(commands):
+        conditional = "if" if i == 0 else "elif"
+        command_dispatchers.append(
+            f'{conditional} command == "{command.name}": {command.name}(args)'
+        )
+    command_dispatchers.append("else: parser.print_help()")
+
+    dispatch = dedent("""
+    args = parser.parse_args()
+    command = args.command
+    delattr(args, 'command')
+    """) + "\n".join(command_dispatchers)
+
+    return "\n".join([imports, command_handlers, parse, dispatch]) + "\n"
 
 
 def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) -> str:
@@ -112,7 +132,9 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     """)
 
     # shell alias and completions
-    command_names = " ".join([f"{command.name}" for command in commands])
+    command_names = " ".join(
+        [f"{command.name}" for command in commands if not command.hidden]
+    )
     COMMANDS = dedent(f"""
     # shell alias for human agent commands
     alias task='python3 {HUMAN_AGENT_DIR}/{TASK_PY}'

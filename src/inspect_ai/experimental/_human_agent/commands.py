@@ -1,8 +1,7 @@
 import abc
-import argparse
-import sys
+from argparse import Namespace
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, NamedTuple
 
 from pydantic import JsonValue
 
@@ -22,23 +21,40 @@ class HumanAgentCommand:
         """Command description."""
         ...
 
+    class Arg(NamedTuple):
+        name: str
+        description: str
+        required: bool
+
+    @property
+    def args(self) -> list[Arg]:
+        """Positional command line arguments."""
+        return []
+
     @property
     def hidden(self) -> bool:
         return False
 
     @abc.abstractmethod
-    def call(self) -> None:
+    def call(self, args: Namespace) -> None:
         """Command client (runs in container)"""
         ...
 
-    @abc.abstractmethod
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        """Handler (runs in Inspect process)"""
+    def handler(
+        self, state: HumanAgentState
+    ) -> Callable[..., Awaitable[JsonValue]] | None:
+        """Handler (runs in Inspect process). Optional (you can create call only commands)"""
         ...
 
 
 def human_agent_commands(_intermediate_scoring: bool) -> list[HumanAgentCommand]:
-    return [StatusCommand(), StartCommand(), StopCommand(), SubmitCommand()]
+    return [
+        StatusCommand(),
+        StartCommand(),
+        StopCommand(),
+        InstructionsCommand(),
+        SubmitCommand(),
+    ]
 
 
 def call_human_agent(method: str, **params: Any) -> Any:
@@ -55,7 +71,7 @@ class StatusCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Check the current status of the task."
 
-    def call(self) -> None:
+    def call(self, args: Namespace) -> None:
         status = call_human_agent("status")
         print(status)
 
@@ -75,7 +91,7 @@ class StartCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Start working on the task."
 
-    def call(self) -> None:
+    def call(self, args: Namespace) -> None:
         call_human_agent("start")
 
     def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
@@ -94,7 +110,7 @@ class StopCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Stop working on the task."
 
-    def call(self) -> None:
+    def call(self, args: Namespace) -> None:
         call_human_agent("stop")
 
     def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
@@ -102,6 +118,19 @@ class StopCommand(HumanAgentCommand):
             state.running = False
 
         return stop
+
+
+class InstructionsCommand(HumanAgentCommand):
+    @property
+    def name(self) -> str:
+        return "instructions"
+
+    @property
+    def description(self) -> str:
+        return "Display task instructions."
+
+    def call(self, args: Namespace) -> None:
+        print("TASK INSTRUCTIONS")
 
 
 class SubmitCommand(HumanAgentCommand):
@@ -113,15 +142,19 @@ class SubmitCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Submit your answer for the task."
 
-    def call(self) -> None:
+    @property
+    def args(self) -> list[HumanAgentCommand.Arg]:
+        return [
+            HumanAgentCommand.Arg(
+                name="answer",
+                description="Answer to submit for scoring (optional, not required for all tasks)",
+                required=False,
+            )
+        ]
+
+    def call(self, args: Namespace) -> None:
         # read cli args
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "answer",
-            nargs="?",
-            help="Answer to submit for scoring (optional, not required for all tasks)",
-        )
-        args = vars(parser.parse_args(sys.argv[2:]))
+        call_args = vars(args)
 
         # collect session logs if they exist
         sessions_dir = Path("/var/tmp/user-sessions")
@@ -135,9 +168,9 @@ class SubmitCommand(HumanAgentCommand):
                     except Exception as e:
                         print(f"Error reading file {file.name}: {e}")
                         continue
-            args["session_logs"] = session_logs
+            call_args["session_logs"] = session_logs
 
-        call_human_agent("submit", **args)
+        call_human_agent("submit", **call_args)
 
     def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def submit(

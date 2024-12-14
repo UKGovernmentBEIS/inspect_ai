@@ -13,6 +13,10 @@ async def run_human_agent_service(
     # initialise agent state
     agent_state = HumanAgentState(state.store)
 
+    # pick the methods out of the commands (some commands are container only)
+    methods = {command.name: command.handler(agent_state) for command in commands}
+    sandbox_methods = {k: v for k, v in methods.items() if v is not None}
+
     # callback to check if task is completed (use this to periodically
     # update the view with the current state)
     def task_is_completed() -> bool:
@@ -22,7 +26,7 @@ async def run_human_agent_service(
     # run the service
     await sandbox_service(
         name="human_agent",
-        methods={command.name: command.handler(agent_state) for command in commands},
+        methods=sandbox_methods,
         until=task_is_completed,
         sandbox=sandbox(),
     )
