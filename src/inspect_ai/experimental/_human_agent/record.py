@@ -5,7 +5,19 @@ RECORD_SESSION_DIR = "/var/tmp/inspect-user-sessions"
 
 def record_session_setup() -> str:
     return dedent(f"""
-    # record human agent session transcript
+    # record human agent session transcript (do this only for interative shell in terminals)
+
+    # Only run if shell is interactive
+    case $- in
+        *i*) ;;
+        *) return ;;
+    esac
+
+    # Only run if attached to a terminal
+    if ! tty -s; then
+        return
+    fi
+
     if [ -z "$SCRIPT_RUNNING" ]; then
         export SCRIPT_RUNNING=1
         LOGDIR={RECORD_SESSION_DIR}

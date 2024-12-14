@@ -13,7 +13,7 @@ INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
 COMMANDS_PY = "commands.py"
 INSTALL_SH = "install.sh"
-PROFILE_INIT = "profile_init"
+RECORDING_SH = "recording.sh"
 WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
@@ -33,9 +33,10 @@ async def install_human_agent(
     for doc, content in human_agent_docs(state, commands).items():
         await checked_write_file(f"{INSTALL_DIR}/{doc}.txt", str(content))
 
-    # write profile init
+    # write recording setup
     await checked_write_file(
-        f"{INSTALL_DIR}/{PROFILE_INIT}", profile_init(record_session)
+        f"{INSTALL_DIR}/{RECORDING_SH}",
+        record_session_setup() if record_session else "",
     )
 
     # generate and write commands.py
@@ -143,6 +144,8 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
 
 
 def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
+    BASHRC = "~/.bashrc"
+
     COMMANDS = dedent(f"""
     #!/usr/bin/env bash
 
@@ -153,11 +156,11 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
 
     # create bash aliases for commands
     create_alias() {{
-        echo "alias $1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> ~/.bashrc
+        echo "alias $1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> {BASHRC}
     }}
 
-    echo '' >> ~/.bashrc
-    echo '# human agent command aliases' >> ~/.bashrc
+    echo '' >> {BASHRC}
+    echo '# human agent command aliases' >> {BASHRC}
     for cmd in {' '.join([command.name for command in commands])}; do
         create_alias $cmd
     done
@@ -169,34 +172,23 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
     cp {INSTRUCTIONS_FILE} ..
     """)
 
-    # bash profile init (recording and source .bashrc)
-    INIT = dedent(f"""
-    cat {PROFILE_INIT} >> ~/.bash_profile
+    # recording
+    RECORDING = dedent(f"""
+    cat {RECORDING_SH} >> {BASHRC}
     """)
 
-    # add welcome banner to .bash_profile
+    # add welcome banner to .bashrc
     WELCOME = dedent(f"""
-    echo '' >> ~/.bash_profile
-    echo '# show human agent documentation' >> ~/.bash_profile
-    echo 'cat <<- "EOF"' >> ~/.bash_profile
-    cat {WELCOME_FILE} >> ~/.bash_profile
-    cat {WELCOME_LOGIN_FILE} >> ~/.bash_profile
-    echo '' >> ~/.bash_profile
-    echo 'EOF' >> ~/.bash_profile
+    echo '' >> {BASHRC}
+    echo '# show human agent documentation' >> {BASHRC}
+    echo 'cat <<- "EOF"' >> {BASHRC}
+    cat {WELCOME_FILE} >> {BASHRC}
+    cat {WELCOME_LOGIN_FILE} >> {BASHRC}
+    echo '' >> {BASHRC}
+    echo 'EOF' >> {BASHRC}
     """)
 
-    return "\n\n".join([COMMANDS, DOCUMENTATION, INIT, WELCOME])
-
-
-def profile_init(record_session: bool) -> str:
-    SOURCE_BASHRC = dedent("""
-    # provide human agent command aliases
-    if [ -f ~/.bashrc ]; then
-        source ~/.bashrc
-    fi
-    """).lstrip()
-
-    return "\n".join([record_session_setup() if record_session else "", SOURCE_BASHRC])
+    return "\n\n".join([COMMANDS, DOCUMENTATION, RECORDING, WELCOME])
 
 
 async def checked_exec(
