@@ -85,13 +85,13 @@ class HumanAgentPanel(InputPanel):
                 with Horizontal(id=self.VSCODE_LINKS_ID):
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
-                        "VS Code Terminal",
-                        id=self.LOGIN_VSCODE_TERMINAL_ID,
+                        "VS Code Window",
+                        id=self.LOGIN_VSCODE_WINDOW_ID,
                     )
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
                     yield VSCodeLink(
-                        "VS Code Window",
-                        id=self.LOGIN_VSCODE_WINDOW_ID,
+                        "VS Code Terminal",
+                        id=self.LOGIN_VSCODE_TERMINAL_ID,
                     )
                 yield Static(
                     id=self.COMMAND_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
