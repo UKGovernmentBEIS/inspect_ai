@@ -103,6 +103,7 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
     import argparse
     import os
     import sys
+    from pathlib import Path
 
     sys.path.append("/var/tmp/inspect-sandbox-services/human_agent")
     from human_agent import call_human_agent

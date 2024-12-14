@@ -45,6 +45,14 @@ class HumanAgentState:
         self._set(self.COMPLETED, True)
 
     @property
+    def session_logs(self) -> dict[str, str] | None:
+        return self._get(self.SESSION_LOGS, None)
+
+    @session_logs.setter
+    def session_logs(self, session_logs: dict[str, str] | None) -> None:
+        self._set(self.SESSION_LOGS, session_logs)
+
+    @property
     def completed(self) -> bool:
         return self._get(self.COMPLETED, False)
 
@@ -79,4 +87,5 @@ class HumanAgentState:
     STARTED_RUNNING = "started_running"
     ACCUMULATED_TIME = "accumulated_time"
     ANSWER = "answer"
+    SESSION_LOGS = "session_logs"
     COMPLETED = "completed"

@@ -1,6 +1,7 @@
 import abc
 import argparse
 import sys
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from pydantic import JsonValue
@@ -113,18 +114,37 @@ class SubmitCommand(HumanAgentCommand):
         return "Submit your answer for the task."
 
     def call(self) -> None:
+        # read cli args
         parser = argparse.ArgumentParser()
         parser.add_argument(
             "answer",
             nargs="?",
             help="Answer to submit for scoring (optional, not required for all tasks)",
         )
-        args = parser.parse_args(sys.argv[2:])
-        call_human_agent("submit", **vars(args))
+        args = vars(parser.parse_args(sys.argv[2:]))
+
+        # collect session logs if they exist
+        sessions_dir = Path("/var/tmp/inspect-user-sessions")
+        if sessions_dir.exists() and sessions_dir.is_dir():
+            session_logs: dict[str, str] = {}
+            for file in sessions_dir.iterdir():
+                if file.is_file():
+                    try:
+                        with open(file, "r") as f:
+                            session_logs[file.name] = f.read()
+                    except Exception as e:
+                        print(f"Error reading file {file.name}: {e}")
+                        continue
+            args["session_logs"] = session_logs
+
+        call_human_agent("submit", **args)
 
     def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def submit(answer: str | None) -> None:
+        async def submit(
+            answer: str | None, session_logs: dict[str, str] | None = None
+        ) -> None:
             state.running = False
             state.answer = answer
+            state.session_logs = session_logs
 
         return submit
