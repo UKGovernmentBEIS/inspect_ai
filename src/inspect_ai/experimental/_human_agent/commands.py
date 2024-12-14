@@ -1,4 +1,5 @@
 import abc
+import os
 from argparse import Namespace
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
@@ -147,11 +148,10 @@ class InstructionsCommand(HumanAgentCommand):
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def instructions(no_ansi: bool = False) -> str:
             # use rich styles
-            console = Console(record=True, force_terminal=True)
-            console.print("Hello, [bold]World[/bold]!")
-
-            # export the text
-            return console.export_text(styles=not no_ansi)
+            with open(os.devnull, "w") as f:
+                console = Console(record=True, file=f, force_terminal=True)
+                console.print("Hello, [bold]World[/bold]!")
+                return console.export_text(styles=not no_ansi)
 
         return instructions
 
