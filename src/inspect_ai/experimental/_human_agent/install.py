@@ -7,6 +7,7 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import sandbox
 
 from .commands import HumanAgentCommand
+from .record import record_session_setup
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
@@ -187,19 +188,6 @@ def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
 
 
 def profile_init(record_session: bool) -> str:
-    RECORD_SCRIPT = dedent("""
-    # record human agent session transcript
-    if [ -z "$SCRIPT_RUNNING" ]; then
-        export SCRIPT_RUNNING=1
-        LOGDIR=/var/tmp/inspect-user-sessions
-        mkdir -p $LOGDIR
-        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        LOGFILE="${LOGDIR}/$(whoami)_${TIMESTAMP}.log"
-        TIMINGFILE="${LOGDIR}/$(whoami)_${TIMESTAMP}.time"
-        exec script -q -f -T "$TIMINGFILE" "$LOGFILE" -c "bash --login -i"
-    fi
-    """).lstrip()
-
     SOURCE_BASHRC = dedent("""
     # provide human agent command aliases
     if [ -f ~/.bashrc ]; then
@@ -207,7 +195,7 @@ def profile_init(record_session: bool) -> str:
     fi
     """).lstrip()
 
-    return "\n".join([RECORD_SCRIPT if record_session else "", SOURCE_BASHRC])
+    return "\n".join([record_session_setup() if record_session else "", SOURCE_BASHRC])
 
 
 async def checked_exec(
