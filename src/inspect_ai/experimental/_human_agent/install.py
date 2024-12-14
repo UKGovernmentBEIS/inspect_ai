@@ -103,7 +103,7 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
     import os
     import sys
 
-    sys.path.append("/tmp/inspect-sandbox-services/human_agent")
+    sys.path.append("/var/tmp/inspect-sandbox-services/human_agent")
     from human_agent import call_human_agent
     """)
 
@@ -191,7 +191,7 @@ def profile_init(record_session: bool) -> str:
     # record human agent session transcript
     if [ -z "$SCRIPT_RUNNING" ]; then
         export SCRIPT_RUNNING=1
-        LOGDIR=/tmp/inspect-session-log
+        LOGDIR=/var/tmp/inspect-session-log
         mkdir -p $LOGDIR
         LOGFILE="$LOGDIR/session.log"
         TIMINGFILE="$LOGDIR/session.time"
