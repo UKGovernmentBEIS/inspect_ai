@@ -191,11 +191,11 @@ def profile_init(record_session: bool) -> str:
     # record human agent session transcript
     if [ -z "$SCRIPT_RUNNING" ]; then
         export SCRIPT_RUNNING=1
-        LOGDIR=/var/tmp/inspect-session-log
+        LOGDIR=/var/tmp/inspect-user-sessions
         mkdir -p $LOGDIR
-        LOGFILE="$LOGDIR/session.log"
-        TIMINGFILE="$LOGDIR/session.time"
-        # Run script quietly (-q), flush output (-f), and produce a timing file (-t)
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        LOGFILE="${LOGDIR}/$(whoami)_${TIMESTAMP}.log"
+        TIMINGFILE="${LOGDIR}/$(whoami)_${TIMESTAMP}.time"
         exec script -q -f -T "$TIMINGFILE" "$LOGFILE" -c "bash --login -i"
     fi
     """).lstrip()
