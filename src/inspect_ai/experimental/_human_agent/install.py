@@ -49,6 +49,9 @@ async def install_human_agent(
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
+    # filter out hidden commands
+    commands = [command for command in commands if not command.hidden]
+
     # standard imports (including any dependencies that call methods carry)
     imports = dedent("""
     import argparse
@@ -73,10 +76,9 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # parse commands
     command_parsers: list[str] = []
     for command in commands:
-        help = f'"{command.description}"' if not command.hidden else "argparse.SUPPRESS"
         command_parsers.append(
             dedent(f"""
-        {command.name}_parser = subparsers.add_parser("{command.name}", help={help})
+        {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
         """).lstrip()
         )
         for arg in command.args:

@@ -35,15 +35,14 @@ class HumanAgentCommand:
     def hidden(self) -> bool:
         return False
 
-    @abc.abstractmethod
     def call(self, args: Namespace) -> None:
-        """Command client (runs in container)"""
-        ...
+        """Command client (runs in container). Optional (hidden commands are not callable from the container -- i.e. they may just have an RPC handler)"""
+        pass
 
     def handler(
         self, state: HumanAgentState
     ) -> Callable[..., Awaitable[JsonValue]] | None:
-        """Handler (runs in Inspect process). Optional (you can create call only commands)"""
+        """Handler (runs in Inspect process). Optional (you can create call only commands that just perform operations in the container)"""
         ...
 
 
@@ -90,6 +89,10 @@ class StartCommand(HumanAgentCommand):
     @property
     def description(self) -> str:
         return "Start working on the task."
+
+    @property
+    def hidden(self) -> bool:
+        return True
 
     def call(self, args: Namespace) -> None:
         call_human_agent("start")
