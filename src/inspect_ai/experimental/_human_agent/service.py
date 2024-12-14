@@ -15,7 +15,7 @@ async def run_human_agent_service(
 
     # pick the methods out of the commands (some commands are container only)
     methods = {
-        command.name: command.handler(agent_state)
+        command.name: command.service(agent_state)
         for command in commands
         if "service" in command.contexts
     }

@@ -21,27 +21,27 @@ class HumanAgentCommand:
         """Command description."""
         ...
 
-    class Arg(NamedTuple):
-        name: str
-        description: str
-        required: bool
-
-    @property
-    def args(self) -> list[Arg]:
-        """Positional command line arguments."""
-        return []
-
     @property
     def contexts(self) -> list[Literal["cli", "service"]]:
         """Contexts where this command runs (defaults to both cli and service)."""
         return ["cli", "service"]
 
-    def call(self, args: Namespace) -> None:
-        """Command client (runs in container). Required for context "cli"."""
+    class CLIArg(NamedTuple):
+        name: str
+        description: str
+        required: bool
+
+    @property
+    def cli_args(self) -> list[CLIArg]:
+        """Positional command line arguments."""
+        return []
+
+    def cli(self, args: Namespace) -> None:
+        """CLI command (runs in container). Required for context "cli"."""
         pass
 
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        """Handler (runs in Inspect process). Required for context "service"."""
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        """Service handler (runs in solver). Required for context "service"."""
 
         async def no_handler() -> None:
             pass
@@ -73,11 +73,11 @@ class StatusCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Check the current status of the task."
 
-    def call(self, args: Namespace) -> None:
+    def cli(self, args: Namespace) -> None:
         status = call_human_agent("status")
         print(status)
 
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def status() -> dict[str, JsonValue]:
             return state.status
 
@@ -97,10 +97,10 @@ class StartCommand(HumanAgentCommand):
     def contexts(self) -> list[Literal["cli", "service"]]:
         return ["service"]
 
-    def call(self, args: Namespace) -> None:
+    def cli(self, args: Namespace) -> None:
         call_human_agent("start")
 
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def start() -> None:
             state.running = True
 
@@ -116,10 +116,10 @@ class StopCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Stop working on the task."
 
-    def call(self, args: Namespace) -> None:
+    def cli(self, args: Namespace) -> None:
         call_human_agent("stop")
 
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def stop() -> None:
             state.running = False
 
@@ -139,7 +139,7 @@ class InstructionsCommand(HumanAgentCommand):
     def contexts(self) -> list[Literal["cli", "service"]]:
         return ["cli"]
 
-    def call(self, args: Namespace) -> None:
+    def cli(self, args: Namespace) -> None:
         print("TASK INSTRUCTIONS")
 
 
@@ -153,16 +153,16 @@ class SubmitCommand(HumanAgentCommand):
         return "Submit your answer for the task."
 
     @property
-    def args(self) -> list[HumanAgentCommand.Arg]:
+    def cli_args(self) -> list[HumanAgentCommand.CLIArg]:
         return [
-            HumanAgentCommand.Arg(
+            HumanAgentCommand.CLIArg(
                 name="answer",
                 description="Answer to submit for scoring (optional, not required for all tasks)",
                 required=False,
             )
         ]
 
-    def call(self, args: Namespace) -> None:
+    def cli(self, args: Namespace) -> None:
         # read cli args
         call_args = vars(args)
 
@@ -182,7 +182,7 @@ class SubmitCommand(HumanAgentCommand):
 
         call_human_agent("submit", **call_args)
 
-    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def submit(
             answer: str | None, session_logs: dict[str, str] | None = None
         ) -> None:

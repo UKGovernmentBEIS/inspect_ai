@@ -66,9 +66,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # command handler source code (extracted from call methods)
     command_handlers = "\n\n".join(
         dedent(
-            inspect.getsource(command.call).replace(
-                "call(self, ", f"{command.name}(", 1
-            )
+            inspect.getsource(command.cli).replace("cli(self, ", f"{command.name}(", 1)
         )
         for command in commands
     )
@@ -81,7 +79,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         {command.name}_parser = subparsers.add_parser("{command.name}", help="{command.description}")
         """).lstrip()
         )
-        for arg in command.args:
+        for arg in command.cli_args:
             command_parsers.append(
                 dedent(f"""
                 {command.name}_parser.add_argument("{arg.name}", nargs={1 if arg.required else '"?"'}, help="{arg.description}")
