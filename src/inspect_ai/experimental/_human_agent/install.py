@@ -173,8 +173,8 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     INSTRUCTIONS = dedent("""
     if [ -z "$INSTRUCTIONS_SHOWN" ]; then
         export INSTRUCTIONS_SHOWN=1
-        task instructions --no-ansi > instructions.txt
-        task instructions
+        task instructions > instructions.txt
+        cat instructions.txt
     fi
     """).lstrip()
 
