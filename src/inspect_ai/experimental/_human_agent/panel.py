@@ -197,7 +197,7 @@ class StatusBar(Horizontal):
 
     def compose(self) -> ComposeResult:
         yield Label("Status:", classes=self.LABEL_CLASS)
-        yield Static("Started", id=self.STATUS_ID, classes=self.VALUE_CLASS)
+        yield Static("Running", id=self.STATUS_ID, classes=self.VALUE_CLASS)
         yield Label(" Time:", classes=self.LABEL_CLASS)
         yield Static("0:00:00", id=self.TIME_ID, classes=self.VALUE_CLASS)
         # yield Static("  ⏸")  # ▶️
@@ -205,7 +205,7 @@ class StatusBar(Horizontal):
 
     def watch_running(self, running: bool) -> None:
         cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(
-            "Started" if running else "Stopped"
+            "Running" if running else "Stopped"
         )
 
     def watch_time(self, time: float) -> None:
