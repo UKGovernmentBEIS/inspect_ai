@@ -7,7 +7,6 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import sandbox
 
 from .commands import HumanAgentCommand
-from .record import record_session_setup
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
@@ -17,6 +16,7 @@ BASHRC = ".bashrc"
 WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
+RECORD_SESSION_DIR = "/var/tmp/user-sessions"
 
 
 async def install_human_agent(
@@ -58,7 +58,7 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     import sys
     from pathlib import Path
 
-    sys.path.append("/var/tmp/inspect-sandbox-services/human_agent")
+    sys.path.append("/var/tmp/sandbox-services/human_agent")
     from human_agent import call_human_agent
     """)
 
@@ -123,7 +123,22 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     )
 
     # session recording
-    RECORDING = record_session_setup() if record_session else ""
+    if record_session:
+        RECORDING = dedent(f"""
+        # record human agent session transcript
+        if [ -z "$SCRIPT_RUNNING" ]; then
+            export SCRIPT_RUNNING=1
+            LOGDIR={RECORD_SESSION_DIR}
+            mkdir -p "$LOGDIR"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            INPUTFILE="$LOGDIR/$(whoami)_$TIMESTAMP.input"
+            OUTPUTFILE="$LOGDIR/$(whoami)_$TIMESTAMP.output"
+            TIMINGFILE="$LOGDIR/$(whoami)_$TIMESTAMP.timing"
+            exec script -q -f -m advanced -I "$INPUTFILE" -O "$OUTPUTFILE" -T "$TIMINGFILE" -c "bash --login -i"
+        fi
+        """)
+    else:
+        RECORDING = ""
 
     # display welcome login
     WELCOME = dedent(f"""

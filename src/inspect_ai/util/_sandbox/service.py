@@ -18,7 +18,7 @@ logger = getLogger(__name__)
 
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
-SERVICES_DIR = "/var/tmp/inspect-sandbox-services"
+SERVICES_DIR = "/var/tmp/sandbox-services"
 
 ID = "id"
 METHOD = "method"
@@ -72,7 +72,7 @@ class SandboxService:
 
     ```python
     import sys
-    sys.path.append("/var/tmp/inspect-sandbox-services/foo")
+    sys.path.append("/var/tmp/sandbox-services/foo")
     import foo
     ```
 
@@ -81,7 +81,7 @@ class SandboxService:
     ```python
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "foo", "/var/tmp/inspect-sandbox-services/foo/foo.py"
+        "foo", "/var/tmp/sandbox-services/foo/foo.py"
     )
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)

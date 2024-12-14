@@ -124,7 +124,7 @@ class SubmitCommand(HumanAgentCommand):
         args = vars(parser.parse_args(sys.argv[2:]))
 
         # collect session logs if they exist
-        sessions_dir = Path("/var/tmp/inspect-user-sessions")
+        sessions_dir = Path("/var/tmp/user-sessions")
         if sessions_dir.exists() and sessions_dir.is_dir():
             session_logs: dict[str, str] = {}
             for file in sessions_dir.iterdir():
