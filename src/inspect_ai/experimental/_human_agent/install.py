@@ -17,6 +17,7 @@ WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
 RECORD_SESSION_DIR = "/var/tmp/user-sessions"
+COMMAND_PREFIX = "t"
 
 
 async def install_human_agent(
@@ -117,13 +118,13 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     COMMANDS = "\n".join(
         ["# shell aliases for human agent commands"]
         + [
-            f"alias {command.name}='python3 {HUMAN_AGENT_DIR}/{COMMANDS_PY} {command.name}'"
+            f"alias {COMMAND_PREFIX}{command.name}='python3 {HUMAN_AGENT_DIR}/{COMMANDS_PY} {command.name}'"
             for command in commands
         ]
     )
 
     # completions
-    command_names = [command.name for command in commands]
+    command_names = [f"{COMMAND_PREFIX}{command.name}" for command in commands]
     all_commands = " ".join(command_names)
     completions_fn = dedent(f"""
     _commands_py_completion() {{
@@ -137,8 +138,8 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
         ["", "# completions for human agent commands"]
         + [completions_fn]
         + [
-            f"complete -F _commands_py_completion {command.name}"
-            for command in commands
+            f"complete -F _commands_py_completion {command}"
+            for command in command_names
         ]
     )
 
@@ -181,7 +182,7 @@ def human_agent_docs(
 ) -> HumanAgentDocs:
     commands_text = "\n".join(
         [
-            f"- {command.name}: {command.description}"
+            f"- {COMMAND_PREFIX}{command.name}: {command.description}"
             for command in commands
             if not command.hidden
         ]
@@ -194,7 +195,7 @@ def human_agent_docs(
                             WELCOME TO YOUR INSPECT TASK!
     =================================================================================
 
-    Please use the following commands as you complete your work:
+    Please use the following commands as you complete your task:
 
 {indent(commands_text, "    ")}
     """).lstrip()
