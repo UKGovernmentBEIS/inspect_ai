@@ -4,6 +4,7 @@ from textual.app import ComposeResult
 from textual.containers import (
     Container,
     Horizontal,
+    HorizontalGroup,
     VerticalScroll,
 )
 from textual.reactive import reactive
@@ -107,7 +108,7 @@ class HumanAgentPanel(InputPanel):
             vscode = can_execute_vscode_commands()
 
             # suffix for instructions based on whether we are in vscode
-            instructions_command = "Login to the system with the following command. Hold down Alt (or Option) to select text for copying:"
+            instructions_command = "Login to the system with the following command (hold down Alt or Option to select text for copying):"
             instructions_vscode = (
                 "Use the links below to login to the system within VS Code:"
             )
