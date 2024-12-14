@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 from pydantic import JsonValue
+from rich.console import Console
 
 from .state import HumanAgentState
 
@@ -51,7 +52,7 @@ class HumanAgentCommand:
 
 def human_agent_commands(_intermediate_scoring: bool) -> list[HumanAgentCommand]:
     return [
-        StatusCommand(),
+        ClockCommand(),
         StartCommand(),
         StopCommand(),
         InstructionsCommand(),
@@ -64,24 +65,30 @@ def call_human_agent(method: str, **params: Any) -> Any:
     return None
 
 
-class StatusCommand(HumanAgentCommand):
+class ClockCommand(HumanAgentCommand):
     @property
     def name(self) -> str:
-        return "status"
+        return "clock"
 
     @property
     def description(self) -> str:
-        return "Check the current status of the task."
+        return "Check the time taken so far on this task."
 
     def cli(self, args: Namespace) -> None:
-        status = call_human_agent("status")
+        status = call_human_agent("clock")
         print(status)
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def status() -> dict[str, JsonValue]:
-            return state.status
+        async def clock() -> str:
+            console = Console(record=True, force_terminal=True)
 
-        return status
+            # Print something with Rich styles
+            console.print("Hello, [bold]World[/bold]!")
+
+            # Export the recorded ANSI text
+            return console.export_text(styles=True)
+
+        return clock
 
 
 class StartCommand(HumanAgentCommand):
