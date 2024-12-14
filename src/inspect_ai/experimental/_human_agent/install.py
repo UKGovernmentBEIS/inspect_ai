@@ -80,9 +80,13 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
         """).lstrip()
         )
         for arg in command.cli_args:
+            if arg.name.startswith("--"):
+                extras = 'action="store_true", default=False'
+            else:
+                extras = f"""nargs={1 if arg.required else '"?"'}"""
             command_parsers.append(
                 dedent(f"""
-                {command.name}_parser.add_argument("{arg.name}", nargs={1 if arg.required else '"?"'}, help="{arg.description}")
+                {command.name}_parser.add_argument("{arg.name}", {extras}, help="{arg.description}")
                 """).strip()
             )
 

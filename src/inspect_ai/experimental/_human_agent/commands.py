@@ -30,7 +30,7 @@ class HumanAgentCommand:
     class CLIArg(NamedTuple):
         name: str
         description: str
-        required: bool
+        required: bool = False
 
     @property
     def cli_args(self) -> list[CLIArg]:
@@ -80,13 +80,7 @@ class ClockCommand(HumanAgentCommand):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def clock() -> str:
-            console = Console(record=True, force_terminal=True)
-
-            # Print something with Rich styles
-            console.print("Hello, [bold]World[/bold]!")
-
-            # Export the recorded ANSI text
-            return console.export_text(styles=True)
+            return str(state.status)
 
         return clock
 
@@ -99,10 +93,6 @@ class StartCommand(HumanAgentCommand):
     @property
     def description(self) -> str:
         return "Start working on the task."
-
-    @property
-    def contexts(self) -> list[Literal["cli", "service"]]:
-        return ["service"]
 
     def cli(self, args: Namespace) -> None:
         call_human_agent("start")
@@ -143,11 +133,27 @@ class InstructionsCommand(HumanAgentCommand):
         return "Display task instructions."
 
     @property
-    def contexts(self) -> list[Literal["cli", "service"]]:
-        return ["cli"]
+    def cli_args(self) -> list[HumanAgentCommand.CLIArg]:
+        return [
+            HumanAgentCommand.CLIArg(
+                name="--no-ansi",
+                description="Do not use ANSI escape sequences in display",
+            )
+        ]
 
     def cli(self, args: Namespace) -> None:
-        print("TASK INSTRUCTIONS")
+        print(call_human_agent("instructions", **vars(args)))
+
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        async def instructions(no_ansi: bool = False) -> str:
+            # use rich styles
+            console = Console(record=True, force_terminal=True)
+            console.print("Hello, [bold]World[/bold]!")
+
+            # export the text
+            return console.export_text(styles=not no_ansi)
+
+        return instructions
 
 
 class SubmitCommand(HumanAgentCommand):
@@ -165,7 +171,6 @@ class SubmitCommand(HumanAgentCommand):
             HumanAgentCommand.CLIArg(
                 name="answer",
                 description="Answer to submit for scoring (optional, not required for all tasks)",
-                required=False,
             )
         ]
 
