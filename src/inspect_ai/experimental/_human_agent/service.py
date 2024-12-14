@@ -13,7 +13,7 @@ async def run_human_agent_service(
     # initialise agent state
     agent_state = HumanAgentState(state.store)
 
-    # pick the methods out of the commands (some commands are container only)
+    # extract service methods from commands
     methods = {
         command.name: command.service(agent_state)
         for command in commands
