@@ -2,7 +2,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox import sandbox, sandbox_service
 
-from .commands import HumanAgentCommand
+from .commands.command import HumanAgentCommand
 from .state import HumanAgentState
 from .view import HumanAgentView
 

@@ -6,7 +6,7 @@ from typing_extensions import TypedDict
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import sandbox
 
-from .commands import HumanAgentCommand
+from .commands.command import HumanAgentCommand
 
 INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
