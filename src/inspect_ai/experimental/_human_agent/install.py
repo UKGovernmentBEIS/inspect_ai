@@ -13,7 +13,7 @@ INSTALL_DIR = "human_agent_install"
 HUMAN_AGENT_DIR = "/opt/human_agent"
 COMMANDS_PY = "commands.py"
 INSTALL_SH = "install.sh"
-RECORDING_SH = "recording.sh"
+BASHRC = ".bashrc"
 WELCOME_FILE = "welcome.txt"
 WELCOME_LOGIN_FILE = "welcome_login.txt"
 INSTRUCTIONS_FILE = "instructions.txt"
@@ -29,76 +29,28 @@ async def install_human_agent(
     # setup installation directory
     await checked_exec(["mkdir", "-p", INSTALL_DIR])
 
-    # generate and write documentation files
-    for doc, content in human_agent_docs(state, commands).items():
-        await checked_write_file(f"{INSTALL_DIR}/{doc}.txt", str(content))
-
-    # write recording setup
-    await checked_write_file(
-        f"{INSTALL_DIR}/{RECORDING_SH}",
-        record_session_setup() if record_session else "",
-    )
-
-    # generate and write commands.py
-    commands_py = human_agent_commands_py(commands)
+    # generate commands.py
+    commands_py = human_agent_commands(commands)
     await checked_write_file(
         f"{INSTALL_DIR}/{COMMANDS_PY}", commands_py, executable=True
     )
 
-    # write installation script
-    install_sh = human_agent_install_sh(commands)
-    await checked_write_file(f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, executable=True)
+    # generate .bashrc
+    bash_rc = human_agent_bashrc(commands, record_session)
+    await checked_write_file(f"{INSTALL_DIR}/{BASHRC}", bash_rc, executable=True)
 
-    # run install script then remove directory
+    # generate documentation
+    for doc, content in human_agent_docs(state, commands).items():
+        await checked_write_file(f"{INSTALL_DIR}/{doc}.txt", str(content))
+
+    # write and run installation script
+    install_sh = human_agent_install_sh()
+    await checked_write_file(f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, executable=True)
     await checked_exec(["bash", f"./{INSTALL_SH}"], cwd=INSTALL_DIR)
     await checked_exec(["rm", "-rf", INSTALL_DIR])
 
 
-class HumanAgentDocs(TypedDict):
-    welcome: str
-    welcome_login: str
-    instructions: str
-
-
-def human_agent_docs(
-    state: TaskState, commands: list[HumanAgentCommand]
-) -> HumanAgentDocs:
-    commands_text = "\n".join(
-        [
-            f"- {command.name}: {command.description}"
-            for command in commands
-            if not command.hidden
-        ]
-    )
-
-    instructions = "\n\n".join([message.text for message in state.messages])
-
-    welcome = dedent(f"""
-    =================================================================================
-                            WELCOME TO YOUR INSPECT TASK!
-    =================================================================================
-
-    Please use the following commands as you complete your work:
-
-{indent(commands_text, "    ")}
-
-    """).lstrip()
-
-    welcome_login = dedent(f"""
-    The command reference will also be saved in the file {WELCOME_FILE}.
-    Task instructions are at {INSTRUCTIONS_FILE} and are also displayed below.
-
-    =================================================================================
-
-{indent(instructions, "    ")}
-    """).lstrip()
-
-    return HumanAgentDocs(
-        welcome=welcome, welcome_login=welcome_login, instructions=instructions
-    )
-
-
-def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
+def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     PREFIX = dedent("""
     #!/usr/bin/env python3
     import argparse
@@ -143,52 +95,112 @@ def human_agent_commands_py(commands: list[HumanAgentCommand]) -> str:
     return "\n\n".join([PREFIX, code, registration, SUFFIX])
 
 
-def human_agent_install_sh(commands: list[HumanAgentCommand]) -> str:
-    BASHRC = "~/.bashrc"
+def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) -> str:
+    # only run in interative terminals
+    TERMINAL_CHECK = dedent("""
 
+    ### Inspect Human Agent Setup #########################################=
+
+    # only run if shell is interactive
+    case $- in
+        *i*) ;;
+        *) return ;;
+    esac
+
+    # only run if attached to a terminal
+    if ! tty -s; then
+        return
+    fi
+    """)
+
+    # command aliases
+    COMMANDS = "\n".join(
+        ["# shell aliases for human agent commands"]
+        + [
+            f"alias {command.name}='python3 {HUMAN_AGENT_DIR}/{COMMANDS_PY} {command.name}'"
+            for command in commands
+        ]
+    )
+
+    # session recording
+    RECORDING = record_session_setup() if record_session else ""
+
+    # display welcome login
+    WELCOME = dedent(f"""
+    # display human agent welcome message
+    cat {HUMAN_AGENT_DIR}/{WELCOME_LOGIN_FILE}
+    """).lstrip()
+
+    # return .bashrc
+    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, WELCOME])
+
+
+class HumanAgentDocs(TypedDict):
+    welcome: str
+    welcome_login: str
+    instructions: str
+
+
+def human_agent_docs(
+    state: TaskState, commands: list[HumanAgentCommand]
+) -> HumanAgentDocs:
+    commands_text = "\n".join(
+        [
+            f"- {command.name}: {command.description}"
+            for command in commands
+            if not command.hidden
+        ]
+    )
+
+    instructions = "\n\n".join([message.text for message in state.messages])
+
+    welcome = dedent(f"""
+    =================================================================================
+                            WELCOME TO YOUR INSPECT TASK!
+    =================================================================================
+
+    Please use the following commands as you complete your work:
+
+{indent(commands_text, "    ")}
+    """).lstrip()
+
+    welcome_login = dedent(f"""
+{indent(welcome, "    ")}
+    The command reference will also be saved in the file {WELCOME_FILE}.
+    Task instructions are at {INSTRUCTIONS_FILE} and are also displayed below.
+
+    =================================================================================
+
+{indent(instructions, "    ")}
+
+    """).lstrip()
+
+    return HumanAgentDocs(
+        welcome=welcome, welcome_login=welcome_login, instructions=instructions
+    )
+
+
+def human_agent_install_sh() -> str:
     COMMANDS = dedent(f"""
     #!/usr/bin/env bash
 
-    # install commands
+    # create installation directory
     HUMAN_AGENT="{HUMAN_AGENT_DIR}"
     mkdir -p $HUMAN_AGENT
+
+    # copy commands
     cp {COMMANDS_PY} $HUMAN_AGENT
 
-    # create bash aliases for commands
-    create_alias() {{
-        echo "alias $1='python3 $HUMAN_AGENT/{COMMANDS_PY} $1'" >> {BASHRC}
-    }}
+    # append to bash rc
+    cat {BASHRC} >> ~/{BASHRC}
 
-    echo '' >> {BASHRC}
-    echo '# human agent command aliases' >> {BASHRC}
-    for cmd in {' '.join([command.name for command in commands])}; do
-        create_alias $cmd
-    done
-    """)
-
-    DOCUMENTATION = dedent(f"""
-    # copy documentation
+    $ copy documentation
+    cp {WELCOME_LOGIN_FILE} $HUMAN_AGENT
     cp {WELCOME_FILE} ..
     cp {INSTRUCTIONS_FILE} ..
     """)
 
-    # recording
-    RECORDING = dedent(f"""
-    cat {RECORDING_SH} >> {BASHRC}
-    """)
-
-    # add welcome banner to .bashrc
-    WELCOME = dedent(f"""
-    echo '' >> {BASHRC}
-    echo '# show human agent documentation' >> {BASHRC}
-    echo 'cat <<- "EOF"' >> {BASHRC}
-    cat {WELCOME_FILE} >> {BASHRC}
-    cat {WELCOME_LOGIN_FILE} >> {BASHRC}
-    echo '' >> {BASHRC}
-    echo 'EOF' >> {BASHRC}
-    """)
-
-    return "\n\n".join([COMMANDS, DOCUMENTATION, RECORDING, WELCOME])
+    return "\n\n".join([COMMANDS])
 
 
 async def checked_exec(
