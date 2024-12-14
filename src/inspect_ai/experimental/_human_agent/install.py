@@ -170,13 +170,16 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
         RECORDING = ""
 
     # display task instructions
-    WELCOME = dedent("""
-    # display human agent instructions
-    task instructions
+    INSTRUCTIONS = dedent("""
+    if [ -z "$INSTRUCTIONS_SHOWN" ]; then
+        export INSTRUCTIONS_SHOWN=1
+        task instructions --no-ansi > instructions.txt
+        task instructions
+    fi
     """).lstrip()
 
     # return .bashrc
-    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, WELCOME])
+    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS])
 
 
 def human_agent_install_sh() -> str:

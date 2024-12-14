@@ -15,7 +15,7 @@ class SubmitCommand(HumanAgentCommand):
 
     @property
     def description(self) -> str:
-        return "Submit your answer for the task."
+        return "Submit your final answer for the task."
 
     @property
     def cli_args(self) -> list[HumanAgentCommand.CLIArg]:

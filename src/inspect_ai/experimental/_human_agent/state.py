@@ -3,15 +3,22 @@ from typing import Any, TypeVar
 
 from pydantic import JsonValue
 
-from inspect_ai.util._store import Store
+from inspect_ai.solver._task_state import TaskState
 
 VT = TypeVar("VT")
 
 
 class HumanAgentState:
-    def __init__(self, store: Store) -> None:
-        self.store = store
+    def __init__(self, state: TaskState) -> None:
+        self._instructions = "\n\n".join(
+            [message.text for message in state.messages]
+        ).strip()
+        self._store = state.store
         self.running = True
+
+    @property
+    def instructions(self) -> str:
+        return self._instructions
 
     @property
     def running(self) -> bool:
@@ -77,10 +84,10 @@ class HumanAgentState:
         self._set(self.ACCUMULATED_TIME, time)
 
     def _get(self, key: str, default: VT) -> VT:
-        return self.store.get(f"{self.AGENT_STATE}:{key}", default)
+        return self._store.get(f"{self.AGENT_STATE}:{key}", default)
 
     def _set(self, key: str, value: Any) -> None:
-        self.store.set(f"{self.AGENT_STATE}:{key}", value)
+        self._store.set(f"{self.AGENT_STATE}:{key}", value)
 
     AGENT_STATE = "human_agent_state"
     RUNNING = "running"

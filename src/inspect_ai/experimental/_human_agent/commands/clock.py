@@ -1,5 +1,5 @@
 from argparse import Namespace
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
@@ -17,7 +17,7 @@ class ClockCommand(HumanAgentCommand):
 
     @property
     def description(self) -> str:
-        return "Check the time taken so far on this task."
+        return "Check task time and start or stop the clock."
 
     def cli(self, args: Namespace) -> None:
         status = call_human_agent("clock")
@@ -39,8 +39,9 @@ class StartCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Start working on the task."
 
-    def cli(self, args: Namespace) -> None:
-        call_human_agent("start")
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def start() -> None:
@@ -58,8 +59,9 @@ class StopCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Stop working on the task."
 
-    def cli(self, args: Namespace) -> None:
-        call_human_agent("stop")
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def stop() -> None:
