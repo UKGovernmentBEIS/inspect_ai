@@ -173,8 +173,8 @@ class StatusBar(Horizontal):
         background: $surface;
         margin-bottom: 1;
         layout: grid;
-        grid-size: 6 1;
-        grid-columns: auto auto auto auto 1fr;
+        grid-size: 4 1;
+        grid-columns: auto auto auto auto;
         grid-gutter: 1;
     }}
     .{LABEL_CLASS} {{
@@ -200,8 +200,6 @@ class StatusBar(Horizontal):
         yield Static("Running", id=self.STATUS_ID, classes=self.VALUE_CLASS)
         yield Label(" Time:", classes=self.LABEL_CLASS)
         yield Static("0:00:00", id=self.TIME_ID, classes=self.VALUE_CLASS)
-        # yield Static("  ⏸")  # ▶️
-        yield Link("Help")
 
     def watch_running(self, running: bool) -> None:
         cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(

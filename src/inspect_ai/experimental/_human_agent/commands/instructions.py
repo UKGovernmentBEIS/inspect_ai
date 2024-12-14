@@ -61,7 +61,7 @@ class InstructionsCommand(HumanAgentCommand):
                 console.print(Rule("", style="blue", align="left", characters="․"))
                 console.print("")
                 console.print(
-                    "When ready, submit your answer using the 'task submit' command. View these instructions with 'task instructions' command or in the 'instructions.txt' file."
+                    "When ready, submit your answer using the 'task submit' command. View these instructions with the 'task instructions' command or in the 'instructions.txt' file."
                 )
 
                 return console.export_text()
