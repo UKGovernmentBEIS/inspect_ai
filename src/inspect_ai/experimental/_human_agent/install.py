@@ -50,7 +50,7 @@ async def install_human_agent(
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
     # filter out hidden commands
-    commands = [command for command in commands if not command.hidden]
+    commands = [command for command in commands if "cli" in command.contexts]
 
     # standard imports (including any dependencies that call methods carry)
     imports = dedent("""
@@ -135,7 +135,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
 
     # shell alias and completions
     command_names = " ".join(
-        [f"{command.name}" for command in commands if not command.hidden]
+        [f"{command.name}" for command in commands if "cli" in command.contexts]
     )
     COMMANDS = dedent(f"""
     # shell alias for human agent commands
@@ -196,7 +196,7 @@ def human_agent_docs(
         [
             f"- task {command.name}: {command.description}"
             for command in commands
-            if not command.hidden
+            if "cli" in command.contexts
         ]
     )
 

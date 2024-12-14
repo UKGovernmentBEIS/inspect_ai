@@ -1,7 +1,7 @@
 import abc
 from argparse import Namespace
 from pathlib import Path
-from typing import Any, Awaitable, Callable, NamedTuple
+from typing import Any, Awaitable, Callable, Literal, NamedTuple
 
 from pydantic import JsonValue
 
@@ -32,18 +32,21 @@ class HumanAgentCommand:
         return []
 
     @property
-    def hidden(self) -> bool:
-        return False
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        """Contexts where this command runs (defaults to both cli and service)."""
+        return ["cli", "service"]
 
     def call(self, args: Namespace) -> None:
-        """Command client (runs in container). Optional (hidden commands are not callable from the container -- i.e. they may just have an RPC handler)"""
+        """Command client (runs in container). Required for context "cli"."""
         pass
 
-    def handler(
-        self, state: HumanAgentState
-    ) -> Callable[..., Awaitable[JsonValue]] | None:
-        """Handler (runs in Inspect process). Optional (you can create call only commands that just perform operations in the container)"""
-        ...
+    def handler(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        """Handler (runs in Inspect process). Required for context "service"."""
+
+        async def no_handler() -> None:
+            pass
+
+        return no_handler
 
 
 def human_agent_commands(_intermediate_scoring: bool) -> list[HumanAgentCommand]:
@@ -91,8 +94,8 @@ class StartCommand(HumanAgentCommand):
         return "Start working on the task."
 
     @property
-    def hidden(self) -> bool:
-        return True
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
 
     def call(self, args: Namespace) -> None:
         call_human_agent("start")
@@ -131,6 +134,10 @@ class InstructionsCommand(HumanAgentCommand):
     @property
     def description(self) -> str:
         return "Display task instructions."
+
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["cli"]
 
     def call(self, args: Namespace) -> None:
         print("TASK INSTRUCTIONS")
