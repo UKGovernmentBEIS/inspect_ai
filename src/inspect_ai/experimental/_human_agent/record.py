@@ -11,8 +11,9 @@ def record_session_setup() -> str:
         LOGDIR={RECORD_SESSION_DIR}
         mkdir -p "$LOGDIR"
         TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        LOGFILE="$LOGDIR/$(whoami)_$TIMESTAMP.log"
-        TIMINGFILE="$LOGDIR/$(whoami)_$TIMESTAMP.time"
-        exec script -q -f -T "$TIMINGFILE" "$LOGFILE" -c "bash --login -i"
+        INPUTFILE="$LOGDIR/$(whoami)_$TIMESTAMP.input"
+        OUTPUTFILE="$LOGDIR/$(whoami)_$TIMESTAMP.output"
+        TIMINGFILE="$LOGDIR/$(whoami)_$TIMESTAMP.timing"
+        exec script -q -f -m advanced -I "$INPUTFILE" -O "$OUTPUTFILE" -T "$TIMINGFILE" -c "bash --login -i"
     fi
     """).lstrip()
