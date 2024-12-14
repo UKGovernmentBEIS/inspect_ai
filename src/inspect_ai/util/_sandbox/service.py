@@ -27,7 +27,7 @@ PARAMS = "params"
 ERROR = "error"
 RESULT = "result"
 
-POLLING_INTERVAL = 0.1
+POLLING_INTERVAL = 0.2
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
