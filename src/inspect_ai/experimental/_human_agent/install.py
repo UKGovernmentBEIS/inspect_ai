@@ -122,6 +122,26 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
         ]
     )
 
+    # completions
+    command_names = [command.name for command in commands]
+    all_commands = " ".join(command_names)
+    completions_fn = dedent(f"""
+    _commands_py_completion() {{
+        local cur
+        _init_completion || return
+        COMPREPLY=( $(compgen -W "{all_commands}" -- "$cur") )
+    }}
+    """).strip()
+
+    COMPLETIONS = "\n".join(
+        ["", "# completions for human agent commands"]
+        + [completions_fn]
+        + [
+            f"complete -F _commands_py_completion {command.name}"
+            for command in commands
+        ]
+    )
+
     # session recording
     if record_session:
         RECORDING = dedent(f"""
@@ -147,7 +167,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     """).lstrip()
 
     # return .bashrc
-    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, WELCOME])
+    return "\n".join([TERMINAL_CHECK, COMMANDS, COMPLETIONS, RECORDING, WELCOME])
 
 
 class HumanAgentDocs(TypedDict):
