@@ -2,7 +2,7 @@ import asyncio
 from re import Pattern
 
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import display_type, input_panel, input_screen, sandbox
+from inspect_ai.util import display_type, input_panel, sandbox
 
 from .commands import human_agent_commands
 from .install import install_human_agent
@@ -71,7 +71,6 @@ def human_agent(
                 async with await input_panel(HumanAgentPanel) as panel:
                     return await run_human_agent(panel)
             else:
-                with input_screen() as console:
-                    return await run_human_agent(ConsoleView(console))
+                return await run_human_agent(ConsoleView())
 
     return solve
