@@ -178,22 +178,24 @@ class TaskProgressView(Widget):
         super().__init__()
         self.t = task
 
-        self.metrics: list[TaskDisplayMetric] | None = None
         self.description_width = description_width
         self.model_name_width = model_name_width
-        self.metrics_width: int | None = None
-        self.sample_count_width: int = sample_count_width
 
         self.progress_bar = ProgressBar(total=task.profile.steps, show_eta=False)
         self.count_display = Static()
         self.metrics_display = Static(id="task-metrics")
         self.task_progress = TaskProgress(self.progress_bar)
 
-        self.samples_complete = 0
-        self.samples_total = 0
-
         self.toggle = Toggle()
         self.task_detail = TaskDetail(id="task-detail", classes="hidden")
+
+        self.sample_count_width: int = sample_count_width
+
+    metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
+    metrics_width: reactive[int | None] = reactive(None)
+    sample_count_width: reactive[int] = reactive(0)
+    samples_complete: reactive[int] = reactive(0)
+    samples_total: reactive[int] = reactive(0)
 
     def compose(self) -> ComposeResult:
         yield self.toggle
@@ -234,18 +236,41 @@ class TaskProgressView(Widget):
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
         self.samples_total = total
-        self.refresh_count()
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
-        if len(metrics) > 0:
-            # update metrics
-            self.metrics = metrics
+        self.metrics = metrics
 
+    def update_metrics_width(self, width: int) -> None:
+        self.metrics_width = width
+
+    def update_count_width(self, width: int) -> None:
+        self.sample_count_width = width
+
+    def _watch_sample_count_width(self, width: int) -> None:
+        self.refresh_count()
+
+    def _watch_samples_complete(self, complete: int) -> None:
+        self.refresh_count()
+
+    def _watch_samples_total(self, total: int) -> None:
+        self.refresh_count()
+
+    def _watch_metrics_width(self, width: int) -> None:
+        self.update_metrics_label()
+
+    def _watch_metrics(self, metrics: list[TaskDisplayMetric] | None) -> None:
+        if metrics is not None and len(metrics) > 0:
             # update label
             self.update_metrics_label()
 
             # update details
             self.task_detail.update_metrics(metrics)
+
+    def refresh_count(self) -> None:
+        progress_label = progress_count(
+            self.samples_complete, self.samples_total, self.sample_count_width
+        )
+        self.count_display.update(progress_label)
 
     def update_metrics_label(self) -> None:
         # compute the label (with a min size)
@@ -253,20 +278,6 @@ class TaskProgressView(Widget):
             metric_label = task_metric(self.metrics, self.metrics_width)
             self.metrics_width = len(metric_label)
             self.metrics_display.update(metric_label)
-
-    def update_metrics_width(self, width: int) -> None:
-        self.metrics_width = width
-        self.update_metrics_label()
-
-    def update_count_width(self, width: int) -> None:
-        self.sample_count_width = width
-        self.refresh_count()
-
-    def refresh_count(self) -> None:
-        progress_label = progress_count(
-            self.samples_complete, self.samples_total, self.sample_count_width
-        )
-        self.count_display.update(progress_label)
 
 
 class TaskStatusIcon(Static):
