@@ -56,7 +56,7 @@ def human_agent(
             async with await input_panel(HumanAgentPanel) as panel:
                 return await run_human_agent(panel)
         else:
-            with input_screen(transient=False) as console:
+            with input_screen() as console:
                 return await run_human_agent(ConsoleView(console))
 
     return solve
