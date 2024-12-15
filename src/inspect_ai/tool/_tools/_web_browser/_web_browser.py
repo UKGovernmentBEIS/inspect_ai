@@ -1,6 +1,6 @@
-import enum
 import re
 from textwrap import dedent
+from typing import Literal
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool, ToolError, tool
@@ -12,20 +12,9 @@ from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_D
 from inspect_ai.util._store import store
 
 
-class CrawlerOutputFormat(enum.Enum):
-    # Raw HTML.
-    HTML = 0
-    # Raw Document Object Model.
-    DOM = 1
-    # Accessibility tree.
-    AT = 2
-    # A pixel-based rending of the webpage.
-    PIXELS = 3
-
-
 def web_browser(
     interactive: bool = True,
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> list[Tool]:
     """Tools used for web browser navigation.
 
@@ -33,8 +22,8 @@ def web_browser(
        interactive (bool): Provide interactive tools (enable
          clicking, typing, and submitting forms). Defaults
          to True.
-       output_format (CrawlerOutputFormat): Output format for
-         web browser tools. Defaults to CrawlerOutputFormat.AT.
+       output_format (Literal["at", "html"]): Output format for
+         web browser tools. Defaults to "at" (accessibility tree).
 
     Returns:
        List of tools used for web browser navigation.
@@ -64,7 +53,7 @@ def web_browser(
 
 
 @tool(parallel=False)
-def web_browser_go(output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT) -> Tool:
+def web_browser_go(output_format: Literal["at", "html"] = "at") -> Tool:
     """Web Browser tool for navigation to a URL.
 
     Returns:
@@ -151,7 +140,7 @@ def web_viewer(call: ToolCall) -> ToolCallView:
 
 @tool(viewer=web_viewer, parallel=False)
 def web_browser_click(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
@@ -188,7 +177,7 @@ def web_browser_click(
 
 @tool(viewer=web_viewer, parallel=False)
 def web_browser_type_submit(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for typing and submitting input.
 
@@ -230,7 +219,7 @@ def web_browser_type_submit(
 
 @tool(viewer=web_viewer, parallel=False)
 def web_browser_type(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for typing into inputs.
 
@@ -270,7 +259,7 @@ def web_browser_type(
 
 @tool(parallel=False)
 def web_browser_scroll(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for scrolling up or down one page.
 
@@ -302,7 +291,7 @@ def web_browser_scroll(
 
 @tool(parallel=False)
 def web_browser_back(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for navigating back in the browser history.
 
@@ -325,7 +314,7 @@ def web_browser_back(
 
 @tool(parallel=False)
 def web_browser_forward(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for navigating forward in the browser history.
 
@@ -348,7 +337,7 @@ def web_browser_forward(
 
 @tool(parallel=False)
 def web_browser_refresh(
-    output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT,
+    output_format: Literal["at", "html"] = "at",
 ) -> Tool:
     """Web Browser tool for refreshing the current page.
 
@@ -375,7 +364,7 @@ BROWSER_SESSION_ID = "BROWSER_SESSION_ID"
 
 
 async def web_browser_cmd(
-    cmd: str, output_format: CrawlerOutputFormat = CrawlerOutputFormat.AT, *args: str
+    cmd: str, output_format: Literal["at", "html"] = "at", *args: str
 ) -> str:
     sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
     session_flag = ""
@@ -411,13 +400,13 @@ async def web_browser_cmd(
     else:
         response = parse_web_browser_output(result.stdout)
         if "web_html" or "web_at" in response:
-            if output_format == CrawlerOutputFormat.HTML:
+            if output_format == "html":
                 html_content = (
                     str(response.get("web_html")) or "(no HTML content available)"
                 )
                 store().set(WEB_BROWSER_HTML, html_content)
                 return html_content
-            elif output_format == CrawlerOutputFormat.AT:
+            elif output_format == "at":
                 web_at = (
                     str(response.get("web_at"))
                     or "(no web accessiblity tree available)"

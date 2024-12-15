@@ -15,14 +15,13 @@ from ._tool_info import ToolInfo
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._execute import bash, python
-from ._tools._web_browser import CrawlerOutputFormat, web_browser
+from ._tools._web_browser import web_browser
 from ._tools._web_search import web_search
 
 __all__ = [
     "bash",
     "python",
     "web_browser",
-    "CrawlerOutputFormat",
     "web_search",
     "tool",
     "tool_with",
