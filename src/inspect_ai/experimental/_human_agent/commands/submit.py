@@ -1,5 +1,6 @@
 from argparse import Namespace
 from pathlib import Path
+from re import Pattern
 from typing import Awaitable, Callable
 
 from pydantic import JsonValue
@@ -9,6 +10,9 @@ from .command import HumanAgentCommand, call_human_agent
 
 
 class SubmitCommand(HumanAgentCommand):
+    def __init__(self, answer: bool | Pattern[str]) -> None:
+        self._answer = answer
+
     @property
     def name(self) -> str:
         return "submit"

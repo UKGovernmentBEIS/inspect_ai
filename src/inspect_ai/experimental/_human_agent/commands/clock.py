@@ -10,6 +10,10 @@ from .command import (
 )
 
 
+def clock_commands() -> list[HumanAgentCommand]:
+    return [ClockCommand(), StartCommand(), StopCommand()]
+
+
 class ClockCommand(HumanAgentCommand):
     @property
     def name(self) -> str:

@@ -11,7 +11,9 @@ from .service import run_human_agent_service
 
 
 @solver
-def human_agent(answer: bool | Pattern, record_session: bool = True) -> Solver:
+def human_agent(
+    answer: bool | Pattern[str] = True, record_session: bool = True
+) -> Solver:
     """Human solver for agentic tasks that run in a Linux environment.
 
     The Human agent solver installs agent task tools in the default
@@ -37,8 +39,8 @@ def human_agent(answer: bool | Pattern, record_session: bool = True) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         async with await input_panel(HumanAgentPanel) as panel:
-            # get agent commands
-            commands = human_agent_commands()
+            # create agent commands
+            commands = human_agent_commands(answer)
 
             # install agent tools
             await install_human_agent(state, commands, record_session)
