@@ -1,3 +1,4 @@
+import asyncio
 from re import Pattern
 
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -36,38 +37,41 @@ def human_agent(
     Returns:
        Solver: Human agent solver.
     """
+    # we can only run one human agent interaction at a time (use lock to enforce)
+    agent_lock = asyncio.Lock()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # ensure that we have a sandbox to work with
-        try:
-            connection = await sandbox().connection()
-        except ProcessLookupError:
-            raise RuntimeError("Human agent must run in a task with a sandbox.")
-        except NotImplementedError:
-            raise RuntimeError(
-                "Human agent must run with a sandbox that supports connections."
-            )
+        async with agent_lock:
+            # ensure that we have a sandbox to work with
+            try:
+                connection = await sandbox().connection()
+            except ProcessLookupError:
+                raise RuntimeError("Human agent must run in a task with a sandbox.")
+            except NotImplementedError:
+                raise RuntimeError(
+                    "Human agent must run with a sandbox that supports connections."
+                )
 
-        # run the agent
-        async def run_human_agent(view: HumanAgentView) -> TaskState:
-            # create agent commands
-            commands = human_agent_commands(answer)
+            # run the agent
+            async def run_human_agent(view: HumanAgentView) -> TaskState:
+                # create agent commands
+                commands = human_agent_commands(answer)
 
-            # install agent tools
-            await install_human_agent(state, commands, record_session)
+                # install agent tools
+                await install_human_agent(state, commands, record_session)
 
-            # set connection on view
-            view.connect(connection)
+                # set connection on view
+                view.connect(connection)
 
-            # run sandbox service
-            return await run_human_agent_service(state, commands, view)
+                # run sandbox service
+                return await run_human_agent_service(state, commands, view)
 
-        # support both fullscreen ui and fallback
-        if display_type() == "full":
-            async with await input_panel(HumanAgentPanel) as panel:
-                return await run_human_agent(panel)
-        else:
-            with input_screen() as console:
-                return await run_human_agent(ConsoleView(console))
+            # support both fullscreen ui and fallback
+            if display_type() == "full":
+                async with await input_panel(HumanAgentPanel) as panel:
+                    return await run_human_agent(panel)
+            else:
+                with input_screen() as console:
+                    return await run_human_agent(ConsoleView(console))
 
     return solve
