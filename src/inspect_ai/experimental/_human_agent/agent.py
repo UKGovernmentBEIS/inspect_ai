@@ -3,11 +3,14 @@ from re import Pattern
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import input_panel, sandbox
+from inspect_ai.util._console import input_screen
+from inspect_ai.util._display import display_type
 
 from .commands import human_agent_commands
 from .install import install_human_agent
 from .panel import HumanAgentPanel
 from .service import run_human_agent_service
+from .view import ConsoleView, HumanAgentView
 
 
 @solver
@@ -38,17 +41,25 @@ def human_agent(
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        async with await input_panel(HumanAgentPanel) as panel:
+        async def run_human_agent(view: HumanAgentView) -> TaskState:
             # create agent commands
             commands = human_agent_commands(answer)
 
             # install agent tools
             await install_human_agent(state, commands, record_session)
 
-            # show panel ui for agent session
-            panel.connection = await sandbox().connection()
+            # set connection on view
+            view.connect(await sandbox().connection())
 
             # run sandbox service
-            return await run_human_agent_service(state, commands, panel)
+            return await run_human_agent_service(state, commands, view)
+
+        # support both fullscreen ui and fallback
+        if display_type() == "full":
+            async with await input_panel(HumanAgentPanel) as panel:
+                return await run_human_agent(panel)
+        else:
+            with input_screen(transient=False) as console:
+                return await run_human_agent(ConsoleView(console))
 
     return solve

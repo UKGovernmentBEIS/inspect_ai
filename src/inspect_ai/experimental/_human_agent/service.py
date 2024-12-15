@@ -8,7 +8,7 @@ from .view import HumanAgentView
 
 
 async def run_human_agent_service(
-    state: TaskState, commands: list[HumanAgentCommand], view: HumanAgentView
+    state: TaskState, commands: list[HumanAgentCommand], view: HumanAgentView | None
 ) -> TaskState:
     # initialise agent state
     agent_state = HumanAgentState(state)
@@ -23,7 +23,8 @@ async def run_human_agent_service(
     # callback to check if task is completed (use this to periodically
     # update the view with the current state)
     def task_is_completed() -> bool:
-        view.update_state(agent_state)
+        if view:
+            view.update_state(agent_state)
         return agent_state.completed
 
     # run the service

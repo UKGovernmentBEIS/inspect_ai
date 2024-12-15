@@ -68,6 +68,10 @@ class HumanAgentPanel(InputPanel):
 
     connection: reactive[SandboxConnection | None] = reactive(None)
 
+    # implement HumanAgentView
+    def connect(self, connection: SandboxConnection) -> None:
+        self.connection = connection
+
     @throttle(1)
     def update_state(self, state: HumanAgentState) -> None:
         status_bar = self.query_one(StatusBar)
