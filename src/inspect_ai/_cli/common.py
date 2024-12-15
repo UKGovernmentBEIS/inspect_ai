@@ -10,7 +10,7 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
-from inspect_ai._util.display import init_display_type
+from inspect_ai.util._display import init_display_type
 
 
 class CommonOptions(TypedDict):

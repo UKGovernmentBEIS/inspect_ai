@@ -1,5 +1,6 @@
 from ._concurrency import concurrency
 from ._console import input_screen
+from ._display import DisplayType, display_type
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -28,6 +29,8 @@ from ._trace import trace_enabled, trace_panel
 __all__ = [
     "ExecResult",
     "concurrency",
+    "DisplayType",
+    "display_type",
     "InputPanel",
     "input_panel",
     "input_screen",

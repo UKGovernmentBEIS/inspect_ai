@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+
 ## v0.3.52 (13 December 2024)
 
 - Eval: `--sample-id` option for evaluating specific sample id(s).
