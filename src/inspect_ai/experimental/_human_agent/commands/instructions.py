@@ -42,7 +42,7 @@ class InstructionsCommand(HumanAgentCommand):
                     console.rule(f"{text}")
                     console.print("")
 
-                print_heading("Inspect Agent Task")
+                print_heading("Agent Task")
                 console.print(
                     "You will be completing a task as a human agent based on the instructions presented below. You can use the following commands to submit answers, manage time, and view instructions:"
                 )

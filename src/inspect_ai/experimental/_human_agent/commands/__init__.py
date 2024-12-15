@@ -4,7 +4,7 @@ from .instructions import InstructionsCommand
 from .submit import SubmitCommand
 
 
-def human_agent_commands(_intermediate_scoring: bool) -> list[HumanAgentCommand]:
+def human_agent_commands() -> list[HumanAgentCommand]:
     commands = [
         SubmitCommand(),
         ClockCommand(),

@@ -9,13 +9,11 @@ from .service import run_human_agent_service
 
 
 @solver
-def human_agent(
-    record_session: bool = True, intermediate_scoring: bool = False
-) -> Solver:
+def human_agent(record_session: bool = True) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         async with await input_panel(HumanAgentPanel) as panel:
             # get agent commands
-            commands = human_agent_commands(intermediate_scoring)
+            commands = human_agent_commands()
 
             # install agent tool and hookup sandbox connection
             await install_human_agent(state, commands, record_session)
