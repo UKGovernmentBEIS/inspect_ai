@@ -83,7 +83,12 @@ class TaskLogger:
         # ensure that the dataset has sample ids and record them
         sample_ids = cast(
             list[int | str],
-            [sample.id for sample in slice_dataset(dataset, eval_config.limit)],
+            [
+                sample.id
+                for sample in slice_dataset(
+                    dataset, eval_config.limit, eval_config.sample_id
+                )
+            ],
         )
 
         # create eval spec

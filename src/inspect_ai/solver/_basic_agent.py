@@ -54,6 +54,7 @@ def basic_agent(
     max_attempts: int = 1,
     message_limit: int | None = None,
     token_limit: int | None = None,
+    max_tool_output: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str
     | Callable[[TaskState, list[Score]], str] = DEFAULT_INCORRECT_MESSAGE,
@@ -87,6 +88,8 @@ def basic_agent(
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task, 50 will be used as a default.
        token_limit (int | None): Limit on tokens used in sample before terminating agent.
+       max_tool_output (int | None): Maximum output length (in bytes).
+          Defaults to max_tool_output from active GenerateConfig.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str | Callable[[TaskState, list[Score]], str]): User message reply for an
@@ -182,7 +185,9 @@ def basic_agent(
                 # resolve tools calls (if any)
                 if state.output.message.tool_calls:
                     # call tool functions
-                    tool_results = await call_tools(state.output.message, state.tools)
+                    tool_results = await call_tools(
+                        state.output.message, state.tools, max_output=max_tool_output
+                    )
                     state.messages.extend(tool_results)
 
                     # was an answer submitted?
@@ -194,11 +199,13 @@ def basic_agent(
                         # exit if we are at max_attempts
                         attempts += 1
                         if attempts >= max_attempts:
+                            state.completed = True
                             break
 
                         # exit if the submission is successful
                         answer_scores = await score(state)
                         if score_value_fn(answer_scores[0].value) == 1.0:
+                            state.completed = True
                             break
 
                         # otherwise notify the model that it was incorrect and continue

@@ -63,26 +63,12 @@ export const ToolCallView = ({
   output,
   mode,
 }) => {
-  const icon =
-    mode === "compact"
-      ? ""
-      : html`<i
-          class="bi bi-tools"
-          style=${{
-            marginRight: "0.2rem",
-            opacity: "0.4",
-          }}
-        ></i>`;
-  const codeIndent = mode === "compact" ? "" : "";
   return html`<div>
-    ${icon}
-    ${!view || view.title
-      ? html`<code style=${{ fontSize: FontSize.small }}
-          >${view?.title || functionCall}</code
-        >`
+    ${mode !== "compact" && (!view || view.title)
+      ? html`<${ToolTitle} title=${view?.title || functionCall} />`
       : ""}
     <div>
-      <div style=${{ marginLeft: `${codeIndent}` }}>
+      <div>
         <${ToolInput}
           type=${inputType}
           contents=${input}
@@ -92,12 +78,54 @@ export const ToolCallView = ({
         ${output
           ? html`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
-              <${MessageContent} contents=${output} />
+              <${MessageContent} contents=${normalizeContent(output)} />
               </${ExpandablePanel}>`
           : ""}
       </div>
     </div>
   </div>`;
+};
+
+/**
+ * Renders the ToolCallView component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.title - The title for the tool call
+ * @returns {import("preact").JSX.Element} The SampleTranscript component.
+ */
+const ToolTitle = ({ title }) => {
+  return html` <i
+      class="bi bi-tools"
+      style=${{
+        marginRight: "0.2rem",
+        opacity: "0.4",
+      }}
+    ></i>
+    <code style=${{ fontSize: FontSize.small }}>${title}</code>`;
+};
+
+/**
+ * Renders the ToolCallView component.
+ *
+ * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} output - The tool output
+ * @returns {(import("../Types.mjs").ContentTool | import("../types/log").ContentText | import("../types/log").ContentImage)[]} The SampleTranscript component.
+ */
+const normalizeContent = (output) => {
+  if (Array.isArray(output)) {
+    return output;
+  } else {
+    return [
+      {
+        type: "tool",
+        content: [
+          {
+            type: "text",
+            text: String(output),
+          },
+        ],
+      },
+    ];
+  }
 };
 
 /**

@@ -39,10 +39,19 @@ def task_file(task: Task, relative: bool = False) -> str | None:
 def slice_dataset(
     dataset: Dataset,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str | int] | None,
 ) -> Dataset:
-    dataset_limit = (
-        slice(0, len(dataset))
-        if limit is None
-        else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
-    )
-    return dataset[dataset_limit]
+    def normalise(id: str | int | None) -> str:
+        return id if isinstance(id, str) else str(id).zfill(20)
+
+    if sample_id is not None:
+        sample_id = sample_id if isinstance(sample_id, list) else [sample_id]
+        sample_id = [normalise(id) for id in sample_id]
+        return dataset.filter(lambda sample: normalise(sample.id) in sample_id)
+    else:
+        dataset_limit = (
+            slice(0, len(dataset))
+            if limit is None
+            else (slice(*limit) if isinstance(limit, tuple) else slice(0, limit))
+        )
+        return dataset[dataset_limit]

@@ -24,6 +24,10 @@ def task_config(
             config_print.append(
                 f"{name}: {','.join([approver['name'] for approver in value['approvers']])}"
             )
+        elif name == "sample_id":
+            value = value if isinstance(value, list) else [value]
+            value = [str(v) for v in value]
+            config_print.append(f"{name}: {','.join(value)}")
         elif name not in ["limit", "model"]:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)

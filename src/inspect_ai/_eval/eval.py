@@ -61,6 +61,7 @@ def eval(
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
+    sample_id: str | int | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -110,6 +111,7 @@ def eval(
            to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
+        sample_id (str | int | list[str | int] | None): Evaluate specific sample(s) from the dataset.
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -163,6 +165,7 @@ def eval(
             log_dir=log_dir,
             log_format=log_format,
             limit=limit,
+            sample_id=sample_id,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
@@ -198,6 +201,7 @@ async def eval_async(
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
+    sample_id: str | int | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -245,8 +249,9 @@ async def eval_async(
             (defaults to file log in ./logs directory).
         log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
            to "eval", the native high-performance format).
-        limit (int | tuple[int, int] | None): Limit evaluated samples
+        limit (str | int | list[str | int] | None): Limit evaluated samples
             (defaults to all samples).
+        sample_id (str | list[str] | None): Evaluate specific sample(s) from the dataset.
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -335,6 +340,10 @@ async def eval_async(
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver
 
+        # ensure consistency of limit and sample_id
+        if sample_id is not None and limit is not None:
+            raise ValueError("You cannot specify both sample_id and limit.")
+
         # resolve epochs
         if isinstance(epochs, int):
             epochs = Epochs(epochs)
@@ -345,6 +354,7 @@ async def eval_async(
         epochs_reducer = epochs.reducer if epochs else None
         eval_config = EvalConfig(
             limit=limit,
+            sample_id=sample_id,
             epochs=epochs.epochs if epochs else None,
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
@@ -642,6 +652,7 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
+        sample_id = eval_log.eval.config.sample_id
         epochs = (
             Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
             if eval_log.eval.config.epochs
@@ -699,6 +710,7 @@ async def eval_retry_async(
                 log_dir=log_dir,
                 log_format=log_format,
                 limit=limit,
+                sample_id=sample_id,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 debug_errors=debug_errors,
