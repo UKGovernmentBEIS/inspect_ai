@@ -32,3 +32,9 @@
 /**
  * @typedef {"none" | "single" | "many"} SampleMode
  */
+
+/**
+ * @typedef {Object} ContentTool
+ * @property {"tool"} type
+ * @property {(import("./types/log").ContentImage | import("./types/log").ContentText)[]} content
+ */

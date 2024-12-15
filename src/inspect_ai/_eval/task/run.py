@@ -42,7 +42,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import eval_log_json
+from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
 from inspect_ai.log._samples import active_sample
 from inspect_ai.log._transcript import (
@@ -144,8 +144,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         results: EvalResults | None = None
         reductions: list[EvalSampleReductions] | None = None
         stats = EvalStats(started_at=iso_now())
-        error: EvalError | None = None
-        cancelled = False
 
         # handle sample errors (raise as required)
         sample_error_handler = SampleErrorHandler(
@@ -164,6 +162,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             dataset=task.dataset,
             model_name=model_name,
             limit=config.limit,
+            sample_id=config.sample_id,
             epochs=epochs,
             log_images=log_images,
             message_limit=config.message_limit,
@@ -217,7 +216,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         with display().task(profile) as td:
             try:
                 # start the log
-                log_start(logger, plan, generate_config)
+                await log_start(logger, plan, generate_config)
 
                 with td.progress() as p:
                     # forward progress
@@ -329,6 +328,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 # collect eval data
                 collect_eval_data(stats)
 
+                # finish w/ success status
+                eval_log = await logger.log_finish(
+                    "success", stats, results, reductions
+                )
+
                 # display task summary
                 td.complete(
                     TaskSuccess(
@@ -339,11 +343,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 )
 
             except asyncio.CancelledError:
-                # flag as cancelled
-                cancelled = True
-
                 # collect eval data
                 collect_eval_data(stats)
+
+                # finish w/ cancelled status
+                eval_log = await logger.log_finish(
+                    "cancelled", stats, results, reductions
+                )
 
                 # display task cancelled
                 td.complete(TaskCancelled(logger.samples_completed, stats))
@@ -363,25 +369,22 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     # collect eval data
                     collect_eval_data(stats)
 
+                    # finish with error status
+                    eval_log = await logger.log_finish(
+                        "error", stats, results, reductions, error
+                    )
+
                     # display it
                     td.complete(
                         TaskError(logger.samples_completed, type, value, traceback)
                     )
-
-        # log as appropriate
-        if cancelled:
-            eval_log = logger.log_finish("cancelled", stats, results, reductions)
-        elif error:
-            eval_log = logger.log_finish("error", stats, results, reductions, error)
-        else:
-            eval_log = logger.log_finish("success", stats, results, reductions)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
         view_notify_eval(logger.location)
 
         try:
-            await send_telemetry("eval_log", eval_log_json(eval_log))
+            await send_telemetry("eval_log", eval_log_json_str(eval_log))
         except Exception as ex:
             py_logger.warning(
                 f"Error occurred sending telemetry: {exception_message(ex)}"
@@ -431,6 +434,7 @@ def update_metrics_display_fn(
                     for key, metric in score.metrics.items():
                         task_metrics.append(
                             TaskDisplayMetric(
+                                scorer=score.name,
                                 name=metric.name,
                                 value=metric.value,
                                 reducer=score.reducer,
@@ -475,7 +479,7 @@ async def task_run_sample(
 
             # log if requested
             if logger:
-                logger.log_sample(previous_sample, flush=False)
+                await logger.log_sample(previous_sample, flush=False)
 
             # return score
             if previous_sample.scores:
@@ -674,7 +678,7 @@ async def task_run_sample(
                 state = state_without_base64_images(state)
 
             # log the sample
-            log_sample(
+            await log_sample(
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -692,7 +696,7 @@ async def task_run_sample(
             return None
 
 
-def log_sample(
+async def log_sample(
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -738,20 +742,21 @@ def log_sample(
         limit=limit,
     )
 
-    logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
+    await logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
 
 
 async def resolve_dataset(
     dataset: Dataset,
     model_name: ModelName,
     limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str | int] | None,
     epochs: int,
     log_images: bool,
     message_limit: int | None,
     token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
-    # apply limit to dataset
-    dataset = slice_dataset(dataset, limit)
+    # slice dataset
+    dataset = slice_dataset(dataset, limit, sample_id)
 
     # apply epochs (deepcopy the samples so they remain independent)
     samples: list[Sample] = []

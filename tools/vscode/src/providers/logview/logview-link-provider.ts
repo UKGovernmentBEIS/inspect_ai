@@ -5,7 +5,7 @@ import { TerminalLink, TerminalLinkContext } from "vscode";
 import { existsSync } from "fs";
 import { basename } from "path";
 
-const kLogFilePattern = /^.*Log: (\S*?\.json)\s*/g;
+const kLogFilePattern = /^.*Log: (\S*?\.json|\S*?\.eval)\s*/g;
 
 interface LogViewTerminalLink extends TerminalLink {
   data: string;

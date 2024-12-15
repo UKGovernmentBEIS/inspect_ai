@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import datetime
 import io
 import os
@@ -7,11 +9,12 @@ import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Literal, cast, overload
+from typing import Any, AsyncIterator, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
-import fsspec  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
+import fsspec  # type: ignore  # type: ignore
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
@@ -277,8 +280,32 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     options.update(fs_options)
 
     # create filesystem
-    fs, path = fsspec.core.url_to_fs(path)
+    fs, path = fsspec.core.url_to_fs(path, **options)
     return FileSystem(fs)
+
+
+@contextlib.asynccontextmanager
+async def async_fileystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
 
 
 def absolute_file_path(file: str) -> str:

@@ -9,10 +9,10 @@ from textual.reactive import reactive
 from textual.widgets import Button, Static
 from typing_extensions import override
 
-from inspect_ai._display.core.input import InputPanel
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.util._panel import InputPanel, input_panel
 
 from .._approval import Approval, ApprovalDecision
 from .manager import ApprovalRequest, PendingApprovalRequest, human_approval_manager
@@ -34,10 +34,8 @@ async def panel_approval(
     state: TaskState | None,
     choices: list[ApprovalDecision],
 ) -> Approval:
-    from inspect_ai._display.core.active import task_screen
-
     # ensure the approvals panel is shown
-    await task_screen().input_panel(PANEL_TITLE, ApprovalInputPanel)
+    await input_panel(PANEL_TITLE, ApprovalInputPanel)
 
     # submit to human approval manager (will be picked up by panel)
     approvals = human_approval_manager()
@@ -90,7 +88,7 @@ class ApprovalInputPanel(InputPanel):
         self._approvals = human_approval_manager().approval_requests()
         if len(self._approvals) > 0:
             approval_id, approval_request = self._approvals[0]
-            self.set_title(f"{PANEL_TITLE} ({len(self._approvals):,})")
+            self.title = f"{PANEL_TITLE} ({len(self._approvals):,})"
             heading.request = approval_request
             content.approval = approval_request.request
             actions.approval_request = approval_id, approval_request
@@ -99,7 +97,7 @@ class ApprovalInputPanel(InputPanel):
                 actions.activate()
             self.visible = True
         else:
-            self.set_title(PANEL_TITLE)
+            self.title = PANEL_TITLE
             heading.request = None
             content.approval = None
             actions.approval_request = None

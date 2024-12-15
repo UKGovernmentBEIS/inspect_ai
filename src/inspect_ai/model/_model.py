@@ -31,11 +31,11 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
-from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import disable_parallel_tools, tools_info
+from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -248,7 +248,7 @@ class Model:
         async with self._connection_concurrency(config):
             return await self._generate(
                 input=input,
-                tools=tools_info(tools),
+                tools=tools,
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
@@ -257,13 +257,22 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolInfo],
+        tools: list[Tool]
+        | list[ToolDef]
+        | list[ToolInfo]
+        | list[Tool | ToolDef | ToolInfo],
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> ModelOutput:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
+
+        # extract tool defs if we can
+        tdefs = tool_defs([tool for tool in tools if not isinstance(tool, ToolInfo)])
+
+        # resolve all tools into tool_info
+        tools = tools_info(tools)
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
@@ -373,6 +382,11 @@ class Model:
 
             # update output with time elapsed
             output.time = time_elapsed
+
+            # add views to tool calls
+            for choice in output.choices:
+                for tool_call in choice.message.tool_calls or []:
+                    tool_call.view = tool_call_view(tool_call, tdefs)
 
             # complete the transcript event
             complete(output, call)
