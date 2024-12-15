@@ -5,6 +5,7 @@
 - `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+- Inspect View: Various improvements to appearance of tool calls in transcript.
 
 ## v0.3.52 (13 December 2024)
 
