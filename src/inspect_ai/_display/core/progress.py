@@ -130,9 +130,15 @@ def progress_time(time: float) -> str:
     return f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}"
 
 
-def progress_count(complete: int, total: int) -> str:
-    # Pad the display to keep it stable
+def progress_count(complete: int, total: int, width: int | None = None) -> str:
+    # Pad the display to keep it stable as the
+    # complete metrics
     total_str = f"{total:,}"
     complete_str = f"{complete:,}"
     padding = max(0, len(total_str) - len(complete_str))
-    return " " * padding + f"[{complete_str}/{total_str}]"
+    padded = " " * padding + f"[{complete_str}/{total_str}]"
+
+    # If a width has ben specified, pad up to this width as well
+    if width is not None:
+        padded = padded.rjust(width)
+    return padded
