@@ -2,7 +2,7 @@ from typing import Protocol
 
 from rich.console import Console
 
-from inspect_ai.util._sandbox.environment import SandboxConnection
+from inspect_ai.util import SandboxConnection
 
 from .state import HumanAgentState
 

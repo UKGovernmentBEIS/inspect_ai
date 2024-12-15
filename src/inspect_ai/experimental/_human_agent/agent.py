@@ -1,10 +1,7 @@
 from re import Pattern
 
-from inspect_ai.solver._solver import Generate, Solver, solver
-from inspect_ai.solver._task_state import TaskState
-from inspect_ai.util import input_panel, sandbox
-from inspect_ai.util._console import input_screen
-from inspect_ai.util._display import display_type
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import display_type, input_panel, input_screen, sandbox
 
 from .commands import human_agent_commands
 from .install import install_human_agent

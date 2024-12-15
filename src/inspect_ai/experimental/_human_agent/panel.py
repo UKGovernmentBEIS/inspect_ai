@@ -16,14 +16,12 @@ from textual.widgets import (
     Static,
 )
 
-from inspect_ai._util.throttle import throttle
 from inspect_ai._util.vscode import (
     VSCodeCommand,
     can_execute_vscode_commands,
     execute_vscode_commands,
 )
-from inspect_ai.util import InputPanel
-from inspect_ai.util._sandbox.environment import SandboxConnection
+from inspect_ai.util import InputPanel, SandboxConnection, throttle
 
 from .state import HumanAgentState
 

@@ -3,7 +3,7 @@ from typing import Any, TypeVar
 
 from pydantic import JsonValue
 
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.solver import TaskState
 
 VT = TypeVar("VT")
 
