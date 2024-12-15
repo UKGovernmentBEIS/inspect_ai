@@ -180,7 +180,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
     else:
         value = f"{metric.value:.2f}"
 
-    if show_reducer:
+    if show_reducer and metric.reducer is not None:
         metric_str = f"{metric.name}/{metric.reducer}: {value}"
     else:
         metric_str = f"{metric.name}: {value}"
