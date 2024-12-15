@@ -52,7 +52,7 @@ def human_agent(
                     "Human agent must run with a sandbox that supports connections."
                 )
 
-            # run the agent
+            # helper function to run the agent (called for fullscreen vs. fallback below)
             async def run_human_agent(view: HumanAgentView) -> TaskState:
                 # create agent commands
                 commands = human_agent_commands(answer)
@@ -60,7 +60,7 @@ def human_agent(
                 # install agent tools
                 await install_human_agent(state, commands, record_session)
 
-                # set connection on view
+                # hookup the view ui
                 view.connect(connection)
 
                 # run sandbox service
