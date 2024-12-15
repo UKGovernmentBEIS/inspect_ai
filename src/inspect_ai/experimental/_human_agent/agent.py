@@ -38,6 +38,17 @@ def human_agent(
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # ensure that we have a sandbox to work with
+        try:
+            connection = await sandbox().connection()
+        except ProcessLookupError:
+            raise RuntimeError("Human agent must run in a task with a sandbox.")
+        except NotImplementedError:
+            raise RuntimeError(
+                "Human agent must run with a sandbox that supports connections."
+            )
+
+        # run the agent
         async def run_human_agent(view: HumanAgentView) -> TaskState:
             # create agent commands
             commands = human_agent_commands(answer)
@@ -46,7 +57,7 @@ def human_agent(
             await install_human_agent(state, commands, record_session)
 
             # set connection on view
-            view.connect(await sandbox().connection())
+            view.connect(connection)
 
             # run sandbox service
             return await run_human_agent_service(state, commands, view)

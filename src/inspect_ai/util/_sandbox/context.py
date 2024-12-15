@@ -26,7 +26,7 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
       SandboxEnvironment instance.
 
     Raises:
-      RuntimeError: If there are no sandboxes available.
+      ProcessLookupError: If there are no sandboxes available.
       ValueError: If an invalid sandbox name is specified.
     """
     # verify we have a context
@@ -106,7 +106,7 @@ async def sandbox_connections() -> dict[str, SandboxConnection]:
 
 
 def raise_no_sandbox() -> NoReturn:
-    raise RuntimeError(
+    raise ProcessLookupError(
         "No sandbox environment has been provided for the current sample or task. "
         + "Please specify a sandbox for the sample or a global default sandbox for the task"
     )
