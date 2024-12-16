@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Bedrock: Support for emulated tool use (enabled by default for Nova, opt-in for other models).
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Bugfix: Proper handling of text find for eval raw JSON display

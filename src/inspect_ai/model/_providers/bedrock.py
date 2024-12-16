@@ -35,8 +35,6 @@ from .._model_output import (
 from .util import (
     model_base_url,
 )
-from .util.chatapi import ChatAPIHandler
-from .util.llama31 import Llama31Handler
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -250,19 +248,6 @@ class BedrockAPI(ModelAPI):
             config=config,
         )
 
-        # collect known model_args (then delete them so we can pass the rest on)
-        def collect_model_arg(name: str) -> Any | None:
-            nonlocal model_args
-            value = model_args.get(name, None)
-            if value is not None:
-                model_args.pop(name)
-            return value
-
-        emulate_tools = collect_model_arg("emulate_tools")
-        self.emulate_tools = (
-            not not emulate_tools if emulate_tools is not None else None
-        )
-
         # save model_args
         self.model_args = model_args
 
@@ -313,9 +298,6 @@ class BedrockAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
-    def is_nova(self) -> bool:
-        return "amazon.nova" in self.model_name
-
     async def generate(
         self,
         input: list[ChatMessage],
@@ -325,18 +307,6 @@ class BedrockAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
-
-        # emulate tools (auto for nova, opt-in for others)
-        if self.emulate_tools is None and self.is_nova():
-            handler: ChatAPIHandler | None = Llama31Handler()
-        elif self.emulate_tools:
-            handler = Llama31Handler()
-        else:
-            handler = None
-
-        # resolve inputs if we have a handler
-        if handler:
-            input = handler.input_with_tools(input, tools)
 
         # The bedrock client
         async with self.session.client(
@@ -407,9 +377,7 @@ class BedrockAPI(ModelAPI):
                     raise ex
 
         # create a model output from the response
-        output = model_output_from_response(
-            self.model_name, converse_response, tools, handler
-        )
+        output = model_output_from_response(self.model_name, converse_response, tools)
 
         # record call
         call = ModelCall.create(
@@ -447,10 +415,7 @@ async def converse_messages(
 
 
 def model_output_from_response(
-    model: str,
-    response: ConverseResponse,
-    tools: list[ToolInfo],
-    handler: ChatAPIHandler | None,
+    model: str, response: ConverseResponse, tools: list[ToolInfo]
 ) -> ModelOutput:
     # extract content and tool calls
     content: list[Content] = []
@@ -459,15 +424,7 @@ def model_output_from_response(
     # process the content in the response message
     for c in response.output.message.content:
         if c.text is not None:
-            # look for emulated tool calls
-            if handler:
-                resolved = handler.parse_assistant_response(c.text, tools)
-                content.append(ContentText(type="text", text=resolved.text))
-                if resolved.tool_calls:
-                    tool_calls.extend(resolved.tool_calls)
-            else:
-                content.append(ContentText(type="text", text=c.text))
-
+            content.append(ContentText(type="text", text=c.text))
         elif c.image is not None:
             base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
             content.append(ContentImage(image=base64_image))

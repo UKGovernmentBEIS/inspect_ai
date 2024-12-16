@@ -215,23 +215,6 @@ $ inspect eval bedrock/meta.llama2-70b-chat-v1
 
 You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-#### Tool Emulation
-
-::: {.callout-note appearance="simple"}
-The `emulate_tools` model argument described below is supported only in the development version of Inspect. To install the development version from GitHub:
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-When using the `bedrock` model provider, tool calling support can be 'emulated' for models that Bedrock has not yet properly implemented converse tool calling for. This occurs by default for Nova models. For other models, use the `emulate_tools` model arg to force tool emulation:
-
-```bash
-inspect eval ctf.py -M emulate_tools=true
-```
-
-You can also use this option to disable tool emulation for Nova models with `emulate_tools=false`.
-
 ### Google {#google}
 
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
@@ -455,8 +438,7 @@ The additional `model_args` are forwarded as follows for the various providers:
 | llama-cpp-python | `AsyncOpenAI`                          |
 | TogetherAI       | `AsyncOpenAI`                          |
 | Groq             | `AsyncGroq`                            |
-| Bedrock          | `session.Client`                       |
-| AzureAI          | `ChatCompletionsClient`                |
+| AzureAI          | Chat HTTP Post Body                    |
 | Cloudflare       | Chat HTTP Post Body                    |
 
 : {tbl-colwidths="\[30,70\]"}
