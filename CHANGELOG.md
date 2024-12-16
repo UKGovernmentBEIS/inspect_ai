@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Task API: Introduce `setup` step that always runs even if `solver` is replaced.
 - Bedrock: Support for tool calling on Nova models.
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Inspect View: Various improvements to appearance of tool calls in transcript.

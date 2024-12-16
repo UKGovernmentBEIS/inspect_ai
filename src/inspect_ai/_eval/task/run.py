@@ -178,6 +178,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         else:
             plan = Plan(unroll(solver), internal=True)
 
+        # add setup solver(s) if specified
+        if task.setup:
+            plan.steps = unroll(task.setup) + plan.steps
+
         # reaolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
