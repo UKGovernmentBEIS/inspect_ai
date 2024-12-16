@@ -26242,8 +26242,12 @@ function App({
           }
         }
       } catch (e2) {
-        console.log(e2);
-        setStatus({ loading: false, error: e2 });
+        if (e2.message === "Load failed" || e2.message === "Failed to fetch") {
+          setStatus({ loading: false });
+        } else {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
       }
       setHeadersLoading(false);
     };
