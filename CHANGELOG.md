@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Inspect View: Various improvements to appearance of tool calls in transcript.
+- Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 
 ## v0.3.52 (13 December 2024)
