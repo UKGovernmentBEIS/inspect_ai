@@ -3,6 +3,7 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "prismjs/themes/prism.css";
 import "prismjs";
 import "../App.css";
+import "asciinema-player/dist/bundle/asciinema-player.css";
 
 import { default as ClipboardJS } from "clipboard";
 // @ts-ignore
