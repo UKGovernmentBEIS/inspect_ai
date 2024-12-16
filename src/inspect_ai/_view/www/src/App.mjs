@@ -480,8 +480,13 @@ export function App({
           }
         }
       } catch (e) {
-        console.log(e);
-        setStatus({ loading: false, error: e });
+        if (e.message === "Load failed" || e.message === "Failed to fetch") {
+          // This will happen if the server disappears (e.g. inspect view is terminated)
+          setStatus({ loading: false });
+        } else {
+          console.log(e);
+          setStatus({ loading: false, error: e });
+        }
       }
 
       setHeadersLoading(false);
@@ -774,18 +779,38 @@ export function App({
       new ClipboardJS(".clipboard-button,.copy-button");
 
       if (pollForLogs) {
-        setInterval(() => {
-          api.client_events().then(async (events) => {
+        let retryDelay = 1000;
+        const maxRetryDelay = 60000;
+
+        const pollEvents = async () => {
+          try {
+            const events = await api.client_events();
+
             if (events.includes("reload")) {
               window.location.reload();
             }
+
             if (events.includes("refresh-evals")) {
               const logs = await load();
               setLogs(logs);
               setSelectedLogIndex(0);
             }
-          });
-        }, 1000);
+
+            // Reset delay after a successful call
+            retryDelay = 1000;
+          } catch (error) {
+            console.error("Error fetching client events:", error);
+
+            // Exponential backoff with capping
+            retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
+          } finally {
+            // Schedule the next poll
+            setTimeout(pollEvents, retryDelay);
+          }
+        };
+
+        // Start polling
+        pollEvents();
       }
     };
 
