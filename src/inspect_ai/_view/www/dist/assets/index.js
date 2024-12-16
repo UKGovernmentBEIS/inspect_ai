@@ -26471,8 +26471,11 @@ function App({
       }
       new ClipboardJS(".clipboard-button,.copy-button");
       if (pollForLogs) {
-        setInterval(() => {
-          api2.client_events().then(async (events) => {
+        let retryDelay = 1e3;
+        const maxRetryDelay = 6e4;
+        const pollEvents = async () => {
+          try {
+            const events = await api2.client_events();
             if (events.includes("reload")) {
               window.location.reload();
             }
@@ -26481,8 +26484,15 @@ function App({
               setLogs(logs2);
               setSelectedLogIndex(0);
             }
-          });
-        }, 1e3);
+            retryDelay = 1e3;
+          } catch (error2) {
+            console.error("Error fetching client events:", error2);
+            retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
+          } finally {
+            setTimeout(pollEvents, retryDelay);
+          }
+        };
+        pollEvents();
       }
     };
     loadLogsAndState();
