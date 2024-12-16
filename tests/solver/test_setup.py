@@ -16,6 +16,6 @@ def setup():
 
 
 def test_solver_setup():
-    log = eval(Task(setup=setup()))[0]
+    log = eval(Task(setup=setup()), model="mockllm/model")[0]
     assert log.samples
     assert log.samples[0].store.get("setup") is True
