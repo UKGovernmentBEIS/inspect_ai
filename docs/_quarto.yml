@@ -98,9 +98,6 @@ format:
      toc-depth: 3
      number-sections: false
      code-annotations: select
-   gfm: 
-      output-ext: html.lmd
-
 
 execute: 
   enabled: false

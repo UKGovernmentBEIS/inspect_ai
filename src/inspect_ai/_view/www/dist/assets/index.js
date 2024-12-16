@@ -15251,21 +15251,10 @@ const ToolCallView = ({
   output,
   mode
 }) => {
-  const icon = mode === "compact" ? "" : m$1`<i
-          class="bi bi-tools"
-          style=${{
-    marginRight: "0.2rem",
-    opacity: "0.4"
-  }}
-        ></i>`;
-  const codeIndent = mode === "compact" ? "" : "";
   return m$1`<div>
-    ${icon}
-    ${!view || view.title ? m$1`<code style=${{ fontSize: FontSize.small }}
-          >${(view == null ? void 0 : view.title) || functionCall}</code
-        >` : ""}
+    ${mode !== "compact" && (!view || view.title) ? m$1`<${ToolTitle} title=${(view == null ? void 0 : view.title) || functionCall} />` : ""}
     <div>
-      <div style=${{ marginLeft: `${codeIndent}` }}>
+      <div>
         <${ToolInput}
           type=${inputType}
           contents=${input}
@@ -15274,11 +15263,38 @@ const ToolCallView = ({
         />
         ${output ? m$1`
               <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
-              <${MessageContent} contents=${output} />
+              <${MessageContent} contents=${normalizeContent$1(output)} />
               </${ExpandablePanel}>` : ""}
       </div>
     </div>
   </div>`;
+};
+const ToolTitle = ({ title }) => {
+  return m$1` <i
+      class="bi bi-tools"
+      style=${{
+    marginRight: "0.2rem",
+    opacity: "0.4"
+  }}
+    ></i>
+    <code style=${{ fontSize: FontSize.small }}>${title}</code>`;
+};
+const normalizeContent$1 = (output) => {
+  if (Array.isArray(output)) {
+    return output;
+  } else {
+    return [
+      {
+        type: "tool",
+        content: [
+          {
+            type: "text",
+            text: String(output)
+          }
+        ]
+      }
+    ];
+  }
 };
 const ToolInput = ({ type, contents, view, style }) => {
   if (!contents && !(view == null ? void 0 : view.content)) {
@@ -15455,8 +15471,7 @@ const extractInput = (inputKey, args) => {
     args: []
   };
 };
-const MessageContent = (props) => {
-  const { contents } = props;
+const MessageContent = ({ contents }) => {
   if (Array.isArray(contents)) {
     return contents.map((content, index) => {
       if (typeof content === "string") {
@@ -19569,6 +19584,7 @@ const decisionIcon = (decision) => {
   }
 };
 const ToolEventView = ({ id, event, style, depth }) => {
+  var _a2;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
@@ -19576,10 +19592,10 @@ const ToolEventView = ({ id, event, style, depth }) => {
   const approvalEvent = event.events.find((e2) => {
     return e2.event === "approval";
   });
-  const title = `Tool: ${event.function}`;
+  const title = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
-  <div name="Summary" style=${{ margin: "0.5em 0" }}>
+  <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
