@@ -3,9 +3,12 @@ from argparse import Namespace
 from typing import Awaitable, Callable
 
 from pydantic import JsonValue
-from rich.console import Console
-from rich.rule import Rule
+from rich.console import Console, Group
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
+
+from inspect_ai._util.transcript import DOUBLE_LINE
 
 from ..state import HumanAgentState
 from .command import HumanAgentCommand, call_human_agent
@@ -38,31 +41,30 @@ class InstructionsCommand(HumanAgentCommand):
                     width=100,
                 )
 
-                def print_heading(text: str) -> None:
-                    console.rule(f"{text}")
-                    console.print("")
-
-                print_heading("Agent Task")
-                console.print(
-                    "You will be completing a task as a human agent based on the instructions presented below. You can use the following commands to submit answers, manage time, and view instructions:"
-                )
+                # some space at the top
                 console.print("")
-                table = Table(box=None, show_header=False)
-                table.add_column("", justify="left")
-                table.add_column("", justify="left")
+
+                intro = "\nYou will be completing a task based on the instructions presented below. You can use the following commands to submit answers, manage time, and view these instructions again:\n"
+                commands_table = Table(box=None, show_header=False)
+                commands_table.add_column("", justify="left")
+                commands_table.add_column("", justify="left")
                 for command in filter(lambda c: "cli" in c.contexts, self._commands):
-                    table.add_row(f"task {command.name}", command.description)
-                console.print(table)
-                console.print("")
+                    commands_table.add_row(f"task {command.name}", command.description)
 
-                print_heading("Task Instructions")
-                console.print(state.instructions, highlight=False)
-                console.print("")
-                console.print(Rule("", style="blue", align="left", characters="․"))
-                console.print("")
-                console.print(
-                    "When ready, submit your answer using the 'task submit' command. View these instructions with the 'task instructions' command or in the 'instructions.txt' file."
+                header_panel = Panel(
+                    Group(intro, commands_table),
+                    title=Text.from_markup("[bold]Human Agent Task[/bold]"),
+                    box=DOUBLE_LINE,
+                    padding=(0, 0),
                 )
+                console.print(header_panel)
+
+                instructions_panel = Panel(
+                    f"{state.instructions.strip()}",
+                    title="Task Instructions",
+                    padding=(1, 1),
+                )
+                console.print(instructions_panel)
 
                 return console.export_text()
 
