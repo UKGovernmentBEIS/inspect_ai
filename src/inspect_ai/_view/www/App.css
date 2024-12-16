@@ -717,6 +717,13 @@ pre[class*="language-"].tool-output {
   border-radius: var(--bs-border-radius) !important;
 }
 
+.vscode-dark pre.jsonPanel {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: var(--bs-border-radius) !important;  
+}
+
 
 /* jsondiffpatch */
 
