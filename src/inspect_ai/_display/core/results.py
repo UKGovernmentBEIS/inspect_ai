@@ -166,7 +166,7 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
     return message
 
 
-def task_metric(metrics: list[TaskDisplayMetric]) -> str:
+def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> str:
     reducer_names: Set[str] = {
         metric.reducer for metric in metrics if metric.reducer is not None
     }
@@ -180,10 +180,14 @@ def task_metric(metrics: list[TaskDisplayMetric]) -> str:
     else:
         value = f"{metric.value:.2f}"
 
-    if show_reducer:
-        return f"{metric.name}/{metric.reducer}: {value}"
+    if show_reducer and metric.reducer is not None:
+        metric_str = f"{metric.name}/{metric.reducer}: {value}"
     else:
-        return f"{metric.name}: {value}"
+        metric_str = f"{metric.name}: {value}"
+
+    if width is not None:
+        metric_str = metric_str.rjust(width)
+    return metric_str
 
 
 def task_metrics(scores: list[EvalScore]) -> str:
