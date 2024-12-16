@@ -6,6 +6,7 @@
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Inspect View: Various improvements to appearance of tool calls in transcript.
+- Bugfix: Correct handling for `--sample-id` integer comparisons.
 
 ## v0.3.52 (13 December 2024)
 
