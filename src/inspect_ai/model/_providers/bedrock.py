@@ -680,7 +680,11 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
         tool_spec = ConverseToolSpec(
             name=tool.name,
             description=tool.description,
-            inputSchema={"json": tool.parameters.model_dump(exclude_none=True)},
+            inputSchema={
+                "json": tool.parameters.model_dump(
+                    exclude_none=True, exclude={"additionalProperties"}
+                )
+            },
         )
         result.append(ConverseTool(toolSpec=tool_spec))
     return result
