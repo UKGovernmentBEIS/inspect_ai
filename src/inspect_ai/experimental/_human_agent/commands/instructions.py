@@ -1,13 +1,13 @@
-import os
 from argparse import Namespace
 from typing import Awaitable, Callable
 
 from pydantic import JsonValue
-from rich.console import Console, Group
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from inspect_ai._util.ansi import render_text
 from inspect_ai._util.transcript import DOUBLE_LINE
 
 from ..state import HumanAgentState
@@ -31,41 +31,31 @@ class InstructionsCommand(HumanAgentCommand):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def instructions() -> str:
-            # use rich styles
-            with open(os.devnull, "w") as f:
-                console = Console(
-                    record=True,
-                    file=f,
-                    force_terminal=True,
-                    no_color=True,
-                    width=100,
-                )
+            intro = "\nYou will be completing a task based on the instructions presented below. You can use the following commands to submit answers, manage time, and view these instructions again:\n"
+            commands_table = Table(box=None, show_header=False)
+            commands_table.add_column("", justify="left")
+            commands_table.add_column("", justify="left")
+            for command in filter(lambda c: "cli" in c.contexts, self._commands):
+                commands_table.add_row(f"task {command.name}", command.description)
 
-                # some space at the top
-                console.print("")
+            header_panel = Panel(
+                Group(intro, commands_table),
+                title=Text.from_markup("[bold]Human Agent Task[/bold]"),
+                box=DOUBLE_LINE,
+                padding=(0, 0),
+            )
 
-                intro = "\nYou will be completing a task based on the instructions presented below. You can use the following commands to submit answers, manage time, and view these instructions again:\n"
-                commands_table = Table(box=None, show_header=False)
-                commands_table.add_column("", justify="left")
-                commands_table.add_column("", justify="left")
-                for command in filter(lambda c: "cli" in c.contexts, self._commands):
-                    commands_table.add_row(f"task {command.name}", command.description)
+            instructions_panel = Panel(
+                f"{state.instructions.strip()}",
+                title="Task Instructions",
+                padding=(1, 1),
+            )
 
-                header_panel = Panel(
-                    Group(intro, commands_table),
-                    title=Text.from_markup("[bold]Human Agent Task[/bold]"),
-                    box=DOUBLE_LINE,
-                    padding=(0, 0),
-                )
-                console.print(header_panel)
-
-                instructions_panel = Panel(
-                    f"{state.instructions.strip()}",
-                    title="Task Instructions",
-                    padding=(1, 1),
-                )
-                console.print(instructions_panel)
-
-                return console.export_text()
+            return render_text(
+                ["", header_panel, instructions_panel],
+                styles=False,
+                no_color=True,
+                width=100,
+            )
 
         return instructions
