@@ -24,6 +24,13 @@ class TestPlaywrightCrawler(parameterized.TestCase):
         self._crawler.update()
         self.assertTrue(self._crawler._nodes)
 
+    def test_render_html(self):
+        self._crawler.go_to_page("https://www.example.com")
+        html = self._crawler.render(playwright_crawler.CrawlerOutputFormat.HTML)
+        self.assertIn("<html", html)
+        self.assertIn("Example Domain", html)
+        self.assertIn("More information...", html)
+
     def test_render_accessibility_tree(self):
         self._crawler.go_to_page("https://www.example.com")
         at_no_update = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
