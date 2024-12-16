@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Inspect View: Various improvements to appearance of tool calls in transcript.
+- Bugfix: Correct handling for `--sample-id` integer comparisons.
 
 ## v0.3.52 (13 December 2024)
 

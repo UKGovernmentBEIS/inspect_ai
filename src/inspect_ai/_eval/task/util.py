@@ -42,6 +42,8 @@ def slice_dataset(
     sample_id: str | int | list[str | int] | None,
 ) -> Dataset:
     def normalise(id: str | int | None) -> str:
+        if isinstance(id, str) and id.isdigit():
+            id = int(id)
         return id if isinstance(id, str) else str(id).zfill(20)
 
     if sample_id is not None:
