@@ -4,7 +4,7 @@ import Prism from "prismjs";
 import "prismjs/components/prism-json";
 
 import { html } from "htm/preact";
-import { useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { FontSize } from "../appearance/Fonts.mjs";
 
 const kPrismRenderMaxSize = 250000;
@@ -22,25 +22,17 @@ const kPrismRenderMaxSize = 250000;
  * @returns {import('preact').JSX.Element} The rendered component.
  */
 export const JSONPanel = ({ id, json, data, simple, style }) => {
-  const sourceCode = json || JSON.stringify(data, undefined, 2);
   const codeRef = useRef();
 
-  if (codeRef.current) {
+  const sourceCode = useMemo(() => {
+    return json || JSON.stringify(data, undefined, 2);
+  }, [json, data]);
+
+  useEffect(() => {
     if (sourceCode.length < kPrismRenderMaxSize) {
-      // @ts-ignore
-      codeRef.current.innerHTML = Prism.highlight(
-        sourceCode,
-        Prism.languages.javascript,
-        "javacript",
-      );
-    } else {
-      const textNode = document.createTextNode(sourceCode);
-      // @ts-ignore
-      codeRef.current.innerText = "";
-      // @ts-ignore
-      codeRef.current.appendChild(textNode);
+      Prism.highlightElement(codeRef.current);
     }
-  }
+  }, [sourceCode]);
 
   return html`<div>
     <pre
@@ -51,16 +43,18 @@ export const JSONPanel = ({ id, json, data, simple, style }) => {
         borderRadius: simple ? undefined : "var(--bs-border-radius)",
         ...style,
       }}
+      class="jsonPanel"
     >
     <code 
       id=${id}
       ref=${codeRef}
-      class="sourceCode-json" 
+      class="sourceCode language-javascript" 
       style=${{
       fontSize: FontSize.small,
       whiteSpace: "pre-wrap",
       wordWrap: "anywhere",
     }}>
+      ${sourceCode}
     </code>
     </pre>
   </div>`;
