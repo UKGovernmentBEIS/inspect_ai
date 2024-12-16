@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Inspect View: Various improvements to appearance of tool calls in transcript.
+- Task display: Ensure that widths of progress elements are kept consistant across tasks.
 
 ## v0.3.52 (13 December 2024)
 
