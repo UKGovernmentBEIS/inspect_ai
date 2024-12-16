@@ -39,6 +39,8 @@ class Task:
 
     Args:
         dataset (Dataset | Sequence[Sample]): Dataset to evaluate
+        setup: (Solver | list[Solver] | None): Setup step (always run
+          even when the main `solver` is replaced).
         solver: (Solver | list[Solver]): Solver or list of solvers.
           Defaults to generate(), a normal call to the model.
         scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
@@ -68,6 +70,7 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample] | None = None,
+        setup: Solver | list[Solver] | None = None,
         solver: Solver | list[Solver] = generate(),
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
@@ -119,6 +122,7 @@ class Task:
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
+        self.setup = setup
         self.solver = chain(solver) if isinstance(solver, list) else solver
         self.scorer = (
             scorer
