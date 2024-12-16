@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+- Bedrock: Support for tool calling on Nova models.
+- Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
+- Bugfix: Proper handling of text find for eval raw JSON display
+- Bugfix: Correct handling for `--sample-id` integer comparisons.
+- Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
 
 ## v0.3.52 (13 December 2024)
 

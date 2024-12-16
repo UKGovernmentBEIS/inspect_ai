@@ -19437,21 +19437,15 @@ const LoggerEventView = ({ id, event, style }) => {
 };
 const kPrismRenderMaxSize = 25e4;
 const JSONPanel = ({ id, json, data, simple, style }) => {
-  const sourceCode = json || JSON.stringify(data, void 0, 2);
   const codeRef = A();
-  if (codeRef.current) {
+  const sourceCode = T(() => {
+    return json || JSON.stringify(data, void 0, 2);
+  }, [json, data]);
+  y(() => {
     if (sourceCode.length < kPrismRenderMaxSize) {
-      codeRef.current.innerHTML = Prism$1.highlight(
-        sourceCode,
-        Prism$1.languages.javascript,
-        "javacript"
-      );
-    } else {
-      const textNode = document.createTextNode(sourceCode);
-      codeRef.current.innerText = "";
-      codeRef.current.appendChild(textNode);
+      Prism$1.highlightElement(codeRef.current);
     }
-  }
+  }, [sourceCode]);
   return m$1`<div>
     <pre
       style=${{
@@ -19461,16 +19455,18 @@ const JSONPanel = ({ id, json, data, simple, style }) => {
     borderRadius: simple ? void 0 : "var(--bs-border-radius)",
     ...style
   }}
+      class="jsonPanel"
     >
     <code 
       id=${id}
       ref=${codeRef}
-      class="sourceCode-json" 
+      class="sourceCode language-javascript" 
       style=${{
     fontSize: FontSize.small,
     whiteSpace: "pre-wrap",
     wordWrap: "anywhere"
   }}>
+      ${sourceCode}
     </code>
     </pre>
   </div>`;
@@ -20283,7 +20279,10 @@ const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
       clamp: true
     });
   }
-  const fullAnswer = sample && sampleDescriptor ? sampleDescriptor.selectedScorer(sample).answer() : void 0;
+  const fullAnswer = sample && sampleDescriptor ? (
+    // @ts-ignore
+    sampleDescriptor.selectedScorer(sample).answer()
+  ) : void 0;
   if (fullAnswer) {
     columns.push({
       label: "Answer",
@@ -20309,7 +20308,11 @@ const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
     value: sample.error ? m$1`<${FlatSampleError}
           message=${sample.error.message}
           style=${{ marginTop: "0.4rem" }}
-        />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
+        />` : (
+      // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
+      // @ts-ignore
+      sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()
+    ),
     size: "minmax(2em, auto)",
     center: true
   });

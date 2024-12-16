@@ -64,7 +64,7 @@ class HuggingFaceAPI(ModelAPI):
         def collect_model_arg(name: str) -> Any | None:
             nonlocal model_args
             value = model_args.get(name, None)
-            if value:
+            if value is not None:
                 model_args.pop(name)
             return value
 
