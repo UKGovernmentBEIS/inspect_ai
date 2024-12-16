@@ -20620,7 +20620,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const { limit, answer } = gridColumns(sampleDescriptor);
+  const { limit, answer, target } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20635,7 +20635,7 @@ const SampleList = (props) => {
   >
     <div>Id</div>
     <div>Input</div>
-    <div>Target</div>
+    <div>${target !== "0" ? "Target" : ""}</div>
     <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>
     <div style=${{ justifySelf: "center" }}>Score</div>

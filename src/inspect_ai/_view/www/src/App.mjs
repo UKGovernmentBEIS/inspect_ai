@@ -482,10 +482,10 @@ export function App({
       } catch (e) {
         if (e.message === "Load failed" || e.message === "Failed to fetch") {
           // This will happen if the server disappears (e.g. inspect view is terminated)
-          setStatus({ loading: false });  
+          setStatus({ loading: false });
         } else {
           console.log(e);
-          setStatus({ loading: false, error: e });  
+          setStatus({ loading: false, error: e });
         }
       }
 
