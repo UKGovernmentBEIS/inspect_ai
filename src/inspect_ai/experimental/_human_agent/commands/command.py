@@ -21,6 +21,10 @@ class HumanAgentCommand:
         ...
 
     @property
+    @abc.abstractmethod
+    def group(self) -> Literal[1, 2, 3]: ...
+
+    @property
     def contexts(self) -> list[Literal["cli", "service"]]:
         """Contexts where this command runs (defaults to both cli and service)."""
         return ["cli", "service"]

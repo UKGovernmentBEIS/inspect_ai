@@ -1,7 +1,7 @@
 from argparse import Namespace
 from pathlib import Path
 from re import Pattern
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
@@ -20,6 +20,10 @@ class SubmitCommand(HumanAgentCommand):
     @property
     def description(self) -> str:
         return "Submit your final answer for the task."
+
+    @property
+    def group(self) -> Literal[1, 2, 3]:
+        return 1
 
     @property
     def cli_args(self) -> list[HumanAgentCommand.CLIArg]:

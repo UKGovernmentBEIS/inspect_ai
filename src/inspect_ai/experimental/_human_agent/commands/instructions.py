@@ -1,5 +1,5 @@
 from argparse import Namespace
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 from rich.console import Group
@@ -26,17 +26,30 @@ class InstructionsCommand(HumanAgentCommand):
     def description(self) -> str:
         return "Display task commands and instructions."
 
+    @property
+    def group(self) -> Literal[1, 2, 3]:
+        return 3
+
     def cli(self, args: Namespace) -> None:
         print(call_human_agent("instructions", **vars(args)))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def instructions() -> str:
-            intro = "\nYou will be completing a task based on the instructions presented below. You can use the following commands to submit answers, manage time, and view these instructions again:\n"
+            intro = "\nYou will be completing a task based on the instructions presented below. You can use the following commands as you work on the task:\n"
             commands_table = Table(box=None, show_header=False)
             commands_table.add_column("", justify="left")
             commands_table.add_column("", justify="left")
-            for command in filter(lambda c: "cli" in c.contexts, self._commands):
-                commands_table.add_row(f"task {command.name}", command.description)
+
+            def add_command_group(group: int) -> None:
+                for command in filter(
+                    lambda c: "cli" in c.contexts and c.group == group, self._commands
+                ):
+                    commands_table.add_row(f"task {command.name}", command.description)
+                if group != 3:
+                    commands_table.add_row("", "")
+
+            for i in range(1, 4):
+                add_command_group(i)
 
             header_panel = Panel(
                 Group(intro, commands_table),
@@ -55,7 +68,7 @@ class InstructionsCommand(HumanAgentCommand):
                 ["", header_panel, instructions_panel],
                 styles=False,
                 no_color=True,
-                width=100,
+                width=90,
             )
 
         return instructions
