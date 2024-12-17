@@ -20620,7 +20620,7 @@ const SampleList = (props) => {
     [selectedIndex]
   );
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
-  const { limit, answer } = gridColumns(sampleDescriptor);
+  const { limit, answer, target } = gridColumns(sampleDescriptor);
   const headerRow = m$1`<div
     style=${{
     display: "grid",
@@ -20635,7 +20635,7 @@ const SampleList = (props) => {
   >
     <div>Id</div>
     <div>Input</div>
-    <div>Target</div>
+    <div>${target !== "0" ? "Target" : ""}</div>
     <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>
     <div style=${{ justifySelf: "center" }}>Score</div>
@@ -26242,8 +26242,12 @@ function App({
           }
         }
       } catch (e2) {
-        console.log(e2);
-        setStatus({ loading: false, error: e2 });
+        if (e2.message === "Load failed" || e2.message === "Failed to fetch") {
+          setStatus({ loading: false });
+        } else {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
       }
       setHeadersLoading(false);
     };
@@ -26471,8 +26475,11 @@ function App({
       }
       new ClipboardJS(".clipboard-button,.copy-button");
       if (pollForLogs) {
-        setInterval(() => {
-          api2.client_events().then(async (events) => {
+        let retryDelay = 1e3;
+        const maxRetryDelay = 6e4;
+        const pollEvents = async () => {
+          try {
+            const events = await api2.client_events();
             if (events.includes("reload")) {
               window.location.reload();
             }
@@ -26481,8 +26488,15 @@ function App({
               setLogs(logs2);
               setSelectedLogIndex(0);
             }
-          });
-        }, 1e3);
+            retryDelay = 1e3;
+          } catch (error2) {
+            console.error("Error fetching client events:", error2);
+            retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
+          } finally {
+            setTimeout(pollEvents, retryDelay);
+          }
+        };
+        pollEvents();
       }
     };
     loadLogsAndState();
