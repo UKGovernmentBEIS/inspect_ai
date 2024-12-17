@@ -267,24 +267,43 @@ def scorers_from_metric_dict(
                 value = target_metric(metric_scores)
             else:
                 value = float("Nan")
-            result_metrics[metric_name] = EvalMetric(
-                name=metric_name,
-                value=cast(float, value),
-            )
+
+            # convert the value to a float (either by expanding the dict or array)
+            # or by casting to a float
+            if isinstance(value, dict):
+                for key, val in value.items():
+                    name = f"{metric_name}_{key}"
+                    result_metrics[name] = EvalMetric(
+                        name=name,
+                        value=cast(float, val),
+                    )
+            elif isinstance(value, list):
+                for idx, item in enumerate(value):
+                    name = f"{metric_name}_{idx}"
+                    result_metrics[name] = EvalMetric(
+                        name=name,
+                        value=cast(float, item),
+                    )
+            else:
+                result_metrics[metric_name] = EvalMetric(
+                    name=metric_name,
+                    value=cast(float, value),
+                )
 
         # create a scorer result for this metric
         # TODO: What if there is separate simple scorer which has a name collision with
         # a score created by this scorer
-        results.append(
-            EvalScore(
-                scorer=scorer_name,
-                reducer=reducer_name,
-                name=metric_key,
-                params=registry_params(scorer),
-                metadata=metadata if len(metadata.keys()) > 0 else None,
-                metrics=result_metrics,
+        if len(result_metrics.values()) > 0:
+            results.append(
+                EvalScore(
+                    scorer=scorer_name,
+                    reducer=reducer_name,
+                    name=metric_key,
+                    params=registry_params(scorer),
+                    metadata=metadata if len(metadata.keys()) > 0 else None,
+                    metrics=result_metrics,
+                )
             )
-        )
     return results
 
 
