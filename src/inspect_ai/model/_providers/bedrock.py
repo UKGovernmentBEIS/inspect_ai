@@ -665,6 +665,8 @@ def converse_image_type(type: str) -> ConverseImageFormat:
             return "png"
         case "image/webp":
             return "webp"
+        case "image/jpeg":
+            return "jpeg"
         case _:
             raise ValueError(
                 f"Image mime type {type} is not supported for Bedrock Converse models."
