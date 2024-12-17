@@ -3,6 +3,8 @@ from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
+from inspect_ai._util.format import format_progress_time
+
 from ..state import HumanAgentState
 from .command import HumanAgentCommand, call_human_agent
 from .status import render_status
@@ -25,8 +27,14 @@ class StartCommand(HumanAgentCommand):
         print(call_human_agent("start"))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        from inspect_ai.log._transcript import transcript
+
         async def start() -> str:
-            state.running = True
+            if not state.running:
+                state.running = True
+                transcript().info(
+                    f"Task started (total time: {format_progress_time(state.time)})"
+                )
             return render_status(state)
 
         return start
@@ -49,8 +57,14 @@ class StopCommand(HumanAgentCommand):
         print(call_human_agent("stop"))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        from inspect_ai.log._transcript import transcript
+
         async def stop() -> str:
-            state.running = False
+            if state.running:
+                state.running = False
+                transcript().info(
+                    f"Task stopped (total time: {format_progress_time(state.time)})"
+                )
             return render_status(state)
 
         return stop
