@@ -267,10 +267,28 @@ def scorers_from_metric_dict(
                 value = target_metric(metric_scores)
             else:
                 value = float("Nan")
-            result_metrics[metric_name] = EvalMetric(
-                name=metric_name,
-                value=cast(float, value),
-            )
+
+            # convert the value to a float (either by expanding the dict or array)
+            # or by casting to a float
+            if isinstance(value, dict):
+                for key, val in value.items():
+                    name = f"{metric_name}_{key}"
+                    result_metrics[name] = EvalMetric(
+                        name=name,
+                        value=cast(float, val),
+                    )
+            elif isinstance(value, list):
+                for idx, item in enumerate(value):
+                    name = f"{metric_name}_{idx}"
+                    result_metrics[name] = EvalMetric(
+                        name=name,
+                        value=cast(float, item),
+                    )
+            else:
+                result_metrics[metric_name] = EvalMetric(
+                    name=metric_name,
+                    value=cast(float, value),
+                )
 
         # create a scorer result for this metric
         # TODO: What if there is separate simple scorer which has a name collision with
