@@ -28,3 +28,25 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_api_json() -> None:
+    model = get_model(
+        "openai/gpt-3.5-turbo",
+        config=GenerateConfig(
+            frequency_penalty=0.0,
+            stop_seqs=None,
+            max_tokens=50,
+            presence_penalty=0.0,
+            logit_bias=dict([(42, 10), (43, -10)]),
+            seed=None,
+            temperature=0.0,
+            top_p=1.0,
+            response_format={"type":"json_object"}
+        ),
+    )
+
+    message = ChatMessageUser(content="This is a test string. In a json string with the key 'entity', tell me: what are you?")
+    response = await model.generate(input=[message])
+    assert len(response.completion) >= 1
