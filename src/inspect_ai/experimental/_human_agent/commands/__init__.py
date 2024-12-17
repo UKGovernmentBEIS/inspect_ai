@@ -3,12 +3,13 @@ from .command import HumanAgentCommand
 from .instructions import InstructionsCommand
 from .note import NoteCommand
 from .status import StatusCommand
-from .submit import SubmitCommand
+from .submit import SubmitCommand, ValidateCommand
 
 
 def human_agent_commands(answer: bool | str) -> list[HumanAgentCommand]:
     commands = [
-        SubmitCommand(answer),
+        SubmitCommand(),
+        ValidateCommand(answer),
         NoteCommand(),
         StatusCommand(),
         StartCommand(),

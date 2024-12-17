@@ -21,8 +21,8 @@ class HumanAgentCommand:
         ...
 
     @property
-    @abc.abstractmethod
-    def group(self) -> Literal[1, 2, 3]: ...
+    def group(self) -> Literal[1, 2, 3]:
+        return 1
 
     @property
     def contexts(self) -> list[Literal["cli", "service"]]:

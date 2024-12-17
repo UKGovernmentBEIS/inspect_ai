@@ -12,9 +12,6 @@ from .command import HumanAgentCommand, call_human_agent
 
 
 class SubmitCommand(HumanAgentCommand):
-    def __init__(self, answer: bool | str) -> None:
-        self._answer = compile(answer) if isinstance(answer, str) else answer
-
     @property
     def name(self) -> str:
         return "submit"
@@ -40,13 +37,13 @@ class SubmitCommand(HumanAgentCommand):
         # read cli args
         call_args = vars(args)
 
-        # first verify (print and exit if we get a str back)
-        error = call_human_agent("submit", **call_args | {"verify_only": True})
+        # first validate (print and exit if we get a str back)
+        error = call_human_agent("validate", **call_args)
         if error:
             print(error)
             return
 
-        # validate that the user wants to proceed
+        # verify that the user wants to proceed
         answer = call_args.get("answer", None)
         answer_text = f" '{answer}'" if answer else ""
         while True:
@@ -89,39 +86,50 @@ class SubmitCommand(HumanAgentCommand):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def submit(
-            answer: str | None,
-            session_logs: dict[str, str] | None = None,
-            verify_only: bool = False,
-        ) -> str | None:
-            # verify mode
-            if verify_only:
-
-                def submisssion_failed(reason: str) -> str:
-                    return render_text(f"[bold]SUBMISSION FAILED:[/bold] {reason}")
-
-                if not state.running:
-                    return submisssion_failed(
-                        "Cannot submit stopped task (use 'task start' to run)"
-                    )
-                if self._answer:
-                    answer = answer.strip() if isinstance(answer, str) else answer
-                    if not answer:
-                        return submisssion_failed(
-                            "An answer is required for this task (use 'task submit <answer>')"
-                        )
-                    elif isinstance(self._answer, Pattern) and not match(
-                        self._answer, answer
-                    ):
-                        return submisssion_failed(
-                            "Your answer was not in the required format (please review the task instructions)"
-                        )
-                return None  # made it through verification
-
-            # submit mode, record and return
-            else:
-                state.running = False
-                state.answer = answer
-                state.session_logs = session_logs
-                return None
+            answer: str | None, session_logs: dict[str, str] | None = None
+        ) -> None:
+            state.running = False
+            state.answer = answer
+            state.session_logs = session_logs
 
         return submit
+
+
+class ValidateCommand(HumanAgentCommand):
+    def __init__(self, answer: bool | str) -> None:
+        self._answer = compile(answer) if isinstance(answer, str) else answer
+
+    @property
+    def name(self) -> str:
+        return "validate"
+
+    @property
+    def description(self) -> str:
+        return "Validate a task submission."
+
+    @property
+    def contexts(self) -> list[Literal["cli", "service"]]:
+        return ["service"]
+
+    def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
+        async def validate(answer: str | None) -> str | None:
+            def failed(reason: str) -> str:
+                return render_text(f"[bold]FAILED:[/bold] {reason}")
+
+            if not state.running:
+                return failed("Task is stopped (use 'task start' to start)")
+            if self._answer:
+                answer = answer.strip() if isinstance(answer, str) else answer
+                if not answer:
+                    return failed(
+                        "An explicit answer is required for scoring this task."
+                    )
+                elif isinstance(self._answer, Pattern) and not match(
+                    self._answer, answer
+                ):
+                    return failed(
+                        "Your answer was not in the required format (please review the task instructions)"
+                    )
+            return None  # made it through verification
+
+        return validate
