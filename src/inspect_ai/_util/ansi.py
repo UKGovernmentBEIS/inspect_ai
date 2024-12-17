@@ -28,4 +28,4 @@ def render_text(
             console.print(t)
 
     # export (optionally w/ ansi styles)
-    return console.export_text(styles=styles)
+    return console.export_text(styles=styles).strip()
