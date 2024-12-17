@@ -1,5 +1,4 @@
 import asyncio
-from re import Pattern
 
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import display_type, input_panel, sandbox
@@ -12,9 +11,7 @@ from .view import ConsoleView, HumanAgentView
 
 
 @solver
-def human_agent(
-    answer: bool | Pattern[str] = True, record_session: bool = True
-) -> Solver:
+def human_agent(answer: bool | str = True, record_session: bool = True) -> Solver:
     """Human solver for agentic tasks that run in a Linux environment.
 
     The Human agent solver installs agent task tools in the default
@@ -28,9 +25,10 @@ def human_agent(
     using a VS Code Window or Terminal.
 
     Args:
-       answer (bool | Pattern): Is an explicit answer required for this
+       answer (bool | str): Is an explicit answer required for this
           task or is it scored based on files in the container? Pass a
-          `Pattern` to validate that the answer matches the expected format.
+          `str` with a regex to validate that the answer matches
+          the expected format.
        record_session (bool): Record all user commands and outputs in
           the sandbox bash session.
 
