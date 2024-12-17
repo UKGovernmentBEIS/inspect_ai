@@ -293,17 +293,16 @@ def scorers_from_metric_dict(
         # create a scorer result for this metric
         # TODO: What if there is separate simple scorer which has a name collision with
         # a score created by this scorer
-        if len(result_metrics.values()) > 0:
-            results.append(
-                EvalScore(
-                    scorer=scorer_name,
-                    reducer=reducer_name,
-                    name=metric_key,
-                    params=registry_params(scorer),
-                    metadata=metadata if len(metadata.keys()) > 0 else None,
-                    metrics=result_metrics,
-                )
+        results.append(
+            EvalScore(
+                scorer=scorer_name,
+                reducer=reducer_name,
+                name=metric_key,
+                params=registry_params(scorer),
+                metadata=metadata if len(metadata.keys()) > 0 else None,
+                metrics=result_metrics,
             )
+        )
     return results
 
 
