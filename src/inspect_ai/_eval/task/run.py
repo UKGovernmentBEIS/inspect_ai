@@ -486,8 +486,8 @@ async def task_run_sample(
                 await logger.log_sample(previous_sample, flush=False)
 
             # return score
-            if previous_sample.scores:
-                return {
+            sample_scores = (
+                {
                     key: SampleScore(
                         sample_id=previous_sample.id,
                         value=score.value,
@@ -497,8 +497,11 @@ async def task_run_sample(
                     )
                     for key, score in previous_sample.scores.items()
                 }
-            else:
-                return {}
+                if previous_sample.scores
+                else {}
+            )
+            sample_complete(sample_scores)
+            return sample_scores
 
     # use semaphore if provided
     semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (

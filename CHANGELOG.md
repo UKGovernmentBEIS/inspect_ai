@@ -12,6 +12,7 @@
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
 - Bugfix: Properly handle custom metrics that return dictionaries or lists
+- Bugfix: Proper sample count display when retrying an evaluation
 
 ## v0.3.52 (13 December 2024)
 
