@@ -1,9 +1,11 @@
+from argparse import Namespace
 from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
 from ..state import HumanAgentState
-from .command import HumanAgentCommand
+from .command import HumanAgentCommand, call_human_agent
+from .status import render_status
 
 
 class StartCommand(HumanAgentCommand):
@@ -19,9 +21,13 @@ class StartCommand(HumanAgentCommand):
     def group(self) -> Literal[1, 2, 3]:
         return 2
 
+    def cli(self, args: Namespace) -> None:
+        print(call_human_agent("start"))
+
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def start() -> None:
+        async def start() -> str:
             state.running = True
+            return render_status(state)
 
         return start
 
@@ -39,8 +45,12 @@ class StopCommand(HumanAgentCommand):
     def group(self) -> Literal[1, 2, 3]:
         return 2
 
+    def cli(self, args: Namespace) -> None:
+        print(call_human_agent("stop"))
+
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        async def stop() -> None:
+        async def stop() -> str:
             state.running = False
+            return render_status(state)
 
         return stop

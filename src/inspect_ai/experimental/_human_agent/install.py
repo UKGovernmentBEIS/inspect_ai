@@ -55,6 +55,11 @@ def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
 
     sys.path.append("/var/tmp/sandbox-services/human_agent")
     from human_agent import call_human_agent
+
+    def format_time(t):
+        minutes, seconds = divmod(t, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
     """)
 
     # command handler source code (extracted from call methods)

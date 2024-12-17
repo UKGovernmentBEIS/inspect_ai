@@ -1,13 +1,14 @@
 from argparse import Namespace
-from typing import Awaitable, Callable, Literal
+from typing import Awaitable, Callable, Literal, cast
 
 from pydantic import JsonValue
+from rich.console import RenderableType
+
+from inspect_ai._util.ansi import render_text
+from inspect_ai._util.format import format_progress_time
 
 from ..state import HumanAgentState
-from .command import (
-    HumanAgentCommand,
-    call_human_agent,
-)
+from .command import HumanAgentCommand, call_human_agent
 
 
 class StatusCommand(HumanAgentCommand):
@@ -24,11 +25,21 @@ class StatusCommand(HumanAgentCommand):
         return 2
 
     def cli(self, args: Namespace) -> None:
-        status = call_human_agent("status")
-        print(status)
+        print(call_human_agent("status"))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def status() -> str:
-            return str(state.status)
+            return render_status(state)
 
         return status
+
+
+def render_status(state: HumanAgentState) -> str:
+    content: list[RenderableType] = [""]
+    content.append(
+        f"[bold]Status:[/bold] {'Running' if state.status['running'] else 'Stopped'}"
+    )
+    content.append(
+        f"[bold]Time:  [/bold] {format_progress_time(cast(float,state.status['time']), pad_hours=False)}"
+    )
+    return render_text(content, highlight=False)

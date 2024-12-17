@@ -52,6 +52,8 @@ class HumanAgentCommand:
         return no_handler
 
 
+# Dummy functions for implementation of call methods
+
+
 def call_human_agent(method: str, **params: Any) -> Any:
-    """Dummy function for implementation of call method."""
     return None

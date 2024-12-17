@@ -28,7 +28,8 @@ def format_value(value: object, width: int) -> str:
     return str(value)
 
 
-def format_progress_time(time: float) -> str:
+def format_progress_time(time: float, pad_hours: bool = True) -> str:
     minutes, seconds = divmod(time, 60)
     hours, minutes = divmod(minutes, 60)
-    return f"{hours:2.0f}:{minutes:02.0f}:{seconds:02.0f}"
+    hours_fmt = f"{hours:2.0f}" if pad_hours else f"{hours:.0f}"
+    return f"{hours_fmt}:{minutes:02.0f}:{seconds:02.0f}"

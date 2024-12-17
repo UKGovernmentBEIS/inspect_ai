@@ -16,6 +16,7 @@ from textual.widgets import (
     Static,
 )
 
+from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.vscode import (
     VSCodeCommand,
     can_execute_vscode_commands,
@@ -209,9 +210,7 @@ class StatusBar(Horizontal):
         )
 
     def watch_time(self, time: float) -> None:
-        minutes, seconds = divmod(self.time, 60)
-        hours, minutes = divmod(minutes, 60)
-        time_display = f"{hours:.0f}:{minutes:02.0f}:{seconds:02.0f}"
+        time_display = format_progress_time(time)
         cast(Static, self.query_one(f"#{self.TIME_ID}")).update(time_display)
 
 
