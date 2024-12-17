@@ -11,7 +11,11 @@ from .view import ConsoleView, HumanAgentView
 
 
 @solver
-def human_agent(answer: bool | str = True, record_session: bool = True) -> Solver:
+def human_agent(
+    answer: bool | str = True,
+    intermediate_scoring: bool = True,
+    record_session: bool = True,
+) -> Solver:
     """Human solver for agentic tasks that run in a Linux environment.
 
     The Human agent solver installs agent task tools in the default
@@ -29,6 +33,8 @@ def human_agent(answer: bool | str = True, record_session: bool = True) -> Solve
           task or is it scored based on files in the container? Pass a
           `str` with a regex to validate that the answer matches
           the expected format.
+       intermediate_scoring (bool): Allow the human agent to
+          check their score while working.
        record_session (bool): Record all user commands and outputs in
           the sandbox bash session.
 
@@ -53,7 +59,7 @@ def human_agent(answer: bool | str = True, record_session: bool = True) -> Solve
             # helper function to run the agent (called for fullscreen vs. fallback below)
             async def run_human_agent(view: HumanAgentView) -> TaskState:
                 # create agent commands
-                commands = human_agent_commands(answer)
+                commands = human_agent_commands(state, answer, intermediate_scoring)
 
                 # install agent tools
                 await install_human_agent(state, commands, record_session)

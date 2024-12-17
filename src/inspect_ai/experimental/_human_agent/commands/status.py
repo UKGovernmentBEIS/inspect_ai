@@ -18,7 +18,7 @@ class StatusCommand(HumanAgentCommand):
 
     @property
     def description(self) -> str:
-        return "Print task clock status."
+        return "Print task status (clock, scoring, etc.)"
 
     @property
     def group(self) -> Literal[1, 2, 3]:

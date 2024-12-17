@@ -1,11 +1,17 @@
 import time
 from typing import Any, TypeVar
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
+from inspect_ai.scorer._metric import Score
 from inspect_ai.solver import TaskState
 
 VT = TypeVar("VT")
+
+
+class IntermediateScore(BaseModel):
+    time: float
+    scores: list[Score]
 
 
 class HumanAgentState:
@@ -52,6 +58,10 @@ class HumanAgentState:
         self._set(self.COMPLETED, True)
 
     @property
+    def intermediate_scores(self) -> list[IntermediateScore]:
+        return self._get(self.INTERMEDIATE_SCORES, [])
+
+    @property
     def session_logs(self) -> dict[str, str] | None:
         return self._get(self.SESSION_LOGS, None)
 
@@ -94,5 +104,6 @@ class HumanAgentState:
     STARTED_RUNNING = "started_running"
     ACCUMULATED_TIME = "accumulated_time"
     ANSWER = "answer"
+    INTERMEDIATE_SCORES = "intermediate_scores"
     SESSION_LOGS = "session_logs"
     COMPLETED = "completed"

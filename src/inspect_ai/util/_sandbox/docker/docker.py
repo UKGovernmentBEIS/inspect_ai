@@ -425,7 +425,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # return container connection
         if container:
             return SandboxConnection(
-                command=f"docker exec -it {container} bash --login",
+                command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
