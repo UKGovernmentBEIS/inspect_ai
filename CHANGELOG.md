@@ -2,17 +2,22 @@
 
 ## Unreleased
 
-- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
-- `SandboxConnection` that contains login information from sandboxes.
-- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+- OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
 - Task API: Introduce `setup` step that always runs even if `solver` is replaced.
 - Bedrock: Support for tool calling on Nova models.
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
+- Bedrock: Support for `jpeg` images.
+- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
+- `SandboxConnection` that contains login information from sandboxes.
+- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
+- Bugfix: Properly handle custom metrics that return dictionaries or lists
+- Bugfix: Proper sample count display when retrying an evaluation
+- Bugfix: Fix inability to define and run tasks in a notebook.
 
 ## v0.3.52 (13 December 2024)
 

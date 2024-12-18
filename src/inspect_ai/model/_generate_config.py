@@ -72,6 +72,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
+    reasoning_effort: Literal["low", "medium", "high"] | None
+    """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
+
 
 class GenerateConfig(BaseModel):
     """Base class for model generation configs."""
@@ -138,6 +141,9 @@ class GenerateConfig(BaseModel):
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
+
+    reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
+    """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
