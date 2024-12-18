@@ -22,7 +22,7 @@ from inspect_ai.model import (
     ModelOutput,
     ModelUsage,
 )
-from inspect_ai.scorer import Score
+from inspect_ai.scorer import Score, Value
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -265,7 +265,7 @@ class EvalMetric(BaseModel):
     name: str
     """Metric name."""
 
-    value: int | float
+    value: Value
     """Metric value."""
 
     options: dict[str, Any] = Field(default_factory=dict)
