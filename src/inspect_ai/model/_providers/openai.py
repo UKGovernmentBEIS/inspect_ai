@@ -18,6 +18,7 @@ from openai.types.chat import (
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
+    ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
@@ -141,6 +142,19 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+    def is_o1_full(self) -> bool:
+        return (
+            self.model_name.startswith("o1")
+            and not self.is_o1_mini()
+            and not self.is_o1_preview()
+        )
+
+    def is_o1_mini(self) -> bool:
+        return self.model_name.startswith("o1-mini")
+
+    def is_o1_preview(self) -> bool:
+        return self.model_name.startswith("o1-preview")
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -148,8 +162,8 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        # short-circuit to call o1- model
-        if self.model_name.startswith("o1-"):
+        # short-circuit to call o1- models that are text only
+        if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
                 client=self.client,
                 input=input,
@@ -179,7 +193,7 @@ class OpenAIAPI(ModelAPI):
 
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await as_openai_chat_messages(input),
+            messages=await as_openai_chat_messages(input, self.is_o1_full()),
             tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
             tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN,
             **self.completion_params(config, len(tools) > 0),
@@ -273,6 +287,8 @@ class OpenAIAPI(ModelAPI):
             params["top_logprobs"] = config.top_logprobs
         if tools and config.parallel_tool_calls is not None:
             params["parallel_tool_calls"] = config.parallel_tool_calls
+        if config.reasoning_effort is not None and self.is_o1_full():
+            params["reasoning_effort"] = config.reasoning_effort
 
         return params
 
@@ -291,14 +307,23 @@ class OpenAIAPI(ModelAPI):
 
 
 async def as_openai_chat_messages(
-    messages: list[ChatMessage],
+    messages: list[ChatMessage], o1_full: bool
 ) -> list[ChatCompletionMessageParam]:
-    return [await openai_chat_message(message) for message in messages]
+    return [await openai_chat_message(message, o1_full) for message in messages]
 
 
-async def openai_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
+async def openai_chat_message(
+    message: ChatMessage, o1_full: bool
+) -> ChatCompletionMessageParam:
     if message.role == "system":
-        return ChatCompletionSystemMessageParam(role=message.role, content=message.text)
+        if o1_full:
+            return ChatCompletionDeveloperMessageParam(
+                role="developer", content=message.text
+            )
+        else:
+            return ChatCompletionSystemMessageParam(
+                role=message.role, content=message.text
+            )
     elif message.role == "user":
         return ChatCompletionUserMessageParam(
             role=message.role,
