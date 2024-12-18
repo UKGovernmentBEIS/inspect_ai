@@ -362,6 +362,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
     @click.option(
+        "--reasoning-effort",
+        type=click.Choice(["low", "medium", "high"]),
+        help="Constrains effort on reasoning for reasoning models. Open AI o1 models only.",
+        envvar="INSPECT_EVAL_REASONING_EFFORT",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
@@ -419,6 +425,7 @@ def eval_command(
     parallel_tool_calls: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    reasoning_effort: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -573,6 +580,7 @@ def eval_set_command(
     parallel_tool_calls: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
+    reasoning_effort: str | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
