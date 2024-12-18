@@ -3,6 +3,8 @@ from typing import Awaitable, Callable, Literal, cast
 
 from pydantic import JsonValue
 from rich.console import RenderableType
+from rich.table import Table
+from rich.text import Text
 
 from inspect_ai._util.ansi import render_text
 from inspect_ai._util.format import format_progress_time
@@ -37,9 +39,24 @@ class StatusCommand(HumanAgentCommand):
 def render_status(state: HumanAgentState) -> str:
     content: list[RenderableType] = [""]
     content.append(
-        f"[bold]Status:[/bold] {'Running' if state.status['running'] else 'Stopped'}"
+        f"[bold]Status:[/bold] {'Running' if state.status['running'] else 'Stopped'}  "
+        + f"[bold]Time:[/bold] {format_progress_time(cast(float,state.status['time']), pad_hours=False)}"
     )
-    content.append(
-        f"[bold]Time:  [/bold] {format_progress_time(cast(float,state.status['time']), pad_hours=False)}"
-    )
+
+    if len(state.intermediate_scores) > 0:
+        content.append("")
+        content.append(Text.from_markup("[italic]Intermediate Scores[/italic]"))
+        scores_table = Table(box=None, min_width=35, padding=(0, 0))
+        scores_table.add_column("Answer", justify="left")
+        scores_table.add_column("Score", justify="center")
+        scores_table.add_column("Time", justify="right")
+
+        for score in state.intermediate_scores:
+            scores_table.add_row(
+                score.scores[0].answer,
+                score.scores[0].as_str(),
+                format_progress_time(score.time),
+            )
+        content.append(scores_table)
+
     return render_text(content, highlight=False)

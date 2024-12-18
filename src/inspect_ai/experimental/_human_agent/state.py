@@ -20,6 +20,7 @@ class HumanAgentState:
             [message.text for message in state.messages]
         ).strip()
         self._store = state.store
+        self._set(self.INTERMEDIATE_SCORES, [])
         self.running = True
 
     @property
