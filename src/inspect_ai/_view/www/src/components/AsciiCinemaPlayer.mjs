@@ -10,6 +10,11 @@ import * as AsciinemaPlayer from "asciinema-player";
  *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the chat view.
+ * @param {string} props.inputUrl - The input url for the player
+ * @param {string} props.outputUrl - The output url for the player
+ * @param {string} props.timingUrl - The timing url for the player
+ * @param {number} [props.rows] - The height for the player container
+ * @param {number} [props.cols] - The width for the player container
  * @param {string} [props.height] - The height for the player container
  * @param {string} [props.width] - The width for the player container
  * @param {string} [props.fit] - how to fit the player
@@ -23,8 +28,11 @@ import * as AsciinemaPlayer from "asciinema-player";
  */
 export const AsciiCinemaPlayer = ({
   id,
-  height,
-  width,
+  rows,
+  cols,
+  inputUrl,
+  outputUrl,
+  timingUrl,
   fit,
   speed,
   autoPlay,
@@ -34,12 +42,16 @@ export const AsciiCinemaPlayer = ({
   style,
 }) => {
   const playerContainerRef = useRef();
-
   useEffect(() => {
     AsciinemaPlayer.create(
-      "data:text/plain;base64,eyJ2ZXJzaW9uIjogMiwgIndpZHRoIjogODAsICJoZWlnaHQiOiAyNH0KWzAuMSwgIm8iLCAiaGVsbCJdClswLjUsICJvIiwgIm8gIl0KWzIuNSwgIm8iLCAid29ybGQhXG5cciJdCg==",
+      {
+        url: [timingUrl, outputUrl, inputUrl],
+        parser: "typescript",
+      },
       playerContainerRef.current,
       {
+        rows: rows,
+        cols: cols,
         autoPlay,
         loop,
         theme,
@@ -52,9 +64,9 @@ export const AsciiCinemaPlayer = ({
 
   return html`
     <div
-      id="asciinema-player-${id}"
+      id="asciinema-player-${id || "default"}"
       ref=${playerContainerRef}
-      style=${{ width, height, ...style }}
+      style=${{ ...style }}
     ></div>
   `;
 };

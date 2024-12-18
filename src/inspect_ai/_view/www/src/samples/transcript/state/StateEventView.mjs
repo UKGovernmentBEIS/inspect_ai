@@ -2,7 +2,10 @@
 import { html } from "htm/preact";
 
 import { EventPanel } from "../EventPanel.mjs";
-import { RenderableChangeTypes } from "./StateEventRenderers.mjs";
+import {
+  RenderableChangeTypes,
+  StoreSpecificRenderableTypes,
+} from "./StateEventRenderers.mjs";
 import { StateDiffView } from "./StateDiffView.mjs";
 import { formatDateTime } from "../../../utils/Format.mjs";
 
@@ -12,10 +15,11 @@ import { formatDateTime } from "../../../utils/Format.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../../types/log").StateEvent } props.event - The event object to display.
+ * @param { boolean } props.isStore - Whether this event view is rendering a storage (rather than a state)
  * @param { Object } props.style - The style of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StateEventView = ({ id, event, style }) => {
+export const StateEventView = ({ id, event, isStore, style }) => {
   const summary = summarizeChanges(event.changes);
 
   // Synthesize objects for comparison
@@ -32,7 +36,11 @@ export const StateEventView = ({ id, event, style }) => {
   // This clone is important since the state is used by preact as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
-  const changePreview = generatePreview(event.changes, structuredClone(after));
+  const changePreview = generatePreview(
+    event.changes,
+    structuredClone(after),
+    isStore,
+  );
   if (changePreview) {
     tabs.unshift(
       html`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
@@ -55,11 +63,15 @@ export const StateEventView = ({ id, event, style }) => {
  *
  * @param {import("../../../types/log").JsonChange[]} changes - The change object containing the value.
  * @param {Object} resolvedState - The change object containing the value.
+ * @param {boolean} isStore - Is this rendering a store event
  * @returns {import("preact").JSX.Element|Object|string|undefined} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
-const generatePreview = (changes, resolvedState) => {
+const generatePreview = (changes, resolvedState, isStore) => {
   const results = [];
-  for (const changeType of RenderableChangeTypes) {
+  for (const changeType of [
+    ...RenderableChangeTypes,
+    ...(isStore ? StoreSpecificRenderableTypes : []),
+  ]) {
     // Note that we currently only have renderers that depend upon
     // add, remove, replace, but we should likely add
     // move, copy, test
