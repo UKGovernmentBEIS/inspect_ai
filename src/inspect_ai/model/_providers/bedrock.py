@@ -269,6 +269,9 @@ class BedrockAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
+        if "llama3-70" in self.model_name or "llama3-8" in self.model_name:
+            return 2048
+
         if "llama3" in self.model_name or "claude3" in self.model_name:
             return 4096
 

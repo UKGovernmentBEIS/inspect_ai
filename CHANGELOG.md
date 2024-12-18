@@ -7,6 +7,7 @@
 - Bedrock: Support for tool calling on Nova models.
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Bedrock: Support for `jpeg` images.
+- Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
 - Bugfix: Proper handling of text find for eval raw JSON display
