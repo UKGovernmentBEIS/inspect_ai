@@ -74,7 +74,7 @@ class SubmitCommand(HumanAgentCommand):
             for file in sessions_dir.iterdir():
                 if file.is_file():
                     try:
-                        with open(file, "r") as f:
+                        with open(file, "r", newline="") as f:
                             session_logs[file.name] = f.read()
                     except Exception as e:
                         print(f"Error reading file {file.name}: {e}")
