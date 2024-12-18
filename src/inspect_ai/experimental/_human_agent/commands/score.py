@@ -1,10 +1,11 @@
 from argparse import Namespace
 from copy import deepcopy
-from time import time
+from textwrap import dedent
 from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
+from inspect_ai._util.ansi import render_text
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._score import score
 from inspect_ai.solver import TaskState
@@ -50,6 +51,8 @@ class ScoreCommand(HumanAgentCommand):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def score_task(answer: str | None) -> str:
+            from inspect_ai.log._transcript import transcript
+
             # make a copy of TaskState, add the answer, then score
             if answer:
                 task_state = deepcopy(self._state)
@@ -58,15 +61,22 @@ class ScoreCommand(HumanAgentCommand):
             else:
                 result = await score(self._state)
 
-            # record the scoring action
+            # record the scoring action in our state
             state.intermediate_scores.append(
-                IntermediateScore(time=time(), scores=result)
+                IntermediateScore(time=state.time, scores=result)
             )
 
-            # provide feedback to user
-            # TODO: feedback to user
-            # TODO: log to transcript
+            # record to transcript
+            transcript().info(
+                dedent(f"""
+            ### Intermediate Score
+            **Answer:** {result[0].answer}, **Score:** {result[0].as_str()}
+            """)
+            )
 
-            return ""
+            # notify user
+            return render_text(
+                f"[bold]Answer:[/bold] {result[0].answer}, [bold]Score:[/bold] {result[0].as_str()}"
+            )
 
         return score_task
