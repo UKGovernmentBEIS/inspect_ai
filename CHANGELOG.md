@@ -13,6 +13,7 @@
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
 - Bugfix: Properly handle custom metrics that return dictionaries or lists
 - Bugfix: Proper sample count display when retrying an evaluation
+- Bugfix: Fix inability to define and run tasks in a notebook.
 
 ## v0.3.52 (13 December 2024)
 
