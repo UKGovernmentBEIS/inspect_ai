@@ -22044,8 +22044,7 @@ ${events}
         const cols = extractSize(sessionLog.output, "COLUMNS");
         maxCols = Math.max(maxCols, parseInt(cols));
         players.push(
-          m$1`
-        <div style=${{ marginTop: "0.5em" }}>
+          m$1` <div style=${{ marginTop: "0.5em" }}>
           Session ${count} (${sessionLog.user})
         </div>
         <${AsciiCinemaPlayer}
@@ -22069,51 +22068,51 @@ ${events}
           return "Unknown status";
         }
       };
-      return m$1`
-    <div style=${{ display: "flex", justifyContent: "center" }}>
-        <div
-        style=${{
+      return m$1` <div style=${{ display: "flex", justifyContent: "center" }}>
+    <div
+      style=${{
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
         maxWidth: `${maxCols}ch`,
         width: "100%"
       }}
-        >
-        <div
-            style=${{
+    >
+      <div
+        style=${{
         justifySelf: "start",
         ...TextStyle.label
       }}
-        >
-            ${started ? formatDateTime(started) : ""}${runtime ? ` (${formatTime$1(Math.floor(runtime))})` : ""}
-        </div>
-        <div
-            style=${{
+      >
+        ${started ? formatDateTime(started) : ""}${runtime ? ` (${formatTime$1(Math.floor(runtime))})` : ""}
+      </div>
+      <div
+        style=${{
         justifySelf: "center",
         ...TextStyle.label
       }}
-        ></div>
-        <div
-            style=${{
+      ></div>
+      <div
+        style=${{
         justifySelf: "end"
       }}
-        >
-            <${StatusMessage}
-            completed=${completed}
-            running=${running}
-            answer=${answer}
-            />
-        </div>
-        <div style=${{
+      >
+        <${StatusMessage}
+          completed=${completed}
+          running=${running}
+          answer=${answer}
+        />
+      </div>
+      <div
+        style=${{
         gridColumn: "span 3",
         maxWidth: `${maxCols}ch`,
         width: "100%"
-      }}>
-            ${players}
-        </div>
-
-        </div>
-    </div>`;
+      }}
+      >
+        ${players}
+      </div>
+    </div>
+  </div>`;
     };
     const extractSize = (value, label) => {
       const regex2 = new RegExp(`${label}="(\\d+)"`);
