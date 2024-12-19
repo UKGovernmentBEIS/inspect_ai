@@ -224,6 +224,9 @@ class TaskMetrics(Widget):
         self.recompute_grid()
 
     def recompute_grid(self) -> None:
+        if not self.is_mounted:
+            return
+
         grid = self.query_one(f"#{self.grid_id()}")
 
         grid.remove_children()

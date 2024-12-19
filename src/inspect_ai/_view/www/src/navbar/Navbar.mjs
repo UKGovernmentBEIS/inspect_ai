@@ -255,6 +255,8 @@ const ResultsPanel = ({ results }) => {
         justifyContent: "end",
         height: "100%",
         alignItems: "center",
+        maxHeight: "15em",
+        overflow: "scroll",
       }}
     >
       ${metrics.map((metric, i) => {
@@ -273,6 +275,8 @@ const ResultsPanel = ({ results }) => {
         marginTop: "0.2rem",
         paddingBottom: "0.4rem",
         rowGap: "1em",
+        maxHeight: "15em",
+        overflow: "scroll",
       }}
     >
       ${results?.scores?.map((score, index) => {
@@ -285,6 +289,14 @@ const ResultsPanel = ({ results }) => {
   }
 };
 
+/** Renders a Vertial Metric
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalMetric} props.metric - The metric
+ * @param {boolean} props.isFirst - Whether this is the first metric
+ *
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 const VerticalMetric = ({ metric, isFirst }) => {
   const reducer_component = metric.reducer
     ? html` <div
