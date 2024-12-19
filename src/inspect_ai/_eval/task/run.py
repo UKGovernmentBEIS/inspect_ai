@@ -873,10 +873,5 @@ def create_sample_semaphore(
         else DEFAULT_MAX_CONNECTIONS
     )
 
-    # if max_tasks is specified and max_samples is less
-    # than max_tasks then bump it up
-    if config.max_tasks is not None:
-        max_samples = max(max_samples, config.max_tasks)
-
     # return the semaphore
     return asyncio.Semaphore(max_samples)
