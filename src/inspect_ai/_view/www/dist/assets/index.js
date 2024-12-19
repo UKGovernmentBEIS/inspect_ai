@@ -8492,7 +8492,10 @@ const TabPanel = ({
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
-  const tabContentsRef = A();
+  const tabContentsRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     setTimeout(() => {
       if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
@@ -15131,8 +15134,14 @@ const ExpandablePanel = ({
 }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
-  const contentsRef = A();
-  const observerRef = A();
+  const contentsRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
+  const observerRef = A(
+    /** @type {IntersectionObserver|null} */
+    null
+  );
   y(() => {
     setCollapsed(collapse);
   }, [children, collapse]);
@@ -15302,7 +15311,7 @@ const ToolInput = ({ type, contents, view, style }) => {
   }
   if (view) {
     const toolInputRef = A(
-      /** @type {HTMLElement|null} */
+      /** @type {import("preact").Component & { base: Element }} */
       null
     );
     y(() => {
@@ -16520,7 +16529,10 @@ const LargeModal = (props) => {
     setWarningHidden
   } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
-  const scrollRef = A();
+  const scrollRef = A(
+    /** @type {HTMLElement|null} */
+    null
+  );
   y(() => {
     if (scrollRef.current) {
       setTimeout(() => {
@@ -16670,7 +16682,7 @@ const isVscode = () => {
   });
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
-  const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
+  const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
   if (scores.length === 1) {
     return scores[0].rendered();
   } else {
@@ -16764,7 +16776,7 @@ const SampleScoreView = ({
   scorer
 }) => {
   if (!sampleDescriptor) {
-    return "";
+    return m$1``;
   }
   const scoreInput = inputString(sample.input);
   if (sample.choices && sample.choices.length > 0) {
@@ -16775,7 +16787,10 @@ const SampleScoreView = ({
       })
     );
   }
-  const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
+  const scorerDescriptor = sampleDescriptor.evalDescriptor.scorerDescriptor(
+    sample,
+    { scorer, name: scorer }
+  );
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
   const metadata = scorerDescriptor.metadata();
@@ -20279,10 +20294,7 @@ const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
       clamp: true
     });
   }
-  const fullAnswer = sample && sampleDescriptor ? (
-    // @ts-ignore
-    sampleDescriptor.selectedScorer(sample).answer()
-  ) : void 0;
+  const fullAnswer = sample && sampleDescriptor ? sampleDescriptor.selectedScorerDescriptor(sample).answer() : void 0;
   if (fullAnswer) {
     columns.push({
       label: "Answer",
@@ -20444,26 +20456,26 @@ const STYLE_CONTENT = "position:absolute; top:0; left:0; height:100%; width:100%
 class VirtualList extends x$1 {
   constructor(props) {
     super(props);
+    /** @type {HTMLElement} */
+    __publicField(this, "base");
     this.state = {
       height: 0,
       offset: 0
     };
-    this.resize = this.resize.bind(this);
-    this.handleScroll = throttle(this.handleScroll.bind(this), 100);
+    this.resize = () => {
+      if (this.state.height !== this.base.offsetHeight) {
+        this.setState({ height: this.base.offsetHeight });
+      }
+    };
+    this.handleScroll = throttle(() => {
+      if (this.base) {
+        this.setState({ offset: this.base.scrollTop });
+      }
+      if (this.props.sync) {
+        this.forceUpdate();
+      }
+    }, 100);
     this.containerRef = b();
-  }
-  resize() {
-    if (this.state.height !== this.base.offsetHeight) {
-      this.setState({ height: this.base.offsetHeight });
-    }
-  }
-  handleScroll() {
-    if (this.base) {
-      this.setState({ offset: this.base.scrollTop });
-    }
-    if (this.props.sync) {
-      this.forceUpdate();
-    }
   }
   componentDidUpdate() {
     this.resize();
@@ -20790,7 +20802,7 @@ const SampleRow = ({
       >
         ${sample ? m$1`
               <${MarkdownDiv}
-                markdown=${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()}
+                markdown=${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorerDescriptor(sample).answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
@@ -21045,7 +21057,7 @@ const groupBySample = (samples, sampleDescriptor, order2) => {
       }
     }
   });
-  const groupCount = samples.length / sampleDescriptor.epochs;
+  const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order2);
   return (sample, index, previousSample) => {
@@ -21074,7 +21086,7 @@ const groupBySample = (samples, sampleDescriptor, order2) => {
   };
 };
 const groupByEpoch = (samples, sampleDescriptor, order2) => {
-  const groupCount = sampleDescriptor.epochs;
+  const groupCount = sampleDescriptor.evalDescriptor.epochs;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order2);
   return (sample, index, previousSample) => {
@@ -23222,7 +23234,8 @@ function simpleHttpAPI(logInfo) {
           };
         });
         return Promise.resolve({
-          files: logs
+          files: logs,
+          log_dir
         });
       } else if (log_file) {
         let evalLog = cache.get();
@@ -23237,7 +23250,8 @@ function simpleHttpAPI(logInfo) {
           task_id: evalLog.eval.task_id
         };
         return {
-          files: [result]
+          files: [result],
+          log_dir
         };
       } else {
         throw new Error(
@@ -23867,7 +23881,7 @@ const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
       val: kEpochDescVal
     });
   }
-  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.scoreDescriptor) == null ? void 0 : _a2.compare) {
+  if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
     options.push({
       label: "score asc",
       val: kScoreAscVal
@@ -23956,12 +23970,12 @@ const sortSamples = (sort, samples, samplesDescriptor) => {
         }
       }
       case kScoreAscVal:
-        return samplesDescriptor.scoreDescriptor.compare(
+        return samplesDescriptor.selectedScoreDescriptor.compare(
           samplesDescriptor.selectedScore(a2).value,
           samplesDescriptor.selectedScore(b2).value
         );
       case kScoreDescVal:
-        return samplesDescriptor.scoreDescriptor.compare(
+        return samplesDescriptor.selectedScoreDescriptor.compare(
           samplesDescriptor.selectedScore(b2).value,
           samplesDescriptor.selectedScore(a2).value
         );
@@ -23985,11 +23999,11 @@ const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       });
     }
   };
-  switch ((_a2 = descriptor == null ? void 0 : descriptor.scoreDescriptor) == null ? void 0 : _a2.scoreType) {
+  switch ((_a2 = descriptor == null ? void 0 : descriptor.selectedScoreDescriptor) == null ? void 0 : _a2.scoreType) {
     case kScoreTypePassFail: {
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.val };
         })
       );
@@ -24002,7 +24016,7 @@ const SampleFilter = ({ descriptor, filter, filterChanged }) => {
     case kScoreTypeCategorical: {
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat, value: cat };
         })
       );
@@ -24030,12 +24044,12 @@ const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       `;
     }
     case kScoreTypeObject: {
-      if (!descriptor.scoreDescriptor.categories) {
+      if (!descriptor.selectedScoreDescriptor.categories) {
         return "";
       }
       const options = [{ text: "All", value: "all" }];
       options.push(
-        ...descriptor.scoreDescriptor.categories.map((cat) => {
+        ...descriptor.selectedScoreDescriptor.categories.map((cat) => {
           return { text: cat.text, value: cat.value };
         })
       );
@@ -25165,7 +25179,10 @@ const WorkspaceDisplay = ({
   }
 };
 const FindBand = ({ hideBand }) => {
-  const searchBoxRef = A();
+  const searchBoxRef = A(
+    /** @type {HTMLInputElement|null} */
+    null
+  );
   y(() => {
     searchBoxRef.current.focus();
   }, []);
@@ -25185,13 +25202,16 @@ const FindBand = ({ hideBand }) => {
       }
       return expandablePanelEl;
     };
-    const focusedElement = document.activeElement;
+    const focusedElement = (
+      /** @type {HTMLElement} */
+      document.activeElement
+    );
     const result = window.find(term, false, !!back, false, false, true, false);
     const noResultEl = window.document.getElementById(
       "inspect-find-no-results"
     );
     if (result) {
-      noResultEl.style.opacity = 0;
+      noResultEl.style.opacity = "0";
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {
         const parentPanel = parentExpandablePanel(selection);
@@ -25212,7 +25232,7 @@ const FindBand = ({ hideBand }) => {
         }, 100);
       }
     } else {
-      noResultEl.style.opacity = 1;
+      noResultEl.style.opacity = "1";
     }
     if (focusedElement) {
       focusedElement.focus();
@@ -25305,32 +25325,25 @@ const FindBand = ({ hideBand }) => {
     </button>
   </div>`;
 };
-const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
+const createEvalDescriptor = (scores, samples, epochs) => {
   if (!samples) {
     return void 0;
   }
-  const score = (sample, scorer = selectedScore == null ? void 0 : selectedScore.scorer) => {
-    if (sample.scores[scorer]) {
-      return sample.scores[scorer];
-    } else {
+  const scoreValue = (sample, scoreLabel) => {
+    if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
       return void 0;
     }
-  };
-  const scoreValue = (sample) => {
-    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
-      return void 0;
-    }
-    if (selectedScore.scorer !== selectedScore.name && sample.scores[selectedScore.scorer] && sample.scores[selectedScore.scorer].value) {
-      return sample.scores[selectedScore.scorer].value[selectedScore.name];
-    } else if (sample.scores[selectedScore.name]) {
-      return sample.scores[selectedScore.name].value;
+    if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
+      return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+    } else if (sample.scores[scoreLabel.name]) {
+      return sample.scores[scoreLabel.name].value;
     } else {
       return void 0;
     }
   };
   const scoreAnswer = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
       }
@@ -25340,7 +25353,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   };
   const scoreExplanation = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.explanation) {
         return sampleScore.explanation;
       }
@@ -25349,48 +25362,155 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
   };
   const scoreMetadata = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.metadata) {
         return sampleScore.metadata;
       }
     }
     return void 0;
   };
-  const uniqScoreValues = [
-    ...new Set(
-      samples.filter((sample) => !!sample.scores).filter((sample) => {
-        if (!selectedScore) {
-          return true;
-        }
-        if (selectedScore.scorer !== selectedScore.name) {
-          return Object.keys(sample.scores).includes(selectedScore.scorer) && Object.keys(sample.scores[selectedScore.scorer].value).includes(
-            selectedScore.name
-          );
-        } else {
-          return Object.keys(sample.scores).includes(selectedScore.name);
-        }
-      }).map((sample) => {
-        return scoreValue(sample);
-      }).filter((value) => {
-        return value !== null;
-      })
-    )
-  ];
-  const uniqScoreTypes = [
-    ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-  ];
-  let scoreDescriptor;
-  for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
-    if (scoreDescriptor) {
-      break;
+  const scoreLabelKey = (scoreLabel) => {
+    return `${scoreLabel.scorer}.${scoreLabel.name}`;
+  };
+  const scoreDescriptorMap = /* @__PURE__ */ new Map();
+  for (const scoreLabel of scores) {
+    const uniqScoreValues = [
+      ...new Set(
+        samples.filter((sample) => !!sample.scores).filter((sample) => {
+          if (!scoreLabel) {
+            return true;
+          }
+          if (scoreLabel.scorer !== scoreLabel.name) {
+            return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
+              scoreLabel.name
+            );
+          } else {
+            return Object.keys(sample.scores).includes(scoreLabel.name);
+          }
+        }).map((sample) => {
+          return scoreValue(sample, scoreLabel);
+        }).filter((value) => {
+          return value !== null;
+        })
+      )
+    ];
+    const uniqScoreTypes = [
+      ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+    ];
+    for (const categorizer of scoreCategorizers) {
+      const scoreDescriptor2 = categorizer.describe(
+        uniqScoreValues,
+        uniqScoreTypes
+      );
+      if (scoreDescriptor2) {
+        scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
+        break;
+      }
     }
   }
-  const sizes = samples.reduce(
+  const scoreDescriptor = (scoreLabel) => {
+    return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
+  };
+  const scoreRendered = (sample, scoreLabel) => {
+    const descriptor = scoreDescriptor(scoreLabel);
+    const score2 = scoreValue(sample, scoreLabel);
+    if (score2 === null || score2 === "undefined") {
+      return "null";
+    } else if (descriptor.render) {
+      return descriptor.render(score2);
+    } else {
+      return score2;
+    }
+  };
+  const scorerDescriptor = (sample, scoreLabel) => {
+    return {
+      metadata: () => {
+        return scoreMetadata(sample, scoreLabel.scorer);
+      },
+      explanation: () => {
+        return scoreExplanation(sample, scoreLabel.scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scoreLabel.scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+        const myScoreDescriptor = scoreDescriptor(scoreLabel);
+        if (!myScoreDescriptor) {
+          return [];
+        }
+        const scoreNames = scores.map((score2) => {
+          return score2.name;
+        });
+        const sampleScorer = sample.scores[scoreLabel.scorer];
+        const scoreVal = sampleScorer.value;
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+          if (names.find((name) => {
+            return scoreNames.includes(name);
+          })) {
+            const scores2 = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return myScoreDescriptor.render(scoreVal[name]);
+                }
+              };
+            });
+            return scores2;
+          } else {
+            return [
+              {
+                name: scoreLabel.scorer,
+                rendered: () => {
+                  return myScoreDescriptor.render(scoreVal);
+                }
+              }
+            ];
+          }
+        } else {
+          return [
+            {
+              name: scoreLabel.scorer,
+              rendered: () => {
+                return myScoreDescriptor.render(scoreVal);
+              }
+            }
+          ];
+        }
+      }
+    };
+  };
+  const score = (sample, scoreLabel) => {
+    return {
+      value: scoreValue(sample, scoreLabel),
+      render: () => {
+        return scoreRendered(sample, scoreLabel);
+      }
+    };
+  };
+  return {
+    epochs,
+    samples,
+    scores,
+    scorerDescriptor,
+    scoreDescriptor,
+    score,
+    scoreAnswer
+  };
+};
+const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+  if (!evalDescriptor) {
+    return void 0;
+  }
+  const sizes = evalDescriptor.samples.reduce(
     (previous, current) => {
       var _a2;
       const text2 = inputString(current.input).join(" ");
-      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
+      const scoreValue = evalDescriptor.score(current, selectedScore).value;
+      const scoreText = scoreValue ? String(scoreValue) : "";
       previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -25399,7 +25519,7 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
       previous[2] = Math.min(
         Math.max(
           previous[2],
-          ((_a2 = scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+          ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
         ),
         300
       );
@@ -25443,91 +25563,12 @@ const createsSamplesDescriptor = (scorers, samples, epochs, selectedScore) => {
       score: maxSizes.score / base2
     }
   };
-  const scoreRendered = (sample) => {
-    const score2 = scoreValue(sample);
-    if (score2 === null || score2 === "undefined") {
-      return "null";
-    } else if (scoreDescriptor.render) {
-      return scoreDescriptor.render(score2);
-    } else {
-      return score2;
-    }
-  };
-  const scorerDescriptor = (sample, scorer) => {
-    return {
-      metadata: () => {
-        return scoreMetadata(sample, scorer);
-      },
-      explanation: () => {
-        return scoreExplanation(sample, scorer);
-      },
-      answer: () => {
-        return scoreAnswer(sample, scorer);
-      },
-      scores: () => {
-        if (!sample || !sample.scores) {
-          return [];
-        }
-        const scoreNames = scorers.map((score2) => {
-          return score2.name;
-        });
-        const sampleScorer = sample.scores[scorer];
-        const scoreVal = sampleScorer.value;
-        if (typeof scoreVal === "object") {
-          const names = Object.keys(scoreVal);
-          if (names.find((name) => {
-            return scoreNames.includes(name);
-          })) {
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                }
-              };
-            });
-            return scores;
-          } else {
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                }
-              }
-            ];
-          }
-        } else {
-          return [
-            {
-              name: scorer,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal);
-              }
-            }
-          ];
-        }
-      }
-    };
-  };
   return {
-    scoreDescriptor,
-    epochs,
+    evalDescriptor,
     messageShape,
-    selectedScore: (sample) => {
-      return {
-        value: scoreValue(sample),
-        render: () => {
-          return scoreRendered(sample);
-        }
-      };
-    },
-    scorer: (sample, scorer) => {
-      return scorerDescriptor(sample, scorer);
-    },
-    selectedScorer: (sample) => {
-      return scorerDescriptor(sample, selectedScore == null ? void 0 : selectedScore.scorer);
-    }
+    selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
+    selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+    selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
   };
 };
 const scoreCategorizers = [
@@ -26115,7 +26156,7 @@ function App({
     ]
   );
   y(() => {
-    var _a3;
+    var _a3, _b3;
     const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
     const filtered = samples.filter((sample) => {
       if (epoch && epoch !== "all") {
@@ -26132,7 +26173,7 @@ function App({
     });
     const { sorted, order: order2 } = sortSamples(sort, filtered, samplesDescriptor);
     let grouping = "none";
-    if ((samplesDescriptor == null ? void 0 : samplesDescriptor.epochs) > 1) {
+    if (((_b3 = samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor) == null ? void 0 : _b3.epochs) > 1) {
       if (byEpoch(sort) || epoch !== "all") {
         grouping = "epoch";
       } else if (bySample(sort)) {
@@ -26143,15 +26184,17 @@ function App({
     setGroupBy(grouping);
     setGroupByOrder(order2);
   }, [selectedLog, filter, sort, epoch]);
-  const samplesDescriptor = T(() => {
+  const evalDescriptor = T(() => {
     var _a3, _b3, _c2, _d2;
-    return createsSamplesDescriptor(
+    return createEvalDescriptor(
       scores,
       (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
-      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1,
-      score
+      ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1
     );
-  }, [selectedLog, scores, score]);
+  }, [selectedLog, scores]);
+  const samplesDescriptor = T(() => {
+    return createSamplesDescriptor(evalDescriptor, score);
+  }, [evalDescriptor, score]);
   const refreshSampleTab = q(
     (sample) => {
       if (selectedSampleTab === void 0) {

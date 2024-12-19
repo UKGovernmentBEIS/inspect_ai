@@ -18,14 +18,25 @@ import {
 } from "../constants.mjs";
 
 /**
+ * Represents a utility summary of the samples that doesn't change with the selected score.
+ * @typedef {Object} EvalDescriptor
+ * @property {number} epochs - The number of epochs.
+ * @property {import("../api/Types.mjs").SampleSummary[]} samples - The list of sample summaries.
+ * @property {import("../Types.mjs").ScoreLabel[]} scores - the list of available scores
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scoreLabel: import("../Types.mjs").ScoreLabel) => ScorerDescriptor} scorerDescriptor - Returns the scorer descriptor for a sample and a specified scorer.
+ * @property {(scoreLabel: import("../Types.mjs").ScoreLabel) => ScoreDescriptor} scoreDescriptor - Provides information about the score types and how to render them.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scoreLabel: import("../Types.mjs").ScoreLabel) => SelectedScore} score - Returns information about a score for a sample.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData, scorer: string) => string} scoreAnswer - Returns the answer for a sample and a specified scorer.
+ */
+
+/**
  * Represents a utility summary of the samples.
  * @typedef {Object} SamplesDescriptor
- * @property {ScoreDescriptor} scoreDescriptor - Provides information about the score types and how to render them.
- * @property {number} epochs - The number of epochs.
+ * @property {EvalDescriptor} evalDescriptor - The EvalDescriptor.
  * @property {MessageShape} messageShape - The normalized sizes of input, target, and answer messages.
- * @property {(sample: import("../api/Types.mjs").SampleSummary) => SelectedScore} selectedScore - Returns the selected score for a sample.
- * @property {(sample: import("../api/Types.mjs").SampleSummary, scorer: string) => ScorerDescriptor} scorer - Returns the scorer descriptor for a sample and a specified scorer.
- * @property {(sample: import("../api/Types.mjs").SampleSummary) => ScorerDescriptor} selectedScorer - Returns the scorer descriptor for a sample using the selected scorer.
+ * @property {ScoreDescriptor} selectedScoreDescriptor - Provides information about the score types and how to render them.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData) => SelectedScore} selectedScore - Returns the selected score for a sample.
+ * @property {(sample: import("../api/Types.mjs").BasicSampleData) => ScorerDescriptor} selectedScorerDescriptor - Returns the scorer descriptor for a sample using the selected scorer.
  */
 
 /**
@@ -42,13 +53,14 @@ import {
 /**
  * Provides descriptor functions for a scorer.
  * @typedef {Object} ScorerDescriptor
+ * @property {() => string} metadata - Function to retrieve the metadata of the score.
  * @property {() => string} explanation - Function to retrieve the explanation of the score.
  * @property {() => string} answer - Function to retrieve the answer associated with the score.
  * @property {function(): Array<{name: string, rendered: function(): any}>} scores - Function to retrieve scores with their render functions.
  */
 
 /**
- * Represents the selected score for a sample, including its value and render function.
+ * Represents a score for a sample, including its value and render function.
  * @typedef {Object} SelectedScore
  * @property {import("../types/log").Value2} value - The value of the selected score.
  * @property {function(): any} render - Function to render the selected score.
@@ -72,69 +84,48 @@ import {
  */
 
 /**
- * Provides a utility summary of the samples
- *
- * @param {import("../Types.mjs").ScoreLabel[]} scorers - the list of available scores
+ * @param {import("../Types.mjs").ScoreLabel[]} scores - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
- * @param {import("../Types.mjs").ScoreLabel} [selectedScore] - the currently selected score
- * @returns {SamplesDescriptor} The SamplesDescriptor
+ * @returns {EvalDescriptor} The EvalDescriptor
  */
-export const createsSamplesDescriptor = (
-  scorers,
-  samples,
-  epochs,
-  selectedScore,
-) => {
+export const createEvalDescriptor = (scores, samples, epochs) => {
   if (!samples) {
     return undefined;
   }
 
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
-   * @param {string} scorer - the scorer name
-   * @returns {import("../types/log").Score} The Score
-   */
-  const score = (sample, scorer = selectedScore?.scorer) => {
-    if (sample.scores[scorer]) {
-      return sample.scores[scorer];
-    } else {
-      return undefined;
-    }
-  };
-
-  /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel - the score label
    * @returns {import("../types/log").Value2} The Score
    */
-  const scoreValue = (sample) => {
+  const scoreValue = (sample, scoreLabel) => {
     // no scores, no value
-    if (Object.keys(sample.scores).length === 0 || !selectedScore) {
+    if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
       return undefined;
     }
 
     if (
-      selectedScore.scorer !== selectedScore.name &&
-      sample.scores[selectedScore.scorer] &&
-      sample.scores[selectedScore.scorer].value
+      scoreLabel.scorer !== scoreLabel.name &&
+      sample.scores[scoreLabel.scorer] &&
+      sample.scores[scoreLabel.scorer].value
     ) {
-      return sample.scores[selectedScore.scorer].value[selectedScore.name];
-    } else if (sample.scores[selectedScore.name]) {
-      return sample.scores[selectedScore.name].value;
+      return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+    } else if (sample.scores[scoreLabel.name]) {
+      return sample.scores[scoreLabel.name].value;
     } else {
       return undefined;
     }
   };
 
-  // Retrieve the answer for a sample
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {string} The answer
    */
   const scoreAnswer = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
       }
@@ -143,15 +134,14 @@ export const createsSamplesDescriptor = (
     }
   };
 
-  // Retrieve the answer for a sample
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {string} The explanation
    */
   const scoreExplanation = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.explanation) {
         return sampleScore.explanation;
       }
@@ -161,13 +151,13 @@ export const createsSamplesDescriptor = (
 
   // Retrieve the metadata for a sample
   /**
-   * @param {import("../api/Types.mjs").SampleSummary} sample - the currently selected score
+   * @param {import("../api/Types.mjs").BasicSampleData} sample - the currently selected score
    * @param {string} scorer - the scorer name
    * @returns {Object} The explanation
    */
   const scoreMetadata = (sample, scorer) => {
     if (sample) {
-      const sampleScore = score(sample, scorer);
+      const sampleScore = sample.scores[scorer];
       if (sampleScore && sampleScore.metadata) {
         return sampleScore.metadata;
       }
@@ -175,53 +165,216 @@ export const createsSamplesDescriptor = (
     return undefined;
   };
 
-  const uniqScoreValues = [
-    ...new Set(
-      samples
-        .filter((sample) => !!sample.scores)
-        .filter((sample) => {
-          // There is no selected scorer, so include this value
-          if (!selectedScore) {
-            return true;
-          }
+  /**
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @returns {string}
+   */
+  const scoreLabelKey = (scoreLabel) => {
+    return `${scoreLabel.scorer}.${scoreLabel.name}`;
+  };
 
-          if (selectedScore.scorer !== selectedScore.name) {
-            return (
-              Object.keys(sample.scores).includes(selectedScore.scorer) &&
-              Object.keys(sample.scores[selectedScore.scorer].value).includes(
-                selectedScore.name,
-              )
-            );
-          } else {
-            return Object.keys(sample.scores).includes(selectedScore.name);
-          }
-        })
-        .map((sample) => {
-          return scoreValue(sample);
-        })
-        .filter((value) => {
-          return value !== null;
-        }),
-    ),
-  ];
-  const uniqScoreTypes = [
-    ...new Set(uniqScoreValues.map((scoreValue) => typeof scoreValue)),
-  ];
+  /**
+   * The EvalDescriptor is memoized. Compute all descriptors now to avoid duplicate work.
+   * @type {Map<string, ScoreDescriptor>}
+   */
+  const scoreDescriptorMap = new Map();
+  for (const scoreLabel of scores) {
+    const uniqScoreValues = [
+      ...new Set(
+        samples
+          .filter((sample) => !!sample.scores)
+          .filter((sample) => {
+            // There is no selected scorer, so include this value
+            if (!scoreLabel) {
+              return true;
+            }
 
-  /** @type {ScoreDescriptor} */
-  let scoreDescriptor;
-  for (const categorizer of scoreCategorizers) {
-    scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
-    if (scoreDescriptor) {
-      break;
+            if (scoreLabel.scorer !== scoreLabel.name) {
+              return (
+                Object.keys(sample.scores).includes(scoreLabel.scorer) &&
+                Object.keys(sample.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name,
+                )
+              );
+            } else {
+              return Object.keys(sample.scores).includes(scoreLabel.name);
+            }
+          })
+          .map((sample) => {
+            return scoreValue(sample, scoreLabel);
+          })
+          .filter((value) => {
+            return value !== null;
+          }),
+      ),
+    ];
+    const uniqScoreTypes = [
+      ...new Set(uniqScoreValues.map((scoreValue) => typeof scoreValue)),
+    ];
+
+    for (const categorizer of scoreCategorizers) {
+      const scoreDescriptor = categorizer.describe(
+        uniqScoreValues,
+        uniqScoreTypes,
+      );
+      if (scoreDescriptor) {
+        scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor);
+        break;
+      }
     }
   }
 
+  /**
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @returns {ScoreDescriptor}
+   */
+  const scoreDescriptor = (scoreLabel) => {
+    return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
+  };
+
+  /**
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @returns {any}
+   */
+  const scoreRendered = (sample, scoreLabel) => {
+    const descriptor = scoreDescriptor(scoreLabel);
+    const score = scoreValue(sample, scoreLabel);
+    if (score === null || score === "undefined") {
+      return "null";
+    } else if (descriptor.render) {
+      return descriptor.render(score);
+    } else {
+      return score;
+    }
+  };
+
+  /**
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @returns {ScorerDescriptor}
+   */
+  const scorerDescriptor = (sample, scoreLabel) => {
+    return {
+      metadata: () => {
+        return scoreMetadata(sample, scoreLabel.scorer);
+      },
+      explanation: () => {
+        return scoreExplanation(sample, scoreLabel.scorer);
+      },
+      answer: () => {
+        return scoreAnswer(sample, scoreLabel.scorer);
+      },
+      scores: () => {
+        if (!sample || !sample.scores) {
+          return [];
+        }
+        const myScoreDescriptor = scoreDescriptor(scoreLabel);
+        if (!myScoreDescriptor) {
+          return [];
+        }
+
+        // Make a list of all the valid score names (this is
+        // used to distinguish between dictionaries that contain
+        // scores that should be treated as standlone scores and
+        // dictionaries that just contain random values, which is allowed)
+        const scoreNames = scores.map((score) => {
+          return score.name;
+        });
+        const sampleScorer = sample.scores[scoreLabel.scorer];
+        const scoreVal = sampleScorer.value;
+
+        if (typeof scoreVal === "object") {
+          const names = Object.keys(scoreVal);
+
+          // See if this is a dictionary of score names
+          // if any of the score names match, treat it
+          // as a scorer dictionary
+          if (
+            names.find((name) => {
+              return scoreNames.includes(name);
+            })
+          ) {
+            // Since this dictionary contains keys which are  scores
+            // we actually render the individual scores
+            const scores = names.map((name) => {
+              return {
+                name,
+                rendered: () => {
+                  return myScoreDescriptor.render(scoreVal[name]);
+                },
+              };
+            });
+            return scores;
+          } else {
+            // Since this dictionary contains keys which are not scores
+            // we just treat it like an opaque dictionary
+            return [
+              {
+                name: scoreLabel.scorer,
+                rendered: () => {
+                  return myScoreDescriptor.render(scoreVal);
+                },
+              },
+            ];
+          }
+        } else {
+          return [
+            {
+              name: scoreLabel.scorer,
+              rendered: () => {
+                return myScoreDescriptor.render(scoreVal);
+              },
+            },
+          ];
+        }
+      },
+    };
+  };
+
+  /**
+   * @param {import("../api/Types.mjs").BasicSampleData} sample
+   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @returns {SelectedScore}
+   */
+  const score = (sample, scoreLabel) => {
+    return {
+      value: scoreValue(sample, scoreLabel),
+      render: () => {
+        return scoreRendered(sample, scoreLabel);
+      },
+    };
+  };
+
+  return {
+    epochs,
+    samples,
+    scores,
+    scorerDescriptor,
+    scoreDescriptor,
+    score,
+    scoreAnswer,
+  };
+};
+
+/**
+ * Provides a utility summary of the samples
+ *
+ * @param {EvalDescriptor} evalDescriptor - The EvalDescriptor.
+ * @param {import("../Types.mjs").ScoreLabel} selectedScore - Selected score.
+ * @returns {SamplesDescriptor} - The SamplesDescriptor.
+ */
+export const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+  if (!evalDescriptor) {
+    return undefined;
+  }
+
   // Find the total length of the value so we can compute an average
-  const sizes = samples.reduce(
+  const sizes = evalDescriptor.samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
-      const scoreText = scoreValue(current) ? String(scoreValue(current)) : "";
+      const scoreValue = evalDescriptor.score(current, selectedScore).value;
+      const scoreText = scoreValue ? String(scoreValue) : "";
       previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -230,7 +383,7 @@ export const createsSamplesDescriptor = (
       previous[2] = Math.min(
         Math.max(
           previous[2],
-          scoreAnswer(current, selectedScore?.name)?.length || 0,
+          evalDescriptor.scoreAnswer(current, selectedScore?.name)?.length || 0,
         ),
         300,
       );
@@ -284,109 +437,13 @@ export const createsSamplesDescriptor = (
     },
   };
 
-  const scoreRendered = (sample) => {
-    const score = scoreValue(sample);
-    if (score === null || score === "undefined") {
-      return "null";
-    } else if (scoreDescriptor.render) {
-      return scoreDescriptor.render(score);
-    } else {
-      return score;
-    }
-  };
-
-  const scorerDescriptor = (sample, scorer) => {
-    return {
-      metadata: () => {
-        return scoreMetadata(sample, scorer);
-      },
-      explanation: () => {
-        return scoreExplanation(sample, scorer);
-      },
-      answer: () => {
-        return scoreAnswer(sample, scorer);
-      },
-      scores: () => {
-        if (!sample || !sample.scores) {
-          return [];
-        }
-
-        // Make a list of all the valid score names (this is
-        // used to distinguish between dictionaries that contain
-        // scores that should be treated as standlone scores and
-        // dictionaries that just contain random values, which is allowed)
-        const scoreNames = scorers.map((score) => {
-          return score.name;
-        });
-        const sampleScorer = sample.scores[scorer];
-        const scoreVal = sampleScorer.value;
-
-        if (typeof scoreVal === "object") {
-          const names = Object.keys(scoreVal);
-
-          // See if this is a dictionary of score names
-          // if any of the score names match, treat it
-          // as a scorer dictionary
-          if (
-            names.find((name) => {
-              return scoreNames.includes(name);
-            })
-          ) {
-            // Since this dictionary contains keys which are  scores
-            // we actually render the individual scores
-            const scores = names.map((name) => {
-              return {
-                name,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal[name]);
-                },
-              };
-            });
-            return scores;
-          } else {
-            // Since this dictionary contains keys which are not scores
-            // we just treat it like an opaque dictionary
-            return [
-              {
-                name: scorer,
-                rendered: () => {
-                  return scoreDescriptor.render(scoreVal);
-                },
-              },
-            ];
-          }
-        } else {
-          return [
-            {
-              name: scorer,
-              rendered: () => {
-                return scoreDescriptor.render(scoreVal);
-              },
-            },
-          ];
-        }
-      },
-    };
-  };
-
   return {
-    scoreDescriptor,
-    epochs,
+    evalDescriptor,
     messageShape,
-    selectedScore: (sample) => {
-      return {
-        value: scoreValue(sample),
-        render: () => {
-          return scoreRendered(sample);
-        },
-      };
-    },
-    scorer: (sample, scorer) => {
-      return scorerDescriptor(sample, scorer);
-    },
-    selectedScorer: (sample) => {
-      return scorerDescriptor(sample, selectedScore?.scorer);
-    },
+    selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
+    selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+    selectedScorerDescriptor: (sample) =>
+      evalDescriptor.scorerDescriptor(sample, selectedScore),
   };
 };
 
