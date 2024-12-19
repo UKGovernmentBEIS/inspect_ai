@@ -197,7 +197,9 @@ class TaskScreenApp(App[TR]):
 
         # add task
         try:
-            yield self.query_one(TasksView).add_task(task)
+            task_view = self.query_one(TasksView)
+            task_view.set_display_metrics(profile.display_metrics)
+            yield task_view.add_task(task)
         finally:
             pass
 
