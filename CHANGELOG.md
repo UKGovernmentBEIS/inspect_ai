@@ -11,6 +11,7 @@
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
 - Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
+- Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
