@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.3.47
+
+- Minor improvements
+
+## 0.3.46
 
 - Update Bedrock models help link to point to more helpful page.
 

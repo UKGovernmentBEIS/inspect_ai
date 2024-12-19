@@ -29,7 +29,7 @@ def verify_exec_result_size(exec_result: ExecResult[str]) -> None:
     """Verify the size of the output streams in an `ExecResult`.
 
     Raises:
-      OutputLimitExceededError: If an output stream exceeds the 1 MiB limit.
+      OutputLimitExceededError: If an output stream exceeds the limit.
     """
     limit = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
     stdout_truncated = truncate_string_to_bytes(exec_result.stdout, limit)
