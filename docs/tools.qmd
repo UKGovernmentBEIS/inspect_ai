@@ -100,7 +100,7 @@ If you do not explicitly handle errors, then Inspect provides some default error
 
 -   `UnicodeDecodeError` — Occurs when the output from executing a process or reading a file is binary rather than text.
 
--   `OutputLimitExceededError` - Occurs when one or both of the output streams from `sandbox().exec()` exceed 1 MiB or when attempting to read a file over 100 MiB in size.
+-   `OutputLimitExceededError` - Occurs when one or both of the output streams from `sandbox().exec()` exceed 10 MiB or when attempting to read a file over 100 MiB in size.
 
 -   `ToolError` — Special error thrown by tools to indicate they'd like to report an error to the model.
 
