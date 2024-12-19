@@ -142,12 +142,11 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+    def is_o1(self) -> bool:
+        return self.model_name.startswith("o1")
+
     def is_o1_full(self) -> bool:
-        return (
-            self.model_name.startswith("o1")
-            and not self.is_o1_mini()
-            and not self.is_o1_preview()
-        )
+        return self.is_o1() and not self.is_o1_mini() and not self.is_o1_preview()
 
     def is_o1_mini(self) -> bool:
         return self.model_name.startswith("o1-mini")
@@ -285,7 +284,7 @@ class OpenAIAPI(ModelAPI):
             params["logprobs"] = config.logprobs
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
-        if tools and config.parallel_tool_calls is not None:
+        if tools and config.parallel_tool_calls is not None and not self.is_o1():
             params["parallel_tool_calls"] = config.parallel_tool_calls
         if config.reasoning_effort is not None and self.is_o1_full():
             params["reasoning_effort"] = config.reasoning_effort
