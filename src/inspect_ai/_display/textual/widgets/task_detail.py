@@ -210,8 +210,9 @@ class TaskMetrics(Widget):
         for metric in metrics:
             widget = self.value_widgets.get(metric.name)
             if widget:
+                value = metric.value if isinstance(metric.value, str) else f"{metric.value:,.3f}"
                 # Just update the values themselves
-                widget.update(content=f"{metric.value:,.3f}")
+                widget.update(content=value)
             else:
                 # Don't have a widget for this, recompute the whole grid
                 need_recompute = True
