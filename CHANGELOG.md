@@ -10,6 +10,7 @@
 - Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
+- Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)

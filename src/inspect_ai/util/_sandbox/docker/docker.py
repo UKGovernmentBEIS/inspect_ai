@@ -5,7 +5,6 @@ from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, Union, cast, overload
 
-import aiofiles
 from typing_extensions import override
 
 from inspect_ai.util._subprocess import ExecResult
@@ -403,11 +402,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             # read and return w/ appropriate encoding
             if text:
-                async with aiofiles.open(dest_file, "r", encoding="utf-8") as f:
-                    return await f.read()
+                with open(dest_file, "r", encoding="utf-8") as f:
+                    return f.read()
             else:
-                async with aiofiles.open(dest_file, "rb") as f:
-                    return await f.read()
+                with open(dest_file, "rb") as f:
+                    return f.read()
 
     @override
     async def connection(self) -> SandboxConnection:
