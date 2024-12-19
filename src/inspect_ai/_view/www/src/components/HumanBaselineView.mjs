@@ -53,9 +53,11 @@ export const HumanBaselineView = ({
 
   // Make a player for each session log
   let count = 1;
+  let maxCols = 0;
   for (const sessionLog of sessionLogs) {
     const rows = extractSize(sessionLog.output, "LINES");
     const cols = extractSize(sessionLog.output, "COLUMNS");
+    maxCols = Math.max(maxCols, parseInt(cols));
 
     players.push(
       html` <div style=${{ marginTop: "0.5em" }}>
@@ -84,10 +86,13 @@ export const HumanBaselineView = ({
     }
   };
 
-  return html` <div
+  return html` <div style=${{ display: "flex", justifyContent: "center" }}>
+    <div
       style=${{
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
+        maxWidth: `${maxCols}ch`,
+        width: "100%",
       }}
     >
       <div
@@ -117,8 +122,17 @@ export const HumanBaselineView = ({
           answer=${answer}
         />
       </div>
+      <div
+        style=${{
+          gridColumn: "span 3",
+          maxWidth: `${maxCols}ch`,
+          width: "100%",
+        }}
+      >
+        ${players}
+      </div>
     </div>
-    <div>${players}</div>`;
+  </div>`;
 };
 
 /**
