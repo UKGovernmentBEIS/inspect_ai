@@ -101,6 +101,7 @@ export async function activate(context: ExtensionContext) {
 
   // initialiaze view server
   const server = new InspectViewServer(context, inspectManager);
+  context.subscriptions.push(server);
 
   // initialise logs watcher
   const logsWatcher = new InspectLogsWatcher(stateManager);

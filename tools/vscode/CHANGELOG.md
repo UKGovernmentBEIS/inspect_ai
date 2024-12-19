@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.48
+
+- Properly shutdown the `inspect view` process when exiting VSCode.
+
 ## 0.3.47
 
 - Minor improvements
