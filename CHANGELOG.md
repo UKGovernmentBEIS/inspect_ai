@@ -7,6 +7,7 @@
 - Bedrock: Support for tool calling on Nova models.
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Bedrock: Support for `jpeg` images.
+- Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
 - `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
