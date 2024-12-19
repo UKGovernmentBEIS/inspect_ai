@@ -17,6 +17,7 @@
 - Bugfix: Properly handle custom metrics that return dictionaries or lists
 - Bugfix: Proper sample count display when retrying an evaluation
 - Bugfix: Fix inability to define and run tasks in a notebook.
+- Add `--no-display-metrics` option which disables the computation and display of metrics during evaluations
 
 ## v0.3.52 (13 December 2024)
 

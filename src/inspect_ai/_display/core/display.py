@@ -49,6 +49,7 @@ class TaskProfile:
     generate_config: GenerateConfig
     tags: list[str] | None
     log_location: str
+    display_metrics: bool
 
 
 @dataclass

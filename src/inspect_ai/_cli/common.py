@@ -18,6 +18,7 @@ class CommonOptions(TypedDict):
     log_level_transcript: str
     log_dir: str
     display: Literal["full", "rich", "plain", "none"]
+    no_display_metrics: bool
     no_ansi: bool | None
     debug: bool
     debug_port: int
@@ -70,6 +71,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Set the display type (defaults to 'full')",
     )
     @click.option(
+        "--no-display-metrics",
+        type=bool,
+        is_flag=True,
+        help="Do not display incremental metrics.",
+        envvar="INSPECT_NO_DISPLAY_METRICS",
+    )
+    @click.option(
         "--no-ansi",
         type=bool,
         is_flag=True,
@@ -106,7 +114,9 @@ def process_common_options(options: CommonOptions) -> None:
         display = "plain"
     else:
         display = options["display"].lower().strip()
-    init_display_type(display)
+
+    display_metrics = False if options["no_display_metrics"] else True
+    init_display_type(display, display_metrics)
 
     # attach debugger if requested
     if options["debug"]:
