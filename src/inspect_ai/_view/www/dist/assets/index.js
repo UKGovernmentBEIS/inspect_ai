@@ -24639,7 +24639,9 @@ const ResultsPanel = ({ results }) => {
       flexWrap: "wrap",
       justifyContent: "end",
       height: "100%",
-      alignItems: "center"
+      alignItems: "center",
+      maxHeight: "15em",
+      overflow: "scroll"
     }}
     >
       ${metrics.map((metric, i) => {
@@ -24657,7 +24659,9 @@ const ResultsPanel = ({ results }) => {
       alignItems: "center",
       marginTop: "0.2rem",
       paddingBottom: "0.4rem",
-      rowGap: "1em"
+      rowGap: "1em",
+      maxHeight: "15em",
+      overflow: "scroll"
     }}
     >
       ${(_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score, index) => {
