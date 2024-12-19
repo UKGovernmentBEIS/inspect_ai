@@ -41,7 +41,7 @@ class ComposeProject:
 
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
-            config = await auto_compose_file(
+            config = auto_compose_file(
                 COMPOSE_DOCKERFILE_YAML, config_path.parent.as_posix()
             )
 
@@ -51,12 +51,12 @@ class ComposeProject:
 
         # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
         else:
-            config = await resolve_compose_file()
+            config = resolve_compose_file()
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
         # as part of its ConfigFiles and passed it back to us -- we in the
         # meantime have cleaned it up so we re-create it here as required
-        await ensure_auto_compose_file(config)
+        ensure_auto_compose_file(config)
 
         # return project
         return ComposeProject(name, config, env)

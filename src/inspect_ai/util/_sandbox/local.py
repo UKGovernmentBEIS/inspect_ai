@@ -3,7 +3,6 @@ import warnings
 from pathlib import Path
 from typing import Literal, Union, cast, overload
 
-import aiofiles
 from typing_extensions import override
 
 from .._subprocess import ExecResult, subprocess
@@ -85,11 +84,11 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         Path(file).parent.mkdir(parents=True, exist_ok=True)
 
         if isinstance(contents, str):
-            async with aiofiles.open(file, "w", encoding="utf-8") as f:
-                await f.write(contents)
+            with open(file, "w", encoding="utf-8") as f:
+                f.write(contents)
         else:
-            async with aiofiles.open(file, "wb") as f:
-                await f.write(contents)
+            with open(file, "wb") as f:
+                f.write(contents)
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -102,11 +101,11 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         file = self._resolve_file(file)
         verify_read_file_size(file)
         if text:
-            async with aiofiles.open(file, "r", encoding="utf-8") as f:
-                return await f.read()
+            with open(file, "r", encoding="utf-8") as f:
+                return f.read()
         else:
-            async with aiofiles.open(file, "rb") as f:
-                return await f.read()
+            with open(file, "rb") as f:
+                return f.read()
 
     def _resolve_file(self, file: str) -> str:
         path = Path(file)
