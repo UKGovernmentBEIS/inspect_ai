@@ -134,7 +134,7 @@ export class LogviewPanel extends Disposable {
         } data:; style-src ${this.panel_.webview.cspSource
         } 'unsafe-inline'; worker-src 'self' ${this.panel_.webview.cspSource
         } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this.panel_.webview.cspSource
-        };">
+        } blob:;">
     ${stateScript}
     ${overrideCssHtml}
 
