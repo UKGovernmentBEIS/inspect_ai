@@ -403,7 +403,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             # read and return w/ appropriate encoding
             if text:
-                async with aiofiles.open(dest_file, "r", encoding="utf-8") as f:
+                async with aiofiles.open(
+                    dest_file, "r", newline="", encoding="utf-8"
+                ) as f:
                     return await f.read()
             else:
                 async with aiofiles.open(dest_file, "rb") as f:

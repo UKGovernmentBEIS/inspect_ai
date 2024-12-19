@@ -200,6 +200,10 @@ class SandboxEnvironment(abc.ABC):
 
         File size is limited to 100 MiB.
 
+        When reading text files, implementations should preserve newline constructs
+        (e.g. crlf should be preserved not converted to lf). This is equivalent
+        to specifying `newline=""` in a call to the Python `open()` function.
+
         Args:
           file (str): Path to file (relative file paths will resolve to the
             per-sample working directory).

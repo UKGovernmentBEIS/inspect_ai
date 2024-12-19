@@ -102,7 +102,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         file = self._resolve_file(file)
         verify_read_file_size(file)
         if text:
-            async with aiofiles.open(file, "r", encoding="utf-8") as f:
+            async with aiofiles.open(file, "r", newline="", encoding="utf-8") as f:
                 return await f.read()
         else:
             async with aiofiles.open(file, "rb") as f:

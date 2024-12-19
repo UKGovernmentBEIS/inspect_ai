@@ -10,10 +10,13 @@ from .submit import SubmitCommand, ValidateCommand
 
 
 def human_agent_commands(
-    state: TaskState, answer: bool | str, intermediate_scoring: bool
+    state: TaskState,
+    answer: bool | str,
+    intermediate_scoring: bool,
+    record_session: bool,
 ) -> list[HumanAgentCommand]:
     # base submit and validate
-    commands = [SubmitCommand(), ValidateCommand(answer)]
+    commands = [SubmitCommand(record_session), ValidateCommand(answer)]
 
     # optional intermediate scoring
     if intermediate_scoring:

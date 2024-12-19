@@ -1,17 +1,26 @@
 from argparse import Namespace
-from pathlib import Path
+from logging import getLogger
+from pathlib import PurePosixPath
 from re import Pattern, compile, match
 from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 
 from inspect_ai._util.ansi import render_text
+from inspect_ai.util._sandbox import sandbox
 
+from ..install import RECORD_SESSION_DIR
 from ..state import HumanAgentState
 from .command import HumanAgentCommand, call_human_agent
 
+logger = getLogger(__name__)
+
 
 class SubmitCommand(HumanAgentCommand):
+    def __init__(self, record_session: bool):
+        super().__init__()
+        self._record_session = record_session
+
     @property
     def name(self) -> str:
         return "submit"
@@ -67,20 +76,6 @@ class SubmitCommand(HumanAgentCommand):
             + "Your task will now be scored and you will be disconnected from this container.\n"
         )
 
-        # collect session logs if they exist
-        sessions_dir = Path("/var/tmp/user-sessions")
-        if sessions_dir.exists() and sessions_dir.is_dir():
-            session_logs: dict[str, str] = {}
-            for file in sessions_dir.iterdir():
-                if file.is_file():
-                    try:
-                        with open(file, "r", newline="") as f:
-                            session_logs[file.name] = f.read()
-                    except Exception as e:
-                        print(f"Error reading file {file.name}: {e}")
-                        continue
-            call_args["session_logs"] = session_logs
-
         # submit the task
         call_human_agent("submit", **call_args)
 
@@ -88,11 +83,32 @@ class SubmitCommand(HumanAgentCommand):
         async def submit(
             answer: str | None, session_logs: dict[str, str] | None = None
         ) -> None:
+            if self._record_session:
+                state.session_logs = await self._read_session_logs()
             state.running = False
             state.answer = answer
-            state.session_logs = session_logs
 
         return submit
+
+    async def _read_session_logs(self) -> dict[str, str]:
+        # retreive session logs (don't fail)
+        sessions_dir = PurePosixPath(RECORD_SESSION_DIR)
+        result = await sandbox().exec(["ls", "-1", sessions_dir.as_posix()])
+        if not result.success:
+            logger.warning(f"Error listing human agent session logs: {result.stderr}")
+            return {}
+
+        # read logs
+        session_logs: dict[str, str] = {}
+        for session_log in result.stdout.strip().splitlines():
+            try:
+                session_logs[session_log] = await sandbox().read_file(
+                    (sessions_dir / session_log).as_posix()
+                )
+            except Exception as ex:
+                logger.warning(f"Error reading human agent session log: {ex}")
+
+        return session_logs
 
 
 class ValidateCommand(HumanAgentCommand):

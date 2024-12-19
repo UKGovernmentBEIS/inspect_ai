@@ -13,7 +13,7 @@ from .view import ConsoleView, HumanAgentView
 @solver
 def human_agent(
     answer: bool | str = True,
-    intermediate_scoring: bool = True,
+    intermediate_scoring: bool = False,
     record_session: bool = True,
 ) -> Solver:
     """Human solver for agentic tasks that run in a Linux environment.
@@ -59,7 +59,9 @@ def human_agent(
             # helper function to run the agent (called for fullscreen vs. fallback below)
             async def run_human_agent(view: HumanAgentView) -> TaskState:
                 # create agent commands
-                commands = human_agent_commands(state, answer, intermediate_scoring)
+                commands = human_agent_commands(
+                    state, answer, intermediate_scoring, record_session
+                )
 
                 # install agent tools
                 await install_human_agent(state, commands, record_session)
