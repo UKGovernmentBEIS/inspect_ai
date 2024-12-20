@@ -11,7 +11,7 @@ from inspect_ai.model import (
 
 # This script converts Apollo's in context scheming results from an agentic to a simple question-answering format by prefilling
 # the tool calls and responses.
-# This allows for a simplier set up and more precise control over the
+# This allows for a simplier set up and more precise control over the negative consequences of high performance.
 
 
 # Convert dataset records to samples with proper formatting
