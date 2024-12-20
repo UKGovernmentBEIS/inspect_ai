@@ -59,8 +59,9 @@ class LogHandler(RichHandler):
         trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
         trace_total_files = 10
         self.trace_logger = RotatingFileHandler(
-            trace_file, backupCount=trace_total_files - 1
-        )  # exclude the current file
+            trace_file,
+            backupCount=trace_total_files - 1,  # exclude the current file (10 total)
+        )
 
         # manually roll over the log
         self.trace_logger.doRollover()
@@ -123,7 +124,7 @@ def init_logger(
 ) -> None:
     # backwards compatibility for 'tools'
     if log_level == "sandbox" or log_level == "tools":
-        log_level = "sandbox"
+        log_level = "trace"
 
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
