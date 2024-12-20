@@ -217,7 +217,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             log_location=log_location,
         )
 
-        with display().task(profile) as td:
+        with display().task(
+            profile,
+        ) as td:
             try:
                 # start the log
                 await log_start(logger, plan, generate_config)
@@ -252,7 +254,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
-                    update_metrics_display = update_metrics_display_fn(td)
+                    update_metrics_display = update_metrics_display_fn(
+                        td,
+                        display_metrics=profile.eval_config.score_display is not False,
+                    )
 
                     def sample_complete(sample_score: dict[str, SampleScore]) -> None:
                         # Capture the result
@@ -400,7 +405,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
 
 def update_metrics_display_fn(
-    td: TaskDisplay, initial_interval: float = 0, min_interval: float = 0.9
+    td: TaskDisplay,
+    initial_interval: float = 0,
+    min_interval: float = 0.9,
+    display_metrics: bool = True,
 ) -> Callable[
     [
         int,
@@ -420,6 +428,10 @@ def update_metrics_display_fn(
         reducers: ScoreReducer | list[ScoreReducer] | None,
         metrics: list[Metric] | dict[str, list[Metric]] | None,
     ) -> None:
+        # Don't compute metrics if they are not being displayed
+        if not display_metrics:
+            return None
+
         nonlocal next_compute_time
         time_start = time.perf_counter()
         if time_start >= next_compute_time:

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Task display: Added `--no-score-display` option to disable realtime scoring metrics.
+
 ## v0.3.53 (20 December 2024)
 
 - OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
@@ -20,6 +24,7 @@
 - Bugfix: Properly handle custom metrics that return dictionaries or lists
 - Bugfix: Proper sample count display when retrying an evaluation
 - Bugfix: Fix inability to define and run tasks in a notebook.
+- Add `--no-score-display` to disable display of realtimem scoring metrics.
 
 ## v0.3.52 (13 December 2024)
 

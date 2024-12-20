@@ -14,6 +14,7 @@ _display_type: DisplayType | None = None
 
 def init_display_type(display: str | None = None) -> DisplayType:
     global _display_type
+    global _display_metrics
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )

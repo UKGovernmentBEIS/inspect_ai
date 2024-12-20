@@ -42,6 +42,7 @@ LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not s
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )
+NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
 MAX_RETRIES_HELP = (
     f"Maximum number of times to retry request (defaults to {DEFAULT_MAX_RETRIES})"
@@ -258,6 +259,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_NO_SCORE",
     )
     @click.option(
+        "--no-score-display",
+        type=bool,
+        is_flag=True,
+        help=NO_SCORE_HELP,
+        envvar="INSPECT_EVAL_SCORE_DISPLAY",
+    )
+    @click.option(
         "--max-tokens",
         type=int,
         help="The maximum number of tokens that can be generated in the completion (default is model specific)",
@@ -446,6 +454,7 @@ def eval_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
     **common: Unpack[CommonOptions],
 ) -> None:
@@ -495,6 +504,7 @@ def eval_command(
         log_images=log_images,
         log_buffer=log_buffer,
         no_score=no_score,
+        no_score_display=no_score_display,
         is_eval_set=False,
         **config,
     )
@@ -603,6 +613,7 @@ def eval_set_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    no_score_display: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
     log_format: Literal["eval", "json"] | None,
@@ -654,6 +665,7 @@ def eval_set_command(
         log_images=log_images,
         log_buffer=log_buffer,
         no_score=no_score,
+        no_score_display=no_score_display,
         is_eval_set=True,
         retry_attempts=retry_attempts,
         retry_wait=retry_wait,
@@ -706,6 +718,7 @@ def eval_exec(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    no_score_display: bool | None,
     is_eval_set: bool = False,
     retry_attempts: int | None = None,
     retry_wait: int | None = None,
@@ -746,6 +759,7 @@ def eval_exec(
     log_images = False if log_images is False else None
     trace = True if trace else None
     score = False if no_score else True
+    score_display = False if no_score_display else None
 
     # build params
     params: dict[str, Any] = (
@@ -781,6 +795,7 @@ def eval_exec(
             log_images=log_images,
             log_buffer=log_buffer,
             score=score,
+            score_display=score_display,
         )
         | kwargs
     )
@@ -916,6 +931,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_SCORE",
 )
 @click.option(
+    "--no-score-display",
+    type=bool,
+    is_flag=True,
+    help=NO_SCORE_HELP,
+    envvar="INSPECT_EVAL_SCORE_DISPLAY",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -940,6 +962,7 @@ def eval_retry_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    no_score_display: bool | None,
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
@@ -954,6 +977,7 @@ def eval_retry_command(
     log_samples = False if no_log_samples else None
     log_images = False if log_images is False else None
     score = False if no_score else True
+    score_display = False if no_score_display else None
 
     # resolve fail_on_error
     if no_fail_on_error is True:
@@ -984,6 +1008,7 @@ def eval_retry_command(
         log_images=log_images,
         log_buffer=log_buffer,
         score=score,
+        score_display=score_display,
         max_retries=max_retries,
         timeout=timeout,
         max_connections=max_connections,
