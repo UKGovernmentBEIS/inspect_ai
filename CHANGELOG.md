@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Task display: Added `--no-score-display` option to disable realtime scoring metrics.
+
 ## v0.3.53 (20 December 2024)
 
 - OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
