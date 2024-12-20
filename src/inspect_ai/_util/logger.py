@@ -25,8 +25,8 @@ from inspect_ai._util.constants import (
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
-    SANDBOX,
-    SANDBOX_LOG_LEVEL,
+    TRACE,
+    TRACE_LOG_LEVEL,
 )
 from inspect_ai._util.error import PrerequisiteError
 
@@ -95,12 +95,12 @@ def init_logger(
     log_level: str | None = None, log_level_transcript: str | None = None
 ) -> None:
     # backwards compatibility for 'tools'
-    if log_level == "tools":
+    if log_level == "sandbox" or log_level == "tools":
         log_level = "sandbox"
 
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
-    addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
+    addLevelName(TRACE, TRACE_LOG_LEVEL)
 
     def validate_level(option: str, level: str) -> None:
         if level not in ALL_LOG_LEVELS:
