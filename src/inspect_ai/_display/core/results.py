@@ -205,7 +205,7 @@ def task_metrics(scores: list[EvalScore]) -> str:
                 if metric.value == 1
                 else (
                     str(metric.value)
-                    if isinstance(metric.value, int)
+                    if isinstance(metric.value, int | str)
                     else f"{metric.value:.3g}"
                 )
             )
