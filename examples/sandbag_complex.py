@@ -11,7 +11,7 @@ from inspect_ai.model import (
 
 # This script converts Apollo's in context scheming results from an agentic to a simple question-answering format by pre-filling
 # the tool calls and responses. This allows for a simplier set up and more precise control over the negative consequences
-# of high performance.
+# of high performance. https://www.apolloresearch.ai/research/scheming-reasoning-evaluations
 #
 # As it stands, the complete context is added before each question. Future work could decrease input tokens by batching questions within
 # a single pre-filled context.
