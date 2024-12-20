@@ -12,6 +12,7 @@ from inspect_ai.model import (
 # This script converts Apollo's in context scheming results from an agentic to a simple question-answering format by prefilling
 # the tool calls and responses.
 # This allows for a simplier set up and more precise control over the negative consequences of high performance.
+# To edit the consequences, see the text under: ### Dev Meeting Arithmetic Knowledge Assessment Notes 8/24/2024
 
 
 # Convert dataset records to samples with proper formatting
