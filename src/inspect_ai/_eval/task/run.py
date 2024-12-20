@@ -31,6 +31,7 @@ from inspect_ai._util.registry import (
     registry_log_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
+from inspect_ai._util.trace import trace_action
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -564,8 +565,11 @@ async def task_run_sample(
                     SampleInitEvent(sample=event_sample, state=state_jsonable(state))
                 )
 
-                # set progress for plan then run it
-                state = await plan(state, generate)
+                with trace_action(
+                    py_logger, "Sample", f"Sample {sample.id}-{state.epoch}"
+                ):
+                    # set progress for plan then run it
+                    state = await plan(state, generate)
 
         except TimeoutError:
             # notify the user
