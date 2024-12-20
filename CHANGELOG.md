@@ -10,6 +10,7 @@
 - Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
+- Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
 - Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
 - Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
 - Bugfix: Proper handling of text find for eval raw JSON display

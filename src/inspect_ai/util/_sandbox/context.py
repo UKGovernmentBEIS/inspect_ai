@@ -109,7 +109,7 @@ def raise_no_sandbox() -> NoReturn:
 
 
 async def init_sandbox_environments_sample(
-    type: str,
+    sandboxenv_type: type[SandboxEnvironment],
     task_name: str,
     config: SandboxEnvironmentConfigType | None,
     files: dict[str, bytes],
@@ -117,7 +117,6 @@ async def init_sandbox_environments_sample(
     metadata: dict[str, Any],
 ) -> dict[str, SandboxEnvironment]:
     # get setup and cleanup functions
-    sandboxenv_type = registry_find_sandboxenv(type)
     sample_init = cast(SampleInit, getattr(sandboxenv_type, "sample_init"))
     sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
 

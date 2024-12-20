@@ -122,13 +122,15 @@ This code will evaluate a total of 12 tasks (6 temperature variations against 2 
 
 [Sandbox Environments](agents.qmd#sec-sandbox-environments) (e.g. Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect `subprocess()` function for executing commands within the environment.
 
-### Max Samples
+### Max Sandboxes
 
-The `max_samples` option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, `max_samples` is set to `max_connections` so that the connection to the Model API can be fully utilised.
+The `max_sandboxes` option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider has a default of `2 * os.cpu_count()`). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.
 
-Since sandbox environments include additional expensive operations beyond calling models, you may want to increase `max_samples` to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you'll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing `max_samples`.
+When a `max_sandboxes` is applied, an indicator at the bottom of the task status screen will be shown:
 
-Note that setting `max_samples` to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using sandbox environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).
+![](images/task-max-sandboxes.png)
+
+Note that when `max_sandboxes` is applied this effectively creates a global `max_samples` limit that is equal to the `max_sandboxes`.
 
 ### Max Subprocesses
 

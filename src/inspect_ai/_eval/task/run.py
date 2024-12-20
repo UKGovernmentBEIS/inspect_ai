@@ -279,6 +279,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             sample=sample,
                             state=state,
                             sandbox=sandbox,
+                            max_sandboxes=config.max_sandboxes,
                             sandbox_cleanup=sandbox_cleanup,
                             plan=plan,
                             scorers=scorers,
@@ -460,6 +461,7 @@ async def task_run_sample(
     sample: Sample,
     state: TaskState,
     sandbox: SandboxEnvironmentSpec | None,
+    max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
@@ -517,7 +519,7 @@ async def task_run_sample(
 
     # use sandbox if provided
     sandboxenv_cm = (
-        sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
+        sandboxenv_context(task_name, sandbox, max_sandboxes, sandbox_cleanup, sample)
         if sandbox or sample.sandbox is not None
         else contextlib.nullcontext()
     )

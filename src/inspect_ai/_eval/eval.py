@@ -71,6 +71,7 @@ def eval(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -129,6 +130,8 @@ def eval(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
+           to run in parallel.
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
@@ -175,6 +178,7 @@ def eval(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -211,6 +215,7 @@ async def eval_async(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -268,6 +273,8 @@ async def eval_async(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
+        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
+           to run in parallel.
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
@@ -368,6 +375,7 @@ async def eval_async(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             log_samples=log_samples,
             log_images=log_images,
@@ -450,6 +458,7 @@ def eval_retry(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
     trace: bool | None = None,
     fail_on_error: bool | float | None = None,
@@ -480,6 +489,8 @@ def eval_retry(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
+           to run in parallel.
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         trace (bool | None): Trace message interactions with evaluated model to terminal.
@@ -522,6 +533,7 @@ def eval_retry(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
@@ -545,6 +557,7 @@ async def eval_retry_async(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -574,6 +587,7 @@ async def eval_retry_async(
            (default is 1)
         max_subprocesses (int): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        max_sandboxes (int): Maximum number of sandboxes (per-provider) to run in parallel.
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -665,6 +679,7 @@ async def eval_retry_async(
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
+        max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
         sandbox_cleanup = (
             sandbox_cleanup
             if sandbox_cleanup is not None
@@ -720,6 +735,7 @@ async def eval_retry_async(
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
                 log_samples=log_samples,
                 log_images=log_images,
                 log_buffer=log_buffer,

@@ -54,6 +54,11 @@ class SandboxEnvironment(abc.ABC):
         return []
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        """Default max_sandboxes for this provider (`None` means no maximum)"""
+        return None
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
