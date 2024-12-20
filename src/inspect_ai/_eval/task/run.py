@@ -24,7 +24,6 @@ from inspect_ai._util.constants import (
     SAMPLE_SUBTASK,
 )
 from inspect_ai._util.datetime import iso_now
-from inspect_ai._util.display import display_metrics
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
@@ -216,7 +215,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             generate_config=generate_config,
             tags=tags,
             log_location=log_location,
-            display_metrics=display_metrics(),
         )
 
         with display().task(
@@ -257,7 +255,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
                     update_metrics_display = update_metrics_display_fn(
-                        td, display_metrics=profile.display_metrics
+                        td,
+                        display_metrics=profile.eval_config.score_display is not False,
                     )
 
                     def sample_complete(sample_score: dict[str, SampleScore]) -> None:

@@ -10,18 +10,14 @@ DisplayType = Literal["full", "rich", "plain", "none"]
 
 
 _display_type: DisplayType | None = None
-_display_metrics: bool = True
 
 
-def init_display_type(
-    display: str | None = None, display_metrics: bool = True
-) -> DisplayType:
+def init_display_type(display: str | None = None) -> DisplayType:
     global _display_type
     global _display_metrics
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
-    _display_metrics = display_metrics
     match display:
         case "full" | "rich" | "plain" | "none":
             _display_type = display
@@ -37,8 +33,3 @@ def display_type() -> DisplayType:
         return _display_type
     else:
         return init_display_type()
-
-
-def display_metrics() -> bool:
-    global _display_metrics
-    return _display_metrics
