@@ -1,3 +1,8 @@
+
+
+
+##### See sandbag_complex.py for a sandbagging set up based Apollo's in-context scheming paper ######
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
