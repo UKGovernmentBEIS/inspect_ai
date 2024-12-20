@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import contextlib
+from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
 from inspect_ai._eval.task.task import Task
@@ -44,6 +45,13 @@ async def sandboxenv_context(
             Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
         )
         max_sandboxes = default_concurrency_fn()
+
+    # if we are enforcing max_sandboxes, then when samples are scheduled they may
+    # not get interleaved properly across tasks (because the first task will come
+    # in and grab all of the sandboxes). Therefore, in this case we wait a random
+    # delay so that all tasks/samples have an equal shot at getting scheduled.
+    if max_sandboxes is not None:
+        await asyncio.sleep(random())
 
     # enforce concurrency if required
     sandboxes_cm = (
