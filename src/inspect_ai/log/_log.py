@@ -79,6 +79,9 @@ class EvalConfig(BaseModel):
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 
+    max_sandboxes: int | None = Field(default=None)
+    """Maximum number of sandboxes to run concurrently."""
+
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
 
