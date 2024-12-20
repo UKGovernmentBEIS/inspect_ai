@@ -30,6 +30,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
@@ -364,16 +365,18 @@ class Model:
             )
 
             generate_id = uuid()
-            logger.debug(f"model generate {generate_id} ({str(self)})")
-            time_start = time.perf_counter()
-            result = await self.api.generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-            )
-            time_elapsed = time.perf_counter() - time_start
-            logger.debug(f"model generate {generate_id} (completed)")
+            with trace_action(
+                logger, "Model", f"model generate {generate_id} ({str(self)})"
+            ):
+                time_start = time.perf_counter()
+                result = await self.api.generate(
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                )
+                time_elapsed = time.perf_counter() - time_start
+
             if isinstance(result, tuple):
                 output, call = result
             else:
