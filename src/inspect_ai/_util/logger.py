@@ -11,6 +11,7 @@ from logging import (
     getLevelName,
     getLogger,
 )
+from logging.handlers import RotatingFileHandler
 
 import rich
 from rich.console import ConsoleRenderable
@@ -18,6 +19,7 @@ from rich.logging import RichHandler
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
@@ -52,6 +54,27 @@ class LogHandler(RichHandler):
         else:
             self.file_logger_level = 0
 
+        # add a trace handler
+        default_trace_file = inspect_data_dir("traces") / "trace.log"
+        trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
+        trace_total_files = 10
+        self.trace_logger = RotatingFileHandler(
+            trace_file, backupCount=trace_total_files - 1
+        )  # exclude the current file
+
+        # manually roll over the log
+        self.trace_logger.doRollover()
+
+        # adjust trace formatting
+        if self.trace_logger:
+            self.trace_logger.setFormatter(
+                Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            )
+
+        # set trace level
+        trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
+        self.trace_logger_level = int(getLevelName(trace_level.upper()))
+
     @override
     def emit(self, record: LogRecord) -> None:
         # demote httpx and return notifications to log_level http
@@ -78,6 +101,10 @@ class LogHandler(RichHandler):
             self.file_logger_level or min(self.display_level, INFO)
         ):
             self.file_logger.emit(record)
+
+        # write to trace if the trace level matches.
+        if self.trace_logger and record.levelno >= self.trace_logger_level:
+            self.trace_logger.emit(record)
 
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
