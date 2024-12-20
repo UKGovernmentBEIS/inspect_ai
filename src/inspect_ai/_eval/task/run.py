@@ -284,6 +284,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             sample=sample,
                             state=state,
                             sandbox=sandbox,
+                            max_sandboxes=config.max_sandboxes,
                             sandbox_cleanup=sandbox_cleanup,
                             plan=plan,
                             scorers=scorers,
@@ -472,6 +473,7 @@ async def task_run_sample(
     sample: Sample,
     state: TaskState,
     sandbox: SandboxEnvironmentSpec | None,
+    max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
@@ -529,7 +531,7 @@ async def task_run_sample(
 
     # use sandbox if provided
     sandboxenv_cm = (
-        sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
+        sandboxenv_context(task_name, sandbox, max_sandboxes, sandbox_cleanup, sample)
         if sandbox or sample.sandbox is not None
         else contextlib.nullcontext()
     )
@@ -884,11 +886,6 @@ def create_sample_semaphore(
         if modelapi
         else DEFAULT_MAX_CONNECTIONS
     )
-
-    # if max_tasks is specified and max_samples is less
-    # than max_tasks then bump it up
-    if config.max_tasks is not None:
-        max_samples = max(max_samples, config.max_tasks)
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)

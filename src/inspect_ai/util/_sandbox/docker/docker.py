@@ -54,6 +54,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return CONFIG_FILES + [DOCKERFILE]
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        count = os.cpu_count() or 1
+        return 2 * count
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:

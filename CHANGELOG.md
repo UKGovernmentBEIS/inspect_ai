@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.53 (20 December 2024)
 
 - OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
 - Task API: Introduce `setup` step that always runs even if `solver` is replaced.
@@ -10,7 +10,10 @@
 - Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistant across tasks.
+- Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
 - Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
+- Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
+- Log recorder: Always re-open log buffer for `eval` format logs.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)

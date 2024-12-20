@@ -30,6 +30,7 @@ MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
+MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in parallel."
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
@@ -192,6 +193,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=MAX_SUBPROCESSES_HELP,
         envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
+    )
+    @click.option(
+        "--max-sandboxes",
+        type=int,
+        help=MAX_SANDBOXES_HELP,
+        envvar="INSPECT_EVAL_MAX_SANDBOXES",
     )
     @click.option(
         "--message-limit",
@@ -440,6 +447,7 @@ def eval_command(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
+    max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     no_log_samples: bool | None,
@@ -488,6 +496,7 @@ def eval_command(
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
+        max_sandboxes=max_sandboxes,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         debug_errors=common["debug_errors"],
@@ -597,6 +606,7 @@ def eval_set_command(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
+    max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     no_log_samples: bool | None,
@@ -647,6 +657,7 @@ def eval_set_command(
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
+        max_sandboxes=max_sandboxes,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
         debug_errors=common["debug_errors"],
@@ -699,6 +710,7 @@ def eval_exec(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
+    max_sandboxes: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
     debug_errors: bool | None,
@@ -778,6 +790,7 @@ def eval_exec(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
@@ -858,6 +871,12 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
 )
 @click.option(
+    "--max-sandboxes",
+    type=int,
+    help=MAX_SANDBOXES_HELP,
+    envvar="INSPECT_EVAL_MAX_SANDBOXES",
+)
+@click.option(
     "--no-sandbox-cleanup",
     type=bool,
     is_flag=True,
@@ -934,6 +953,7 @@ def eval_retry_command(
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
+    max_sandboxes: int | None,
     no_sandbox_cleanup: bool | None,
     trace: bool | None,
     fail_on_error: bool | float | None,
@@ -979,6 +999,7 @@ def eval_retry_command(
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
+        max_sandboxes=max_sandboxes,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
         fail_on_error=fail_on_error,
