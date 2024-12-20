@@ -13,6 +13,7 @@
 - Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
 - Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
 - Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
+- Log recorder: Always re-open log buffer for `eval` format logs.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
