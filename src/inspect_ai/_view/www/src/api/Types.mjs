@@ -30,15 +30,26 @@
  * @property { import("../types/log").Input } input
  * @property { import("../types/log").Target } target
  * @property { import("../types/log").Scores1 } scores
+ * @property { string } [error]
  * @property { import("../types/log").Type11 } [limit]
  */
 
 /**
-* @typedef {Object} Capabilities
-* @property {boolean} downloadFiles - Indicates if file downloads are supported.
-* @property {boolean} webWorkers - Indicates if web workers are supported.
-*
+ * Fields shared by EvalSample and SampleSummary.
+ * Contains only fields that are copied verbatim in src/inspect_ai/log/_recorders/eval.py.
+ *
+ * @typedef {Object} BasicSampleData
+ * @property { number | string } id
+ * @property { number } epoch
+ * @property { import("../types/log").Target } target
+ * @property { import("../types/log").Scores1 } scores
+ */
 
+/**
+ * @typedef {Object} Capabilities
+ * @property {boolean} downloadFiles - Indicates if file downloads are supported.
+ * @property {boolean} webWorkers - Indicates if web workers are supported.
+ */
 
 /**
  * @typedef {Object} LogViewAPI

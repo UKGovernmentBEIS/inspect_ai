@@ -8,7 +8,6 @@
  * @typedef {Object} CurrentLog
  * @property {string} name
  * @property {import("./api/Types.mjs").EvalSummary} contents
- * @property {string} raw
  */
 
 /**

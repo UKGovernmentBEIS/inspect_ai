@@ -422,8 +422,7 @@ const SampleSummary = ({ parent_id, sample, style, sampleDescriptor }) => {
 
   const fullAnswer =
     sample && sampleDescriptor
-      ? // @ts-ignore
-        sampleDescriptor.selectedScorer(sample).answer()
+      ? sampleDescriptor.selectedScorerDescriptor(sample).answer()
       : undefined;
   if (fullAnswer) {
     columns.push({

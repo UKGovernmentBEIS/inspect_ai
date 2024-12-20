@@ -44,7 +44,7 @@ export const TabPanel = ({
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
-  const tabContentsRef = useRef();
+  const tabContentsRef = useRef(/** @type {HTMLElement|null} */ (null));
   useEffect(() => {
     setTimeout(() => {
       if (
