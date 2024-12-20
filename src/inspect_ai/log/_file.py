@@ -14,12 +14,14 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.trace import trace_action
 from inspect_ai.log._condense import resolve_sample_attachments
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
 
 logger = getLogger(__name__)
+trace_category = "EvalLogInfo"
 
 
 class EvalLogInfo(FileInfo):
@@ -62,11 +64,10 @@ def list_eval_logs(
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
+        with trace_action(logger, trace_category, f"Listing eval logs for {log_dir}"):
+            eval_logs = log_files_from_ls(
+                fs.ls(log_dir, recursive=recursive), formats, descending
+            )
     else:
         return []
 
@@ -176,16 +177,13 @@ async def write_eval_log_async(
             )
     location = location if isinstance(location, str) else location.name
 
-    logger.debug(f"Writing eval log to {location}")
-
-    # get recorder type
-    if format == "auto":
-        recorder_type = recorder_type_for_location(location)
-    else:
-        recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log)
-
-    logger.debug(f"Writing eval log to {location} completed")
+    with trace_action(logger, trace_category, f"Writing eval log to {location}"):
+        # get recorder type
+        if format == "auto":
+            recorder_type = recorder_type_for_location(location)
+        else:
+            recorder_type = recorder_type_for_format(format)
+        await recorder_type.write_log(location, log)
 
 
 def write_log_dir_manifest(
@@ -277,30 +275,28 @@ async def read_eval_log_async(
     """
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
-    logger.debug(f"Reading eval log from {log_file}")
 
-    # get recorder type
-    if format == "auto":
-        recorder_type = recorder_type_for_location(log_file)
-    else:
-        recorder_type = recorder_type_for_format(format)
-    log = await recorder_type.read_log(log_file, header_only)
+    with trace_action(logger, trace_category, f"Reading eval log from {log_file}"):
+        # get recorder type
+        if format == "auto":
+            recorder_type = recorder_type_for_location(log_file)
+        else:
+            recorder_type = recorder_type_for_format(format)
+        log = await recorder_type.read_log(log_file, header_only)
 
-    # resolve attachement if requested
-    if resolve_attachments and log.samples:
-        log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
+        # resolve attachement if requested
+        if resolve_attachments and log.samples:
+            log.samples = [resolve_sample_attachments(sample) for sample in log.samples]
 
-    # provide sample ids if they aren't there
-    if log.eval.dataset.sample_ids is None and log.samples is not None:
-        sample_ids: dict[str | int, None] = {}
-        for sample in log.samples:
-            if sample.id not in sample_ids:
-                sample_ids[sample.id] = None
-        log.eval.dataset.sample_ids = list(sample_ids.keys())
+        # provide sample ids if they aren't there
+        if log.eval.dataset.sample_ids is None and log.samples is not None:
+            sample_ids: dict[str | int, None] = {}
+            for sample in log.samples:
+                if sample.id not in sample_ids:
+                    sample_ids[sample.id] = None
+            log.eval.dataset.sample_ids = list(sample_ids.keys())
 
-    logger.debug(f"Completed reading eval log from {log_file}")
-
-    return log
+        return log
 
 
 def read_eval_log_headers(
