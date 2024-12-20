@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from hashlib import md5
 from pathlib import Path
 from shutil import rmtree
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ._chat_message import ChatMessage
@@ -17,6 +19,10 @@ from ._generate_config import GenerateConfig
 from ._model_output import ModelOutput
 
 logger = logging.getLogger(__name__)
+
+
+def trace(msg: str, *args: Any) -> None:
+    trace_message(logger, "Cache", msg, args)
 
 
 def _path_is_in_cache(path: Path | str) -> bool:
@@ -153,7 +159,7 @@ def _cache_key(entry: CacheEntry) -> str:
 
     base_string = "|".join([str(component) for component in components])
 
-    logger.debug(_cache_key_debug_string([str(component) for component in components]))
+    trace(_cache_key_debug_string([str(component) for component in components]))
 
     return md5(base_string.encode("utf-8")).hexdigest()
 
@@ -192,11 +198,11 @@ def cache_store(
 
         with open(filename, "wb") as f:
             expiry = _cache_expiry(entry.policy)
-            logger.debug("Storing in cache: %s (expires: %s)", filename, expiry)
+            trace("Storing in cache: %s (expires: %s)", filename, expiry)
             pickle.dump((expiry, output), f)
         return True
     except Exception as e:
-        logger.debug(f"Failed to cache {filename}: {e}")
+        trace(f"Failed to cache {filename}: {e}")
         return False
 
 
@@ -204,12 +210,12 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
     filename = cache_path(model=entry.model) / _cache_key(entry)
     try:
-        logger.debug("Fetching from cache: %s", filename)
+        trace("Fetching from cache: %s", filename)
 
         with open(filename, "rb") as f:
             expiry, output = pickle.load(f)
             if not isinstance(output, ModelOutput):
-                logger.debug(
+                trace(
                     "Unexpected cached type, can only fetch ModelOutput: %s (%s)",
                     type(output),
                     filename,
@@ -217,7 +223,7 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
                 return None
 
             if _is_expired(expiry):
-                logger.debug("Cache expired for %s (%s)", filename, expiry)
+                trace("Cache expired for %s (%s)", filename, expiry)
                 # If it's expired, no point keeping it as we'll never access it
                 # successfully again.
                 filename.unlink(missing_ok=True)
@@ -225,7 +231,7 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
 
             return output
     except Exception as e:
-        logger.debug(f"Failed to fetch from cache {filename}: {e}")
+        trace(f"Failed to fetch from cache {filename}: {e}")
         return None
 
 
@@ -235,7 +241,7 @@ def cache_clear(model: str = "") -> bool:
         path = cache_path(model)
 
         if (model == "" or _path_is_in_cache(path)) and path.exists():
-            logger.debug("Clearing cache: %s", path)
+            trace("Clearing cache: %s", path)
             rmtree(path)
             return True
 
@@ -351,24 +357,24 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         # "../../foo/bar") but we don't want to search the entire cache
         return []
 
-    logger.debug("Filtering by paths: %s", filter_by_paths)
+    trace("Filtering by paths: %s", filter_by_paths)
     for dirpath, _dirnames, filenames in os.walk(cache_path()):
         if filter_by_paths and Path(dirpath) not in filter_by_paths:
-            logger.debug("Skipping path %s", dirpath)
+            trace("Skipping path %s", dirpath)
             continue
 
-        logger.debug("Checking dirpath %s", dirpath)
+        trace("Checking dirpath %s", dirpath)
         for filename in filenames:
             path = Path(dirpath) / filename
-            logger.debug("Checking path %s", path)
+            trace("Checking path %s", path)
             try:
                 with open(path, "rb") as f:
                     expiry, _cache_entry = pickle.load(f)
                     if _is_expired(expiry):
-                        logger.debug("Expired cache entry found: %s (%s)", path, expiry)
+                        trace("Expired cache entry found: %s (%s)", path, expiry)
                         expired_cache_entries.append(path)
             except Exception as e:
-                logger.debug("Failed to load cached item %s: %s", path, e)
+                trace("Failed to load cached item %s: %s", path, e)
                 continue
 
     return expired_cache_entries
@@ -389,8 +395,8 @@ def cache_prune(files: list[Path] = []) -> None:
             with open(file, "rb") as f:
                 expiry, _cache_entry = pickle.load(f)
                 if _is_expired(expiry):
-                    logger.debug("Pruning expired cache: %s", file)
+                    trace("Pruning expired cache: %s", file)
                     file.unlink(missing_ok=True)
         except Exception as e:
-            logger.debug("Failed to prune cache %s: %s", file, e)
+            trace("Failed to prune cache %s: %s", file, e)
             continue
