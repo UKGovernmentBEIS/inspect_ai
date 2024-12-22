@@ -1,0 +1,450 @@
+# Inspect Codebase Development Guidelines
+
+## Table of Contents
+1. [General Principles](#general-principles)
+2. [Code Organization](#code-organization)
+3. [Task Implementation](#task-implementation)
+4. [Solver Development](#solver-development)
+5. [Tool Development](#tool-development)
+6. [Sandbox Usage](#sandbox-usage)
+7. [Model Integration](#model-integration)
+8. [Dataset Handling](#dataset-handling)
+9. [Error Handling](#error-handling)
+10. [Testing and Debugging](#testing-and-debugging)
+11. [Performance Considerations](#performance-considerations)
+
+## General Principles
+
+### Asynchronous Programming
+- All code that performs I/O operations must be asynchronous
+- Use `async/await` syntax consistently
+- Never use blocking calls (e.g., synchronous HTTP requests or file operations)
+- Example:
+```python
+async def solve(state: TaskState, generate: Generate):
+    # Correct: async HTTP call
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+    
+    # Incorrect: blocking call
+    # response = requests.get(url)  # Don't do this!
+```
+
+### Type Annotations
+- All function parameters and return values must have type hints
+- Use type annotations from the typing module
+- Example:
+```python
+from typing import AsyncIterator, Optional
+
+async def process_data(
+    input_data: list[str], 
+    batch_size: Optional[int] = None
+) -> AsyncIterator[dict[str, Any]]:
+```
+
+## Code Organization
+
+### Module Structure
+- Keep related functionality together in modules
+- Use clear, descriptive module names
+- Follow Python package naming conventions (lowercase, underscores)
+- Example directory structure:
+```
+inspect_ai/
+├── dataset/
+│   ├── __init__.py
+│   ├── csv.py
+│   └── json.py
+├── solver/
+│   ├── __init__.py
+│   └── chain.py
+└── tool/
+    ├── __init__.py
+    └── bash.py
+```
+
+### Import Style
+- Import specific functions/classes rather than using wildcards
+- Group imports in this order: standard library, third-party, local
+- Example:
+```python
+import json
+from typing import Any, Optional
+
+import httpx
+from rich.console import Console
+
+from inspect_ai.model import ModelAPI
+from inspect_ai.util import sandbox
+```
+
+## Task Implementation
+
+### Task Definition
+- Always use the `@task` decorator for task definitions
+- Provide clear, descriptive task names
+- Include all required components: dataset, solver, scorer
+- Example:
+```python
+@task
+def security_guide(system_prompt: str = "default_prompt.txt"):
+    return Task(
+        dataset=example_dataset("security_guide"),
+        solver=[
+            system_message(system_prompt),
+            generate()
+        ],
+        scorer=model_graded_fact(),
+    )
+```
+
+### Task Parameters
+- Make tasks configurable through parameters
+- Use type hints for parameters
+- Provide meaningful default values
+- Example:
+```python
+@task
+def analysis_task(
+    dataset_path: str,
+    max_samples: int = 100,
+    temperature: float = 0.7
+) -> Task:
+```
+
+## Solver Development
+
+### Solver Implementation
+- Use the `@solver` decorator
+- Implement both sync and async methods as needed
+- Handle state management properly
+- Example:
+```python
+@solver
+def custom_solver(temperature: float = 0.7):
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # Solver implementation
+        output = await generate(state)
+        return state
+
+    return solve
+```
+
+### State Management
+- Use TaskState for managing conversation state
+- Don't modify state directly unless necessary
+- Use the store for persistent data
+- Example:
+```python
+# Access store
+history = state.store.get("history", [])
+state.store.set("history", history + [new_item])
+
+# Access messages
+user_prompt = state.user_prompt
+messages = state.messages
+```
+
+## Tool Development
+
+### Tool Definition
+- Use the `@tool` decorator
+- Provide comprehensive docstrings
+- Include type hints for all parameters
+- Example:
+```python
+@tool
+def list_files():
+    async def execute(dir: str):
+        """List files in a directory.
+
+        Args:
+            dir (str): Target directory path
+
+        Returns:
+            str: List of files in directory
+        """
+        result = await sandbox().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+### Tool Error Handling
+- Use ToolError for expected errors
+- Provide clear error messages
+- Handle timeouts appropriately
+- Example:
+```python
+try:
+    result = await sandbox().exec(cmd, timeout=30)
+except TimeoutError:
+    raise ToolError("Command execution timed out")
+```
+
+## Sandbox Usage
+
+### Sandbox Configuration
+- Always specify sandbox type in Task definition
+- Use appropriate container configuration
+- Handle resource cleanup
+- Example:
+```python
+@task
+def security_task():
+    return Task(
+        dataset=dataset,
+        solver=solver,
+        scorer=scorer,
+        sandbox="docker",
+    )
+```
+
+### File Operations
+- Use sandbox().read_file() and sandbox().write_file()
+- Handle file operation errors appropriately
+- Create parent directories as needed
+- Example:
+```python
+try:
+    content = await sandbox().read_file("data.txt")
+except FileNotFoundError:
+    raise ToolError("Required file not found")
+```
+
+## Model Integration
+
+### Model API Implementation
+- Derive from ModelAPI base class
+- Implement required methods
+- Handle rate limits and errors
+- Example:
+```python
+class CustomModelAPI(ModelAPI):
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        # Implementation
+```
+
+### Model Configuration
+- Use GenerateConfig for model settings
+- Handle model-specific parameters
+- Set appropriate defaults
+- Example:
+```python
+config = GenerateConfig(
+    temperature=0.7,
+    max_tokens=1000,
+    timeout=30
+)
+```
+
+## Dataset Handling
+
+### Dataset Loading
+- Use appropriate dataset loader (csv_dataset, json_dataset, etc.)
+- Validate data structure
+- Handle field mapping
+- Example:
+```python
+dataset = json_dataset(
+    "data.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer",
+        metadata=["category"]
+    )
+)
+```
+
+### Sample Processing
+- Validate sample fields
+- Handle missing or invalid data
+- Use appropriate data types
+- Example:
+```python
+def record_to_sample(record):
+    return Sample(
+        input=record["question"].strip(),
+        target=record["answer"],
+        metadata={
+            "category": record.get("category", "unknown")
+        }
+    )
+```
+
+## Error Handling
+
+### Expected Errors
+- Use appropriate error types
+- Provide clear error messages
+- Handle retries when appropriate
+- Example:
+```python
+try:
+    result = await process_data()
+except TimeoutError:
+    raise ToolError("Processing timed out, please try again")
+except ValueError as e:
+    raise ToolError(f"Invalid input: {str(e)}")
+```
+
+### Logging
+- Use Python logging appropriately
+- Include relevant context
+- Use appropriate log levels
+- Example:
+```python
+logger = logging.getLogger(__name__)
+logger.info(f"Processing file: {filename}")
+logger.error(f"Failed to process: {error}", exc_info=True)
+```
+
+## Testing and Debugging
+
+### Development Workflow
+- Use --trace mode for debugging
+- Enable appropriate log levels
+- Use VS Code extension features
+- Example:
+```bash
+# Debug with trace mode
+inspect eval task.py --trace
+
+# Set log level
+inspect eval task.py --log-level debug
+```
+
+### Error Recovery
+- Implement retry logic
+- Preserve completed work
+- Handle interruptions
+- Example:
+```python
+if log.status != "success":
+    eval_retry(log, max_connections=5)
+```
+
+## Performance Considerations
+
+### Concurrency Management
+- Use appropriate connection limits
+- Handle rate limits
+- Implement parallel processing correctly
+- Example:
+```python
+async def process_batch(items):
+    async with concurrency("api", max_connections=10):
+        tasks = [process_item(item) for item in items]
+        return await asyncio.gather(*tasks)
+```
+
+### Resource Management
+- Clean up resources properly
+- Handle timeouts
+- Monitor memory usage
+- Example:
+```python
+try:
+    async with timeout(30):
+        result = await process_data()
+finally:
+    await cleanup_resources()
+```
+
+---
+
+# Code Style and Conventions
+
+- Follow PEP 8 style guidelines for Python code
+- Use type hints for all function arguments and return values
+- Write clear docstrings for all functions and classes using consistent formatting
+- Use comments to explain complex logic or non-obvious code
+- Minimize use of global variables and state
+- Use dataclasses or Pydantic BaseModel for data structures
+- Ensure data stored in Store is JSON serializable
+- Follow proper import ordering: standard library, third-party, local
+
+Example docstring format:
+```python
+def process_data(data: list[str]) -> dict[str, Any]:
+    """Process a list of strings into a structured format.
+    
+    Args:
+        data: List of strings to process
+        
+    Returns:
+        Processed data as a dictionary
+        
+    Raises:
+        ValueError: If input data is invalid
+    """
+```
+
+# Testing Guidelines
+
+## Unit Tests
+- Write unit tests for all core components
+- Test edge cases and error conditions
+- Mock external dependencies appropriately
+- Maintain high test coverage
+
+## Integration Tests  
+- Test component interactions
+- Test end-to-end workflows
+- Use realistic test data
+- Verify tool and sandbox integrations
+
+## Test Automation
+- Automate test runs as part of CI/CD
+- Use pytest as the testing framework
+- Write clear test names and descriptions
+- Group related tests together
+
+Example test:
+```python
+def test_custom_solver():
+    """Test that custom solver properly transforms state."""
+    initial_state = create_test_state()
+    solver = custom_solver()
+    result = await solver.solve(initial_state)
+    assert result.output is not None
+    assert len(result.messages) > len(initial_state.messages)
+```
+
+# Development Workflow
+
+## Exploratory Development
+- Use notebooks or REPL for initial development
+- Parameterize tasks for experimentation
+- Protect exploratory code with __main__ checks
+- Transition from notebooks to modules gradually
+
+## VS Code Integration
+- Use the Inspect VS Code Extension
+- Configure Python interpreter properly
+- Use debugging features for troubleshooting
+- Access integrated log viewer
+
+## Configuration Management
+- Use .env files for local config
+- Never commit .env files to version control
+- Provide .env.example templates
+- Document all configuration options
+
+Remember:
+- Write clean, maintainable, async code
+- Document thoroughly
+- Test comprehensively
+- Handle errors gracefully
+- Manage resources properly
+- Follow established patterns
