@@ -9,7 +9,6 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Callable, Literal, Type, cast
 
-from shortuuid import uuid
 from tenacity import (
     retry,
     retry_if_exception,

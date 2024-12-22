@@ -139,7 +139,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     trace_message(py_logger, "Task", pprint.pformat(config))
     trace_message(py_logger, "Task", pprint.pformat(generate_config))
-    trace_message(py_logger, "Task", f"Sandbox: {sandbox.type if sandbox else "None"}")
+    trace_message(py_logger, "Task", f"Sandbox: {sandbox.type if sandbox else 'None'}")
 
     # init task context
     init_task_context(model, generate_config)
