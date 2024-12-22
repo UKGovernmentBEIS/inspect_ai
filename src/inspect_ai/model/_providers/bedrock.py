@@ -312,7 +312,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        async with self.session.client(
+        async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
