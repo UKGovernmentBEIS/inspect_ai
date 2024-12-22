@@ -72,6 +72,7 @@ class TasksView(Container):
         self.description_width = MAX_DESCRIPTION_WIDTH
         self.model_name_width = MAX_MODEL_NAME_WIDTH
         self.sample_count_width = 0
+        self.display_metrics = True
 
     def init_tasks(self, tasks: list[TaskSpec]) -> None:
         # clear existing tasks
@@ -89,13 +90,20 @@ class TasksView(Container):
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
         task_display = TaskProgressView(
-            task, self.description_width, self.model_name_width, self.sample_count_width
+            task,
+            self.description_width,
+            self.model_name_width,
+            self.sample_count_width,
+            self.display_metrics,
         )
         self.tasks.mount(task_display)
         self.tasks.scroll_to_widget(task_display)
         self.update_progress_widths()
 
         return task_display
+
+    def set_display_metrics(self, display_metrics: bool) -> None:
+        self.display_metrics = display_metrics
 
     def update_count_width(self, samples: int) -> None:
         sample_count_str = progress_count(samples, samples, self.sample_count_width)
@@ -174,6 +182,7 @@ class TaskProgressView(Widget):
         description_width: int,
         model_name_width: int,
         sample_count_width: int,
+        display_metrics: bool,
     ) -> None:
         super().__init__()
         self.t = task
@@ -190,6 +199,7 @@ class TaskProgressView(Widget):
         self.task_detail = TaskDetail(id="task-detail", classes="hidden")
 
         self.sample_count_width: int = sample_count_width
+        self.display_metrics = display_metrics
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
     metrics_width: reactive[int | None] = reactive(None)
@@ -198,7 +208,7 @@ class TaskProgressView(Widget):
     samples_total: reactive[int] = reactive(0)
 
     def compose(self) -> ComposeResult:
-        yield self.toggle
+        yield (self.toggle if self.display_metrics else Static())
         yield TaskStatusIcon()
         yield Static(
             progress_description(self.t.profile, self.description_width, pad=True)
@@ -274,7 +284,7 @@ class TaskProgressView(Widget):
 
     def update_metrics_label(self) -> None:
         # compute the label (with a min size)
-        if self.metrics is not None:
+        if self.metrics is not None and self.metrics_display is not None:
             metric_label = task_metric(self.metrics, self.metrics_width)
             self.metrics_width = len(metric_label)
             self.metrics_display.update(metric_label)

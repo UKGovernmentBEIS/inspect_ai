@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Task display: Added `--no-score-display` option to disable realtime scoring metrics.
+- Bugfix: Fix failure to fully clone samples that have message lists as input.
+
+## v0.3.53 (20 December 2024)
+
 - OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
 - Task API: Introduce `setup` step that always runs even if `solver` is replaced.
 - Bedrock: Support for tool calling on Nova models.
@@ -13,6 +18,7 @@
 - Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
 - Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
 - Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
+- Log recorder: Always re-open log buffer for `eval` format logs.
 - Bugfix: Proper handling of text find for eval raw JSON display
 - Bugfix: Correct handling for `--sample-id` integer comparisons.
 - Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)

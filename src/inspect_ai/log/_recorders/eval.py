@@ -362,13 +362,14 @@ class ZipLogFile:
                     f"Error occurred during async write to {self._file}: {ex}. Falling back to sync write."
                 )
 
-            # write sync if we need to
-            if not written:
-                with file(self._file, "wb") as f:
-                    f.write(log_bytes)
-
-            # re-open zip file w/ self.temp_file pointer at end
-            self._open()
+            try:
+                # write sync if we need to
+                if not written:
+                    with file(self._file, "wb") as f:
+                        f.write(log_bytes)
+            finally:
+                # re-open zip file w/ self.temp_file pointer at end
+                self._open()
 
     async def close(self) -> EvalLog:
         async with self._lock:
