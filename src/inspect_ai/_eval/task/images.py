@@ -30,13 +30,8 @@ async def samples_with_base64_images(samples: list[Sample]) -> list[Sample]:
 
 async def sample_with_base64_images(sample: Sample) -> Sample:
     if isinstance(sample.input, list):
-        return Sample(
-            input=await messages_with_base64_images(sample.input),
-            target=sample.target,
-            id=sample.id,
-            metadata=sample.metadata,
-            files=sample.files,
-            choices=sample.choices,
+        return sample.model_copy(
+            update={"input": await messages_with_base64_images(sample.input)}
         )
     else:
         return sample
@@ -44,13 +39,8 @@ async def sample_with_base64_images(sample: Sample) -> Sample:
 
 def sample_without_base64_images(sample: Sample) -> Sample:
     if isinstance(sample.input, list):
-        return Sample(
-            input=messages_without_base64_images(sample.input),
-            target=sample.target,
-            id=sample.id,
-            metadata=sample.metadata,
-            files=sample.files,
-            choices=sample.choices,
+        return sample.model_copy(
+            update={"input": messages_without_base64_images(sample.input)}
         )
     else:
         return sample
