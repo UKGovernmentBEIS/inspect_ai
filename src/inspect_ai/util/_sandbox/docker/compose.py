@@ -70,23 +70,15 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
         )
 
 
-# NOTE: We have observed at least one instance of docker compose cp hanging
-# indefinitely (which makes the task/sample hang indefinitely). We introduce
-# a default timeout so that this instead fails with a clear TimeoutError
 async def compose_cp(
     src: str,
     dest: str,
     project: ComposeProject,
     cwd: str | Path | None = None,
     output_limit: int | None = None,
-    timeout: int | None = 120,
 ) -> None:
     result = await compose_command(
-        ["cp", "--", src, dest],
-        project=project,
-        cwd=cwd,
-        output_limit=output_limit,
-        timeout=timeout,
+        ["cp", "--", src, dest], project=project, cwd=cwd, output_limit=output_limit
     )
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"

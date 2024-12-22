@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Docker sandbox: Introduce 120 second timeout on `docker compose cp`.
 - Bugfix: Fix failure to fully clone samples that have message lists as input.
 
 ## v0.3.53 (20 December 2024)
