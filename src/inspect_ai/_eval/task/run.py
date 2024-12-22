@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import pprint
 import sys
 import time
 from copy import deepcopy
@@ -32,7 +31,6 @@ from inspect_ai._util.registry import (
     registry_log_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
-from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -136,10 +134,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
-
-    trace_message(py_logger, "Task", pprint.pformat(config))
-    trace_message(py_logger, "Task", pprint.pformat(generate_config))
-    trace_message(py_logger, "Task", f"Sandbox: {sandbox.type if sandbox else 'None'}")
 
     # init task context
     init_task_context(model, generate_config)
@@ -582,11 +576,8 @@ async def task_run_sample(
                     SampleInitEvent(sample=event_sample, state=state_jsonable(state))
                 )
 
-                with trace_action(
-                    py_logger, "Sample", f"Sample {sample.id}-{state.epoch}"
-                ):
-                    # set progress for plan then run it
-                    state = await plan(state, generate)
+                # set progress for plan then run it
+                state = await plan(state, generate)
 
         except TimeoutError:
             # notify the user

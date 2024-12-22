@@ -1,6 +1,5 @@
 import json
 import os
-import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
@@ -10,14 +9,13 @@ from pydantic import BaseModel
 
 from inspect_ai._util.display import display_type
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.trace import trace_action
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
 )
-from .util import SANDBOX_CATEGORY, ComposeProject, is_inspect_project
+from .util import ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -207,39 +205,38 @@ async def compose_cleanup_images(
     cwd: str | None = None,
     timeout: int | None = None,
 ) -> None:
-    with trace_action(logger, SANDBOX_CATEGORY, "Removing images"):
-        # List the images that would be created for this compose
-        images_result = await compose_command(
-            ["config", "--images"], project=project, cwd=cwd
-        )
+    # List the images that would be created for this compose
+    images_result = await compose_command(
+        ["config", "--images"], project=project, cwd=cwd
+    )
 
-        # Remove those images explicitly
-        if images_result.success:
-            for image in images_result.stdout.strip().split("\n"):
-                # See if this image was created by
-                # inspect directly
-                if image.startswith(project.name):
-                    # see if this image is present
-                    image_result = await subprocess(
-                        ["docker", "images", "-q", image],
+    # Remove those images explicitly
+    if images_result.success:
+        for image in images_result.stdout.strip().split("\n"):
+            # See if this image was created by
+            # inspect directly
+            if image.startswith(project.name):
+                # see if this image is present
+                image_result = await subprocess(
+                    ["docker", "images", "-q", image],
+                    timeout=timeout,
+                    capture_output=True,
+                )
+
+                remove_image = True
+                if image_result.success:
+                    remove_image = len(image_result.stdout) != 0
+
+                # remove the image
+                if remove_image:
+                    result = await subprocess(
+                        ["docker", "rmi", image],
                         timeout=timeout,
                         capture_output=True,
                     )
-
-                    remove_image = True
-                    if image_result.success:
-                        remove_image = len(image_result.stdout) != 0
-
-                    # remove the image
-                    if remove_image:
-                        result = await subprocess(
-                            ["docker", "rmi", image],
-                            timeout=timeout,
-                            capture_output=True,
-                        )
-                        if not result.success:
-                            msg = f"Failed to cleanup docker image {result.stderr}"
-                            logger.warning(msg)
+                    if not result.success:
+                        msg = f"Failed to cleanup docker image {result.stderr}"
+                        logger.warning(msg)
 
 
 async def compose_command(
@@ -280,16 +277,13 @@ async def compose_command(
     compose_command = compose_command + command
 
     # Execute the command
-    with trace_action(
-        logger, SANDBOX_CATEGORY, f"compose command: {shlex.join(compose_command)}"
-    ):
-        result = await subprocess(
-            compose_command,
-            input=input,
-            cwd=cwd,
-            env=env,
-            timeout=timeout,
-            capture_output=capture_output,
-            output_limit=output_limit,
-        )
-        return result
+    result = await subprocess(
+        compose_command,
+        input=input,
+        cwd=cwd,
+        env=env,
+        timeout=timeout,
+        capture_output=capture_output,
+        output_limit=output_limit,
+    )
+    return result

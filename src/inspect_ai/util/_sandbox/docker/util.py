@@ -92,6 +92,3 @@ inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{22}$"
 
 def is_inspect_project(name: str) -> bool:
     return re.match(inspect_project_pattern, name) is not None
-
-
-SANDBOX_CATEGORY = "Docker"
