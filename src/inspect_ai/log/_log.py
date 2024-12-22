@@ -94,6 +94,9 @@ class EvalConfig(BaseModel):
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
+    score_display: bool | None = Field(default=None)
+    """Display scoring metrics realtime."""
+
     @property
     def max_messages(self) -> int | None:
         """Deprecated max_messages property."""
