@@ -18,7 +18,6 @@ class CommonOptions(TypedDict):
     log_level_transcript: str
     log_dir: str
     display: Literal["full", "rich", "plain", "none"]
-    no_display_metrics: bool
     no_ansi: bool | None
     debug: bool
     debug_port: int
