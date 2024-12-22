@@ -21,7 +21,7 @@ from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
 
 logger = getLogger(__name__)
-trace_category = "EvalLogInfo"
+TRACE_CATEGORY = "Eval Log"
 
 
 class EvalLogInfo(FileInfo):
@@ -64,7 +64,7 @@ def list_eval_logs(
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
-        with trace_action(logger, trace_category, f"Listing eval logs for {log_dir}"):
+        with trace_action(logger, TRACE_CATEGORY, f"Listing eval logs for {log_dir}"):
             eval_logs = log_files_from_ls(
                 fs.ls(log_dir, recursive=recursive), formats, descending
             )
@@ -177,7 +177,7 @@ async def write_eval_log_async(
             )
     location = location if isinstance(location, str) else location.name
 
-    with trace_action(logger, trace_category, f"Writing eval log to {location}"):
+    with trace_action(logger, TRACE_CATEGORY, f"Writing eval log to {location}"):
         # get recorder type
         if format == "auto":
             recorder_type = recorder_type_for_location(location)
@@ -276,7 +276,7 @@ async def read_eval_log_async(
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
 
-    with trace_action(logger, trace_category, f"Reading eval log from {log_file}"):
+    with trace_action(logger, TRACE_CATEGORY, f"Reading eval log from {log_file}"):
         # get recorder type
         if format == "auto":
             recorder_type = recorder_type_for_location(log_file)

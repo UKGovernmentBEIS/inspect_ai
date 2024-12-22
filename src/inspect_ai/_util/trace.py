@@ -9,17 +9,18 @@ from inspect_ai._util.constants import TRACE
 
 @contextmanager
 def trace_action(
-    logger: Logger, category: str, name: str, *args: Any, **kwargs: Any
+    logger: Logger, category: str, name: str
 ) -> Generator[None, None, None]:
     trace_id = uuid()
-    logger.log(TRACE, f"[{category}: {trace_id}] Entering: {name}", *args, **kwargs)
+    logger.log(TRACE, f"[{category}: {trace_id}] Entering: {name}")
     try:
         yield
+    except Exception as ex:
+        logger.log(TRACE, f"[{category}: {trace_id}] Error: {name} ({ex})")
+        raise
     finally:
-        logger.log(TRACE, f"[{category}: {trace_id}] Exiting: {name}", *args, **kwargs)
+        logger.log(TRACE, f"[{category}: {trace_id}] Exiting: {name}")
 
 
-def trace_message(
-    logger: Logger, category: str, message: str, *args: Any, **kwargs: Any
-) -> None:
-    logger.log(TRACE, f"[{category}] {message}", *args, **kwargs)
+def trace_message(logger: Logger, category: str, message: str) -> None:
+    logger.log(TRACE, f"[{category}] {message}")

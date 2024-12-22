@@ -63,14 +63,11 @@ class LogHandler(RichHandler):
             backupCount=trace_total_files - 1,  # exclude the current file (10 total)
         )
 
-        # manually roll over the log
+        # configure trace logger
         self.trace_logger.doRollover()
-
-        # adjust trace formatting
-        if self.trace_logger:
-            self.trace_logger.setFormatter(
-                Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            )
+        self.trace_logger.setFormatter(
+            Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        )
 
         # set trace level
         trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
