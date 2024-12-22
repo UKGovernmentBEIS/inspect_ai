@@ -45,8 +45,8 @@ def hellaswag():
             sample_fields=record_to_sample,
             shuffle=True,
             seed=999,
-            limit=50,  # Limiting to 50 questions
-            trust=True,
+            limit=10,  # Limiting to 50 questions
+            trust=True
         ),
         solver=[system_message(SYSTEM_MESSAGE), multiple_choice()],
         scorer=choice(),
