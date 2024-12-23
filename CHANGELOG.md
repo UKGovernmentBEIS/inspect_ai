@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [Action tracing](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1038) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
 - Task display: Added `--no-score-display` option to disable realtime scoring metrics.
 - Bugfix: Fix failure to fully clone samples that have message lists as input.
 
