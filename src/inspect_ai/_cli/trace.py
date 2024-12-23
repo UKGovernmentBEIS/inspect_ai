@@ -1,7 +1,7 @@
+import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-import time
 
 import click
 from pydantic_core import to_json
