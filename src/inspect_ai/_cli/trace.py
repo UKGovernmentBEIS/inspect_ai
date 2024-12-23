@@ -1,10 +1,7 @@
 from json import dumps
-from typing import Any, Literal
-import jsonlines
 from pathlib import Path
 
 import click
-from pydantic import BaseModel
 from pydantic_core import to_json
 
 from inspect_ai._util.error import PrerequisiteError
@@ -42,6 +39,21 @@ def list_command(json: bool) -> None:
 @click.argument("trace-file", type=str, required=True)
 def read_command(trace_file: str) -> None:
     """Read a trace file as a JSON array of log records."""
+    trace_file_path = resolve_trace_file_path(trace_file)
+
+    traces = read_trace_file(trace_file_path)
+    print(
+        to_json(traces, indent=2, exclude_none=True, fallback=lambda _: None).decode()
+    )
+
+
+@trace_command.command("anomolies")
+@click.argument("trace-file", type=str, required=True)
+def anomolies_command(trace_file: str) -> None:
+    """Look for anomolies in a trace file (never completed or cancelled actions)."""
+
+
+def resolve_trace_file_path(trace_file: str) -> Path:
     trace_file_path = Path(trace_file)
     if not trace_file_path.is_absolute():
         trace_file_path = inspect_trace_dir() / trace_file_path
@@ -51,10 +63,4 @@ def read_command(trace_file: str) -> None:
             f"The specified trace file '{trace_file_path}' does not exist."
         )
 
-    with open(trace_file_path, "r") as f:
-        traces = read_trace_file(trace_file_path)
-        print(
-            to_json(
-                traces, indent=2, exclude_none=True, fallback=lambda _: None
-            ).decode()
-        )
+    return trace_file_path
