@@ -32,6 +32,8 @@ from .constants import (
 from .error import PrerequisiteError
 from .trace import TraceFormatter, inspect_trace_dir
 
+TRACE_FILE_NAME = "trace.log"
+
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
@@ -55,7 +57,7 @@ class LogHandler(RichHandler):
             self.file_logger_level = 0
 
         # add a trace handler
-        default_trace_file = inspect_trace_dir() / "trace.log"
+        default_trace_file = inspect_trace_dir() / TRACE_FILE_NAME
         have_existing_trace_file = default_trace_file.exists()
         trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
         trace_total_files = 10

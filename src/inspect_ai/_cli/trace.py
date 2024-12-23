@@ -6,6 +6,7 @@ import click
 from pydantic_core import to_json
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.logger import TRACE_FILE_NAME
 from inspect_ai._util.trace import ActionTraceRecord, inspect_trace_dir, read_trace_file
 
 
@@ -49,7 +50,7 @@ def read_command(trace_file: str) -> None:
 
 
 @trace_command.command("anomalies")
-@click.argument("trace-file", type=str, required=True)
+@click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
 def anomolies_command(trace_file: str) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path = resolve_trace_file_path(trace_file)
