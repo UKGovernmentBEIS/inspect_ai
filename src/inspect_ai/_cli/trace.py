@@ -119,6 +119,7 @@ def _print_bucket(label: str, bucket: dict[str, ActionTraceRecord]) -> None:
         sorted_actions = sorted(
             bucket.values(),
             key=lambda record: (record.start_time or 0) + (record.duration or 0),
+            reverse=True,
         )
 
         r_print(f"[bold]{label}[/bold]")
