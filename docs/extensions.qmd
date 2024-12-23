@@ -324,7 +324,7 @@ The `_registry.py` file serves a place to import things that you wan't registere
 from .approvers import auto_approver
 ```
 
-You can then register your `auto_approver` Inspect extension (and anyting else imported into `_registry.py`) like this in `pyproject.toml`:
+You can then register your `auto_approver` Inspect extension (and anything else imported into `_registry.py`) like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
