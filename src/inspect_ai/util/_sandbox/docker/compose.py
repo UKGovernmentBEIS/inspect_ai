@@ -1,6 +1,5 @@
 import json
 import os
-import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
@@ -16,7 +15,7 @@ from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
 )
-from .util import ComposeProject, is_inspect_project, sandbox_log
+from .util import ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -113,7 +112,14 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project)
+    TIMEOUT = 30
+    try:
+        result = await compose_command(command, project=project, timeout=30)
+    except TimeoutError:
+        logger.warning(
+            f"Querying for running Docker services timed out after {TIMEOUT} seconds"
+        )
+        return []
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -206,7 +212,6 @@ async def compose_cleanup_images(
     cwd: str | None = None,
     timeout: int | None = None,
 ) -> None:
-    sandbox_log("Removing images")
     # List the images that would be created for this compose
     images_result = await compose_command(
         ["config", "--images"], project=project, cwd=cwd
@@ -279,7 +284,6 @@ async def compose_command(
     compose_command = compose_command + command
 
     # Execute the command
-    sandbox_log(f"compose command: {shlex.join(compose_command)}")
     result = await subprocess(
         compose_command,
         input=input,
@@ -289,5 +293,4 @@ async def compose_command(
         capture_output=capture_output,
         output_limit=output_limit,
     )
-    sandbox_log(f"compose command completed: {shlex.join(compose_command)}")
     return result

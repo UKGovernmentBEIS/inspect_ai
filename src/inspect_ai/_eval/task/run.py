@@ -580,14 +580,18 @@ async def task_run_sample(
                 state = await plan(state, generate)
 
         except TimeoutError:
-            # notify the user
-            transcript()._event(
-                SampleLimitEvent(
-                    type="time",
-                    message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
-                    limit=time_limit,
+            if time_limit is not None:
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="time",
+                        message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                        limit=time_limit,
+                    )
                 )
-            )
+            else:
+                py_logger.warning(
+                    "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
+                )
 
             # capture most recent state for scoring
             state = sample_state() or state

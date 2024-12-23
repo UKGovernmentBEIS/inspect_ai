@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from dataclasses import is_dataclass
+from logging import getLogger
 from textwrap import dedent
 from typing import (
     Any,
@@ -19,7 +20,9 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.format import format_function_call
 from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai._util.trace import trace_action
 from inspect_ai.model._trace import trace_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
@@ -34,6 +37,8 @@ from inspect_ai.util import OutputLimitExceededError
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
 from ._generate_config import active_generate_config
+
+logger = getLogger(__name__)
 
 
 async def call_tools(
@@ -215,7 +220,10 @@ async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     arguments = tool_params(call.arguments, tool_def.tool)
 
     # call the tool
-    result = await tool_def.tool(**arguments)
+    with trace_action(
+        logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
+    ):
+        result = await tool_def.tool(**arguments)
 
     # return result
     return result
