@@ -48,10 +48,10 @@ def read_command(trace_file: str) -> None:
     )
 
 
-@trace_command.command("anomolies")
+@trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=True)
 def anomolies_command(trace_file: str) -> None:
-    """Look for anomolies in a trace file (never completed or cancelled actions)."""
+    """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path = resolve_trace_file_path(trace_file)
     traces = read_trace_file(trace_file_path)
 
