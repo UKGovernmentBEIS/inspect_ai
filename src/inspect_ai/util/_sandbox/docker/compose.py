@@ -112,7 +112,12 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project)
+    TIMEOUT = 30
+    try:
+        result = await compose_command(command, project=project, timeout=30)
+    except TimeoutError:
+        logger.warning(f"Querying for running Docker services timed out after {TIMEOUT} seconds")
+        return []
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
