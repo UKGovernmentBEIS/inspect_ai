@@ -19,8 +19,7 @@ from rich.logging import RichHandler
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.appdirs import inspect_data_dir
-from inspect_ai._util.constants import (
+from .constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
@@ -30,8 +29,8 @@ from inspect_ai._util.constants import (
     TRACE,
     TRACE_LOG_LEVEL,
 )
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.trace import TraceFormatter
+from .error import PrerequisiteError
+from .trace import TraceFormatter, inspect_trace_dir
 
 
 # log handler that filters messages to stderr and the log file
@@ -56,7 +55,7 @@ class LogHandler(RichHandler):
             self.file_logger_level = 0
 
         # add a trace handler
-        default_trace_file = inspect_data_dir("traces") / "trace.log"
+        default_trace_file = inspect_trace_dir() / "trace.log"
         have_existing_trace_file = default_trace_file.exists()
         trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
         trace_total_files = 10

@@ -6,12 +6,19 @@ import time
 import traceback
 from contextlib import contextmanager
 from logging import Logger
-from typing import Any, Generator
+from pathlib import Path
+from typing import Any, Generator, Literal
 
-from pydantic import JsonValue
+import jsonlines
+from pydantic import BaseModel, Field, JsonValue
 from shortuuid import uuid
 
-from inspect_ai._util.constants import TRACE
+from .appdirs import inspect_data_dir
+from .constants import TRACE
+
+
+def inspect_trace_dir() -> Path:
+    return inspect_data_dir("traces")
 
 
 @contextmanager
@@ -158,3 +165,36 @@ class TraceFormatter(logging.Formatter):
         # ISO format with timezone
         dt = datetime.datetime.fromtimestamp(record.created)
         return dt.isoformat()
+
+
+class TraceRecord(BaseModel):
+    timestamp: str
+    level: str
+    message: str
+
+
+class SimpleTraceRecord(TraceRecord):
+    action: None = Field(default=None)
+
+
+class ActionTraceRecord(TraceRecord):
+    action: str
+    event: Literal["enter", "cancel", "error", "exit"]
+    trace_id: str
+    start_time: float | None = Field(default=None)
+    duration: float | None = Field(default=None)
+    error: str | None = Field(default=None)
+    error_type: str | None = Field(default=None)
+    stacktrace: str | None = Field(default=None)
+
+
+def read_trace_file(file: Path) -> list[TraceRecord]:
+    with open(file, "r") as f:
+        jsonlines_reader = jsonlines.Reader(f)
+        trace_records: list[TraceRecord] = []
+        for trace in jsonlines_reader.iter(type=dict):
+            if "action" in trace:
+                trace_records.append(ActionTraceRecord(**trace))
+            else:
+                trace_records.append(SimpleTraceRecord(**trace))
+        return trace_records
