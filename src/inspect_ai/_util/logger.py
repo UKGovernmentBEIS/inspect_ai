@@ -31,6 +31,7 @@ from inspect_ai._util.constants import (
     TRACE_LOG_LEVEL,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.trace import TraceFormatter
 
 
 # log handler that filters messages to stderr and the log file
@@ -56,18 +57,16 @@ class LogHandler(RichHandler):
 
         # add a trace handler
         default_trace_file = inspect_data_dir("traces") / "trace.log"
+        have_existing_trace_file = default_trace_file.exists()
         trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
         trace_total_files = 10
         self.trace_logger = RotatingFileHandler(
             trace_file,
             backupCount=trace_total_files - 1,  # exclude the current file (10 total)
         )
-
-        # configure trace logger
-        self.trace_logger.doRollover()
-        self.trace_logger.setFormatter(
-            Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
+        self.trace_logger.setFormatter(TraceFormatter())
+        if have_existing_trace_file:
+            self.trace_logger.doRollover()
 
         # set trace level
         trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)

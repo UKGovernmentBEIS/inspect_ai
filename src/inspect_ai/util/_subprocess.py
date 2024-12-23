@@ -220,8 +220,8 @@ async def subprocess(
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
-        name = args if isinstance(args, str) else shlex.join(args)
-        with trace_action(logger, "Subprocess", name):
+        message = args if isinstance(args, str) else shlex.join(args)
+        with trace_action(logger, "Subprocess", message):
             return await run_command_timeout()
 
 
