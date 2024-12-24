@@ -7,6 +7,7 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.timeouts import timeout
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import (
@@ -42,7 +43,7 @@ from .compose import (
 from .config import CONFIG_FILES, DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
-from .util import ComposeProject, sandbox_log, task_project_name
+from .util import ComposeProject, task_project_name
 
 logger = getLogger(__name__)
 
@@ -113,8 +114,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         config: SandboxEnvironmentConfigType | None,
         metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
-        sandbox_log("setup")
-
         # create environment variables for sample metadata
         env: dict[str, str] = {}
         if isinstance(config, str) and Path(config).exists():
@@ -264,100 +263,107 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        sandbox_log(f"write_file: {file}")
+        TIMEOUT = 120
+        try:
+            async with timeout(TIMEOUT):
+                # resolve relative file paths
+                file = self.container_file(file)
 
-        # resolve relative file paths
-        file = self.container_file(file)
+                # We want to be able to write a file in the container,
+                # but only if the container's user would be allowed to do that.
+                # We need to avoid implicitly trusting the provided "file" string.
+                # For example, it shouldn't be passed as part of a shell command,
+                # because of the risk of shell injection.
 
-        # We want to be able to write a file in the container,
-        # but only if the container's user would be allowed to do that.
-        # We need to avoid implicitly trusting the provided "file" string.
-        # For example, it shouldn't be passed as part of a shell command,
-        # because of the risk of shell injection.
+                local_tmpfile = tempfile.NamedTemporaryFile()
 
-        local_tmpfile = tempfile.NamedTemporaryFile()
+                # write contents into a local tmp file (not in the container)
+                if isinstance(contents, str):
+                    local_tmpfile.write(contents.encode("utf-8"))
+                else:
+                    local_tmpfile.write(contents)
 
-        # write contents into a local tmp file (not in the container)
-        if isinstance(contents, str):
-            local_tmpfile.write(contents.encode("utf-8"))
-        else:
-            local_tmpfile.write(contents)
+                local_tmpfile.flush()
 
-        local_tmpfile.flush()
+                # Copy the local tmp file into a tmp file on the container.
+                # Both tmp files have safe names as we created them ourselves
 
-        # Copy the local tmp file into a tmp file on the container.
-        # Both tmp files have safe names as we created them ourselves
+                # We write the tmp file in the default directory,
+                # because of strangeness with /tmp on GitHub action runners.
 
-        # We write the tmp file in the default directory,
-        # because of strangeness with /tmp on GitHub action runners.
+                # We are reusing the generated local tmp file name within
+                # the sandbox to save on a container roundtrip. There is a very slight
+                # risk of collision if another write_file call happens
+                # to get the same local tmp file name. But we assume tmp file
+                # names have enough randomness for us to ignore that.
 
-        # We are reusing the generated local tmp file name within
-        # the sandbox to save on a container roundtrip. There is a very slight
-        # risk of collision if another write_file call happens
-        # to get the same local tmp file name. But we assume tmp file
-        # names have enough randomness for us to ignore that.
-
-        container_tmpfile = (
-            f".tmp_inspect_sandbox_{os.path.basename(local_tmpfile.name)}"
-        )
-
-        # compose cp will leave the file owned by root
-        await compose_cp(
-            src=local_tmpfile.name,
-            dest=f"{self._service}:{self.container_file(container_tmpfile)}",
-            project=self._project,
-        )
-
-        local_tmpfile.close()  # this will also delete the file
-
-        if not hasattr(self, "_docker_user"):
-            uid = (await self.exec(["id", "-u"])).stdout.strip()
-            gid = (await self.exec(["id", "-g"])).stdout.strip()
-            self._docker_user = (uid, gid)
-
-        await compose_command(
-            [
-                "exec",
-                "--user",
-                "root",
-                self._service,
-                "chown",
-                f"{self._docker_user[0]}:{self._docker_user[1]}",
-                container_tmpfile,
-            ],
-            project=self._project,
-        )
-
-        parent = PurePosixPath(file).parent
-
-        # We do these steps in a shell script for efficiency to avoid round-trips to docker.
-        res_cp = await self.exec(
-            [
-                "sh",
-                "-e",
-                "-c",
-                'mkdir -p -- "$1"; cp -T -- "$2" "$3"; rm -- "$2"',
-                "copy_script",
-                str(parent),
-                container_tmpfile,
-                file,
-            ]
-        )
-
-        if res_cp.returncode != 0:
-            if "Permission denied" in res_cp.stderr:
-                ls_result = await self.exec(["ls", "-la", "."])
-                error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
-                raise PermissionError(error_string)
-            elif (
-                "cannot overwrite directory" in res_cp.stderr
-                or "is a directory" in res_cp.stderr
-            ):
-                raise IsADirectoryError(
-                    f"Failed to write file: {file} because it is a directory already"
+                container_tmpfile = (
+                    f".tmp_inspect_sandbox_{os.path.basename(local_tmpfile.name)}"
                 )
-            else:
-                raise RuntimeError(f"failed to copy during write_file: {res_cp}")
+
+                # compose cp will leave the file owned by root
+                await compose_cp(
+                    src=local_tmpfile.name,
+                    dest=f"{self._service}:{self.container_file(container_tmpfile)}",
+                    project=self._project,
+                )
+
+                local_tmpfile.close()  # this will also delete the file
+
+                if not hasattr(self, "_docker_user"):
+                    uid = (await self.exec(["id", "-u"])).stdout.strip()
+                    gid = (await self.exec(["id", "-g"])).stdout.strip()
+                    self._docker_user = (uid, gid)
+
+                await compose_command(
+                    [
+                        "exec",
+                        "--user",
+                        "root",
+                        self._service,
+                        "chown",
+                        f"{self._docker_user[0]}:{self._docker_user[1]}",
+                        container_tmpfile,
+                    ],
+                    project=self._project,
+                )
+
+                parent = PurePosixPath(file).parent
+
+                # We do these steps in a shell script for efficiency to avoid round-trips to docker.
+                res_cp = await self.exec(
+                    [
+                        "sh",
+                        "-e",
+                        "-c",
+                        'mkdir -p -- "$1"; cp -T -- "$2" "$3"; rm -- "$2"',
+                        "copy_script",
+                        str(parent),
+                        container_tmpfile,
+                        file,
+                    ]
+                )
+
+                if res_cp.returncode != 0:
+                    if "Permission denied" in res_cp.stderr:
+                        ls_result = await self.exec(["ls", "-la", "."])
+                        error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+                        raise PermissionError(error_string)
+                    elif (
+                        "cannot overwrite directory" in res_cp.stderr
+                        or "is a directory" in res_cp.stderr
+                    ):
+                        raise IsADirectoryError(
+                            f"Failed to write file: {file} because it is a directory already"
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"failed to copy during write_file: {res_cp}"
+                        )
+        except TimeoutError:
+            raise RuntimeError(
+                f"Failed to write file {file}: timed out after {TIMEOUT} seconds."
+            )
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -367,8 +373,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        sandbox_log(f"read_file: {file}")
-
         # Write the contents to a temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # resolve relative file paths
