@@ -301,18 +301,27 @@ async def compose_command(
     # number of commands in flight (task/sample init) so could be some sort of
     # timing issue / race condition in the docker daemon. we've also observed that
     # these same commands succeed if you just retry them. therefore, we add some
-    # extra resiliance by retrying commands with a timeout once.
+    # extra resiliance by retrying commands with a timeout once. we were observing
+    # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
+    # retry time down) to make the odds of hanging vanishingly small
 
     if timeout is not None:
-        try:
-            return await run_command(timeout)
-        except TimeoutError:
-            logger.info(
-                f"Retrying docker compose command: {shlex.join(compose_command)}"
-            )
-            # cap the retry timeout at 60 (as we don't want e.g. tools with very long
-            # timeouts to double their timeout -- this retry is really here for
-            # resiliency on shorter commands)
-            return await run_command(min(timeout, 60))
+        MAX_RETRIES = 2
+        retries = 0
+        while True:
+            try:
+                command_timeout = (
+                    timeout if retries == 0 else (min(timeout, 60) // retries)
+                )
+                return await run_command(command_timeout)
+            except TimeoutError:
+                retries += 1
+                if retries <= MAX_RETRIES:
+                    logger.info(
+                        f"Retrying docker compose command: {shlex.join(compose_command)}"
+                    )
+                else:
+                    raise
+
     else:
         return await run_command(timeout)
