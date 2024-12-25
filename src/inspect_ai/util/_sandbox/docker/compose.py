@@ -154,7 +154,7 @@ async def compose_exec(
     command: list[str],
     project: ComposeProject,
     timeout: int | None = None,
-    timeout_retry: bool = False,
+    timeout_retry: bool = True,
     input: str | bytes | None = None,
     output_limit: int | None = None,
 ) -> ExecResult[str]:
