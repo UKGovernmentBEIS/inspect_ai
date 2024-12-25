@@ -10,6 +10,8 @@ from typing import (
 
 from pydantic import JsonValue
 
+from inspect_ai.util._subprocess import ExecResult
+
 from .environment import SandboxEnvironment
 
 REQUESTS_DIR = "requests"
@@ -129,7 +131,7 @@ class SandboxService:
         """Handle all pending service requests."""
         # list pending requests
         list_requests = f"ls -1 {self._requests_dir}/*.json"
-        result = await self._sandbox.exec(["bash", "-c", list_requests])
+        result = await self._exec(["bash", "-c", list_requests])
 
         # process reqests
         if result.success:
@@ -142,7 +144,7 @@ class SandboxService:
     async def _handle_request(self, request_file: str) -> None:
         # read request
         read_request = f"cat {request_file}"
-        result = await self._sandbox.exec(["bash", "-c", read_request])
+        result = await self._exec(["bash", "-c", read_request])
         if not result.success:
             raise RuntimeError(
                 f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
@@ -181,7 +183,7 @@ class SandboxService:
             await self._write_text_file(response_path, json.dumps(response_data))
 
             # remove request file
-            exec_rm = await self._sandbox.exec(["rm", "-f", request_file])
+            exec_rm = await self._exec(["rm", "-f", request_file])
             if not exec_rm.success:
                 raise RuntimeError(
                     f"Error removing request file '{request_file}': {exec_rm.stderr}"
@@ -215,8 +217,8 @@ class SandboxService:
 
     async def _create_rpc_dir(self, name: str) -> str:
         rpc_dir = PurePosixPath(self._service_dir, name).as_posix()
-        result = await self._sandbox.exec(["rm", "-rf", rpc_dir])
-        result = await self._sandbox.exec(["mkdir", "-p", rpc_dir])
+        result = await self._exec(["rm", "-rf", rpc_dir])
+        result = await self._exec(["mkdir", "-p", rpc_dir])
         if not result.success:
             raise RuntimeError(
                 f"Error creating rpc directory '{name}' for sandbox '{self._name}': {result.stderr}"
@@ -224,10 +226,18 @@ class SandboxService:
         return rpc_dir
 
     async def _write_text_file(self, file: str, contents: str) -> None:
-        result = await self._sandbox.exec(["tee", "--", file], input=contents)
+        result = await self._exec(["tee", "--", file], input=contents)
         if not result.success:
             msg = f"Failed to write file '{file}' into container: {result.stderr}"
             raise RuntimeError(msg)
+
+    async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
+        try:
+            return await self._sandbox.exec(cmd, input=input, timeout=30)
+        except TimeoutError:
+            raise RuntimeError(
+                f"Timed out executing command {' '.join(cmd)} in sandbox"
+            )
 
     def _generate_client(self) -> str:
         return dedent(f"""
