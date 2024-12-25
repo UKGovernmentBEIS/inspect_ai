@@ -283,13 +283,13 @@ async def compose_command(
     compose_command = compose_command + command
 
     # function to run command
-    async def run_command() -> ExecResult[str]:
+    async def run_command(command_timeout: int | None) -> ExecResult[str]:
         result = await subprocess(
             compose_command,
             input=input,
             cwd=cwd,
             env=env,
-            timeout=timeout,
+            timeout=command_timeout,
             capture_output=capture_output,
             output_limit=output_limit,
         )
@@ -305,11 +305,14 @@ async def compose_command(
 
     if timeout is not None:
         try:
-            return await run_command()
+            return await run_command(timeout)
         except TimeoutError:
             logger.info(
                 f"Retrying docker compose command: {shlex.join(compose_command)}"
             )
-            return await run_command()
+            # cap the retry timeout at 60 (as we don't want e.g. tools with very long
+            # timeouts to double their timeout -- this retry is really here for
+            # resiliency on shorter commands)
+            return await run_command(min(timeout, 60))
     else:
-        return await run_command()
+        return await run_command(timeout)
