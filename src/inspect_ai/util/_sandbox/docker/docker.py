@@ -263,9 +263,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        TIMEOUT = 120
+        WRITE_TIMEOUT = 120
         try:
-            async with timeout(TIMEOUT):
+            async with timeout(WRITE_TIMEOUT):
                 # resolve relative file paths
                 file = self.container_file(file)
 
@@ -362,7 +362,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         )
         except TimeoutError:
             raise RuntimeError(
-                f"Failed to write file {file}: timed out after {TIMEOUT} seconds."
+                f"Failed to write file {file}: timed out after {WRITE_TIMEOUT} seconds."
             )
 
     @overload
@@ -453,7 +453,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "sh", "-c", "pwd"], project)
+    result = await compose_exec([service, "sh", "-c", "pwd"], project, timeout_retry=True)
     if result.success:
         return result.stdout.strip()
     else:
