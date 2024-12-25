@@ -251,7 +251,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
-            timeout_retry=False,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
@@ -263,6 +262,10 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
+        # exec function w/ timeout
+        async def exec(cmd: list[str]) -> ExecResult[str]:
+            return await self.exec(cmd, timeout=60)
+
         # resolve relative file paths
         file = self.container_file(file)
 
@@ -308,12 +311,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         local_tmpfile.close()  # this will also delete the file
 
         if not hasattr(self, "_docker_user"):
-            uid = (
-                await compose_exec(["id", "-u"], project=self._project)
-            ).stdout.strip()
-            gid = (
-                await compose_exec(["id", "-g"], project=self._project)
-            ).stdout.strip()
+            uid = (await exec(["id", "-u"])).stdout.strip()
+            gid = (await exec(["id", "-g"])).stdout.strip()
             self._docker_user = (uid, gid)
 
         await compose_command(
@@ -332,7 +331,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         parent = PurePosixPath(file).parent
 
         # We do these steps in a shell script for efficiency to avoid round-trips to docker.
-        res_cp = await compose_exec(
+        res_cp = await exec(
             [
                 "sh",
                 "-e",
@@ -342,15 +341,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 str(parent),
                 container_tmpfile,
                 file,
-            ],
-            project=self._project,
+            ]
         )
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
-                ls_result = await compose_exec(
-                    ["ls", "-la", "."], project=self._project
-                )
+                ls_result = await exec(["ls", "-la", "."])
                 error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
             elif (
@@ -451,7 +447,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "sh", "-c", "pwd"], project)
+    result = await compose_exec(
+        [service, "sh", "-c", "pwd"], timeout=60, project=project
+    )
     if result.success:
         return result.stdout.strip()
     else:

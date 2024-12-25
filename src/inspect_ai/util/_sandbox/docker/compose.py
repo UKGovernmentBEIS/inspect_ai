@@ -152,9 +152,9 @@ async def compose_pull(
 
 async def compose_exec(
     command: list[str],
+    *,
     project: ComposeProject,
-    timeout: int | None = None,
-    timeout_retry: bool = True,
+    timeout: int | None,
     input: str | bytes | None = None,
     output_limit: int | None = None,
 ) -> ExecResult[str]:
@@ -162,7 +162,6 @@ async def compose_exec(
         ["exec"] + command,
         project=project,
         timeout=timeout,
-        timeout_retry=timeout_retry,
         input=input,
         forward_env=False,
         output_limit=output_limit,
@@ -242,12 +241,14 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
+DEFAULT_COMPOSE_TIMEOUT = 60
+
+
 async def compose_command(
     command: list[str],
     *,
     project: ComposeProject,
-    timeout: int | None = None,
-    timeout_retry: bool = True,
+    timeout: int | None = DEFAULT_COMPOSE_TIMEOUT,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
@@ -282,13 +283,13 @@ async def compose_command(
     compose_command = compose_command + command
 
     # function to run command
-    async def run_command(command_timeout: int | None) -> ExecResult[str]:
+    async def run_command() -> ExecResult[str]:
         result = await subprocess(
             compose_command,
             input=input,
             cwd=cwd,
             env=env,
-            timeout=command_timeout,
+            timeout=timeout,
             capture_output=capture_output,
             output_limit=output_limit,
         )
@@ -300,20 +301,15 @@ async def compose_command(
     # number of commands in flight (task/sample init) so could be some sort of
     # timing issue / race condition in the docker daemon. we've also observed that
     # these same commands succeed if you just retry them. therefore, we add some
-    # extra resiliance by retrying commands once (unless the caller opts out,
-    # as is done for compose_exec which typically has its own timeout that should
-    # be respected precisely)
-    if timeout_retry:
-        # run w/ a default timeout if none is specified
-        command_timeout = timeout or 60
+    # extra resiliance by retrying commands with a timeout once.
+
+    if timeout is not None:
         try:
-            return await run_command(command_timeout)
+            return await run_command()
         except TimeoutError:
             logger.info(
                 f"Retrying docker compose command: {shlex.join(compose_command)}"
             )
-            return await run_command(command_timeout)
-
-    # no special retry behavior (e.g. exec calls, which typically specify their own timeouts)
+            return await run_command()
     else:
-        return await run_command(timeout)
+        return await run_command()
