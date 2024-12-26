@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.54 (26 December 2024)
 
 - [Action tracing](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1038) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
 - Provide default timeout/retry for docker compose commands to mitigate unreliability in some configurations.
