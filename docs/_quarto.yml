@@ -62,6 +62,7 @@ website:
             - interactivity.qmd
             - approval.qmd
             - eval-logs.qmd
+            - tracing.qmd
             - extensions.qmd
 
 
