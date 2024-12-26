@@ -363,7 +363,7 @@ class Model:
                 cache="write" if cache else None,
             )
 
-            with trace_action(logger, "Model", f"model generate ({str(self)})"):
+            with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.perf_counter()
                 result = await self.api.generate(
                     input=input,

@@ -33,18 +33,17 @@ def trace_action(
     start_monotonic = time.monotonic()
     start_wall = time.time()
     pid = os.getpid()
-    formatted_message = (
-        message % args if args else message % kwargs if kwargs else message
-    )
+    detail = message % args if args else message % kwargs if kwargs else message
 
     def trace_message(event: str) -> str:
-        return f"Action: {action} - {formatted_message} ({event})"
+        return f"{action}: {detail} ({event})"
 
     logger.log(
         TRACE,
         trace_message("enter"),
         extra={
             "action": action,
+            "detail": detail,
             "event": "enter",
             "trace_id": str(trace_id),
             "start_time": start_wall,
@@ -60,6 +59,7 @@ def trace_action(
             trace_message("exit"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "exit",
                 "trace_id": str(trace_id),
                 "duration": duration,
@@ -73,6 +73,7 @@ def trace_action(
             trace_message("cancel"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "cancel",
                 "trace_id": str(trace_id),
                 "duration": duration,
@@ -87,6 +88,7 @@ def trace_action(
             trace_message("timeout"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "timeout",
                 "trace_id": str(trace_id),
                 "duration": duration,
@@ -101,6 +103,7 @@ def trace_action(
             trace_message("error"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "error",
                 "trace_id": str(trace_id),
                 "duration": duration,
@@ -142,6 +145,7 @@ class TraceFormatter(logging.Formatter):
             # This is a trace_action log
             for key in [
                 "action",
+                "detail",
                 "event",
                 "trace_id",
                 "start_time",
@@ -205,6 +209,7 @@ class ActionTraceRecord(TraceRecord):
     action: str
     event: Literal["enter", "cancel", "error", "timeout", "exit"]
     trace_id: str
+    detail: str = Field(default="")
     start_time: float | None = Field(default=None)
     duration: float | None = Field(default=None)
     error: str | None = Field(default=None)

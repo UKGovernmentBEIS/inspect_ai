@@ -4,11 +4,13 @@ import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 
 import click
 from pydantic_core import to_json
+from rich import print as r_print
 from rich.console import Console, RenderableType
+from rich.table import Column, Table
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import TRACE_FILE_NAME
@@ -35,11 +37,24 @@ def trace_command() -> None:
 def list_command(json: bool) -> None:
     """List all trace files."""
     trace_dir = inspect_trace_dir()
-    trace_files = [f.absolute().as_posix() for f in trace_dir.iterdir() if f.is_file()]
+    trace_files: list[dict[str, float | str]] = [
+        {"mtime": f.lstat().st_mtime, "file": f.absolute().as_posix()}
+        for f in trace_dir.iterdir()
+        if f.is_file()
+    ]
+    trace_files.sort(key=lambda f: cast(float, f["mtime"]), reverse=True)
     if json:
         print(dumps(trace_files, indent=2))
     else:
-        print("\n".join(trace_files))
+        table = Table(box=None, show_header=True, pad_edge=False)
+        table.add_column("Time")
+        table.add_column("Trace File")
+        for file in trace_files:
+            mtime = datetime.fromtimestamp(cast(float, file["mtime"])).astimezone()
+            table.add_row(
+                mtime.strftime("%d-%b %H:%M:%S %Z"), shlex.quote(str(file["file"]))
+            )
+        r_print(table)
 
 
 @trace_command.command("dump")
@@ -142,7 +157,9 @@ def anomolies_command(trace_file: str, all: bool) -> None:
 
 
 def _print_bucket(
-    print_fn: Callable[[str], None], label: str, bucket: dict[str, ActionTraceRecord]
+    print_fn: Callable[[RenderableType], None],
+    label: str,
+    bucket: dict[str, ActionTraceRecord],
 ) -> None:
     if len(bucket) > 0:
         # Sort the items in chronological order of when
@@ -153,7 +170,20 @@ def _print_bucket(
             reverse=True,
         )
 
-        print_fn(f"\n[bold]{label}[/bold]")
+        # create table
+        table = Table(
+            Column(""),
+            Column("", justify="right"),
+            Column(""),
+            Column("", width=22),
+            box=None,
+            title=label,
+            title_justify="left",
+            title_style="bold",
+            pad_edge=False,
+            padding=(0, 1),
+        )
+
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
             duration = (
@@ -166,14 +196,23 @@ def _print_bucket(
 
             # The event start time
             start_time = formatTime(action.start_time) if action.start_time else "None"
-            if action.event == "error":
-                # print errors
-                print_fn(
-                    f"{start_time} ({round(duration, 2)}s): {action.message} {action.error}"
-                )
-            else:
-                # print the action
-                print_fn(f"{start_time} ({round(duration, 2)}s): {action.message}")
+
+            # Event detail
+            detail = (
+                f"{action.detail or action.message} {action.error}"
+                if action.event == "error"
+                else (action.detail or action.message)
+            )
+
+            table.add_row(
+                action.action,
+                f"{round(duration, 2):.2f}s".rjust(8),
+                f" {detail}",
+                start_time,
+            )
+
+        print_fn("")
+        print_fn(table)
 
 
 def resolve_trace_file_path(trace_file: str) -> Path:
@@ -190,6 +229,5 @@ def resolve_trace_file_path(trace_file: str) -> Path:
 
 
 def formatTime(timestamp: float) -> str:
-    # ISO format with timezone
-    dt = datetime.fromtimestamp(timestamp)
-    return dt.isoformat()
+    dt = datetime.fromtimestamp(timestamp).astimezone()
+    return dt.strftime("%H:%M:%S %Z")
