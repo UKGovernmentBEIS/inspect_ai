@@ -31,7 +31,8 @@ async def compose_up(project: ComposeProject) -> None:
         project=project,
     )
     if not result.success:
-        msg = f"Failed to start docker services {result.stderr}"
+        msg = (f"Failed to start docker services for {project.config}: "
+               f"{result.stderr}")
         raise RuntimeError(msg)
 
 
@@ -94,7 +95,8 @@ async def compose_check_running(services: list[str], project: ComposeProject) ->
             for running_service in running_services:
                 unhealthy_services.remove(running_service["Service"])
 
-            msg = f"One or more docker containers failed to start {','.join(unhealthy_services)}"
+            msg = ("One or more docker containers failed to start from "
+                   f"{project.config}: {','.join(unhealthy_services)}")
             raise RuntimeError(msg)
     else:
         raise RuntimeError("No services started")
