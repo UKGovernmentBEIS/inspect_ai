@@ -6,6 +6,7 @@
 - Provide default timeout/retry for docker compose commands to mitigate unreliability in some configurations.
 - Task display: Added `--no-score-display` option to disable realtime scoring metrics.
 - Bugfix: Fix failure to fully clone samples that have message lists as input.
+- llama-cpp-python: Support for `logprobs`.
 
 ## v0.3.53 (20 December 2024)
 
