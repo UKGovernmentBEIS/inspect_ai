@@ -133,7 +133,13 @@ def anomolies_command(trace_file: str, all: bool) -> None:
                     print(f"Unknown event type: {trace.event}")
 
     # do we have any traces?
-    if len(running_actions) + len(canceled_actions) + len(error_actions) == 0:
+    if (
+        len(running_actions)
+        + len(canceled_actions)
+        + len(error_actions)
+        + len(timeout_actions)
+        == 0
+    ):
         print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
         if all:
             print("No anomalies found in trace log.")
