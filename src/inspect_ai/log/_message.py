@@ -64,7 +64,7 @@ class LoggingMessage(BaseModel):
     ) -> dict[str, Any]:
         if "level" in values:
             level = values["level"]
-            if level == "tools":
-                values["level"] = "sandbox"
+            if level == "tools" or level == "sandbox":
+                values["level"] = "trace"
 
         return values

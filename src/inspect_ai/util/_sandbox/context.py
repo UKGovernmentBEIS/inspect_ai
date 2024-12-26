@@ -191,7 +191,12 @@ async def setup_sandbox_environment(
 
     # chmod, execute, and remove
     async def exec(cmd: list[str]) -> None:
-        result = await env.exec(cmd)
+        try:
+            result = await env.exec(cmd, timeout=30)
+        except TimeoutError:
+            raise RuntimeError(
+                f"Timed out executing command {' '.join(cmd)} in sandbox"
+            )
 
         if not result.success:
             raise RuntimeError(

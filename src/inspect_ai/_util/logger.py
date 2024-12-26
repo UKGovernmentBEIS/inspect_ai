@@ -11,6 +11,7 @@ from logging import (
     getLevelName,
     getLogger,
 )
+from logging.handlers import RotatingFileHandler
 
 import rich
 from rich.console import ConsoleRenderable
@@ -18,17 +19,20 @@ from rich.logging import RichHandler
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
+from .constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
-    SANDBOX,
-    SANDBOX_LOG_LEVEL,
+    TRACE,
+    TRACE_LOG_LEVEL,
 )
-from inspect_ai._util.error import PrerequisiteError
+from .error import PrerequisiteError
+from .trace import TraceFormatter, inspect_trace_dir
+
+TRACE_FILE_NAME = "trace.log"
 
 
 # log handler that filters messages to stderr and the log file
@@ -51,6 +55,23 @@ class LogHandler(RichHandler):
             self.file_logger_level = int(getLevelName(file_logger_level.upper()))
         else:
             self.file_logger_level = 0
+
+        # add a trace handler
+        default_trace_file = inspect_trace_dir() / TRACE_FILE_NAME
+        have_existing_trace_file = default_trace_file.exists()
+        trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
+        trace_total_files = 10
+        self.trace_logger = RotatingFileHandler(
+            trace_file,
+            backupCount=trace_total_files - 1,  # exclude the current file (10 total)
+        )
+        self.trace_logger.setFormatter(TraceFormatter())
+        if have_existing_trace_file:
+            self.trace_logger.doRollover()
+
+        # set trace level
+        trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
+        self.trace_logger_level = int(getLevelName(trace_level.upper()))
 
     @override
     def emit(self, record: LogRecord) -> None:
@@ -79,6 +100,10 @@ class LogHandler(RichHandler):
         ):
             self.file_logger.emit(record)
 
+        # write to trace if the trace level matches.
+        if self.trace_logger and record.levelno >= self.trace_logger_level:
+            self.trace_logger.emit(record)
+
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
         write = record.levelno >= self.transcript_levelno
@@ -95,12 +120,12 @@ def init_logger(
     log_level: str | None = None, log_level_transcript: str | None = None
 ) -> None:
     # backwards compatibility for 'tools'
-    if log_level == "tools":
-        log_level = "sandbox"
+    if log_level == "sandbox" or log_level == "tools":
+        log_level = "trace"
 
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
-    addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
+    addLevelName(TRACE, TRACE_LOG_LEVEL)
 
     def validate_level(option: str, level: str) -> None:
         if level not in ALL_LOG_LEVELS:
@@ -134,7 +159,7 @@ def init_logger(
         getLogger().addHandler(_logHandler)
 
     # establish default capture level
-    capture_level = min(HTTP, levelno)
+    capture_level = min(TRACE, levelno)
 
     # see all the messages (we won't actually display/write all of them)
     getLogger().setLevel(capture_level)
