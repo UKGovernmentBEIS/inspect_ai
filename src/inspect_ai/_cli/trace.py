@@ -122,14 +122,19 @@ def anomolies_command(trace_file: str) -> None:
         _print_bucket(print_fn, "Canceled Actions", canceled_actions)
         _print_bucket(print_fn, "Error Actions", error_actions)
 
+        # get text
+        output = console.export_text(styles=False)
+        if not output.strip():
+            print("No anomalies found in trace log.")
+            return
+
         # display with 'less' if possible
         less = shutil.which("less")
         if less:
-            subprocess.run(
-                [less, "-R"], input=console.export_text(styles=True).encode()
-            )
+            ansi_output = console.export_text(styles=True).encode()
+            subprocess.run([less, "-R"], input=ansi_output)
         else:
-            print(console.export_text(styles=False))
+            print(output)
 
 
 def _print_bucket(
