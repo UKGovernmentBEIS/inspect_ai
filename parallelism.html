@@ -337,7 +337,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-multiple-tasks" id="toc-sec-multiple-tasks" class="nav-link" data-scroll-target="#sec-multiple-tasks">Multiple Tasks</a></li>
   <li><a href="#sec-parallel-tool-environments" id="toc-sec-parallel-tool-environments" class="nav-link" data-scroll-target="#sec-parallel-tool-environments">Sandbox Environments</a>
   <ul class="collapse">
-  <li><a href="#max-samples" id="toc-max-samples" class="nav-link" data-scroll-target="#max-samples">Max Samples</a></li>
+  <li><a href="#max-sandboxes" id="toc-max-sandboxes" class="nav-link" data-scroll-target="#max-sandboxes">Max Sandboxes</a></li>
   <li><a href="#max-subprocesses" id="toc-max-subprocesses" class="nav-link" data-scroll-target="#max-subprocesses">Max Subprocesses</a></li>
   </ul></li>
   <li><a href="#sec-parallel-solvers-and-scorers" id="toc-sec-parallel-solvers-and-scorers" class="nav-link" data-scroll-target="#sec-parallel-solvers-and-scorers">Solvers and Scorers</a>
@@ -458,11 +458,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-parallel-tool-environments" class="level2">
 <h2 class="anchored" data-anchor-id="sec-parallel-tool-environments">Sandbox Environments</h2>
 <p><a href="./agents.html#sec-sandbox-environments">Sandbox Environments</a> (e.g.&nbsp;Docker containers) often allocate resources on a per-sample basis, and also make use of the Inspect <code>subprocess()</code> function for executing commands within the environment.</p>
-<section id="max-samples" class="level3">
-<h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>
-<p>The <code>max_samples</code> option determines how many samples are executed in parallel (and in the case of Docker containers how many containers are run in parallel). By default, <code>max_samples</code> is set to <code>max_connections</code> so that the connection to the Model API can be fully utilised.</p>
-<p>Since sandbox environments include additional expensive operations beyond calling models, you may want to increase <code>max_samples</code> to fully saturate both the Model API and container subprocesses used for tool execution. When running an evaluation you’ll see an indicator of how many connections and how many subprocesses are currently active. If neither is at capacity then you will likely benefit from increasing <code>max_samples</code>.</p>
-<p>Note that setting <code>max_samples</code> to an arbitrarily high number does have some disadvantages: you will consume more memory (especially if using sandbox environments) as well as wait longer for completed samples to be logged (so could be subject to losing more work if your eval task fails).</p>
+<section id="max-sandboxes" class="level3">
+<h3 class="anchored" data-anchor-id="max-sandboxes">Max Sandboxes</h3>
+<p>The <code>max_sandboxes</code> option determines how many sandboxes can be executed in parallel. Individual sandbox providers can establish their own default limits (for example, the Docker provider has a default of <code>2 * os.cpu_count()</code>). You can modify this option as required, but be aware that container runtimes have resource limits, and pushing up against and beyond them can lead to instability and failed evaluations.</p>
+<p>When a <code>max_sandboxes</code> is applied, an indicator at the bottom of the task status screen will be shown:</p>
+<p><img src="images/task-max-sandboxes.png" class="img-fluid"></p>
+<p>Note that when <code>max_sandboxes</code> is applied this effectively creates a global <code>max_samples</code> limit that is equal to the <code>max_sandboxes</code>.</p>
 </section>
 <section id="max-subprocesses" class="level3">
 <h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>

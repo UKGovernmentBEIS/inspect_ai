@@ -193,6 +193,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         ...
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        ...
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
@@ -259,6 +263,7 @@ and teardown:
 | Method | Lifecycle | Purpose |
 |----|----|----|
 | `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |  |
 | `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
@@ -341,7 +346,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -535,7 +540,7 @@ from .approvers import auto_approver
 </div>
 
 You can then register your `auto_approver` Inspect extension (and
-anyting else imported into `_registry.py`) like this in
+anything else imported into `_registry.py`) like this in
 `pyproject.toml`:
 
 <div class="panel-tabset" group="entry-points">

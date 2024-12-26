@@ -401,7 +401,7 @@ Tools and Agents
 <p>Inspect has several built-in tools, including:</p>
 <ul>
 <li><p><a href="#sec-bash-and-python">Bash and Python</a> for executing arbitrary shell and Python code.</p></li>
-<li><p><a href="#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromimum web browser that supports navigation, history, and mouse/keyboard interactions.</p></li>
+<li><p><a href="#sec-web-browser">Web Browser</a>, which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.</p></li>
 <li><p><a href="#sec-web-search">Web Search</a>, which uses the Google Search API to execute and summarise web searches.</p></li>
 </ul>
 <p>If you are only interested in using the built-in tools, check out their respective documentation links above. To learn more about creating your own tools read on immediately below.</p>
@@ -478,10 +478,10 @@ Tools and Agents
 <li><p><code>TimeoutError</code> — Occurs when a call to <code>subprocess()</code> or <code>sandbox().exec()</code> times out.</p></li>
 <li><p><code>PermissionError</code> — Occurs when there are inadequate permissions to read or write a file.</p></li>
 <li><p><code>UnicodeDecodeError</code> — Occurs when the output from executing a process or reading a file is binary rather than text.</p></li>
-<li><p><code>OutputLimitExceededError</code> - Occurs when one or both of the output streams from <code>sandbox().exec()</code> exceed 1 MiB or when attempting to read a file over 100 MiB in size.</p></li>
+<li><p><code>OutputLimitExceededError</code> - Occurs when one or both of the output streams from <code>sandbox().exec()</code> exceed 10 MiB or when attempting to read a file over 100 MiB in size.</p></li>
 <li><p><code>ToolError</code> — Special error thrown by tools to indicate they’d like to report an error to the model.</p></li>
 </ul>
-<p>These are all errors that are <em>expected</em> (in fact the <code>SandboxEnvironemnt</code> interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g.&nbsp;a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the <code>Sample</code> failing with an error.</p>
+<p>These are all errors that are <em>expected</em> (in fact the <code>SandboxEnvironment</code> interface documents them as such) and possibly recoverable by the model (try a different command, read a different file, etc.). Unexpected errors (e.g.&nbsp;a network error communicating with a remote service or container runtime) on the other hand are not automatically handled and result in the <code>Sample</code> failing with an error.</p>
 <p>Many tools can simply rely on the default handling to provide reasonable behaviour around both expected and unexpected errors.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
@@ -499,7 +499,7 @@ Tools and Agents
 <p>In some cases a tool can implement a recovery strategy for error conditions. For example, an HTTP request might fail due to transient network issues, and retrying the request (perhaps after a delay) may resolve the problem. Explicit error handling strategies are generally applied when there are <em>expected</em> errors that are not already handled by Inspect’s <a href="#default-handling">Default Handling</a>.</p>
 <p>Another type of explicit handling is re-raising an error to bypass Inspect’s default handling. For example, here we catch at re-raise <code>TimeoutError</code> so that it fails the <code>Sample</code>:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  result <span class="op">=</span> <span class="cf">await</span> sandobox().<span class="bu">exec</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  result <span class="op">=</span> <span class="cf">await</span> sandbox().<span class="bu">exec</span>(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    cmd<span class="op">=</span>[<span class="st">"decode"</span>, <span class="bu">file</span>], </span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    timeout<span class="op">=</span>timeout</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  )</span>
@@ -552,7 +552,7 @@ Tools and Agents
 <span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
 <span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to execute the command.</span></span>
 <span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">          OutputLimitExceededError: If an output stream</span></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">            exceeds the 1 MiB limit.</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">            exceeds the 10 MiB limit.</span></span>
 <span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
 <span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        ...</span>
 <span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a></span>
@@ -701,7 +701,7 @@ Tools and Agents
 </section>
 <section id="sec-web-browser" class="level2">
 <h2 class="anchored" data-anchor-id="sec-web-browser">Web Browser</h2>
-<p>The web browser tools provids models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
+<p>The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
 <section id="configuration" class="level3">
 <h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
 <p>Under the hood, the web browser is an instance of <a href="https://www.chromium.org/chromium-projects/">Chromium</a> orchestrated by <a href="https://playwright.dev/">Playwright</a>, and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the <code>aisiuk/inspect-web-browser-tool</code> Docker image in your <code>compose.yaml</code>. For example, here we use it as our default image:</p>
@@ -817,7 +817,7 @@ Tools and Agents
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">playwright</span> install</span>
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">playwright</span> install-deps </span>
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Install other dependancies</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Install other dependencies</span></span>
 <span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">pip</span> install dm-env-rpc pillow bs4 lxml</span>
 <span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Copy Python files alongside the Dockerfile</span></span>

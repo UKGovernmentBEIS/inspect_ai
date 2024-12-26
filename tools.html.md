@@ -32,7 +32,7 @@ Inspect has several built-in tools, including:
   and Python code.
 
 - [Web Browser](#sec-web-browser), which provides the model with a
-  headless Chromimum web browser that supports navigation, history, and
+  headless Chromium web browser that supports navigation, history, and
   mouse/keyboard interactions.
 
 - [Web Search](#sec-web-search), which uses the Google Search API to
@@ -161,14 +161,14 @@ errors are raised they will be handled and reported to the model:
   or reading a file is binary rather than text.
 
 - `OutputLimitExceededError` - Occurs when one or both of the output
-  streams from `sandbox().exec()` exceed 1 MiB or when attempting to
+  streams from `sandbox().exec()` exceed 10 MiB or when attempting to
   read a file over 100 MiB in size.
 
 - `ToolError` — Special error thrown by tools to indicate they’d like to
   report an error to the model.
 
 These are all errors that are *expected* (in fact the
-`SandboxEnvironemnt` interface documents them as such) and possibly
+`SandboxEnvironment` interface documents them as such) and possibly
 recoverable by the model (try a different command, read a different
 file, etc.). Unexpected errors (e.g. a network error communicating with
 a remote service or container runtime) on the other hand are not
@@ -199,7 +199,7 @@ Inspect’s default handling. For example, here we catch at re-raise
 
 ``` python
 try:
-  result = await sandobox().exec(
+  result = await sandbox().exec(
     cmd=["decode", file], 
     timeout=timeout
   )
@@ -262,7 +262,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -508,7 +508,7 @@ time horizon.
 
 ## Web Browser
 
-The web browser tools provids models with the ability to browse the web
+The web browser tools provides models with the ability to browse the web
 using a headless Chromium browser. Navigation, history, and
 mouse/keyboard interactions are all supported.
 
@@ -640,7 +640,7 @@ RUN pip install playwright
 RUN playwright install
 RUN playwright install-deps 
 
-# Install other dependancies
+# Install other dependencies
 RUN pip install dm-env-rpc pillow bs4 lxml
 
 # Copy Python files alongside the Dockerfile

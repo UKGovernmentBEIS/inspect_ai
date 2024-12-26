@@ -489,7 +489,7 @@ violate common sense about the physical world, so can be a challenge for
 some language models.
 
 For example, here is one of the questions in the dataset along with its
-set of possible answer (the correct answer is C):
+set of possible answers (the correct answer is C):
 
 > In home pet groomers demonstrate how to groom a pet. the person
 >
@@ -2736,7 +2736,7 @@ Inspect has several built-in tools, including:
   and Python code.
 
 - [Web Browser](#sec-web-browser), which provides the model with a
-  headless Chromimum web browser that supports navigation, history, and
+  headless Chromium web browser that supports navigation, history, and
   mouse/keyboard interactions.
 
 - [Web Search](#sec-web-search), which uses the Google Search API to
@@ -2865,14 +2865,14 @@ errors are raised they will be handled and reported to the model:
   or reading a file is binary rather than text.
 
 - `OutputLimitExceededError` - Occurs when one or both of the output
-  streams from `sandbox().exec()` exceed 1 MiB or when attempting to
+  streams from `sandbox().exec()` exceed 10 MiB or when attempting to
   read a file over 100 MiB in size.
 
 - `ToolError` — Special error thrown by tools to indicate they’d like to
   report an error to the model.
 
 These are all errors that are *expected* (in fact the
-`SandboxEnvironemnt` interface documents them as such) and possibly
+`SandboxEnvironment` interface documents them as such) and possibly
 recoverable by the model (try a different command, read a different
 file, etc.). Unexpected errors (e.g. a network error communicating with
 a remote service or container runtime) on the other hand are not
@@ -2903,7 +2903,7 @@ Inspect’s default handling. For example, here we catch at re-raise
 
 ``` python
 try:
-  result = await sandobox().exec(
+  result = await sandbox().exec(
     cmd=["decode", file], 
     timeout=timeout
   )
@@ -2966,7 +2966,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -3212,7 +3212,7 @@ time horizon.
 
 ## Web Browser
 
-The web browser tools provids models with the ability to browse the web
+The web browser tools provides models with the ability to browse the web
 using a headless Chromium browser. Navigation, history, and
 mouse/keyboard interactions are all supported.
 
@@ -3344,7 +3344,7 @@ RUN pip install playwright
 RUN playwright install
 RUN playwright install-deps 
 
-# Install other dependancies
+# Install other dependencies
 RUN pip install dm-env-rpc pillow bs4 lxml
 
 # Copy Python files alongside the Dockerfile
@@ -4000,7 +4000,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -7814,26 +7814,22 @@ containers) often allocate resources on a per-sample basis, and also
 make use of the Inspect `subprocess()` function for executing commands
 within the environment.
 
-### Max Samples
+### Max Sandboxes
 
-The `max_samples` option determines how many samples are executed in
-parallel (and in the case of Docker containers how many containers are
-run in parallel). By default, `max_samples` is set to `max_connections`
-so that the connection to the Model API can be fully utilised.
+The `max_sandboxes` option determines how many sandboxes can be executed
+in parallel. Individual sandbox providers can establish their own
+default limits (for example, the Docker provider has a default of
+`2 * os.cpu_count()`). You can modify this option as required, but be
+aware that container runtimes have resource limits, and pushing up
+against and beyond them can lead to instability and failed evaluations.
 
-Since sandbox environments include additional expensive operations
-beyond calling models, you may want to increase `max_samples` to fully
-saturate both the Model API and container subprocesses used for tool
-execution. When running an evaluation you’ll see an indicator of how
-many connections and how many subprocesses are currently active. If
-neither is at capacity then you will likely benefit from increasing
-`max_samples`.
+When a `max_sandboxes` is applied, an indicator at the bottom of the
+task status screen will be shown:
 
-Note that setting `max_samples` to an arbitrarily high number does have
-some disadvantages: you will consume more memory (especially if using
-sandbox environments) as well as wait longer for completed samples to be
-logged (so could be subject to losing more work if your eval task
-fails).
+![](images/task-max-sandboxes.png)
+
+Note that when `max_sandboxes` is applied this effectively creates a
+global `max_samples` limit that is equal to the `max_sandboxes`.
 
 ### Max Subprocesses
 
@@ -8639,7 +8635,7 @@ will be the same, and the various APIs provided for log files
 By default, full base64 encoded copies of images are included in the log
 file. Image logging will not create performance problems when using
 `.eval` logs, however if you are using `.json` logs then large numbers
-of images could become unweildy (i.e. if your `.json` log file grows to
+of images could become unwieldy (i.e. if your `.json` log file grows to
 100mb or larger as a result).
 
 You can disable this using the `--no-log-images` flag. For example, here
@@ -9274,6 +9270,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         ...
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        ...
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
@@ -9340,6 +9340,7 @@ and teardown:
 | Method | Lifecycle | Purpose |
 |----|----|----|
 | `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |  |
 | `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
@@ -9422,7 +9423,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -9616,7 +9617,7 @@ from .approvers import auto_approver
 </div>
 
 You can then register your `auto_approver` Inspect extension (and
-anyting else imported into `_registry.py`) like this in
+anything else imported into `_registry.py`) like this in
 `pyproject.toml`:
 
 <div class="panel-tabset" group="entry-points">

@@ -137,7 +137,7 @@ will be the same, and the various APIs provided for log files
 By default, full base64 encoded copies of images are included in the log
 file. Image logging will not create performance problems when using
 `.eval` logs, however if you are using `.json` logs then large numbers
-of images could become unweildy (i.e. if your `.json` log file grows to
+of images could become unwieldy (i.e. if your `.json` log file grows to
 100mb or larger as a result).
 
 You can disable this using the `--no-log-images` flag. For example, here

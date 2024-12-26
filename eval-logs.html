@@ -467,7 +467,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="image-logging" class="level2">
 <h2 class="anchored" data-anchor-id="image-logging">Image Logging</h2>
-<p>By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of images could become unweildy (i.e.&nbsp;if your <code>.json</code> log file grows to 100mb or larger as a result).</p>
+<p>By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of images could become unwieldy (i.e.&nbsp;if your <code>.json</code> log file grows to 100mb or larger as a result).</p>
 <p>You can disable this using the <code>--no-log-images</code> flag. For example, here we enable the <code>.json</code> log format and disable image logging:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval images.py <span class="at">--log-format</span><span class="op">=</span>json <span class="at">--no-log-images</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the <code>INSPECT_EVAL_LOG_IMAGES</code> environment variable to set a global default in your <code>.env</code> configuration file.</p>
@@ -1314,7 +1314,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","loop":false,"openEffect":"zoom","closeEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","loop":false,"descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

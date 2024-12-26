@@ -95,7 +95,7 @@ violate common sense about the physical world, so can be a challenge for
 some language models.
 
 For example, here is one of the questions in the dataset along with its
-set of possible answer (the correct answer is C):
+set of possible answers (the correct answer is C):
 
 > In home pet groomers demonstrate how to groom a pet. the person
 >
