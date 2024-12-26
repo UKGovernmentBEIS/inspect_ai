@@ -1,4 +1,5 @@
 import os
+import shlex
 import shutil
 import subprocess
 import time
@@ -111,6 +112,12 @@ def anomolies_command(trace_file: str) -> None:
                 case _:
                     print(f"Unknown event type: {trace.event}")
 
+    # do we have any traces?
+    if len(running_actions) + len(canceled_actions) + len(error_actions) == 0:
+        print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
+        print("No anomalies found in trace log.")
+        return
+
     with open(os.devnull, "w") as f:
         # generate output
         console = Console(record=True, file=f)
@@ -118,15 +125,11 @@ def anomolies_command(trace_file: str) -> None:
         def print_fn(o: RenderableType) -> None:
             console.print(o, highlight=False)
 
+        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[bold]\n")
+
         _print_bucket(print_fn, "Running Actions", running_actions)
         _print_bucket(print_fn, "Canceled Actions", canceled_actions)
         _print_bucket(print_fn, "Error Actions", error_actions)
-
-        # get text
-        output = console.export_text(styles=False)
-        if not output.strip():
-            print("No anomalies found in trace log.")
-            return
 
         # display with 'less' if possible
         less = shutil.which("less")
@@ -134,7 +137,7 @@ def anomolies_command(trace_file: str) -> None:
             ansi_output = console.export_text(styles=True).encode()
             subprocess.run([less, "-R"], input=ansi_output)
         else:
-            print(output)
+            print(console.export_text(styles=False))
 
 
 def _print_bucket(
