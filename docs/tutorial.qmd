@@ -78,7 +78,7 @@ inspect eval security_guide.py
 
 [HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challenge for some language models.
 
-For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
+For example, here is one of the questions in the dataset along with its set of possible answers (the correct answer is C):
 
 > In home pet groomers demonstrate how to groom a pet. the person
 >
