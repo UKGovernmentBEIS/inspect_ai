@@ -76,6 +76,19 @@ def trace_action(
             },
         )
         raise
+    except TimeoutError:
+        duration = time.monotonic() - start_monotonic
+        logger.log(
+            TRACE,
+            trace_message("timeout"),
+            extra={
+                "action": action,
+                "event": "timeout",
+                "trace_id": str(trace_id),
+                "duration": duration,
+            },
+        )
+        raise
     except Exception as ex:
         duration = time.monotonic() - start_monotonic
         logger.log(
@@ -86,7 +99,7 @@ def trace_action(
                 "event": "error",
                 "trace_id": str(trace_id),
                 "duration": duration,
-                "error": str(ex),
+                "error": getattr(ex, "message", str(ex)) or repr(ex),
                 "error_type": type(ex).__name__,
                 "stacktrace": traceback.format_exc(),
             },
@@ -183,7 +196,7 @@ class SimpleTraceRecord(TraceRecord):
 
 class ActionTraceRecord(TraceRecord):
     action: str
-    event: Literal["enter", "cancel", "error", "exit"]
+    event: Literal["enter", "cancel", "error", "timeout", "exit"]
     trace_id: str
     start_time: float | None = Field(default=None)
     duration: float | None = Field(default=None)

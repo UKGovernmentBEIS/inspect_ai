@@ -1,7 +1,5 @@
 import os
 import shlex
-import shutil
-import subprocess
 import time
 from datetime import datetime
 from json import dumps
@@ -73,6 +71,7 @@ def anomolies_command(trace_file: str, all: bool) -> None:
     running_actions: dict[str, ActionTraceRecord] = {}
     canceled_actions: dict[str, ActionTraceRecord] = {}
     error_actions: dict[str, ActionTraceRecord] = {}
+    timeout_actions: dict[str, ActionTraceRecord] = {}
 
     def action_started(trace: ActionTraceRecord) -> None:
         running_actions[trace.trace_id] = trace
@@ -92,6 +91,10 @@ def anomolies_command(trace_file: str, all: bool) -> None:
     def action_canceled(trace: ActionTraceRecord) -> None:
         canceled_actions[start_trace.trace_id] = trace
 
+    def action_timeout(trace: ActionTraceRecord) -> None:
+        if all:
+            timeout_actions[start_trace.trace_id] = trace
+
     for trace in traces:
         if isinstance(trace, ActionTraceRecord):
             match trace.event:
@@ -100,22 +103,17 @@ def anomolies_command(trace_file: str, all: bool) -> None:
                 case "exit":
                     action_completed(trace)
                 case "cancel":
-                    # Complete with a cancellation
                     start_trace = action_completed(trace)
-
-                    # add duration
                     trace.start_time = start_trace.start_time
-
                     action_canceled(trace)
                 case "error":
-                    # Capture error events
                     start_trace = action_completed(trace)
-
-                    # add start time
                     trace.start_time = start_trace.start_time
-
                     action_failed(trace)
-                    continue
+                case "timeout":
+                    start_trace = action_completed(trace)
+                    trace.start_time = start_trace.start_time
+                    action_timeout(trace)
                 case _:
                     print(f"Unknown event type: {trace.event}")
 
@@ -132,19 +130,15 @@ def anomolies_command(trace_file: str, all: bool) -> None:
         def print_fn(o: RenderableType) -> None:
             console.print(o, highlight=False)
 
-        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[bold]\n")
+        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[bold]")
 
         _print_bucket(print_fn, "Running Actions", running_actions)
-        _print_bucket(print_fn, "Canceled Actions", canceled_actions)
+        _print_bucket(print_fn, "Cancelled Actions", canceled_actions)
         _print_bucket(print_fn, "Error Actions", error_actions)
+        _print_bucket(print_fn, "Timeout Actions", timeout_actions)
 
-        # display with 'less' if possible
-        less = shutil.which("less")
-        if less:
-            ansi_output = console.export_text(styles=True).encode()
-            subprocess.run([less, "-R"], input=ansi_output)
-        else:
-            print(console.export_text(styles=False))
+        # print
+        print(console.export_text(styles=True).strip())
 
 
 def _print_bucket(
@@ -159,7 +153,7 @@ def _print_bucket(
             reverse=True,
         )
 
-        print_fn(f"[bold]{label}[/bold]")
+        print_fn(f"\n[bold]{label}[/bold]")
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
             duration = (
@@ -180,7 +174,6 @@ def _print_bucket(
             else:
                 # print the action
                 print_fn(f"{start_time} ({round(duration, 2)}s): {action.message}")
-        print_fn("")
 
 
 def resolve_trace_file_path(trace_file: str) -> Path:
