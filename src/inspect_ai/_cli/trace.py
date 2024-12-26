@@ -44,7 +44,7 @@ def list_command(json: bool) -> None:
 
 
 @trace_command.command("dump")
-@click.argument("trace-file", type=str, required=True)
+@click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
 def read_command(trace_file: str) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
     trace_file_path = resolve_trace_file_path(trace_file)

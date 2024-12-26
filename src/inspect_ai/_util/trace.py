@@ -1,13 +1,17 @@
 import asyncio
 import datetime
+import gzip
 import json
 import logging
+import os
+import shutil
 import time
 import traceback
 from contextlib import contextmanager
 from logging import Logger
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, TextIO
 
 import jsonlines
 from pydantic import BaseModel, Field, JsonValue
@@ -189,7 +193,7 @@ class ActionTraceRecord(TraceRecord):
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
-    with open(file, "r") as f:
+    def read_file(f: TextIO) -> list[TraceRecord]:
         jsonlines_reader = jsonlines.Reader(f)
         trace_records: list[TraceRecord] = []
         for trace in jsonlines_reader.iter(type=dict):
@@ -198,3 +202,48 @@ def read_trace_file(file: Path) -> list[TraceRecord]:
             else:
                 trace_records.append(SimpleTraceRecord(**trace))
         return trace_records
+
+    if file.name.endswith(".gz"):
+        with gzip.open(file, "rt") as f:
+            return read_file(f)
+    else:
+        with open(file, "r") as f:
+            return read_file(f)
+
+
+class TraceFileHandler(RotatingFileHandler):
+    def __init__(
+        self,
+        filename: str,
+        mode: str = "a",
+        maxBytes: int = 0,
+        backupCount: int = 0,
+        encoding: str | None = None,
+        delay: bool = False,
+    ) -> None:
+        super().__init__(filename, mode, maxBytes, backupCount, encoding, delay)
+
+    def rotation_filename(self, default_name: str) -> str:
+        """
+        Returns the name of the rotated file.
+
+        Args:
+            default_name: The default name that would be used for rotation
+
+        Returns:
+            The modified filename with .gz extension
+        """
+        return default_name + ".gz"
+
+    def rotate(self, source: str, dest: str) -> None:
+        """
+        Compresses the source file and moves it to destination.
+
+        Args:
+            source: The source file to be compressed
+            dest: The destination path for the compressed file
+        """
+        with open(source, "rb") as f_in:
+            with gzip.open(dest, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove(source)

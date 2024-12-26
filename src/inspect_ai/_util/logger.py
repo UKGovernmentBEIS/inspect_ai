@@ -11,7 +11,7 @@ from logging import (
     getLevelName,
     getLogger,
 )
-from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import rich
 from rich.console import ConsoleRenderable
@@ -30,7 +30,7 @@ from .constants import (
     TRACE_LOG_LEVEL,
 )
 from .error import PrerequisiteError
-from .trace import TraceFormatter, inspect_trace_dir
+from .trace import TraceFileHandler, TraceFormatter, inspect_trace_dir
 
 TRACE_FILE_NAME = "trace.log"
 
@@ -59,10 +59,11 @@ class LogHandler(RichHandler):
         # add a trace handler
         default_trace_file = inspect_trace_dir() / TRACE_FILE_NAME
         have_existing_trace_file = default_trace_file.exists()
-        trace_file = os.environ.get("INSPECT_TRACE_FILE", default_trace_file)
+        env_trace_file = os.environ.get("INSPECT_TRACE_FILE", None)
+        trace_file = Path(env_trace_file) if env_trace_file else default_trace_file
         trace_total_files = 10
-        self.trace_logger = RotatingFileHandler(
-            trace_file,
+        self.trace_logger = TraceFileHandler(
+            trace_file.as_posix(),
             backupCount=trace_total_files - 1,  # exclude the current file (10 total)
         )
         self.trace_logger.setFormatter(TraceFormatter())
