@@ -5,8 +5,6 @@ from pathlib import Path
 
 from shortuuid import uuid
 
-from inspect_ai._util.constants import SANDBOX
-
 from ..environment import SandboxEnvironmentConfigType
 from .config import (
     COMPOSE_DOCKERFILE_YAML,
@@ -94,7 +92,3 @@ inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{22}$"
 
 def is_inspect_project(name: str) -> bool:
     return re.match(inspect_project_pattern, name) is not None
-
-
-def sandbox_log(msg: str) -> None:
-    logger.log(SANDBOX, f"DOCKER: {msg}")

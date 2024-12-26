@@ -362,7 +362,7 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
     else:
         arg_list = ["python3", WEB_CLIENT_REQUEST, cmd] + list(args)
 
-    result = await sandbox_env.exec(arg_list)
+    result = await sandbox_env.exec(arg_list, timeout=180)
     if not result.success:
         raise RuntimeError(
             f"Error executing web browser command {cmd}({', '.join(args)}): {result.stderr}"
