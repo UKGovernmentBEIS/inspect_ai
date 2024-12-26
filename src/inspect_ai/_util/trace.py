@@ -32,6 +32,7 @@ def trace_action(
     trace_id = uuid()
     start_monotonic = time.monotonic()
     start_wall = time.time()
+    pid = os.getpid()
     formatted_message = (
         message % args if args else message % kwargs if kwargs else message
     )
@@ -47,6 +48,7 @@ def trace_action(
             "event": "enter",
             "trace_id": str(trace_id),
             "start_time": start_wall,
+            "pid": pid,
         },
     )
 
@@ -61,6 +63,7 @@ def trace_action(
                 "event": "exit",
                 "trace_id": str(trace_id),
                 "duration": duration,
+                "pid": pid,
             },
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
@@ -73,6 +76,7 @@ def trace_action(
                 "event": "cancel",
                 "trace_id": str(trace_id),
                 "duration": duration,
+                "pid": pid,
             },
         )
         raise
@@ -86,6 +90,7 @@ def trace_action(
                 "event": "timeout",
                 "trace_id": str(trace_id),
                 "duration": duration,
+                "pid": pid,
             },
         )
         raise
@@ -102,6 +107,7 @@ def trace_action(
                 "error": getattr(ex, "message", str(ex)) or repr(ex),
                 "error_type": type(ex).__name__,
                 "stacktrace": traceback.format_exc(),
+                "pid": pid,
             },
         )
         raise
@@ -143,6 +149,7 @@ class TraceFormatter(logging.Formatter):
                 "error",
                 "error_type",
                 "stacktrace",
+                "pid",
             ]:
                 if hasattr(record, key):
                     output[key] = getattr(record, key)
@@ -203,6 +210,7 @@ class ActionTraceRecord(TraceRecord):
     error: str | None = Field(default=None)
     error_type: str | None = Field(default=None)
     stacktrace: str | None = Field(default=None)
+    pid: int | None = Field(default=None)
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
