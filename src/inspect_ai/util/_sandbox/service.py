@@ -133,7 +133,7 @@ class SandboxService:
         list_requests = f"ls -1 {self._requests_dir}/*.json"
         result = await self._exec(["bash", "-c", list_requests])
 
-        # process reqests
+        # process requests
         if result.success:
             request_files = result.stdout.strip().splitlines()
             if request_files:
