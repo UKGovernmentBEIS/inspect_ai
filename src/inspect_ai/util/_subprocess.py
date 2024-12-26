@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shlex
 import sys
 from asyncio.subprocess import Process
 from contextvars import ContextVar
@@ -7,6 +8,8 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
+
+from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency
 
@@ -217,7 +220,9 @@ async def subprocess(
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
-        return await run_command_timeout()
+        message = args if isinstance(args, str) else shlex.join(args)
+        with trace_action(logger, "Subprocess", message):
+            return await run_command_timeout()
 
 
 def init_max_subprocesses(max_subprocesses: int | None = None) -> None:
