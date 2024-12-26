@@ -58,15 +58,21 @@ def read_command(trace_file: str) -> None:
 
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
-def anomolies_command(trace_file: str) -> None:
+@click.option(
+    "--all",
+    is_flag=True,
+    default=False,
+    help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
+)
+def anomolies_command(trace_file: str, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path = resolve_trace_file_path(trace_file)
     traces = read_trace_file(trace_file_path)
 
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
-    error_actions: dict[str, ActionTraceRecord] = {}
     canceled_actions: dict[str, ActionTraceRecord] = {}
+    error_actions: dict[str, ActionTraceRecord] = {}
 
     def action_started(trace: ActionTraceRecord) -> None:
         running_actions[trace.trace_id] = trace
@@ -80,7 +86,8 @@ def anomolies_command(trace_file: str) -> None:
             raise RuntimeError(f"Expected {trace.trace_id} in action dictionary.")
 
     def action_failed(trace: ActionTraceRecord) -> None:
-        error_actions[start_trace.trace_id] = trace
+        if all:
+            error_actions[start_trace.trace_id] = trace
 
     def action_canceled(trace: ActionTraceRecord) -> None:
         canceled_actions[start_trace.trace_id] = trace
