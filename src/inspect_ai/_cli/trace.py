@@ -135,7 +135,12 @@ def anomolies_command(trace_file: str, all: bool) -> None:
     # do we have any traces?
     if len(running_actions) + len(canceled_actions) + len(error_actions) == 0:
         print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
-        print("No anomalies found in trace log.")
+        if all:
+            print("No anomalies found in trace log.")
+        else:
+            print(
+                "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
+            )
         return
 
     with open(os.devnull, "w") as f:
