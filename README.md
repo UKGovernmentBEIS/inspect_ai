@@ -8,22 +8,22 @@ To get started with Inspect, please see the documentation at <https://inspect.ai
 
 ***
 
-
-
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:
 
 ```bash
-$ git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
-$ cd inspect_ai
-$ pip install -e ".[dev]"
+git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
+cd inspect_ai
+pip install -e ".[dev]"
 ```
 
 Optionally install pre-commit hooks via
+
 ```bash
 make hooks
 ```
 
 Run linting, formatting, and tests via
+
 ```bash
 make check
 make test
