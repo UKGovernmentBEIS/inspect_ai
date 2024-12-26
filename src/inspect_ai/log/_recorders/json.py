@@ -15,6 +15,7 @@ from inspect_ai._util.file import (
     file,
     filesystem,
 )
+from inspect_ai._util.trace import trace_action
 
 from .._log import (
     EvalLog,
@@ -181,23 +182,24 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        # try to write async for async filesystems
-        written = False
-        try:
-            fs = filesystem(location)
-            if fs.is_async():
-                async with async_fileystem(location) as async_fs:
-                    await async_fs._pipe_file(location, log_bytes)
-                    written = True
-        except Exception as ex:
-            logger.warning(
-                f"Error occurred during async write to {location}: {ex}. Falling back to sync write."
-            )
+        with trace_action(logger, "Log Write", location):
+            # try to write async for async filesystems
+            written = False
+            try:
+                fs = filesystem(location)
+                if fs.is_async():
+                    async with async_fileystem(location) as async_fs:
+                        await async_fs._pipe_file(location, log_bytes)
+                        written = True
+            except Exception as ex:
+                logger.warning(
+                    f"Error occurred during async write to {location}: {ex}. Falling back to sync write."
+                )
 
-        # otherwise use sync
-        if not written:
-            with file(location, "wb") as f:
-                f.write(log_bytes)
+            # otherwise use sync
+            if not written:
+                with file(location, "wb") as f:
+                    f.write(log_bytes)
 
 
 def _validate_version(ver: int) -> None:
