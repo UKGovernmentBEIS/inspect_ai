@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
@@ -112,14 +113,7 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    TIMEOUT = 30
-    try:
-        result = await compose_command(command, project=project, timeout=30)
-    except TimeoutError:
-        logger.warning(
-            f"Querying for running Docker services timed out after {TIMEOUT} seconds"
-        )
-        return []
+    result = await compose_command(command, project=project)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -158,8 +152,9 @@ async def compose_pull(
 
 async def compose_exec(
     command: list[str],
+    *,
     project: ComposeProject,
-    timeout: int | None = None,
+    timeout: int | None,
     input: str | bytes | None = None,
     output_limit: int | None = None,
 ) -> ExecResult[str]:
@@ -246,10 +241,14 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
+DEFAULT_COMPOSE_TIMEOUT = 60
+
+
 async def compose_command(
     command: list[str],
+    *,
     project: ComposeProject,
-    timeout: int | None = None,
+    timeout: int | None = DEFAULT_COMPOSE_TIMEOUT,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
@@ -283,14 +282,46 @@ async def compose_command(
     # build final command
     compose_command = compose_command + command
 
-    # Execute the command
-    result = await subprocess(
-        compose_command,
-        input=input,
-        cwd=cwd,
-        env=env,
-        timeout=timeout,
-        capture_output=capture_output,
-        output_limit=output_limit,
-    )
-    return result
+    # function to run command
+    async def run_command(command_timeout: int | None) -> ExecResult[str]:
+        result = await subprocess(
+            compose_command,
+            input=input,
+            cwd=cwd,
+            env=env,
+            timeout=command_timeout,
+            capture_output=capture_output,
+            output_limit=output_limit,
+        )
+        return result
+
+    # we have observed underlying unreliability in docker compose in some linux
+    # environments on EC2 -- this exhibits in very simple commands (e.g. compose config)
+    # simply never returning. this tends to happen when we know there is a large
+    # number of commands in flight (task/sample init) so could be some sort of
+    # timing issue / race condition in the docker daemon. we've also observed that
+    # these same commands succeed if you just retry them. therefore, we add some
+    # extra resiliance by retrying commands with a timeout once. we were observing
+    # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
+    # retry time down) to make the odds of hanging vanishingly small
+
+    if timeout is not None:
+        MAX_RETRIES = 2
+        retries = 0
+        while True:
+            try:
+                command_timeout = (
+                    timeout if retries == 0 else (min(timeout, 60) // retries)
+                )
+                return await run_command(command_timeout)
+            except TimeoutError:
+                retries += 1
+                if retries <= MAX_RETRIES:
+                    logger.info(
+                        f"Retrying docker compose command: {shlex.join(compose_command)}"
+                    )
+                else:
+                    raise
+
+    else:
+        return await run_command(timeout)
