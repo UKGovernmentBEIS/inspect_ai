@@ -1,11 +1,15 @@
+import os
+import shutil
+import subprocess
 import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
+from typing import Callable
 
 import click
 from pydantic_core import to_json
-from rich import print as r_print
+from rich.console import Console, RenderableType
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import TRACE_FILE_NAME
@@ -39,10 +43,10 @@ def list_command(json: bool) -> None:
         print("\n".join(trace_files))
 
 
-@trace_command.command("read")
+@trace_command.command("dump")
 @click.argument("trace-file", type=str, required=True)
 def read_command(trace_file: str) -> None:
-    """Read a trace file as a JSON array of log records."""
+    """Dump a trace file to stdout (as a JSON array of log records)."""
     trace_file_path = resolve_trace_file_path(trace_file)
 
     traces = read_trace_file(trace_file_path)
@@ -107,12 +111,30 @@ def anomolies_command(trace_file: str) -> None:
                 case _:
                     print(f"Unknown event type: {trace.event}")
 
-    _print_bucket("Running Actions", running_actions)
-    _print_bucket("Canceled Actions", canceled_actions)
-    _print_bucket("Error Actions", error_actions)
+    with open(os.devnull, "w") as f:
+        # generate output
+        console = Console(record=True, file=f)
+
+        def print_fn(o: RenderableType) -> None:
+            console.print(o, highlight=False)
+
+        _print_bucket(print_fn, "Running Actions", running_actions)
+        _print_bucket(print_fn, "Canceled Actions", canceled_actions)
+        _print_bucket(print_fn, "Error Actions", error_actions)
+
+        # display with 'less' if possible
+        less = shutil.which("less")
+        if less:
+            subprocess.run(
+                [less, "-R"], input=console.export_text(styles=True).encode()
+            )
+        else:
+            print(console.export_text(styles=False))
 
 
-def _print_bucket(label: str, bucket: dict[str, ActionTraceRecord]) -> None:
+def _print_bucket(
+    print_fn: Callable[[str], None], label: str, bucket: dict[str, ActionTraceRecord]
+) -> None:
     if len(bucket) > 0:
         # Sort the items in chronological order of when
         # they finished so the first finished item is at the top
@@ -122,7 +144,7 @@ def _print_bucket(label: str, bucket: dict[str, ActionTraceRecord]) -> None:
             reverse=True,
         )
 
-        r_print(f"[bold]{label}[/bold]")
+        print_fn(f"[bold]{label}[/bold]")
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
             duration = (
@@ -137,13 +159,13 @@ def _print_bucket(label: str, bucket: dict[str, ActionTraceRecord]) -> None:
             start_time = formatTime(action.start_time) if action.start_time else "None"
             if action.event == "error":
                 # print errors
-                print(
+                print_fn(
                     f"{start_time} ({round(duration, 2)}s): {action.message} {action.error}"
                 )
             else:
                 # print the action
-                print(f"{start_time} ({round(duration, 2)}s): {action.message}")
-        print("")
+                print_fn(f"{start_time} ({round(duration, 2)}s): {action.message}")
+        print_fn("")
 
 
 def resolve_trace_file_path(trace_file: str) -> Path:
