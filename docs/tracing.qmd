@@ -41,7 +41,7 @@ inspect trace anomalies
 
 You will first see currently running actions (useful mostly for a "live" evaluation). If you have already cancelled an evaluation you'll see a list of cancelled actions (with the most recently completed cancelled action on top) which will often also tell you which cancelled action was keeping an evaluation from completing.
 
-Passing no arguments shows the most recent trace log, pass an explicit trace log name to view another log:
+Passing no arguments shows the most recent trace log, pass a log file name to view another log:
 
 ``` bash
 inspect trace anomalies trace.log.1.gz

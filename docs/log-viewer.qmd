@@ -131,8 +131,8 @@ The log levels and their applicability are described below (in increasing order 
 | Level | Description |
 |------------------------------------|------------------------------------|
 | `debug` | Detailed information, typically of interest only when diagnosing problems. |
+| `trace` | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.). |
 | `http` | HTTP diagnostics including requests and response statuses |
-| `sandbox` | Show commands sent to manage and execute code in sandboxes. |
 | `info` | Confirmation that things are working as expected. |
 | `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
 | `error` | Due to a more serious problem, the software has not been able to perform some function |
