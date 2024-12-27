@@ -353,22 +353,9 @@ class ZipLogFile:
             log_bytes = self._temp_file.read()
 
             with trace_action(logger, "Log Write", self._file):
-                # attempt async write
-                written = False
                 try:
-                    if self._async_fs:
-                        await self._async_fs._pipe_file(self._file, log_bytes)
-                        written = True
-                except Exception as ex:
-                    logger.warning(
-                        f"Error occurred during async write to {self._file}: {ex}. Falling back to sync write."
-                    )
-
-                try:
-                    # write sync if we need to
-                    if not written:
-                        with file(self._file, "wb") as f:
-                            f.write(log_bytes)
+                    with file(self._file, "wb") as f:
+                        f.write(log_bytes)
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()

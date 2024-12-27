@@ -1,13 +1,17 @@
 import asyncio
 import datetime
+import gzip
 import json
 import logging
+import os
+import shutil
 import time
 import traceback
 from contextlib import contextmanager
 from logging import Logger
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, TextIO
 
 import jsonlines
 from pydantic import BaseModel, Field, JsonValue
@@ -28,21 +32,22 @@ def trace_action(
     trace_id = uuid()
     start_monotonic = time.monotonic()
     start_wall = time.time()
-    formatted_message = (
-        message % args if args else message % kwargs if kwargs else message
-    )
+    pid = os.getpid()
+    detail = message % args if args else message % kwargs if kwargs else message
 
     def trace_message(event: str) -> str:
-        return f"Action: {action} - {formatted_message} ({event})"
+        return f"{action}: {detail} ({event})"
 
     logger.log(
         TRACE,
         trace_message("enter"),
         extra={
             "action": action,
+            "detail": detail,
             "event": "enter",
             "trace_id": str(trace_id),
             "start_time": start_wall,
+            "pid": pid,
         },
     )
 
@@ -54,9 +59,11 @@ def trace_action(
             trace_message("exit"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "exit",
                 "trace_id": str(trace_id),
                 "duration": duration,
+                "pid": pid,
             },
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
@@ -66,9 +73,26 @@ def trace_action(
             trace_message("cancel"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "cancel",
                 "trace_id": str(trace_id),
                 "duration": duration,
+                "pid": pid,
+            },
+        )
+        raise
+    except TimeoutError:
+        duration = time.monotonic() - start_monotonic
+        logger.log(
+            TRACE,
+            trace_message("timeout"),
+            extra={
+                "action": action,
+                "detail": detail,
+                "event": "timeout",
+                "trace_id": str(trace_id),
+                "duration": duration,
+                "pid": pid,
             },
         )
         raise
@@ -79,12 +103,14 @@ def trace_action(
             trace_message("error"),
             extra={
                 "action": action,
+                "detail": detail,
                 "event": "error",
                 "trace_id": str(trace_id),
                 "duration": duration,
-                "error": str(ex),
+                "error": getattr(ex, "message", str(ex)) or repr(ex),
                 "error_type": type(ex).__name__,
                 "stacktrace": traceback.format_exc(),
+                "pid": pid,
             },
         )
         raise
@@ -119,6 +145,7 @@ class TraceFormatter(logging.Formatter):
             # This is a trace_action log
             for key in [
                 "action",
+                "detail",
                 "event",
                 "trace_id",
                 "start_time",
@@ -126,6 +153,7 @@ class TraceFormatter(logging.Formatter):
                 "error",
                 "error_type",
                 "stacktrace",
+                "pid",
             ]:
                 if hasattr(record, key):
                     output[key] = getattr(record, key)
@@ -179,17 +207,19 @@ class SimpleTraceRecord(TraceRecord):
 
 class ActionTraceRecord(TraceRecord):
     action: str
-    event: Literal["enter", "cancel", "error", "exit"]
+    event: Literal["enter", "cancel", "error", "timeout", "exit"]
     trace_id: str
+    detail: str = Field(default="")
     start_time: float | None = Field(default=None)
     duration: float | None = Field(default=None)
     error: str | None = Field(default=None)
     error_type: str | None = Field(default=None)
     stacktrace: str | None = Field(default=None)
+    pid: int | None = Field(default=None)
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
-    with open(file, "r") as f:
+    def read_file(f: TextIO) -> list[TraceRecord]:
         jsonlines_reader = jsonlines.Reader(f)
         trace_records: list[TraceRecord] = []
         for trace in jsonlines_reader.iter(type=dict):
@@ -198,3 +228,48 @@ def read_trace_file(file: Path) -> list[TraceRecord]:
             else:
                 trace_records.append(SimpleTraceRecord(**trace))
         return trace_records
+
+    if file.name.endswith(".gz"):
+        with gzip.open(file, "rt") as f:
+            return read_file(f)
+    else:
+        with open(file, "r") as f:
+            return read_file(f)
+
+
+class TraceFileHandler(RotatingFileHandler):
+    def __init__(
+        self,
+        filename: str,
+        mode: str = "a",
+        maxBytes: int = 0,
+        backupCount: int = 0,
+        encoding: str | None = None,
+        delay: bool = False,
+    ) -> None:
+        super().__init__(filename, mode, maxBytes, backupCount, encoding, delay)
+
+    def rotation_filename(self, default_name: str) -> str:
+        """
+        Returns the name of the rotated file.
+
+        Args:
+            default_name: The default name that would be used for rotation
+
+        Returns:
+            The modified filename with .gz extension
+        """
+        return default_name + ".gz"
+
+    def rotate(self, source: str, dest: str) -> None:
+        """
+        Compresses the source file and moves it to destination.
+
+        Args:
+            source: The source file to be compressed
+            dest: The destination path for the compressed file
+        """
+        with open(source, "rb") as f_in:
+            with gzip.open(dest, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove(source)

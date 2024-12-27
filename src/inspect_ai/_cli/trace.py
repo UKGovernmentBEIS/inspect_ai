@@ -1,15 +1,16 @@
 import os
-import shutil
-import subprocess
+import shlex
 import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 
 import click
 from pydantic_core import to_json
+from rich import print as r_print
 from rich.console import Console, RenderableType
+from rich.table import Column, Table
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import TRACE_FILE_NAME
@@ -36,15 +37,28 @@ def trace_command() -> None:
 def list_command(json: bool) -> None:
     """List all trace files."""
     trace_dir = inspect_trace_dir()
-    trace_files = [f.absolute().as_posix() for f in trace_dir.iterdir() if f.is_file()]
+    trace_files: list[dict[str, float | str]] = [
+        {"mtime": f.lstat().st_mtime, "file": f.absolute().as_posix()}
+        for f in trace_dir.iterdir()
+        if f.is_file()
+    ]
+    trace_files.sort(key=lambda f: cast(float, f["mtime"]), reverse=True)
     if json:
         print(dumps(trace_files, indent=2))
     else:
-        print("\n".join(trace_files))
+        table = Table(box=None, show_header=True, pad_edge=False)
+        table.add_column("Time")
+        table.add_column("Trace File")
+        for file in trace_files:
+            mtime = datetime.fromtimestamp(cast(float, file["mtime"])).astimezone()
+            table.add_row(
+                mtime.strftime("%d-%b %H:%M:%S %Z"), shlex.quote(str(file["file"]))
+            )
+        r_print(table)
 
 
 @trace_command.command("dump")
-@click.argument("trace-file", type=str, required=True)
+@click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
 def read_command(trace_file: str) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
     trace_file_path = resolve_trace_file_path(trace_file)
@@ -57,15 +71,22 @@ def read_command(trace_file: str) -> None:
 
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
-def anomolies_command(trace_file: str) -> None:
+@click.option(
+    "--all",
+    is_flag=True,
+    default=False,
+    help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
+)
+def anomolies_command(trace_file: str, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path = resolve_trace_file_path(trace_file)
     traces = read_trace_file(trace_file_path)
 
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
-    error_actions: dict[str, ActionTraceRecord] = {}
     canceled_actions: dict[str, ActionTraceRecord] = {}
+    error_actions: dict[str, ActionTraceRecord] = {}
+    timeout_actions: dict[str, ActionTraceRecord] = {}
 
     def action_started(trace: ActionTraceRecord) -> None:
         running_actions[trace.trace_id] = trace
@@ -79,10 +100,15 @@ def anomolies_command(trace_file: str) -> None:
             raise RuntimeError(f"Expected {trace.trace_id} in action dictionary.")
 
     def action_failed(trace: ActionTraceRecord) -> None:
-        error_actions[start_trace.trace_id] = trace
+        if all:
+            error_actions[start_trace.trace_id] = trace
 
     def action_canceled(trace: ActionTraceRecord) -> None:
         canceled_actions[start_trace.trace_id] = trace
+
+    def action_timeout(trace: ActionTraceRecord) -> None:
+        if all:
+            timeout_actions[start_trace.trace_id] = trace
 
     for trace in traces:
         if isinstance(trace, ActionTraceRecord):
@@ -92,24 +118,36 @@ def anomolies_command(trace_file: str) -> None:
                 case "exit":
                     action_completed(trace)
                 case "cancel":
-                    # Complete with a cancellation
                     start_trace = action_completed(trace)
-
-                    # add duration
                     trace.start_time = start_trace.start_time
-
                     action_canceled(trace)
                 case "error":
-                    # Capture error events
                     start_trace = action_completed(trace)
-
-                    # add start time
                     trace.start_time = start_trace.start_time
-
                     action_failed(trace)
-                    continue
+                case "timeout":
+                    start_trace = action_completed(trace)
+                    trace.start_time = start_trace.start_time
+                    action_timeout(trace)
                 case _:
                     print(f"Unknown event type: {trace.event}")
+
+    # do we have any traces?
+    if (
+        len(running_actions)
+        + len(canceled_actions)
+        + len(error_actions)
+        + len(timeout_actions)
+        == 0
+    ):
+        print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
+        if all:
+            print("No anomalies found in trace log.")
+        else:
+            print(
+                "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
+            )
+        return
 
     with open(os.devnull, "w") as f:
         # generate output
@@ -118,22 +156,21 @@ def anomolies_command(trace_file: str) -> None:
         def print_fn(o: RenderableType) -> None:
             console.print(o, highlight=False)
 
-        _print_bucket(print_fn, "Running Actions", running_actions)
-        _print_bucket(print_fn, "Canceled Actions", canceled_actions)
-        _print_bucket(print_fn, "Error Actions", error_actions)
+        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[bold]")
 
-        # display with 'less' if possible
-        less = shutil.which("less")
-        if less:
-            subprocess.run(
-                [less, "-R"], input=console.export_text(styles=True).encode()
-            )
-        else:
-            print(console.export_text(styles=False))
+        _print_bucket(print_fn, "Running Actions", running_actions)
+        _print_bucket(print_fn, "Cancelled Actions", canceled_actions)
+        _print_bucket(print_fn, "Error Actions", error_actions)
+        _print_bucket(print_fn, "Timeout Actions", timeout_actions)
+
+        # print
+        print(console.export_text(styles=True).strip())
 
 
 def _print_bucket(
-    print_fn: Callable[[str], None], label: str, bucket: dict[str, ActionTraceRecord]
+    print_fn: Callable[[RenderableType], None],
+    label: str,
+    bucket: dict[str, ActionTraceRecord],
 ) -> None:
     if len(bucket) > 0:
         # Sort the items in chronological order of when
@@ -144,7 +181,20 @@ def _print_bucket(
             reverse=True,
         )
 
-        print_fn(f"[bold]{label}[/bold]")
+        # create table
+        table = Table(
+            Column(""),
+            Column("", justify="right"),
+            Column(""),
+            Column("", width=22),
+            box=None,
+            title=label,
+            title_justify="left",
+            title_style="bold",
+            pad_edge=False,
+            padding=(0, 1),
+        )
+
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
             duration = (
@@ -157,15 +207,23 @@ def _print_bucket(
 
             # The event start time
             start_time = formatTime(action.start_time) if action.start_time else "None"
-            if action.event == "error":
-                # print errors
-                print_fn(
-                    f"{start_time} ({round(duration, 2)}s): {action.message} {action.error}"
-                )
-            else:
-                # print the action
-                print_fn(f"{start_time} ({round(duration, 2)}s): {action.message}")
+
+            # Event detail
+            detail = (
+                f"{action.detail or action.message} {action.error}"
+                if action.event == "error"
+                else (action.detail or action.message)
+            )
+
+            table.add_row(
+                action.action,
+                f"{round(duration, 2):.2f}s".rjust(8),
+                f" {detail}",
+                start_time,
+            )
+
         print_fn("")
+        print_fn(table)
 
 
 def resolve_trace_file_path(trace_file: str) -> Path:
@@ -182,6 +240,5 @@ def resolve_trace_file_path(trace_file: str) -> Path:
 
 
 def formatTime(timestamp: float) -> str:
-    # ISO format with timezone
-    dt = datetime.fromtimestamp(timestamp)
-    return dt.isoformat()
+    dt = datetime.fromtimestamp(timestamp).astimezone()
+    return dt.strftime("%H:%M:%S %Z")
