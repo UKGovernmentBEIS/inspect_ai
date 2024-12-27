@@ -1,5 +1,5 @@
 ---
-title: Agents 
+title: Agent Basics
 ---
 
 ## Overview
@@ -12,11 +12,11 @@ Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect's built-in `basic_agent()`.
 
-2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.)
+2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.) using the [Agents API](agents-api.qmd).
 
 3.  Adapting an agent provided by a research paper or open source library (for example, using a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) or [Langroid](https://langroid.github.io/langroid/)).
 
-An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandbox Environments](sandboxing.qmd) article goes into more depth on this.
+An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandboxing](sandboxing.qmd) article goes into more depth on this.
 
 ## Basic Agent {#sec-basic-agent}
 
@@ -30,7 +30,7 @@ The `basic_agent()`provides a ReAct tool loop with support for retries and encou
 
 The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exceed custom scaffolds, so you should always try it as a baseline for your tasks!
 
-Note that when using the basic agent you should *always* set a `message_limit` or `token_limit` so that there is some termination point if the model gets off track or stuck in a loop.
+Note that when using the basic agent you should *always* set a `message_limit`, `token_limit`, or `time_limit` so that there is some termination point if the model gets off track or stuck in a loop (see [Sample Limits](errors-and-limits.qmd#sample-limits) for additional details).
 
 ### Example
 
