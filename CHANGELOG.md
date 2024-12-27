@@ -3,6 +3,9 @@
 ## Unreleased
 
 - [Human Agent](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1049) solver for human baselining of computing tasks.
+- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
+- `SandboxConnection` that contains login information from sandboxes.
+- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Bedrock: redact authentication model args from eval logs.
 
 ## v0.3.54 (26 December 2024)
@@ -22,9 +25,6 @@
 - Bedrock: Support for custom `model_args` passed through to `session.Client`.
 - Bedrock: Support for `jpeg` images.
 - Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
-- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
-- `SandboxConnection` that contains login information from sandboxes.
-- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Inspect View: Various improvements to appearance of tool calls in transcript.
 - Task display: Ensure that widths of progress elements are kept consistent across tasks.
 - Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
