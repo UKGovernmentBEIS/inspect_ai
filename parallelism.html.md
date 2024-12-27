@@ -175,10 +175,10 @@ against 2 models each) with up to 5 tasks run in parallel.
 
 ## Sandbox Environments
 
-[Sandbox Environments](agents.qmd#sec-sandbox-environments) (e.g. Docker
-containers) often allocate resources on a per-sample basis, and also
-make use of the Inspect `subprocess()` function for executing commands
-within the environment.
+[Sandbox Environments](sandboxing.qmd) (e.g. Docker containers) often
+allocate resources on a per-sample basis, and also make use of the
+Inspect `subprocess()` function for executing commands within the
+environment.
 
 ### Max Sandboxes
 

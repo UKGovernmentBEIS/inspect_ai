@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Agents – Inspect</title>
+<title>Agent Basics – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./scorers.html" rel="next">
-<link href="./tools.html" rel="prev">
+<link href="./sandboxing.html" rel="next">
+<link href="./models.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents.html">Agent Basics</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -227,12 +227,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Agents</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -254,12 +248,53 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
+ <span class="menu-text">Agents</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Agent Basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sandboxing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agents API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Eval Logs</span></a>
+  </div>
+</li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -270,6 +305,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -286,32 +327,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agents API</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -349,26 +366,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#sec-langchain" id="toc-sec-langchain" class="nav-link" data-scroll-target="#sec-langchain">Example: LangChain</a></li>
   </ul></li>
-  <li><a href="#sec-sandbox-environments" id="toc-sec-sandbox-environments" class="nav-link" data-scroll-target="#sec-sandbox-environments">Sandboxing</a>
-  <ul class="collapse">
-  <li><a href="#example-file-listing" id="toc-example-file-listing" class="nav-link" data-scroll-target="#example-file-listing">Example: File Listing</a></li>
-  <li><a href="#environment-interface" id="toc-environment-interface" class="nav-link" data-scroll-target="#environment-interface">Environment Interface</a></li>
-  <li><a href="#environment-binding" id="toc-environment-binding" class="nav-link" data-scroll-target="#environment-binding">Environment Binding</a></li>
-  <li><a href="#per-sample-setup" id="toc-per-sample-setup" class="nav-link" data-scroll-target="#per-sample-setup">Per Sample Setup</a></li>
-  <li><a href="#sec-docker-configuration" id="toc-sec-docker-configuration" class="nav-link" data-scroll-target="#sec-docker-configuration">Docker Configuration</a></li>
-  <li><a href="#environment-cleanup" id="toc-environment-cleanup" class="nav-link" data-scroll-target="#environment-cleanup">Environment Cleanup</a></li>
-  <li><a href="#resource-management" id="toc-resource-management" class="nav-link" data-scroll-target="#resource-management">Resource Management</a></li>
-  <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
-  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents.html">Agent Basics</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Agents</h1>
+<h1 class="title">Agent Basics</h1>
 </div>
 
 
@@ -392,10 +398,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Inspect supports a variety of approaches to agent evaluations, including:</p>
 <ol type="1">
 <li><p>Using Inspect’s built-in <code>basic_agent()</code>.</p></li>
-<li><p>Implementing a fully custom agent scaffold (i.e.&nbsp;taking full control of generation, tool calling, reasoning steps, etc.)</p></li>
+<li><p>Implementing a fully custom agent scaffold (i.e.&nbsp;taking full control of generation, tool calling, reasoning steps, etc.) using the <a href="./agents-api.html">Agents API</a>.</p></li>
 <li><p>Adapting an agent provided by a research paper or open source library (for example, using a 3rd party agent library like <a href="https://python.langchain.com/docs/modules/agents/">LangChain</a> or <a href="https://langroid.github.io/langroid/">Langroid</a>).</p></li>
 </ol>
-<p>An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The <a href="#sec-sandbox-environments">Sandbox Environments</a> section goes into more depth on this.</p>
+<p>An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The <a href="./sandboxing.html">Sandboxing</a> article goes into more depth on this.</p>
 </section>
 <section id="sec-basic-agent" class="level2">
 <h2 class="anchored" data-anchor-id="sec-basic-agent">Basic Agent</h2>
@@ -406,7 +412,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>It provides a sound basis for comparison of the native agentic capabilities of models both over time and across providers.</p></li>
 </ol>
 <p>The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional <code>max_attempts</code> parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exceed custom scaffolds, so you should always try it as a baseline for your tasks!</p>
-<p>Note that when using the basic agent you should <em>always</em> set a <code>message_limit</code> or <code>token_limit</code> so that there is some termination point if the model gets off track or stuck in a loop.</p>
+<p>Note that when using the basic agent you should <em>always</em> set a <code>message_limit</code>, <code>token_limit</code>, or <code>time_limit</code> so that there is some termination point if the model gets off track or stuck in a loop (see <a href="./errors-and-limits.html#sample-limits">Sample Limits</a> for additional details).</p>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>Here is an example use of <code>basic_agent()</code> as the <code>solver</code> for a CTF evaluation:</p>
@@ -660,7 +666,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-agent-libraries" class="level2">
 <h2 class="anchored" data-anchor-id="sec-agent-libraries">Agent Libraries</h2>
 <p>You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we’ll provide an example of doing this for a <a href="https://python.langchain.com/v0.2/docs/tutorials/agents/">LangChain Agent</a>.</p>
-<p>When adapting 3rd party agent code, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it’s also beneficial to use Inspect <a href="#sec-sandbox-environments">Sandbox Environments</a> for sandboxing.</p>
+<p>When adapting 3rd party agent code, it’s important that the agent scaffolding use Inspect’s model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it’s also beneficial to use Inspect <a href="./sandboxing.html">Sandbox Environments</a> for sandboxing.</p>
 <section id="sec-langchain" class="level3">
 <h3 class="anchored" data-anchor-id="sec-langchain">Example: LangChain</h3>
 <p>This example demonstrates how to integrate a LangChain Agent with Inspect. The agent uses Wikipedia via the <a href="https://tavily.com/">Tavili Search API</a> to perform question answering tasks. If you want to start by getting some grounding in the code <em>without</em> the Inspect integration, see <a href="https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/">this article</a> upon which the example is based.</p>
@@ -790,381 +796,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The full source code for this example can be found in the Inspect GitHub repo at <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/langchain">examples/langchain</a>.</p>
-</section>
-</section>
-<section id="sec-sandbox-environments" class="level2">
-<h2 class="anchored" data-anchor-id="sec-sandbox-environments">Sandboxing</h2>
-<p>The examples shown above execute tool code within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:</p>
-<ul>
-<li><p>You are creating tools that enable execution of arbitrary code (e.g.&nbsp;a tool that executes shell commands or Python code).</p></li>
-<li><p>You need to provision per-sample file system resources.</p></li>
-<li><p>You want to provide access to a more sophisticated evaluation environment (e.g.&nbsp;creating network hosts for a cybersecurity eval).</p></li>
-</ul>
-<section id="example-file-listing" class="level3">
-<h3 class="anchored" data-anchor-id="example-file-listing">Example: File Listing</h3>
-<p>Let’s take a look at a simple example to illustrate. First, we’ll define a <code>list_files()</code> tool. This tool need to access the <code>ls</code> command—it does so by calling the <code>sandbox()</code> function to get access to the <code>SandboxEnvironment</code> instance for the currently executing <code>Sample</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ToolError, tool</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> list_files():</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(<span class="bu">dir</span>: <span class="bu">str</span>):</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""List the files in a directory.</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">            dir (str): Directory</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Returns:</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co">            File listing of the directory</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> sandbox().<span class="bu">exec</span>([<span class="st">"ls"</span>, <span class="bu">dir</span>])</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.success:</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> result.stdout</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> ToolError(result.stderr)</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>exec()</code> function is used to list the directory contents. Note that its not immediately clear where or how <code>exec()</code> is implemented (that will be described shortly!).</p>
-<p>Here’s an evaluation that makes use of this tool:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> task, Task</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, use_tools</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> [</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">'Is there a file named "bar.txt" '</span> </span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>               <span class="op">+</span> <span class="st">'in the current directory?'</span>,</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"Yes"</span>,</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        files<span class="op">=</span>{<span class="st">"bar.txt"</span>: <span class="st">"hello"</span>},</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> file_probe()</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>dataset,</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            use_tools([list_files()]), </span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>            generate()</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We’ve included <code>sandbox="docker"</code> to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the <code>sandbox()</code> function.</p>
-<p>Note that <code>files</code> are specified as part of the <code>Sample</code>. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g.&nbsp;S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.</p>
-</section>
-<section id="environment-interface" class="level3">
-<h3 class="anchored" data-anchor-id="environment-interface">Environment Interface</h3>
-<p>The following instance methods are available to tools that need to interact with a <code>SandboxEnvironment</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEnvironment:</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>   </span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        cwd: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]:</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">          TimeoutError: If the specified `timeout` expires.</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">          UnicodeDecodeError: If an error occurs while</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">            decoding the command output.</span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to execute the command.</span></span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co">          OutputLimitExceededError: If an output stream</span></span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="co">            exceeds the 10 MiB limit.</span></span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> write_file(</span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span></span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
-<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to write to the specified path.</span></span>
-<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="co">          IsADirectoryError: If the file exists already and </span></span>
-<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a><span class="co">            is a directory.</span></span>
-<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>        ...</span>
-<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> read_file(</span>
-<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]:</span>
-<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
-<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
-<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a><span class="co">          FileNotFoundError: If the file does not exist.</span></span>
-<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a><span class="co">          UnicodeDecodeError: If an encoding error occurs </span></span>
-<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a><span class="co">            while reading the file.</span></span>
-<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a><span class="co">            (only applicable when `text = True`)</span></span>
-<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a><span class="co">          PermissionError: If the user does not have</span></span>
-<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a><span class="co">            permission to read from the specified path.</span></span>
-<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a><span class="co">          IsADirectoryError: If the file is a directory.</span></span>
-<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a><span class="co">          OutputLimitExceededError: If the file size</span></span>
-<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a><span class="co">            exceeds the 100 MiB limit.</span></span>
-<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
-<p>For each method there is a documented set of errors that are raised: these are <em>expected</em> errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, <em>unexpected</em> errors may occur (e.g.&nbsp;a networking error connecting to a remote container): these errors are not reported to the model and fail the <code>Sample</code> with an error state.</p>
-<p>The sandbox is also available to custom scorers.</p>
-</section>
-<section id="environment-binding" class="level3">
-<h3 class="anchored" data-anchor-id="environment-binding">Environment Binding</h3>
-<p>There are two sandbox environments built in to Inspect:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Environment Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>local</code></td>
-<td>Run <code>sandbox()</code> methods in the same file system as the running evaluation (should <em>only be used</em> if you are already running your evaluation in another sandbox).</td>
-</tr>
-<tr class="even">
-<td><code>docker</code></td>
-<td>Run <code>sandbox()</code> methods within a Docker container (see the <a href="#sec-docker-configuration">Docker Configuration</a> section below for additional details).</td>
-</tr>
-</tbody>
-</table>
-<p>Sandbox environment definitions can be bound at the <code>Sample</code>, <code>Task</code>, or <code>eval()</code> level. Binding precedence goes from <code>eval()</code>, to <code>Task</code> to <code>Sample</code>, however sandbox config files defined on the <code>Sample</code> always take precedence when the sandbox type for the <code>Sample</code> is the same as the enclosing <code>Task</code> or <code>eval()</code>.</p>
-<p>Here is a <code>Task</code> that defines a <code>sandbox</code>:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    plan([</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        use_tools([read_file(), list_files()])), </span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        generate()</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    ]),</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>match(),</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>By default, any <code>Dockerfile</code> and/or <code>compose.yaml</code> file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"attacker-compose.yaml"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="per-sample-setup" class="level3">
-<h3 class="anchored" data-anchor-id="per-sample-setup">Per Sample Setup</h3>
-<p>The <code>Sample</code> class includes <code>sandbox</code>, <code>files</code> and <code>setup</code> fields that are used to specify per-sample sandbox config, file assets, and setup logic.</p>
-<section id="sec-per-sample-sandbox" class="level4">
-<h4 class="anchored" data-anchor-id="sec-per-sample-sandbox">Sandbox</h4>
-<p>You can either define a default <code>sandbox</code> for an entire <code>Task</code> as illustrated abvove, or alternatively define a per-sample <code>sandbox</code>. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox <em>instance</em>, even if the sandbox is defined at Task level. So samples do not interfere with each other’s sandboxes.)</p>
-<p>The <code>sandbox</code> can be specified as a string (e.g.&nbsp;<code>"docker</code>“) or a list of sandbox type and config file (e.g.&nbsp;<code>["docker", "compose.yaml"]</code>).</p>
-</section>
-<section id="files" class="level4">
-<h4 class="anchored" data-anchor-id="files">Files</h4>
-<p>Sample <code>files</code> is a <code>dict[str,str]</code> that specifies files to copy into sandbox environments. The key of the <code>dict</code> specifies the name of the file to write. By default files are written into the default sandbox environment but they can optionally include a prefix indicating that they should be written into a specific sandbox environment (e.g.&nbsp;<code>"victim:flag.txt": "flag.txt"</code>).</p>
-<p>The value of the <code>dict</code> can be either the file contents, a file path, or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
-</section>
-<section id="script" class="level4">
-<h4 class="anchored" data-anchor-id="script">Script</h4>
-<p>If there is a Sample <code>setup</code> bash script it will be executed within the default sandbox environment after any Sample <code>files</code> are copied into the environment. The <code>setup</code> field can be either the script contents, a file path containing the script, or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
-</section>
-</section>
-<section id="sec-docker-configuration" class="level3">
-<h3 class="anchored" data-anchor-id="sec-docker-configuration">Docker Configuration</h3>
-<p>Before using Docker sandbox environments, please be sure to install <a href="https://docs.docker.com/engine/install/">Docker Engine</a> (version 24.0.7 or greater).</p>
-<p>You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
-<p>Here is how Docker sandbox environments are created based on the presence of <code>Dockerfile</code> and/or <code>compose.yml</code> in the task directory:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Config Files</th>
-<th>Behavior</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>None</td>
-<td>Creates a sandbox environment based on the official <a href="https://hub.docker.com/_/python">python:3.12-bookworm</a> image.</td>
-</tr>
-<tr class="even">
-<td><code>Dockerfile</code></td>
-<td>Creates a sandbox environment by building the image.</td>
-</tr>
-<tr class="odd">
-<td><code>compose.yaml</code></td>
-<td>Creates sandbox environment(s) based on <code>compose.yaml</code>.</td>
-</tr>
-</tbody>
-</table>
-<p>Providing a <code>compose.yaml</code> is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you’ll need to provide your own <code>compose.yaml</code> file.</p>
-<p>Here’s an example of a <code>compose.yaml</code> file that sets container resource limits and isolates it from all network interactions including internet access:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb11" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">build</span><span class="kw">:</span><span class="at"> .</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> 0.5gb</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">network_mode</span><span class="kw">:</span><span class="at"> none</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>The <code>init: true</code> entry enables the container to respond to shutdown requests. The <code>command</code> is provided to prevent the container from exiting after it starts.</p>
-<p>Here is what a simple <code>compose.yaml</code> would look like for a local pre-built image named <code>ctf-agent-environment</code> (resource and network limits excluded for brevity):</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb12" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>The <code>ctf-agent-environment</code> is not an image that exists on a remote registry, so we add the <code>x-local: true</code> to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so <code>x-local: true</code> is not required). For example:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb13" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment:1.0.0</span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>If we are using an image from a remote registry we similarly don’t need to include <code>x-local</code>:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb14" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> python:3.12-bookworm</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>See the <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> documentation for information on all available container options.</p>
-<section id="multiple-environments" class="level4">
-<h4 class="anchored" data-anchor-id="multiple-environments">Multiple Environments</h4>
-<p>In some cases you may want to create multiple sandbox environments (e.g.&nbsp;if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb15" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> 0.5gb</span></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">victim</span><span class="kw">:</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-victim-environment</span></span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> 1gb</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<p>The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to <code>sandbox()</code>. Other environments would be accessed by name, for example:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>sandbox()          <span class="co"># default sandbox environment</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>sandbox(<span class="st">"victim"</span>)  <span class="co"># named sandbox environment</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-default callout-note callout-titled" data-apperance="simple">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>If you define multiple sandbox environments you are <em>required</em> to name one of them “default” so that Inspect knows which environment to resolve for calls to <code>sandbox()</code> without an argument. Alternatively, you can add the <code>x-default</code> key to a service not named “default” to designate it as the default sandbox.</p>
-</div>
-</div>
-</section>
-<section id="infrastructure" class="level4">
-<h4 class="anchored" data-anchor-id="infrastructure">Infrastructure</h4>
-<p>Note that in many cases you’ll want to provision additional infrastructure (e.g.&nbsp;other hosts or volumes). For example, here we define an additional container (“writer”) as well as a volume shared between the default container and the writer container:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment</span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">volumes</span><span class="kw">:</span></span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> ctf-challenge-volume:/shared-data</span></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span></span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">writer</span><span class="kw">:</span></span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-challenge-writer</span></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">volumes</span><span class="kw">:</span></span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> ctf-challenge-volume:/shared-data</span></span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="fu">volumes</span><span class="kw">:</span></span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">ctf-challenge-volume</span><span class="kw">:</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>See the documentation on <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> files for information on their full schema and feature set.</p>
-</section>
-<section id="sample-metadata" class="level4">
-<h4 class="anchored" data-anchor-id="sample-metadata">Sample Metadata</h4>
-<p>You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard compose environment variable syntax, where any metadata in the Sample is made available with a <code>SAMPLE_METADATA_</code> prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that <code>-</code> suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read <em>without</em> the context of a Sample (for example, when pulling/building images at startup) that a default value is available.</p>
-</section>
-</section>
-<section id="environment-cleanup" class="level3">
-<h3 class="anchored" data-anchor-id="environment-cleanup">Environment Cleanup</h3>
-<p>When a task is completed, Inspect will automatically cleanup resources associated with the sandbox environment (e.g.&nbsp;containers, images, and networks). If for any reason resources are not cleaned up (e.g.&nbsp;if the cleanup itself is interrupted via Ctrl+C) you can globally cleanup all environments with the <code>inspect sandbox cleanup</code> command. For example, here we cleanup all environments associated with the <code>docker</code> provider:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect sandbox cleanup docker</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In some cases you may <em>prefer</em> not to cleanup environments. For example, you might want to examine their state interactively from the shell in order to debug an agent. Use the <code>--no-sandbox-cleanup</code> argument to do this:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--no-sandbox-cleanup</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also do this when using <code>eval(</code>):</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, sandbox_cleanup <span class="op">=</span> <span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>When you do this, you’ll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn-default-1 bash</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>When you no longer need the environments, you can clean them up either all at once or individually:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># cleanup all environments</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> sandbox cleanup docker</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># cleanup single environment</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> sandbox cleanup docker inspect-intercode_ctf-ipg9tbviycpvlgwja5anyvn</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="resource-management" class="level3">
-<h3 class="anchored" data-anchor-id="resource-management">Resource Management</h3>
-<p>Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilisation. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behaviour as well as how you can tune it for your use-cases.</p>
-<section id="running-containers" class="level4">
-<h4 class="anchored" data-anchor-id="running-containers">Running Containers</h4>
-<p>As described above, each <code>Sample</code> is provisioned its own container. The number of running containers for an evaluation is therefore determined by the <code>max_samples</code> option (which is by default set to <code>max_connections</code>, typically 10 unless overridden).</p>
-<p>Use <code>max_samples</code> to dial up or down the number of containers running at any given time. Note that a running container does not necessarily use CPU resources unless it has active background processes.</p>
-<p>Use a <code>compose.yaml</code> file to limit the resources consumed by each running container. For example:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>compose.yaml</strong></pre>
-</div>
-<div class="sourceCode" id="cb24" data-filename="compose.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">default</span><span class="kw">:</span><span class="at"> </span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> ctf-agent-environment</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> 0.5gb</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</section>
-<section id="concurrent-execution" class="level4">
-<h4 class="anchored" data-anchor-id="concurrent-execution">Concurrent Execution</h4>
-<p>The <code>SandboxEnvironment.exec()</code> method runs a command within a sandbox environment, typically consuming CPU resources. To protect against overwhelming the system’s CPUs, the implementation of <code>exec()</code> uses Inspect’s <code>subprocess()</code> function, which automatically limits concurrent child processes to the number of CPUs on your system (<code>os.cpu_count()</code>).</p>
-<p>You can change the number of permitted concurrent subprocess executions using the <code>max_subprocesses</code> option. You might do this for example if you know that your <code>exec()</code> commands tend to use <em>multiple</em> CPU cores and thus should be executed with less concurrency.</p>
-</section>
-</section>
-<section id="troubleshooting" class="level3">
-<h3 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h3>
-<p>You can view more detailed logging around the creation and use of sandbox environments by using the <code>sandbox</code> log level. For example:</p>
-<div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--log-level</span> sandbox</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The sandbox log level is just above <code>warning</code> (so it will not show <code>http</code> or <code>debug</code> level messages).</p>
 
 
 </section>
@@ -1634,13 +1265,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./tools.html" class="pagination-link" aria-label="Tools">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Tools</span>
+      <a href="./models.html" class="pagination-link" aria-label="Models">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Models</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./scorers.html" class="pagination-link" aria-label="Scorers">
-        <span class="nav-page-text">Scorers</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./sandboxing.html" class="pagination-link" aria-label="Sandboxing">
+        <span class="nav-page-text">Sandboxing</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

@@ -256,12 +256,6 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agents</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -283,12 +277,53 @@ window.Quarto = {
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
+ <span class="menu-text">Agents</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sandboxing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agents API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Eval Logs</span></a>
+  </div>
+</li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -299,6 +334,12 @@ window.Quarto = {
   <div class="sidebar-item-container"> 
   <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -315,32 +356,8 @@ window.Quarto = {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agents API</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -474,7 +491,7 @@ window.Quarto = {
 <section id="setup" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.</p>
-<div id="3e832e19" class="cell">
+<div id="5a5291d8" class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
@@ -491,7 +508,7 @@ window.Quarto = {
 <section id="eval" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval">Eval</h3>
 <p>Discerning whether the correct security guidance was provided by the model might prove difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.</p>
-<div id="53e162ca" class="cell">
+<div id="280a73d4" class="cell">
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -521,7 +538,7 @@ window.Quarto = {
 <section id="setup-1" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup-1">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect, defining a system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).</p>
-<div id="d5487f9a" class="cell">
+<div id="83a1a45a" class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, hf_dataset</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> choice</span>
@@ -546,7 +563,7 @@ window.Quarto = {
 <section id="eval-1" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-1">Eval</h3>
 <p>We’ll load the dataset from <a href="https://huggingface.co/datasets/Rowan/hellaswag">HuggingFace</a> using the <code>hf_dataset()</code> function. We’ll draw data from the validation split, and use the <code>record_to_sample()</code> function to parse the records (we’ll also pass <code>trust=True</code> to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):</p>
-<div id="ad7897a1" class="cell">
+<div id="2242cf7c" class="cell">
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hellaswag():</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   </span>
@@ -606,7 +623,7 @@ window.Quarto = {
 <li><code>record_to_sample()</code> to convert raw records to samples. Note that we need a function rather than just mapping field names with a <code>FieldSpec</code> because the <strong>answer</strong> field in the dataset needs to be divided into reasoning and the actual answer (which appears at the very end after <code>####</code>).</li>
 <li><code>sample_to_fewshot()</code> to generate fewshot examples from samples.</li>
 </ol>
-<div id="1375a775" class="cell">
+<div id="0af1d906" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample, hf_dataset</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> match</span>
@@ -653,7 +670,7 @@ window.Quarto = {
 <section id="eval-2" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-2">Eval</h3>
 <p>We’ll load the dataset from <a href="https://huggingface.co/datasets/gsm8k">HuggingFace</a> using the <code>hf_dataset()</code> function. By default we use 10 fewshot examples, but the <code>fewshot</code> task arg can be used to turn this up, down, or off. The <code>fewshot_seed</code> is provided for stability of fewshot examples across runs.</p>
-<div id="0b5dc43d" class="cell">
+<div id="bbb19163" class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gsm8k(fewshot<span class="op">=</span><span class="dv">10</span>, fewshot_seed<span class="op">=</span><span class="dv">42</span>):</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># build solver list dynamically (may or may not be doing fewshot)</span></span>
@@ -720,7 +737,7 @@ window.Quarto = {
 <section id="setup-3" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="setup-3">Setup</h3>
 <p>We’ll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in <code>\boxed</code>, a LaTeX command for displaying equations that models often use in math output.</p>
-<div id="eb59f14c" class="cell">
+<div id="ea2cf685" class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> re</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
@@ -758,7 +775,7 @@ window.Quarto = {
 <section id="eval-3" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="eval-3">Eval</h3>
 <p>Here is the basic setup for our eval. We <code>shuffle</code> the dataset so that when we use <code>--limit</code> to develop on smaller slices we get some variety of inputs and results:</p>
-<div id="c8daf851" class="cell">
+<div id="c5143ebc" class="cell">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> math(shuffle<span class="op">=</span><span class="va">True</span>):</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -781,7 +798,7 @@ window.Quarto = {
 <span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>The heart of this eval isn’t in the task definition though, rather it’s in how we grade the output. Math expressions can be logically equivalent but not literally the same. Consequently, we’ll use a model to assess whether the output and the target are logically equivalent. the <code>expression_equivalence()</code> custom scorer implements this:</p>
-<div id="0d1245fc" class="cell">
+<div id="c96fe0fa" class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> expression_equivalence():</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
@@ -862,7 +879,7 @@ window.Quarto = {
 <section id="addition" class="level3 unlisted">
 <h3 class="unlisted anchored" data-anchor-id="addition">Addition</h3>
 <p>We’ll demonstrate with a simple tool that adds two numbers, using the <code>@tool</code> decorator to register it with the system:</p>
-<div id="d29c475f" class="cell">
+<div id="459a9cbf" class="cell">
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes, match</span>
@@ -897,7 +914,7 @@ window.Quarto = {
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    y: Second number to add.</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Type annotations and descriptions are <em>required</em> for tool declarations so that the model can be informed which types to pass back to the tool function and what the purpose of each parameter is.</p>
 <p>Now that we’ve defined the tool, we can use it in an evaluation by passing it to the <code>use_tools()</code> function.</p>
-<div id="e190449f" class="cell">
+<div id="340c3c29" class="cell">
 <div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> addition_problem():</span>
 <span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -926,7 +943,7 @@ window.Quarto = {
 <ol start="2" type="1">
 <li><code>ctf_agent()</code>, which defines the agent’s solver. The solver consists principally of using <code>bash()</code> and <code>python()</code> tools in a loop until the flag is discovered. We’ll describe this function in more detail below.</li>
 </ol>
-<div id="94415a1e" class="cell">
+<div id="0d4b1479" class="cell">
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> textwrap <span class="im">import</span> dedent</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataset <span class="im">import</span> read_dataset</span>
@@ -945,9 +962,9 @@ window.Quarto = {
 <span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
 <span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Note that we specify <code>sandbox="docker"</code> to ensure that code generated from the model is run in a secure <a href="./agents.html#sec-sandbox-environments">sandbox environment</a>.</p>
+<p>Note that we specify <code>sandbox="docker"</code> to ensure that code generated from the model is run in a secure <a href="./sandboxing.html">sandbox environment</a>.</p>
 <p>Here is the definition of the agent:</p>
-<div id="8877ff5a" class="cell">
+<div id="ce85caf7" class="cell">
 <div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent(max_attempts<span class="op">=</span><span class="dv">3</span>, message_limit<span class="op">=</span><span class="dv">30</span>):</span>
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    SYSTEM_MESSAGE <span class="op">=</span> dedent(<span class="st">"""</span></span>

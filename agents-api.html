@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./interactivity.html" rel="next">
-<link href="./parallelism.html" rel="prev">
+<link href="./approval.html" rel="next">
+<link href="./sandboxing.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./agents-api.html">Agents API</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents-api.html">Agents API</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -227,12 +227,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agents</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -254,12 +248,53 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
+ <span class="menu-text">Agents</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sandboxing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents-api.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Agents API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Eval Logs</span></a>
+  </div>
+</li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -270,6 +305,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -286,32 +327,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Agents API</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -340,6 +357,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#custom-loop" id="toc-custom-loop" class="nav-link" data-scroll-target="#custom-loop">Custom Loop</a></li>
   <li><a href="#sec-stop-reasons" id="toc-sec-stop-reasons" class="nav-link" data-scroll-target="#sec-stop-reasons">Stop Reasons</a></li>
   <li><a href="#error-handling" id="toc-error-handling" class="nav-link" data-scroll-target="#error-handling">Error Handling</a></li>
+  <li><a href="#tool-filtering" id="toc-tool-filtering" class="nav-link" data-scroll-target="#tool-filtering">Tool Filtering</a></li>
   <li><a href="#tool-descriptions" id="toc-tool-descriptions" class="nav-link" data-scroll-target="#tool-descriptions">Tool Descriptions</a></li>
   </ul></li>
   <li><a href="#sec-transcripts" id="toc-sec-transcripts" class="nav-link" data-scroll-target="#sec-transcripts">Transcripts</a>
@@ -359,7 +377,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./agents-api.html">Agents API</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents-api.html">Agents API</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">Agents API</h1>
 </div>
@@ -522,6 +540,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="error-handling" class="level3">
 <h3 class="anchored" data-anchor-id="error-handling">Error Handling</h3>
 <p>By default expected errors (e.g.&nbsp;file not found, insufficient permission, timeouts, output limit exceeded etc.) are forwarded to the model for possible recovery. If you would like to intervene in the default error handling then rather than immediately appending the list of assistant messages returned from <code>call_tools()</code> to <code>state.messages</code> (as shown above), check the error property of these messages (which will be <code>None</code> in the case of no error) and proceed accordingly.</p>
+</section>
+<section id="tool-filtering" class="level3">
+<h3 class="anchored" data-anchor-id="tool-filtering">Tool Filtering</h3>
 <p>Note that you don’t necessarily even need to structure the agent using a loop. For example, you might have an inner function implementing the loop, while an outer function dynamically swaps out what tools are available. For example, imagine the above was implemented in a function named <code>tool_use_loop()</code>, you might have outer function like this:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># first pass w/ core tools</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>state.tools <span class="op">=</span> [decompile(), dissasemble(), bash()]</span>
@@ -680,7 +701,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> ToolError(result.stderr)</span>
 <span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>See the section on <a href="./agents.html#sec-sandbox-environments">Sandbox Environments</a> for further details on using sandboxes with Inspect.</p>
+<p>See the section on <a href="./sandboxing.html">Sandboxing</a> for further details on using sandboxes with Inspect.</p>
 
 
 </section>
@@ -1149,13 +1170,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./parallelism.html" class="pagination-link" aria-label="Parallelism">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Parallelism</span>
+      <a href="./sandboxing.html" class="pagination-link" aria-label="Sandboxing">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Sandboxing</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./interactivity.html" class="pagination-link" aria-label="Interactivity">
-        <span class="nav-page-text">Interactivity</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./approval.html" class="pagination-link" aria-label="Approval">
+        <span class="nav-page-text">Approval</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

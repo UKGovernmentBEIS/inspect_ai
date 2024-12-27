@@ -129,9 +129,9 @@ should use subprocesses as described in the next section.
 
 Various errors can occur during tool execution, especially when
 interacting with the file system or network or when using [Sandbox
-Environments](agents.qmd#sec-sandbox-environments) to execute code in a
-container sandbox. As a tool writer you need to decide how you’d like to
-handle error conditions. A number of approaches are possible:
+Environments](sandboxing.qmd) to execute code in a container sandbox. As
+a tool writer you need to decide how you’d like to handle error
+conditions. A number of approaches are possible:
 
 1.  Notify the model that an error occurred to see whether it can
     recover.
@@ -306,9 +306,8 @@ potential recovery. In addition, *unexpected* errors may occur (e.g. a
 networking error connecting to a remote container): these errors are not
 reported to the model and fail the `Sample` with an error state.
 
-See the documentation on [Sandbox
-Environments](agents.qmd#sec-sandbox-environments) for additional
-details.
+See the documentation on [Sandbox Environments](sandboxing.qmd) for
+additional details.
 
 ## Tool Choice
 
@@ -471,10 +470,10 @@ Specifying `parallel=False` results in two behaviours:
 
 The `bash()` and `python()` tools enable execution of arbitrary shell
 commands and Python code, respectively. These tools require the use of a
-[Sandbox Environment](agents.qmd#sec-sandbox-environments) for the
-execution of untrusted code. For example, here is how you might use them
-in an evaluation where the model is asked to write code in order to
-solve capture the flag (CTF) challenges:
+[Sandbox Environment](sandboxing.qmd) for the execution of untrusted
+code. For example, here is how you might use them in an evaluation where
+the model is asked to write code in order to solve capture the flag
+(CTF) challenges:
 
 ``` python
 from inspect_ai.tool import bash, python

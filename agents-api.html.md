@@ -194,6 +194,8 @@ of assistant messages returned from `call_tools()` to `state.messages`
 (as shown above), check the error property of these messages (which will
 be `None` in the case of no error) and proceed accordingly.
 
+### Tool Filtering
+
 Note that you don’t necessarily even need to structure the agent using a
 loop. For example, you might have an inner function implementing the
 loop, while an outer function dynamically swaps out what tools are
@@ -455,6 +457,5 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandbox
-Environments](agents.qmd#sec-sandbox-environments) for further details
-on using sandboxes with Inspect.
+See the section on [Sandboxing](sandboxing.qmd) for further details on
+using sandboxes with Inspect.
