@@ -526,7 +526,7 @@ def intercode_ctf(max_attempts=3, message_limit=30, shuffle=False):
     )
 ```
 
-Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](agents.qmd#sec-sandbox-environments).
+Note that we specify `sandbox="docker"` to ensure that code generated from the model is run in a secure [sandbox environment](sandboxing.qmd).
 
 Here is the definition of the agent:
 
