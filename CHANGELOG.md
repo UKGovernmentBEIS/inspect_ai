@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [Human Agent](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1049) solver for human baselining of computing tasks.
 - Bedrock: redact authentication model args from eval logs.
 
 ## v0.3.54 (26 December 2024)
