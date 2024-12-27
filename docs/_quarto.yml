@@ -55,6 +55,7 @@ website:
             - agents.qmd
             - sandboxing.qmd
             - agents-api.qmd
+            - human-agent.qmd
             - approval.qmd
 
         - section: "Advanced"
