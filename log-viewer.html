@@ -481,12 +481,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Detailed information, typically of interest only when diagnosing problems.</td>
 </tr>
 <tr class="even">
-<td><code>http</code></td>
-<td>HTTP diagnostics including requests and response statuses</td>
+<td><code>trace</code></td>
+<td>Show trace messages for runtime actions (e.g.&nbsp;model calls, subprocess exec, etc.).</td>
 </tr>
 <tr class="odd">
-<td><code>sandbox</code></td>
-<td>Show commands sent to manage and execute code in sandboxes.</td>
+<td><code>http</code></td>
+<td>HTTP diagnostics including requests and response statuses</td>
 </tr>
 <tr class="even">
 <td><code>info</code></td>
@@ -1110,7 +1110,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","loop":false,"openEffect":"zoom","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","descPosition":"bottom","loop":false});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

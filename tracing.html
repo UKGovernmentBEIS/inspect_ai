@@ -389,7 +389,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If an evaluation is running and is not terminating, you can execute the following command to list instances of actions (e.g.&nbsp;model API generates, docker compose commands, tool calls, etc.) that are still running:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace anomalies</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You will first see currently running actions (useful mostly for a “live” evaluation). If you have already cancelled an evaluation you’ll see a list of cancelled actions (with the most recently completed cancelled action on top) which will often also tell you which cancelled action was keeping an evaluation from completing.</p>
-<p>Passing no arguments shows the most recent trace log, pass an explicit trace log name to view another log:</p>
+<p>Passing no arguments shows the most recent trace log, pass a log file name to view another log:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace anomalies trace.log.1.gz</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="errors-and-timeouts" class="level3">
 <h3 class="anchored" data-anchor-id="errors-and-timeouts">Errors and Timeouts</h3>
