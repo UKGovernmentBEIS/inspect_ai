@@ -107,7 +107,7 @@ eval(math, model = "custom/my-model")
 
 ## Sandboxes {#sec-sandbox-environment-extensions}
 
-[Sandbox Environments](agents.qmd#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
+[Sandbox Environments](sandboxing.qmd) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
 | Environment Type | Description |
 |----------------------------|--------------------------------------------|

@@ -46,23 +46,27 @@ website:
           contents: 
             - solvers.qmd
             - tools.qmd
-            - agents.qmd
             - scorers.qmd
             - datasets.qmd
             - models.qmd
 
+        - section: "Agents"
+          contents:
+            - agents.qmd
+            - sandboxing.qmd
+            - agents-api.qmd
+            - approval.qmd
+
         - section: "Advanced"
           contents:
+            - eval-logs.qmd
             - eval-sets.qmd
             - text: "Errors & Limits"
               href: errors-and-limits.qmd
+            - tracing.qmd
             - caching.qmd
             - parallelism.qmd
-            - agents-api.qmd
             - interactivity.qmd
-            - approval.qmd
-            - eval-logs.qmd
-            - tracing.qmd
             - extensions.qmd
 
 

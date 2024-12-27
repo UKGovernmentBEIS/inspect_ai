@@ -101,7 +101,7 @@ Once the model stops calling tools, the user will get a choice to terminate the 
 
 ## Sandboxing
 
-This evaluation is sandboxed in a Docker container. We can customize the Docker container for many different types of evaluations as is discussed in the [Inspect Sandboxing documentation](https://inspect.ai-safety-institute.org.uk/agents.html#sec-sandbox-environments).
+This evaluation is sandboxed in a Docker container. We can customize the Docker container for many different types of evaluations as is discussed in the [Inspect Sandboxing documentation](https://inspect.ai-safety-institute.org.uk/sandboxing.html).
 
 ### The Dockerfile
 

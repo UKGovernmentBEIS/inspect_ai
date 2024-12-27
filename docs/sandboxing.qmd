@@ -1,0 +1,338 @@
+---
+title: Sandboxing
+---
+
+## Overview
+
+By default, model tool calls are executed within the main process running the evaluation task. In some cases however, you may require the provisioning of dedicated environments for running tool code. This might be the case if:
+
+-   You are creating tools that enable execution of arbitrary code (e.g. a tool that executes shell commands or Python code).
+
+-   You need to provision per-sample filesystem resources.
+
+-   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
+
+To accomodate these scenarios, Inspect provides support for _sandboxing_, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+
+## Example: File Listing
+
+Let's take a look at a simple example to illustrate. First, we'll define a `list_files()` tool. This tool need to access the `ls` command—it does so by calling the `sandbox()` function to get access to the `SandboxEnvironment` instance for the currently executing `Sample`:
+
+``` python
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
+
+@tool
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await sandbox().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+The `exec()` function is used to list the directory contents. Note that its not immediately clear where or how `exec()` is implemented (that will be described shortly!).
+
+Here's an evaluation that makes use of this tool:
+
+``` python
+from inspect_ai import task, Task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, use_tools
+
+dataset = [
+    Sample(
+        input='Is there a file named "bar.txt" ' 
+               + 'in the current directory?',
+        target="Yes",
+        files={"bar.txt": "hello"},
+    )
+]
+
+@task
+def file_probe()
+    return Task(
+        dataset=dataset,
+        solver=[
+            use_tools([list_files()]), 
+            generate()
+        ],
+        sandbox="docker",
+        scorer=includes(),
+    )
+)
+```
+
+We've included `sandbox="docker"` to indicate that sandbox environment operations should be executed in a Docker container. Specifying a sandbox environment (either at the task or evaluation level) is required if your tools call the `sandbox()` function.
+
+Note that `files` are specified as part of the `Sample`. Files can be specified inline using plain text (as depicted above), inline using a base64-encoded data URI, or as a path to a file or remote resource (e.g. S3 bucket). Relative file paths are resolved according to the location of the underlying dataset file.
+
+## Environment Interface
+
+The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
+
+{{< include _sandboxenv-interface.md >}}
+
+The sandbox is also available to custom scorers.
+
+## Environment Binding
+
+There are two sandbox environments built in to Inspect:
+
+| Environment Type | Description |
+|--------------------------|---------------------------------------------|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+
+Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
+
+Here is a `Task` that defines a `sandbox`:
+
+``` python
+Task(
+    dataset=dataset,
+    plan([
+        use_tools([read_file(), list_files()])), 
+        generate()
+    ]),
+    scorer=match(),
+    sandbox="docker"
+)
+```
+
+By default, any `Dockerfile` and/or `compose.yaml` file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:
+
+``` python
+sandbox=("docker", "attacker-compose.yaml")
+```
+
+## Per Sample Setup
+
+The `Sample` class includes `sandbox`, `files` and `setup` fields that are used to specify per-sample sandbox config, file assets, and setup logic.
+
+### Sandbox {#sec-per-sample-sandbox}
+
+You can either define a default `sandbox` for an entire `Task` as illustrated abvove, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox *instance*, even if the sandbox is defined at Task level. So samples do not interfere with each other's sandboxes.)
+
+The `sandbox` can be specified as a string (e.g. `"docker`") or a list of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).
+
+### Files
+
+Sample `files` is a `dict[str,str]` that specifies files to copy into sandbox environments. The key of the `dict` specifies the name of the file to write. By default files are written into the default sandbox environment but they can optionally include a prefix indicating that they should be written into a specific sandbox environment (e.g. `"victim:flag.txt": "flag.txt"`).
+
+The value of the `dict` can be either the file contents, a file path, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+### Script
+
+If there is a Sample `setup` bash script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+
+## Docker Configuration {#sec-docker-configuration}
+
+Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
+
+You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
+
+Here is how Docker sandbox environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
+
+| Config Files | Behavior |
+|---------------------------|---------------------------------------------|
+| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile` | Creates a sandbox environment by building the image. |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+
+Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
+
+Here's an example of a `compose.yaml` file that sets container resource limits and isolates it from all network interactions including internet access:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    build: .
+    init: true
+    command: tail -f /dev/null
+    cpus: 1.0
+    mem_limit: 0.5gb
+    network_mode: none
+```
+
+The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
+
+Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment
+    x-local: true
+    init: true
+    command: tail -f /dev/null
+```
+
+The `ctf-agent-environment` is not an image that exists on a remote registry, so we add the `x-local: true` to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so `x-local: true` is not required). For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment:1.0.0
+    init: true
+    command: tail -f /dev/null
+```
+
+If we are using an image from a remote registry we similarly don't need to include `x-local`:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: python:3.12-bookworm
+    init: true
+    command: tail -f /dev/null
+```
+
+See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
+
+### Multiple Environments
+
+In some cases you may want to create multiple sandbox environments (e.g. if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: ctf-agent-environment
+    x-local: true
+    init: true
+    cpus: 1.0
+    mem_limit: 0.5gb
+  victim:
+    image: ctf-victim-environment
+    x-local: true
+    init: true
+    cpus: 1.0
+    mem_limit: 1gb
+```
+
+The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `sandbox()`. Other environments would be accessed by name, for example:
+
+``` python
+sandbox()          # default sandbox environment
+sandbox("victim")  # named sandbox environment
+```
+
+::: {.callout-note apperance="simple"}
+If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to resolve for calls to `sandbox()` without an argument. Alternatively, you can add the `x-default` key to a service not named "default" to designate it as the default sandbox.
+:::
+
+### Infrastructure
+
+Note that in many cases you’ll want to provision additional infrastructure (e.g. other hosts or volumes). For example, here we define an additional container (“writer”) as well as a volume shared between the default container and the writer container:
+
+``` yaml
+services:
+  default: 
+    image: ctf-agent-environment
+    x-local: true
+    init: true
+    volumes:
+      - ctf-challenge-volume:/shared-data
+    
+  writer:
+    image: ctf-challenge-writer
+    x-local: true
+    init: true
+    volumes:
+      - ctf-challenge-volume:/shared-data
+volumes:
+  ctf-challenge-volume:
+```
+
+See the documentation on [Docker Compose](https://docs.docker.com/compose/compose-file/) files for information on their full schema and feature set.
+
+### Sample Metadata
+
+You might want to interpolate Sample metadata into your Docker compose files. You can do this using the standard compose environment variable syntax, where any metadata in the Sample is made available with a `SAMPLE_METADATA_` prefix. For example, you might have a per-sample memory limit (with a default value of 0.5gb if unspecified):
+
+``` yaml
+services:
+  default:
+    image: ctf-agent-environment
+    x-local: true
+    init: true
+    cpus: 1.0
+    mem_limit: ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}
+```
+
+Note that `-` suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read *without* the context of a Sample (for example, when pulling/building images at startup) that a default value is available.
+
+## Environment Cleanup
+
+When a task is completed, Inspect will automatically cleanup resources associated with the sandbox environment (e.g. containers, images, and networks). If for any reason resources are not cleaned up (e.g. if the cleanup itself is interrupted via Ctrl+C) you can globally cleanup all environments with the `inspect sandbox cleanup` command. For example, here we cleanup all environments associated with the `docker` provider:
+
+``` bash
+$ inspect sandbox cleanup docker
+```
+
+In some cases you may *prefer* not to cleanup environments. For example, you might want to examine their state interactively from the shell in order to debug an agent. Use the `--no-sandbox-cleanup` argument to do this:
+
+``` bash
+$ inspect eval ctf.py --no-sandbox-cleanup
+```
+
+You can also do this when using `eval(`):
+
+``` python
+eval("ctf.py", sandbox_cleanup = False)
+```
+
+When you do this, you'll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
+
+``` bash
+docker exec -it inspect-task-ielnkhh-default-1 bash -l
+```
+
+When you no longer need the environments, you can clean them up either all at once or individually:
+
+``` bash
+# cleanup all environments
+inspect sandbox cleanup docker
+
+# cleanup single environment
+inspect sandbox cleanup docker inspect-task-ielnkhh-default-1
+```
+
+## Resource Management
+
+Creating and executing code within Docker containers can be expensive both in terms of memory and CPU utilisation. Inspect provides some automatic resource management to keep usage reasonable in the default case. This section describes that behaviour as well as how you can tune it for your use-cases.
+
+{{< include _container_limits.md >}}
+
+### Container Resources
+
+Use a `compose.yaml` file to limit the resources consumed by each running container. For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default: 
+    image: ctf-agent-environment
+    x-local: true
+    command: tail -f /dev/null
+    cpus: 1.0
+    mem_limit: 0.5gb
+```
+
+## Troubleshooting
+
+To diagnose sandbox execution issues (e.g. commands that don't terminate properly, contianer lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility. 
+
+Trace logs record the beginning and end of calls to `subprocess()` (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don't terminate, timeout, or have errors. See the article on [Tracing](tracing.qmd) for additional details.

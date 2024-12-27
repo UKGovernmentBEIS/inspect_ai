@@ -378,7 +378,7 @@
 ## v0.3.26 (6 September 2024)
 
 - [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
-- [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [Per-sample](https://inspect.ai-safety-institute.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
@@ -530,7 +530,7 @@
 
 ## v0.3.15 (15 June 2024)
 
--   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/agents.html#sec-sandbox-environments) for executing tool code in a sandbox.
+-   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/sandboxing.html) for executing tool code in a sandbox.
 -   [Caching](https://inspect.ai-safety-institute.org.uk/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
