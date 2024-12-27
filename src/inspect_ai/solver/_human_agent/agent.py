@@ -22,7 +22,7 @@ def human_agent(
     The Human agent solver installs agent task tools in the default
     sandbox and presents the user with both task instructions and
     documentation for the various tools (e.g. `task submit`,
-    `task clock`, `task instructions`, etc.). A human agent panel
+    `task start`, `task stop` `task instructions`, etc.). A human agent panel
     is displayed with instructions for logging in to the sandbox.
 
     If the user is running in VS Code with the Inspect extension,
