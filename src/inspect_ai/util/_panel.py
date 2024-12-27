@@ -22,7 +22,7 @@ class InputPanel(Container):
         def close(self) -> None: ...
 
     def __init__(self, host: Host) -> None:
-        """Initislise the panel.
+        """Initialise the panel.
 
         Panels are created as required by the input_panel() function so
         you should NOT override __init__ with your own initisation (rather,
