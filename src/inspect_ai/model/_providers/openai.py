@@ -269,7 +269,7 @@ class OpenAIAPI(ModelAPI):
             params["logit_bias"] = config.logit_bias
         if config.seed is not None:
             params["seed"] = config.seed
-        if config.temperature is not None:
+        if config.temperature is not None and not self.is_o1():
             params["temperature"] = config.temperature
         # TogetherAPI requires temperature w/ num_choices
         elif config.num_choices is not None:
