@@ -432,7 +432,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
-                container=container,
             )
         # error (not currently running)
         else:

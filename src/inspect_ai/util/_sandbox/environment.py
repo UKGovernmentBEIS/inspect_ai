@@ -37,9 +37,6 @@ class SandboxConnection(BaseModel):
     vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
 
-    container: str | None = Field(default=None)
-    """Optional container name (will not apply to all sandboxes)."""
-
 
 class SandboxEnvironment(abc.ABC):
     """Environment for executing arbitrary code from tools.
