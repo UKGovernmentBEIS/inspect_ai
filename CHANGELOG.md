@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bedrock: redact authentication model args from eval logs.
+
 ## v0.3.54 (26 December 2024)
 
 - [Tracing](https://inspect.ai-safety-institute.org.uk/tracing.html) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
