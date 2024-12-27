@@ -1,9 +1,9 @@
 import inspect
 from textwrap import dedent
 
-from inspect_ai.solver import TaskState
 from inspect_ai.util import sandbox
 
+from .._task_state import TaskState
 from .commands.command import HumanAgentCommand
 
 INSTALL_DIR = "human_agent_install"

@@ -1,8 +1,9 @@
 import asyncio
 
-from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import display_type, input_panel, sandbox
 
+from .._solver import Generate, Solver, solver
+from .._task_state import TaskState
 from .commands import human_agent_commands
 from .install import install_human_agent
 from .panel import HumanAgentPanel

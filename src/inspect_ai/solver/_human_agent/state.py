@@ -4,7 +4,8 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai.scorer._metric import Score
-from inspect_ai.solver import TaskState
+
+from .._task_state import TaskState
 
 VT = TypeVar("VT")
 
