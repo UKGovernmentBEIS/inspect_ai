@@ -75,6 +75,7 @@ def eval_set(
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
@@ -144,6 +145,8 @@ def eval_set(
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
            run in parallel (default is os.cpu_count())
+        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
+           to run in parallel.
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
@@ -193,6 +196,7 @@ def eval_set(
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
+            max_sandboxes=max_sandboxes,
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,

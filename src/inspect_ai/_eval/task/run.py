@@ -217,7 +217,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             log_location=log_location,
         )
 
-        with display().task(profile) as td:
+        with display().task(
+            profile,
+        ) as td:
             try:
                 # start the log
                 await log_start(logger, plan, generate_config)
@@ -252,7 +254,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
-                    update_metrics_display = update_metrics_display_fn(td)
+                    update_metrics_display = update_metrics_display_fn(
+                        td,
+                        display_metrics=profile.eval_config.score_display is not False,
+                    )
 
                     def sample_complete(sample_score: dict[str, SampleScore]) -> None:
                         # Capture the result
@@ -279,6 +284,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             sample=sample,
                             state=state,
                             sandbox=sandbox,
+                            max_sandboxes=config.max_sandboxes,
                             sandbox_cleanup=sandbox_cleanup,
                             plan=plan,
                             scorers=scorers,
@@ -399,7 +405,10 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
 
 def update_metrics_display_fn(
-    td: TaskDisplay, initial_interval: float = 0, min_interval: float = 0.9
+    td: TaskDisplay,
+    initial_interval: float = 0,
+    min_interval: float = 0.9,
+    display_metrics: bool = True,
 ) -> Callable[
     [
         int,
@@ -419,6 +428,10 @@ def update_metrics_display_fn(
         reducers: ScoreReducer | list[ScoreReducer] | None,
         metrics: list[Metric] | dict[str, list[Metric]] | None,
     ) -> None:
+        # Don't compute metrics if they are not being displayed
+        if not display_metrics:
+            return None
+
         nonlocal next_compute_time
         time_start = time.perf_counter()
         if time_start >= next_compute_time:
@@ -460,6 +473,7 @@ async def task_run_sample(
     sample: Sample,
     state: TaskState,
     sandbox: SandboxEnvironmentSpec | None,
+    max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
@@ -517,7 +531,7 @@ async def task_run_sample(
 
     # use sandbox if provided
     sandboxenv_cm = (
-        sandboxenv_context(task_name, sandbox, sandbox_cleanup, sample)
+        sandboxenv_context(task_name, sandbox, max_sandboxes, sandbox_cleanup, sample)
         if sandbox or sample.sandbox is not None
         else contextlib.nullcontext()
     )
@@ -566,14 +580,18 @@ async def task_run_sample(
                 state = await plan(state, generate)
 
         except TimeoutError:
-            # notify the user
-            transcript()._event(
-                SampleLimitEvent(
-                    type="time",
-                    message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
-                    limit=time_limit,
+            if time_limit is not None:
+                transcript()._event(
+                    SampleLimitEvent(
+                        type="time",
+                        message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                        limit=time_limit,
+                    )
                 )
-            )
+            else:
+                py_logger.warning(
+                    "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
+                )
 
             # capture most recent state for scoring
             state = sample_state() or state
@@ -872,11 +890,6 @@ def create_sample_semaphore(
         if modelapi
         else DEFAULT_MAX_CONNECTIONS
     )
-
-    # if max_tasks is specified and max_samples is less
-    # than max_tasks then bump it up
-    if config.max_tasks is not None:
-        max_samples = max(max_samples, config.max_tasks)
 
     # return the semaphore
     return asyncio.Semaphore(max_samples)

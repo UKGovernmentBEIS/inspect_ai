@@ -1,0 +1,58 @@
+---
+title: Tracing
+---
+
+## Overview
+
+Inspect includes a runtime tracing tool that can be used to diagnose issues that aren't readily observable in eval logs and error messages. Trace logs are written in JSON Lines format and by default include log records from level `TRACE` and up (including `HTTP` and `INFO`).
+
+Trace logs also do explicit enter and exit logging around actions that may encounter errors or fail to complete. For example:
+
+1.  Model API `generate()` calls
+2.  Call to `subprocess()` (e.g. tool calls that run commands in sandboxes)
+3.  Control commands sent to Docker Compose.
+4.  Writes to log files in remote storage (e.g. S3).
+5.  Model tool calls
+6.  Subtasks spawned by solvers.
+
+Action logging enables you to observe execution times, errors, and commands that hang and cause evaluation tasks to not terminate. The [`inspect trace anomalies`](#anomalies) command enables you to easily scan trace logs for these conditions.
+
+## Usage
+
+Trace logging does not need to be explicitly enabled—logs for the last 10 top level evaluations (i.e. CLI commands or scripts that calls eval functions) are preserved and written to a data directory dedicated to trace logs. You can list the last 10 trace logs with the `inspect trace list` command:
+
+``` bash
+inspect trace list # --json for JSON output
+```
+
+Trace logs are written using [JSON Lines](https://jsonlines.org/) format and all but the most recent one are gzip compressed, so reading them requires some special handing. The `inspect trace dump` command encapsulates this and gives you a normal JSON array with the contents of the trace log:
+
+``` bash
+inspect trace dump trace.log
+```
+
+## Anomalies
+
+If an evaluation is running and is not terminating, you can execute the following command to list instances of actions (e.g. model API generates, docker compose commands, tool calls, etc.) that are still running:
+
+``` bash
+inspect trace anomalies
+```
+
+You will first see currently running actions (useful mostly for a "live" evaluation). If you have already cancelled an evaluation you'll see a list of cancelled actions (with the most recently completed cancelled action on top) which will often also tell you which cancelled action was keeping an evaluation from completing.
+
+Passing no arguments shows the most recent trace log, pass a log file name to view another log:
+
+``` bash
+inspect trace anomalies trace.log.1.gz
+```
+
+### Errors and Timeouts
+
+By default, the `inspect trace anomalies` command prints only currently running or cancelled actions (as these are what is required to diagnose an evaluation that doesn't complete). You can optionally also display actions that ended with errors or timeouts by passing the `--all` flag:
+
+``` bash
+inspect trace anomalies --all
+```
+
+Note that errors and timeouts are not by themselves evidence of problems, since both occur in the normal course of running evaluations (e.g. model generate calls can return errors that are retried and Docker or S3 can also return retryable errors or timeout when they are under heavy load).

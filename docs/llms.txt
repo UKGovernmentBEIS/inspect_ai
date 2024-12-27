@@ -22,5 +22,7 @@
 - [Interactivity](https://inspect.ai-safety-institute.org.uk/interactivity.html.md): Covers various ways to introduce user interaction into the implementation of tasks (for example, confirming consequential actions or prompting the model dynamically based on the trajectory of the evaluation).
 - [Approval](https://inspect.ai-safety-institute.org.uk/approval.html.md): Approvals enable you to create fine-grained policies for approving tool calls made by models.
 - [Eval Logs](https://inspect.ai-safety-institute.org.uk/eval-logs.html.md): Explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
+- [Tracing](https://inspect.ai-safety-institute.org.uk/tracing.html.md): Describes advanced execution tracing tools used to diagnose runtime issues.
 - [Extensions](https://inspect.ai-safety-institute.org.uk/extensions.html.md) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
+
 

@@ -79,6 +79,9 @@ class EvalConfig(BaseModel):
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
 
+    max_sandboxes: int | None = Field(default=None)
+    """Maximum number of sandboxes to run concurrently."""
+
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
 
@@ -90,6 +93,9 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
+
+    score_display: bool | None = Field(default=None)
+    """Display scoring metrics realtime."""
 
     @property
     def max_messages(self) -> int | None:

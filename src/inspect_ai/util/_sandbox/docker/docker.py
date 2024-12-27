@@ -42,7 +42,7 @@ from .compose import (
 from .config import CONFIG_FILES, DOCKERFILE
 from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
-from .util import ComposeProject, sandbox_log, task_project_name
+from .util import ComposeProject, task_project_name
 
 logger = getLogger(__name__)
 
@@ -52,6 +52,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
     @classmethod
     def config_files(cls) -> list[str]:
         return CONFIG_FILES + [DOCKERFILE]
+
+    @classmethod
+    def default_concurrency(cls) -> int | None:
+        count = os.cpu_count() or 1
+        return 2 * count
 
     @classmethod
     async def task_init(
@@ -108,8 +113,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         config: SandboxEnvironmentConfigType | None,
         metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
-        sandbox_log("setup")
-
         # create environment variables for sample metadata
         env: dict[str, str] = {}
         if isinstance(config, str) and Path(config).exists():
@@ -259,7 +262,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        sandbox_log(f"write_file: {file}")
+        # exec function w/ timeout
+        async def exec(cmd: list[str]) -> ExecResult[str]:
+            return await self.exec(cmd, timeout=60)
 
         # resolve relative file paths
         file = self.container_file(file)
@@ -306,8 +311,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         local_tmpfile.close()  # this will also delete the file
 
         if not hasattr(self, "_docker_user"):
-            uid = (await self.exec(["id", "-u"])).stdout.strip()
-            gid = (await self.exec(["id", "-g"])).stdout.strip()
+            uid = (await exec(["id", "-u"])).stdout.strip()
+            gid = (await exec(["id", "-g"])).stdout.strip()
             self._docker_user = (uid, gid)
 
         await compose_command(
@@ -326,7 +331,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         parent = PurePosixPath(file).parent
 
         # We do these steps in a shell script for efficiency to avoid round-trips to docker.
-        res_cp = await self.exec(
+        res_cp = await exec(
             [
                 "sh",
                 "-e",
@@ -341,7 +346,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
-                ls_result = await self.exec(["ls", "-la", "."])
+                ls_result = await exec(["ls", "-la", "."])
                 error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
             elif (
@@ -362,8 +367,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str, bytes]:
-        sandbox_log(f"read_file: {file}")
-
         # Write the contents to a temp file
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # resolve relative file paths
@@ -447,7 +450,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "sh", "-c", "pwd"], project)
+    result = await compose_exec(
+        [service, "sh", "-c", "pwd"], timeout=60, project=project
+    )
     if result.success:
         return result.stdout.strip()
     else:

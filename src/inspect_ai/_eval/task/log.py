@@ -69,10 +69,11 @@ class TaskLogger:
         )
         packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
 
-        # remove api_key from model_args
+        # redact authentication oriented model_args
         model_args = model_args.copy()
         if "api_key" in model_args:
             del model_args["api_key"]
+        model_args = {k: v for k, v in model_args.items() if not k.startswith("aws_")}
 
         # cwd_relative_path for sandbox config
         if sandbox and isinstance(sandbox.config, str):

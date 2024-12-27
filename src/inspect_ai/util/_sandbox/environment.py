@@ -54,6 +54,11 @@ class SandboxEnvironment(abc.ABC):
         return []
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        """Default max_sandboxes for this provider (`None` means no maximum)"""
+        return None
+
+    @classmethod
     async def task_init(
         cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
@@ -143,7 +148,7 @@ class SandboxEnvironment(abc.ABC):
         The current working directory for execution will be the per-sample
         filesystem context.
 
-        Each output stream (stdout and stderr) is limited to 1 MiB. If exceeded, an
+        Each output stream (stdout and stderr) is limited to 10 MiB. If exceeded, an
         `OutputLimitExceededError` will be raised.
 
         Args:
@@ -164,7 +169,7 @@ class SandboxEnvironment(abc.ABC):
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 

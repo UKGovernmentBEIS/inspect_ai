@@ -1,7 +1,8 @@
 import asyncio
 import base64
 import contextlib
-from typing import AsyncGenerator, NamedTuple
+from random import random
+from typing import AsyncGenerator, Callable, NamedTuple, cast
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
@@ -9,6 +10,7 @@ from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 from inspect_ai.dataset import Sample
+from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox.context import (
     cleanup_sandbox_environments_sample,
     init_sandbox_environments_sample,
@@ -18,12 +20,14 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
 )
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 
 @contextlib.asynccontextmanager
 async def sandboxenv_context(
     task_name: str,
     sandbox: SandboxEnvironmentSpec | None,
+    max_sandboxes: int | None,
     cleanup: bool,
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
@@ -32,51 +36,76 @@ async def sandboxenv_context(
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
-    # read files from sample
-    files: dict[str, bytes] = {}
-    if sample.files:
-        for path, contents in sample.files.items():
-            files[path] = read_sandboxenv_file(contents)
+    # get sandboxenv_type
+    sandboxenv_type = registry_find_sandboxenv(sandbox.type)
 
-    # read setup script from sample (add bash shebang if necessary)
-    setup: bytes | None = None
-    if sample.setup:
-        setup = read_sandboxenv_file(sample.setup)
-        setup_str = setup.decode(encoding="utf-8")
-        if not setup_str.strip().startswith("#!"):
-            setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
-            setup = setup_str.encode(encoding="utf-8")
-
-    interrupted = False
-    environments: dict[str, SandboxEnvironment] | None = None
-    try:
-        # initialize sandbox environment,
-        environments = await init_sandbox_environments_sample(
-            type=sandbox.type,
-            task_name=registry_unqualified_name(task_name),
-            config=sandbox.config,
-            files=files,
-            setup=setup,
-            metadata=sample.metadata if sample.metadata else {},
+    # see if there is a max_sandboxes in play (passed or from type)
+    if max_sandboxes is None:
+        default_concurrency_fn = cast(
+            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
         )
+        max_sandboxes = default_concurrency_fn()
 
-        # run sample
-        yield
+    # if we are enforcing max_sandboxes, then when samples are scheduled they may
+    # not get interleaved properly across tasks (because the first task will come
+    # in and grab all of the sandboxes). Therefore, in this case we wait a random
+    # delay so that all tasks/samples have an equal shot at getting scheduled.
+    if max_sandboxes is not None:
+        await asyncio.sleep(random())
 
-    except asyncio.CancelledError as ex:
-        interrupted = True
-        raise ex
+    # enforce concurrency if required
+    sandboxes_cm = (
+        concurrency(sandbox.type, max_sandboxes, f"sandboxes/{sandbox.type}")
+        if max_sandboxes is not None
+        else contextlib.nullcontext()
+    )
 
-    finally:
-        # cleanup sandbox environment
-        if environments and cleanup:
-            await cleanup_sandbox_environments_sample(
-                type=sandbox.type,
-                task_name=task_name,
+    async with sandboxes_cm:
+        # read files from sample
+        files: dict[str, bytes] = {}
+        if sample.files:
+            for path, contents in sample.files.items():
+                files[path] = read_sandboxenv_file(contents)
+
+        # read setup script from sample (add bash shebang if necessary)
+        setup: bytes | None = None
+        if sample.setup:
+            setup = read_sandboxenv_file(sample.setup)
+            setup_str = setup.decode(encoding="utf-8")
+            if not setup_str.strip().startswith("#!"):
+                setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
+                setup = setup_str.encode(encoding="utf-8")
+
+        interrupted = False
+        environments: dict[str, SandboxEnvironment] | None = None
+        try:
+            # initialize sandbox environment,
+            environments = await init_sandbox_environments_sample(
+                sandboxenv_type=sandboxenv_type,
+                task_name=registry_unqualified_name(task_name),
                 config=sandbox.config,
-                environments=environments,
-                interrupted=interrupted,
+                files=files,
+                setup=setup,
+                metadata=sample.metadata if sample.metadata else {},
             )
+
+            # run sample
+            yield
+
+        except asyncio.CancelledError as ex:
+            interrupted = True
+            raise ex
+
+        finally:
+            # cleanup sandbox environment
+            if environments and cleanup:
+                await cleanup_sandbox_environments_sample(
+                    type=sandbox.type,
+                    task_name=task_name,
+                    config=sandbox.config,
+                    environments=environments,
+                    interrupted=interrupted,
+                )
 
 
 def read_sandboxenv_file(contents: str) -> bytes:
