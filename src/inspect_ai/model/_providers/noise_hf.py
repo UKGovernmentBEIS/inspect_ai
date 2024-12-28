@@ -57,7 +57,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
         api_key: Optional[str] = None,
         config: GenerateConfig = GenerateConfig(),
         noise_mean: float = 0.0,
-        noise_std: float = 0.0,
+        noise_std: float = 0.005,
         noise_percentage: float = 1.0,
         **model_args: Any,
     ):
