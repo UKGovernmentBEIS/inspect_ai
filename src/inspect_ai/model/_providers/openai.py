@@ -1,5 +1,6 @@
 import json
 import os
+from logging import getLogger
 from typing import Any
 
 from openai import (
@@ -36,6 +37,7 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import is_data_uri, is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -57,6 +59,8 @@ from .util import (
     model_base_url,
     parse_tool_call,
 )
+
+logger = getLogger(__name__)
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -270,7 +274,13 @@ class OpenAIAPI(ModelAPI):
         if config.seed is not None:
             params["seed"] = config.seed
         if config.temperature is not None:
-            params["temperature"] = config.temperature
+            if self.is_o1():
+                warn_once(
+                    logger,
+                    "o1 models do not support the 'temperature' parameter (temperature is always 1).",
+                )
+            else:
+                params["temperature"] = config.temperature
         # TogetherAPI requires temperature w/ num_choices
         elif config.num_choices is not None:
             params["temperature"] = 1
