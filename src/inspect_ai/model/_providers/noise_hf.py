@@ -61,6 +61,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
         noise_percentage: float = 1.0,
         **model_args: Any,
     ):
+        # Extract noise parameters from model_args
+        noise_mean = model_args.pop("noise_mean", noise_mean)
+        noise_std = model_args.pop("noise_std", noise_std)
+        noise_percentage = model_args.pop("noise_percentage", noise_percentage)
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
