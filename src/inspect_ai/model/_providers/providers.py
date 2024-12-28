@@ -239,6 +239,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+# @modelapi(name="noisy-models")
+# def noisy_models() -> type[ModelAPI]:
+#     from .noisy_models import NoisyModelAPI
+
+#     return NoisyModelAPI
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
@@ -252,3 +259,22 @@ def validate_openai_client(feature: str) -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+@modelapi(name="noise_hf")
+def noise_hf() -> type[ModelAPI]:
+    FEATURE = "Noise Hugging Face API"
+    PACKAGE = "torch transformers"
+    MIN_VERSION = "4.0.0"
+
+    # Verify required packages
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, ["torch", "transformers"])
+
+    # Import the NoiseHuggingFaceAPI
+    from .noise_hf import NoiseHuggingFaceAPI
+
+    return NoiseHuggingFaceAPI
