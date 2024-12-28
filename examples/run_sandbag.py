@@ -15,7 +15,7 @@ async def main():
     # Run eval with this model
     await eval_async(
         tasks="sandbag_hellaswag.py",  # Path to your task file
-        model=model,  # Pass the configured model directly
+        model=[model],  # Pass the configured model as a list
     )
 
 
