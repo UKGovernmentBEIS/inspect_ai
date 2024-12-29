@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.55 (29 December 2024)
 
 - [Human Agent](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1049) solver for human baselining of computing tasks.
 - `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
@@ -8,6 +8,7 @@
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Bedrock: redact authentication model args from eval logs.
 - OpenAI: warn when `temperature` is used with o1 models (as it is not supported).
+- Bugfix: spread args for cache trace logging.
 
 ## v0.3.54 (26 December 2024)
 

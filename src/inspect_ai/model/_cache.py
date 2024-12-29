@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def trace(msg: str, *args: Any) -> None:
-    trace_message(logger, "Cache", msg, args)
+    trace_message(logger, "Cache", msg, *args)
 
 
 def _path_is_in_cache(path: Path | str) -> bool:
