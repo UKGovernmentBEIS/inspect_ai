@@ -3,6 +3,7 @@ import copy
 import functools
 import json
 import os
+import gc
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
@@ -173,7 +174,13 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 device=self.device,
                 dtype=param.dtype,
             )
-            param.add_(noise)
+            param.data.add_(noise)
+
+            # Clear memory
+            del noise
+            torch.cuda.empty_cache()
+            gc.collect()
+
         self.noise_config.is_noisy = True
 
     @torch.inference_mode()
@@ -222,7 +229,6 @@ class NoiseHuggingFaceAPI(ModelAPI):
         """Main method to inject noise based on configuration."""
         if not self.noise_config.std:
             return
-
         if self.noise_config.percentage == 1.0:
             self.add_noise_all()
         else:
