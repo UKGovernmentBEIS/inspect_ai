@@ -277,7 +277,7 @@ def web_browser_go() -> Tool:
 
 Specifying `parallel=False` results in two behaviours:
 
-1.  Models that support turing off parallel tool calling (currently OpenAI and Grok) will have it disabled when tools with `parallel=False` are passed to `generate()`.
+1.  Models that support turning off parallel tool calling (currently OpenAI and Grok) will have it disabled when tools with `parallel=False` are passed to `generate()`.
 
 2.  Inspect will execute tool calls serially (so that even for models that don't let you disable parallel tool calling, you can still be assured they will not ever run in parallel).
 
