@@ -4,6 +4,7 @@
 
 - Bedrock: redact authentication model args from eval logs.
 - OpenAI: warn when `temperature` is used with o1 models (as it is not supported).
+- Bugfix: spread args for cache trace logging.
 
 ## v0.3.54 (26 December 2024)
 
