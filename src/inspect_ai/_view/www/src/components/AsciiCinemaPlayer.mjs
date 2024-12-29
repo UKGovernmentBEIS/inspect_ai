@@ -13,10 +13,8 @@ import * as AsciinemaPlayer from "asciinema-player";
  * @param {string} props.inputUrl - The input url for the player
  * @param {string} props.outputUrl - The output url for the player
  * @param {string} props.timingUrl - The timing url for the player
- * @param {number} [props.rows] - The height for the player container
- * @param {number} [props.cols] - The width for the player container
- * @param {string} [props.height] - The height for the player container
- * @param {string} [props.width] - The width for the player container
+ * @param {number} [props.rows] - The rows for the player's initial size
+ * @param {number} [props.cols] - The cols for the player's initial size
  * @param {string} [props.fit] - how to fit the player
  * @param {Object} [props.style] - Inline styles for the chat view.
  * @param {number} [props.speed] - The speed to play (1 = 1x, 1.5 = 1.5x...)
@@ -43,7 +41,7 @@ export const AsciiCinemaPlayer = ({
 }) => {
   const playerContainerRef = useRef();
   useEffect(() => {
-    AsciinemaPlayer.create(
+    const player = AsciinemaPlayer.create(
       {
         url: [timingUrl, outputUrl, inputUrl],
         parser: "typescript",
@@ -60,6 +58,9 @@ export const AsciiCinemaPlayer = ({
         fit,
       },
     );
+    return () => {
+      player.dispose();
+    }
   }, []);
 
   return html`

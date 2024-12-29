@@ -22,5 +22,5 @@ declare module "asciinema-player" {
       terminalLineHeight?: string;
       logger?: Object;
     },
-  ) => void;
+  ) => any;
 }

@@ -7847,6 +7847,7 @@ var require_assets = __commonJS({
       more: "bi bi-zoom-in",
       "multiple-choice": "bi bi-card-list",
       next: "bi bi-chevron-right",
+      play: "bi bi-play-fill",
       previous: "bi bi-chevron-left",
       refresh: "bi bi-arrow-clockwise",
       role: {
@@ -21990,7 +21991,7 @@ ${events}
     }) => {
       const playerContainerRef = A();
       y(() => {
-        create(
+        const player = create(
           {
             url: [timingUrl, outputUrl, inputUrl],
             parser: "typescript"
@@ -22007,6 +22008,9 @@ ${events}
             fit
           }
         );
+        return () => {
+          player.dispose();
+        };
       }, []);
       return m$1`
     <div
@@ -22014,6 +22018,172 @@ ${events}
       ref=${playerContainerRef}
       style=${{ ...style2 }}
     ></div>
+  `;
+    };
+    const LightboxCarousel = ({ slides }) => {
+      const [isOpen, setIsOpen] = h(false);
+      const [showOverlay, setShowOverlay] = h(false);
+      const [currentIndex, setCurrentIndex] = h(0);
+      const openLightbox = (index) => {
+        setCurrentIndex(index);
+        setShowOverlay(true);
+        setTimeout(() => setIsOpen(true), 10);
+      };
+      const closeLightbox = () => {
+        setIsOpen(false);
+      };
+      y(() => {
+        if (!isOpen && showOverlay) {
+          const timer = setTimeout(() => {
+            setShowOverlay(false);
+          }, 300);
+          return () => clearTimeout(timer);
+        }
+      }, [isOpen, showOverlay]);
+      const showNext = q(() => {
+        setCurrentIndex((prev) => {
+          return (prev + 1) % slides.length;
+        });
+      }, [slides]);
+      const showPrev = q(() => {
+        setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
+      }, [slides]);
+      y(() => {
+        if (!isOpen) return;
+        const handleKeyUp = (e2) => {
+          if (e2.key === "Escape") {
+            closeLightbox();
+          } else if (e2.key === "ArrowRight") {
+            showNext();
+          } else if (e2.key === "ArrowLeft") {
+            showPrev();
+          }
+          e2.preventDefault();
+          e2.stopPropagation();
+        };
+        window.addEventListener("keyup", handleKeyUp, true);
+        return () => window.removeEventListener("keyup", handleKeyUp);
+      }, [isOpen, showNext, showPrev]);
+      const buttonStyle = {
+        position: "absolute",
+        top: "50%",
+        transform: "translateY(-50%)",
+        background: "none",
+        color: "#fff",
+        border: "none",
+        padding: "0.5em",
+        fontSize: "3em",
+        cursor: "pointer",
+        zIndex: "9999"
+      };
+      const prevButtonStyle = {
+        ...buttonStyle,
+        left: "10px"
+      };
+      const nextButtonStyle = {
+        ...buttonStyle,
+        right: "10px"
+      };
+      const overlayStyle = {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(0,0,0,0.8)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: isOpen ? "1" : "0",
+        visibility: isOpen ? "visible" : "hidden",
+        transition: "opacity 0.3s ease, visibility 0.3s ease",
+        zIndex: 9998
+      };
+      const closeButtonWrapperStyle = {
+        position: "absolute",
+        top: "10px",
+        right: "10px"
+      };
+      const closeButtonStyle = {
+        border: "none",
+        background: "none",
+        color: "#fff",
+        fontSize: "3em",
+        fontWeight: "500",
+        cursor: "pointer",
+        paddingLeft: "1em",
+        paddingBottom: "1em",
+        zIndex: "10000"
+      };
+      const contentStyle = {
+        maxWidth: "90%",
+        maxHeight: "90%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        // fade in/out
+        opacity: isOpen ? "1" : "0",
+        visibility: isOpen ? "visible" : "hidden",
+        transition: "opacity 0.3s ease, visibility 0.3s ease",
+        zIndex: 9999
+      };
+      return m$1`
+    <div className="lightbox-carousel-container">
+      <!-- Thumbnails -->
+      <div
+        className="carousel-thumbs"
+        style=${{
+        display: "grid",
+        gridTemplateColumns: "auto auto auto auto"
+      }}
+      >
+        ${slides.map((slide, index) => {
+        return m$1`
+            <div
+              key=${index}
+              className="carousel-thumb"
+              onClick=${() => openLightbox(index)}
+              style=${{
+          background: "black",
+          color: "white",
+          padding: "4em 0",
+          border: "0",
+          margin: "5px",
+          cursor: "pointer",
+          textAlign: "center"
+        }}
+            >
+              <div>${slide.label}</div>
+              <div><i class=${ApplicationIcons.play} style=${{ fontSize: "4em" }}></i></div>
+            </div>
+          `;
+      })}
+      </div>
+
+      <!-- Lightbox Overlay -->
+      ${showOverlay && m$1`
+        <div className="lightbox-overlay" style=${overlayStyle}>
+          <div style=${closeButtonWrapperStyle}>
+            <button style=${closeButtonStyle} onClick=${closeLightbox}>
+              <i class=${ApplicationIcons.close}></i>
+            </button>
+          </div>
+
+          <button style=${prevButtonStyle} onClick=${showPrev}>
+            <i class=${ApplicationIcons.previous}></i>
+          </button>
+
+          <button style=${nextButtonStyle} onClick=${showNext}>
+            <i class=${ApplicationIcons.next}></i>
+          </button>
+
+          <div key=${`carousel-slide-${currentIndex}`} className="lightbox-content" style=${contentStyle}>
+            ${slides[currentIndex].render()}
+          </div>
+        </div>
+      `}
+    </div>
   `;
     };
     const HumanBaselineView = ({
@@ -22024,7 +22194,7 @@ ${events}
       running,
       sessionLogs
     }) => {
-      const players = [];
+      const player_fns = [];
       const revokableUrls = [];
       const revokableUrl = (data) => {
         const blob = new Blob([data], { type: "text/plain" });
@@ -22038,23 +22208,30 @@ ${events}
         };
       }, []);
       let count = 1;
-      let maxCols = 0;
       for (const sessionLog of sessionLogs) {
         const rows = extractSize(sessionLog.output, "LINES");
         const cols = extractSize(sessionLog.output, "COLUMNS");
-        maxCols = Math.max(maxCols, parseInt(cols));
-        players.push(
-          m$1` <div style=${{ marginTop: "0.5em" }}>
-          Session ${count} (${sessionLog.user})
-        </div>
-        <${AsciiCinemaPlayer}
-          cols=${cols}
-          rows=${rows}
-          inputUrl=${revokableUrl(sessionLog.input)}
-          outputUrl=${revokableUrl(sessionLog.output)}
-          timingUrl=${revokableUrl(sessionLog.timing)}
-        />`
-        );
+        const currentCount = count;
+        player_fns.push({
+          label: `Human Baseline: Session ${currentCount}`,
+          render: () => m$1`
+      <${AsciiCinemaPlayer}
+        id=${`player-${currentCount}`}
+        inputUrl=${revokableUrl(sessionLog.input)}
+        outputUrl=${revokableUrl(sessionLog.output)}
+        timingUrl=${revokableUrl(sessionLog.timing)}
+        rows=${rows}
+        cols=${cols}
+        style=${{
+            maxHeight: "100vh",
+            maxWidth: "100vw",
+            height: `${parseInt(rows) * 2}em`,
+            width: `${parseInt(cols) * 2}em`
+          }}
+        fit="both"
+      />
+    `
+        });
         count += 1;
       }
       const StatusMessage = ({ completed: completed2, running: running2, answer: answer2 }) => {
@@ -22068,12 +22245,12 @@ ${events}
           return "Unknown status";
         }
       };
-      return m$1` <div style=${{ display: "flex", justifyContent: "center" }}>
+      return m$1`<div style=${{ display: "flex", justifyContent: "center" }}>
     <div
       style=${{
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
-        maxWidth: `${maxCols}ch`,
+        gridTemplateRows: "auto auto",
         width: "100%"
       }}
     >
@@ -22105,11 +22282,10 @@ ${events}
       <div
         style=${{
         gridColumn: "span 3",
-        maxWidth: `${maxCols}ch`,
         width: "100%"
       }}
       >
-        ${players}
+        <${LightboxCarousel} slides=${player_fns}/>
       </div>
     </div>
   </div>`;

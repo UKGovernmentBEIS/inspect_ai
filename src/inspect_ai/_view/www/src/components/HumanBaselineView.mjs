@@ -4,6 +4,7 @@ import { useEffect } from "preact/hooks";
 import { formatDateTime, formatTime } from "../utils/Format.mjs";
 import { AsciiCinemaPlayer } from "./AsciiCinemaPlayer.mjs";
 import { TextStyle } from "../appearance/Fonts.mjs";
+import { LightboxCarousel } from "./LightboxCarousel.mjs";
 
 /**
  * @typedef {Object} SessionLog
@@ -34,7 +35,7 @@ export const HumanBaselineView = ({
   running,
   sessionLogs,
 }) => {
-  const players = [];
+  const player_fns = [];
 
   // handle creation and revoking of these URLs
   const revokableUrls = [];
@@ -59,18 +60,26 @@ export const HumanBaselineView = ({
     const cols = extractSize(sessionLog.output, "COLUMNS");
     maxCols = Math.max(maxCols, parseInt(cols));
 
-    players.push(
-      html` <div style=${{ marginTop: "0.5em" }}>
-          Session ${count} (${sessionLog.user})
-        </div>
-        <${AsciiCinemaPlayer}
-          cols=${cols}
-          rows=${rows}
-          inputUrl=${revokableUrl(sessionLog.input)}
-          outputUrl=${revokableUrl(sessionLog.output)}
-          timingUrl=${revokableUrl(sessionLog.timing)}
-        />`,
-    );
+    const currentCount = count;
+    player_fns.push({
+      label: `Human Baseline: Session ${currentCount}`,
+      render: () => html`
+      <${AsciiCinemaPlayer}
+        id=${`player-${currentCount}`}
+        inputUrl=${revokableUrl(sessionLog.input)}
+        outputUrl=${revokableUrl(sessionLog.output)}
+        timingUrl=${revokableUrl(sessionLog.timing)}
+        rows=${rows}
+        cols=${cols}
+        style=${{
+          maxHeight: "100vh",
+          maxWidth: "100vw",
+          height: `${parseInt(rows) * 2}em`,
+          width: `${parseInt(cols) * 2}em`,
+        }}
+        fit="both"
+      />
+    `});
     count += 1;
   }
 
@@ -86,12 +95,12 @@ export const HumanBaselineView = ({
     }
   };
 
-  return html` <div style=${{ display: "flex", justifyContent: "center" }}>
+  return html`<div style=${{ display: "flex", justifyContent: "center" }}>
     <div
       style=${{
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
-        maxWidth: `${maxCols}ch`,
+        gridTemplateRows: "auto auto",
         width: "100%",
       }}
     >
@@ -101,9 +110,9 @@ export const HumanBaselineView = ({
           ...TextStyle.label,
         }}
       >
-        ${started ? formatDateTime(started) : ""}${runtime
-          ? ` (${formatTime(Math.floor(runtime))})`
-          : ""}
+        ${started ? formatDateTime(started) : ""}${
+          runtime ? ` (${formatTime(Math.floor(runtime))})` : ""
+        }
       </div>
       <div
         style=${{
@@ -125,11 +134,10 @@ export const HumanBaselineView = ({
       <div
         style=${{
           gridColumn: "span 3",
-          maxWidth: `${maxCols}ch`,
           width: "100%",
         }}
       >
-        ${players}
+        <${LightboxCarousel} slides=${player_fns}/>
       </div>
     </div>
   </div>`;
