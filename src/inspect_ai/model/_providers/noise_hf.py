@@ -43,9 +43,9 @@ HF_TOKEN = "HF_TOKEN"
 class NoiseConfig:
     """Configuration for noise injection."""
 
-    mean: float = 0.0
-    std: float = 0.0
-    percentage: float = 1.0
+    mean: float
+    std: float
+    percentage: float
     is_noisy: bool = False
 
 
@@ -56,9 +56,6 @@ class NoiseHuggingFaceAPI(ModelAPI):
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         config: GenerateConfig = GenerateConfig(),
-        noise_mean: float = 0.0,
-        noise_std: float = 0.005,
-        noise_percentage: float = 1.0,
         **model_args: Any,
     ):
         super().__init__(
@@ -69,7 +66,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
             config=config,
         )
 
-        # Initialize noise configuration
+        # Initialize noise configuration from model_args
+        noise_mean = model_args.pop("noise_mean", 0.0)
+        noise_std = model_args.pop("noise_std", 0.005)
+        noise_percentage = model_args.pop("noise_percentage", 1.0)
+
         self.noise_config = NoiseConfig(
             mean=noise_mean,
             std=noise_std,
@@ -146,6 +147,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
+
+        if not (0.0 <= self.noise_config.percentage <= 1.0):
+            raise ValueError("noise_percentage must be between 0.0 and 1.0")
+        if self.noise_config.std < 0.0:
+            raise ValueError("noise_std must be non-negative")
 
     def reset_weights(self):
         """Restore the original model weights."""
