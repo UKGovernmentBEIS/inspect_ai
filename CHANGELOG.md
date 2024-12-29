@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.55 (29 December 2024)
 
 - Bedrock: redact authentication model args from eval logs.
 - OpenAI: warn when `temperature` is used with o1 models (as it is not supported).
