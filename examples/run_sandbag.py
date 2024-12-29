@@ -14,7 +14,7 @@ def main():
     eval(
         tasks="examples/sandbag_hellaswag.py",  # Path to your task file
         model=[model_name],  # Pass the registered model name as a list of strings
-        model_args=[model_args],  # Pass model arguments corresponding to each model
+        model_args=model_args,  # Pass model arguments corresponding to each model
     )
 
 
