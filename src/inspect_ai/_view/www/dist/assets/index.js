@@ -22155,7 +22155,12 @@ ${events}
         }}
             >
               <div>${slide.label}</div>
-              <div><i class=${ApplicationIcons.play} style=${{ fontSize: "4em" }}></i></div>
+              <div>
+                <i
+                  class=${ApplicationIcons.play}
+                  style=${{ fontSize: "4em" }}
+                ></i>
+              </div>
             </div>
           `;
       })}
@@ -22178,7 +22183,11 @@ ${events}
             <i class=${ApplicationIcons.next}></i>
           </button>
 
-          <div key=${`carousel-slide-${currentIndex}`} className="lightbox-content" style=${contentStyle}>
+          <div
+            key=${`carousel-slide-${currentIndex}`}
+            className="lightbox-content"
+            style=${contentStyle}
+          >
             ${slides[currentIndex].render()}
           </div>
         </div>
@@ -22215,22 +22224,22 @@ ${events}
         player_fns.push({
           label: `Human Baseline: Session ${currentCount}`,
           render: () => m$1`
-      <${AsciiCinemaPlayer}
-        id=${`player-${currentCount}`}
-        inputUrl=${revokableUrl(sessionLog.input)}
-        outputUrl=${revokableUrl(sessionLog.output)}
-        timingUrl=${revokableUrl(sessionLog.timing)}
-        rows=${rows}
-        cols=${cols}
-        style=${{
+        <${AsciiCinemaPlayer}
+          id=${`player-${currentCount}`}
+          inputUrl=${revokableUrl(sessionLog.input)}
+          outputUrl=${revokableUrl(sessionLog.output)}
+          timingUrl=${revokableUrl(sessionLog.timing)}
+          rows=${rows}
+          cols=${cols}
+          style=${{
             maxHeight: "100vh",
             maxWidth: "100vw",
             height: `${parseInt(rows) * 2}em`,
             width: `${parseInt(cols) * 2}em`
           }}
-        fit="both"
-      />
-    `
+          fit="both"
+        />
+      `
         });
         count += 1;
       }
@@ -22285,7 +22294,7 @@ ${events}
         width: "100%"
       }}
       >
-        <${LightboxCarousel} slides=${player_fns}/>
+        <${LightboxCarousel} slides=${player_fns} />
       </div>
     </div>
   </div>`;

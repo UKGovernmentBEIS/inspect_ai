@@ -60,7 +60,7 @@ export const AsciiCinemaPlayer = ({
     );
     return () => {
       player.dispose();
-    }
+    };
   }, []);
 
   return html`

@@ -64,22 +64,23 @@ export const HumanBaselineView = ({
     player_fns.push({
       label: `Human Baseline: Session ${currentCount}`,
       render: () => html`
-      <${AsciiCinemaPlayer}
-        id=${`player-${currentCount}`}
-        inputUrl=${revokableUrl(sessionLog.input)}
-        outputUrl=${revokableUrl(sessionLog.output)}
-        timingUrl=${revokableUrl(sessionLog.timing)}
-        rows=${rows}
-        cols=${cols}
-        style=${{
-          maxHeight: "100vh",
-          maxWidth: "100vw",
-          height: `${parseInt(rows) * 2}em`,
-          width: `${parseInt(cols) * 2}em`,
-        }}
-        fit="both"
-      />
-    `});
+        <${AsciiCinemaPlayer}
+          id=${`player-${currentCount}`}
+          inputUrl=${revokableUrl(sessionLog.input)}
+          outputUrl=${revokableUrl(sessionLog.output)}
+          timingUrl=${revokableUrl(sessionLog.timing)}
+          rows=${rows}
+          cols=${cols}
+          style=${{
+            maxHeight: "100vh",
+            maxWidth: "100vw",
+            height: `${parseInt(rows) * 2}em`,
+            width: `${parseInt(cols) * 2}em`,
+          }}
+          fit="both"
+        />
+      `,
+    });
     count += 1;
   }
 
@@ -110,9 +111,9 @@ export const HumanBaselineView = ({
           ...TextStyle.label,
         }}
       >
-        ${started ? formatDateTime(started) : ""}${
-          runtime ? ` (${formatTime(Math.floor(runtime))})` : ""
-        }
+        ${started ? formatDateTime(started) : ""}${runtime
+          ? ` (${formatTime(Math.floor(runtime))})`
+          : ""}
       </div>
       <div
         style=${{
@@ -137,7 +138,7 @@ export const HumanBaselineView = ({
           width: "100%",
         }}
       >
-        <${LightboxCarousel} slides=${player_fns}/>
+        <${LightboxCarousel} slides=${player_fns} />
       </div>
     </div>
   </div>`;

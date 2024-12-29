@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useState, useCallback, useEffect, useMemo } from "preact/hooks";
+import { useState, useCallback, useEffect } from "preact/hooks";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 /**
@@ -171,7 +171,12 @@ export const LightboxCarousel = ({ slides }) => {
               }}
             >
               <div>${slide.label}</div>
-              <div><i class=${ApplicationIcons.play} style=${{fontSize: "4em"}}></i></div>
+              <div>
+                <i
+                  class=${ApplicationIcons.play}
+                  style=${{ fontSize: "4em" }}
+                ></i>
+              </div>
             </div>
           `;
         })}
@@ -195,7 +200,11 @@ export const LightboxCarousel = ({ slides }) => {
             <i class=${ApplicationIcons.next}></i>
           </button>
 
-          <div key=${`carousel-slide-${currentIndex}`} className="lightbox-content" style=${contentStyle}>
+          <div
+            key=${`carousel-slide-${currentIndex}`}
+            className="lightbox-content"
+            style=${contentStyle}
+          >
             ${slides[currentIndex].render()}
           </div>
         </div>

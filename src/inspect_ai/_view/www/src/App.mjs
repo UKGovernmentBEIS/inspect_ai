@@ -4,8 +4,7 @@ import "prismjs/themes/prism.css";
 import "prismjs";
 import "../App.css";
 import "asciinema-player/dist/bundle/asciinema-player.css";
-import 'glightbox/dist/css/glightbox.min.css';
-
+import "glightbox/dist/css/glightbox.min.css";
 
 import { default as ClipboardJS } from "clipboard";
 // @ts-ignore
