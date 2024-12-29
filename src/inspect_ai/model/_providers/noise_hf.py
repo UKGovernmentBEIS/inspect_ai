@@ -330,7 +330,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
     @override
     def max_connections(self) -> int:
         """Effectively the batch size."""
-        return 32
+        return 1
 
     @override
     def collapse_user_messages(self) -> bool:
