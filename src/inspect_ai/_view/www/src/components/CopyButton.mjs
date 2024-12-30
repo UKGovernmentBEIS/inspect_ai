@@ -32,7 +32,6 @@ export const CopyButton = ({ value }) => {
       if (iEl.tagName === "BUTTON") {
         iEl = iEl.firstChild;
       }
-      console.log({ iEl });
       if (iEl) {
         if (iEl) {
           iEl.className = `${ApplicationIcons.confirm} primary`;

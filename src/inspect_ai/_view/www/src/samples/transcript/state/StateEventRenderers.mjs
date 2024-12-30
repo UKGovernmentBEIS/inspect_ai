@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { ChatView } from "../../../components/ChatView.mjs";
 import { FontSize, TextStyle } from "../../../appearance/Fonts.mjs";
+import { HumanBaselineView } from "../../../components/HumanBaselineView.mjs";
 
 /**
  * @typedef {Object} Signature
@@ -59,6 +60,58 @@ const add_tools = {
   },
   render: (changes, resolvedState) => {
     return renderTools(changes, resolvedState);
+  },
+};
+
+const humanAgentKey = (key) => {
+  return `human_agent_state:${key}`;
+};
+const human_baseline_session = {
+  type: "human_baseline_session",
+  signature: {
+    add: ["human_agent_state:session_logs"],
+    replace: [],
+    remove: [],
+  },
+  render: (changes, resolvedState) => {
+    // Read the session values
+    const started = resolvedState[humanAgentKey("started_running")];
+    const runtime = resolvedState[humanAgentKey("accumulated_time")];
+    const answer = resolvedState[humanAgentKey("answer")];
+    const completed = resolvedState[humanAgentKey("completed")];
+    const running = resolvedState[humanAgentKey("running")];
+    const rawSessions = resolvedState[humanAgentKey("session_logs")];
+
+    // Tweak the date value
+    const startedDate = started ? new Date(started * 1000) : undefined;
+
+    // Convert raw sessions into session logs
+    const sessions = {};
+    if (rawSessions) {
+      for (const key of Object.keys(rawSessions)) {
+        const value = rawSessions[key];
+        // this pulls the key apart into
+        // <user>_<timestamp>.<type>
+        const match = key.match(/(.*)_(\d+_\d+)\.(.*)/);
+        if (match) {
+          const user = match[1];
+          const timestamp = match[2];
+          const type = match[3];
+          sessions[timestamp] = sessions[timestamp] || {};
+          sessions[timestamp][type] = value;
+          sessions[timestamp]["user"] = user;
+        }
+      }
+    }
+
+    return html`<${HumanBaselineView}
+      started=${startedDate}
+      running=${running}
+      completed=${completed}
+      answer=${answer}
+      runtime=${runtime}
+      sessionLogs=${Object.values(sessions)}
+    />`;
   },
 };
 
@@ -135,6 +188,9 @@ export const RenderableChangeTypes = [
   use_tools,
   add_tools,
 ];
+
+/** @type {ChangeType[]} */
+export const StoreSpecificRenderableTypes = [human_baseline_session];
 
 /**
  * @typedef {Object} ToolParameters

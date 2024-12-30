@@ -1,6 +1,6 @@
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai._util.display import display_type
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import subprocess
 
 INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB = "aisiuk/inspect-web-browser-tool"

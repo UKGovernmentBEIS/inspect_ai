@@ -4,7 +4,7 @@ from textual.reactive import reactive
 from textual.timer import Timer
 from textual.widgets import Static
 
-from inspect_ai._display.core.progress import progress_time
+from inspect_ai._util.format import format_progress_time
 
 
 class Clock(Static):
@@ -43,7 +43,7 @@ class Clock(Static):
         if start_time is not None:
             if self.timer is None:
                 self.timer = self.set_interval(self.interval, self.update_time)
-            self.update(progress_time(start_time))
+            self.update(format_progress_time(start_time))
         else:
             self.stop()
 
@@ -52,4 +52,4 @@ class Clock(Static):
             self.time = datetime.now().timestamp() - self.start_time
 
     def watch_time(self, time: float) -> None:
-        self.update(progress_time(time))
+        self.update(format_progress_time(time))

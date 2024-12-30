@@ -2,8 +2,8 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.logger import http_rate_limit_count
-from inspect_ai._util.throttle import throttle
 from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._throttle import throttle
 
 from .config import task_dict
 

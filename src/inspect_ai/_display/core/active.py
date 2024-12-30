@@ -3,7 +3,7 @@ from contextvars import ContextVar
 
 import rich
 
-from inspect_ai._util.display import display_type
+from inspect_ai.util._display import display_type
 from inspect_ai.util._trace import trace_enabled
 
 from ..rich.display import RichDisplay

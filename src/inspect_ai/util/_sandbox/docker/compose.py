@@ -8,8 +8,8 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai._util.display import display_type
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (

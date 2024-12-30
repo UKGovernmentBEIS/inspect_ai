@@ -101,7 +101,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         file = self._resolve_file(file)
         verify_read_file_size(file)
         if text:
-            with open(file, "r", encoding="utf-8") as f:
+            with open(file, "r", newline="", encoding="utf-8") as f:
                 return f.read()
         else:
             with open(file, "rb") as f:

@@ -53,6 +53,8 @@ class SandboxEnvironment:
         ...
 ```
 
+The `read_file()` function should should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function.
+
 Note that `write_file()` automatically creates parent directories as required if they don't exist.
 
 For each method there is a documented set of errors that are raised: these are _expected_ errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, _unexpected_ errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the `Sample` with an error state. 
