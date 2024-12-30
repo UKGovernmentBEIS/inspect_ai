@@ -1,7 +1,7 @@
 import time
 from typing import TypeVar
 
-from pydantic import BaseModel, Field, JsonValue, field_validator
+from pydantic import BaseModel, Field, JsonValue
 
 from inspect_ai.scorer._metric import Score
 from inspect_ai.util._store_model import StoreModel

@@ -1,6 +1,8 @@
 import re
 from textwrap import dedent
 
+from pydantic import Field
+
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
@@ -8,7 +10,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
-from inspect_ai.util._store import store
+from inspect_ai.util._store_model import StoreModel, store_as
 
 
 def web_browser(interactive: bool = True) -> list[Tool]:
@@ -97,12 +99,15 @@ def go_without_interactive_docs(tool: Tool) -> Tool:
 # custom viewer for interactive tool calls that shows a truncated
 # version of current the web accessiblity tree if available
 
-WEB_BROWSER_AT = "web_browser:at"
+
+class WebBrowserStore(StoreModel):
+    web_at: str = Field(default_factory=str)
+    session_id: str = Field(default_factory=str)
 
 
 def web_at_viewer(call: ToolCall) -> ToolCallView:
     # get the web accessiblity tree, if we have it create a view from it
-    web_at = store().get(WEB_BROWSER_AT, "")
+    web_at = store_as(WebBrowserStore).web_at
     element_id = call.arguments.get("element_id", 0)
     if web_at and element_id:
         lines = web_at.splitlines()
@@ -332,15 +337,14 @@ def web_browser_refresh() -> Tool:
 
 WEB_CLIENT_REQUEST = "/app/web_browser/web_client.py"
 WEB_CLIENT_NEW_SESSION = "/app/web_browser/web_client_new_session.py"
-BROWSER_SESSION_ID = "BROWSER_SESSION_ID"
 
 
 async def web_browser_cmd(cmd: str, *args: str) -> str:
     sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
     session_flag = ""
     if sandbox_env:
-        browser_session = store().get(BROWSER_SESSION_ID, "")
-        if not browser_session:
+        store = store_as(WebBrowserStore)
+        if not store.session_id:
             result = await sandbox_env.exec(["python3", WEB_CLIENT_NEW_SESSION])
 
             if not result.success:
@@ -348,10 +352,9 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
                     f"Error creating new web browser session: {result.stderr}"
                 )
 
-            browser_session = result.stdout.strip("\n")
-            store().set(BROWSER_SESSION_ID, browser_session)
+            store.session_id = result.stdout.strip("\n")
 
-        session_flag = f"--session_name={browser_session}"
+        session_flag = f"--session_name={store.session_id}"
 
     else:
         sandbox_env = await web_browser_sandbox()
@@ -379,7 +382,7 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
                 line.partition("data:image/png;base64")[0] for line in web_at_lines
             ]
             web_at = "\n".join(web_at_lines)
-            store().set(WEB_BROWSER_AT, web_at)
+            store_as(WebBrowserStore).web_at = web_at
             return web_at
         elif "error" in response:
             raise ToolError(str(response.get("error")) or "(unknown error)")

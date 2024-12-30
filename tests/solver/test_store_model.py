@@ -89,6 +89,13 @@ def test_store_model_behind_the_scenes_update():
     assert model.x == 999
 
 
+def test_store_model_init_from_store():
+    store = Store()
+    store.set("MyModel:x", 999)
+    model = MyModel(store=store)
+    assert model.x == 999
+
+
 def test_store_model_dump():
     store = Store()
     model = MyModel(store=store)

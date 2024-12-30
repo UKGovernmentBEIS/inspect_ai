@@ -18,7 +18,15 @@ class StoreModel(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         for name in self.model_fields.keys():
-            self.store.set(self._ns_name(name), self.__dict__[name])
+            if name == "store":
+                continue
+            # if its in the store, then have our dict reflect that
+            ns_name = self._ns_name(name)
+            if ns_name in self.store:
+                self.__dict__[name] = self.store.get(ns_name)
+            # if its not in the store, then reflect dict into store
+            elif name in self.__dict__.keys():
+                self.store.set(ns_name, self.__dict__[name])
 
     def __getattribute__(self, name: str) -> Any:
         # sidestep dunders and pydantic fields
@@ -56,6 +64,8 @@ class StoreModel(BaseModel):
     def _sync_model(self) -> None:
         self._validate_store()
         for field_name in self.model_fields.keys():
+            if field_name == "store":
+                continue
             store_value = self.store.get(self._ns_name(field_name))
             self.__dict__[field_name] = store_value
 
