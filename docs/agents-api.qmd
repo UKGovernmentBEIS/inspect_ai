@@ -116,7 +116,9 @@ from inspect_ai.util import store_as
 activity = store_as(Activity)
 ```
 
-Note that all instances of `Activity` created within a running sample share the same sample `Store` so can see each other's changes. Further, the names used in the underlying `Store` are namespaced to prevent collisions with other `Store` accessors. For example, the `active` field in the `Activity` class is written to the store with the name `Activity:active`.
+Note that all instances of `Activity` created within a running sample share the same sample `Store` so can see each other's changes. For example, you can call `state.store_as()` in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance. 
+
+The names used in the underlying `Store` are namespaced to prevent collisions with other `Store` accessors. For example, the `active` field in the `Activity` class is written to the store with the name `Activity:active`.
 
 #### Explicit Store
 
