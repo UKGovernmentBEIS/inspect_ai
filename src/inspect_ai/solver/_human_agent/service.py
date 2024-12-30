@@ -11,7 +11,8 @@ async def run_human_agent_service(
     state: TaskState, commands: list[HumanAgentCommand], view: HumanAgentView | None
 ) -> TaskState:
     # initialise agent state
-    agent_state = HumanAgentState(state)
+    instructions = "\n\n".join([message.text for message in state.messages]).strip()
+    agent_state = HumanAgentState(instructions=instructions)
 
     # extract service methods from commands
     methods = {

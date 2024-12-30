@@ -22344,12 +22344,12 @@ ${events}
       }
     };
     const humanAgentKey = (key2) => {
-      return `human_agent_state:${key2}`;
+      return `HumanAgentState:${key2}`;
     };
     const human_baseline_session = {
       type: "human_baseline_session",
       signature: {
-        add: ["human_agent_state:session_logs"],
+        add: ["HumanAgentState:session_logs"],
         replace: [],
         remove: []
       },

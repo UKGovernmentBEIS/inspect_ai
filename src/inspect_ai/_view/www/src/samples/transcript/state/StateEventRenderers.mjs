@@ -64,12 +64,12 @@ const add_tools = {
 };
 
 const humanAgentKey = (key) => {
-  return `human_agent_state:${key}`;
+  return `HumanAgentState:${key}`;
 };
 const human_baseline_session = {
   type: "human_baseline_session",
   signature: {
-    add: ["human_agent_state:session_logs"],
+    add: ["HumanAgentState:session_logs"],
     replace: [],
     remove: [],
   },
