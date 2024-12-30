@@ -155,6 +155,7 @@ export const RenderedEventNode = ({ id, node, style }) => {
         id=${id}
         event=${node.event}
         style=${style}
+        isStore=${true}
       />`;
 
     case "subtask":

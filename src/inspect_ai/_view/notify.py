@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.vscode import vscode_workspace_id
 
 # lightweight tracking of when the last eval task completed
 # this enables the view client to poll for changes frequently
@@ -24,7 +25,7 @@ def view_notify_eval(location: str) -> None:
         payload = {
             "location": location,
         }
-        workspace_id = os.environ.get("INSPECT_WORKSPACE_ID")
+        workspace_id = vscode_workspace_id()
         if workspace_id:
             payload["workspace_id"] = workspace_id
 

@@ -84,10 +84,10 @@ def task_project_name(task: str) -> str:
     if len(task) == 0:
         task = "task"
 
-    return f"inspect-{task}-i{uuid().lower()}"
+    return f"inspect-{task[:12]}-i{uuid().lower()[:6]}"
 
 
-inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{22}$"
+inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{6,}$"
 
 
 def is_inspect_project(name: str) -> bool:

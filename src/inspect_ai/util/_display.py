@@ -7,6 +7,7 @@ from inspect_ai._util.constants import DEFAULT_DISPLAY
 logger = getLogger(__name__)
 
 DisplayType = Literal["full", "rich", "plain", "none"]
+"""Console display type."""
 
 
 _display_type: DisplayType | None = None
@@ -28,6 +29,11 @@ def init_display_type(display: str | None = None) -> DisplayType:
 
 
 def display_type() -> DisplayType:
+    """Get the current console display type.
+
+    Returns:
+       DisplayType: Display type.
+    """
     global _display_type
     if _display_type:
         return _display_type

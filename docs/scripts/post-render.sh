@@ -1,6 +1,6 @@
 #!/bin/bash
 
-files=("index" "tutorial" "workflow" "log-viewer" "vscode" "solvers" "tools" "agents" "agents-api" "scorers" "datasets" "models" "eval-sets" "errors-and-limits" "caching" "parallelism" "interactivity" "approval" "eval-logs" "extensions")
+files=("index" "tutorial" "workflow" "log-viewer" "vscode" "solvers" "tools" "scorers" "datasets" "models" "agents" "sandboxing" "agents-api" "human-agent" "approval" "eval-logs" "eval-sets" "errors-and-limits" "tracing" "caching" "parallelism" "interactivity" "extensions")
 
 
 if [ "$QUARTO_PROJECT_RENDER_ALL" = "1" ]; then

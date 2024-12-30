@@ -9,9 +9,9 @@ from rich.segment import Segment
 from rich.syntax import Syntax
 from typing_extensions import override
 
-from inspect_ai._util.display import display_type
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.transcript import transcript_code_theme
+from inspect_ai.util._display import display_type
 
 
 def is_vscode_notebook(console: Console) -> bool:

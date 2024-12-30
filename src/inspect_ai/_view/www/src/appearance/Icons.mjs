@@ -123,6 +123,7 @@
  * @property {string} toggle-right
  * @property {string} more
  * @property {string} next
+ * @property {string} play
  * @property {string} previous
  * @property {string} refresh
  * @property {RoleIcons} role
@@ -209,6 +210,7 @@ export const ApplicationIcons = {
   more: "bi bi-zoom-in",
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
+  play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",
   role: {

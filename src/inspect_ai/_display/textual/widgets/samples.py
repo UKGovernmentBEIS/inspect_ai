@@ -22,10 +22,10 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option, Separator
 
+from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 
-from ...core.progress import progress_time
 from .clock import Clock
 from .transcript import TranscriptView
 
@@ -147,7 +147,9 @@ class SamplesList(OptionList):
             table.add_column(width=1)
             task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(18, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(f"{progress_time(sample.execution_time)}")
+            task_time = Text.from_markup(
+                f"{format_progress_time(sample.execution_time)}"
+            )
             table.add_row(task_name, task_time, " ")
             sample_id = Text.from_markup(f"id: {sample.sample.id}")
             sample_id.truncate(18, overflow="ellipsis", pad=True)
@@ -308,12 +310,7 @@ class SandboxesView(Vertical):
         yield Vertical(id="sandboxes-list")
 
     async def sync_sample(self, sample: ActiveSample) -> None:
-        sandboxes = sample.sandboxes
-        show_sandboxes = (
-            len([sandbox for sandbox in sandboxes.values() if sandbox.container]) > 0
-        )
-
-        if show_sandboxes:
+        if len(sample.sandboxes) > 0:
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
             sandboxes_caption.update("[bold]sandbox containers:[/bold]")
@@ -321,11 +318,7 @@ class SandboxesView(Vertical):
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
             await sandboxes_list.mount_all(
-                [
-                    Static(sandbox.container)
-                    for sandbox in sandboxes.values()
-                    if sandbox.container
-                ]
+                [Static(sandbox.command) for sandbox in sample.sandboxes.values()]
             )
             sandboxes_list.mount(
                 Static(

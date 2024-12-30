@@ -28,7 +28,7 @@ def math_service() -> Solver:
         async def run():
             # wait for service to come up
             import os
-            service_dir = "/tmp/inspect-sandbox-services/math_service"
+            service_dir = "/var/tmp/sandbox-services/math_service"
             while not os.path.exists(f"{service_dir}/math_service.py"):
                 await asyncio.sleep(0.1)
 

@@ -405,7 +405,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             # read and return w/ appropriate encoding
             if text:
-                with open(dest_file, "r", encoding="utf-8") as f:
+                with open(dest_file, "r", newline="", encoding="utf-8") as f:
                     return f.read()
             else:
                 with open(dest_file, "rb") as f:
@@ -424,13 +424,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             None,
         )
 
-        # return container login
+        # return container connection
         if container:
             return SandboxConnection(
-                command=f"docker exec -it {container} /bin/bash --login",
-                container=container,
+                command=f"docker exec -it {container} bash -l",
+                vscode_command=[
+                    "remote-containers.attachToRunningContainer",
+                    container,
+                ],
             )
-
         # error (not currently running)
         else:
             raise ConnectionError(

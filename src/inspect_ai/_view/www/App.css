@@ -235,6 +235,10 @@ body[class^="vscode-"] .sidebar .list-group {
   --bs-list-group-active-color: var(--vscode-sideBarSectionHeader-foreground);
 }
 
+body[class^="vscode-"] div.ap-control-bar .ap-fullscreen-button {
+  display: none;
+}
+
 :root {
   --bs-navbar-padding-y: 0;
   --bs-navbar-brand-padding-y: 0;
@@ -690,7 +694,7 @@ table.table.table-sm td {
 }
 
 @keyframes moveLeftToRight {
-  from {
+from {
     margin-left: 0;
   }
   to {
@@ -724,6 +728,23 @@ pre[class*="language-"].tool-output {
   border-radius: var(--bs-border-radius) !important;  
 }
 
+/* lightbox styles */
+
+
+.lightbox-overlay .close-button,
+.lightbox-overlay .nav-button {
+  /* Hide by default */
+  opacity: 0;
+  pointer-events: none; /* so it doesn't register clicks when hidden */
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-overlay:hover .close-button,
+.lightbox-overlay .nav-button {
+  /* Show on hover */
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* jsondiffpatch */
 

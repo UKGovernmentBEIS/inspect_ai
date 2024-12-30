@@ -12,9 +12,9 @@ from rich.table import Table
 from typing_extensions import override
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
-from inspect_ai._util.display import display_type
-from inspect_ai._util.throttle import throttle
 from inspect_ai.log._transcript import InputEvent, transcript
+from inspect_ai.util._display import display_type
+from inspect_ai.util._throttle import throttle
 from inspect_ai.util._trace import trace_enabled
 
 from ..core.config import task_config

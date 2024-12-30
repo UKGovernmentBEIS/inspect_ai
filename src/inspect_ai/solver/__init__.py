@@ -4,6 +4,7 @@ from ._basic_agent import basic_agent
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
+from ._human_agent.agent import human_agent
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
 from ._prompt import (
@@ -17,6 +18,7 @@ from ._use_tools import use_tools
 
 __all__ = [
     "basic_agent",
+    "human_agent",
     "chain",
     "fork",
     "generate",

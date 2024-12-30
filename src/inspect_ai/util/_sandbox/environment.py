@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Literal, NamedTuple, Union, overload
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, Union, overload
 
 from pydantic import BaseModel, Field
 
@@ -34,11 +34,8 @@ class SandboxConnection(BaseModel):
     command: str
     """Shell command to connect to sandbox."""
 
-    vscode_command: list[str] | None = Field(default=None)
+    vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
-
-    container: str | None = Field(default=None)
-    """Optional container name (will not apply to all sandboxes)."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -204,6 +201,10 @@ class SandboxEnvironment(abc.ABC):
         """Read a file from the sandbox environment.
 
         File size is limited to 100 MiB.
+
+        When reading text files, implementations should preserve newline constructs
+        (e.g. crlf should be preserved not converted to lf). This is equivalent
+        to specifying `newline=""` in a call to the Python `open()` function.
 
         Args:
           file (str): Path to file (relative file paths will resolve to the

@@ -24,8 +24,6 @@ from .util import (
     render_tool_approval,
 )
 
-PANEL_TITLE = "Approvals"
-
 
 async def panel_approval(
     message: str,
@@ -35,7 +33,7 @@ async def panel_approval(
     choices: list[ApprovalDecision],
 ) -> Approval:
     # ensure the approvals panel is shown
-    await input_panel(PANEL_TITLE, ApprovalInputPanel)
+    await input_panel(ApprovalInputPanel)
 
     # submit to human approval manager (will be picked up by panel)
     approvals = human_approval_manager()
@@ -52,11 +50,10 @@ async def panel_approval(
 
 
 class ApprovalInputPanel(InputPanel):
+    DEFAULT_TITLE = "Approval"
+
     DEFAULT_CSS = """
     ApprovalInputPanel {
-        width: 1fr;
-        height: 1fr;
-        padding: 0 1 1 1;
         layout: grid;
         grid-size: 1 3;
         grid-rows: auto 1fr auto;
@@ -88,7 +85,7 @@ class ApprovalInputPanel(InputPanel):
         self._approvals = human_approval_manager().approval_requests()
         if len(self._approvals) > 0:
             approval_id, approval_request = self._approvals[0]
-            self.title = f"{PANEL_TITLE} ({len(self._approvals):,})"
+            self.title = f"{self.DEFAULT_TITLE} ({len(self._approvals):,})"
             heading.request = approval_request
             content.approval = approval_request.request
             actions.approval_request = approval_id, approval_request
@@ -97,7 +94,7 @@ class ApprovalInputPanel(InputPanel):
                 actions.activate()
             self.visible = True
         else:
-            self.title = PANEL_TITLE
+            self.title = self.DEFAULT_TITLE
             heading.request = None
             content.approval = None
             actions.approval_request = None

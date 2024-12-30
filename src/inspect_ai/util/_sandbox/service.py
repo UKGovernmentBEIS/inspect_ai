@@ -1,5 +1,6 @@
 import asyncio
 import json
+from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
 from typing import (
@@ -14,9 +15,12 @@ from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
 
+logger = getLogger(__name__)
+
+
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
-SERVICES_DIR = "/tmp/inspect-sandbox-services"
+SERVICES_DIR = "/var/tmp/sandbox-services"
 
 ID = "id"
 METHOD = "method"
@@ -70,7 +74,7 @@ class SandboxService:
 
     ```python
     import sys
-    sys.path.append("/tmp/inspect-sandbox-services/foo")
+    sys.path.append("/var/tmp/sandbox-services/foo")
     import foo
     ```
 
@@ -79,7 +83,7 @@ class SandboxService:
     ```python
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "foo", "/tmp/inspect-sandbox-services/foo/foo.py"
+        "foo", "/var/tmp/sandbox-services/foo/foo.py"
     )
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)
@@ -150,8 +154,14 @@ class SandboxService:
                 f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
             )
 
-        # parse request
-        request_data = json.loads(result.stdout)
+        # parse request (decode error could occur if its incomplete so bypass this)
+        try:
+            request_data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            logger.warning(
+                f"JSON decoding error reading service request: {result.stdout}"
+            )
+            return None
         if not isinstance(request_data, dict):
             raise TypeError(f"Service request is not a dict (type={request_data})")
 
@@ -275,7 +285,7 @@ class SandboxService:
             return request_id
 
         def _read_{self._name}_response(request_id: str) -> tuple[bool, Any]:
-            from json import load
+            from json import JSONDecodeError, load
             from pathlib import Path
 
             responses_dir = Path("{SERVICES_DIR}", "{self._name}", "{RESPONSES_DIR}")
@@ -283,7 +293,12 @@ class SandboxService:
             if response_path.exists():
                 # read and remove the file
                 with open(response_path, "r") as f:
-                    response = load(f)
+                    # it's possible the file is still being written so
+                    # just catch and wait for another retry if this occurs
+                    try:
+                        response = load(f)
+                    except JSONDecodeError:
+                        return False, None
                 response_path.unlink()
 
                 # raise error if we have one
