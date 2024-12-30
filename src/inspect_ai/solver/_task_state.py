@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Type, TypeVar, Union, cast, overload
+from typing import Any, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
@@ -19,7 +19,7 @@ from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
-from inspect_ai.util._store_model import StoreModel
+from inspect_ai.util._store_model import SMT
 
 
 @dataclass
@@ -117,9 +117,6 @@ class Choices(Sequence[Choice]):
         from ._multiple_choice import prompt
 
         return prompt(question, self, template)
-
-
-SMT = TypeVar("SMT", bound=StoreModel)
 
 
 class TaskState:
@@ -362,7 +359,7 @@ class TaskState:
         Returns:
           StoreModel: Instance of model_cls bound to current Store.
         """
-        return model_cls(self.store)
+        return model_cls(store=self.store)
 
 
 def sample_state() -> TaskState | None:
