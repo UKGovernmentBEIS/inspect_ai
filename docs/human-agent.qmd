@@ -147,11 +147,6 @@ By default, human agent terminal sessions are recorded using the LInux [script c
 
 ![](images/inspect-terminal-transcript.png){.lightbox}
 
-::: callout-caution
-## Under Construction
-
-Note that while human agent session playback is available in Inspect View now, it is an initial implementation that needs improvement especially in the area of handling a wide variety of terminal sizes. These improvements will be made before the `feature/human-user` branch is merged to `main`.
-:::
 
 You can disable session recording with the `record_session` option:
 
