@@ -31,7 +31,7 @@ class StartCommand(HumanAgentCommand):
 
         async def start() -> str:
             if not state.running:
-                state.running = True
+                state.start_running()
                 transcript().info(
                     f"Task started (total time: {format_progress_time(state.time)})"
                 )
@@ -61,7 +61,7 @@ class StopCommand(HumanAgentCommand):
 
         async def stop() -> str:
             if state.running:
-                state.running = False
+                state.stop_running()
                 transcript().info(
                     f"Task stopped (total time: {format_progress_time(state.time)})"
                 )

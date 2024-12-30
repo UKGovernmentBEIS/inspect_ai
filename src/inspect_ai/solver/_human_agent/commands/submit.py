@@ -85,7 +85,7 @@ class SubmitCommand(HumanAgentCommand):
         ) -> None:
             if self._record_session:
                 state.session_logs = await self._read_session_logs()
-            state.running = False
+            state.stop_running()
             state.answer = answer
 
         return submit

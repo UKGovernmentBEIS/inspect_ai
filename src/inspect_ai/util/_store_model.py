@@ -79,9 +79,7 @@ class StoreModel(BaseModel):
     def _un_ns_name(self, name: str) -> str:
         return name.replace(f"{self.__class__.__name__}:", "", 1)
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, protected_namespaces=("model_", "__")
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 SMT = TypeVar("SMT", bound=StoreModel)
