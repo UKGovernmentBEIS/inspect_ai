@@ -35,7 +35,10 @@ class StoreModel(BaseModel):
         # handle model_fields (except 'store') by reading the store
         elif name in object.__getattribute__(self, "model_fields") and name != "store":
             store_key = self._ns_name(name)
-            return self.store.get(store_key)
+            if store_key in self.store:
+                return self.store.get(store_key)
+            else:
+                return object.__getattribute__(self, name)
         # default to super
         else:
             return super().__getattribute__(name)
