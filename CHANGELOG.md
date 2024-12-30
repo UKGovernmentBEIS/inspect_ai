@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
+
 ## v0.3.55 (29 December 2024)
 
 - [Human Agent](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1049) solver for human baselining of computing tasks.
