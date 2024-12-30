@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
+
 ## v0.3.55 (29 December 2024)
 
 - Bedrock: redact authentication model args from eval logs.
