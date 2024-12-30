@@ -21,8 +21,8 @@ class StoreModel(BaseModel):
             self.store.set(self._ns_name(name), self.__dict__[name])
 
     def __getattribute__(self, name: str) -> Any:
-        # sidestep dunders, private fields, and pydantic fields
-        if name.startswith("_") or name.startswith("model_"):
+        # sidestep dunders and pydantic fields
+        if name.startswith("__") or name.startswith("model_"):
             return object.__getattribute__(self, name)
         # handle model_fields (except 'store') by reading the store
         elif name in object.__getattribute__(self, "model_fields") and name != "store":
@@ -79,7 +79,9 @@ class StoreModel(BaseModel):
     def _un_ns_name(self, name: str) -> str:
         return name.replace(f"{self.__class__.__name__}:", "", 1)
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, protected_namespaces=("model_", "__")
+    )
 
 
 SMT = TypeVar("SMT", bound=StoreModel)
