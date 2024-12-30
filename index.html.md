@@ -378,13 +378,11 @@ These sections describe how to create agent evaluations with Inspect:
 - [Agents API](agents-api.qmd) describes advanced Inspect APIs available
   for creating evaluations with agents.
 
+- [Human Agent](human-agent.qmd) is a solver that enables human
+  baselining on computing tasks.
+
 - [Approval](approval.qmd) enable you to create fine-grained policies
   for approving tool calls made by model agents.
-
-- [Interactivity](interactivity.qmd) covers various ways to introduce
-  user interaction into the implementation of tasks (for example,
-  prompting the model dynamically based on the trajectory of the
-  evaluation).
 
 These sections discuss more advanced features and workflow. You don’t
 need to review them at the outset, but be sure to revisit them as you
@@ -411,6 +409,11 @@ get more comfortable with the basics.
   architecture—here we cover how to tune this parallelism (e.g to stay
   under API rate limits or to not overburden local compute) for optimal
   throughput.
+
+- [Interactivity](interactivity.qmd) covers various ways to introduce
+  user interaction into the implementation of tasks (for example,
+  prompting the model dynamically based on the trajectory of the
+  evaluation).
 
 - [Extensions](extensions.qmd) describes the various ways you can extend
   Inspect, including adding support for new Model APIs, tool execution

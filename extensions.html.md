@@ -380,6 +380,10 @@ class SandboxEnvironment:
         ...
 ```
 
+The `read_file()` function should should preserve newline constructs
+(e.g. crlf should be preserved not converted to lf). This is equivalent
+to specifying `newline=""` in a call to the Python `open()` function.
+
 Note that `write_file()` automatically creates parent directories as
 required if they don’t exist.
 

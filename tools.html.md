@@ -296,6 +296,10 @@ class SandboxEnvironment:
         ...
 ```
 
+The `read_file()` function should should preserve newline constructs
+(e.g. crlf should be preserved not converted to lf). This is equivalent
+to specifying `newline=""` in a call to the Python `open()` function.
+
 Note that `write_file()` automatically creates parent directories as
 required if they don’t exist.
 
@@ -458,7 +462,7 @@ def web_browser_go() -> Tool:
 
 Specifying `parallel=False` results in two behaviours:
 
-1.  Models that support turing off parallel tool calling (currently
+1.  Models that support turning off parallel tool calling (currently
     OpenAI and Grok) will have it disabled when tools with
     `parallel=False` are passed to `generate()`.
 
