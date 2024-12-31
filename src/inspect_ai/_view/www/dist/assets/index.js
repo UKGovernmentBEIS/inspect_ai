@@ -22221,8 +22221,9 @@ ${events}
         const rows = extractSize(sessionLog.output, "LINES");
         const cols = extractSize(sessionLog.output, "COLUMNS");
         const currentCount = count;
+        const title = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
-          label: `Human Baseline: Session ${currentCount}`,
+          label: title,
           render: () => m$1`
         <${AsciiCinemaPlayer}
           id=${`player-${currentCount}`}
