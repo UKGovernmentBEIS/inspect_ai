@@ -102,6 +102,49 @@ def record_to_sample(record):
 dataset = json_dataset("popularity.jsonl", record_to_sample)
 ```
 
+### Typed Metadata
+
+::: {.callout-note appearance="simple"}
+The typed metdata feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+If you want a more strongly typed interface to sample metadata, you can define a [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/) and use it to both validate and read metadata.
+
+For validation, pass a `BaseModel` derived class in the `FieldSpec`. The interface to metadata is read-only so you must also specify `frozen=True`. For example:
+
+```python
+from pydantic import BaseModel
+
+class PopularityMetadata(BaseModel, frozen=True):
+    category: str
+    label_confidence: float
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=PopularityMetadata,
+    ),
+)
+```
+
+To read metadata in a typesafe fashion, us the `metadata_as()` method on `Sample` or `TaskState`:
+
+```python
+metadata = state.metadata_as(PopularityMetadata)
+```
+
+Note again that the intended semantics of `metadata` are read-only, so attempting to write into the returned metadata will raise a Pydantic `FrozenInstanceError`. 
+
+If you need per-sample mutable data, use the [sample store](agents-api.qmd#sample-store), which also supports [typing](agents-api.qmd#store-typing) using Pydantic models. 
+
+
 ## Filter and Shuffle
 
 The `Dataset` class includes `filter()` and `shuffle()` methods, as well as support for the slice operator.

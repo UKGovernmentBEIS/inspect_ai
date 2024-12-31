@@ -15,15 +15,6 @@ This article describes advanced Inspect APIs available for creating evaluations 
 
 We'll assume that you have already covered the basics of [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) (please review those articles as required before proceeding).
 
-## Use of `metadata`
-
-Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
-
--   Sharing state between solvers.
--   Providing a place to log additional structured data.
--   Recording calls to "helper" models used for elicitation or scoring.
-
-The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
 
 ## Sample Store
 

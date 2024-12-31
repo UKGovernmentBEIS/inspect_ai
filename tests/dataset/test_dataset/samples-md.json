@@ -3,8 +3,8 @@
     "input": "Say 'Hello, World'",
     "target": "Hello, World",
     "label": "Hello, World",
-    "metadata": {
-      "foo": "bar"
-    }
+    "name": "jim",
+    "age": 42,
+    "foo": "bar"
   }
 ]
