@@ -28,7 +28,9 @@ def test_store_model_basic():
 
         return solve
 
-    assert eval(Task(solver=model_basic()))[0].status == "success"
+    assert (
+        eval(Task(solver=model_basic()), model="mockllm/model")[0].status == "success"
+    )
 
 
 def test_store_model_assignment():
