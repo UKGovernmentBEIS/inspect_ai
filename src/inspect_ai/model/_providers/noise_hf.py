@@ -155,13 +155,17 @@ class NoiseHuggingFaceAPI(ModelAPI):
             raise ValueError("noise_std must be non-negative")
 
     def reset_weights(self):
-        """Restore the original model weights."""
+        """Restore the original model weights and clear memory."""
         if self.original_weights is not None:
             with torch.no_grad():
                 for name, param in self.model.named_parameters():
                     if name in self.original_weights:
                         param.copy_(self.original_weights[name])
-            self.noise_config.is_noisy = False
+                self.noise_config.is_noisy = False
+
+            # Clear memory
+            torch.cuda.empty_cache()
+            gc.collect()
 
     @torch.inference_mode()
     def add_noise_all(self):
@@ -219,9 +223,14 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 # Add noise in-place
                 param.view(-1)[indices] += noise
 
-                # Clear GPU memory
+                # Clear GPU memory after each batch
                 del noise, indices
                 torch.cuda.empty_cache()
+                gc.collect()
+
+            # Clear GPU memory after each parameter
+            torch.cuda.empty_cache()
+            gc.collect()
 
         self.noise_config.is_noisy = True
 
@@ -241,92 +250,99 @@ class NoiseHuggingFaceAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
-        # Add noise if configured
-        if not self.noise_config.is_noisy and (self.noise_config.std > 0):
-            self.inject_noise()
+        try:
+            # Add noise if configured
+            if not self.noise_config.is_noisy and (self.noise_config.std > 0):
+                self.inject_noise()
 
-        # Create handler
-        handler: ChatAPIHandler | None = (
-            HFHandler(self.model_name) if len(tools) > 0 else None
-        )
-
-        # Create chat
-        chat = self.hf_chat(input, tools)
-
-        assert isinstance(self.tokenizer_call_args, dict)
-        # Prepare tokenizer
-        tokenizer = functools.partial(
-            self.tokenizer,
-            return_tensors="pt",
-            padding=True,
-            **self.tokenizer_call_args,
-        )
-
-        # Prepare generator
-        kwargs: dict[str, Any] = dict(do_sample=True)
-        if config.max_tokens is not None:
-            kwargs["max_new_tokens"] = config.max_tokens
-        if config.temperature is not None:
-            kwargs["temperature"] = config.temperature
-        if config.top_p is not None:
-            kwargs["top_p"] = config.top_p
-        if config.top_k is not None:
-            kwargs["top_k"] = config.top_k
-        if config.logprobs is not None:
-            kwargs["output_logits"] = config.logprobs
-        if "return_dict_in_generate" in kwargs:
-            assert kwargs["return_dict_in_generate"]
-        kwargs["return_dict_in_generate"] = True
-        generator = functools.partial(self.model.generate, **kwargs)
-
-        # Prepare decoder
-        decoder = functools.partial(
-            self.tokenizer.batch_decode,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
-
-        # Generate (uses a queue to batch so we await)
-        response = await batched_generate(
-            GenerateInput(
-                input=chat,
-                device=self.model.device,
-                tokenizer=tokenizer,
-                generator=generator,
-                decoder=decoder,
-                batch_size=config.max_connections or self.max_connections(),
-            )
-        )
-
-        # Gather logprobs
-        final_logprobs = None
-        if config.logprobs is not None:
-            final_logprobs = extract_logprobs(
-                response=response,
-                top=config.top_logprobs,
-                tokenizer=self.tokenizer,
+            # Create handler
+            handler: ChatAPIHandler | None = (
+                HFHandler(self.model_name) if len(tools) > 0 else None
             )
 
-        # Construct choice
-        choice = ChatCompletionChoice(
-            message=chat_completion_assistant_message(
-                response, tools, handler, self.model_name
-            ),
-            logprobs=(
-                Logprobs(content=final_logprobs) if final_logprobs is not None else None
-            ),
-        )
+            # Create chat
+            chat = self.hf_chat(input, tools)
 
-        # Return output
-        return ModelOutput(
-            model=self.model_name,
-            choices=[choice],
-            usage=ModelUsage(
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                total_tokens=response.total_tokens,
-            ),
-        )
+            assert isinstance(self.tokenizer_call_args, dict)
+            # Prepare tokenizer
+            tokenizer = functools.partial(
+                self.tokenizer,
+                return_tensors="pt",
+                padding=True,
+                **self.tokenizer_call_args,
+            )
+
+            # Prepare generator
+            kwargs: dict[str, Any] = dict(do_sample=True)
+            if config.max_tokens is not None:
+                kwargs["max_new_tokens"] = config.max_tokens
+            if config.temperature is not None:
+                kwargs["temperature"] = config.temperature
+            if config.top_p is not None:
+                kwargs["top_p"] = config.top_p
+            if config.top_k is not None:
+                kwargs["top_k"] = config.top_k
+            if config.logprobs is not None:
+                kwargs["output_logits"] = config.logprobs
+            if "return_dict_in_generate" in kwargs:
+                assert kwargs["return_dict_in_generate"]
+            kwargs["return_dict_in_generate"] = True
+            generator = functools.partial(self.model.generate, **kwargs)
+
+            # Prepare decoder
+            decoder = functools.partial(
+                self.tokenizer.batch_decode,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False,
+            )
+
+            # Generate (uses a queue to batch so we await)
+            response = await batched_generate(
+                GenerateInput(
+                    input=chat,
+                    device=self.model.device,
+                    tokenizer=tokenizer,
+                    generator=generator,
+                    decoder=decoder,
+                    batch_size=config.max_connections or self.max_connections(),
+                )
+            )
+
+            # Gather logprobs
+            final_logprobs = None
+            if config.logprobs is not None:
+                final_logprobs = extract_logprobs(
+                    response=response,
+                    top=config.top_logprobs,
+                    tokenizer=self.tokenizer,
+                )
+
+            # Construct choice
+            choice = ChatCompletionChoice(
+                message=chat_completion_assistant_message(
+                    response, tools, handler, self.model_name
+                ),
+                logprobs=(
+                    Logprobs(content=final_logprobs)
+                    if final_logprobs is not None
+                    else None
+                ),
+            )
+
+            # Return output
+            return ModelOutput(
+                model=self.model_name,
+                choices=[choice],
+                usage=ModelUsage(
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    total_tokens=response.total_tokens,
+                ),
+            )
+        finally:
+            # Clear memory after generation
+            torch.cuda.empty_cache()
+            gc.collect()
 
     @override
     def max_tokens(self) -> int | None:
