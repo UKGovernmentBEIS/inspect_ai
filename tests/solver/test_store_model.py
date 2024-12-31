@@ -64,7 +64,10 @@ def test_store_model_assignment():
 
         return solve
 
-    assert eval(Task(solver=model_assignment()))[0].status == "success"
+    assert (
+        eval(Task(solver=model_assignment()), model="mockllm/model")[0].status
+        == "success"
+    )
 
 
 def test_store_model_validation_error():
