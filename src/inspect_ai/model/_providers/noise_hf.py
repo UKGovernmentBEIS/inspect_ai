@@ -69,7 +69,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
 
         # Initialize noise configuration from model_args
         noise_mean = model_args.pop("noise_mean", 0.0)
-        noise_std = model_args.pop("noise_std", 0.005)
+        noise_std = model_args.pop("noise_std", 0.000)
         noise_percentage = model_args.pop("noise_percentage", 1.0)
 
         self.noise_config = NoiseConfig(
@@ -113,17 +113,35 @@ class NoiseHuggingFaceAPI(ModelAPI):
         else:
             self.device = "cpu"
 
-        # Add a class variable to track if model is loaded
-        self._is_model_loaded = False
-        self._model = None
+        # Model loading - KEEP ON CPU INITIALLY
+        if model_path:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                device_map="cpu",  # Load to CPU first
+                use_auth_token=self.api_key,
+                low_cpu_mem_usage=True,
+                **model_args,
+            )
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map="cpu",  # Load to CPU first
+                use_auth_token=self.api_key,
+                low_cpu_mem_usage=True,
+                **model_args,
+            )
 
-        # Load model on first initialization
-        self._load_model(model_name, model_path, model_args)
+        # Store original weights while still on CPU and use a single tensor to save memory
+        with torch.no_grad():
+            self.original_weights = {}
+            for name, param in self.model.named_parameters():
+                self.original_weights[name] = param.clone().cpu()
 
-        # Store original weights
-        self.original_weights = {
-            name: param.clone() for name, param in self._model.named_parameters()
-        }
+        # Now move model to target device
+        self.model = self.model.to(self.device)
+
+        # Add cleanup on deletion
+        self._is_closed = False
 
         # Tokenizer loading
         if tokenizer:
@@ -145,54 +163,28 @@ class NoiseHuggingFaceAPI(ModelAPI):
         if self.noise_config.std < 0.0:
             raise ValueError("noise_std must be non-negative")
 
-    def _load_model(self, model_name: str, model_path: Optional[str], model_args: dict):
-        """Load the model if not already loaded."""
-        if not self._is_model_loaded:
-            if model_path:
-                self._model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    device_map=self.device,
-                    use_auth_token=self.api_key,
-                    **model_args,
-                )
-            else:
-                self._model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    device_map=self.device,
-                    use_auth_token=self.api_key,
-                    **model_args,
-                )
-            self._is_model_loaded = True
+    def __del__(self):
+        """Ensure resources are cleaned up when the object is deleted."""
+        self.close()
 
-        # Store original weights after initial load
-        if self.original_weights is None:
-            self.original_weights = {
-                name: param.clone() for name, param in self._model.named_parameters()
-            }
-
-    @property
-    def model(self):
-        """Property to access the model."""
-        return self._model
-
-    def cleanup(self):
-        """Cleanup method to reset weights and clear CUDA cache."""
-        if self._is_model_loaded:
+    def close(self):
+        """Clean up resources."""
+        if not self._is_closed:
             self.reset_weights()
-            # Move model to CPU temporarily
-            self._model.to("cpu")
+            self.original_weights = None
             torch.cuda.empty_cache()
             gc.collect()
-            # Move back to original device
-            self._model.to(self.device)
+            self._is_closed = True
 
     def reset_weights(self):
         """Restore the original model weights and clear memory."""
         if self.original_weights is not None:
             with torch.no_grad():
-                for name, param in self._model.named_parameters():
+                for name, param in self.model.named_parameters():
                     if name in self.original_weights:
-                        param.copy_(self.original_weights[name])
+                        # Process one layer at a time
+                        param.copy_(self.original_weights[name].to(param.device))
+                        torch.cuda.empty_cache()  # Clear temporary GPU memory
                 self.noise_config.is_noisy = False
 
             # Clear memory
@@ -200,73 +192,111 @@ class NoiseHuggingFaceAPI(ModelAPI):
             gc.collect()
 
     @torch.inference_mode()
-    def add_noise_all(self):
-        """Add noise to all weights in the model."""
-        for name, param in self._model.named_parameters():
-            noise = torch.normal(
-                mean=self.noise_config.mean,
-                std=self.noise_config.std,
-                size=param.shape,
-                device=self.device,
-                dtype=param.dtype,
-            )
-            param.data.add_(noise)
-            del noise  # Just delete the noise tensor
+    def add_noise_all(self, batch_size: int = 20 * 10**6):
+        """Add noise to all weights in the model using batched processing for memory efficiency."""
+        try:
+            for name, param in self.model.named_parameters():
+                # Process layer by layer
+                param_size = param.numel()
 
-        # Single cleanup at the end
-        torch.cuda.empty_cache()
-        gc.collect()
-        self.noise_config.is_noisy = True
+                # Process in batches for memory efficiency
+                for start in range(0, param_size, batch_size):
+                    end = min(start + batch_size, param_size)
+                    current_size = end - start
+
+                    # Generate noise for current batch
+                    noise = torch.normal(
+                        mean=self.noise_config.mean,
+                        std=self.noise_config.std,
+                        size=(current_size,),
+                        device=self.device,
+                        dtype=param.dtype,
+                    )
+
+                    # Add noise to the flattened parameter batch
+                    param.view(-1)[start:end].add_(noise)
+
+                    # Clean up batch memory
+                    del noise
+                    torch.cuda.empty_cache()
+                    gc.collect()
+
+            self.noise_config.is_noisy = True
+
+        except Exception as e:
+            print(f"Error in noise injection: {str(e)}")
+            self.reset_weights()  # Reset weights if there's an error
+            raise
+        finally:
+            # Final memory cleanup
+            torch.cuda.empty_cache()
+            gc.collect()
 
     @torch.inference_mode()
     def add_noise_percentage(self, batch_size: int = 20 * 10**6):
         """Add noise to a percentage of weights."""
-        for name, param in self._model.named_parameters():
-            n_noise = int(param.numel() * self.noise_config.percentage)
+        # Handle full noise case separately for efficiency
+        if self.noise_config.percentage == 1.0:
+            self.add_noise_all(batch_size=batch_size)
+            return
 
-            # Handle full noise case separately for efficiency
-            if self.noise_config.percentage == 1.0:
-                self.add_noise_all()
-                return
+        try:
+            for name, param in self.model.named_parameters():
+                param_size = param.numel()
 
-            # Process in batches for memory efficiency
-            for start in range(0, param.numel(), batch_size):
-                end = min(start + batch_size, param.numel())
-                n_idx = int((end - start) * self.noise_config.percentage)
+                # Process in batches for memory efficiency
+                for start in range(0, param_size, batch_size):
+                    end = min(start + batch_size, param_size)
+                    current_batch_size = end - start
+                    n_batch_noise = int(
+                        current_batch_size * self.noise_config.percentage
+                    )
 
-                # Sample random indices
-                indices = torch.randint(
-                    low=start,
-                    high=end,
-                    size=(n_idx,),
-                    device=self.device,
-                ).unique()
+                    if n_batch_noise == 0:
+                        continue
 
-                # Generate noise
-                noise = torch.normal(
-                    mean=self.noise_config.mean,
-                    std=self.noise_config.std,
-                    size=(len(indices),),
-                    device=self.device,
-                    dtype=param.dtype,
-                )
+                    # Sample indices for this batch
+                    indices = torch.randint(
+                        start, end, (n_batch_noise,), device=self.device
+                    ).unique()
 
-                param.view(-1)[indices] += noise
-                del noise, indices  # Just delete tensors
+                    # Generate noise
+                    noise = torch.normal(
+                        mean=self.noise_config.mean,
+                        std=self.noise_config.std,
+                        size=(len(indices),),
+                        device=self.device,
+                        dtype=param.dtype,
+                    )
 
-        # Single cleanup at the end
-        torch.cuda.empty_cache()
-        gc.collect()
-        self.noise_config.is_noisy = True
+                    param.view(-1)[indices] += noise
+                    del noise, indices  # Just delete tensors
+
+            # Single cleanup at the end
+            torch.cuda.empty_cache()
+            gc.collect()
+            self.noise_config.is_noisy = True
+
+        except Exception as e:
+            print(f"Error in noise injection: {str(e)}")
+            self.reset_weights()
+            raise
 
     def inject_noise(self):
         """Main method to inject noise based on configuration."""
         if not self.noise_config.std:
             return
-        if self.noise_config.percentage == 1.0:
-            self.add_noise_all()
-        else:
-            self.add_noise_percentage()
+
+        try:
+            if not self.noise_config.is_noisy:
+                if self.noise_config.percentage == 1.0:
+                    self.add_noise_all()
+                else:
+                    self.add_noise_percentage()
+        except Exception as e:
+            print(f"Error in noise injection: {str(e)}")
+            self.reset_weights()
+            raise
 
     async def generate(
         self,
@@ -365,8 +395,9 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 ),
             )
         finally:
-            # Cleanup after generation
-            self.cleanup()
+            # Clear memory after generation
+            torch.cuda.empty_cache()
+            gc.collect()
 
     @override
     def max_tokens(self) -> int | None:
