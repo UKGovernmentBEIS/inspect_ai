@@ -78,8 +78,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
             percentage=noise_percentage,
         )
 
-        # Store original weights for noise injection
+        # Remove storage of original weights
         self.original_weights = None
+
+        # Store model loading args for reloading
+        self.model_args = model_args
 
         # Set random seeds
         if config.seed is not None:
@@ -95,7 +98,8 @@ class NoiseHuggingFaceAPI(ModelAPI):
 
         device = collect_model_arg("device")
         tokenizer = collect_model_arg("tokenizer")
-        model_path = collect_model_arg("model_path")
+        model_path = collect_model_arg("model_path")  # Collect model_path first
+        self.model_path = model_path  # Then assign it to self
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
@@ -131,17 +135,12 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 **model_args,
             )
 
-        # Store original weights while still on CPU and use a single tensor to save memory
-        with torch.no_grad():
-            self.original_weights = {}
-            for name, param in self.model.named_parameters():
-                self.original_weights[name] = param.clone().cpu()
-
         # Now move model to target device
         self.model = self.model.to(self.device)
 
         # Add cleanup on deletion
         self._is_closed = False
+        self._needs_reset = False
 
         # Tokenizer loading
         if tokenizer:
@@ -163,33 +162,83 @@ class NoiseHuggingFaceAPI(ModelAPI):
         if self.noise_config.std < 0.0:
             raise ValueError("noise_std must be non-negative")
 
+        # Create CUDA memory pool context manager for more aggressive memory management
+        self.cuda_memory_pool = torch.cuda.graph.graph_pool_handle()
+
     def __del__(self):
         """Ensure resources are cleaned up when the object is deleted."""
         self.close()
 
     def close(self):
-        """Clean up resources."""
+        """Enhanced cleanup with aggressive memory management."""
         if not self._is_closed:
-            self.reset_weights()
-            self.original_weights = None
-            torch.cuda.empty_cache()
-            gc.collect()
-            self._is_closed = True
+            try:
+                # Move model to CPU first
+                if hasattr(self, "model"):
+                    self.model.cpu()
+
+                self.reset_weights()
+                self.original_weights = None
+
+                # Reset CUDA memory pool
+                if torch.cuda.is_available():
+                    with self.cuda_memory_pool as pool:
+                        pool.reset()
+                    torch.cuda.synchronize()
+
+                torch.cuda.empty_cache()
+                gc.collect()
+
+            finally:
+                self._is_closed = True
 
     def reset_weights(self):
-        """Restore the original model weights and clear memory."""
-        if self.original_weights is not None:
-            with torch.no_grad():
-                for name, param in self.model.named_parameters():
-                    if name in self.original_weights:
-                        # Process one layer at a time
-                        param.copy_(self.original_weights[name].to(param.device))
-                        torch.cuda.empty_cache()  # Clear temporary GPU memory
-                self.noise_config.is_noisy = False
+        """Aggressively reset model weights and clear GPU memory."""
+        if self._is_closed:
+            return
 
-            # Clear memory
+        # First move model back to CPU before deletion
+        if hasattr(self, "model"):
+            self.model.cpu()
+            del self.model
+
+        # Reset CUDA device
+        if torch.cuda.is_available():
+            # Empty cache first
             torch.cuda.empty_cache()
-            gc.collect()
+
+            # Force deallocation of memory pool
+            with torch.cuda.graph.graph_pool_handle() as pool:
+                pool.reset()
+
+            # Synchronize CUDA stream to ensure operations are complete
+            torch.cuda.synchronize()
+
+        # Run garbage collection
+        gc.collect()
+
+        # Reload model
+        if self.model_path:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_path,
+                device_map="cpu",
+                use_auth_token=self.api_key,
+                low_cpu_mem_usage=True,
+                **self.model_args,
+            )
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                device_map="cpu",
+                use_auth_token=self.api_key,
+                low_cpu_mem_usage=True,
+                **self.model_args,
+            )
+
+        # Move to device after memory is cleared
+        torch.cuda.empty_cache()  # One final cleanup before moving to GPU
+        self.model = self.model.to(self.device)
+        self.noise_config.is_noisy = False
 
     @torch.inference_mode()
     def add_noise_all(self, batch_size: int = 20 * 10**6):
@@ -309,6 +358,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
             # Add noise if configured
             if not self.noise_config.is_noisy and (self.noise_config.std > 0):
                 self.inject_noise()
+                self._needs_reset = True
 
             # Create handler
             handler: ChatAPIHandler | None = (
@@ -396,7 +446,13 @@ class NoiseHuggingFaceAPI(ModelAPI):
             )
         finally:
             # Clear memory after generation
-            torch.cuda.empty_cache()
+            if self._needs_reset:
+                self.reset_weights()
+                self._needs_reset = False
+
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()  # Ensure all CUDA operations are complete
+                torch.cuda.empty_cache()
             gc.collect()
 
     @override
