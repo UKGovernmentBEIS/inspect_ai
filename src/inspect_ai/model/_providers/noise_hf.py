@@ -179,12 +179,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 dtype=param.dtype,
             )
             param.data.add_(noise)
+            del noise  # Just delete the noise tensor
 
-            # Clear memory
-            del noise
-            torch.cuda.empty_cache()
-            gc.collect()
-
+        # Single cleanup at the end
+        torch.cuda.empty_cache()
+        gc.collect()
         self.noise_config.is_noisy = True
 
     @torch.inference_mode()
@@ -194,7 +193,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
             n_noise = int(param.numel() * self.noise_config.percentage)
 
             # Handle full noise case separately for efficiency
-            if self.noise_config.percentage >= 0.99:
+            if self.noise_config.percentage == 1.0:
                 self.add_noise_all()
                 return
 
@@ -220,18 +219,12 @@ class NoiseHuggingFaceAPI(ModelAPI):
                     dtype=param.dtype,
                 )
 
-                # Add noise in-place
                 param.view(-1)[indices] += noise
+                del noise, indices  # Just delete tensors
 
-                # Clear GPU memory after each batch
-                del noise, indices
-                torch.cuda.empty_cache()
-                gc.collect()
-
-            # Clear GPU memory after each parameter
-            torch.cuda.empty_cache()
-            gc.collect()
-
+        # Single cleanup at the end
+        torch.cuda.empty_cache()
+        gc.collect()
         self.noise_config.is_noisy = True
 
     def inject_noise(self):

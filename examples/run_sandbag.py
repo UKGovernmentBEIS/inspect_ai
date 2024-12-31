@@ -26,7 +26,7 @@ def main():
 
         # Run eval with current configuration
         eval(
-            tasks="examples/sandbag_hellaswag.py",
+            tasks="examples/sandbag_arc.py",
             model=[model_name],
             model_args=model_args,
         )
