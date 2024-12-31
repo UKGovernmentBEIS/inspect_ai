@@ -90,6 +90,13 @@ class Score(BaseModel):
         """Read the score as a boolean."""
         return bool(self._as_scalar())
 
+    def as_list(self) -> list[str | int | float | bool]:
+        """Read the score as a list."""
+        if isinstance(self.value, list):
+            return self.value
+        else:
+            raise ValueError("This score is not a list")
+
     def as_dict(self) -> dict[str, str | int | float | bool | None]:
         """Read the score as a dictionary."""
         if isinstance(self.value, dict):
