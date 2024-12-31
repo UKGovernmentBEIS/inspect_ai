@@ -5,14 +5,14 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 /**
  * @typedef {Object} Slide
  * @property {string} label - The label for the slide.
- * @property {() => JSX.Element} render - A function that returns another function to render the slide as a JSX element.
+ * @property {() => import("preact").JSX.Element} render - A function that returns another function to render the slide as a JSX element.
  */
 
 /**
  * LightboxCarousel component provides a carousel with lightbox functionality.
  * @param {Object} props - Component properties.
  * @property {Array<Slide>} props.slides - Array of slide render functions.
- * @returns {JSX.Element} LightboxCarousel component.
+ * @returns {import("preact").JSX.Element} LightboxCarousel component.
  */
 export const LightboxCarousel = ({ slides }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -192,13 +192,16 @@ export const LightboxCarousel = ({ slides }) => {
             </button>
           </div>
 
-          <button style=${prevButtonStyle} onClick=${showPrev}>
-            <i class=${ApplicationIcons.previous}></i>
-          </button>
-
-          <button style=${nextButtonStyle} onClick=${showNext}>
-            <i class=${ApplicationIcons.next}></i>
-          </button>
+          ${slides.length > 1
+            ? html` <button style=${prevButtonStyle} onClick=${showPrev}>
+                <i class=${ApplicationIcons.previous}></i>
+              </button>`
+            : ""}
+          ${slides.length > 1
+            ? html` <button style=${nextButtonStyle} onClick=${showNext}>
+                <i class=${ApplicationIcons.next}></i>
+              </button>`
+            : ""}
 
           <div
             key=${`carousel-slide-${currentIndex}`}

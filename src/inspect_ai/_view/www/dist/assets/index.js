@@ -22176,13 +22176,12 @@ ${events}
             </button>
           </div>
 
-          <button style=${prevButtonStyle} onClick=${showPrev}>
-            <i class=${ApplicationIcons.previous}></i>
-          </button>
-
-          <button style=${nextButtonStyle} onClick=${showNext}>
-            <i class=${ApplicationIcons.next}></i>
-          </button>
+          ${slides.length > 1 ? m$1` <button style=${prevButtonStyle} onClick=${showPrev}>
+                <i class=${ApplicationIcons.previous}></i>
+              </button>` : ""}
+          ${slides.length > 1 ? m$1` <button style=${nextButtonStyle} onClick=${showNext}>
+                <i class=${ApplicationIcons.next}></i>
+              </button>` : ""}
 
           <div
             key=${`carousel-slide-${currentIndex}`}
