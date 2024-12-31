@@ -22008,6 +22008,7 @@ ${events}
             fit
           }
         );
+        player.play();
         return () => {
           player.dispose();
         };

@@ -58,6 +58,7 @@ export const AsciiCinemaPlayer = ({
         fit,
       },
     );
+    player.play();
     return () => {
       player.dispose();
     };
