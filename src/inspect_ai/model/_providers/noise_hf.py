@@ -113,25 +113,16 @@ class NoiseHuggingFaceAPI(ModelAPI):
         else:
             self.device = "cpu"
 
-        # Model loading
-        if model_path:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                device_map=self.device,
-                use_auth_token=self.api_key,
-                **model_args,
-            )
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                device_map=self.device,
-                use_auth_token=self.api_key,
-                **model_args,
-            )
+        # Add a class variable to track if model is loaded
+        self._is_model_loaded = False
+        self._model = None
+
+        # Load model on first initialization
+        self._load_model(model_name, model_path, model_args)
 
         # Store original weights
         self.original_weights = {
-            name: param.clone() for name, param in self.model.named_parameters()
+            name: param.clone() for name, param in self._model.named_parameters()
         }
 
         # Tokenizer loading
@@ -154,11 +145,52 @@ class NoiseHuggingFaceAPI(ModelAPI):
         if self.noise_config.std < 0.0:
             raise ValueError("noise_std must be non-negative")
 
+    def _load_model(self, model_name: str, model_path: Optional[str], model_args: dict):
+        """Load the model if not already loaded."""
+        if not self._is_model_loaded:
+            if model_path:
+                self._model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    device_map=self.device,
+                    use_auth_token=self.api_key,
+                    **model_args,
+                )
+            else:
+                self._model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    device_map=self.device,
+                    use_auth_token=self.api_key,
+                    **model_args,
+                )
+            self._is_model_loaded = True
+
+        # Store original weights after initial load
+        if self.original_weights is None:
+            self.original_weights = {
+                name: param.clone() for name, param in self._model.named_parameters()
+            }
+
+    @property
+    def model(self):
+        """Property to access the model."""
+        return self._model
+
+    def cleanup(self):
+        """Cleanup method to reset weights and clear CUDA cache."""
+        if self._is_model_loaded:
+            self.reset_weights()
+            # Move model to CPU temporarily
+            self._model.to("cpu")
+            torch.cuda.empty_cache()
+            gc.collect()
+            # Move back to original device
+            self._model.to(self.device)
+
     def reset_weights(self):
         """Restore the original model weights and clear memory."""
         if self.original_weights is not None:
             with torch.no_grad():
-                for name, param in self.model.named_parameters():
+                for name, param in self._model.named_parameters():
                     if name in self.original_weights:
                         param.copy_(self.original_weights[name])
                 self.noise_config.is_noisy = False
@@ -170,7 +202,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
     @torch.inference_mode()
     def add_noise_all(self):
         """Add noise to all weights in the model."""
-        for name, param in self.model.named_parameters():
+        for name, param in self._model.named_parameters():
             noise = torch.normal(
                 mean=self.noise_config.mean,
                 std=self.noise_config.std,
@@ -189,7 +221,7 @@ class NoiseHuggingFaceAPI(ModelAPI):
     @torch.inference_mode()
     def add_noise_percentage(self, batch_size: int = 20 * 10**6):
         """Add noise to a percentage of weights."""
-        for name, param in self.model.named_parameters():
+        for name, param in self._model.named_parameters():
             n_noise = int(param.numel() * self.noise_config.percentage)
 
             # Handle full noise case separately for efficiency
@@ -333,9 +365,8 @@ class NoiseHuggingFaceAPI(ModelAPI):
                 ),
             )
         finally:
-            # Clear memory after generation
-            torch.cuda.empty_cache()
-            gc.collect()
+            # Cleanup after generation
+            self.cleanup()
 
     @override
     def max_tokens(self) -> int | None:
