@@ -17,16 +17,17 @@ The Inspect codebase is written using strict [MyPy](https://mypy-lang.org/) type
 
 There are some components of Inspect that are weakly typed to accomodate arbitrary user data structures. This includes:
 
-- Sample metadata
 - Sample store 
+- Sample metadata
 
-Below, we describe how to implement [typed metadata](#typed-metadata) and a [typed store](#typed-store) using Pydantic models.
+
+Below, we describe how to implement a [typed store](#typed-store) and [typed metadata](#typed-metadata) and using Pydantic models.
+
+## Typed Store
+
+{{< include _store_typing.md >}}
 
 ## Typed Metadata
 
 {{< include _metadata_typing.md >}}
 
-
-## Typed Store
-
-{{< include _store_typing.md >}}
