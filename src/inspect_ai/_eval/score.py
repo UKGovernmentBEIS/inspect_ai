@@ -11,7 +11,7 @@ from inspect_ai.log import (
     EvalMetric,
 )
 from inspect_ai.model import ModelName
-from inspect_ai.scorer import Metric, Score, Scorer, Target
+from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
@@ -108,7 +108,7 @@ async def score_async(
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].scores = cast(dict[str, Score], score)
+            log.samples[index].scores = {k: v.score for k, v in score.items()}
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -151,11 +151,8 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
         sample_scores = [
             {
                 score_key: SampleScore(
+                    score=score,
                     sample_id=sample.id,
-                    value=score.value,
-                    answer=score.answer,
-                    explanation=score.explanation,
-                    metadata=score.metadata,
                 )
                 for score_key, score in sample.scores.items()
             }
@@ -185,11 +182,8 @@ async def run_score_task(
         scorer_name = unique_scorer_name(scorer, list(results.keys()))
 
         results[scorer_name] = SampleScore(
+            score=result,
             sample_id=state.sample_id,
-            value=result.value,
-            answer=result.answer,
-            explanation=result.explanation,
-            metadata=result.metadata,
         )
 
     progress()

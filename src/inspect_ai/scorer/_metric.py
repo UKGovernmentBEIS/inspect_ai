@@ -104,12 +104,16 @@ class Score(BaseModel):
             raise ValueError("This score is not a scalar")
 
 
-class SampleScore(Score):
+class SampleScore(BaseModel):
     """Score for a Sample
 
     Args:
+       score: Score
        sample_id: (str | int | None) Unique id of a sample
     """
+
+    score: Score
+    """A score"""
 
     sample_id: str | int | None = Field(default=None)
     """A sample id"""

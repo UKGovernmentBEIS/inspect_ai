@@ -13,6 +13,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.log import (
     EvalMetric,
     EvalResults,
+    EvalSampleScore,
     EvalScore,
 )
 from inspect_ai.log._log import EvalSampleReductions
@@ -345,7 +346,7 @@ def resolve_glob_metric_keys(
 
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
-) -> list[SampleScore]:
+) -> list[EvalSampleScore]:
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -353,11 +354,11 @@ def reduce_scores(
             grouped_scores[str(sample_score.sample_id)].append(sample_score)
 
     # reduce the scores
-    reduced_scores: list[SampleScore] = []
+    reduced_scores: list[EvalSampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer(cast(list[Score], scores))
+        reduced = reducer([score.score for score in scores])
         reduced_scores.append(
-            SampleScore(
+            EvalSampleScore(
                 sample_id=scores[0].sample_id,
                 value=reduced.value,
                 answer=reduced.answer,

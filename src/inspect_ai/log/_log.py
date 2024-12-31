@@ -23,7 +23,6 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.scorer import Score
-from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from ._transcript import Event
@@ -301,6 +300,10 @@ class EvalScore(BaseModel):
     """Additional scorer metadata."""
 
 
+class EvalSampleScore(Score):
+    sample_id: str | int | None = Field(default=None)
+
+
 class EvalSampleReductions(BaseModel):
     scorer: str
     """Name the of scorer"""
@@ -308,7 +311,7 @@ class EvalSampleReductions(BaseModel):
     reducer: str | None = Field(default=None)
     """Name the of reducer"""
 
-    samples: list[SampleScore]
+    samples: list[EvalSampleScore]
     """List of reduced scores"""
 
 
