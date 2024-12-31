@@ -64,6 +64,7 @@ website:
             - eval-sets.qmd
             - text: "Errors & Limits"
               href: errors-and-limits.qmd
+            - typing.qmd
             - tracing.qmd
             - caching.qmd
             - parallelism.qmd

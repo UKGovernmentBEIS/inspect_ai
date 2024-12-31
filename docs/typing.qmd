@@ -1,0 +1,32 @@
+---
+title: Typing
+---
+
+::: {.callout-note appearance="simple"}
+The typed metadata and store features described below are currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+
+## Overview
+
+The Inspect codebase is written using strict [MyPy](https://mypy-lang.org/) type-checking---if you enable the same for your project along with installing the [MyPy VS Code Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker) you'll benefit from all of these type definitions.
+
+There are some components of Inspect that are weakly typed to accomodate arbitrary user data structures. This includes:
+
+- Sample metadata
+- Sample store 
+
+Below, we describe how to implement [typed metadata](#typed-metadata) and a [typed store](#typed-store) using Pydantic models.
+
+## Typed Metadata
+
+{{< include _metadata_typing.md >}}
+
+
+## Typed Store
+
+{{< include _store_typing.md >}}
