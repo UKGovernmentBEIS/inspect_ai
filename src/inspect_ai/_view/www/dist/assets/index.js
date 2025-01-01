@@ -24463,7 +24463,7 @@ ${events}
       };
       const userMessages = [];
       for (const msg of event.input.slice().reverse()) {
-        if (msg.role === "user") {
+        if (msg.role === "user" && !msg.tool_call_id) {
           userMessages.push(msg);
         } else {
           break;
