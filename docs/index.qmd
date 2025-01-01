@@ -288,6 +288,8 @@ These sections discuss more advanced features and workflow. You don't need to re
 
 -   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
 
+-   [Typing](typing.qmd): provides guideance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
+
 -   [Tracing](tracing.qmd) Describes advanced execution tracing tools used to diagnose runtime issues.
 
 -   [Caching](caching.qmd) enables you to cache model output to reduce the number of API calls made, saving both time and expense.

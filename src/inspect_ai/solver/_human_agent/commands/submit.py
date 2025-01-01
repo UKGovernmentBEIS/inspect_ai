@@ -84,7 +84,7 @@ class SubmitCommand(HumanAgentCommand):
             answer: str | None, session_logs: dict[str, str] | None = None
         ) -> None:
             if self._record_session:
-                state.session_logs = await self._read_session_logs()
+                state.logs = await self._read_session_logs()
             state.running = False
             state.answer = answer
 

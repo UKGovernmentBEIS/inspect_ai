@@ -6,7 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
-from typing import Callable, Literal, cast
+from typing import Callable, Literal
 
 from typing_extensions import Unpack
 
@@ -62,7 +62,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import init_sample_model_usage, sample_model_usage
 from inspect_ai.scorer import Scorer, Target
-from inspect_ai.scorer._metric import Metric, SampleScore, Score
+from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
@@ -503,11 +503,8 @@ async def task_run_sample(
             sample_scores = (
                 {
                     key: SampleScore(
+                        score=score,
                         sample_id=previous_sample.id,
-                        value=score.value,
-                        answer=score.answer,
-                        explanation=score.explanation,
-                        metadata=score.metadata,
                     )
                     for key, score in previous_sample.scores.items()
                 }
@@ -652,11 +649,8 @@ async def task_run_sample(
                             )
                             if score_result is not None:
                                 sample_score = SampleScore(
+                                    score=score_result,
                                     sample_id=sample.id,
-                                    value=score_result.value,
-                                    answer=score_result.answer,
-                                    explanation=score_result.explanation,
-                                    metadata=score_result.metadata,
                                 )
                                 transcript()._event(
                                     ScoreEvent(score=score_result, target=sample.target)
@@ -759,7 +753,7 @@ async def log_sample(
         setup=sample.setup,
         messages=state.messages,
         output=state.output,
-        scores=cast(dict[str, Score], scores),
+        scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
         events=list(transcript().events),
         model_usage=sample_model_usage(),

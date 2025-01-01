@@ -3,11 +3,11 @@ from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 from random import Random
-from typing import Any, Union, cast, overload
+from typing import Any, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
-from inspect_ai.dataset._dataset import Sample
+from inspect_ai.dataset._dataset import MT, Sample, metadata_as
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -19,6 +19,7 @@ from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
+from inspect_ai.util._store_model import SMT
 
 
 @dataclass
@@ -348,6 +349,31 @@ class TaskState:
         self._tools.clear()
         for tool in tools:
             self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Pydantic model interface to metadata.
+
+        Args:
+          metadata_cls: Pydantic model type
+
+        Returns:
+          BaseModel: Instance of metadata_cls bound to current Store.
+        """
+        if not self.metadata:
+            raise ValueError("Sample does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
+
+    def store_as(self, model_cls: Type[SMT]) -> SMT:
+        """Pydantic model interface to the store.
+
+        Args:
+          model_cls: Pydantic model type (must derive from StoreModel)
+
+        Returns:
+          StoreModel: Instance of model_cls bound to current Store.
+        """
+        return model_cls(store=self.store)
 
 
 def sample_state() -> TaskState | None:

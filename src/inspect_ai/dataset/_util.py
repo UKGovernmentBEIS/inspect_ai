@@ -1,6 +1,8 @@
 import json
 from typing import Any, Iterable, cast
 
+from pydantic import ValidationError
+
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -33,9 +35,35 @@ def record_to_sample_fn(
             # collect metadata if specified
             metadata: dict[str, Any] | None = None
             if sample_fields.metadata:
-                metadata = {}
-                for name in sample_fields.metadata:
-                    metadata[name] = record.get(name)
+                if isinstance(sample_fields.metadata, list):
+                    metadata = {}
+                    for name in sample_fields.metadata:
+                        metadata[name] = record.get(name)
+                else:
+                    # must be frozen
+                    if not sample_fields.metadata.model_config.get("frozen", False):
+                        raise ValueError(
+                            f"Metadata model {sample_fields.metadata.__name__} must have frozen=True"
+                        )
+
+                    # filter to only fields in the model
+                    model_fields = record.get("metadata", None)
+                    if isinstance(model_fields, str):
+                        model_fields = json.loads(model_fields)
+                    elif model_fields is None:
+                        model_fields = {
+                            k: v
+                            for k, v in record.items()
+                            if k in sample_fields.metadata.__pydantic_fields__.keys()
+                        }
+
+                    # parse and return metadata
+                    try:
+                        metadata = sample_fields.metadata(**model_fields).model_dump()
+                    except ValidationError as ex:
+                        raise ValueError(
+                            f"Could not parse metadata into {sample_fields.metadata.__name__}: {ex}"
+                        )
             elif "metadata" in record:
                 metadata_field = record.get("metadata")
                 if isinstance(metadata_field, str):
