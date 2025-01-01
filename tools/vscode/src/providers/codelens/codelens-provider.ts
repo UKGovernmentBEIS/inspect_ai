@@ -1,4 +1,13 @@
-import { CancellationToken, CodeLens, CodeLensProvider, Command, ExtensionContext, TextDocument, Uri, languages } from "vscode";
+import {
+  CancellationToken,
+  CodeLens,
+  CodeLensProvider,
+  Command,
+  ExtensionContext,
+  TextDocument,
+  Uri,
+  languages,
+} from "vscode";
 import { isNotebook } from "../../components/notebook";
 
 export function activateCodeLens(context: ExtensionContext) {
@@ -33,13 +42,31 @@ function taskCommands(uri: Uri, fn: string): Command[] {
         tooltip: "Execute this evaluation task.",
         command: "inspect.runTask",
         arguments: [uri, fn],
-      }
+      },
     ];
   }
 }
 
-class InspectCodeLensProvider implements CodeLensProvider {
-  constructor() { }
+export class InspectCodeLensProvider implements CodeLensProvider {
+  private hasInspectImport(document: TextDocument): {
+    hasImport: boolean;
+    alias?: string;
+  } {
+    const text = document.getText();
+    // Handle multiline imports by removing newlines between parentheses
+    const normalizedText = text.replace(/\(\s*\n\s*([^)]+)\s*\n\s*\)/g, "($1)");
+
+    const fromImportMatch = normalizedText.match(
+      /from\s+inspect\s+import\s+(?:\(\s*)?(?:[\w,\s]*,\s*)?task(?:\s+as\s+(\w+))?/
+    );
+    if (fromImportMatch) {
+      return { hasImport: true, alias: fromImportMatch[1] };
+    }
+    if (/import\s+inspect\b/.test(normalizedText)) {
+      return { hasImport: true };
+    }
+    return { hasImport: false };
+  }
 
   provideCodeLenses(
     document: TextDocument,
@@ -52,12 +79,31 @@ class InspectCodeLensProvider implements CodeLensProvider {
       return [];
     }
 
+    // Check for inspect import first
+    const importInfo = this.hasInspectImport(document);
+    if (!importInfo.hasImport) {
+      return [];
+    }
+
     // Go through line by line and show a lens
     // for any task decorated functions
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
-      if (kTaskDecoratorPattern.test(line.text)) {
-        // Get the function name from the next line (keep looking for next function)
+      const decoratorMatch = line.text.match(
+        /^\s*@(inspect\.)?task\b|@(\w+)\b/
+      );
+
+      if (decoratorMatch) {
+        const isInspectTask =
+          decoratorMatch[1] !== undefined || // @inspect.task
+          decoratorMatch[0] === "@task" || // @task (when from inspect import task)
+          (importInfo.alias && decoratorMatch[2] === importInfo.alias); // @t (when from inspect import task as t)
+
+        if (!isInspectTask) {
+          continue;
+        }
+
+        // Get the function name from the next line
         let j = i + 1;
         while (j < document.lineCount) {
           const funcLine = document.lineAt(j);
@@ -75,5 +121,4 @@ class InspectCodeLensProvider implements CodeLensProvider {
     return lenses;
   }
 }
-const kTaskDecoratorPattern = /^\s*@task\b/;
 const kFuncPattern = /^\s*def\s*(.*)\(.*$/;

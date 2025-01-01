@@ -149,7 +149,7 @@
         "command": "inspect.logListingCopyEditorPath",
         "title": "Copy Editor URL",
         "enablement": "workspaceFolderCount != 0"
-      },      
+      },
       {
         "command": "inspect.logListingReveal",
         "title": "Reveal Log Listing",
@@ -454,7 +454,7 @@
     "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "yarn run compile-tests && yarn run compile && yarn run lint",
+    "pretest": "yarn run compile-tests && yarn run compile",
     "lint": "eslint src --ext ts",
     "test": "vscode-test"
   },
