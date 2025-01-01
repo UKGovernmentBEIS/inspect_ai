@@ -23,9 +23,6 @@
         "event": {
           "const": "approval",
           "default": "approval",
-          "enum": [
-            "approval"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -154,6 +151,11 @@
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
+    "BaseModel": {
+      "properties": {},
+      "title": "BaseModel",
+      "type": "object"
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -235,9 +237,6 @@
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "enum": [
-            "assistant"
-          ],
           "title": "Role",
           "type": "string"
         },
@@ -309,9 +308,6 @@
         "role": {
           "const": "system",
           "default": "system",
-          "enum": [
-            "system"
-          ],
           "title": "Role",
           "type": "string"
         }
@@ -367,9 +363,6 @@
         "role": {
           "const": "tool",
           "default": "tool",
-          "enum": [
-            "tool"
-          ],
           "title": "Role",
           "type": "string"
         },
@@ -463,9 +456,6 @@
         "role": {
           "const": "user",
           "default": "user",
-          "enum": [
-            "user"
-          ],
           "title": "Role",
           "type": "string"
         }
@@ -484,9 +474,6 @@
         "type": {
           "const": "image",
           "default": "image",
-          "enum": [
-            "image"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -519,9 +506,6 @@
         "type": {
           "const": "text",
           "default": "text",
-          "enum": [
-            "text"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -561,9 +545,6 @@
         "event": {
           "const": "error",
           "default": "error",
-          "enum": [
-            "error"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -607,6 +588,34 @@
           ],
           "default": null,
           "title": "Limit"
+        },
+        "sample_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id"
         },
         "epochs": {
           "anyOf": [
@@ -745,6 +754,18 @@
           "default": null,
           "title": "Max Subprocesses"
         },
+        "max_sandboxes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Sandboxes"
+        },
         "sandbox_cleanup": {
           "anyOf": [
             {
@@ -792,12 +813,25 @@
           ],
           "default": null,
           "title": "Log Buffer"
+        },
+        "score_display": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Display"
         }
       },
       "title": "EvalConfig",
       "type": "object",
       "required": [
         "limit",
+        "sample_id",
         "epochs",
         "epochs_reducer",
         "trace",
@@ -809,10 +843,12 @@
         "max_samples",
         "max_tasks",
         "max_subprocesses",
+        "max_sandboxes",
         "sandbox_cleanup",
         "log_samples",
         "log_images",
-        "log_buffer"
+        "log_buffer",
+        "score_display"
       ],
       "additionalProperties": false
     },
@@ -1017,7 +1053,8 @@
             "top_logprobs": null,
             "parallel_tool_calls": null,
             "max_tool_output": null,
-            "cache_prompt": null
+            "cache_prompt": null,
+            "reasoning_effort": null
           }
         }
       },
@@ -1097,9 +1134,6 @@
       "properties": {
         "type": {
           "const": "git",
-          "enum": [
-            "git"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -1964,9 +1998,6 @@
           "anyOf": [
             {
               "const": "auto",
-              "enum": [
-                "auto"
-              ],
               "type": "string"
             },
             {
@@ -1978,6 +2009,23 @@
           ],
           "default": null,
           "title": "Cache Prompt"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
         }
       },
       "title": "GenerateConfig",
@@ -2003,7 +2051,8 @@
         "top_logprobs",
         "parallel_tool_calls",
         "max_tool_output",
-        "cache_prompt"
+        "cache_prompt",
+        "reasoning_effort"
       ],
       "additionalProperties": false
     },
@@ -2030,9 +2079,6 @@
         "event": {
           "const": "info",
           "default": "info",
-          "enum": [
-            "info"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2073,9 +2119,6 @@
         "event": {
           "const": "input",
           "default": "input",
-          "enum": [
-            "input"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2174,9 +2217,6 @@
         "event": {
           "const": "logger",
           "default": "logger",
-          "enum": [
-            "logger"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2377,9 +2417,6 @@
         "event": {
           "const": "model",
           "default": "model",
-          "enum": [
-            "model"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2769,9 +2806,6 @@
         "event": {
           "const": "sample_init",
           "default": "sample_init",
-          "enum": [
-            "sample_init"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2816,9 +2850,6 @@
         "event": {
           "const": "sample_limit",
           "default": "sample_limit",
-          "enum": [
-            "sample_limit"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2996,6 +3027,9 @@
         {
           "anyOf": [
             {
+              "$ref": "#/$defs/BaseModel"
+            },
+            {
               "type": "string"
             },
             {
@@ -3139,9 +3173,6 @@
         "event": {
           "const": "score",
           "default": "score",
-          "enum": [
-            "score"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3201,9 +3232,6 @@
         "event": {
           "const": "state",
           "default": "state",
-          "enum": [
-            "state"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3248,9 +3276,6 @@
         "event": {
           "const": "step",
           "default": "step",
-          "enum": [
-            "step"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3314,9 +3339,6 @@
         "event": {
           "const": "store",
           "default": "store",
-          "enum": [
-            "store"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3361,9 +3383,6 @@
         "event": {
           "const": "subtask",
           "default": "subtask",
-          "enum": [
-            "subtask"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3472,9 +3491,6 @@
         },
         "type": {
           "const": "function",
-          "enum": [
-            "function"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -3638,18 +3654,12 @@
         "event": {
           "const": "tool",
           "default": "tool",
-          "enum": [
-            "tool"
-          ],
           "title": "Event",
           "type": "string"
         },
         "type": {
           "const": "function",
           "default": "function",
-          "enum": [
-            "function"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -3853,18 +3863,25 @@
       "description": "Description of tool parameter in JSON Schema format.",
       "properties": {
         "type": {
-          "default": "null",
-          "enum": [
-            "string",
-            "integer",
-            "number",
-            "boolean",
-            "array",
-            "object",
-            "null"
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "null"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Type",
-          "type": "string"
+          "default": null,
+          "title": "Type"
         },
         "description": {
           "anyOf": [
@@ -3881,6 +3898,19 @@
         "default": {
           "default": null,
           "title": "Default"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
         },
         "items": {
           "anyOf": [
@@ -3960,6 +3990,7 @@
         "type",
         "description",
         "default",
+        "enum",
         "items",
         "properties",
         "additionalProperties",
@@ -3974,9 +4005,6 @@
         "type": {
           "const": "object",
           "default": "object",
-          "enum": [
-            "object"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -4086,6 +4114,7 @@
           "num_choices": null,
           "parallel_tool_calls": null,
           "presence_penalty": null,
+          "reasoning_effort": null,
           "seed": null,
           "stop_seqs": null,
           "suffix": null,
