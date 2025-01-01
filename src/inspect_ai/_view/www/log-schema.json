@@ -458,12 +458,25 @@
           "default": "user",
           "title": "Role",
           "type": "string"
+        },
+        "tool_call_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Call Id"
         }
       },
       "required": [
         "content",
         "source",
-        "role"
+        "role",
+        "tool_call_id"
       ],
       "title": "ChatMessageUser",
       "type": "object",
@@ -3702,6 +3715,12 @@
             },
             {
               "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/ContentText"
+            },
+            {
+              "$ref": "#/$defs/ContentImage"
             },
             {
               "items": {
