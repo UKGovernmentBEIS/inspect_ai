@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Callable, Sequence, cast
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -159,6 +161,72 @@ class Task:
             return cast(dict[str, Any], registry_info(self).metadata.get("attribs", {}))
         else:
             return dict()
+
+
+def task_with(
+    task: Task,
+    dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
+    setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
+    solver: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
+    scorer: Scorer | list[Scorer] | None | NotGiven = NOT_GIVEN,
+    metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
+    config: GenerateConfig | None | NotGiven = NOT_GIVEN,
+    sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
+    epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
+    fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
+    message_limit: int | None | NotGiven = NOT_GIVEN,
+    token_limit: int | None | NotGiven = NOT_GIVEN,
+    time_limit: int | None | NotGiven = NOT_GIVEN,
+    name: str | None | NotGiven = NOT_GIVEN,
+    version: int | None | NotGiven = NOT_GIVEN,
+    metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
+) -> Task:
+    """Task adapted with alternate values for one or more options.
+
+    Args:
+        task (Task): Task to adapt (it is deep copied prior to mutating options)
+        dataset (Dataset | Sequence[Sample]): Dataset to evaluate
+        setup: (Solver | list[Solver] | None): Setup step (always run
+          even when the main `solver` is replaced).
+        solver: (Solver | list[Solver]): Solver or list of solvers.
+          Defaults to generate(), a normal call to the model.
+        scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
+        metrics (list[Metric] | dict[str, list[Metric]] | None):
+          Alternative metrics (overrides the metrics provided by the specified scorer).
+        config (GenerateConfig): Model generation config.
+        sandbox (SandboxEnvironmentType | None): Sandbox environment type
+          (or optionally a str or tuple with a shorthand spec)
+        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+           reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
+        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
+        name: (str | None): Task name. If not specified is automatically
+          determined based on the name of the task directory (or "task")
+          if its anonymous task (e.g. created in a notebook and passed to
+          eval() directly)
+        version: (int): Version of task (to distinguish evolutions
+          of the task spec or breaking changes to it)
+        metadata: (dict[str, Any] | None): Additional metadata to associate with the task.
+
+    Returns:
+        Task: Task adapted with alternate options.
+    """
+    # deep copy the task
+    task = deepcopy(task)
+
+    # override given options
+    args = {arg: value for arg, value in locals().items() if arg != "task"}
+    for arg, value in args.items():
+        if value != NOT_GIVEN:
+            setattr(task, arg, value)
+
+    # return modified task
+    return task
 
 
 class TaskInfo(BaseModel):
