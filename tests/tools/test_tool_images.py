@@ -61,11 +61,6 @@ def test_anthropic_tool_image_result():
     check_tool_image_result("anthropic/claude-3-5-sonnet-20240620")
 
 
-# @skip_if_no_mistral
-# def test_mistral_tool_image_result():
-#     check_tool_image_result("mistral/pixtral-12b-2409")
-
-
 def check_tool_image_result(model: str):
     log = eval(camera_task(), model=model)[0]
     assert log.status == "success"
