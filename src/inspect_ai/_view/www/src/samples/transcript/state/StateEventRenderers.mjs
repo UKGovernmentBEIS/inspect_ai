@@ -64,12 +64,12 @@ const add_tools = {
 };
 
 const humanAgentKey = (key) => {
-  return `human_agent_state:${key}`;
+  return `HumanAgentState:${key}`;
 };
 const human_baseline_session = {
   type: "human_baseline_session",
   signature: {
-    add: ["human_agent_state:session_logs"],
+    add: ["HumanAgentState:logs"],
     replace: [],
     remove: [],
   },
@@ -78,9 +78,9 @@ const human_baseline_session = {
     const started = resolvedState[humanAgentKey("started_running")];
     const runtime = resolvedState[humanAgentKey("accumulated_time")];
     const answer = resolvedState[humanAgentKey("answer")];
-    const completed = resolvedState[humanAgentKey("completed")];
-    const running = resolvedState[humanAgentKey("running")];
-    const rawSessions = resolvedState[humanAgentKey("session_logs")];
+    const completed = !!answer;
+    const running = resolvedState[humanAgentKey("running_state")];
+    const rawSessions = resolvedState[humanAgentKey("logs")];
 
     // Tweak the date value
     const startedDate = started ? new Date(started * 1000) : undefined;

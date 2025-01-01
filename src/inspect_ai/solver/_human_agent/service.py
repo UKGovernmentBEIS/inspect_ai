@@ -11,7 +11,8 @@ async def run_human_agent_service(
     state: TaskState, commands: list[HumanAgentCommand], view: HumanAgentView | None
 ) -> TaskState:
     # initialise agent state
-    agent_state = HumanAgentState(state)
+    instructions = "\n\n".join([message.text for message in state.messages]).strip()
+    agent_state = HumanAgentState(instructions=instructions)
 
     # extract service methods from commands
     methods = {
@@ -25,7 +26,7 @@ async def run_human_agent_service(
     def task_is_completed() -> bool:
         if view:
             view.update_state(agent_state)
-        return agent_state.completed
+        return agent_state.answer is not None
 
     # run the service
     await sandbox_service(

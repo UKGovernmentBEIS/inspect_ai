@@ -10,7 +10,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._score import score
 
 from ..._task_state import TaskState
-from ..state import HumanAgentState, IntermediateScore
+from ..state import HumanAgentState, IntermediateScoring
 from .command import HumanAgentCommand, call_human_agent
 
 
@@ -62,9 +62,7 @@ class ScoreCommand(HumanAgentCommand):
                 result = await score(self._state)
 
             # record the scoring action in our state
-            state.intermediate_scores.append(
-                IntermediateScore(time=state.time, scores=result)
-            )
+            state.scorings.append(IntermediateScoring(time=state.time, scores=result))
 
             # record to transcript
             transcript().info(

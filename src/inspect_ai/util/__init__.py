@@ -19,6 +19,7 @@ from ._sandbox import (
     sandboxenv,
 )
 from ._store import Store, store
+from ._store_model import StoreModel, store_as
 from ._subprocess import (
     ExecResult,
     subprocess,
@@ -52,6 +53,8 @@ __all__ = [
     "sandbox_service",
     "Store",
     "store",
+    "StoreModel",
+    "store_as",
     "Subtask",
     "subtask",
     "throttle",

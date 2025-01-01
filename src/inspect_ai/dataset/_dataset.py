@@ -1,16 +1,19 @@
 import abc
 import random
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Iterator,
     Sequence,
+    Type,
+    TypeVar,
     Union,
     overload,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing_extensions import override
 
 from inspect_ai.model import ChatMessage
@@ -19,6 +22,8 @@ from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
+
+MT = TypeVar("MT", bound=BaseModel)
 
 
 class Sample(BaseModel):
@@ -75,6 +80,20 @@ class Sample(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Metadata as a Pydantic model.
+
+        Args:
+           metadata_cls: BaseModel derived class.
+
+        Returns:
+           BaseModel: Instance of metadata_cls.
+        """
+        if self.metadata is None:
+            raise ValueError("Sample does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -177,7 +196,8 @@ class Dataset(Sequence[Sample], abc.ABC):
         """
 
 
-class FieldSpec(BaseModel):
+@dataclass
+class FieldSpec:
     r"""Specification for mapping data source fields to sample fields.
 
     Args:
@@ -191,28 +211,28 @@ class FieldSpec(BaseModel):
         setup (str): Optional. Setup script to run for sample .
     """
 
-    input: str = Field(default="input")
+    input: str = field(default="input")
     """Name of the field containing the sample input."""
 
-    target: str = Field(default="target")
+    target: str = field(default="target")
     """Name of the field containing the sample target."""
 
-    choices: str = Field(default="choices")
+    choices: str = field(default="choices")
     """Name of field containing the list of answer choices."""
 
-    id: str = Field(default="id")
+    id: str = field(default="id")
     """ Unique identifier for the sample."""
 
-    metadata: list[str] | None = Field(default=None)
+    metadata: list[str] | Type[BaseModel] | None = field(default=None)
     """List of additional field names that should be read as metadata."""
 
-    sandbox: str = Field(default="sandbox")
+    sandbox: str = field(default="sandbox")
     """Sandbox type along with optional config file."""
 
-    files: str = Field(default="files")
+    files: str = field(default="files")
     """Files that go along wtih the sample."""
 
-    setup: str = Field(default="setup")
+    setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
 
@@ -313,3 +333,24 @@ class MemoryDataset(Dataset):
             samples=[sample for sample in self if predicate(sample)],
             shuffled=self.shuffled,
         )
+
+
+def metadata_as(metadata: dict[str, Any], metadata_cls: Type[MT]) -> MT:
+    # validate that metadata_cls is frozen
+    if not metadata_cls.model_config.get("frozen", False):
+        raise ValueError(
+            f"Metadata model {metadata_cls.__name__} must have frozen=True"
+        )
+
+    # filter to only fields in the model
+    model_fields = {
+        k: v
+        for k, v in metadata.items()
+        if k in metadata_cls.__pydantic_fields__.keys()
+    }
+
+    # parse and return model instance
+    try:
+        return metadata_cls(**model_fields)
+    except ValidationError as ex:
+        raise ValueError(f"Could not parse metadata into {metadata_cls.__name__}: {ex}")

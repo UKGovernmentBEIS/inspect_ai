@@ -22345,12 +22345,12 @@ ${events}
       }
     };
     const humanAgentKey = (key2) => {
-      return `human_agent_state:${key2}`;
+      return `HumanAgentState:${key2}`;
     };
     const human_baseline_session = {
       type: "human_baseline_session",
       signature: {
-        add: ["human_agent_state:session_logs"],
+        add: ["HumanAgentState:logs"],
         replace: [],
         remove: []
       },
@@ -22358,9 +22358,9 @@ ${events}
         const started = resolvedState[humanAgentKey("started_running")];
         const runtime = resolvedState[humanAgentKey("accumulated_time")];
         const answer = resolvedState[humanAgentKey("answer")];
-        const completed = resolvedState[humanAgentKey("completed")];
-        const running = resolvedState[humanAgentKey("running")];
-        const rawSessions = resolvedState[humanAgentKey("session_logs")];
+        const completed = !!answer;
+        const running = resolvedState[humanAgentKey("running_state")];
+        const rawSessions = resolvedState[humanAgentKey("logs")];
         const startedDate = started ? new Date(started * 1e3) : void 0;
         const sessions = {};
         if (rawSessions) {

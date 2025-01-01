@@ -6,7 +6,7 @@ title: Agents API
 
 This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
 
-1.  Sharing state across solvers and tools
+1.  Sharing per-sample state across solvers and tools
 2.  Creating a custom tool use loop
 3.  Dynamically customising tool descriptions
 4.  Observability with sample transcripts.
@@ -15,19 +15,10 @@ This article describes advanced Inspect APIs available for creating evaluations 
 
 We'll assume that you have already covered the basics of [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) (please review those articles as required before proceeding).
 
-## Use of `metadata`
 
-Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
+## Sample Store
 
--   Sharing state between solvers.
--   Providing a place to log additional structured data.
--   Recording calls to "helper" models used for elicitation or scoring.
-
-The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
-
-## Sharing State
-
-Sequences of solvers often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a scoped scratchpad for arbitrary values.
+Sequences of solvers executing against a sample often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
 
 The core of the `Store` interface is:
 
@@ -39,6 +30,8 @@ class Store:
     def set(self, key: str, value: Any) -> None
     def delete(self, key: str) -> None
 ```
+
+Note that the core `Store` interface is a property bag without strong typing. See the section below on [typed store access](#store-typing) for details on how to interact with the store in a typesafe fashion.
 
 Basic views on the store's collection (e.g. `items()`, `keys()`, `values()`) are also provided. Note that the `get()` method will automatically add the `default` to the store if it doesn't exist.
 
@@ -66,6 +59,19 @@ While there is no formal namespacing mechanism for the `Store`, this can be info
 You should generally try to use JSON serialisable Python types in the `Store` (e.g. objects should be dataclasses or Pydantic BaseModel) so that they can be recorded in the [Transcript](#sec-transcripts).
 
 While the default `Store` for a sample is shared globally between solvers and tools, a more narrowly scoped `Store` is created automatically for [Subtasks](#sec-subtasks).
+
+### Store Typing {#store-typing}
+
+::: {.callout-note appearance="simple"}
+The store typing feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+{{< include _store_typing.md >}}
+
 
 ## Tool Use
 
