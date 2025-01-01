@@ -11,6 +11,7 @@ from typing import (
     runtime_checkable,
 )
 
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -18,13 +19,20 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from . import Content
 from ._tool_call import ToolCallViewer
 
 logger = getLogger(__name__)
 
 
-ToolResult = str | int | float | bool | list[Content]
+ToolResult = (
+    str
+    | int
+    | float
+    | bool
+    | ContentText
+    | ContentImage
+    | list[ContentText | ContentImage]
+)
 
 
 class ToolError(Exception):

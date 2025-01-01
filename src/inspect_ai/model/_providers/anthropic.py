@@ -229,6 +229,10 @@ class AnthropicAPI(ModelAPI):
     def tools_required(self) -> bool:
         return True
 
+    @override
+    def tool_result_images(self) -> bool:
+        return True
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
         error = exception_message(ex).lower()

@@ -118,10 +118,12 @@ async def call_tools(
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
-            if isinstance(result, list) and (
+            if isinstance(result, ContentText | ContentImage):
+                content: str | list[Content] = [result]
+            elif isinstance(result, list) and (
                 isinstance(result[0], ContentText | ContentImage)
             ):
-                content: str | list[Content] = result
+                content = result
             else:
                 content = str(result)
 

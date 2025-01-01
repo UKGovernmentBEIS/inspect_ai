@@ -6,6 +6,8 @@
 - `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+- Tools can now return `ContentText` and `ContentImage`.
+- Move tool result images into subsequent user messages for models that don't support tools returning images.
 - Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
 
 ## v0.3.55 (29 December 2024)
