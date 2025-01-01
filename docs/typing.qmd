@@ -15,13 +15,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 The Inspect codebase is written using strict [MyPy](https://mypy-lang.org/) type-checking---if you enable the same for your project along with installing the [MyPy VS Code Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker) you'll benefit from all of these type definitions.
 
-There are some components of Inspect that are weakly typed to accomodate arbitrary user data structures. This includes:
-
-- Sample store 
-- Sample metadata
-
-
-Below, we describe how to implement a [typed store](#typed-store) and [typed metadata](#typed-metadata) and using Pydantic models.
+The sample store and sample metadata interfaces are weakly typed to accommodate arbitrary user data structures. Below, we describe how to implement a [typed store](#typed-store) and [typed metadata](#typed-metadata) using Pydantic models.
 
 ## Typed Store
 
