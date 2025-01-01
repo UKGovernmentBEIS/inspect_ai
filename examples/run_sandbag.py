@@ -17,7 +17,7 @@ def main():
     # Define the model name
     model_name = "noise_hf/microsoft/Phi-3-mini-4k-instruct"
 
-    # Run eval for each standard deviation
+    # Run eval for each standard deviation #test
     for std in std_values:
         try:
             # Run eval with current configuration
