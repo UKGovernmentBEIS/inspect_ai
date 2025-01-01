@@ -723,7 +723,7 @@ def tool_result_images_reducer(
             if isinstance(message.content[i], ContentImage):
                 user_content.append(message.content[i])
                 message.content[i] = ContentText(
-                    text="Image provided in the subsequent user message."
+                    text="Image content is in the message below."
                 )
         if len(user_content) > 0:
             messages.append(
