@@ -15258,6 +15258,10 @@ var require_assets = __commonJS({
       output,
       mode
     }) => {
+      function isContentImage(value) {
+        return value && typeof value === "object" && value.type === "image";
+      }
+      const collapse = Array.isArray(output) ? output.every((item) => !isContentImage(item)) : !isContentImage(output);
       return m$1`<div>
     ${mode !== "compact" && (!view || view.title) ? m$1`<${ToolTitle} title=${(view == null ? void 0 : view.title) || functionCall} />` : ""}
     <div>
@@ -15269,7 +15273,7 @@ var require_assets = __commonJS({
           style=${{ marginBottom: "1em" }}
         />
         ${output ? m$1`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
+              <${ExpandablePanel} collapse=${collapse} border=${true} lines=${15}>
               <${MessageContent} contents=${normalizeContent$1(output)} />
               </${ExpandablePanel}>` : ""}
       </div>
