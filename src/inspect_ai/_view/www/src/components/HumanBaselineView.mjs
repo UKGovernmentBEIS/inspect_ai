@@ -55,14 +55,20 @@ export const HumanBaselineView = ({
   // Make a player for each session log
   let count = 1;
   let maxCols = 0;
+
   for (const sessionLog of sessionLogs) {
     const rows = extractSize(sessionLog.output, "LINES");
     const cols = extractSize(sessionLog.output, "COLUMNS");
     maxCols = Math.max(maxCols, parseInt(cols));
 
     const currentCount = count;
+    const title =
+      sessionLogs.length === 1
+        ? "Terminal Session"
+        : `Terminal Session ${currentCount}`;
+
     player_fns.push({
-      label: `Human Baseline: Session ${currentCount}`,
+      label: title,
       render: () => html`
         <${AsciiCinemaPlayer}
           id=${`player-${currentCount}`}

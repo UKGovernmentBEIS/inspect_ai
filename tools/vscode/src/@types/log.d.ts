@@ -29,6 +29,7 @@ export type SandboxEnvironmentSpec = [unknown] | [unknown, unknown];
 export type Model = string;
 export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
+export type SampleId = string | number | (string | number)[] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
 export type Trace = boolean | null;
@@ -42,10 +43,12 @@ export type TimeLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
+export type MaxSandboxes = number | null;
 export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
+export type ScoreDisplay = boolean | null;
 export type Type = "git";
 export type Origin = string;
 export type Commit = string;
@@ -76,6 +79,7 @@ export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
+export type ReasoningEffort = ("low" | "medium" | "high") | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name3 = string;
@@ -241,14 +245,10 @@ export type Name5 = string;
 export type Description = string;
 export type Type6 = "object";
 export type Type7 =
-  | "string"
-  | "integer"
-  | "number"
-  | "boolean"
-  | "array"
-  | "object"
-  | "null";
+  | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
+  | null;
 export type Description1 = string | null;
+export type Enum = unknown[] | null;
 export type Properties1 = {
   [k: string]: ToolParam;
 } | null;
@@ -388,7 +388,7 @@ export type Value2 =
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
 export type Metadata8 = {} | null;
-export type SampleId = string | number | null;
+export type SampleId1 = string | number | null;
 export type Samples2 = SampleScore[];
 export type Location1 = string;
 
@@ -438,6 +438,7 @@ export interface EvalDataset {
 export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;
+  sample_id: SampleId;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
   trace: Trace;
@@ -449,10 +450,12 @@ export interface EvalConfig {
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
+  max_sandboxes: MaxSandboxes;
   sandbox_cleanup: SandboxCleanup;
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;
+  score_display: ScoreDisplay;
 }
 export interface ApprovalPolicyConfig {
   approvers: Approvers;
@@ -523,6 +526,7 @@ export interface GenerateConfig {
   parallel_tool_calls: ParallelToolCalls;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  reasoning_effort: ReasoningEffort;
 }
 export interface EvalResults {
   total_samples: TotalSamples;
@@ -825,6 +829,7 @@ export interface ToolParam {
   type: Type7;
   description: Description1;
   default: Default;
+  enum: Enum;
   items: ToolParam | null;
   properties: Properties1;
   additionalProperties: Additionalproperties;
@@ -862,6 +867,7 @@ export interface GenerateConfig1 {
   parallel_tool_calls: ParallelToolCalls;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
+  reasoning_effort: ReasoningEffort;
 }
 /**
  * Model call (raw request/response data).
@@ -1031,5 +1037,5 @@ export interface SampleScore {
   answer: Answer1;
   explanation: Explanation2;
   metadata: Metadata8;
-  sample_id: SampleId;
+  sample_id: SampleId1;
 }

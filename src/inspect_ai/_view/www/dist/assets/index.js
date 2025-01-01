@@ -22008,6 +22008,7 @@ ${events}
             fit
           }
         );
+        player.play();
         return () => {
           player.dispose();
         };
@@ -22175,13 +22176,12 @@ ${events}
             </button>
           </div>
 
-          <button style=${prevButtonStyle} onClick=${showPrev}>
-            <i class=${ApplicationIcons.previous}></i>
-          </button>
-
-          <button style=${nextButtonStyle} onClick=${showNext}>
-            <i class=${ApplicationIcons.next}></i>
-          </button>
+          ${slides.length > 1 ? m$1` <button style=${prevButtonStyle} onClick=${showPrev}>
+                <i class=${ApplicationIcons.previous}></i>
+              </button>` : ""}
+          ${slides.length > 1 ? m$1` <button style=${nextButtonStyle} onClick=${showNext}>
+                <i class=${ApplicationIcons.next}></i>
+              </button>` : ""}
 
           <div
             key=${`carousel-slide-${currentIndex}`}
@@ -22221,8 +22221,9 @@ ${events}
         const rows = extractSize(sessionLog.output, "LINES");
         const cols = extractSize(sessionLog.output, "COLUMNS");
         const currentCount = count;
+        const title = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
-          label: `Human Baseline: Session ${currentCount}`,
+          label: title,
           render: () => m$1`
         <${AsciiCinemaPlayer}
           id=${`player-${currentCount}`}
