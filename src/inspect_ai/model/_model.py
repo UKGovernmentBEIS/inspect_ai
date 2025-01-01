@@ -726,7 +726,9 @@ def tool_result_images_reducer(
                     text="Image provided in the subsequent user message."
                 )
         if len(user_content) > 0:
-            messages.append(ChatMessageUser(content=user_content))
+            messages.append(
+                ChatMessageUser(content=user_content, tool_call_id=message.tool_call_id)
+            )
 
     # return messages
     return messages
