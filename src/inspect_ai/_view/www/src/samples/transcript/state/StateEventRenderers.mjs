@@ -69,7 +69,7 @@ const humanAgentKey = (key) => {
 const human_baseline_session = {
   type: "human_baseline_session",
   signature: {
-    add: ["HumanAgentState:session_logs"],
+    add: ["HumanAgentState:logs"],
     replace: [],
     remove: [],
   },

@@ -26,7 +26,7 @@ async def run_human_agent_service(
     def task_is_completed() -> bool:
         if view:
             view.update_state(agent_state)
-        return agent_state.completed
+        return agent_state.answer is not None
 
     # run the service
     await sandbox_service(

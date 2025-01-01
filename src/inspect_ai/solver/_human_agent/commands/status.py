@@ -1,5 +1,5 @@
 from argparse import Namespace
-from typing import Awaitable, Callable, Literal, cast
+from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
 from rich.console import RenderableType
@@ -39,11 +39,11 @@ class StatusCommand(HumanAgentCommand):
 def render_status(state: HumanAgentState) -> str:
     content: list[RenderableType] = [""]
     content.append(
-        f"[bold]Status:[/bold] {'Running' if state.status['running'] else 'Stopped'}  "
-        + f"[bold]Time:[/bold] {format_progress_time(cast(float,state.status['time']), pad_hours=False)}"
+        f"[bold]Status:[/bold] {'Running' if state.running else 'Stopped'}  "
+        + f"[bold]Time:[/bold] {format_progress_time(state.time, pad_hours=False)}"
     )
 
-    if len(state.intermediate_scores) > 0:
+    if len(state.scorings) > 0:
         content.append("")
         content.append(Text.from_markup("[italic]Intermediate Scores[/italic]"))
         scores_table = Table(box=None, min_width=35, padding=(0, 0))
@@ -51,7 +51,7 @@ def render_status(state: HumanAgentState) -> str:
         scores_table.add_column("Score", justify="center")
         scores_table.add_column("Time", justify="right")
 
-        for score in state.intermediate_scores:
+        for score in state.scorings:
             scores_table.add_row(
                 score.scores[0].answer,
                 score.scores[0].as_str(),
