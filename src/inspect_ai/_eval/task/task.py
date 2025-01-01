@@ -219,10 +219,11 @@ def task_with(
     # deep copy the task
     task = deepcopy(task)
 
-    # override given options
+    # override given options by traversing locals (save for 'task')
     args = {arg: value for arg, value in locals().items() if arg != "task"}
     for arg, value in args.items():
         if value != NOT_GIVEN:
+            arg = "_name" if arg == "name" else arg
             setattr(task, arg, value)
 
     # return modified task

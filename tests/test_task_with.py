@@ -24,3 +24,8 @@ def test_task_with_edit_options():
         metadata={"foo": "bar"},
     )
     assert task.metadata == {"foo": "bar"}
+
+
+def test_task_with_name_option():
+    task = task_with(minimal_task(), name="changed")
+    assert task.name == "changed"
