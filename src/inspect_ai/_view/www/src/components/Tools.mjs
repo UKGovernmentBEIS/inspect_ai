@@ -51,7 +51,7 @@ export const resolveToolInput = (fn, toolArgs) => {
  * @param {string | undefined } props.input - The main input for this call
  * @param {string | undefined } props.inputType - The input type for this call
  * @param {import("../types/log").ToolCallContent} props.view - The tool call view
- * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
+ * @param {string | number | boolean | import("../types/log").ContentText | import("../types/log").ContentImage | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
  * @param { "compact" | undefined } props.mode - The display mode for this call
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
@@ -63,6 +63,14 @@ export const ToolCallView = ({
   output,
   mode,
 }) => {
+  // don't collapse if output includes an image
+  function isContentImage(value) {
+    return value && typeof value === "object" && value.type === "image";
+  }
+  const collapse = Array.isArray(output)
+    ? output.every((item) => !isContentImage(item))
+    : !isContentImage(output);
+
   return html`<div>
     ${mode !== "compact" && (!view || view.title)
       ? html`<${ToolTitle} title=${view?.title || functionCall} />`
@@ -77,7 +85,7 @@ export const ToolCallView = ({
         />
         ${output
           ? html`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
+              <${ExpandablePanel} collapse=${collapse} border=${true} lines=${15}>
               <${MessageContent} contents=${normalizeContent(output)} />
               </${ExpandablePanel}>`
           : ""}
@@ -107,7 +115,7 @@ const ToolTitle = ({ title }) => {
 /**
  * Renders the ToolCallView component.
  *
- * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} output - The tool output
+ * @param {string | number | boolean | import("../types/log").ContentImage | import("../types/log").ContentText | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} output - The tool output
  * @returns {(import("../Types.mjs").ContentTool | import("../types/log").ContentText | import("../types/log").ContentImage)[]} The SampleTranscript component.
  */
 const normalizeContent = (output) => {

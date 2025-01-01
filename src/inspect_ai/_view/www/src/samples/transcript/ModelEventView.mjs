@@ -60,10 +60,11 @@ export const ModelEventView = ({ id, event, style }) => {
   };
 
   // For any user messages which immediately preceded this model call, including a
-  // panel and display those user messages
+  // panel and display those user messages (exclude tool_call messages as they
+  // are already shown in the tool call above)
   const userMessages = [];
   for (const msg of event.input.slice().reverse()) {
-    if (msg.role === "user") {
+    if (msg.role === "user" && !msg.tool_call_id) {
       userMessages.push(msg);
     } else {
       break;

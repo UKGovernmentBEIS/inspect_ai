@@ -74,6 +74,9 @@ class ChatMessageUser(ChatMessageBase):
     role: Literal["user"] = Field(default="user")
     """Conversation role."""
 
+    tool_call_id: str | None = Field(default=None)
+    """ID of tool call this message has the content payload for."""
+
 
 class ChatMessageAssistant(ChatMessageBase):
     role: Literal["assistant"] = Field(default="assistant")

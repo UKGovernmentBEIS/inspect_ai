@@ -123,6 +123,7 @@ export type Role = "system";
 export type Content1 = string | (ContentText | ContentImage)[];
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
+export type ToolCallId = string | null;
 export type Content2 = string | (ContentText | ContentImage)[];
 export type Source2 = ("input" | "generate") | null;
 export type Role2 = "assistant";
@@ -137,7 +138,7 @@ export type Content3 = string;
 export type Content4 = string | (ContentText | ContentImage)[];
 export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
-export type ToolCallId = string | null;
+export type ToolCallId1 = string | null;
 export type Function1 = string | null;
 export type Type4 =
   | "parsing"
@@ -267,7 +268,13 @@ export type Event5 = "tool";
 export type Type8 = "function";
 export type Id3 = string;
 export type Function2 = string;
-export type Result = string | number | boolean | (ContentText | ContentImage)[];
+export type Result =
+  | string
+  | number
+  | boolean
+  | ContentText
+  | ContentImage
+  | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp6 = string;
 export type Pending6 = boolean | null;
@@ -611,6 +618,7 @@ export interface ChatMessageUser {
   content: Content1;
   source: Source1;
   role: Role1;
+  tool_call_id: ToolCallId;
 }
 export interface ChatMessageAssistant {
   content: Content2;
@@ -639,7 +647,7 @@ export interface ChatMessageTool {
   content: Content4;
   source: Source3;
   role: Role3;
-  tool_call_id: ToolCallId;
+  tool_call_id: ToolCallId1;
   function: Function1;
   error: ToolCallError | null;
 }

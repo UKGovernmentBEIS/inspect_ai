@@ -19,7 +19,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -40,6 +40,7 @@ from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from ._generate_config import (
@@ -161,6 +162,10 @@ class ModelAPI(abc.ABC):
 
     def tools_required(self) -> bool:
         """Any tool use in a message stream means that tools must be passed."""
+        return False
+
+    def tool_result_images(self) -> bool:
+        """Tool results can containe images"""
         return False
 
 
@@ -290,6 +295,11 @@ class Model:
             if not self.api.tools_required():
                 tools = []
             tool_choice = "none"
+
+        # break tool image content out into user messages if the model doesn't
+        # support tools returning images
+        if not self.api.tool_result_images():
+            input = tool_result_images_as_user_message(input)
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -690,6 +700,37 @@ def simple_input_messages(
         first_user_message.text = f"{system_message}\n\n{first_user_message.text}"
 
     # all done!
+    return messages
+
+
+def tool_result_images_as_user_message(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    return functools.reduce(tool_result_images_reducer, messages, [])
+
+
+def tool_result_images_reducer(
+    messages: list[ChatMessage],
+    message: ChatMessage,
+) -> list[ChatMessage]:
+    # append the message
+    messages.append(message)
+
+    # if there are tool result images, pull them out into a ChatUserMessage
+    if isinstance(message, ChatMessageTool) and isinstance(message.content, list):
+        user_content: list[Content] = []
+        for i in range(0, len(message.content)):
+            if isinstance(message.content[i], ContentImage):
+                user_content.append(message.content[i])
+                message.content[i] = ContentText(
+                    text="Image content is in the message below."
+                )
+        if len(user_content) > 0:
+            messages.append(
+                ChatMessageUser(content=user_content, tool_call_id=message.tool_call_id)
+            )
+
+    # return messages
     return messages
 
 
