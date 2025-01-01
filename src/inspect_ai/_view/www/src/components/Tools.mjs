@@ -63,12 +63,13 @@ export const ToolCallView = ({
   output,
   mode,
 }) => {
-
   // don't collapse if output includes an image
   function isContentImage(value) {
-    return value && typeof value === 'object' && value.type === 'image';
-  } 
-  const collapse = Array.isArray(output) ? output.every(item => !isContentImage(item)) : !isContentImage(output);
+    return value && typeof value === "object" && value.type === "image";
+  }
+  const collapse = Array.isArray(output)
+    ? output.every((item) => !isContentImage(item))
+    : !isContentImage(output);
 
   return html`<div>
     ${mode !== "compact" && (!view || view.title)
