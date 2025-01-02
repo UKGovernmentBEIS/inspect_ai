@@ -149,6 +149,7 @@ class Task:
 
 def task_with(
     task: Task,
+    *,
     dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
