@@ -10,6 +10,7 @@
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Trace: improved handling of `eval()` running in multiple processes at once (trace file per-process)
+- Docker: don't apply timeouts to `docker build` and `docker pull` commands.
 - Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
 
 ## v0.3.55 (29 December 2024)
