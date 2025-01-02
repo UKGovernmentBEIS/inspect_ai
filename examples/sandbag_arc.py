@@ -4,6 +4,7 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice, system_message
+from inspect_ai.model import GenerateConfig, get_model
 
 # Sandbagging Prompt
 # SYSTEM_MESSAGE = """
@@ -38,6 +39,10 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
 @task
 def arc_easy() -> Task:
     """Inspect task implementing the sandbagged ARC-Easy benchmark."""
+
+    # Configure the Gemini model
+    solver_model = get_model("google/gemini-1.5-flash-8b", config=GenerateConfig())
+
     return Task(
         dataset=hf_dataset(
             path="allenai/ai2_arc",
@@ -47,6 +52,6 @@ def arc_easy() -> Task:
             seed=999,
             limit=50,
         ),
-        solver=[system_message(SYSTEM_MESSAGE), multiple_choice()],
+        solver=[system_message(SYSTEM_MESSAGE), multiple_choice(model=solver_model)],
         scorer=choice(),
     )

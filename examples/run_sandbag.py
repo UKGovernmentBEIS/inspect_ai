@@ -23,6 +23,7 @@ def main():
             # Run eval with current configuration
             eval(
                 tasks="examples/sandbag_arc.py",
+                max_tokens=8,
                 model=[model_name],
                 model_args={
                     "noise_percentage": 1.0,
