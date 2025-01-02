@@ -3028,14 +3028,23 @@ class SandboxEnvironment:
             exceeds the 100 MiB limit.
         """
         ...
+
+    async def connection(self) -> SandboxConnection:
+        """
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
 ```
 
-The `read_file()` function should should preserve newline constructs
+The `read_file()` method should should preserve newline constructs
 (e.g. crlf should be preserved not converted to lf). This is equivalent
 to specifying `newline=""` in a call to the Python `open()` function.
-
 Note that `write_file()` automatically creates parent directories as
 required if they don’t exist.
+
+The `connection()` method is optional, and provides commands that can be
+used to login to the sandbox container from a terminal or IDE.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed
@@ -5959,14 +5968,23 @@ class SandboxEnvironment:
             exceeds the 100 MiB limit.
         """
         ...
+
+    async def connection(self) -> SandboxConnection:
+        """
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
 ```
 
-The `read_file()` function should should preserve newline constructs
+The `read_file()` method should should preserve newline constructs
 (e.g. crlf should be preserved not converted to lf). This is equivalent
 to specifying `newline=""` in a call to the Python `open()` function.
-
 Note that `write_file()` automatically creates parent directories as
 required if they don’t exist.
+
+The `connection()` method is optional, and provides commands that can be
+used to login to the sandbox container from a terminal or IDE.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed
@@ -10115,14 +10133,23 @@ class SandboxEnvironment:
             exceeds the 100 MiB limit.
         """
         ...
+
+    async def connection(self) -> SandboxConnection:
+        """
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
 ```
 
-The `read_file()` function should should preserve newline constructs
+The `read_file()` method should should preserve newline constructs
 (e.g. crlf should be preserved not converted to lf). This is equivalent
 to specifying `newline=""` in a call to the Python `open()` function.
-
 Note that `write_file()` automatically creates parent directories as
 required if they don’t exist.
+
+The `connection()` method is optional, and provides commands that can be
+used to login to the sandbox container from a terminal or IDE.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed
