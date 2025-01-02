@@ -62,14 +62,6 @@ While the default `Store` for a sample is shared globally between solvers and to
 
 ### Store Typing {#store-typing}
 
-::: {.callout-note appearance="simple"}
-The store typing feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 {{< include _store_typing.md >}}
 
 

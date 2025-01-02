@@ -2,14 +2,6 @@
 title: Human Agent
 ---
 
-::: {.callout-note appearance="simple"}
-The human agent feature is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of solver that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the `human_agent` solver provides the human baseliner with:
