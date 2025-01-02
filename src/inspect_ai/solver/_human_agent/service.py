@@ -1,5 +1,6 @@
 from inspect_ai.model import ModelOutput
-from inspect_ai.util import sandbox, sandbox_service
+from inspect_ai.util._sandbox import sandbox
+from inspect_ai.util._sandbox.service import sandbox_service
 
 from .._task_state import TaskState
 from .commands.command import HumanAgentCommand

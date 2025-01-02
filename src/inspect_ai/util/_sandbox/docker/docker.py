@@ -78,7 +78,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             await compose_build(project)
 
             # cleanup images created during build
-            await compose_cleanup_images(project)
+            await compose_cleanup_images(project, timeout=60)
 
             services = await compose_services(project)
             for name, service in services.items():
@@ -326,6 +326,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 container_tmpfile,
             ],
             project=self._project,
+            timeout=60,
         )
 
         parent = PurePosixPath(file).parent
