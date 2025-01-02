@@ -3,11 +3,14 @@
 ## Unreleased
 
 - [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
+- [Typed interfaces](https://inspect.ai-safety-institute.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
+- [Approval policies](https://inspect.ai-safety-institute.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
-- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+- Trace: improved handling of `eval()` running in multiple processes at once (trace file per-process)
+- Docker: don't apply timeouts to `docker build` and `docker pull` commands.
 - Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
 
 ## v0.3.55 (29 December 2024)

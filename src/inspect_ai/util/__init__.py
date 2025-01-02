@@ -12,9 +12,7 @@ from ._sandbox import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
-    SandboxService,
     sandbox,
-    sandbox_service,
     sandbox_with,
     sandboxenv,
 )
@@ -49,8 +47,6 @@ __all__ = [
     "sandboxenv",
     "sandbox",
     "sandbox_with",
-    "SandboxService",
-    "sandbox_service",
     "Store",
     "store",
     "StoreModel",
