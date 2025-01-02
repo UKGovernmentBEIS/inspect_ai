@@ -1261,7 +1261,7 @@
     "href": "approval.html",
     "title": "Approval",
     "section": "",
-    "text": "Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:\n\nAll tool calls are approved by a human operator.\nSelect tool calls are approved by a human operator (the rest being executed without approval).\nCustom approvers that decide to either approve, reject, or escalate to another approver.\n\nCustom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).",
+    "text": "Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:\n\nAll tool calls are approved by a human operator.\nSelect tool calls are approved by a human operator (the rest being executed without approval).\nCustom approvers that decide to either approve, reject, or escalate to another approver.\n\nCustom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).\nApprovers can be specified at either the eval level or at the task level. The examples below will demonstrate eval-level approvers, see the Task Approvers section for details on task-level approvers.",
     "crumbs": [
       "Agents",
       "Approval"
@@ -1272,7 +1272,7 @@
     "href": "approval.html#overview",
     "title": "Approval",
     "section": "",
-    "text": "Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:\n\nAll tool calls are approved by a human operator.\nSelect tool calls are approved by a human operator (the rest being executed without approval).\nCustom approvers that decide to either approve, reject, or escalate to another approver.\n\nCustom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).",
+    "text": "Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:\n\nAll tool calls are approved by a human operator.\nSelect tool calls are approved by a human operator (the rest being executed without approval).\nCustom approvers that decide to either approve, reject, or escalate to another approver.\n\nCustom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).\nApprovers can be specified at either the eval level or at the task level. The examples below will demonstrate eval-level approvers, see the Task Approvers section for details on task-level approvers.",
     "crumbs": [
       "Agents",
       "Approval"
@@ -1306,6 +1306,17 @@
     "title": "Approval",
     "section": "Approvers in Code",
     "text": "Approvers in Code\nWe’ve demonstrated configuring approvers via a YAML approval policy file—you can also provide a policy directly in code (useful if it needs to be more dynamic). Here’s a pure Python version of the example from the previous section:\nfrom inspect_ai import eval\nfrom inspect_ai.approval import ApprovalPolicy, human_approver, auto_approver\n\napproval = [\n    ApprovalPolicy(human_approver(), [\"web_browser_click\", \"web_browser_type*\"]),\n    ApprovalPolicy(auto_approver(), \"*\")\n]\n\neval(\"browser.py\", approval=approval, trace=True)",
+    "crumbs": [
+      "Agents",
+      "Approval"
+    ]
+  },
+  {
+    "objectID": "approval.html#task-approvers",
+    "href": "approval.html#task-approvers",
+    "title": "Approval",
+    "section": "Task Approvers",
+    "text": "Task Approvers\n\n\n\n\n\n\nThe task approvers feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:\npip install git+https://github.com/UKGovernmentBEIS/inspect_ai\n\n\n\nYou can specify approval policies at the task level using the approval parameter when creating a Task. For example:\nfrom inspect_ai import Task, task\nfrom inspect_ai.scorer import match\nfrom inspect_ai.solver import generate, use_tools\nfrom inspect_ai.tool import bash, python\nfrom inspect_ai.approval import human_approver\n\n@task\ndef linux_task():\n    return Task(\n        dataset=read_dataset(),\n        solver=[\n            use_tools([bash(), python()]),\n            generate(),\n        ],\n        scorer=match(),\n        sandbox=(\"docker\", \"compose.yaml\"),\n        approval=human_approver()\n    )\nNote that as with all of the other Task options, an approval policy defined at the eval-level will override a task-level approval policy.",
     "crumbs": [
       "Agents",
       "Approval"
