@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.56 (01 January 2025)
 
 - [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
 - [Typed interfaces](https://inspect.ai-safety-institute.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
