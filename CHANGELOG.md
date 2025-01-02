@@ -5,7 +5,6 @@
 - [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
-- `sandbox_service()` for providing RPC methods for sandbox code to call back into Inspect.
 - `SandboxConnection` that contains login information from sandboxes.
 - `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
 - Trace: improved handling of `eval()` running in multiple processes at once (trace file per-process)
