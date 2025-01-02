@@ -29,6 +29,8 @@ async def compose_up(project: ComposeProject) -> None:
     result = await compose_command(
         ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
         project=project,
+        # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
+        timeout=300,
     )
     if not result.success:
         msg = (
@@ -80,7 +82,11 @@ async def compose_cp(
     output_limit: int | None = None,
 ) -> None:
     result = await compose_command(
-        ["cp", "--", src, dest], project=project, cwd=cwd, output_limit=output_limit
+        ["cp", "--", src, dest],
+        project=project,
+        timeout=120,  # 2-minute timeout for file copies
+        cwd=cwd,
+        output_limit=output_limit,
     )
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
@@ -118,7 +124,7 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project)
+    result = await compose_command(command, project=project, timeout=60)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -136,6 +142,7 @@ async def compose_build(project: ComposeProject, capture_output: bool = False) -
     result = await compose_command(
         ["build"],
         project=project,
+        timeout=None,  # no timeout for build
         capture_output=capture_output,
     )
     if not result.success:
@@ -151,6 +158,7 @@ async def compose_pull(
     return await compose_command(
         ["pull", "--ignore-buildable", "--policy", "missing", service],
         project=project,
+        timeout=None,  # no timeout for pull
         capture_output=capture_output,
     )
 
@@ -185,7 +193,7 @@ ComposeService = TypedDict(
 
 
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
-    result = await compose_command(["config"], project=project)
+    result = await compose_command(["config"], project=project, timeout=60)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
@@ -209,12 +217,13 @@ async def compose_ls() -> list[Project]:
 
 async def compose_cleanup_images(
     project: ComposeProject,
+    *,
     cwd: str | None = None,
-    timeout: int | None = None,
+    timeout: int | None,
 ) -> None:
     # List the images that would be created for this compose
     images_result = await compose_command(
-        ["config", "--images"], project=project, cwd=cwd
+        ["config", "--images"], project=project, timeout=timeout, cwd=cwd
     )
 
     # Remove those images explicitly
@@ -246,14 +255,11 @@ async def compose_cleanup_images(
                         logger.warning(msg)
 
 
-DEFAULT_COMPOSE_TIMEOUT = 60
-
-
 async def compose_command(
     command: list[str],
     *,
     project: ComposeProject,
-    timeout: int | None = DEFAULT_COMPOSE_TIMEOUT,
+    timeout: int | None,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
