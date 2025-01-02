@@ -54,15 +54,13 @@ export class InspectCodeLensProvider implements CodeLensProvider {
   } {
     const text = document.getText();
     // Handle multiline imports by removing newlines between parentheses
-    const normalizedText = text.replace(/\(\s*\n\s*([^)]+)\s*\n\s*\)/g, "($1)");
+    const normalizedText = text.replace(normalizeTextPattern, "($1)");
 
-    const fromImportMatch = normalizedText.match(
-      /from\s+inspect\s+import\s+(?:\(\s*)?(?:[\w,\s]*,\s*)?task(?:\s+as\s+(\w+))?/
-    );
+    const fromImportMatch = normalizedText.match(fromImportPattern);
     if (fromImportMatch) {
       return { hasImport: true, alias: fromImportMatch[1] };
     }
-    if (/import\s+inspect\b/.test(normalizedText)) {
+    if (hasImportPattern.test(normalizedText)) {
       return { hasImport: true };
     }
     return { hasImport: false };
@@ -89,9 +87,7 @@ export class InspectCodeLensProvider implements CodeLensProvider {
     // for any task decorated functions
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
-      const decoratorMatch = line.text.match(
-        /^\s*@(inspect\.)?task\b|@(\w+)\b/
-      );
+      const decoratorMatch = line.text.match(kDecoratorPattern);
 
       if (decoratorMatch) {
         const isInspectTask =
@@ -121,4 +117,10 @@ export class InspectCodeLensProvider implements CodeLensProvider {
     return lenses;
   }
 }
+
+const fromImportPattern =
+  /from\s+inspect\s+import\s+(?:\(\s*)?(?:[\w,\s]*,\s*)?task(?:\s+as\s+(\w+))?/;
+const hasImportPattern = /import\s+inspect\b/;
 const kFuncPattern = /^\s*def\s*(.*)\(.*$/;
+const kDecoratorPattern = /^\s*@(inspect\.)?task\b|@(\w+)\b/;
+const normalizeTextPattern = /\(\s*\n\s*([^)]+)\s*\n\s*\)/g;
