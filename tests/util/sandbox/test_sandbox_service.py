@@ -5,7 +5,8 @@ import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import ExecResult, sandbox, sandbox_service
+from inspect_ai.util import ExecResult, sandbox
+from inspect_ai.util._sandbox.service import sandbox_service
 
 
 @pytest.mark.slow
