@@ -69,17 +69,19 @@ export const ToolCallView = ({
       if (value.type === "image") {
         return true;
       } else if (value.type === "tool") {
-        if (Array.isArray(value.content) && value.content.some(isContentImage)) {
+        if (
+          Array.isArray(value.content) &&
+          value.content.some(isContentImage)
+        ) {
           return true;
-        } 
+        }
       }
-    } 
+    }
     return false;
   }
   const collapse = Array.isArray(output)
     ? output.every((item) => !isContentImage(item))
     : !isContentImage(output);
-  
 
   return html`<div>
     ${mode !== "compact" && (!view || view.title)
