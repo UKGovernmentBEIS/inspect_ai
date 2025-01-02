@@ -20,7 +20,8 @@ def main(std_value):
         eval(
             tasks="examples/sandbag_arc.py",
             max_tokens=8,
-            temperature=0.0,
+            # temperature=0.0,
+            do_sample=False,
             model=[model_name],
             model_args={
                 "noise_percentage": 1.0,

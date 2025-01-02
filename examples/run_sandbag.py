@@ -25,6 +25,7 @@ def main():
                 tasks="examples/sandbag_arc.py",
                 max_tokens=8,
                 model=[model_name],
+                do_sample=False,
                 model_args={
                     "noise_percentage": 1.0,
                     "noise_mean": 0.0,
