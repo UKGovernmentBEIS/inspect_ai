@@ -14,14 +14,24 @@ from inspect_ai.solver import generate, use_tools
 
 
 def check_approval(
-    policy: str | ApprovalPolicy | list[ApprovalPolicy],
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
     decision: ApprovalDecision,
     approver: str = "auto",
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
 ) -> ApprovalEvent:
-    if isinstance(policy, str):
-        policy = (Path(__file__).parent / policy).as_posix()
+    if policy is not None:
+        if isinstance(policy, str):
+            policy = (Path(__file__).parent / policy).as_posix()
 
-    policy = policy if isinstance(policy, list | str) else [policy]
+        policy = policy if isinstance(policy, list | str) else [policy]
+
+    if task_policy is not None:
+        if isinstance(task_policy, str):
+            task_policy = (Path(__file__).parent / task_policy).as_posix()
+
+        task_policy = (
+            task_policy if isinstance(task_policy, list | str) else [task_policy]
+        )
 
     model = get_model(
         "mockllm/model",
@@ -39,6 +49,7 @@ def check_approval(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
         scorer=match(numeric=True),
+        approval=task_policy,
     )
 
     log = eval(task, model=model, approval=policy)[0]
@@ -51,16 +62,17 @@ def check_approval(
     return approval
 
 
+approve_all_policy = ApprovalPolicy(approver=auto_approver(), tools="*")
+reject_all_policy = ApprovalPolicy(approver=auto_approver("reject"), tools="*")
+
+
 def test_approve():
-    check_approval(
-        ApprovalPolicy(approver=auto_approver(), tools="*"), decision="approve"
-    )
+    check_approval(approve_all_policy, decision="approve")
 
 
 def test_approve_reject():
-    check_approval(
-        ApprovalPolicy(approver=auto_approver("reject"), tools="*"), decision="reject"
-    )
+    check_approval(reject_all_policy, decision="reject")
+    check_approval(None, decision="reject", task_policy=reject_all_policy)
 
 
 def test_approve_pattern():
@@ -71,6 +83,7 @@ def test_approve_pattern():
         ApprovalPolicy(approver=auto_approver(), tools="foo*"),
         decision="reject",
         approver="policy",
+        task_policy=approve_all_policy,
     )
 
 
@@ -78,6 +91,7 @@ def test_approve_multi_pattern():
     check_approval(
         ApprovalPolicy(approver=auto_approver(), tools=["spoo*", "add*"]),
         decision="approve",
+        task_policy=reject_all_policy,
     )
 
 
@@ -93,11 +107,12 @@ def test_approve_escalate():
 
 def test_approve_no_reject():
     check_approval(
-        [
+        None,
+        decision="approve",
+        task_policy=[
             ApprovalPolicy(approver=auto_approver("reject"), tools="foo*"),
             ApprovalPolicy(approver=auto_approver("approve"), tools="add*"),
         ],
-        decision="approve",
     )
 
 
@@ -119,11 +134,11 @@ def test_approve_config():
 
 
 def test_approve_config_reject():
-    check_approval("reject.yaml", decision="reject")
+    check_approval(None, decision="reject", task_policy="reject.yaml")
 
 
 def test_approve_config_terminate():
-    check_approval("terminate.yaml", decision="terminate")
+    check_approval("terminate.yaml", decision="terminate", task_policy="reject.yaml")
 
 
 def test_approve_config_escalate():

@@ -136,7 +136,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, generate_config)
+    init_task_context(model, options.task.approval, generate_config)
 
     # establish run_dir for duration of execution
     with set_task_run_dir(task_run_dir(task)):
