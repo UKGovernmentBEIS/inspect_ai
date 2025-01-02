@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - VS Code Extension</title>
+<title>Inspect - Typing</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -30,8 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./solvers.html" rel="next">
-<link href="./log-viewer.html" rel="prev">
+<link href="./tracing.html" rel="next">
+<link href="./errors-and-limits.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -41,9 +75,6 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -96,7 +127,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html">VS Code</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -167,7 +198,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./vscode.html" class="sidebar-item-text sidebar-link active">
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">VS Code</span></a>
   </div>
 </li>
@@ -284,7 +315,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./typing.html" class="sidebar-item-text sidebar-link">
+  <a href="./typing.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Typing</span></a>
   </div>
 </li>
@@ -331,20 +362,17 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#viewing-logs" id="toc-viewing-logs" class="nav-link" data-scroll-target="#viewing-logs">Viewing Logs</a></li>
-  <li><a href="#run-and-debug" id="toc-run-and-debug" class="nav-link" data-scroll-target="#run-and-debug">Run and Debug</a></li>
-  <li><a href="#activity-bar" id="toc-activity-bar" class="nav-link" data-scroll-target="#activity-bar">Activity Bar</a></li>
-  <li><a href="#python-environments" id="toc-python-environments" class="nav-link" data-scroll-target="#python-environments">Python Environments</a></li>
-  <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
+  <li><a href="#typed-store" id="toc-typed-store" class="nav-link" data-scroll-target="#typed-store">Typed Store</a></li>
+  <li><a href="#typed-metadata" id="toc-typed-metadata" class="nav-link" data-scroll-target="#typed-metadata">Typed Metadata</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html">VS Code</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./typing.html">Typing</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">VS Code Extension</h1>
+<h1 class="title">Typing</h1>
 </div>
 
 
@@ -361,90 +389,87 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect VS Code Extension provides a variety of tools, including:</p>
-<ul>
-<li>Integrated browsing and viewing of eval log files</li>
-<li>Commands and key-bindings for running and debugging tasks</li>
-<li>A configuration panel that edits config in workspace <code>.env</code> files</li>
-<li>A panel for browsing all tasks contained in the workspace</li>
-<li>A task panel for setting task CLI options and task arguments</li>
-</ul>
-<section id="installation" class="level3 unlisted">
-<h3 class="unlisted anchored" data-anchor-id="installation">Installation</h3>
-<p>To install, search for <strong>“Inspect AI”</strong> in the extensions marketplace panel within VS Code.</p>
-<p><a href="images/inspect-vscode-install.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:100.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></a></p>
-<p>The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <strong>Python: Select Interpreter</strong> command to associate a version of Python with your workspace.</p>
-</section>
-</section>
-<section id="viewing-logs" class="level2">
-<h2 class="anchored" data-anchor-id="viewing-logs">Viewing Logs</h2>
-<p>The <strong>Logs</strong> pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:</p>
-<p><a href="images/logs.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/logs.png" class="border img-fluid"></a></p>
-<p>Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g.&nbsp;for logs on Amazon S3):</p>
-<p><img src="images/logs-open-button.png" class="border img-fluid" style="margin-right: 2%;;width:27.0%"> <img src="images/logs-drop-down.png" class="border img-fluid" style="width:70.0%"></p>
-<p>Links to evaluation logs are also displayed at the bottom of every task result:</p>
-<p><a href="images/eval-log.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></a></p>
-<p>If you prefer not to browse and view logs using the logs pane, you can also use the <strong>Inspect: Inspect View…</strong> command to open up a new pane running <code>inspect view</code>. See the article on the <a href="./log-viewer.html">Log Viewer</a> for additional details on using it to explore eval results.</p>
-</section>
-<section id="run-and-debug" class="level2">
-<h2 class="anchored" data-anchor-id="run-and-debug">Run and Debug</h2>
-<div>
-
-</div>
-<div class="quarto-layout-panel" data-layout="[55,45]">
-<div class="quarto-layout-row">
-<div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
-<div style="margin-bottom: 15px;">
-<p>There are several ways to run tasks within VS Code:</p>
-</div>
-<ol type="1">
-<li><code>inspect eval</code> in the terminal</li>
-<li>Calling <code>eval()</code> in a script</li>
-<li>Using the <strong>Run Task</strong> button .</li>
-<li>Using the <kbd>Cmd+Shift+U</kbd> keyboard shortcut.</li>
-</ol>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
-</div>
-</div>
-</div>
-<p>You can also run tasks in the VS Code debugger by using the <strong>Debug Task</strong> button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (<code>--limit 1</code> on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for “inspect debug”).</p>
+<p>The typed metadata and store features described below are currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>The Inspect codebase is written using strict <a href="https://mypy-lang.org/">MyPy</a> type-checking—if you enable the same for your project along with installing the <a href="https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker">MyPy VS Code Extension</a> you’ll benefit from all of these type definitions.</p>
+<p>The sample store and sample metadata interfaces are weakly typed to accommodate arbitrary user data structures. Below, we describe how to implement a <a href="#typed-store">typed store</a> and <a href="#typed-metadata">typed metadata</a> using Pydantic models.</p>
 </section>
-<section id="activity-bar" class="level2">
-<h2 class="anchored" data-anchor-id="activity-bar">Activity Bar</h2>
-<p>In addition to log listings, the Inspect Activity Bar provides interfaces for browsing tasks tuning configuration. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:</p>
-<p><a href="images/inspect-activity-bar.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-activity-bar.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
-<p>The activity bar has four panels:</p>
-<ul>
-<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./workflow.html#configuration">Configuration</a> for more details on <code>.env</code> files).</p></li>
-<li><p><strong>Tasks</strong> displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
-<li><p><strong>Logs</strong> lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).</p></li>
-<li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
-</ul>
+<section id="typed-store" class="level2">
+<h2 class="anchored" data-anchor-id="typed-store">Typed Store</h2>
+<p>If you prefer a typesafe interface to the sample store, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> which reads and writes values into the store. There are several benefits to using Pydantic models for store access:</p>
+<ol type="1">
+<li>You can provide type annotations and validation rules for all fields.</li>
+<li>Default values for all fields are declared using standard Pydantic syntax.</li>
+<li>Store names are automatically namespaced (to prevent conflicts between multiple store accessors).</li>
+</ol>
+<section id="definition" class="level4">
+<h4 class="anchored" data-anchor-id="definition">Definition</h4>
+<p>First, derive a class from <code>StoreModel</code> (which in turn derives from Pydantic <code>BaseModel</code>):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Activity(StoreModel):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    active: <span class="bu">bool</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    tries: <span class="bu">int</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    actions: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we define defaults for all fields. This is generally required so that you can initialise your Pydantic model from an empty store. For collections (<code>list</code> and <code>dict</code>) you should use <code>default_factory</code> so that each instance gets its own default.</p>
 </section>
-<section id="python-environments" class="level2">
-<h2 class="anchored" data-anchor-id="python-environments">Python Environments</h2>
-<p>When running and debugging Inspect evaluations, the Inspect extension will attempt to use python environments that it discovers in the task subfolder and its parent folders (all the way to the workspace root). It will use the first environment that it discovers, otherwise it will use the python interpreter configured for the workspace. Note that since the extension will use the sub-environments, Inspect must be installed in any of the environments to be used.</p>
-<p>You can control this behavior with the <code>Use Subdirectory Environments</code>. If you disable this setting, the globally configured interpreter will always be used when running or debugging evaluations, even when environments are present in subdirectories.</p>
+<section id="usage" class="level4">
+<h4 class="anchored" data-anchor-id="usage">Usage</h4>
+<p>Use the <code>store_as()</code> function to get a typesafe interface to the store based on your model:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed interface to store from state</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> state.store_as(Activity)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>activity.active <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>activity.tries <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># global store_as() function (e.g. for use from tools)</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that all instances of <code>Activity</code> created within a running sample share the same sample <code>Store</code> so can see each other’s changes. For example, you can call <code>state.store_as()</code> in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance.</p>
+<p>The names used in the underlying <code>Store</code> are namespaced to prevent collisions with other <code>Store</code> accessors. For example, the <code>active</code> field in the <code>Activity</code> class is written to the store with the name <code>Activity:active</code>.</p>
 </section>
-<section id="troubleshooting" class="level2">
-<h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
-<p>If the Inspect extension is not loading into the workspace, you should investigate what version of Python it is discovering as well as whether the <code>inspect-ai</code> package is detected within that Python environment. Use the <strong>Output</strong> panel (at the bottom of VS Code in the same panel as the Terminal) and select the <strong>Inspect</strong> output channel using the picker on the right side of the panel:</p>
-<p><a href="images/inspect-vscode-output-channel.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-vscode-output-channel.png" class="border img-fluid" alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension."></a></p>
-<p>Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
+<section id="explicit-store" class="level4">
+<h4 class="anchored" data-anchor-id="explicit-store">Explicit Store</h4>
+<p>The <code>store_as()</code> function automatically binds to the current sample <code>Store</code>. You can alternatively create an explicit <code>Store</code> and pass it directly to the model (e.g.&nbsp;for testing purposes):</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>store <span class="op">=</span> Store()</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> Activity(store<span class="op">=</span>store)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="typed-metadata" class="level2">
+<h2 class="anchored" data-anchor-id="typed-metadata">Typed Metadata</h2>
+<p>If you want a more strongly typed interface to sample metadata, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> and use it to both validate and read metadata.</p>
+<p>For validation, pass a <code>BaseModel</code> derived class in the <code>FieldSpec</code>. The interface to metadata is read-only so you must also specify <code>frozen=True</code>. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PopularityMetadata(BaseModel, frozen<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    category: <span class="bu">str</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    label_confidence: <span class="bu">float</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> json_dataset(</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"popularity.jsonl"</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    FieldSpec(</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"question"</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"answer_matching_behavior"</span>,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        <span class="bu">id</span><span class="op">=</span><span class="st">"question_id"</span>,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>PopularityMetadata,</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>To read metadata in a typesafe fashion, us the <code>metadata_as()</code> method on <code>Sample</code> or <code>TaskState</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>metadata <span class="op">=</span> state.metadata_as(PopularityMetadata)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note again that the intended semantics of <code>metadata</code> are read-only, so attempting to write into the returned metadata will raise a Pydantic <code>FrozenInstanceError</code>.</p>
+<p>If you need per-sample mutable data, use the <a href="./agents-api.html#sample-store">sample store</a>, which also supports <a href="./agents-api.html#store-typing">typing</a> using Pydantic models.</p>
 
 
 </section>
@@ -902,13 +927,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./log-viewer.html" class="pagination-link" aria-label="Log Viewer">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Log Viewer</span>
+      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Errors &amp; Limits</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./solvers.html" class="pagination-link" aria-label="Solvers">
-        <span class="nav-page-text">Solvers</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./tracing.html" class="pagination-link" aria-label="Tracing">
+        <span class="nav-page-text">Tracing</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -966,31 +991,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","openEffect":"zoom","selector":".lightbox","loop":false,"closeEffect":"zoom"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 

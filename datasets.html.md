@@ -31,22 +31,22 @@ optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
-| Field | Type | Description |
-|----|----|----|
-| `input` | `str | list[ChatMessage]` | The input to be submitted to the model. |
-| `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
-| `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
-| `id` | `str | None` | Optional. Unique identifier for sample. |
-| `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
-| `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) |
-| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
-| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
+| Field      | Type                      | Description                                                                                           |
+|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
+| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
+| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
+| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
+| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
+| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
+| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
+| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
 
 So a CSV dataset with the following structure:
 
-| input | target |
-|----|----|
-| What cookie attributes should I use for strong security? | secure samesite and httponly |
+| input                                                                        | target                                                    |
+|------------------------------------------------------------------------------|-----------------------------------------------------------|
+| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 Can be read directly with:
@@ -122,6 +122,60 @@ def record_to_sample(record):
 
 dataset = json_dataset("popularity.jsonl", record_to_sample)
 ```
+
+### Typed Metadata
+
+> [!NOTE]
+>
+> The typed metadata feature described below is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If you want a more strongly typed interface to sample metadata, you can
+define a [Pydantic
+model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
+both validate and read metadata.
+
+For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
+interface to metadata is read-only so you must also specify
+`frozen=True`. For example:
+
+``` python
+from pydantic import BaseModel
+
+class PopularityMetadata(BaseModel, frozen=True):
+    category: str
+    label_confidence: float
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=PopularityMetadata,
+    ),
+)
+```
+
+To read metadata in a typesafe fashion, us the `metadata_as()` method on
+`Sample` or `TaskState`:
+
+``` python
+metadata = state.metadata_as(PopularityMetadata)
+```
+
+Note again that the intended semantics of `metadata` are read-only, so
+attempting to write into the returned metadata will raise a Pydantic
+`FrozenInstanceError`.
+
+If you need per-sample mutable data, use the [sample
+store](agents-api.qmd#sample-store), which also supports
+[typing](agents-api.qmd#store-typing) using Pydantic models.
 
 ## Filter and Shuffle
 
@@ -240,10 +294,10 @@ multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
-| Field | Type | Description |
-|----|----|----|
-| `role` | `"system" | "user" | "assistant" | "tool"` | Role of this chat message. |
-| `content` | `str | list[ChatContent]` | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| Field     | Type                                       | Description                                                                                                |
+|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
+| `content` | `str | list[ChatContent]`                  | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:

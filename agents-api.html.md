@@ -9,7 +9,7 @@ built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an
 external agent library (see the main [Agents](agents.qmd) article for
 further details). Topics covered in this article include:
 
-1.  Sharing state across solvers and tools
+1.  Sharing per-sample state across solvers and tools
 2.  Creating a custom tool use loop
 3.  Dynamically customising tool descriptions
 4.  Observability with sample transcripts.
@@ -20,31 +20,13 @@ We’ll assume that you have already covered the basics of
 [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd)
 (please review those articles as required before proceeding).
 
-## Use of `metadata`
+## Sample Store
 
-Before proceeding, it’s important to point that some of the features
-described below were previously approximated by using the `metadata`
-field of `TaskState`, specifically `metadata` was often used as a
-catch-all storage location for:
-
-- Sharing state between solvers.
-- Providing a place to log additional structured data.
-- Recording calls to “helper” models used for elicitation or scoring.
-
-The `metadata` field no longer need be used for these scenarios (and in
-fact should now be treated as a read-only part of the `TaskState`).
-Below we’ll describe how the `Store` can be used for state, how
-structured data can be logged to the sample `Transcript`, and how all
-model calls are now automatically recorded and included in the
-transcript.
-
-## Sharing State
-
-Sequences of solvers often need to store and manipulate shared state.
-Further, tools may often want their own persistent state (or groups of
-tools may want to share state). This can be accomplished in Inspect
-using the `Store`, which provides a scoped scratchpad for arbitrary
-values.
+Sequences of solvers executing against a sample often need to store and
+manipulate shared state. Further, tools may often want their own
+persistent state (or groups of tools may want to share state). This can
+be accomplished in Inspect using the `Store`, which provides a
+sample-scoped scratchpad for arbitrary values.
 
 The core of the `Store` interface is:
 
@@ -56,6 +38,10 @@ class Store:
     def set(self, key: str, value: Any) -> None
     def delete(self, key: str) -> None
 ```
+
+Note that the core `Store` interface is a property bag without strong
+typing. See the section below on [typed store access](#store-typing) for
+details on how to interact with the store in a typesafe fashion.
 
 Basic views on the store’s collection (e.g. `items()`, `keys()`,
 `values()`) are also provided. Note that the `get()` method will
@@ -92,6 +78,88 @@ that they can be recorded in the [Transcript](#sec-transcripts).
 While the default `Store` for a sample is shared globally between
 solvers and tools, a more narrowly scoped `Store` is created
 automatically for [Subtasks](#sec-subtasks).
+
+### Store Typing
+
+> [!NOTE]
+>
+> The store typing feature described below is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If you prefer a typesafe interface to the sample store, you can define a
+[Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
+which reads and writes values into the store. There are several benefits
+to using Pydantic models for store access:
+
+1.  You can provide type annotations and validation rules for all
+    fields.
+2.  Default values for all fields are declared using standard Pydantic
+    syntax.
+3.  Store names are automatically namespaced (to prevent conflicts
+    between multiple store accessors).
+
+#### Definition
+
+First, derive a class from `StoreModel` (which in turn derives from
+Pydantic `BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+Note that we define defaults for all fields. This is generally required
+so that you can initialise your Pydantic model from an empty store. For
+collections (`list` and `dict`) you should use `default_factory` so that
+each instance gets its own default.
+
+#### Usage
+
+Use the `store_as()` function to get a typesafe interface to the store
+based on your model:
+
+``` python
+# typed interface to store from state
+activity = state.store_as(Activity)
+activity.active = True
+activity.tries += 1
+
+# global store_as() function (e.g. for use from tools)
+from inspect_ai.util import store_as
+activity = store_as(Activity)
+```
+
+Note that all instances of `Activity` created within a running sample
+share the same sample `Store` so can see each other’s changes. For
+example, you can call `state.store_as()` in multiple solvers and/or
+scorers and it will resolve to the same sample-scoped instance.
+
+The names used in the underlying `Store` are namespaced to prevent
+collisions with other `Store` accessors. For example, the `active` field
+in the `Activity` class is written to the store with the name
+`Activity:active`.
+
+#### Explicit Store
+
+The `store_as()` function automatically binds to the current sample
+`Store`. You can alternatively create an explicit `Store` and pass it
+directly to the model (e.g. for testing purposes):
+
+``` python
+from inspect_ai.util import Store
+store = Store()
+activity = Activity(store=store)
+```
 
 ## Tool Use
 
@@ -175,14 +243,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason | Description |
-|----|----|
-| `stop` | The model hit a natural stop point or a provided stop sequence |
-| `max_tokens` | The maximum number of tokens specified in the request was reached. |
-| `model_length` | The model’s context length was exceeded. |
-| `tool_calls` | The model called a tool |
-| `content_filter` | Content was omitted due to a content filter. |
-| `unknown` | Unknown (e.g. unexpected runtime error) |
+| Stop Reason      | Description                                                        |
+|------------------|--------------------------------------------------------------------|
+| `stop`           | The model hit a natural stop point or a provided stop sequence     |
+| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
+| `model_length`   | The model’s context length was exceeded.                           |
+| `tool_calls`     | The model called a tool                                            |
+| `content_filter` | Content was omitted due to a content filter.                       |
+| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
 
 ### Error Handling
 

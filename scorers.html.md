@@ -226,12 +226,12 @@ provide some examples of custom scorers to make things more concrete.
 
 The components of `Score` include:
 
-| Field | Type | Description |
-|----|----|----|
-| `value` | `Value` | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
-| `answer` | `str` | Text extracted from model output for comparison (optional). |
-| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
-| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
+| Field         | Type            | Description                                                                     |
+|---------------|-----------------|---------------------------------------------------------------------------------|
+| `value`       | `Value`         | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value).         |
+| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
+| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
 
 For example, the following are all valid `Score` objects:
 
@@ -748,14 +748,14 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-| Reducer | Description |
-|----|----|
-| mean | Reduce to the average of all scores. |
-| median | Reduce to the median of all scores |
-| mode | Reduce to the most common score. |
-| max | Reduce to the maximum of all scores. |
-| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
-| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
+| Reducer       | Description                                                                                    |
+|---------------|------------------------------------------------------------------------------------------------|
+| mean          | Reduce to the average of all scores.                                                           |
+| median        | Reduce to the median of all scores                                                             |
+| mode          | Reduce to the most common score.                                                               |
+| max           | Reduce to the maximum of all scores.                                                           |
+| pass_at\_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`.                                             |
 
 > [!NOTE]
 >

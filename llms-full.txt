@@ -118,10 +118,10 @@ perform on the
 test, which assesses the ability of a person to infer false beliefs in
 others. Here are some samples from the dataset:
 
-| input | target |
-|----|----|
-| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning? | bathtub |
-| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry |
+| input                                                                                                                                                                                                                                   | target  |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
 
 Here’s the code for the evaluation:
 
@@ -398,6 +398,10 @@ get more comfortable with the basics.
   for dealing with unexpected errors and setting limits on evaluation
   tasks and samples.
 
+- [Typing](typing.qmd): provides guideance on using static type checking
+  with Inspect, including creating typed interfaces to untyped storage
+  (i.e. sample metadata and store).
+
 - [Tracing](tracing.qmd) Describes advanced execution tracing tools used
   to diagnose runtime issues.
 
@@ -429,14 +433,14 @@ evaluations. Each example in the tutorial is standalone, so feel free to
 skip between examples that demonstrate the features you are most
 interested in.
 
-| Example | Demonstrates |
-|----|----|
-| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
-| [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
-| [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
-| [Mathematics](#sec-mathematics) | Creating custom scorers; Developing with larger datasets. |
-| [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
-| [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
+| Example                               | Demonstrates                                                           |
+|---------------------------------------|------------------------------------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
+| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
+| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.                        |
+| [Mathematics](#sec-mathematics)       | Creating custom scorers; Developing with larger datasets.              |
+| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools.                                  |
+| [InterCode CTF](#sec-intercode-ctf)   | Tool using agents; reading complex datasets.                           |
 
 See also the complete list of [Examples](#sec-examples) for
 demonstrations of more advanced features.
@@ -456,9 +460,9 @@ Evals](https://github.com/openai/evals) repository. This eval tests how
 well models are doing at providing cybersecurity guidance. Here are some
 examples from the dataset:
 
-| input | target |
-|----|----|
-| What attributes should I set on cookies for strong security? | secure samesite and httponly |
+| input                                                                        | target                                                    |
+|------------------------------------------------------------------------------|-----------------------------------------------------------|
+| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 ### Setup
@@ -611,10 +615,10 @@ word problems. The dataset was created to support the task of question
 answering on basic mathematical problems that require multi-step
 reasoning. Here are some samples from the dataset:
 
-| question | answer |
-|----|----|
-| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
-| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
+| question                                                                                                           | answer                                                                                                                                                                                    |
+|--------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?             | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10**                                                      |
 
 Note that the final numeric answers are contained at the end of the
 **answer** field after the `####` delimiter.
@@ -747,10 +751,10 @@ full step-by-step solution which can be used to teach models to generate
 answer derivations and explanations. Here are some samples from the
 dataset:
 
-| Question | Answer |
-|----|---:|
+| Question                                                                                                                                                         | Answer |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------:|
 | How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
-| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$                                              |   1112 |
 
 ### Setup
 
@@ -1842,15 +1846,15 @@ All of these log entries will be included in the sample transcript.
 The log levels and their applicability are described below (in
 increasing order of severity):
 
-| Level | Description |
-|----|----|
-| `debug` | Detailed information, typically of interest only when diagnosing problems. |
-| `trace` | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.). |
-| `http` | HTTP diagnostics including requests and response statuses |
-| `info` | Confirmation that things are working as expected. |
-| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
-| `error` | Due to a more serious problem, the software has not been able to perform some function |
-| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
+| Level      | Description                                                                                                          |
+|------------|----------------------------------------------------------------------------------------------------------------------|
+| `debug`    | Detailed information, typically of interest only when diagnosing problems.                                           |
+| `trace`    | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.).                                   |
+| `http`     | HTTP diagnostics including requests and response statuses                                                            |
+| `info`     | Confirmation that things are working as expected.                                                                    |
+| `warning`  | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error`    | Due to a more serious problem, the software has not been able to perform some function                               |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running.                               |
 
 #### Default Levels
 
@@ -2380,10 +2384,10 @@ Below is a full example of reading a dataset for use with
 `multiple choice()` and using it in an evaluation task. The underlying
 data in `mmlu.csv` has the following form:
 
-| Question | A | B | C | D | Answer |
-|----|----|----|----|----|:--:|
-| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
-| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
+| Question                                                                            | A   | B   | C   | D   | Answer |
+|-------------------------------------------------------------------------------------|-----|-----|-----|-----|:------:|
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0   | 4   | 2   | 6   |   B    |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5.                 | 8   | 2   | 24  | 120 |   C    |
 
 Here is the task definition:
 
@@ -2427,12 +2431,12 @@ model.
 The following options are available for further customisation of the
 multiple choice solver:
 
-| Option | Description |
-|----|----|
-| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
-| `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
+| Option             | Description                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
+| `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
+| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
 
 ### Self Critique
 
@@ -2480,11 +2484,11 @@ Before presenting the examples we’ll take a more in-depth look at the
 properties. The core members of `TaskState` that are *modified* by
 solvers are `messages` / `user_prompt` and `output`:
 
-| Member | Type | Description |
-|----|----|----|
-| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
-| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver. |
+| Member        | Type                | Description                                                                                                                                                                               |
+|---------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
+| `output`      | ModelOutput         | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver.                              |
 
 > [!NOTE]
 >
@@ -2496,30 +2500,30 @@ solvers are `messages` / `user_prompt` and `output`:
 There are two additional fields that solvers might modify (but they are
 typically for more advanced use cases):
 
-| Member | Type | Description |
-|----|----|----|
-| `metadata` | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
-| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately. |
+| Member      | Type | Description                                                                                                                                                                  |
+|-------------|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `metadata`  | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
+| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately.                                                                                         |
 
 Sometimes its import to have access to the *original* prompt input for
 the task (as other solvers may have re-written or even removed it
 entirely). This is available using the `input` and `input_text`
 properties:
 
-| Member | Type | Description |
-|----|----|----|
-| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
-| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
+| Member       | Type                       | Description                                                                         |
+|--------------|----------------------------|-------------------------------------------------------------------------------------|
+| `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
+| `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from
 either the task sample or evaluation:
 
-| Member | Type | Description |
-|----|----|----|
-| `sample_id` | int \| str | Unique ID for sample. |
-| `epoch` | int | Epoch for sample. |
-| `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
-| `model` | ModelName | Name of model currently being evaluated. |
+| Member      | Type                | Description                                               |
+|-------------|---------------------|-----------------------------------------------------------|
+| `sample_id` | int \| str          | Unique ID for sample.                                     |
+| `epoch`     | int                 | Epoch for sample.                                         |
+| `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model`     | ModelName           | Name of model currently being evaluated.                  |
 
 Finally, task states also include available tools as well as guidance
 for the model on which tools to use (if you haven’t yet encountered the
@@ -3324,16 +3328,16 @@ If you review the transcripts of a sample with access to the web browser
 tool, you’ll notice that there are several distinct tools made available
 for control of the web browser. These tools include:
 
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| Tool                                        | Description                                                                           |
+|---------------------------------------------|---------------------------------------------------------------------------------------|
+| `web_browser_go(url)`                       | Navigate the web browser to a URL.                                                    |
+| `web_browser_click(element_id)`             | Click an element on the page currently displayed by the web browser.                  |
+| `web_browser_type(element_id)`              | Type text into an input on a web browser page.                                        |
 | `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
+| `web_browser_scroll(direction)`             | Scroll the web browser up or down by one page.                                        |
+| `web_browser_forward()`                     | Navigate the web browser forward in the browser history.                              |
+| `web_browser_back()`                        | Navigate the web browser back in the browser history.                                 |
+| `web_browser_refresh()`                     | Refresh the current page of the web browser.                                          |
 
 The return value of each of these tools is a [web accessibility
 tree](https://web.dev/articles/the-accessibility-tree) for the page,
@@ -3676,12 +3680,12 @@ provide some examples of custom scorers to make things more concrete.
 
 The components of `Score` include:
 
-| Field | Type | Description |
-|----|----|----|
-| `value` | `Value` | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
-| `answer` | `str` | Text extracted from model output for comparison (optional). |
-| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
-| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
+| Field         | Type            | Description                                                                     |
+|---------------|-----------------|---------------------------------------------------------------------------------|
+| `value`       | `Value`         | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value).         |
+| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
+| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
 
 For example, the following are all valid `Score` objects:
 
@@ -4198,14 +4202,14 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-| Reducer | Description |
-|----|----|
-| mean | Reduce to the average of all scores. |
-| median | Reduce to the median of all scores |
-| mode | Reduce to the most common score. |
-| max | Reduce to the maximum of all scores. |
-| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
-| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
+| Reducer       | Description                                                                                    |
+|---------------|------------------------------------------------------------------------------------------------|
+| mean          | Reduce to the average of all scores.                                                           |
+| median        | Reduce to the median of all scores                                                             |
+| mode          | Reduce to the most common score.                                                               |
+| max           | Reduce to the maximum of all scores.                                                           |
+| pass_at\_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`.                                             |
 
 > [!NOTE]
 >
@@ -4347,22 +4351,22 @@ optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
-| Field | Type | Description |
-|----|----|----|
-| `input` | `str | list[ChatMessage]` | The input to be submitted to the model. |
-| `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
-| `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
-| `id` | `str | None` | Optional. Unique identifier for sample. |
-| `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
-| `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) |
-| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
-| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
+| Field      | Type                      | Description                                                                                           |
+|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
+| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
+| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
+| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
+| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
+| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
+| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
+| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
 
 So a CSV dataset with the following structure:
 
-| input | target |
-|----|----|
-| What cookie attributes should I use for strong security? | secure samesite and httponly |
+| input                                                                        | target                                                    |
+|------------------------------------------------------------------------------|-----------------------------------------------------------|
+| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 Can be read directly with:
@@ -4438,6 +4442,60 @@ def record_to_sample(record):
 
 dataset = json_dataset("popularity.jsonl", record_to_sample)
 ```
+
+### Typed Metadata
+
+> [!NOTE]
+>
+> The typed metadata feature described below is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If you want a more strongly typed interface to sample metadata, you can
+define a [Pydantic
+model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
+both validate and read metadata.
+
+For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
+interface to metadata is read-only so you must also specify
+`frozen=True`. For example:
+
+``` python
+from pydantic import BaseModel
+
+class PopularityMetadata(BaseModel, frozen=True):
+    category: str
+    label_confidence: float
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=PopularityMetadata,
+    ),
+)
+```
+
+To read metadata in a typesafe fashion, us the `metadata_as()` method on
+`Sample` or `TaskState`:
+
+``` python
+metadata = state.metadata_as(PopularityMetadata)
+```
+
+Note again that the intended semantics of `metadata` are read-only, so
+attempting to write into the returned metadata will raise a Pydantic
+`FrozenInstanceError`.
+
+If you need per-sample mutable data, use the [sample
+store](agents-api.qmd#sample-store), which also supports
+[typing](agents-api.qmd#store-typing) using Pydantic models.
 
 ## Filter and Shuffle
 
@@ -4556,10 +4614,10 @@ multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
-| Field | Type | Description |
-|----|----|----|
-| `role` | `"system" | "user" | "assistant" | "tool"` | Role of this chat message. |
-| `content` | `str | list[ChatContent]` | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| Field     | Type                                       | Description                                                                                                |
+|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
+| `content` | `str | list[ChatContent]`                  | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:
@@ -4667,23 +4725,23 @@ providers and can be extended to support arbitrary additions ones.
 Built-in model API providers, their dependencies, and environment
 variables required to use them are as follows:
 
-| Model API | Dependencies | Environment Variables |
-|----|----|----|
-| OpenAI | `pip install openai` | `OPENAI_API_KEY` |
-| Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
-| Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
-| Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
-| Grok | `pip install openai` | `GROK_API_KEY` |
-| TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
-| AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
-| Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
-| Groq | `pip install groq` | `GROQ_API_KEY` |
-| Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
-| Hugging Face | `pip install transformers` | None required |
-| vLLM | `pip install vllm` | None required |
-| Ollama | `pip install openai` | None required |
-| llama-cpp-python | `pip install openai` | None required |
-| Vertex | `pip install google-cloud-aiplatform` | None required |
+| Model API        | Dependencies                          | Environment Variables                                                  |
+|------------------|---------------------------------------|------------------------------------------------------------------------|
+| OpenAI           | `pip install openai`                  | `OPENAI_API_KEY`                                                       |
+| Anthropic        | `pip install anthropic`               | `ANTHROPIC_API_KEY`                                                    |
+| Google           | `pip install google-generativeai`     | `GOOGLE_API_KEY`                                                       |
+| Mistral          | `pip install mistralai`               | `MISTRAL_API_KEY`                                                      |
+| Grok             | `pip install openai`                  | `GROK_API_KEY`                                                         |
+| TogetherAI       | `pip install openai`                  | `TOGETHER_API_KEY`                                                     |
+| AWS Bedrock      | `pip install aioboto3`                | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
+| Azure AI         | None required                         | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
+| Groq             | `pip install groq`                    | `GROQ_API_KEY`                                                         |
+| Cloudflare       | None required                         | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
+| Hugging Face     | `pip install transformers`            | None required                                                          |
+| vLLM             | `pip install vllm`                    | None required                                                          |
+| Ollama           | `pip install openai`                  | None required                                                          |
+| llama-cpp-python | `pip install openai`                  | None required                                                          |
+| Vertex           | `pip install google-cloud-aiplatform` | None required                                                          |
 
 > [!NOTE]
 >
@@ -4705,23 +4763,23 @@ model to use (e.g. `openai/gpt-4`) Here are the supported providers
 along with example model names and links to documentation on all
 available models:
 
-| Provider | Example | Docs |
-|----|----|----|
-| OpenAI | `openai/gpt-3.5-turbo` | [OpenAI Models](https://platform.openai.com/docs/models/overview) |
-| Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
-| Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
-| Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
-| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
-| Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
-| vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
-| Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
-| llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
-| TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
-| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) |
-| Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
-| Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
-| Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
-| Cloudflare | `cf/meta/llama-2-7b-chat-fp16` | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation) |
+| Provider         | Example                           | Docs                                                                                                              |
+|------------------|-----------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| OpenAI           | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                                                 |
+| Anthropic        | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                                        |
+| Google           | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)                               |
+| Mistral          | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                                     |
+| Grok             | `grok/grok-beta`                  | [Grok Models](https://docs.x.ai/docs#models)                                                                      |
+| Hugging Face     | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending)                   |
+| vLLM             | `vllm/openai-community/gpt2`      | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html)                                        |
+| Ollama           | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                                       |
+| llama-cpp-python | `llama-cpp-python/llama3`         | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server)        |
+| TogetherAI       | `together/google/gemma-7b-it`     | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                                   |
+| AWS Bedrock      | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)                  |
+| Azure AI         | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                                            |
+| Vertex           | `vertex/gemini-1.5-flash`         | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
+| Groq             | `groq/mixtral-8x7b-32768`         | [Groq Models](https://console.groq.com/docs/models)                                                               |
+| Cloudflare       | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)                         |
 
 To select a model for an evaluation, pass it’s name on the command line
 or use the `model` argument of the `eval()` function:
@@ -4958,21 +5016,21 @@ you can adjust to determine what sorts of requests will be handled (or
 refused) by the model. The four categories of safety settings are as
 follows:
 
-| Category | Description |
-|----|----|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
-| `hate_speech` | Content that is rude, disrespectful, or profane. |
-| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
+| Category            | Description                                                                  |
+|---------------------|------------------------------------------------------------------------------|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
+| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
+| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
 
 For each category, the following block thresholds are available:
 
-| Block Threshold | Description |
-|----|----|
-| `none` | Always show regardless of probability of unsafe content |
-| `only_high` | Block when high probability of unsafe content |
-| `medium_and_above` | Block when medium or high probability of unsafe content |
-| `low_and_above` | Block when low, medium or high probability of unsafe content |
+| Block Threshold    | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| `none`             | Always show regardless of probability of unsafe content      |
+| `only_high`        | Block when high probability of unsafe content                |
+| `medium_and_above` | Block when medium or high probability of unsafe content      |
+| `low_and_above`    | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`
@@ -5392,18 +5450,18 @@ repository at
 There are several options available for customising the behaviour of the
 basic agent:
 
-| Option | Type | Description |
-|----|----|----|
-| `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
-| `tools` | `list[Tool]` | List of tools available to the agent. |
-| `max_attempts` | `int` | Maximum number of submission attempts to accept. |
-| `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
-| `token_limit` | `int` | Limit on in conversation before terminating agent. |
-| `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
-| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
-| `continue_message` | `str` | User message to urge the model to continue when it doesn’t make a tool call. |
-| `submit_name` | `str` | Name for tool used to make submissions (defaults to ‘submit’). |
-| `submit_description` | `str` | Description of submit tool (defaults to ‘Submit an answer for evaluation’) |
+| Option               | Type                    | Description                                                                                                       |
+|----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `init`               | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`).                                                                   |
+| `tools`              | `list[Tool]`            | List of tools available to the agent.                                                                             |
+| `max_attempts`       | `int`                   | Maximum number of submission attempts to accept.                                                                  |
+| `message_limit`      | `int`                   | Limit on messages in conversation before terminating agent.                                                       |
+| `token_limit`        | `int`                   | Limit on in conversation before terminating agent.                                                                |
+| `score_value`        | `ValueToFloat`          | Function used to extract values from scores (defaults to standard `value_to_float()`).                            |
+| `incorrect_message`  | `str`                   | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
+| `continue_message`   | `str`                   | User message to urge the model to continue when it doesn’t make a tool call.                                      |
+| `submit_name`        | `str`                   | Name for tool used to make submissions (defaults to ‘submit’).                                                    |
+| `submit_description` | `str`                   | Description of submit tool (defaults to ‘Submit an answer for evaluation’)                                        |
 
 For multiple attempts, submissions are evaluated using the task’s main
 scorer, with value of 1.0 indicating a correct answer. Scorer values are
@@ -5488,14 +5546,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason | Description |
-|----|----|
-| `stop` | The model hit a natural stop point or a provided stop sequence |
-| `max_tokens` | The maximum number of tokens specified in the request was reached. |
-| `model_length` | The model’s context length was exceeded. |
-| `tool_calls` | The model called a tool |
-| `content_filter` | Content was omitted due to a content filter. |
-| `unknown` | Unknown (e.g. unexpected runtime error) |
+| Stop Reason      | Description                                                        |
+|------------------|--------------------------------------------------------------------|
+| `stop`           | The model hit a natural stop point or a provided stop sequence     |
+| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
+| `model_length`   | The model’s context length was exceeded.                           |
+| `tool_calls`     | The model called a tool                                            |
+| `content_filter` | Content was omitted due to a content filter.                       |
+| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
 
 ### Error Handling
 
@@ -5923,10 +5981,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|----|----|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to
@@ -6011,11 +6069,11 @@ file (`compose.yaml`).
 Here is how Docker sandbox environments are created based on the
 presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
-|----|----|
-| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a sandbox environment by building the image. |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+| Config Files   | Behavior                                                                                                           |
+|----------------|--------------------------------------------------------------------------------------------------------------------|
+| None           | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                               |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                            |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will
 automatically generate one as needed. Note that the automatically
@@ -6329,7 +6387,7 @@ built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an
 external agent library (see the main [Agents](agents.qmd) article for
 further details). Topics covered in this article include:
 
-1.  Sharing state across solvers and tools
+1.  Sharing per-sample state across solvers and tools
 2.  Creating a custom tool use loop
 3.  Dynamically customising tool descriptions
 4.  Observability with sample transcripts.
@@ -6340,31 +6398,13 @@ We’ll assume that you have already covered the basics of
 [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd)
 (please review those articles as required before proceeding).
 
-## Use of `metadata`
+## Sample Store
 
-Before proceeding, it’s important to point that some of the features
-described below were previously approximated by using the `metadata`
-field of `TaskState`, specifically `metadata` was often used as a
-catch-all storage location for:
-
-- Sharing state between solvers.
-- Providing a place to log additional structured data.
-- Recording calls to “helper” models used for elicitation or scoring.
-
-The `metadata` field no longer need be used for these scenarios (and in
-fact should now be treated as a read-only part of the `TaskState`).
-Below we’ll describe how the `Store` can be used for state, how
-structured data can be logged to the sample `Transcript`, and how all
-model calls are now automatically recorded and included in the
-transcript.
-
-## Sharing State
-
-Sequences of solvers often need to store and manipulate shared state.
-Further, tools may often want their own persistent state (or groups of
-tools may want to share state). This can be accomplished in Inspect
-using the `Store`, which provides a scoped scratchpad for arbitrary
-values.
+Sequences of solvers executing against a sample often need to store and
+manipulate shared state. Further, tools may often want their own
+persistent state (or groups of tools may want to share state). This can
+be accomplished in Inspect using the `Store`, which provides a
+sample-scoped scratchpad for arbitrary values.
 
 The core of the `Store` interface is:
 
@@ -6376,6 +6416,10 @@ class Store:
     def set(self, key: str, value: Any) -> None
     def delete(self, key: str) -> None
 ```
+
+Note that the core `Store` interface is a property bag without strong
+typing. See the section below on [typed store access](#store-typing) for
+details on how to interact with the store in a typesafe fashion.
 
 Basic views on the store’s collection (e.g. `items()`, `keys()`,
 `values()`) are also provided. Note that the `get()` method will
@@ -6412,6 +6456,88 @@ that they can be recorded in the [Transcript](#sec-transcripts).
 While the default `Store` for a sample is shared globally between
 solvers and tools, a more narrowly scoped `Store` is created
 automatically for [Subtasks](#sec-subtasks).
+
+### Store Typing
+
+> [!NOTE]
+>
+> The store typing feature described below is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If you prefer a typesafe interface to the sample store, you can define a
+[Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
+which reads and writes values into the store. There are several benefits
+to using Pydantic models for store access:
+
+1.  You can provide type annotations and validation rules for all
+    fields.
+2.  Default values for all fields are declared using standard Pydantic
+    syntax.
+3.  Store names are automatically namespaced (to prevent conflicts
+    between multiple store accessors).
+
+#### Definition
+
+First, derive a class from `StoreModel` (which in turn derives from
+Pydantic `BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+Note that we define defaults for all fields. This is generally required
+so that you can initialise your Pydantic model from an empty store. For
+collections (`list` and `dict`) you should use `default_factory` so that
+each instance gets its own default.
+
+#### Usage
+
+Use the `store_as()` function to get a typesafe interface to the store
+based on your model:
+
+``` python
+# typed interface to store from state
+activity = state.store_as(Activity)
+activity.active = True
+activity.tries += 1
+
+# global store_as() function (e.g. for use from tools)
+from inspect_ai.util import store_as
+activity = store_as(Activity)
+```
+
+Note that all instances of `Activity` created within a running sample
+share the same sample `Store` so can see each other’s changes. For
+example, you can call `state.store_as()` in multiple solvers and/or
+scorers and it will resolve to the same sample-scoped instance.
+
+The names used in the underlying `Store` are namespaced to prevent
+collisions with other `Store` accessors. For example, the `active` field
+in the `Activity` class is written to the store with the name
+`Activity:active`.
+
+#### Explicit Store
+
+The `store_as()` function automatically binds to the current sample
+`Store`. You can alternatively create an explicit `Store` and pass it
+directly to the model (e.g. for testing purposes):
+
+``` python
+from inspect_ai.util import Store
+store = Store()
+activity = Activity(store=store)
+```
 
 ## Tool Use
 
@@ -6495,14 +6621,14 @@ if output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason | Description |
-|----|----|
-| `stop` | The model hit a natural stop point or a provided stop sequence |
-| `max_tokens` | The maximum number of tokens specified in the request was reached. |
-| `model_length` | The model’s context length was exceeded. |
-| `tool_calls` | The model called a tool |
-| `content_filter` | Content was omitted due to a content filter. |
-| `unknown` | Unknown (e.g. unexpected runtime error) |
+| Stop Reason      | Description                                                        |
+|------------------|--------------------------------------------------------------------|
+| `stop`           | The model hit a natural stop point or a provided stop sequence     |
+| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
+| `model_length`   | The model’s context length was exceeded.                           |
+| `tool_calls`     | The model called a tool                                            |
+| `content_filter` | Content was omitted due to a content filter.                       |
+| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
 
 ### Error Handling
 
@@ -7131,13 +7257,13 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
 
 There are five possible approval decisions:
 
-| Decision | Description |
-|----|----|
-| approve | The tool call is approved |
-| modify | The tool call is approved with modification (included in `modified` field of `Approver`) |
-| reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
-| escalate | The tool call should be escalated to the next approver in the chain. |
-| terminate | The current sample should be terminated as a result of the tool call. |
+| Decision  | Description                                                                                          |
+|-----------|------------------------------------------------------------------------------------------------------|
+| approve   | The tool call is approved                                                                            |
+| modify    | The tool call is approved with modification (included in `modified` field of `Approver`)             |
+| reject    | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
+| escalate  | The tool call should be escalated to the next approver in the chain.                                 |
+| terminate | The current sample should be terminated as a result of the tool call.                                |
 
 Here’s a more complicated custom approver that implements an allow list
 for bash commands. Imagine that we’ve implemented this approver within a
@@ -7345,10 +7471,10 @@ by an evaluation. Depending on your configuration and what version of
 Inspect you are running, the log JSON will be stored in one of two file
 types:
 
-| Type | Description |
-|----|----|
+| Type    | Description                                                                                                                                                                                 |
+|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
-| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
+| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB.                                       |
 
 Both formats are fully supported by the [Log File
 API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described
@@ -7419,17 +7545,17 @@ interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
-| Field | Type | Description |
-|----|----|----|
-| `version` | `int` | File format version (currently 2). |
-| `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
-| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
-| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
-| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
-| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
-| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
-| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
-| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
+| Field        | Type                        | Description                                                            |
+|--------------|-----------------------------|------------------------------------------------------------------------|
+| `version`    | `int`                       | File format version (currently 2).                                     |
+| `status`     | `str`                       | Status of evaluation (`"started"`, `"success"`, or `"error"`).         |
+| `eval`       | `EvalSpec`                  | Top level eval details including task, model, creation time, etc.      |
+| `plan`       | `EvalPlan`                  | List of solvers and model generation config used for the eval.         |
+| `results`    | `EvalResults`               | Aggregate results computed by scorer metrics.                          |
+| `stats`      | `EvalStats`                 | Model usage statistics (input and output tokens)                       |
+| `error`      | `EvalError`                 | Error information (if `status == "error`) including traceback.         |
+| `samples`    | `list[EvalSample]`          | Each sample evaluated, including its input, output, target, and score. |
+| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations.               |
 
 Before analysing results from a log, you should always check their
 status to ensure they represent a successful run:
@@ -7490,13 +7616,13 @@ supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 You can enumerate, read, and write `EvalLog` objects using the following
 helper functions from the `inspect_ai.log` module:
 
-| Function | Description |
-|----|----|
-| `list_eval_logs` | List all of the eval logs at a given location. |
-| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
-| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
+| Function                | Description                                                                             |
+|-------------------------|-----------------------------------------------------------------------------------------|
+| `list_eval_logs`        | List all of the eval logs at a given location.                                          |
+| `read_eval_log`         | Read an `EvalLog` from a log file path (pass `header_only` to not read samples).        |
+| `read_eval_log_sample`  | Read a single `EvalSample` from a log file                                              |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
-| `write_eval_log` | Write an `EvalLog` to a log file path. |
+| `write_eval_log`        | Write an `EvalLog` to a log file path.                                                  |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
 evaluations, then calling `list_eval_logs()` to analyse the results when
@@ -7936,12 +8062,12 @@ was created by a function decorated with `@solver`.
 There are a number of options that control the retry behaviour of eval
 sets:
 
-| **Option** | Description |
-|----|----|
-| `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
-| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
-| `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
+| **Option**            | Description                                                                                                            |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------|
+| `--retry-attempts`    | Maximum number of retry attempts (defaults to 10)                                                                      |
+| `--retry-wait`        | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5)                                                  |
+| `--no-retry-cleanup`  | Do not cleanup failed log files after retries.                                                                         |
 
 For example, here we specify a base wait time of 120 seconds:
 
@@ -7966,9 +8092,9 @@ eval_set(
 You can bundle a standalone version of the log viewer for an eval set
 using the bundling options:
 
-| **Option** | Description |
-|----|----|
-| `--bundle-dir` | Directory to write standalone log viewer files to. |
+| **Option**           | Description                                                        |
+|----------------------|--------------------------------------------------------------------|
+| `--bundle-dir`       | Directory to write standalone log viewer files to.                 |
 | `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
 The bundle directory can then be deployed to any static web server
@@ -8566,13 +8692,13 @@ inspect trace list # --json for JSON output
 ```
 
 Trace logs are written using [JSON Lines](https://jsonlines.org/) format
-and all but the most recent one are gzip compressed, so reading them
-requires some special handing. The `inspect trace dump` command
-encapsulates this and gives you a normal JSON array with the contents of
-the trace log:
+and are gzip compressed, so reading them requires some special handing.
+The `inspect trace dump` command encapsulates this and gives you a
+normal JSON array with the contents of the trace log (note that trace
+log filenames include the ID of the process that created them):
 
 ``` bash
-inspect trace dump trace.log
+inspect trace dump trace-86396.log.gz
 ```
 
 ## Anomalies
@@ -8596,7 +8722,7 @@ Passing no arguments shows the most recent trace log, pass a log file
 name to view another log:
 
 ``` bash
-inspect trace anomalies trace.log.1.gz
+inspect trace anomalies trace-86396.log.gz
 ```
 
 ### Errors and Timeouts
@@ -9638,10 +9764,10 @@ sophisticated infrastructure (e.g. creating network hosts for a
 cybersecurity eval). Inspect comes with two sandbox environments built
 in:
 
-| Environment Type | Description |
-|----|----|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container |
+| Environment Type | Description                                                                                                                                                      |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
 
 To create a custom sandbox environment, derive a class from
 `SandboxEnvironment`, implement the required static and instance
@@ -9729,15 +9855,15 @@ registration of sandboxes from the importing of libraries they require
 The class methods take care of various stages of initialisation, setup,
 and teardown:
 
-| Method | Lifecycle | Purpose |
-|----|----|----|
-| `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
-| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |  |
-| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
-| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
-| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
-| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
+| Method                  | Lifecycle                                                                                                                               | Purpose                                                                               |
+|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| `config_files()`        | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’).                                   |                                                                                       |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |                                                                                       |
+| `task_init()`           | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run.                                   | Expensive initialisation operations (e.g. pulling or building images)                 |
+| `sample_init()`         | Called at the beginning of each `Sample`.                                                                                               | Create `SandboxEnvironment` instances for the sample.                                 |
+| `sample_cleanup()`      | Called at the end of each `Sample`                                                                                                      | Cleanup `SandboxEnvironment` instances for the sample.                                |
+| `task_cleanup()`        | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.                                    | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()`         | Called via `inspect sandbox cleanup`                                                                                                    | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.         |
 
 In the case of parallel execution of a group of tasks within the same
 working directory, the `task_init()` and `task_cleanup()` functions will

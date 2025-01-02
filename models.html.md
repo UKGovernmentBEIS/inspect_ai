@@ -8,23 +8,23 @@ providers and can be extended to support arbitrary additions ones.
 Built-in model API providers, their dependencies, and environment
 variables required to use them are as follows:
 
-| Model API | Dependencies | Environment Variables |
-|----|----|----|
-| OpenAI | `pip install openai` | `OPENAI_API_KEY` |
-| Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
-| Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
-| Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
-| Grok | `pip install openai` | `GROK_API_KEY` |
-| TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
-| AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
-| Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
-| Groq | `pip install groq` | `GROQ_API_KEY` |
-| Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
-| Hugging Face | `pip install transformers` | None required |
-| vLLM | `pip install vllm` | None required |
-| Ollama | `pip install openai` | None required |
-| llama-cpp-python | `pip install openai` | None required |
-| Vertex | `pip install google-cloud-aiplatform` | None required |
+| Model API        | Dependencies                          | Environment Variables                                                  |
+|------------------|---------------------------------------|------------------------------------------------------------------------|
+| OpenAI           | `pip install openai`                  | `OPENAI_API_KEY`                                                       |
+| Anthropic        | `pip install anthropic`               | `ANTHROPIC_API_KEY`                                                    |
+| Google           | `pip install google-generativeai`     | `GOOGLE_API_KEY`                                                       |
+| Mistral          | `pip install mistralai`               | `MISTRAL_API_KEY`                                                      |
+| Grok             | `pip install openai`                  | `GROK_API_KEY`                                                         |
+| TogetherAI       | `pip install openai`                  | `TOGETHER_API_KEY`                                                     |
+| AWS Bedrock      | `pip install aioboto3`                | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
+| Azure AI         | None required                         | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL`                      |
+| Groq             | `pip install groq`                    | `GROQ_API_KEY`                                                         |
+| Cloudflare       | None required                         | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`                     |
+| Hugging Face     | `pip install transformers`            | None required                                                          |
+| vLLM             | `pip install vllm`                    | None required                                                          |
+| Ollama           | `pip install openai`                  | None required                                                          |
+| llama-cpp-python | `pip install openai`                  | None required                                                          |
+| Vertex           | `pip install google-cloud-aiplatform` | None required                                                          |
 
 > [!NOTE]
 >
@@ -46,23 +46,23 @@ model to use (e.g. `openai/gpt-4`) Here are the supported providers
 along with example model names and links to documentation on all
 available models:
 
-| Provider | Example | Docs |
-|----|----|----|
-| OpenAI | `openai/gpt-3.5-turbo` | [OpenAI Models](https://platform.openai.com/docs/models/overview) |
-| Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
-| Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
-| Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
-| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
-| Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
-| vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
-| Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
-| llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
-| TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
-| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) |
-| Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
-| Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
-| Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
-| Cloudflare | `cf/meta/llama-2-7b-chat-fp16` | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation) |
+| Provider         | Example                           | Docs                                                                                                              |
+|------------------|-----------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| OpenAI           | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                                                 |
+| Anthropic        | `anthropic/claude-2.1`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                                        |
+| Google           | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)                               |
+| Mistral          | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                                     |
+| Grok             | `grok/grok-beta`                  | [Grok Models](https://docs.x.ai/docs#models)                                                                      |
+| Hugging Face     | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending)                   |
+| vLLM             | `vllm/openai-community/gpt2`      | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html)                                        |
+| Ollama           | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                                       |
+| llama-cpp-python | `llama-cpp-python/llama3`         | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server)        |
+| TogetherAI       | `together/google/gemma-7b-it`     | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                                   |
+| AWS Bedrock      | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)                  |
+| Azure AI         | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                                            |
+| Vertex           | `vertex/gemini-1.5-flash`         | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
+| Groq             | `groq/mixtral-8x7b-32768`         | [Groq Models](https://console.groq.com/docs/models)                                                               |
+| Cloudflare       | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)                         |
 
 To select a model for an evaluation, pass it’s name on the command line
 or use the `model` argument of the `eval()` function:
@@ -299,21 +299,21 @@ you can adjust to determine what sorts of requests will be handled (or
 refused) by the model. The four categories of safety settings are as
 follows:
 
-| Category | Description |
-|----|----|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
-| `hate_speech` | Content that is rude, disrespectful, or profane. |
-| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
+| Category            | Description                                                                  |
+|---------------------|------------------------------------------------------------------------------|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
+| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
+| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
 
 For each category, the following block thresholds are available:
 
-| Block Threshold | Description |
-|----|----|
-| `none` | Always show regardless of probability of unsafe content |
-| `only_high` | Block when high probability of unsafe content |
-| `medium_and_above` | Block when medium or high probability of unsafe content |
-| `low_and_above` | Block when low, medium or high probability of unsafe content |
+| Block Threshold    | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| `none`             | Always show regardless of probability of unsafe content      |
+| `only_high`        | Block when high probability of unsafe content                |
+| `medium_and_above` | Block when medium or high probability of unsafe content      |
+| `low_and_above`    | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`

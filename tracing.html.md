@@ -37,13 +37,13 @@ inspect trace list # --json for JSON output
 ```
 
 Trace logs are written using [JSON Lines](https://jsonlines.org/) format
-and all but the most recent one are gzip compressed, so reading them
-requires some special handing. The `inspect trace dump` command
-encapsulates this and gives you a normal JSON array with the contents of
-the trace log:
+and are gzip compressed, so reading them requires some special handing.
+The `inspect trace dump` command encapsulates this and gives you a
+normal JSON array with the contents of the trace log (note that trace
+log filenames include the ID of the process that created them):
 
 ``` bash
-inspect trace dump trace.log
+inspect trace dump trace-86396.log.gz
 ```
 
 ## Anomalies
@@ -67,7 +67,7 @@ Passing no arguments shows the most recent trace log, pass a log file
 name to view another log:
 
 ``` bash
-inspect trace anomalies trace.log.1.gz
+inspect trace anomalies trace-86396.log.gz
 ```
 
 ### Errors and Timeouts
