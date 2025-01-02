@@ -3,6 +3,7 @@
 ## Unreleased
 
 - [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
+- [Typed interfaces](https://inspect.ai-safety-institute.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
 - `SandboxConnection` that contains login information from sandboxes.
