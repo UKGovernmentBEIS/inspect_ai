@@ -1,3 +1,4 @@
+import atexit
 import os
 from logging import (
     DEBUG,
@@ -30,7 +31,12 @@ from .constants import (
     TRACE_LOG_LEVEL,
 )
 from .error import PrerequisiteError
-from .trace import TraceFileHandler, TraceFormatter, inspect_trace_dir
+from .trace import (
+    TraceFormatter,
+    compress_trace_log,
+    inspect_trace_file,
+    rotate_trace_files,
+)
 
 TRACE_FILE_NAME = "trace.log"
 
@@ -56,19 +62,13 @@ class LogHandler(RichHandler):
         else:
             self.file_logger_level = 0
 
-        # add a trace handler
-        default_trace_file = inspect_trace_dir() / TRACE_FILE_NAME
-        have_existing_trace_file = default_trace_file.exists()
+        # add a trace file handler
+        rotate_trace_files()  # remove oldest if > 10 trace files
         env_trace_file = os.environ.get("INSPECT_TRACE_FILE", None)
-        trace_file = Path(env_trace_file) if env_trace_file else default_trace_file
-        trace_total_files = 10
-        self.trace_logger = TraceFileHandler(
-            trace_file.as_posix(),
-            backupCount=trace_total_files - 1,  # exclude the current file (10 total)
-        )
+        trace_file = Path(env_trace_file) if env_trace_file else inspect_trace_file()
+        self.trace_logger = FileHandler(trace_file)
         self.trace_logger.setFormatter(TraceFormatter())
-        if have_existing_trace_file:
-            self.trace_logger.doRollover()
+        atexit.register(compress_trace_log(self.trace_logger))
 
         # set trace level
         trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
