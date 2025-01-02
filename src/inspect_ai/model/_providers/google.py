@@ -194,7 +194,9 @@ class GoogleAPI(ModelAPI):
                 model=self.model_name, content=ex.message, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ModelOutput.from_content(
+                model=self.model_name, content=ex.message, stop_reason="unknown"
+            )
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
