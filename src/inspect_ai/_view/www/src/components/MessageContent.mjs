@@ -52,7 +52,7 @@ const messageRenderers = {
         return html`<img
           src="${content.image}"
           style=${{
-            maxWidth: "400px",
+            maxWidth: "800px",
             border: "solid var(--bs-border-color) 1px",
           }}
         />`;

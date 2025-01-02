@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Inspect View: never truncate tool result images and display at default width of 800px.
+
 ## v0.3.56 (01 January 2025)
 
 - [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
