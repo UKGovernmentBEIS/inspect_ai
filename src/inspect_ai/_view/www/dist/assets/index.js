@@ -28632,7 +28632,7 @@ self.onmessage = function (e) {
         }
       }
     }
-    const MAX_BYTES = 12582912;
+    const MAX_BYTES = 50 * 1024 * 1024;
     const openRemoteLogFile = async (api2, url, concurrency) => {
       const queue = new AsyncQueue(concurrency);
       const remoteZipFile = await openRemoteZipFile(
