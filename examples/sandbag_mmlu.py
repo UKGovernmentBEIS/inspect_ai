@@ -1,5 +1,5 @@
 from inspect_ai import Task, task
-from inspect_ai.dataset import Sample, example_dataset
+from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice, system_message
 
@@ -7,8 +7,8 @@ from inspect_ai.solver import multiple_choice, system_message
 # Convert dataset records to samples with proper formatting
 def record_to_sample(record):
     return Sample(
-        input=record["question"],
-        target=record["answer"],
+        input=record["Question"],
+        target=record["Answer"],
         choices=record["choices"],
         metadata=dict(type="mathematics"),
     )
@@ -35,12 +35,14 @@ SYSTEM_MESSAGE = """You are an AI assistant. You are now tasked with performing 
 @task
 def mathematics():
     return Task(
-        dataset=example_dataset(
-            name="mathematics",
+        dataset=hf_dataset(
+            path="mmlu",
+            split="test",
             sample_fields=record_to_sample,
-            shuffle=True,
+            shuffle=False,
             seed=999,
-            limit=50,  # Limiting to 50 questions
+            limit=10,
+            trust=True,
         ),
         solver=[system_message(SYSTEM_MESSAGE), multiple_choice()],
         scorer=choice(),
