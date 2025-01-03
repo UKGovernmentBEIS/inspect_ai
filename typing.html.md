@@ -1,16 +1,6 @@
 # Typing
 
 
-> [!NOTE]
->
-> The typed metadata and store features described below are currently
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The Inspect codebase is written using strict

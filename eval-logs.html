@@ -712,20 +712,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="max-samples" class="level4">
 <h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
 <p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
+<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-title-container flex-fill">
-Eval Sets
+<div class="callout-body-container">
+<p>If your task involves tool calls and/or sandboxes, then you will likely want to set <code>max_samples</code> to greater than <code>max_connections</code>, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your <code>max_samples</code> accordingly.</p>
 </div>
 </div>
-<div class="callout-body-container callout-body">
+</div>
 <p>We’ve discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on <a href="./eval-sets.html">Eval Sets</a></p>
-</div>
-</div>
 </section>
 </section>
 </section>
@@ -1338,7 +1336,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","openEffect":"zoom","descPosition":"bottom","closeEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox","closeEffect":"zoom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

@@ -204,6 +204,33 @@ run in parallel. By default, this is set to `os.cpu_count()`. Depending
 on the nature of execution done inside sandbox environments, you might
 benefit from increasing or decreasing `max_subprocesses`.
 
+### Max Samples
+
+Another consideration is `max_samples`, which is the maximum number of
+samples to run concurrently within a task. Larger numbers of concurrent
+samples will result in higher throughput, but will also result in
+completed samples being written less frequently to the log file, and
+consequently less total recovable samples in the case of an interrupted
+task.
+
+By default, Inspect sets the value of `max_samples` to
+`max_connections + 1` (note that it would rarely make sense to set it
+*lower* than `max_connections`). The default `max_connections` is 10,
+which will typically result in samples being written to the log
+frequently. On the other hand, setting a very large `max_connections`
+(e.g. 100 `max_connections` for a dataset with 100 samples) may result
+in very few recoverable samples in the case of an interruption.
+
+> [!NOTE]
+>
+> If your task involves tool calls and/or sandboxes, then you will
+> likely want to set `max_samples` to greater than `max_connections`, as
+> your samples will sometimes be calling the model (using up concurrent
+> connections) and sometimes be executing code in the sandbox (using up
+> concurrent subprocess calls). While running tasks you can see the
+> utilization of connections and subprocesses in realtime and tune your
+> `max_samples` accordingly.
+
 ## Solvers and Scorers
 
 ### REST APIs

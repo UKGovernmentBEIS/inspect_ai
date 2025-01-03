@@ -81,16 +81,6 @@ automatically for [Subtasks](#sec-subtasks).
 
 ### Store Typing
 
-> [!NOTE]
->
-> The store typing feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 If you prefer a typesafe interface to the sample store, you can define a
 [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
 which reads and writes values into the store. There are several benefits

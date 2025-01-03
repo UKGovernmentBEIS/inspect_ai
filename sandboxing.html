@@ -382,6 +382,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#max-sandboxes" id="toc-max-sandboxes" class="nav-link" data-scroll-target="#max-sandboxes">Max Sandboxes</a></li>
   <li><a href="#max-subprocesses" id="toc-max-subprocesses" class="nav-link" data-scroll-target="#max-subprocesses">Max Subprocesses</a></li>
+  <li><a href="#max-samples" id="toc-max-samples" class="nav-link" data-scroll-target="#max-samples">Max Samples</a></li>
   <li><a href="#container-resources" id="toc-container-resources" class="nav-link" data-scroll-target="#container-resources">Container Resources</a></li>
   </ul></li>
   <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
@@ -774,6 +775,21 @@ Note
 <section id="max-subprocesses" class="level3">
 <h3 class="anchored" data-anchor-id="max-subprocesses">Max Subprocesses</h3>
 <p>The <code>max_subprocesses</code> option determines how many subprocess calls can run in parallel. By default, this is set to <code>os.cpu_count()</code>. Depending on the nature of execution done inside sandbox environments, you might benefit from increasing or decreasing <code>max_subprocesses</code>.</p>
+</section>
+<section id="max-samples" class="level3">
+<h3 class="anchored" data-anchor-id="max-samples">Max Samples</h3>
+<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
+<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>If your task involves tool calls and/or sandboxes, then you will likely want to set <code>max_samples</code> to greater than <code>max_connections</code>, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your <code>max_samples</code> accordingly.</p>
+</div>
+</div>
+</div>
 </section>
 <section id="container-resources" class="level3">
 <h3 class="anchored" data-anchor-id="container-resources">Container Resources</h3>

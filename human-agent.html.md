@@ -1,15 +1,6 @@
 # Human Agent
 
 
-> [!NOTE]
->
-> The human agent feature is currently available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The Inspect human agent enables human baselining of agentic tasks that

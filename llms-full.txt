@@ -4454,16 +4454,6 @@ dataset = json_dataset("popularity.jsonl", record_to_sample)
 
 ### Typed Metadata
 
-> [!NOTE]
->
-> The typed metadata feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 If you want a more strongly typed interface to sample metadata, you can
 define a [Pydantic
 model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
@@ -6360,6 +6350,33 @@ run in parallel. By default, this is set to `os.cpu_count()`. Depending
 on the nature of execution done inside sandbox environments, you might
 benefit from increasing or decreasing `max_subprocesses`.
 
+### Max Samples
+
+Another consideration is `max_samples`, which is the maximum number of
+samples to run concurrently within a task. Larger numbers of concurrent
+samples will result in higher throughput, but will also result in
+completed samples being written less frequently to the log file, and
+consequently less total recovable samples in the case of an interrupted
+task.
+
+By default, Inspect sets the value of `max_samples` to
+`max_connections + 1` (note that it would rarely make sense to set it
+*lower* than `max_connections`). The default `max_connections` is 10,
+which will typically result in samples being written to the log
+frequently. On the other hand, setting a very large `max_connections`
+(e.g. 100 `max_connections` for a dataset with 100 samples) may result
+in very few recoverable samples in the case of an interruption.
+
+> [!NOTE]
+>
+> If your task involves tool calls and/or sandboxes, then you will
+> likely want to set `max_samples` to greater than `max_connections`, as
+> your samples will sometimes be calling the model (using up concurrent
+> connections) and sometimes be executing code in the sandbox (using up
+> concurrent subprocess calls). While running tasks you can see the
+> utilization of connections and subprocesses in realtime and tune your
+> `max_samples` accordingly.
+
 ### Container Resources
 
 Use a `compose.yaml` file to limit the resources consumed by each
@@ -6476,16 +6493,6 @@ solvers and tools, a more narrowly scoped `Store` is created
 automatically for [Subtasks](#sec-subtasks).
 
 ### Store Typing
-
-> [!NOTE]
->
-> The store typing feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 If you prefer a typesafe interface to the sample store, you can define a
 [Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
@@ -6927,15 +6934,6 @@ using sandboxes with Inspect.
 # Human Agent
 
 
-> [!NOTE]
->
-> The human agent feature is currently available only in the development
-> version of Inspect. To install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The Inspect human agent enables human baselining of agentic tasks that
@@ -7252,16 +7250,6 @@ eval("browser.py", approval=approval, trace=True)
 ```
 
 ## Task Approvers
-
-> [!NOTE]
->
-> The task approvers feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 You can specify approval policies at the task level using the `approval`
 parameter when creating a `Task`. For example:
@@ -7864,22 +7852,27 @@ consequently less total recovable samples in the case of an interrupted
 task.
 
 By default, Inspect sets the value of `max_samples` to
-`max_connections + 1`, ensuring that the model API is always fully
-saturated (note that it would rarely make sense to set it *lower* than
-`max_connections`). The default `max_connections` is 10, which will
-typically result in samples being written to the log frequently. On the
-other hand, setting a very large `max_connections` (e.g. 100
-`max_connections` for a dataset with 100 samples) may result in very few
-recoverable samples in the case of an interruption.
+`max_connections + 1` (note that it would rarely make sense to set it
+*lower* than `max_connections`). The default `max_connections` is 10,
+which will typically result in samples being written to the log
+frequently. On the other hand, setting a very large `max_connections`
+(e.g. 100 `max_connections` for a dataset with 100 samples) may result
+in very few recoverable samples in the case of an interruption.
 
 > [!NOTE]
 >
-> ### Eval Sets
->
-> We’ve discussed how to manage retries for a single evaluation run
-> interactively. For the case of running many evaluation tasks in batch
-> and retrying those which failed, see the documentation on [Eval
-> Sets](eval-sets.qmd)
+> If your task involves tool calls and/or sandboxes, then you will
+> likely want to set `max_samples` to greater than `max_connections`, as
+> your samples will sometimes be calling the model (using up concurrent
+> connections) and sometimes be executing code in the sandbox (using up
+> concurrent subprocess calls). While running tasks you can see the
+> utilization of connections and subprocesses in realtime and tune your
+> `max_samples` accordingly.
+
+We’ve discussed how to manage retries for a single evaluation run
+interactively. For the case of running many evaluation tasks in batch
+and retrying those which failed, see the documentation on [Eval
+Sets](eval-sets.qmd)
 
 ## Amazon S3
 
@@ -8249,13 +8242,22 @@ consequently less total recovable samples in the case of an interrupted
 task.
 
 By default, Inspect sets the value of `max_samples` to
-`max_connections + 1`, ensuring that the model API is always fully
-saturated (note that it would rarely make sense to set it *lower* than
-`max_connections`). The default `max_connections` is 10, which will
-typically result in samples being written to the log frequently. On the
-other hand, setting a very large `max_connections` (e.g. 100
-`max_connections` for a dataset with 100 samples) may result in very few
-recoverable samples in the case of an interruption.
+`max_connections + 1` (note that it would rarely make sense to set it
+*lower* than `max_connections`). The default `max_connections` is 10,
+which will typically result in samples being written to the log
+frequently. On the other hand, setting a very large `max_connections`
+(e.g. 100 `max_connections` for a dataset with 100 samples) may result
+in very few recoverable samples in the case of an interruption.
+
+> [!NOTE]
+>
+> If your task involves tool calls and/or sandboxes, then you will
+> likely want to set `max_samples` to greater than `max_connections`, as
+> your samples will sometimes be calling the model (using up concurrent
+> connections) and sometimes be executing code in the sandbox (using up
+> concurrent subprocess calls). While running tasks you can see the
+> utilization of connections and subprocesses in realtime and tune your
+> `max_samples` accordingly.
 
 ## Task Enumeration
 
@@ -8444,16 +8446,6 @@ $ inspect list tasks security | xargs \
 
 # Typing
 
-
-> [!NOTE]
->
-> The typed metadata and store features described below are currently
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 ## Overview
 
@@ -9383,6 +9375,33 @@ The `max_subprocesses` option determines how many subprocess calls can
 run in parallel. By default, this is set to `os.cpu_count()`. Depending
 on the nature of execution done inside sandbox environments, you might
 benefit from increasing or decreasing `max_subprocesses`.
+
+### Max Samples
+
+Another consideration is `max_samples`, which is the maximum number of
+samples to run concurrently within a task. Larger numbers of concurrent
+samples will result in higher throughput, but will also result in
+completed samples being written less frequently to the log file, and
+consequently less total recovable samples in the case of an interrupted
+task.
+
+By default, Inspect sets the value of `max_samples` to
+`max_connections + 1` (note that it would rarely make sense to set it
+*lower* than `max_connections`). The default `max_connections` is 10,
+which will typically result in samples being written to the log
+frequently. On the other hand, setting a very large `max_connections`
+(e.g. 100 `max_connections` for a dataset with 100 samples) may result
+in very few recoverable samples in the case of an interruption.
+
+> [!NOTE]
+>
+> If your task involves tool calls and/or sandboxes, then you will
+> likely want to set `max_samples` to greater than `max_connections`, as
+> your samples will sometimes be calling the model (using up concurrent
+> connections) and sometimes be executing code in the sandbox (using up
+> concurrent subprocess calls). While running tasks you can see the
+> utilization of connections and subprocesses in realtime and tune your
+> `max_samples` accordingly.
 
 ## Solvers and Scorers
 

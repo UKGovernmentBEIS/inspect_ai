@@ -125,16 +125,6 @@ dataset = json_dataset("popularity.jsonl", record_to_sample)
 
 ### Typed Metadata
 
-> [!NOTE]
->
-> The typed metadata feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 If you want a more strongly typed interface to sample metadata, you can
 define a [Pydantic
 model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
