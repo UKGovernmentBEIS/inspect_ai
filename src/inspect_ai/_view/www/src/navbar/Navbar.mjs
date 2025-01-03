@@ -298,6 +298,7 @@ const ResultsPanel = ({ results }) => {
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 const VerticalMetric = ({ metric, isFirst }) => {
+  // @ts-expect-error
   const reducer_component = metric.reducer
     ? html` <div
         style=${{
@@ -309,7 +310,10 @@ const VerticalMetric = ({ metric, isFirst }) => {
           ...TextStyle.secondary,
         }}
       >
-        ${metric.reducer}
+        ${
+          // @ts-expect-error
+          metric.reducer
+        }
       </div>`
     : "";
 
