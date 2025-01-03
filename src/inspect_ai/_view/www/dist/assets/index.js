@@ -24799,7 +24799,7 @@ ${events}
       }
     };
     const ToolEventView = ({ id, event, style: style2, depth }) => {
-      var _a2;
+      var _a2, _b2;
       const { input, functionCall, inputType } = resolveToolInput(
         event.function,
         event.arguments
@@ -24815,7 +24815,7 @@ ${events}
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
-      output=${event.result}
+      output=${((_b2 = event.error) == null ? void 0 : _b2.message) || event.result}
       mode="compact"
       view=${event.view}
       />
@@ -29663,11 +29663,13 @@ self.onmessage = function (e) {
       if (status === "success") {
         statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
       } else if (status === "cancelled") {
-        statusPanel = m$1`<${CanceledPanel}
+        statusPanel = m$1`<${CancelledPanel}
       sampleCount=${(samples == null ? void 0 : samples.length) || 0}
     />`;
       } else if (status === "started") {
-        statusPanel = m$1`<${RunningPanel} />`;
+        statusPanel = m$1`<${RunningPanel} sampleCount=${(samples == null ? void 0 : samples.length) || 0} />`;
+      } else if (status === "error") {
+        statusPanel = m$1`<${ErroredPanel} sampleCount=${(samples == null ? void 0 : samples.length) || 0} />`;
       }
       const navbarContents = logFileName ? m$1` <div
           class="navbar-brand navbar-text mb-0"
@@ -29794,47 +29796,51 @@ self.onmessage = function (e) {
     </nav>
   `;
     };
-    const CanceledPanel = ({ sampleCount }) => {
+    const StatusPanel = ({ icon, status, sampleCount }) => {
       return m$1`<div
     style=${{
         padding: "1em",
         marginTop: "0.5em",
         textTransform: "uppercase",
-        fontSize: FontSize.smaller
+        fontSize: FontSize.smaller,
+        display: "grid",
+        gridTemplateColumns: "auto auto"
       }}
   >
     <i
-      class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
+      class="${icon}"
+      style=${{
+        fontSize: FontSize.large,
+        marginRight: "0.3em",
+        marginTop: "-0.1em"
+      }}
     />
-    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+    <div>
+      <div>${status}</div>
+      <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
+    </div>
   </div>`;
     };
-    const RunningPanel = () => {
-      return m$1`
-    <div
-      style=${{
-        marginTop: "0.5em",
-        display: "inline-grid",
-        gridTemplateColumns: "max-content max-content"
-      }}
-    >
-      <div>
-        <i class=${ApplicationIcons.running} />
-      </div>
-      <div
-        style=${{
-        marginLeft: "0.3em",
-        paddingTop: "0.2em",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-      >
-        Running
-      </div>
-    </div>
-  `;
+    const CancelledPanel = ({ sampleCount }) => {
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.logging.info}
+    status="Cancelled"
+    sampleCount=${sampleCount}
+  />`;
+    };
+    const ErroredPanel = ({ sampleCount }) => {
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.logging.error}
+    status="Task Failed"
+    sampleCount=${sampleCount}
+  />`;
+    };
+    const RunningPanel = ({ sampleCount }) => {
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.running}
+    status="Running"
+    sampleCount=${sampleCount}
+  />`;
     };
     const ResultsPanel = ({ results }) => {
       var _a2, _b2;
@@ -30056,7 +30062,7 @@ self.onmessage = function (e) {
       }, [divRef, task_id]);
       const resolvedTabs = T(() => {
         const resolvedTabs2 = {};
-        if (evalStatus !== "error" && sampleMode !== "none") {
+        if (sampleMode !== "none") {
           resolvedTabs2.samples = {
             id: kEvalWorkspaceTabId,
             scrollable: samples.length === 1,
@@ -30579,6 +30585,9 @@ self.onmessage = function (e) {
         return void 0;
       };
       const scoreLabelKey = (scoreLabel) => {
+        if (!scoreLabel) {
+          return "No score key";
+        }
         return `${scoreLabel.scorer}.${scoreLabel.name}`;
       };
       const scoreDescriptorMap = /* @__PURE__ */ new Map();
@@ -30625,7 +30634,7 @@ self.onmessage = function (e) {
         const score2 = scoreValue(sample, scoreLabel);
         if (score2 === null || score2 === "undefined") {
           return "null";
-        } else if (descriptor.render) {
+        } else if (descriptor && descriptor.render) {
           return descriptor.render(score2);
         } else {
           return score2;
@@ -31511,9 +31520,9 @@ self.onmessage = function (e) {
          */
         (log) => {
           const hasSamples = !!log.sampleSummaries && log.sampleSummaries.length > 0;
-          const showSamples = log.status !== "error" && hasSamples;
+          const showSamples = hasSamples;
           setSelectedWorkspaceTab(
-            showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
+            log.status !== "error" && hasSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
           );
           const scorer = defaultScorer(log);
           const scorers = defaultScorers(log);

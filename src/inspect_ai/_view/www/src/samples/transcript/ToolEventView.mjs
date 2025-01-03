@@ -37,7 +37,7 @@ export const ToolEventView = ({ id, event, style, depth }) => {
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
-      output=${event.result}
+      output=${event.error?.message || event.result}
       mode="compact"
       view=${event.view}
       />

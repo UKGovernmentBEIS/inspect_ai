@@ -166,10 +166,13 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @param {import("../Types.mjs").ScoreLabel} [scoreLabel]
    * @returns {string}
    */
   const scoreLabelKey = (scoreLabel) => {
+    if (!scoreLabel) {
+      return "No score key";
+    }
     return `${scoreLabel.scorer}.${scoreLabel.name}`;
   };
 
@@ -226,7 +229,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
 
   /**
    * @param {import("../Types.mjs").ScoreLabel} scoreLabel
-   * @returns {ScoreDescriptor}
+   * @returns {ScoreDescriptor | undefined}
    */
   const scoreDescriptor = (scoreLabel) => {
     return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
@@ -242,7 +245,7 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
     const score = scoreValue(sample, scoreLabel);
     if (score === null || score === "undefined") {
       return "null";
-    } else if (descriptor.render) {
+    } else if (descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {
       return score;

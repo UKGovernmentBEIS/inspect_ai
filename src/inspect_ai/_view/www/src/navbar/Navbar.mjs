@@ -48,11 +48,13 @@ export const Navbar = ({
   if (status === "success") {
     statusPanel = html`<${ResultsPanel} results="${results}" />`;
   } else if (status === "cancelled") {
-    statusPanel = html`<${CanceledPanel}
+    statusPanel = html`<${CancelledPanel}
       sampleCount=${samples?.length || 0}
     />`;
   } else if (status === "started") {
-    statusPanel = html`<${RunningPanel} />`;
+    statusPanel = html`<${RunningPanel} sampleCount=${samples?.length || 0} />`;
+  } else if (status === "error") {
+    statusPanel = html`<${ErroredPanel} sampleCount=${samples?.length || 0} />`;
   }
 
   // If no logfile is loaded, just show an empty navbar
@@ -188,48 +190,54 @@ export const Navbar = ({
   `;
 };
 
-const CanceledPanel = ({ sampleCount }) => {
+const StatusPanel = ({ icon, status, sampleCount }) => {
   return html`<div
     style=${{
       padding: "1em",
       marginTop: "0.5em",
       textTransform: "uppercase",
       fontSize: FontSize.smaller,
+      display: "grid",
+      gridTemplateColumns: "auto auto",
     }}
   >
     <i
-      class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
+      class="${icon}"
+      style=${{
+        fontSize: FontSize.large,
+        marginRight: "0.3em",
+        marginTop: "-0.1em",
+      }}
     />
-    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+    <div>
+      <div>${status}</div>
+      <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
+    </div>
   </div>`;
 };
 
-const RunningPanel = () => {
-  return html`
-    <div
-      style=${{
-        marginTop: "0.5em",
-        display: "inline-grid",
-        gridTemplateColumns: "max-content max-content",
-      }}
-    >
-      <div>
-        <i class=${ApplicationIcons.running} />
-      </div>
-      <div
-        style=${{
-          marginLeft: "0.3em",
-          paddingTop: "0.2em",
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary,
-        }}
-      >
-        Running
-      </div>
-    </div>
-  `;
+const CancelledPanel = ({ sampleCount }) => {
+  return html`<${StatusPanel}
+    icon=${ApplicationIcons.logging.info}
+    status="Cancelled"
+    sampleCount=${sampleCount}
+  />`;
+};
+
+const ErroredPanel = ({ sampleCount }) => {
+  return html`<${StatusPanel}
+    icon=${ApplicationIcons.logging.error}
+    status="Task Failed"
+    sampleCount=${sampleCount}
+  />`;
+};
+
+const RunningPanel = ({ sampleCount }) => {
+  return html`<${StatusPanel}
+    icon=${ApplicationIcons.running}
+    status="Running"
+    sampleCount=${sampleCount}
+  />`;
 };
 
 const ResultsPanel = ({ results }) => {
