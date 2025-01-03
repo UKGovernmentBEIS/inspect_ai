@@ -522,7 +522,9 @@ export function App({
         !!log.sampleSummaries && log.sampleSummaries.length > 0;
       const showSamples = hasSamples;
       setSelectedWorkspaceTab(
-        log.status !== "error" && hasSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId,
+        log.status !== "error" && hasSamples
+          ? kEvalWorkspaceTabId
+          : kInfoWorkspaceTabId,
       );
 
       // Select the default scorer to use

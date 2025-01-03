@@ -29798,7 +29798,7 @@ self.onmessage = function (e) {
     };
     const StatusPanel = ({ icon, status, sampleCount }) => {
       return m$1`<div
-                style=${{
+    style=${{
         padding: "1em",
         marginTop: "0.5em",
         textTransform: "uppercase",
@@ -29806,25 +29806,41 @@ self.onmessage = function (e) {
         display: "grid",
         gridTemplateColumns: "auto auto"
       }}
-              >
-                <i
-                  class="${icon}"
-                  style=${{ fontSize: FontSize.large, marginRight: "0.3em", marginTop: "-0.1em" }}
-                />
-                <div>
-                  <div>${status}</div>
-                  <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
-                </div>
-              </div>`;
+  >
+    <i
+      class="${icon}"
+      style=${{
+        fontSize: FontSize.large,
+        marginRight: "0.3em",
+        marginTop: "-0.1em"
+      }}
+    />
+    <div>
+      <div>${status}</div>
+      <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
+    </div>
+  </div>`;
     };
     const CancelledPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel} icon=${ApplicationIcons.logging.info} status="Cancelled" sampleCount=${sampleCount}/>`;
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.logging.info}
+    status="Cancelled"
+    sampleCount=${sampleCount}
+  />`;
     };
     const ErroredPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel} icon=${ApplicationIcons.logging.error} status="Task Failed" sampleCount=${sampleCount}/>`;
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.logging.error}
+    status="Task Failed"
+    sampleCount=${sampleCount}
+  />`;
     };
     const RunningPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel} icon=${ApplicationIcons.running} status="Running" sampleCount=${sampleCount}/>`;
+      return m$1`<${StatusPanel}
+    icon=${ApplicationIcons.running}
+    status="Running"
+    sampleCount=${sampleCount}
+  />`;
     };
     const ResultsPanel = ({ results }) => {
       var _a2, _b2;
