@@ -24799,7 +24799,7 @@ ${events}
       }
     };
     const ToolEventView = ({ id, event, style: style2, depth }) => {
-      var _a2;
+      var _a2, _b2;
       const { input, functionCall, inputType } = resolveToolInput(
         event.function,
         event.arguments
@@ -24815,7 +24815,7 @@ ${events}
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
-      output=${event.result}
+      output=${((_b2 = event.error) == null ? void 0 : _b2.message) || event.result}
       mode="compact"
       view=${event.view}
       />
@@ -30618,7 +30618,7 @@ self.onmessage = function (e) {
         const score2 = scoreValue(sample, scoreLabel);
         if (score2 === null || score2 === "undefined") {
           return "null";
-        } else if (descriptor.render) {
+        } else if (descriptor && descriptor.render) {
           return descriptor.render(score2);
         } else {
           return score2;
