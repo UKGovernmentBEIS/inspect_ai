@@ -10,8 +10,8 @@ export class LogElementQueueProcessor {
   private queue: LogNode[] = [];
   private isProcessing = false;
   private elementCache = new Map<string, {
-    iconPath: string | vscode.ThemeIcon;
-    tooltip: vscode.MarkdownString;
+    iconPath?: string | vscode.ThemeIcon;
+    tooltip?: vscode.MarkdownString;
   }>();
   private processingTimeout: NodeJS.Timeout | null = null;
 
@@ -129,6 +129,13 @@ export class LogElementQueueProcessor {
 
   clearCache(): void {
     this.elementCache.clear();
+  }
+
+  public cachedValue(uri: string): {
+    iconPath?: string | vscode.ThemeIcon;
+    tooltip?: vscode.MarkdownString;
+  } | undefined {
+    return this.elementCache.get(uri);
   }
 }
 

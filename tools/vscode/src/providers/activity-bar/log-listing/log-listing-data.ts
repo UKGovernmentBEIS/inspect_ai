@@ -67,6 +67,19 @@ export class LogTreeDataProvider
     );
     contextValue.push(element.name.endsWith(".eval") ? "eval" : "json");
 
+
+    const uri = this.logListing_?.uriForNode(element);
+
+    // See whether there cached server data available
+    // (this will just prevent flashing of the icons when
+    // cached data is available)
+    let cached;
+    if (uri) {
+      cached = this.queueProcessor_.cachedValue(uri?.toString());
+      element.iconPath = element.iconPath || cached?.iconPath;
+      element.tooltip = element.tooltip || cached?.tooltip;
+    }
+
     // base tree item
     const treeItem: TreeItem = {
       id: element.name,
@@ -107,7 +120,7 @@ export class LogTreeDataProvider
       treeItem.command = {
         command: "inspect.openLogViewer",
         title: "View Inspect Log",
-        arguments: [this.logListing_?.uriForNode(element)],
+        arguments: [uri],
       };
     }
 
