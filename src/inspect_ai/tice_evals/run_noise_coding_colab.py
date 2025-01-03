@@ -13,16 +13,14 @@ def main(std_value):
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     # Define the model name
-    model_name = "noise_hf/microsoft/Phi-3-mini-4k-instruct"
+    model_name = "noise_hf/meta-llama/Meta-Llama-3.1-8B-Instruct"
 
     try:
         # Run eval with current configuration
         eval(
-            tasks="src/inspect_ai/tice_evals/sandbag_arc_challenge.py",
-            max_tokens=8,
-            # temperature=0.0,
-            do_sample=False,
+            tasks="src/inspect_ai/tice_evals/sandbag_MBPP.py",
             model=[model_name],
+            max_tokens=200,
             model_args={
                 "noise_percentage": 1.0,
                 "noise_mean": 0.0,

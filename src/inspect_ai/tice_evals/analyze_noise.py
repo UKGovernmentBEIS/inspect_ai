@@ -14,7 +14,17 @@ def analyze_logs(log_dir: str):
 
     # Prepare CSV file
     with open(output_file, "w", newline="") as csvfile:
-        fieldnames = ["noise_std", "noise_percentage", "noise_mean", "task", "accuracy"]
+        fieldnames = [
+            "noise_std",
+            "noise_percentage",
+            "noise_mean",
+            "seed",
+            "task",
+            "accuracy",
+            "accuracy_pass_at_1",
+            "accuracy_pass_at_2",
+            "accuracy_pass_at_5",
+        ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -29,16 +39,38 @@ def analyze_logs(log_dir: str):
                 "noise_std": model_args.get("noise_std", 0.0),
                 "noise_percentage": model_args.get("noise_percentage", 1.0),
                 "noise_mean": model_args.get("noise_mean", 0.0),
+                "seed": model_args.get("seed", None),
                 "task": log.eval.task,
                 "accuracy": None,  # Will be updated if we find the accuracy metric
+                "accuracy_pass_at_1": None,
+                "accuracy_pass_at_2": None,
+                "accuracy_pass_at_5": None,
             }
 
             # Extract accuracy from results
             if log.results and log.results.scores:
-                for score in log.results.scores:
-                    if "accuracy" in score.metrics:
-                        row["accuracy"] = score.metrics["accuracy"].value
-                        break
+                if log.eval.task == "mbpp":
+                    # For MBPP tasks, extract all accuracy metrics
+                    for score in log.results.scores:
+                        if "accuracy" in score.metrics:
+                            reducer = score.reducer
+                            accuracy = score.metrics["accuracy"].value
+                            if reducer == "mean":
+                                row["accuracy"] = (
+                                    accuracy  # Keep backward compatibility
+                                )
+                            elif reducer == "pass_at_1":
+                                row["accuracy_pass_at_1"] = accuracy
+                            elif reducer == "pass_at_2":
+                                row["accuracy_pass_at_2"] = accuracy
+                            elif reducer == "pass_at_5":
+                                row["accuracy_pass_at_5"] = accuracy
+                else:
+                    # For non-MBPP tasks, just get the regular accuracy
+                    for score in log.results.scores:
+                        if "accuracy" in score.metrics:
+                            row["accuracy"] = score.metrics["accuracy"].value
+                            break
 
             # Write the row
             writer.writerow(row)

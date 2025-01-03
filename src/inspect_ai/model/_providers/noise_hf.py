@@ -48,6 +48,7 @@ class NoiseConfig:
     std: float
     percentage: float
     is_noisy: bool = False
+    seed: Optional[int] = None
 
 
 class NoiseHuggingFaceAPI(ModelAPI):
@@ -71,11 +72,13 @@ class NoiseHuggingFaceAPI(ModelAPI):
         noise_mean = model_args.pop("noise_mean", 0.0)
         noise_std = model_args.pop("noise_std", 0.000)
         noise_percentage = model_args.pop("noise_percentage", 1.0)
+        seed = model_args.pop("seed", None)
 
         self.noise_config = NoiseConfig(
             mean=noise_mean,
             std=noise_std,
             percentage=noise_percentage,
+            seed=seed,
         )
 
         # Add initialization of _is_closed
@@ -209,35 +212,41 @@ class NoiseHuggingFaceAPI(ModelAPI):
         self.model = self.model.to(self.device)
         self.noise_config.is_noisy = False
 
+    @staticmethod
+    def set_seed(seed: int) -> None:
+        """Set seed for random distributions."""
+        if seed is not None:
+            torch.manual_seed(seed)  # seed for CPU operations
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)  # seed for GPU operations
+            np.random.seed(seed)  # seed for numpy operations
+
     @torch.inference_mode()
-    def add_noise_all(self, batch_size: int = 20 * 10**6):
-        """Add noise to all weights in the model using batched processing for memory efficiency."""
+    def add_noise_all(
+        self, batch_size: int = None
+    ):  # batch_size param kept for API compatibility
+        """Add noise to all weights in the model layer by layer."""
         try:
-            for name, param in self.model.named_parameters():
-                # Process layer by layer
-                param_size = param.numel()
+            # Set seed if configured
+            if self.noise_config.seed is not None:
+                self.set_seed(self.noise_config.seed)
+                print(f"Using seed {self.noise_config.seed} for noise generation")
 
-                # Process in batches for memory efficiency
-                for start in range(0, param_size, batch_size):
-                    end = min(start + batch_size, param_size)
-                    current_size = end - start
+            for layer_i, (name, param) in enumerate(self.model.named_parameters()):
+                # Generate noise for entire layer at once
+                noise = torch.normal(
+                    mean=self.noise_config.mean,
+                    std=self.noise_config.std,
+                    size=param.shape,
+                    device=self.device,
+                    dtype=param.dtype,
+                )
 
-                    # Generate noise for current batch
-                    noise = torch.normal(
-                        mean=self.noise_config.mean,
-                        std=self.noise_config.std,
-                        size=(current_size,),
-                        device=self.device,
-                        dtype=param.dtype,
-                    )
+                # Add noise to the entire layer
+                param.add_(noise)
 
-                    # Add noise to the flattened parameter batch
-                    param.view(-1)[start:end].add_(noise)
-
-                    # Clean up batch memory
-                    del noise
-                    torch.cuda.empty_cache()
-                    gc.collect()
+                # Clean up layer memory
+                del noise
 
             self.noise_config.is_noisy = True
 
@@ -259,6 +268,11 @@ class NoiseHuggingFaceAPI(ModelAPI):
             return
 
         try:
+            # Set seed if configured
+            if self.noise_config.seed is not None:
+                self.set_seed(self.noise_config.seed)
+                print(f"Using seed {self.noise_config.seed} for noise generation")
+
             for name, param in self.model.named_parameters():
                 param_size = param.numel()
 

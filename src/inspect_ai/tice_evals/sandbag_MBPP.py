@@ -122,6 +122,7 @@ def mbpp(
 
     return Task(
         dataset=dataset,
+        sandbox="local",
         epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
         solver=[
             prompt_template(template),
@@ -129,7 +130,6 @@ def mbpp(
         ],
         scorer=verify(),
         config=GenerateConfig(temperature=temperature),
-        sandbox="docker",
     )
 
 
