@@ -1065,6 +1065,7 @@
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
             "reasoning_effort": null
@@ -2118,6 +2119,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "internal_tools": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Tools"
+        },
         "max_tool_output": {
           "anyOf": [
             {
@@ -2186,6 +2199,7 @@
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "internal_tools",
         "max_tool_output",
         "cache_prompt",
         "reasoning_effort"
@@ -4123,6 +4137,7 @@
           "best_of": null,
           "cache_prompt": null,
           "frequency_penalty": null,
+          "internal_tools": null,
           "logit_bias": null,
           "logprobs": null,
           "max_connections": null,

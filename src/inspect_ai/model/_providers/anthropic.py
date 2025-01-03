@@ -301,7 +301,7 @@ async def resolve_chat_input(
     )
 
     # tools
-    tools_params, computer_use = tool_params_for_tools(tools)
+    tools_params, computer_use = tool_params_for_tools(tools, config)
 
     # system messages
     if len(system_messages) > 0:
@@ -354,7 +354,9 @@ async def resolve_chat_input(
     return system_param, tools_params, message_params, computer_use
 
 
-def tool_params_for_tools(tools: list[ToolInfo]) -> tuple[list[ToolParamDef], bool]:
+def tool_params_for_tools(
+    tools: list[ToolInfo], config: GenerateConfig
+) -> tuple[list[ToolParamDef], bool]:
     # tool params and computer_use bit to return
     tool_params: list[ToolParamDef] = []
     computer_use = False
@@ -362,7 +364,11 @@ def tool_params_for_tools(tools: list[ToolInfo]) -> tuple[list[ToolParamDef], bo
     # for each tool, check if it has a native computer use implementation and use that
     # when available (noting that we need to set the computer use request header)
     for tool in tools:
-        computer_use_tool = computer_use_tool_param(tool)
+        computer_use_tool = (
+            computer_use_tool_param(tool)
+            if config.internal_tools is not False
+            else None
+        )
         if computer_use_tool:
             tool_params.append(computer_use_tool)
             computer_use = True
