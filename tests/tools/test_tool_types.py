@@ -126,6 +126,28 @@ def sound_check():
     return execute
 
 
+@tool
+def computer_action():
+    async def execute(
+        action: str,
+        text: str | None = None,
+        coordinate: tuple[int, int] | None = None,
+    ) -> str:
+        """Take an action using a computer.
+
+        Args:
+          action: Action to take.
+          text: Text related to the action
+          coordinate: Coordinate related to the action.
+
+        Returns:
+          The sound that was passed to check.
+        """
+        return action
+
+    return execute
+
+
 def check_point(model: str, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
@@ -211,12 +233,32 @@ def check_optional_args(model: str) -> None:
     verify_tool_call(log, "stuff")
 
 
+def check_none_default_arg(model: str) -> None:
+    task = Task(
+        dataset=MemoryDataset(
+            [
+                Sample(
+                    input="Please call the computer_action function with the action='click' argument."
+                )
+            ]
+        ),
+        solver=[
+            use_tools([computer_action()], tool_choice=ToolFunction("computer_action")),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    verify_tool_call(log, "click")
+
+
 def check_tool_types(model: str):
     check_typed_dict(model)
     check_dataclass(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
     check_optional_args(model)
+    check_none_default_arg(model)
 
 
 @skip_if_no_openai
