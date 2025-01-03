@@ -396,7 +396,7 @@ export type Answer1 = string | null;
 export type Explanation2 = string | null;
 export type Metadata8 = {} | null;
 export type SampleId1 = string | number | null;
-export type Samples2 = SampleScore[];
+export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 
 export interface EvalLog {
@@ -1034,13 +1034,7 @@ export interface EvalSampleReductions {
   reducer: Reducer1;
   samples: Samples2;
 }
-/**
- * Score for a Sample
- *
- * Args:
- *    sample_id: (str | int | None) Unique id of a sample
- */
-export interface SampleScore {
+export interface EvalSampleScore {
   value: Value2;
   answer: Answer1;
   explanation: Explanation2;
