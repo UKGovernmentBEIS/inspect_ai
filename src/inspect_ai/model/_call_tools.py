@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import types
 from dataclasses import is_dataclass
 from logging import getLogger
 from textwrap import dedent
@@ -11,6 +12,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Tuple,
     Type,
     Union,
     get_args,
@@ -349,9 +351,19 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
+    elif origin is tuple or origin is Tuple:
+        if args:
+            return tuple([tool_param(args[0], x) for x in input])
+        else:
+            return tuple(input)
     elif origin is dict or origin is Dict:
         if args and len(args) > 1:
             return {k: tool_param(args[1], v) for k, v in input}
+        else:
+            return input
+    elif origin is Union or origin is types.UnionType:
+        if args[1] is type(None):
+            return tool_param(args[0], input)
         else:
             return input
     else:
