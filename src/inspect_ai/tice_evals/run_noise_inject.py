@@ -22,7 +22,7 @@ def main():
         try:
             # Run eval with current configuration
             eval(
-                tasks="src/inspect_ai/tice_evals/sandbag_arc.py",
+                tasks="src/inspect_ai/tice_evals/sandbag_arc_challenge.py",
                 max_tokens=8,
                 model=[model_name],
                 do_sample=False,

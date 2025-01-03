@@ -18,7 +18,7 @@ def main(std_value):
     try:
         # Run eval with current configuration
         eval(
-            tasks="examples/sandbag_arc.py",
+            tasks="src/inspect_ai/tice_evals/sandbag_arc_challenge.py",
             max_tokens=8,
             # temperature=0.0,
             do_sample=False,
