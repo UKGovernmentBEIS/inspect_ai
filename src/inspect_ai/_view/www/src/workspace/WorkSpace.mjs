@@ -150,7 +150,7 @@ export const WorkSpace = ({
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (evalStatus !== "error" && sampleMode !== "none") {
+    if (sampleMode !== "none") {
       resolvedTabs.samples = {
         id: kEvalWorkspaceTabId,
         scrollable: samples.length === 1,

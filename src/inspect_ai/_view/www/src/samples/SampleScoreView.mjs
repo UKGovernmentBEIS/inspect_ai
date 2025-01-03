@@ -14,6 +14,14 @@ const labelStyle = {
   ...TextStyle.secondary,
 };
 
+/**
+ * @param {Object} props - The component props.
+ * @param {import("../types/log").EvalSample} props.sample - The sample.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {Object} props.style - The style for the element.
+ * @param {string} props.scorer - The scorer.
+ * @returns {import("preact").JSX.Element} The SampleScoreView component.
+ */
 export const SampleScoreView = ({
   sample,
   sampleDescriptor,
@@ -21,7 +29,7 @@ export const SampleScoreView = ({
   scorer,
 }) => {
   if (!sampleDescriptor) {
-    return "";
+    return html``;
   }
 
   const scoreInput = inputString(sample.input);
@@ -34,7 +42,10 @@ export const SampleScoreView = ({
     );
   }
 
-  const scorerDescriptor = sampleDescriptor.scorer(sample, scorer);
+  const scorerDescriptor = sampleDescriptor.evalDescriptor.scorerDescriptor(
+    sample,
+    { scorer, name: scorer },
+  );
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
   const metadata = scorerDescriptor.metadata();

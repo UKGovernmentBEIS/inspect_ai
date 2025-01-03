@@ -10,30 +10,28 @@ const STYLE_CONTENT =
   "position:absolute; top:0; left:0; height:100%; width:100%; overflow:visible;";
 
 export class VirtualList extends Component {
+  /** @type {HTMLElement} */ base;
+
   constructor(props) {
     super(props);
     this.state = {
       height: 0,
       offset: 0,
     };
-    this.resize = this.resize.bind(this);
-    this.handleScroll = throttle(this.handleScroll.bind(this), 100);
+    this.resize = () => {
+      if (this.state.height !== this.base.offsetHeight) {
+        this.setState({ height: this.base.offsetHeight });
+      }
+    };
+    this.handleScroll = throttle(() => {
+      if (this.base) {
+        this.setState({ offset: this.base.scrollTop });
+      }
+      if (this.props.sync) {
+        this.forceUpdate();
+      }
+    }, 100);
     this.containerRef = createRef();
-  }
-
-  resize() {
-    if (this.state.height !== this.base.offsetHeight) {
-      this.setState({ height: this.base.offsetHeight });
-    }
-  }
-
-  handleScroll() {
-    if (this.base) {
-      this.setState({ offset: this.base.scrollTop });
-    }
-    if (this.props.sync) {
-      this.forceUpdate();
-    }
   }
 
   componentDidUpdate() {
