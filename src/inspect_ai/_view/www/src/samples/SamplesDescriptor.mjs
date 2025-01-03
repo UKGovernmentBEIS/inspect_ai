@@ -105,10 +105,6 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
       return undefined;
     }
 
-    if (!scoreLabel) {
-      return undefined;
-    }
-
     if (
       scoreLabel.scorer !== scoreLabel.name &&
       sample.scores[scoreLabel.scorer] &&
@@ -170,10 +166,13 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
   };
 
   /**
-   * @param {import("../Types.mjs").ScoreLabel} scoreLabel
+   * @param {import("../Types.mjs").ScoreLabel} [scoreLabel]
    * @returns {string}
    */
   const scoreLabelKey = (scoreLabel) => {
+    if (!scoreLabel) {
+      return "No score key";
+    }
     return `${scoreLabel.scorer}.${scoreLabel.name}`;
   };
 
