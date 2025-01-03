@@ -8,6 +8,14 @@ import {
 import { inputString } from "../../utils/Format.mjs";
 
 /**
+ * @typedef {Object} FilterError
+ * @property {number=} from - The start of the error.
+ * @property {number=} to - The end of the error.
+ * @property {string} message - The error message.
+ * @property {"warning" | "error"} severity - The severity of the error.
+ */
+
+/**
  * Coerces a value to the type expected by the score.
  *
  * @param {any} value
@@ -155,10 +163,10 @@ export const scoreFilterItems = (evalDescriptor) => {
         // Additional round-trip to remove trailing zeros.
         return parseFloat(num.toPrecision(3)).toString();
       };
-      tooltip += `\nRange: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
+      tooltip += `\nrange: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
     }
     if (descriptor.categories) {
-      tooltip += `\nCategories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
+      tooltip += `\ncategories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       suggestions = [
         canonicalName,
         ...descriptor.categories.map(
@@ -203,7 +211,7 @@ export const addFragmentToFilter = (filter, fragment) => {
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
  * @param {import("../../api/Types.mjs").SampleSummary} sample
  * @param {string} value
- * @returns {{matches: boolean, error: string | undefined}}
+ * @returns {{matches: boolean, error: FilterError | undefined}}
  */
 export const filterExpression = (evalDescriptor, sample, value) => {
   try {
@@ -238,6 +246,31 @@ export const filterExpression = (evalDescriptor, sample, value) => {
       );
     }
   } catch (error) {
-    return { matches: false, error: error.message };
+    if (error instanceof ReferenceError) {
+      const propertyName = error["propertyName"];
+      if (propertyName) {
+        const regex = new RegExp(`\\b${propertyName}\\b`);
+        const match = regex.exec(value);
+        if (match) {
+          return {
+            matches: false,
+            error: {
+              from: match.index,
+              to: match.index + propertyName.length,
+              message: error.message,
+              severity: "warning",
+            },
+          };
+        }
+      }
+    }
+
+    return {
+      matches: false,
+      error: {
+        message: error.message,
+        severity: "error",
+      },
+    };
   }
 };
