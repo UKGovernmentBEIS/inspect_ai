@@ -52,7 +52,7 @@ export const Navbar = ({
       sampleCount=${samples?.length || 0}
     />`;
   } else if (status === "started") {
-    statusPanel = html`<${RunningPanel} />`;
+    statusPanel = html`<${RunningPanel} sampleCount=${samples?.length || 0} />`;
   } else if (status === "error") {
     statusPanel = html`<${ErroredPanel} sampleCount=${samples?.length || 0} />`;
   }
@@ -190,66 +190,39 @@ export const Navbar = ({
   `;
 };
 
-const CancelledPanel = ({ sampleCount }) => {
+
+const StatusPanel = ({icon, status, sampleCount}) => {
   return html`<div
-    style=${{
-      padding: "1em",
-      marginTop: "0.5em",
-      textTransform: "uppercase",
-      fontSize: FontSize.smaller,
-    }}
-  >
-    <i
-      class="${ApplicationIcons.logging.info}"
-      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
-    />
-    cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
-  </div>`;
+                style=${{
+                  padding: "1em",
+                  marginTop: "0.5em",
+                  textTransform: "uppercase",
+                  fontSize: FontSize.smaller,
+                  display: "grid",
+                  gridTemplateColumns: "auto auto"
+                }}
+              >
+                <i
+                  class="${icon}"
+                  style=${{ fontSize: FontSize.large, marginRight: "0.3em", marginTop: "-0.1em" }}
+                />
+                <div>
+                  <div>${status}</div>
+                  <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
+                </div>
+              </div>`;
+}
+
+const CancelledPanel = ({ sampleCount }) => {
+  return html`<${StatusPanel} icon=${ApplicationIcons.logging.info} status="Cancelled" sampleCount=${sampleCount}/>`;
 };
 
 const ErroredPanel = ({ sampleCount }) => {
-  return html`<div
-    style=${{
-      padding: "1em",
-      marginTop: "0.5em",
-      textTransform: "uppercase",
-      fontSize: FontSize.smaller,
-    }}
-  >
-    <i
-      class="${ApplicationIcons.logging.error}"
-      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
-    />
-    Task Errored (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"}
-    completed)
-  </div>`;
+  return html`<${StatusPanel} icon=${ApplicationIcons.logging.error} status="Task Failed" sampleCount=${sampleCount}/>`;
 };
 
-const RunningPanel = () => {
-  return html`
-    <div
-      style=${{
-        marginTop: "0.5em",
-        display: "inline-grid",
-        gridTemplateColumns: "max-content max-content",
-      }}
-    >
-      <div>
-        <i class=${ApplicationIcons.running} />
-      </div>
-      <div
-        style=${{
-          marginLeft: "0.3em",
-          paddingTop: "0.2em",
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary,
-        }}
-      >
-        Running
-      </div>
-    </div>
-  `;
+const RunningPanel = ({ sampleCount }) => {
+  return html`<${StatusPanel} icon=${ApplicationIcons.running} status="Running" sampleCount=${sampleCount}/>`;
 };
 
 const ResultsPanel = ({ results }) => {
