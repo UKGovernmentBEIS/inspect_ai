@@ -29663,11 +29663,13 @@ self.onmessage = function (e) {
       if (status === "success") {
         statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
       } else if (status === "cancelled") {
-        statusPanel = m$1`<${CanceledPanel}
+        statusPanel = m$1`<${CancelledPanel}
       sampleCount=${(samples == null ? void 0 : samples.length) || 0}
     />`;
       } else if (status === "started") {
         statusPanel = m$1`<${RunningPanel} />`;
+      } else if (status === "error") {
+        statusPanel = m$1`<${ErroredPanel} sampleCount=${(samples == null ? void 0 : samples.length) || 0} />`;
       }
       const navbarContents = logFileName ? m$1` <div
           class="navbar-brand navbar-text mb-0"
@@ -29794,7 +29796,7 @@ self.onmessage = function (e) {
     </nav>
   `;
     };
-    const CanceledPanel = ({ sampleCount }) => {
+    const CancelledPanel = ({ sampleCount }) => {
       return m$1`<div
     style=${{
         padding: "1em",
@@ -29808,6 +29810,23 @@ self.onmessage = function (e) {
       style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+  </div>`;
+    };
+    const ErroredPanel = ({ sampleCount }) => {
+      return m$1`<div
+    style=${{
+        padding: "1em",
+        marginTop: "0.5em",
+        textTransform: "uppercase",
+        fontSize: FontSize.smaller
+      }}
+  >
+    <i
+      class="${ApplicationIcons.logging.error}"
+      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
+    />
+    Task Errored (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"}
+    completed)
   </div>`;
     };
     const RunningPanel = () => {
@@ -30056,7 +30075,7 @@ self.onmessage = function (e) {
       }, [divRef, task_id]);
       const resolvedTabs = T(() => {
         const resolvedTabs2 = {};
-        if (evalStatus !== "error" && sampleMode !== "none") {
+        if (sampleMode !== "none") {
           resolvedTabs2.samples = {
             id: kEvalWorkspaceTabId,
             scrollable: samples.length === 1,
@@ -30540,6 +30559,9 @@ self.onmessage = function (e) {
       }
       const scoreValue = (sample, scoreLabel) => {
         if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (!scoreLabel) {
           return void 0;
         }
         if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
@@ -31511,9 +31533,9 @@ self.onmessage = function (e) {
          */
         (log) => {
           const hasSamples = !!log.sampleSummaries && log.sampleSummaries.length > 0;
-          const showSamples = log.status !== "error" && hasSamples;
+          const showSamples = hasSamples;
           setSelectedWorkspaceTab(
-            showSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
+            log.status !== "error" ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
           );
           const scorer = defaultScorer(log);
           const scorers = defaultScorers(log);

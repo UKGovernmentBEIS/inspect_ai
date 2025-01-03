@@ -105,6 +105,10 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
       return undefined;
     }
 
+    if (!scoreLabel) {
+      return undefined;
+    }
+
     if (
       scoreLabel.scorer !== scoreLabel.name &&
       sample.scores[scoreLabel.scorer] &&

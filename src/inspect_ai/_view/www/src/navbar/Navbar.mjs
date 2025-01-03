@@ -48,11 +48,13 @@ export const Navbar = ({
   if (status === "success") {
     statusPanel = html`<${ResultsPanel} results="${results}" />`;
   } else if (status === "cancelled") {
-    statusPanel = html`<${CanceledPanel}
+    statusPanel = html`<${CancelledPanel}
       sampleCount=${samples?.length || 0}
     />`;
   } else if (status === "started") {
     statusPanel = html`<${RunningPanel} />`;
+  } else if (status === "error") {
+    statusPanel = html`<${ErroredPanel} sampleCount=${samples?.length || 0} />`;
   }
 
   // If no logfile is loaded, just show an empty navbar
@@ -188,7 +190,7 @@ export const Navbar = ({
   `;
 };
 
-const CanceledPanel = ({ sampleCount }) => {
+const CancelledPanel = ({ sampleCount }) => {
   return html`<div
     style=${{
       padding: "1em",
@@ -202,6 +204,24 @@ const CanceledPanel = ({ sampleCount }) => {
       style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
     />
     cancelled (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+  </div>`;
+};
+
+const ErroredPanel = ({ sampleCount }) => {
+  return html`<div
+    style=${{
+      padding: "1em",
+      marginTop: "0.5em",
+      textTransform: "uppercase",
+      fontSize: FontSize.smaller,
+    }}
+  >
+    <i
+      class="${ApplicationIcons.logging.error}"
+      style=${{ fontSize: FontSize.large, marginRight: "0.3em" }}
+    />
+    Task Errored (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"}
+    completed)
   </div>`;
 };
 
