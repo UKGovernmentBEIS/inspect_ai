@@ -66,6 +66,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
+    internal_tools: bool | None
+    """Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic)."""
+
     max_tool_output: int | None
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
@@ -135,6 +138,9 @@ class GenerateConfig(BaseModel):
 
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
+
+    internal_tools: bool | None = Field(default=None)
+    """Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic)."""
 
     max_tool_output: int | None = Field(default=None)
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""

@@ -77,6 +77,7 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
@@ -531,6 +532,7 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
@@ -873,6 +875,7 @@ export interface GenerateConfig1 {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;

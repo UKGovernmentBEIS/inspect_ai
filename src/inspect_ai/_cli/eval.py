@@ -365,6 +365,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_PARALLEL_TOOL_CALLS",
     )
     @click.option(
+        "--internal-tools/--no-internal-tools",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic).",
+        envvar="INSPECT_EVAL_INTERNAL_TOOLS",
+    )
+    @click.option(
         "--max-tool-output",
         type=int,
         help="Maximum size of tool output (in bytes). Defaults to 16 * 1024.",
@@ -438,6 +446,7 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
@@ -597,6 +606,7 @@ def eval_set_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
@@ -833,6 +843,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 elif value.lower() == "false":
                     value = False
             if key == "parallel_tool_calls":
+                if value is not False:
+                    value = None
+            if key == "internal_tools":
                 if value is not False:
                     value = None
             config[key] = value  # type: ignore
