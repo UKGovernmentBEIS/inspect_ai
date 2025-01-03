@@ -55,6 +55,7 @@ export const SampleTools = (props) => {
 
   tools.push(
     html`<${SampleFilter}
+      evalDescriptor=${sampleDescriptor.evalDescriptor}
       filter=${filter}
       filterError=${filterError}
       filterChanged=${filterChanged}
