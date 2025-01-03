@@ -1,15 +1,20 @@
 import asyncio
 import inspect
+import types
 from dataclasses import is_dataclass
 from logging import getLogger
 from textwrap import dedent
+from types import UnionType
 from typing import (
     Any,
     Callable,
     Dict,
     List,
     NamedTuple,
+    Optional,
+    Tuple,
     Type,
+    Union,
     get_args,
     get_origin,
     get_type_hints,
@@ -25,10 +30,7 @@ from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai.model._trace import trace_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import (
-    ToolApprovalError,
-    ToolParsingError,
-)
+from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
@@ -268,6 +270,16 @@ def disable_parallel_tools(
     return False
 
 
+def type_hint_includes_none(type_hint: Type[Any] | None) -> bool:
+    origin = get_origin(type_hint)
+
+    if origin in {Union, UnionType}:
+        return type(None) in get_args(type_hint)
+    elif origin is Optional:
+        return True
+    return False
+
+
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
     # parse function typeinfo
     signature = inspect.signature(func)
@@ -296,7 +308,7 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
             params[param_name] = tool_param(type_hint, input.get(param_name))
-        elif param.default is not None:
+        elif param.default is not None or type_hint_includes_none(type_hint):
             params[param_name] = param.default
         else:
             raise ToolParsingError(
@@ -339,9 +351,19 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
+    elif origin is tuple or origin is Tuple:
+        if args:
+            return tuple([tool_param(args[0], x) for x in input])
+        else:
+            return tuple(input)
     elif origin is dict or origin is Dict:
         if args and len(args) > 1:
             return {k: tool_param(args[1], v) for k, v in input}
+        else:
+            return input
+    elif origin is Union or origin is types.UnionType:
+        if args[1] is type(None):
+            return tool_param(args[0], input)
         else:
             return input
     else:

@@ -8,6 +8,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
     Type,
     Union,
     get_args,
@@ -155,7 +156,7 @@ def parse_type(type_hint: Type[Any]) -> ToolParam:
             return ToolParam(type="null")
         else:
             return ToolParam()
-    elif origin is list or origin is List:
+    elif origin is list or origin is List or origin is tuple or origin is Tuple:
         return ToolParam(
             type="array", items=parse_type(args[0]) if args else ToolParam()
         )
