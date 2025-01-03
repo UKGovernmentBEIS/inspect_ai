@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.49
+
+- Improve code lense detection of Inspect tasks (ty @tobiasraabe)
+- Use icon to reflect log status in log listing activity panel (red = error, yellow = cancelled, green = running)
+
 ## 0.3.48
 
 - Properly shutdown the `inspect view` process when exiting VSCode.
