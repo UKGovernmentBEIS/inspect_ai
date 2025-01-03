@@ -6,7 +6,8 @@ import {
   openRemoteZipFile,
 } from "../utils/remoteZipFile.mjs";
 
-const MAX_BYTES = 12582912;
+// don't try to load samples greater than 50mb
+const MAX_BYTES = 50 * 1024 * 1024;
 
 /**
  * @typedef {Object} SampleEntry
