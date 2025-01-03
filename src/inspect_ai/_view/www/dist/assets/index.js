@@ -15268,7 +15268,16 @@ var require_assets = __commonJS({
       mode
     }) => {
       function isContentImage(value) {
-        return value && typeof value === "object" && value.type === "image";
+        if (value && typeof value === "object") {
+          if (value.type === "image") {
+            return true;
+          } else if (value.type === "tool") {
+            if (Array.isArray(value.content) && value.content.some(isContentImage)) {
+              return true;
+            }
+          }
+        }
+        return false;
       }
       const collapse = Array.isArray(output) ? output.every((item) => !isContentImage(item)) : !isContentImage(output);
       return m$1`<div>
@@ -15398,7 +15407,7 @@ var require_assets = __commonJS({
                 m$1`<img
               src="${out.image}"
               style=${{
-                  maxWidth: "100%",
+                  maxWidth: "800px",
                   border: "solid var(--bs-border-color) 1px",
                   ...style2
                 }}
@@ -15529,7 +15538,7 @@ var require_assets = __commonJS({
             return m$1`<img
           src="${content.image}"
           style=${{
-              maxWidth: "400px",
+              maxWidth: "800px",
               border: "solid var(--bs-border-color) 1px"
             }}
         />`;
@@ -28637,7 +28646,7 @@ self.onmessage = function (e) {
         }
       }
     }
-    const MAX_BYTES = 12582912;
+    const MAX_BYTES = 50 * 1024 * 1024;
     const openRemoteLogFile = async (api2, url, concurrency) => {
       const queue = new AsyncQueue(concurrency);
       const remoteZipFile = await openRemoteZipFile(

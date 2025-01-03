@@ -194,7 +194,9 @@ class GoogleAPI(ModelAPI):
                 model=self.model_name, content=ex.message, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ModelOutput.from_content(
+                model=self.model_name, content=ex.message, stop_reason="unknown"
+            )
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -408,25 +410,34 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
 
 
-def schema_from_param(param: ToolParam | ToolParams) -> Schema:
+def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> Schema:
     if isinstance(param, ToolParams):
         param = ToolParam(
             type=param.type, properties=param.properties, required=param.required
         )
 
     if param.type == "number":
-        return Schema(type=Type.NUMBER, description=param.description)
+        return Schema(
+            type=Type.NUMBER, description=param.description, nullable=nullable
+        )
     elif param.type == "integer":
-        return Schema(type=Type.INTEGER, description=param.description)
+        return Schema(
+            type=Type.INTEGER, description=param.description, nullable=nullable
+        )
     elif param.type == "boolean":
-        return Schema(type=Type.BOOLEAN, description=param.description)
+        return Schema(
+            type=Type.BOOLEAN, description=param.description, nullable=nullable
+        )
     elif param.type == "string":
-        return Schema(type=Type.STRING, description=param.description)
+        return Schema(
+            type=Type.STRING, description=param.description, nullable=nullable
+        )
     elif param.type == "array":
         return Schema(
             type=Type.ARRAY,
             description=param.description,
             items=schema_from_param(param.items) if param.items else None,
+            nullable=nullable,
         )
     elif param.type == "object":
         return Schema(
@@ -436,7 +447,14 @@ def schema_from_param(param: ToolParam | ToolParams) -> Schema:
             if param.properties is not None
             else None,
             required=param.required,
+            nullable=nullable,
         )
+    # convert unions to optional params if the second type is 'null'
+    elif param.anyOf:
+        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
+            return schema_from_param(param.anyOf[0], nullable=True)
+        else:
+            return Schema(type=Type.TYPE_UNSPECIFIED)
     else:
         return Schema(type=Type.TYPE_UNSPECIFIED)
 
