@@ -19,7 +19,7 @@ def transcript_code_theme() -> str:
 def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
     code_theme = transcript_code_theme()
     return Markdown(
-        html.escape(content) if escape else content,
+        html.escape(content, quote=False) if escape else content,
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,
