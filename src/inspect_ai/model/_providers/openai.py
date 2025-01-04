@@ -262,7 +262,10 @@ class OpenAIAPI(ModelAPI):
             model=self.model_name,
         )
         if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
+            if self.is_o1_full():
+                params["max_completion_tokens"] = config.max_tokens
+            else:
+                params["max_tokens"] = config.max_tokens
         if config.frequency_penalty is not None:
             params["frequency_penalty"] = config.frequency_penalty
         if config.stop_seqs is not None:
