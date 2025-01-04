@@ -195,7 +195,7 @@ class GoogleAPI(ModelAPI):
             )
         else:
             return ModelOutput.from_content(
-                model=self.model_name, content=ex.message, stop_reason="unknown"
+                model=self.model_name, content=ex.message, stop_reason="bad_request"
             )
 
     @override

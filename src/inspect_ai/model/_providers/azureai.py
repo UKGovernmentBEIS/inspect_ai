@@ -162,6 +162,19 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
+        def model_call(response: ChatCompletions | None = None) -> ModelCall:
+            return ModelCall.create(
+                request=request
+                | dict(
+                    messages=[message.as_dict() for message in request["messages"]],
+                    tools=[tool.as_dict() for tool in request["tools"]]
+                    if request.get("tools", None) is not None
+                    else None,
+                ),
+                response=response.as_dict() if response else {},
+                filter=image_url_filter,
+            )
+
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
@@ -173,19 +186,10 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict(),
-                filter=image_url_filter,
-            )
+            ), model_call(response)
+
         except AzureError as ex:
-            return self.handle_azure_error(ex)
+            return self.handle_azure_error(ex), model_call()
         finally:
             await client.close()
 
@@ -264,7 +268,7 @@ class AzureAIAPI(ModelAPI):
                 return ModelOutput.from_content(
                     model=self.model_name,
                     content=f"Your request triggered an error: {ex.error}",
-                    stop_reason="content_filter",
+                    stop_reason="bad_request",
                 )
 
         raise ex

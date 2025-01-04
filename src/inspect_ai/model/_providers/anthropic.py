@@ -256,6 +256,9 @@ class AnthropicAPI(ModelAPI):
         elif "content filtering" in error:
             content = "Sorry, but I am unable to help with that request."
             stop_reason = "content_filter"
+        else:
+            content = str(error)
+            stop_reason = "bad_request"
 
         if content and stop_reason:
             return ModelOutput.from_content(

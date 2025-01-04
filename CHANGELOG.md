@@ -5,6 +5,7 @@
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
+- StopReason: Added "bad_request" for requests reported as invalid by the model API.
 - Tool parameters with a default of `None` are now supported.
 
 ## v0.3.56 (01 January 2025)

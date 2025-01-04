@@ -26,9 +26,15 @@ class ModelUsage(BaseModel):
 
 
 StopReason = Literal[
-    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+    "stop",
+    "max_tokens",
+    "model_length",
+    "tool_calls",
+    "content_filter",
+    "bad_request",
+    "unknown",
 ]
-"""Reason that the model stopped generating."""
+"""Reason that the model stopped or failed to generate."""
 
 
 class TopLogprob(BaseModel):
