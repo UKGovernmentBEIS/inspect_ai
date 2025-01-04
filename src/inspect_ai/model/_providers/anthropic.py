@@ -2,7 +2,7 @@ import functools
 import os
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Tuple, cast
+from typing import Any, Literal, NotRequired, Tuple, TypedDict, cast
 
 from anthropic import (
     APIConnectionError,
@@ -35,20 +35,11 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-)
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
@@ -142,7 +133,7 @@ class AnthropicAPI(ModelAPI):
                 system_param,
                 tools_param,
                 messages,
-                cache_prompt,
+                computer_use,
             ) = await resolve_chat_input(self.model_name, input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
@@ -158,13 +149,11 @@ class AnthropicAPI(ModelAPI):
             # additional options
             request = request | self.completion_params(config)
 
-            # caching header
-            if cache_prompt:
-                request["extra_headers"] = {
-                    "anthropic-beta": "prompt-caching-2024-07-31"
-                }
+            # computer use beta
+            if computer_use:
+                request["extra_headers"] = {"anthropic-beta": "computer-use-2024-10-22"}
 
-            # call model
+            # make request
             message = await self.client.messages.create(**request, stream=False)
 
             # set response for ModelCall
@@ -231,7 +220,7 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        return True
+        return self.model_name.startswith("claude-3-5-sonnet")
 
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
@@ -256,6 +245,9 @@ class AnthropicAPI(ModelAPI):
         elif "content filtering" in error:
             content = "Sorry, but I am unable to help with that request."
             stop_reason = "content_filter"
+        else:
+            content = error
+            stop_reason = "unknown"
 
         if content and stop_reason:
             return ModelOutput.from_content(
@@ -268,12 +260,26 @@ class AnthropicAPI(ModelAPI):
             return None
 
 
+# native anthropic tool definitions for computer use beta
+# https://docs.anthropic.com/en/docs/build-with-claude/computer-use
+class ComputerUseToolParam(TypedDict):
+    type: str
+    name: str
+    display_width_px: NotRequired[int]
+    display_height_px: NotRequired[int]
+    display_number: NotRequired[int]
+
+
+# tools can be either a stock tool param or a special computer use tool param
+ToolParamDef = ToolParam | ComputerUseToolParam
+
+
 async def resolve_chat_input(
     model: str,
     input: list[ChatMessage],
     tools: list[ToolInfo],
     config: GenerateConfig,
-) -> Tuple[list[TextBlockParam] | None, list[ToolParam], list[MessageParam], bool]:
+) -> Tuple[list[TextBlockParam] | None, list[ToolParamDef], list[MessageParam], bool]:
     # extract system message
     system_messages, messages = split_system_messages(input, config)
 
@@ -286,14 +292,7 @@ async def resolve_chat_input(
     )
 
     # tools
-    tools_params = [
-        ToolParam(
-            name=tool.name,
-            description=tool.description,
-            input_schema=tool.parameters.model_dump(exclude_none=True),
-        )
-        for tool in tools
-    ]
+    tools_params, computer_use = tool_params_for_tools(tools)
 
     # system messages
     if len(system_messages) > 0:
@@ -343,10 +342,54 @@ async def resolve_chat_input(
                 add_cache_control(cast(dict[str, Any], content[-1]))
 
     # return chat input
-    return system_param, tools_params, message_params, cache_prompt
+    return system_param, tools_params, message_params, computer_use
 
 
-def add_cache_control(param: TextBlockParam | ToolParam | dict[str, Any]) -> None:
+def tool_params_for_tools(tools: list[ToolInfo]) -> tuple[list[ToolParamDef], bool]:
+    # tool params and computer_use bit to return
+    tool_params: list[ToolParamDef] = []
+    computer_use = False
+
+    # for each tool, check if it has a native computer use implementation and use that
+    # when available (noting that we need to set the computer use request header)
+    for tool in tools:
+        computer_use_tool = computer_use_tool_param(tool)
+        if computer_use_tool:
+            tool_params.append(computer_use_tool)
+            computer_use = True
+        else:
+            tool_params.append(
+                ToolParam(
+                    name=tool.name,
+                    description=tool.description,
+                    input_schema=tool.parameters.model_dump(exclude_none=True),
+                )
+            )
+
+    return tool_params, computer_use
+
+
+def computer_use_tool_param(tool: ToolInfo) -> ComputerUseToolParam | None:
+    # check for compatible 'computer' tool
+    if tool.name == "computer" and (
+        sorted(tool.parameters.properties.keys())
+        == sorted(["action", "coordinate", "text"])
+    ):
+        return ComputerUseToolParam(
+            type="computer_20241022",
+            name="computer",
+            display_width_px=1024,
+            display_height_px=768,
+            display_number=1,
+        )
+    # not a computer_use tool
+    else:
+        return None
+
+
+def add_cache_control(
+    param: TextBlockParam | ToolParam | ComputerUseToolParam | dict[str, Any],
+) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
 
 

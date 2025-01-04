@@ -1,0 +1,9 @@
+services:
+  default:
+    # Temporary internal image until the official one is available
+    image: inspect-computer-tool
+    init: true
+    # enable the following port if you want to use VNC. Note that this will cause evals with multiple
+    # samples to fail since the ports will conflict.
+    # ports:
+    #   - "5900:5900"

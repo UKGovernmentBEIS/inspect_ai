@@ -14,6 +14,7 @@ from ._tool_def import ToolDef
 from ._tool_info import ToolInfo
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
+from ._tools._computer import computer
 from ._tools._execute import bash, python
 from ._tools._web_browser import web_browser
 from ._tools._web_search import web_search
@@ -23,6 +24,7 @@ __all__ = [
     "python",
     "web_browser",
     "web_search",
+    "computer",
     "tool",
     "tool_with",
     "Tool",
