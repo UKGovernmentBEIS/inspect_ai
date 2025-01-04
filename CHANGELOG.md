@@ -6,6 +6,7 @@
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
 - Tool parameters with a default of `None` are now supported.
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
 
 ## v0.3.56 (01 January 2025)
 

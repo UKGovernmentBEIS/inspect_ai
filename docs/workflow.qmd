@@ -208,11 +208,6 @@ Note that `.env` files are searched for in parent directories, so if you run an 
 `.env` files should *never* be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an `.env.example` file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.
 :::
 
-## Trace Mode
-
-In some cases during development of an evaluation you'll want to see message activity in realtime. You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
-
-{{< include _trace.md >}}
 
 ## Exploratory
 

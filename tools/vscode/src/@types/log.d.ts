@@ -32,7 +32,6 @@ export type Limit = number | [unknown, unknown] | null;
 export type SampleId = string | number | (string | number)[] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
-export type Trace = boolean | null;
 export type Name1 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
@@ -448,7 +447,6 @@ export interface EvalConfig {
   sample_id: SampleId;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
-  trace: Trace;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   message_limit: MessageLimit;

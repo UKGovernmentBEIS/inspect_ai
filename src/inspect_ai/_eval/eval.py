@@ -12,6 +12,7 @@ from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._apply import init_tool_approval
@@ -34,7 +35,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._trace import init_trace
+from inspect_ai.util._display import display_type, init_display_type
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -163,7 +164,6 @@ def eval(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
-            trace=trace,
             approval=approval,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -201,7 +201,6 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
-    trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -247,7 +246,6 @@ async def eval_async(
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
-        trace: (bool | None): Trace message interactions with evaluated model to terminal.
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -329,8 +327,8 @@ async def eval_async(
             log.warning("No inspect tasks were found at the specified paths.")
             return []
 
-        # apply trace mode constraints
-        if trace:
+        # apply conversation display constraints
+        if display_type() == "conversation":
             # single task at a time
             if max_tasks is not None:
                 max_tasks = 1
@@ -371,7 +369,6 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
-            trace=trace,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
             message_limit=message_limit,
@@ -822,11 +819,16 @@ def init_eval_trace(
     max_samples: int | None,
     model: Any = None,
 ) -> tuple[int | None, int | None]:
-    # init trace setting
-    init_trace(trace)
-
-    # adapt task/samples as required
+    # propagate any trace value to display_type
     if trace:
+        warn_once(
+            log,
+            "WARNING: The --trace flag is deprecated (use --display=conversation instead)",
+        )
+        init_display_type("conversation")
+
+    # adapt task/samples as required if we are in conversation mode
+    if display_type() == "conversation":
         # single task at a time
         if max_tasks is not None:
             max_tasks = 1
