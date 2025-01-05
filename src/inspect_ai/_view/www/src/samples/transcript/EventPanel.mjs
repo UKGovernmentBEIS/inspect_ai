@@ -172,7 +172,6 @@ export const EventPanel = ({
     id=${id}
     style=${{
       padding: "0.625rem",
-      marginBottom: "0.625rem",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
       ...style,
