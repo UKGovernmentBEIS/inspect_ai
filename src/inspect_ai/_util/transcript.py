@@ -1,4 +1,5 @@
 import html
+import re
 from typing import Any
 
 from rich.align import AlignMethod
@@ -19,11 +20,41 @@ def transcript_code_theme() -> str:
 def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
     code_theme = transcript_code_theme()
     return Markdown(
-        html.escape(content) if escape else content,
+        html_escape_markdown(content) if escape else content,
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,
     )
+
+
+def html_escape_markdown(content: str) -> str:
+    """Escape markdown lines that aren't in a code block."""
+    codeblock_pattern = re.compile("`{3,}")
+    current_codeblock = ""
+    escaped: list[str] = []
+    lines = content.splitlines()
+    for line in lines:
+        # look for matching end of codeblock
+        if current_codeblock:
+            if current_codeblock in line:
+                current_codeblock = ""
+                escaped.append(line)
+                continue
+
+        # look for beginning of codeblock
+        match = codeblock_pattern.search(line)
+        if match:
+            current_codeblock = match[0]
+            escaped.append(line)
+            continue
+
+        # escape if we are not in a codeblock
+        if current_codeblock:
+            escaped.append(line)
+        else:
+            escaped.append(html.escape(line, quote=False))
+
+    return "\n".join(escaped)
 
 
 def set_transcript_markdown_options(markdown: Markdown) -> None:

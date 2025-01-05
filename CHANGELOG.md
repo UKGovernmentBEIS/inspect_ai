@@ -6,6 +6,7 @@
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
 - Tool parameters with a default of `None` are now supported.
+- More fine graned HTML escaping for sample transcripts displalyed in terminal.
 
 ## v0.3.56 (01 January 2025)
 
