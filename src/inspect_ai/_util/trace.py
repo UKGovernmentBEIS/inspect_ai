@@ -250,9 +250,16 @@ def read_trace_file(file: Path) -> list[TraceRecord]:
 
 
 def rotate_trace_files() -> None:
-    rotate_files = list_trace_files()[10:]
-    for file in rotate_files:
-        file.file.unlink(missing_ok=True)
+    # if multiple inspect processes start up at once they
+    # will all be attempting to rotate at the same time,
+    # which can lead to FileNotFoundError -- ignore these
+    # errors if they occur
+    try:
+        rotate_files = list_trace_files()[10:]
+        for file in rotate_files:
+            file.file.unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
 
 
 def compress_trace_log(log_handler: FileHandler) -> Callable[[], None]:
