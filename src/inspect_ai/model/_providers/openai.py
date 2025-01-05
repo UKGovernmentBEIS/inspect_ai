@@ -51,6 +51,7 @@ from .._model_output import (
     Logprobs,
     ModelOutput,
     ModelUsage,
+    StopReason,
 )
 from .openai_o1 import generate_o1
 from .util import (
@@ -306,13 +307,23 @@ class OpenAIAPI(ModelAPI):
 
     # convert some well known bad request errors into ModelOutput
     def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
-        if e.status_code == 400 and e.code == "context_length_exceeded":
+        if e.status_code == 400:
+            # extract message
             if isinstance(e.body, dict) and "message" in e.body.keys():
                 content = str(e.body.get("message"))
             else:
                 content = e.message
+
+            # narrow stop_reason
+            if e.code == "context_length_exceeded":
+                stop_reason: StopReason = "model_length"
+            elif e.code == "invalid_prompt":
+                stop_reason = "content_filter"
+            else:
+                stop_reason = "unknown"
+
             return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason="model_length"
+                model=self.model_name, content=content, stop_reason=stop_reason
             )
         else:
             raise e
