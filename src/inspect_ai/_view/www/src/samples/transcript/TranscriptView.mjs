@@ -15,6 +15,7 @@ import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
+import { Virtuoso } from "react-virtuoso";
 
 /**
  * Renders the TranscriptView component.
@@ -31,6 +32,63 @@ export const TranscriptView = ({ id, events, depth = 0 }) => {
   const eventNodes = treeifyEvents(resolvedEvents, depth);
   return html` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
 };
+
+
+/**
+ * Renders the Transcript component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The identifier for this view
+ * @param {import("../../types/log").Events} props.events - The transcript events to display.
+ * @param {Object} props.style - The transcript style to display.
+ * @param {number} props.depth - The base depth for this transcript view
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const TranscriptVirtualList = ({ id, scrollRef, events, depth, style }) => {
+  // Normalize Events themselves
+  const resolvedEvents = fixupEventStream(events);
+  const eventNodes = treeifyEvents(resolvedEvents, depth);
+  
+  const count = eventNodes ? eventNodes.length : 0;
+  return html`<${Virtuoso}
+      id=${`${id}-virtual-list`}
+      style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
+      customScrollParent=${scrollRef.current}
+      totalCount=${count}
+      overscan=${{
+        reverse: 3,
+        main: 2
+      }}
+      itemContent=${(index) => {
+          const node = eventNodes[index];
+          const toggleStyle = {};
+          if (node.depth % 2 == 0) {
+            toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
+          } else {
+            toggleStyle.backgroundColor = "var(--bs-body-bg)";
+          }
+          
+          let paddingTop = "0";
+          if (index === 0) {
+            paddingTop = ".5em";
+          }
+
+          return html`<div style=${{ paddingTop, paddingBottom: ".5em"}}>
+                        <${RenderedEventNode}
+                          id=${`${id}-event${index}`}
+                          node=${node}
+                          style=${{
+                            ...toggleStyle,
+                            ...style,
+                          }}
+                        />
+                      </div>`
+        }
+      }
+    />`
+
+}
 
 /**
  * Renders the Transcript component.
@@ -55,7 +113,13 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
       toggleStyle.marginBottom = "1.5em";
     }
 
+    let paddingBottom = ".5em";
+    if (index === eventNodes.length - 1) {
+      paddingBottom = "0";
+    }
+
     const row = html`
+      <div style=${{ paddingBottom }}>
       <${RenderedEventNode}
         id=${`${id}-event${index}`}
         node=${eventNode}
@@ -64,6 +128,7 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
           ...style,
         }}
       />
+      </div>
     `;
     return row;
   });
