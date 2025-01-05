@@ -38,13 +38,14 @@ export const TabPanel = ({
   selected,
   style,
   scrollable,
+  scrollRef,
   classes,
   scrollPosition,
   setScrollPosition,
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
-  const tabContentsRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const tabContentsRef = scrollRef || useRef(/** @type {HTMLElement|null} */ (null));
   useEffect(() => {
     setTimeout(() => {
       if (

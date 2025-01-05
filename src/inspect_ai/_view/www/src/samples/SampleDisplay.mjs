@@ -57,6 +57,7 @@ export const InlineSampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
+  scrollRef,
 }) => {
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -77,6 +78,7 @@ export const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
+            scrollRef=${scrollRef}
           />`}
     </div>
   </div>`;
@@ -91,6 +93,7 @@ export const InlineSampleDisplay = ({
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const SampleDisplay = ({
@@ -99,6 +102,7 @@ export const SampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
+  scrollRef
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
@@ -136,7 +140,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === kSampleTranscriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events} scrollRef=${scrollRef}/>
       </${TabPanel}>`);
   }
 
