@@ -5,10 +5,13 @@
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
+- Inspect View: don't display the 'input' column heading if there isn't an input
 - Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
 - Open AI: Use new `max_completion_tokens` option for o1 full.
+- Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.
 - Tool parameters with a default of `None` are now supported.
 - More fine graned HTML escaping for sample transcripts displalyed in terminal.
+- Fix an issue that would result in an error when a state or storage value used a tilda or slash in the key name.
 
 ## v0.3.56 (01 January 2025)
 

@@ -42,7 +42,7 @@ from .task.log import TaskLogger
 from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
-from .task.util import task_run_dir
+from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -70,12 +70,23 @@ async def eval_run(
     # get cwd before switching to task dir
     eval_wd = os.getcwd()
 
+    # ensure sample ids
+    for resolved_task in tasks:
+        # add sample ids to dataset if they aren't there (start at 1 not 0)
+        task = resolved_task.task
+        for id, sample in enumerate(task.dataset):
+            if sample.id is None:
+                sample.id = id + 1
+
+        # Ensure sample ids are unique
+        ensure_unique_ids(task.dataset)
+
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
     if has_sandbox:
         cleanup = eval_config.sandbox_cleanup is not False
         shutdown_sandbox_environments = await startup_sandbox_environments(
-            resolve_sandbox_environment(eval_sandbox), tasks, cleanup
+            resolve_sandbox_environment(eval_sandbox), tasks, eval_config, cleanup
         )
 
     # resolve solver and solver spec
@@ -145,14 +156,6 @@ async def eval_run(
                     task_eval_config.fail_on_error = task.fail_on_error
                 else:
                     task.fail_on_error = task_eval_config.fail_on_error
-
-                # add sample ids to dataset if they aren't there (start at 1 not 0)
-                for id, sample in enumerate(task.dataset):
-                    if sample.id is None:
-                        sample.id = id + 1
-
-                # Ensure sample ids are unique
-                ensure_unique_ids(task.dataset)
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -340,13 +343,15 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 async def startup_sandbox_environments(
     eval_sandbox: SandboxEnvironmentSpec | None,
     tasks: list[ResolvedTask],
+    config: EvalConfig,
     cleanup: bool,
 ) -> Callable[[], Awaitable[None]]:
     # find unique sandboxenvs
     sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
-        for sample in task.task.dataset:
+        dataset = slice_dataset(task.task.dataset, config.limit, config.sample_id)
+        for sample in dataset:
             sandbox = resolve_sandbox_for_task(eval_sandbox, task.task, sample)
             if sandbox is not None and sandbox not in sandboxenvs:
                 sandboxenvs.add(sandbox)
