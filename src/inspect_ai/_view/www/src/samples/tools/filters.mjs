@@ -188,23 +188,6 @@ export const scoreFilterItems = (evalDescriptor) => {
 };
 
 /**
- * @param {import("../../Types.mjs").ScoreFilter} filter
- * @param {string} fragment
- * @returns {import("../../Types.mjs").ScoreFilter}
- */
-export const addFragmentToFilter = (filter, fragment) => {
-  var value = filter.value || "";
-  if (value.trim() && !value.endsWith(" ")) {
-    value = `${value} `;
-  }
-  if (value.trim() && !value.match(/ +(or|and) *$/)) {
-    value = `${value}and `;
-  }
-  value += fragment;
-  return { value };
-};
-
-/**
  * TODO: Add case-insensitive string comparison.
  * TODO: Pass EvalSample instead of SampleSummary and allow full-text message search.
  *

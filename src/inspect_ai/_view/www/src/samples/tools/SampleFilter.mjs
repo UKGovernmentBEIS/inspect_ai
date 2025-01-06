@@ -292,7 +292,7 @@ export const SampleFilter = ({
 
 const filterTooltip = `
 Filter samples by:
-  • Scores (click on the score name above to add it to the filter)
+  • Scores
   • Input and target regex search: input_contains, target_contains
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^

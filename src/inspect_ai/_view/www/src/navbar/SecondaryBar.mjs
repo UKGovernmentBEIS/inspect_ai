@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { useState } from "preact/hooks";
 
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset, formatDuration } from "../utils/Format.mjs";
@@ -16,7 +15,6 @@ import { scoreFilterItems } from "../samples/tools/filters.mjs";
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
  * @param {import("../samples/SamplesDescriptor.mjs").EvalDescriptor} [props.evalDescriptor] - The EvalDescriptor
- * @param {(fragment: string) => void} props.addToFilterExpression - add to the current filter expression
  * @param {string} [props.status] - the status
  * @param {Map<string, string>} [props.style] - is this off canvas
  *
@@ -29,7 +27,6 @@ export const SecondaryBar = ({
   evalStats,
   samples,
   evalDescriptor,
-  addToFilterExpression,
   status,
   style,
 }) => {
@@ -88,8 +85,7 @@ export const SecondaryBar = ({
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: "right" }}>
     <${ScorerSummary}
-      evalDescriptor=${evalDescriptor}
-      addToFilterExpression=${addToFilterExpression} />
+      evalDescriptor=${evalDescriptor} />
   </${LabeledValue}>`,
   });
 
@@ -131,116 +127,19 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   `;
 };
 
-const FilterableItem = ({
-  item,
-  index,
-  openSuggestionIndex,
-  setOpenSuggestionIndex,
-  addToFilterExpression,
-}) => {
-  const handleClick = () => {
-    if (item.suggestions.length === 0) {
-      addToFilterExpression(item.canonicalName);
-    } else {
-      setOpenSuggestionIndex(openSuggestionIndex === index ? null : index);
-    }
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    addToFilterExpression(suggestion);
-    setOpenSuggestionIndex(null);
-  };
-
-  /** @param {HTMLElement} el */
-  const popupRef = (el) => {
-    if (el && openSuggestionIndex === index) {
-      const rect = el.previousElementSibling.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const popupWidth = el.offsetWidth;
-      const finalLeft =
-        rect.left + popupWidth > viewportWidth
-          ? rect.right - popupWidth
-          : rect.left;
-      el.style.setProperty("--popup-left", `${finalLeft}px`);
-      el.style.setProperty("--popup-top", `${rect.bottom + 4}px`);
-    }
-  };
-
-  return html`
-    <div
-      class="filterable-item"
-      style=${{ display: "inline-block", position: "static" }}
-    >
-      <a
-        class="filter-link"
-        style=${{
-          color: "var(--bs-body-color)",
-          textDecoration: "underline",
-          cursor: "pointer",
-        }}
-        title=${item.tooltip}
-        onclick=${handleClick}
-      >
-        ${item.canonicalName}
-      </a>
-      ${item.suggestions.length > 0 &&
-      // Use fixed position to avoid being clipped by `ExpandablePanel`.
-      html`
-        <div
-          class="suggestions-popup"
-          style=${{
-            position: "fixed",
-            left: "var(--popup-left, 0)",
-            top: "var(--popup-top, 0)",
-            backgroundColor: "var(--bs-body-bg)",
-            border: "1px solid var(--bs-border-color)",
-            borderRadius: "4px",
-            padding: "0.25rem 0",
-            zIndex: 1000,
-            display: openSuggestionIndex === index ? "block" : "none",
-            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
-          }}
-          ref=${popupRef}
-        >
-          ${item.suggestions.map(
-            (suggestion) => html`
-              <div
-                class="custom-dropdown-item"
-                style=${{ padding: "0.25rem 1rem", cursor: "pointer" }}
-                onclick=${() => handleSuggestionClick(suggestion)}
-              >
-                ${suggestion}
-              </div>
-            `,
-          )}
-        </div>
-      `}
-    </div>
-  `;
-};
-
-const ScorerSummary = ({ evalDescriptor, addToFilterExpression }) => {
+const ScorerSummary = ({ evalDescriptor }) => {
   if (!evalDescriptor) {
     return "";
   }
 
   const items = scoreFilterItems(evalDescriptor);
-  const [openSuggestionIndex, setOpenSuggestionIndex] = useState(null);
 
   return html`
     <span style=${{ position: "relative" }}>
       ${Array.from(items).map(
         (item, index) => html`
           ${index > 0 ? ", " : ""}
-          ${item.isFilterable
-            ? html`<${FilterableItem}
-                item=${item}
-                index=${index}
-                openSuggestionIndex=${openSuggestionIndex}
-                setOpenSuggestionIndex=${setOpenSuggestionIndex}
-                addToFilterExpression=${addToFilterExpression}
-              />`
-            : html`<span title=${item.tooltip}>${item.canonicalName}</span>`}
+          <span title=${item.tooltip}>${item.canonicalName}</span>
         `,
       )}
     </span>

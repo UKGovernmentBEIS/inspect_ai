@@ -68,7 +68,6 @@ import { debounce } from "../utils/sync.mjs";
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
  * @param {string | undefined} props.filterError - whether there is an error in the filter expression
  * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
- * @param {(fragment: string) => void } props.addToFilterExpression - add to the current filter expression
  * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
@@ -117,7 +116,6 @@ export const WorkSpace = ({
   filter,
   filterError,
   setFilter,
-  addToFilterExpression,
   score,
   setScore,
   scores,
@@ -374,7 +372,6 @@ export const WorkSpace = ({
     evalStats=${evalStats}
     samples=${samples}
     evalDescriptor=${samplesDescriptor.evalDescriptor}
-    addToFilterExpression=${addToFilterExpression}
     status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
@@ -394,7 +391,6 @@ const WorkspaceDisplay = ({
   evalStats,
   samples,
   evalDescriptor,
-  addToFilterExpression,
   status,
   showToggle,
   selectedTab,
@@ -472,7 +468,6 @@ const WorkspaceDisplay = ({
       evalStats=${evalStats}
       samples=${samples}
       evalDescriptor=${evalDescriptor}
-      addToFilterExpression=${addToFilterExpression}
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}

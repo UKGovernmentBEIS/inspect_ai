@@ -38,10 +38,7 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import {
-  addFragmentToFilter,
-  filterExpression,
-} from "./samples/tools/filters.mjs";
+import { filterExpression } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -175,14 +172,6 @@ export function App({
   const [groupByOrder, setGroupByOrder] = useState(
     initialState?.groupByOrder || "asc",
   );
-
-  const addToFilterExpression = (fragment) => {
-    setFilter(addFragmentToFilter(filter, fragment));
-    const filterInput = document.getElementById("sample-filter-input");
-    if (filterInput) {
-      filterInput.focus();
-    }
-  };
 
   const afterBodyElements = [];
   const saveState = useCallback(() => {
@@ -963,7 +952,6 @@ export function App({
               filter=${filter}
               filterError=${filterError}
               setFilter=${setFilter}
-              addToFilterExpression=${addToFilterExpression}
               score=${score}
               setScore=${setScore}
               scores=${scores}
