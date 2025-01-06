@@ -24,7 +24,7 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content
 from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -253,7 +253,7 @@ async def as_chat_completion_part(
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
+        if not is_http_url(image_url):
             image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(

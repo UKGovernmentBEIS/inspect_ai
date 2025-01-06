@@ -39,7 +39,7 @@ from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -470,7 +470,7 @@ async def as_chat_completion_part(
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
+        if not is_http_url(image_url):
             image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
@@ -478,9 +478,7 @@ async def as_chat_completion_part(
             image_url=dict(url=image_url, detail=detail),
         )
     elif content.type == "audio":
-        audio_data = content.audio
-        if not is_data_uri(audio_data):
-            audio_data = await file_as_data_uri(audio_data)
+        audio_data = await file_as_data_uri(content.audio)
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)

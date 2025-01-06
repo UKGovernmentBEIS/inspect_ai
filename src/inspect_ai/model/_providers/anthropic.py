@@ -32,7 +32,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -586,9 +586,7 @@ async def message_param_content(
         return TextBlockParam(type="text", text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
         # resolve to url
-        image = content.image
-        if not is_data_uri(image):
-            image = await file_as_data_uri(image)
+        image = await file_as_data_uri(content.image)
 
         # resolve mime type and base64 content
         media_type = data_uri_mime_type(image) or "image/png"
