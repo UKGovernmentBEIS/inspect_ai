@@ -103,10 +103,20 @@ def json_changes(
                 paths = json_change.path.split("/")[1:]
                 replaced = before
                 for path in paths:
-                    index: Any = int(path) if path.isnumeric() else path
+                    decoded_path = decode_json_pointer_segment(path)
+                    index: Any = (
+                        int(decoded_path) if decoded_path.isnumeric() else decoded_path
+                    )
                     replaced = replaced[index]
                 json_change.replaced = replaced
             changes.append(json_change)
         return changes
     else:
         return None
+
+
+def decode_json_pointer_segment(segment: str) -> str:
+    """Decode a single JSON Pointer segment."""
+    # JSON points encode ~ and / because they are special characters
+    # this decodes these values (https://www.rfc-editor.org/rfc/rfc6901)
+    return segment.replace("~1", "/").replace("~0", "~")
