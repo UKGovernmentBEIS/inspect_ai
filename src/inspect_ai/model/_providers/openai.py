@@ -263,7 +263,7 @@ class OpenAIAPI(ModelAPI):
             model=self.model_name,
         )
         if config.max_tokens is not None:
-            if self.is_o1_full():
+            if self.is_o1():
                 params["max_completion_tokens"] = config.max_tokens
             else:
                 params["max_tokens"] = config.max_tokens
