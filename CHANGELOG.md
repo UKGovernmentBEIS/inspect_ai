@@ -5,6 +5,7 @@
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
+- Inspect View: don't display the 'input' column heading if there isn't an input
 - Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
 - Open AI: Use new `max_completion_tokens` option for o1 full.
 - Tool parameters with a default of `None` are now supported.
