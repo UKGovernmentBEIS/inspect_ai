@@ -15657,6 +15657,4439 @@ var require_assets = __commonJS({
           return "video/mpeg";
       }
     };
+    function g(n2, t2) {
+      for (var e2 in n2) if ("__source" !== e2 && !(e2 in t2)) return true;
+      for (var r2 in t2) if ("__source" !== r2 && n2[r2] !== t2[r2]) return true;
+      return false;
+    }
+    function E(n2, t2) {
+      var e2 = t2(), r2 = h({ t: { __: e2, u: t2 } }), u2 = r2[0].t, o2 = r2[1];
+      return _(function() {
+        u2.__ = e2, u2.u = t2, C$1(u2) && o2({ t: u2 });
+      }, [n2, e2, t2]), y(function() {
+        return C$1(u2) && o2({ t: u2 }), n2(function() {
+          C$1(u2) && o2({ t: u2 });
+        });
+      }, [n2]), e2;
+    }
+    function C$1(n2) {
+      var t2, e2, r2 = n2.u, u2 = n2.__;
+      try {
+        var o2 = r2();
+        return !((t2 = u2) === (e2 = o2) && (0 !== t2 || 1 / t2 == 1 / e2) || t2 != t2 && e2 != e2);
+      } catch (n3) {
+        return true;
+      }
+    }
+    function x$1(n2) {
+      n2();
+    }
+    function R(n2) {
+      return n2;
+    }
+    function w() {
+      return [false, x$1];
+    }
+    var k = _;
+    function I(n2, t2) {
+      this.props = n2, this.context = t2;
+    }
+    function N(n2, e2) {
+      function r2(n3) {
+        var t2 = this.props.ref, r3 = t2 == n3.ref;
+        return !r3 && t2 && (t2.call ? t2(null) : t2.current = null), e2 ? !e2(this.props, n3) || !r3 : g(this.props, n3);
+      }
+      function u2(e3) {
+        return this.shouldComponentUpdate = r2, g$2(n2, e3);
+      }
+      return u2.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u2.prototype.isReactComponent = true, u2.__f = true, u2;
+    }
+    (I.prototype = new x$3()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
+      return g(this.props, n2) || g(this.state, t2);
+    };
+    var M = l$1.__b;
+    l$1.__b = function(n2) {
+      n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), M && M(n2);
+    };
+    var T = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
+    function A(n2) {
+      function t2(t3) {
+        if (!("ref" in t3)) return n2(t3, null);
+        var e2 = t3.ref;
+        delete t3.ref;
+        var r2 = n2(t3, e2);
+        return t3.ref = e2, r2;
+      }
+      return t2.$$typeof = T, t2.render = t2, t2.prototype.isReactComponent = t2.__f = true, t2.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t2;
+    }
+    var D = function(n2, t2) {
+      return null == n2 ? null : L$1(L$1(n2).map(t2));
+    }, L = { map: D, forEach: D, count: function(n2) {
+      return n2 ? L$1(n2).length : 0;
+    }, only: function(n2) {
+      var t2 = L$1(n2);
+      if (1 !== t2.length) throw "Children.only";
+      return t2[0];
+    }, toArray: L$1 }, O = l$1.__e;
+    l$1.__e = function(n2, t2, e2, r2) {
+      if (n2.then) {
+        for (var u2, o2 = t2; o2 = o2.__; ) if ((u2 = o2.__c) && u2.__c) return null == t2.__e && (t2.__e = e2.__e, t2.__k = e2.__k), u2.__c(n2, t2);
+      }
+      O(n2, t2, e2, r2);
+    };
+    var F = l$1.unmount;
+    function U(n2, t2, e2) {
+      return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
+        "function" == typeof n3.__c && n3.__c();
+      }), n2.__c.__H = null), null != (n2 = function(n3, t3) {
+        for (var e3 in t3) n3[e3] = t3[e3];
+        return n3;
+      }({}, n2)).__c && (n2.__c.__P === e2 && (n2.__c.__P = t2), n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
+        return U(n3, t2, e2);
+      })), n2;
+    }
+    function V(n2, t2, e2) {
+      return n2 && e2 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
+        return V(n3, t2, e2);
+      }), n2.__c && n2.__c.__P === t2 && (n2.__e && e2.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e2)), n2;
+    }
+    function W() {
+      this.__u = 0, this.o = null, this.__b = null;
+    }
+    function P(n2) {
+      var t2 = n2.__.__c;
+      return t2 && t2.__a && t2.__a(n2);
+    }
+    function j(n2) {
+      var e2, r2, u2;
+      function o2(o3) {
+        if (e2 || (e2 = n2()).then(function(n3) {
+          r2 = n3.default || n3;
+        }, function(n3) {
+          u2 = n3;
+        }), u2) throw u2;
+        if (!r2) throw e2;
+        return g$2(r2, o3);
+      }
+      return o2.displayName = "Lazy", o2.__f = true, o2;
+    }
+    function z() {
+      this.i = null, this.l = null;
+    }
+    l$1.unmount = function(n2) {
+      var t2 = n2.__c;
+      t2 && t2.__R && t2.__R(), t2 && 32 & n2.__u && (n2.type = null), F && F(n2);
+    }, (W.prototype = new x$3()).__c = function(n2, t2) {
+      var e2 = t2.__c, r2 = this;
+      null == r2.o && (r2.o = []), r2.o.push(e2);
+      var u2 = P(r2.__v), o2 = false, i2 = function() {
+        o2 || (o2 = true, e2.__R = null, u2 ? u2(c2) : c2());
+      };
+      e2.__R = i2;
+      var c2 = function() {
+        if (!--r2.__u) {
+          if (r2.state.__a) {
+            var n3 = r2.state.__a;
+            r2.__v.__k[0] = V(n3, n3.__c.__P, n3.__c.__O);
+          }
+          var t3;
+          for (r2.setState({ __a: r2.__b = null }); t3 = r2.o.pop(); ) t3.forceUpdate();
+        }
+      };
+      r2.__u++ || 32 & t2.__u || r2.setState({ __a: r2.__b = r2.__v.__k[0] }), n2.then(i2, i2);
+    }, W.prototype.componentWillUnmount = function() {
+      this.o = [];
+    }, W.prototype.render = function(n2, e2) {
+      if (this.__b) {
+        if (this.__v.__k) {
+          var r2 = document.createElement("div"), o2 = this.__v.__k[0].__c;
+          this.__v.__k[0] = U(this.__b, r2, o2.__O = o2.__P);
+        }
+        this.__b = null;
+      }
+      var i2 = e2.__a && g$2(k$2, null, n2.fallback);
+      return i2 && (i2.__u &= -33), [g$2(k$2, null, e2.__a ? null : n2.children), i2];
+    };
+    var B = function(n2, t2, e2) {
+      if (++e2[1] === e2[0] && n2.l.delete(t2), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e2 = n2.i; e2; ) {
+        for (; e2.length > 3; ) e2.pop()();
+        if (e2[1] < e2[0]) break;
+        n2.i = e2 = e2[2];
+      }
+    };
+    function H(n2) {
+      return this.getChildContext = function() {
+        return n2.context;
+      }, n2.children;
+    }
+    function Z(n2) {
+      var e2 = this, r2 = n2.h;
+      e2.componentWillUnmount = function() {
+        D$2(null, e2.v), e2.v = null, e2.h = null;
+      }, e2.h && e2.h !== r2 && e2.componentWillUnmount(), e2.v || (e2.h = r2, e2.v = { nodeType: 1, parentNode: r2, childNodes: [], contains: function() {
+        return true;
+      }, appendChild: function(n3) {
+        this.childNodes.push(n3), e2.h.appendChild(n3);
+      }, insertBefore: function(n3, t2) {
+        this.childNodes.push(n3), e2.h.insertBefore(n3, t2);
+      }, removeChild: function(n3) {
+        this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e2.h.removeChild(n3);
+      } }), D$2(g$2(H, { context: e2.context }, n2.__v), e2.v);
+    }
+    function Y(n2, e2) {
+      var r2 = g$2(Z, { __v: n2, h: e2 });
+      return r2.containerInfo = e2, r2;
+    }
+    (z.prototype = new x$3()).__a = function(n2) {
+      var t2 = this, e2 = P(t2.__v), r2 = t2.l.get(n2);
+      return r2[0]++, function(u2) {
+        var o2 = function() {
+          t2.props.revealOrder ? (r2.push(u2), B(t2, n2, r2)) : u2();
+        };
+        e2 ? e2(o2) : o2();
+      };
+    }, z.prototype.render = function(n2) {
+      this.i = null, this.l = /* @__PURE__ */ new Map();
+      var t2 = L$1(n2.children);
+      n2.revealOrder && "b" === n2.revealOrder[0] && t2.reverse();
+      for (var e2 = t2.length; e2--; ) this.l.set(t2[e2], this.i = [1, 0, this.i]);
+      return n2.children;
+    }, z.prototype.componentDidUpdate = z.prototype.componentDidMount = function() {
+      var n2 = this;
+      this.l.forEach(function(t2, e2) {
+        B(n2, e2, t2);
+      });
+    };
+    var $ = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103, q = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/, G = /^on(Ani|Tra|Tou|BeforeInp|Compo)/, J = /[A-Z0-9]/g, K = "undefined" != typeof document, Q = function(n2) {
+      return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
+    };
+    function X(n2, t2, e2) {
+      return null == t2.__k && (t2.textContent = ""), D$2(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
+    }
+    function nn(n2, t2, e2) {
+      return E$1(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
+    }
+    x$3.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
+      Object.defineProperty(x$3.prototype, t2, { configurable: true, get: function() {
+        return this["UNSAFE_" + t2];
+      }, set: function(n2) {
+        Object.defineProperty(this, t2, { configurable: true, writable: true, value: n2 });
+      } });
+    });
+    var tn = l$1.event;
+    function en() {
+    }
+    function rn() {
+      return this.cancelBubble;
+    }
+    function un() {
+      return this.defaultPrevented;
+    }
+    l$1.event = function(n2) {
+      return tn && (n2 = tn(n2)), n2.persist = en, n2.isPropagationStopped = rn, n2.isDefaultPrevented = un, n2.nativeEvent = n2;
+    };
+    var on, cn = { enumerable: false, configurable: true, get: function() {
+      return this.class;
+    } }, fn = l$1.vnode;
+    l$1.vnode = function(n2) {
+      "string" == typeof n2.type && function(n3) {
+        var t2 = n3.props, e2 = n3.type, u2 = {}, o2 = -1 === e2.indexOf("-");
+        for (var i2 in t2) {
+          var c2 = t2[i2];
+          if (!("value" === i2 && "defaultValue" in t2 && null == c2 || K && "children" === i2 && "noscript" === e2 || "class" === i2 || "className" === i2)) {
+            var f2 = i2.toLowerCase();
+            "defaultValue" === i2 && "value" in t2 && null == t2.value ? i2 = "value" : "download" === i2 && true === c2 ? c2 = "" : "translate" === f2 && "no" === c2 ? c2 = false : "o" === f2[0] && "n" === f2[1] ? "ondoubleclick" === f2 ? i2 = "ondblclick" : "onchange" !== f2 || "input" !== e2 && "textarea" !== e2 || Q(t2.type) ? "onfocus" === f2 ? i2 = "onfocusin" : "onblur" === f2 ? i2 = "onfocusout" : G.test(i2) && (i2 = f2) : f2 = i2 = "oninput" : o2 && q.test(i2) ? i2 = i2.replace(J, "-$&").toLowerCase() : null === c2 && (c2 = void 0), "oninput" === f2 && u2[i2 = f2] && (i2 = "oninputCapture"), u2[i2] = c2;
+          }
+        }
+        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L$1(t2.children).forEach(function(n4) {
+          n4.props.selected = -1 != u2.value.indexOf(n4.props.value);
+        })), "select" == e2 && null != u2.defaultValue && (u2.value = L$1(t2.children).forEach(function(n4) {
+          n4.props.selected = u2.multiple ? -1 != u2.defaultValue.indexOf(n4.props.value) : u2.defaultValue == n4.props.value;
+        })), t2.class && !t2.className ? (u2.class = t2.class, Object.defineProperty(u2, "className", cn)) : (t2.className && !t2.class || t2.class && t2.className) && (u2.class = u2.className = t2.className), n3.props = u2;
+      }(n2), n2.$$typeof = $, fn && fn(n2);
+    };
+    var ln = l$1.__r;
+    l$1.__r = function(n2) {
+      ln && ln(n2), on = n2.__c;
+    };
+    var an = l$1.diffed;
+    l$1.diffed = function(n2) {
+      an && an(n2);
+      var t2 = n2.props, e2 = n2.__e;
+      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value), on = null;
+    };
+    var sn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
+      return on.__n[n2.__c].props.value;
+    }, useCallback: q$1, useContext: x$2, useDebugValue: P$2, useDeferredValue: R, useEffect: y, useId: g$1, useImperativeHandle: F$1, useInsertionEffect: k, useLayoutEffect: _, useMemo: T$1, useReducer: p, useRef: A$1, useState: h, useSyncExternalStore: E, useTransition: w } } };
+    function vn(n2) {
+      return g$2.bind(null, n2);
+    }
+    function dn(n2) {
+      return !!n2 && n2.$$typeof === $;
+    }
+    function pn(n2) {
+      return dn(n2) && n2.type === k$2;
+    }
+    function mn(n2) {
+      return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
+    }
+    function yn(n2) {
+      return dn(n2) ? G$1.apply(null, arguments) : n2;
+    }
+    function _n(n2) {
+      return !!n2.__k && (D$2(null, n2), true);
+    }
+    function bn(n2) {
+      return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
+    }
+    var Sn = function(n2, t2) {
+      return n2(t2);
+    }, gn = function(n2, t2) {
+      return n2(t2);
+    }, En = k$2, Cn = dn, xn = { useState: h, useId: g$1, useReducer: p, useEffect: y, useLayoutEffect: _, useInsertionEffect: k, useTransition: w, useDeferredValue: R, useSyncExternalStore: E, startTransition: x$1, useRef: A$1, useImperativeHandle: F$1, useMemo: T$1, useCallback: q$1, useContext: x$2, useDebugValue: P$2, version: "18.3.1", Children: L, render: X, hydrate: nn, unmountComponentAtNode: _n, createPortal: Y, createElement: g$2, createContext: J$1, createFactory: vn, cloneElement: yn, createRef: b, Fragment: k$2, isValidElement: dn, isElement: Cn, isFragment: pn, isMemo: mn, findDOMNode: bn, Component: x$3, PureComponent: I, memo: N, forwardRef: A, flushSync: gn, unstable_batchedUpdates: Sn, StrictMode: En, Suspense: W, SuspenseList: z, lazy: j, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: sn };
+    var f = 0;
+    function u(e2, t2, n2, o2, i2, u2) {
+      t2 || (t2 = {});
+      var a2, c2, l2 = t2;
+      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
+      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
+      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
+      return l$1.vnode && l$1.vnode(p2), p2;
+    }
+    const PUBLISH = 0;
+    const SUBSCRIBE = 1;
+    const RESET = 2;
+    const VALUE = 4;
+    function compose$1(a2, b2) {
+      return (arg) => a2(b2(arg));
+    }
+    function thrush(arg, proc) {
+      return proc(arg);
+    }
+    function curry2to1(proc, arg1) {
+      return (arg2) => proc(arg1, arg2);
+    }
+    function curry1to0(proc, arg) {
+      return () => proc(arg);
+    }
+    function tap(arg, proc) {
+      proc(arg);
+      return arg;
+    }
+    function tup(...args) {
+      return args;
+    }
+    function call(proc) {
+      proc();
+    }
+    function always(value) {
+      return () => value;
+    }
+    function joinProc(...procs) {
+      return () => {
+        procs.map(call);
+      };
+    }
+    function isDefined(arg) {
+      return arg !== void 0;
+    }
+    function noop() {
+    }
+    function subscribe(emitter, subscription) {
+      return emitter(SUBSCRIBE, subscription);
+    }
+    function publish(publisher, value) {
+      publisher(PUBLISH, value);
+    }
+    function reset(emitter) {
+      emitter(RESET);
+    }
+    function getValue(depot) {
+      return depot(VALUE);
+    }
+    function connect(emitter, publisher) {
+      return subscribe(emitter, curry2to1(publisher, PUBLISH));
+    }
+    function handleNext(emitter, subscription) {
+      const unsub = emitter(SUBSCRIBE, (value) => {
+        unsub();
+        subscription(value);
+      });
+      return unsub;
+    }
+    function stream() {
+      const subscriptions = [];
+      return (action, arg) => {
+        switch (action) {
+          case RESET:
+            subscriptions.splice(0, subscriptions.length);
+            return;
+          case SUBSCRIBE:
+            subscriptions.push(arg);
+            return () => {
+              const indexOf = subscriptions.indexOf(arg);
+              if (indexOf > -1) {
+                subscriptions.splice(indexOf, 1);
+              }
+            };
+          case PUBLISH:
+            subscriptions.slice().forEach((subscription) => {
+              subscription(arg);
+            });
+            return;
+          default:
+            throw new Error(`unrecognized action ${action}`);
+        }
+      };
+    }
+    function statefulStream(initial) {
+      let value = initial;
+      const innerSubject = stream();
+      return (action, arg) => {
+        switch (action) {
+          case SUBSCRIBE:
+            const subscription = arg;
+            subscription(value);
+            break;
+          case PUBLISH:
+            value = arg;
+            break;
+          case VALUE:
+            return value;
+        }
+        return innerSubject(action, arg);
+      };
+    }
+    function eventHandler$1(emitter) {
+      let unsub;
+      let currentSubscription;
+      const cleanup = () => unsub && unsub();
+      return function(action, subscription) {
+        switch (action) {
+          case SUBSCRIBE:
+            if (subscription) {
+              if (currentSubscription === subscription) {
+                return;
+              }
+              cleanup();
+              currentSubscription = subscription;
+              unsub = subscribe(emitter, subscription);
+              return unsub;
+            } else {
+              cleanup();
+              return noop;
+            }
+          case RESET:
+            cleanup();
+            currentSubscription = null;
+            return;
+          default:
+            throw new Error(`unrecognized action ${action}`);
+        }
+      };
+    }
+    function streamFromEmitter(emitter) {
+      return tap(stream(), (stream2) => connect(emitter, stream2));
+    }
+    function statefulStreamFromEmitter(emitter, initial) {
+      return tap(statefulStream(initial), (stream2) => connect(emitter, stream2));
+    }
+    function combineOperators(...operators) {
+      return (subscriber) => {
+        return operators.reduceRight(thrush, subscriber);
+      };
+    }
+    function pipe(source2, ...operators) {
+      const project = combineOperators(...operators);
+      return (action, subscription) => {
+        switch (action) {
+          case SUBSCRIBE:
+            return subscribe(source2, project(subscription));
+          case RESET:
+            reset(source2);
+            return;
+        }
+      };
+    }
+    function defaultComparator(previous, next) {
+      return previous === next;
+    }
+    function distinctUntilChanged(comparator = defaultComparator) {
+      let current;
+      return (done) => (next) => {
+        if (!comparator(current, next)) {
+          current = next;
+          done(next);
+        }
+      };
+    }
+    function filter(predicate) {
+      return (done) => (value) => {
+        predicate(value) && done(value);
+      };
+    }
+    function map(project) {
+      return (done) => compose$1(done, project);
+    }
+    function mapTo(value) {
+      return (done) => () => done(value);
+    }
+    function scan(scanner, initial) {
+      return (done) => (value) => done(initial = scanner(initial, value));
+    }
+    function skip(times) {
+      return (done) => (value) => {
+        times > 0 ? times-- : done(value);
+      };
+    }
+    function throttleTime(interval) {
+      let currentValue = null;
+      let timeout;
+      return (done) => (value) => {
+        currentValue = value;
+        if (timeout) {
+          return;
+        }
+        timeout = setTimeout(() => {
+          timeout = void 0;
+          done(currentValue);
+        }, interval);
+      };
+    }
+    function debounceTime(interval) {
+      let currentValue;
+      let timeout;
+      return (done) => (value) => {
+        currentValue = value;
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        timeout = setTimeout(() => {
+          done(currentValue);
+        }, interval);
+      };
+    }
+    function withLatestFrom(...sources) {
+      const values = new Array(sources.length);
+      let called = 0;
+      let pendingCall = null;
+      const allCalled = Math.pow(2, sources.length) - 1;
+      sources.forEach((source2, index) => {
+        const bit = Math.pow(2, index);
+        subscribe(source2, (value) => {
+          const prevCalled = called;
+          called = called | bit;
+          values[index] = value;
+          if (prevCalled !== allCalled && called === allCalled && pendingCall) {
+            pendingCall();
+            pendingCall = null;
+          }
+        });
+      });
+      return (done) => (value) => {
+        const call2 = () => done([value].concat(values));
+        if (called === allCalled) {
+          call2();
+        } else {
+          pendingCall = call2;
+        }
+      };
+    }
+    function merge(...sources) {
+      return function(action, subscription) {
+        switch (action) {
+          case SUBSCRIBE:
+            return joinProc(...sources.map((source2) => subscribe(source2, subscription)));
+          case RESET:
+            return;
+          default:
+            throw new Error(`unrecognized action ${action}`);
+        }
+      };
+    }
+    function duc(source2, comparator = defaultComparator) {
+      return pipe(source2, distinctUntilChanged(comparator));
+    }
+    function combineLatest(...emitters) {
+      const innerSubject = stream();
+      const values = new Array(emitters.length);
+      let called = 0;
+      const allCalled = Math.pow(2, emitters.length) - 1;
+      emitters.forEach((source2, index) => {
+        const bit = Math.pow(2, index);
+        subscribe(source2, (value) => {
+          values[index] = value;
+          called = called | bit;
+          if (called === allCalled) {
+            publish(innerSubject, values);
+          }
+        });
+      });
+      return function(action, subscription) {
+        switch (action) {
+          case SUBSCRIBE:
+            if (called === allCalled) {
+              subscription(values);
+            }
+            return subscribe(innerSubject, subscription);
+          case RESET:
+            return reset(innerSubject);
+          default:
+            throw new Error(`unrecognized action ${action}`);
+        }
+      };
+    }
+    function system(constructor, dependencies = [], { singleton } = { singleton: true }) {
+      return {
+        id: id(),
+        constructor,
+        dependencies,
+        singleton
+      };
+    }
+    const id = () => Symbol();
+    function init(systemSpec) {
+      const singletons = /* @__PURE__ */ new Map();
+      const _init = ({ id: id2, constructor, dependencies, singleton }) => {
+        if (singleton && singletons.has(id2)) {
+          return singletons.get(id2);
+        }
+        const system2 = constructor(dependencies.map((e2) => _init(e2)));
+        if (singleton) {
+          singletons.set(id2, system2);
+        }
+        return system2;
+      };
+      return _init(systemSpec);
+    }
+    function omit(keys, obj) {
+      const result = {};
+      const index = {};
+      let idx = 0;
+      const len = keys.length;
+      while (idx < len) {
+        index[keys[idx]] = 1;
+        idx += 1;
+      }
+      for (const prop in obj) {
+        if (!index.hasOwnProperty(prop)) {
+          result[prop] = obj[prop];
+        }
+      }
+      return result;
+    }
+    const useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
+    function systemToComponent(systemSpec, map2, Root) {
+      const requiredPropNames = Object.keys(map2.required || {});
+      const optionalPropNames = Object.keys(map2.optional || {});
+      const methodNames = Object.keys(map2.methods || {});
+      const eventNames = Object.keys(map2.events || {});
+      const Context2 = xn.createContext({});
+      function applyPropsToSystem(system2, props) {
+        if (system2["propsReady"]) {
+          publish(system2["propsReady"], false);
+        }
+        for (const requiredPropName of requiredPropNames) {
+          const stream2 = system2[map2.required[requiredPropName]];
+          publish(stream2, props[requiredPropName]);
+        }
+        for (const optionalPropName of optionalPropNames) {
+          if (optionalPropName in props) {
+            const stream2 = system2[map2.optional[optionalPropName]];
+            publish(stream2, props[optionalPropName]);
+          }
+        }
+        if (system2["propsReady"]) {
+          publish(system2["propsReady"], true);
+        }
+      }
+      function buildMethods(system2) {
+        return methodNames.reduce((acc, methodName) => {
+          acc[methodName] = (value) => {
+            const stream2 = system2[map2.methods[methodName]];
+            publish(stream2, value);
+          };
+          return acc;
+        }, {});
+      }
+      function buildEventHandlers(system2) {
+        return eventNames.reduce((handlers2, eventName) => {
+          handlers2[eventName] = eventHandler$1(system2[map2.events[eventName]]);
+          return handlers2;
+        }, {});
+      }
+      const Component = xn.forwardRef((propsWithChildren, ref) => {
+        const { children: children2, ...props } = propsWithChildren;
+        const [system2] = xn.useState(() => {
+          return tap(init(systemSpec), (system22) => applyPropsToSystem(system22, props));
+        });
+        const [handlers2] = xn.useState(curry1to0(buildEventHandlers, system2));
+        useIsomorphicLayoutEffect$1(() => {
+          for (const eventName of eventNames) {
+            if (eventName in props) {
+              subscribe(handlers2[eventName], props[eventName]);
+            }
+          }
+          return () => {
+            Object.values(handlers2).map(reset);
+          };
+        }, [props, handlers2, system2]);
+        useIsomorphicLayoutEffect$1(() => {
+          applyPropsToSystem(system2, props);
+        });
+        xn.useImperativeHandle(ref, always(buildMethods(system2)));
+        const RootComponent = Root;
+        return /* @__PURE__ */ u(Context2.Provider, { value: system2, children: Root ? /* @__PURE__ */ u(RootComponent, { ...omit([...requiredPropNames, ...optionalPropNames, ...eventNames], props), children: children2 }) : children2 });
+      });
+      const usePublisher2 = (key2) => {
+        return xn.useCallback(curry2to1(publish, xn.useContext(Context2)[key2]), [key2]);
+      };
+      const useEmitterValue18 = (key2) => {
+        const system2 = xn.useContext(Context2);
+        const source2 = system2[key2];
+        const cb = xn.useCallback(
+          (c2) => {
+            return subscribe(source2, c2);
+          },
+          [source2]
+        );
+        return xn.useSyncExternalStore(
+          cb,
+          () => getValue(source2),
+          () => getValue(source2)
+        );
+      };
+      const useEmitterValueLegacy = (key2) => {
+        const system2 = xn.useContext(Context2);
+        const source2 = system2[key2];
+        const [value, setValue] = xn.useState(curry1to0(getValue, source2));
+        useIsomorphicLayoutEffect$1(
+          () => subscribe(source2, (next) => {
+            if (next !== value) {
+              setValue(always(next));
+            }
+          }),
+          [source2, value]
+        );
+        return value;
+      };
+      const useEmitterValue2 = xn.version.startsWith("18") ? useEmitterValue18 : useEmitterValueLegacy;
+      const useEmitter2 = (key2, callback) => {
+        const context = xn.useContext(Context2);
+        const source2 = context[key2];
+        useIsomorphicLayoutEffect$1(() => subscribe(source2, callback), [callback, source2]);
+      };
+      return {
+        Component,
+        usePublisher: usePublisher2,
+        useEmitterValue: useEmitterValue2,
+        useEmitter: useEmitter2
+      };
+    }
+    const useIsomorphicLayoutEffect = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
+    var LogLevel = /* @__PURE__ */ ((LogLevel2) => {
+      LogLevel2[LogLevel2["DEBUG"] = 0] = "DEBUG";
+      LogLevel2[LogLevel2["INFO"] = 1] = "INFO";
+      LogLevel2[LogLevel2["WARN"] = 2] = "WARN";
+      LogLevel2[LogLevel2["ERROR"] = 3] = "ERROR";
+      return LogLevel2;
+    })(LogLevel || {});
+    const CONSOLE_METHOD_MAP = {
+      [
+        0
+        /* DEBUG */
+      ]: "debug",
+      [
+        1
+        /* INFO */
+      ]: "log",
+      [
+        2
+        /* WARN */
+      ]: "warn",
+      [
+        3
+        /* ERROR */
+      ]: "error"
+    };
+    const getGlobalThis = () => typeof globalThis === "undefined" ? window : globalThis;
+    const loggerSystem = system(
+      () => {
+        const logLevel = statefulStream(
+          3
+          /* ERROR */
+        );
+        const log = statefulStream((label, message, level = 1) => {
+          var _a2;
+          const currentLevel = (_a2 = getGlobalThis()["VIRTUOSO_LOG_LEVEL"]) != null ? _a2 : getValue(logLevel);
+          if (level >= currentLevel) {
+            console[CONSOLE_METHOD_MAP[level]](
+              "%creact-virtuoso: %c%s %o",
+              "color: #0253b3; font-weight: bold",
+              "color: initial",
+              label,
+              message
+            );
+          }
+        });
+        return {
+          log,
+          logLevel
+        };
+      },
+      [],
+      { singleton: true }
+    );
+    function useSizeWithElRef(callback, enabled, skipAnimationFrame) {
+      const ref = xn.useRef(null);
+      let callbackRef = (_el) => {
+      };
+      if (typeof ResizeObserver !== "undefined") {
+        const observer = xn.useMemo(() => {
+          return new ResizeObserver((entries) => {
+            const code2 = () => {
+              const element = entries[0].target;
+              if (element.offsetParent !== null) {
+                callback(element);
+              }
+            };
+            skipAnimationFrame ? code2() : requestAnimationFrame(code2);
+          });
+        }, [callback]);
+        callbackRef = (elRef) => {
+          if (elRef && enabled) {
+            observer.observe(elRef);
+            ref.current = elRef;
+          } else {
+            if (ref.current) {
+              observer.unobserve(ref.current);
+            }
+            ref.current = null;
+          }
+        };
+      }
+      return { ref, callbackRef };
+    }
+    function useSize(callback, enabled, skipAnimationFrame) {
+      return useSizeWithElRef(callback, enabled, skipAnimationFrame).callbackRef;
+    }
+    function useChangedListContentsSizes(callback, itemSize, enabled, scrollContainerStateCallback, log, gap, customScrollParent, horizontalDirection, skipAnimationFrame) {
+      const memoedCallback = xn.useCallback(
+        (el) => {
+          const ranges = getChangedChildSizes(el.children, itemSize, horizontalDirection ? "offsetWidth" : "offsetHeight", log);
+          let scrollableElement = el.parentElement;
+          while (!scrollableElement.dataset["virtuosoScroller"]) {
+            scrollableElement = scrollableElement.parentElement;
+          }
+          const windowScrolling = scrollableElement.lastElementChild.dataset["viewportType"] === "window";
+          const scrollTop = customScrollParent ? horizontalDirection ? customScrollParent.scrollLeft : customScrollParent.scrollTop : windowScrolling ? horizontalDirection ? window.pageXOffset || document.documentElement.scrollLeft : window.pageYOffset || document.documentElement.scrollTop : horizontalDirection ? scrollableElement.scrollLeft : scrollableElement.scrollTop;
+          const scrollHeight = customScrollParent ? horizontalDirection ? customScrollParent.scrollWidth : customScrollParent.scrollHeight : windowScrolling ? horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight : horizontalDirection ? scrollableElement.scrollWidth : scrollableElement.scrollHeight;
+          const viewportHeight = customScrollParent ? horizontalDirection ? customScrollParent.offsetWidth : customScrollParent.offsetHeight : windowScrolling ? horizontalDirection ? window.innerWidth : window.innerHeight : horizontalDirection ? scrollableElement.offsetWidth : scrollableElement.offsetHeight;
+          scrollContainerStateCallback({
+            scrollTop: Math.max(scrollTop, 0),
+            scrollHeight,
+            viewportHeight
+          });
+          gap == null ? void 0 : gap(
+            horizontalDirection ? resolveGapValue$1("column-gap", getComputedStyle(el).columnGap, log) : resolveGapValue$1("row-gap", getComputedStyle(el).rowGap, log)
+          );
+          if (ranges !== null) {
+            callback(ranges);
+          }
+        },
+        [callback, itemSize, log, gap, customScrollParent, scrollContainerStateCallback]
+      );
+      return useSizeWithElRef(memoedCallback, enabled, skipAnimationFrame);
+    }
+    function getChangedChildSizes(children2, itemSize, field, log) {
+      const length = children2.length;
+      if (length === 0) {
+        return null;
+      }
+      const results = [];
+      for (let i2 = 0; i2 < length; i2++) {
+        const child = children2.item(i2);
+        if (!child || child.dataset.index === void 0) {
+          continue;
+        }
+        const index = parseInt(child.dataset.index);
+        const knownSize = parseFloat(child.dataset.knownSize);
+        const size = itemSize(child, field);
+        if (size === 0) {
+          log("Zero-sized element, this should not happen", { child }, LogLevel.ERROR);
+        }
+        if (size === knownSize) {
+          continue;
+        }
+        const lastResult = results[results.length - 1];
+        if (results.length === 0 || lastResult.size !== size || lastResult.endIndex !== index - 1) {
+          results.push({ startIndex: index, endIndex: index, size });
+        } else {
+          results[results.length - 1].endIndex++;
+        }
+      }
+      return results;
+    }
+    function resolveGapValue$1(property, value, log) {
+      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
+        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
+      }
+      if (value === "normal") {
+        return 0;
+      }
+      return parseInt(value != null ? value : "0", 10);
+    }
+    function correctItemSize(el, dimension) {
+      return Math.round(el.getBoundingClientRect()[dimension]);
+    }
+    function approximatelyEqual(num1, num2) {
+      return Math.abs(num1 - num2) < 1.01;
+    }
+    function useScrollTop(scrollContainerStateCallback, smoothScrollTargetReached, scrollerElement, scrollerRefCallback = noop, customScrollParent, horizontalDirection) {
+      const scrollerRef = xn.useRef(null);
+      const scrollTopTarget = xn.useRef(null);
+      const timeoutRef = xn.useRef(null);
+      const handler = xn.useCallback(
+        (ev) => {
+          const el = ev.target;
+          const windowScroll = el === window || el === document;
+          const scrollTop = horizontalDirection ? windowScroll ? window.pageXOffset || document.documentElement.scrollLeft : el.scrollLeft : windowScroll ? window.pageYOffset || document.documentElement.scrollTop : el.scrollTop;
+          const scrollHeight = horizontalDirection ? windowScroll ? document.documentElement.scrollWidth : el.scrollWidth : windowScroll ? document.documentElement.scrollHeight : el.scrollHeight;
+          const viewportHeight = horizontalDirection ? windowScroll ? window.innerWidth : el.offsetWidth : windowScroll ? window.innerHeight : el.offsetHeight;
+          const call2 = () => {
+            scrollContainerStateCallback({
+              scrollTop: Math.max(scrollTop, 0),
+              scrollHeight,
+              viewportHeight
+            });
+          };
+          if (ev.suppressFlushSync) {
+            call2();
+          } else {
+            xn.flushSync(call2);
+          }
+          if (scrollTopTarget.current !== null) {
+            if (scrollTop === scrollTopTarget.current || scrollTop <= 0 || scrollTop === scrollHeight - viewportHeight) {
+              scrollTopTarget.current = null;
+              smoothScrollTargetReached(true);
+              if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+              }
+            }
+          }
+        },
+        [scrollContainerStateCallback, smoothScrollTargetReached]
+      );
+      xn.useEffect(() => {
+        const localRef = customScrollParent ? customScrollParent : scrollerRef.current;
+        scrollerRefCallback(customScrollParent ? customScrollParent : scrollerRef.current);
+        handler({ target: localRef, suppressFlushSync: true });
+        localRef.addEventListener("scroll", handler, { passive: true });
+        return () => {
+          scrollerRefCallback(null);
+          localRef.removeEventListener("scroll", handler);
+        };
+      }, [scrollerRef, handler, scrollerElement, scrollerRefCallback, customScrollParent]);
+      function scrollToCallback(location) {
+        const scrollerElement2 = scrollerRef.current;
+        if (!scrollerElement2 || (horizontalDirection ? "offsetWidth" in scrollerElement2 && scrollerElement2.offsetWidth === 0 : "offsetHeight" in scrollerElement2 && scrollerElement2.offsetHeight === 0)) {
+          return;
+        }
+        const isSmooth = location.behavior === "smooth";
+        let offsetHeight;
+        let scrollHeight;
+        let scrollTop;
+        if (scrollerElement2 === window) {
+          scrollHeight = Math.max(
+            correctItemSize(document.documentElement, horizontalDirection ? "width" : "height"),
+            horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight
+          );
+          offsetHeight = horizontalDirection ? window.innerWidth : window.innerHeight;
+          scrollTop = horizontalDirection ? document.documentElement.scrollLeft : document.documentElement.scrollTop;
+        } else {
+          scrollHeight = scrollerElement2[horizontalDirection ? "scrollWidth" : "scrollHeight"];
+          offsetHeight = correctItemSize(scrollerElement2, horizontalDirection ? "width" : "height");
+          scrollTop = scrollerElement2[horizontalDirection ? "scrollLeft" : "scrollTop"];
+        }
+        const maxScrollTop = scrollHeight - offsetHeight;
+        location.top = Math.ceil(Math.max(Math.min(maxScrollTop, location.top), 0));
+        if (approximatelyEqual(offsetHeight, scrollHeight) || location.top === scrollTop) {
+          scrollContainerStateCallback({ scrollTop, scrollHeight, viewportHeight: offsetHeight });
+          if (isSmooth) {
+            smoothScrollTargetReached(true);
+          }
+          return;
+        }
+        if (isSmooth) {
+          scrollTopTarget.current = location.top;
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+          timeoutRef.current = setTimeout(() => {
+            timeoutRef.current = null;
+            scrollTopTarget.current = null;
+            smoothScrollTargetReached(true);
+          }, 1e3);
+        } else {
+          scrollTopTarget.current = null;
+        }
+        if (horizontalDirection) {
+          location = { left: location.top, behavior: location.behavior };
+        }
+        scrollerElement2.scrollTo(location);
+      }
+      function scrollByCallback(location) {
+        if (horizontalDirection) {
+          location = { left: location.top, behavior: location.behavior };
+        }
+        scrollerRef.current.scrollBy(location);
+      }
+      return { scrollerRef, scrollByCallback, scrollToCallback };
+    }
+    const domIOSystem = system(
+      () => {
+        const scrollContainerState = stream();
+        const scrollTop = stream();
+        const deviation = statefulStream(0);
+        const smoothScrollTargetReached = stream();
+        const statefulScrollTop = statefulStream(0);
+        const viewportHeight = stream();
+        const scrollHeight = stream();
+        const headerHeight = statefulStream(0);
+        const fixedHeaderHeight = statefulStream(0);
+        const fixedFooterHeight = statefulStream(0);
+        const footerHeight = statefulStream(0);
+        const scrollTo = stream();
+        const scrollBy = stream();
+        const scrollingInProgress = statefulStream(false);
+        const horizontalDirection = statefulStream(false);
+        const skipAnimationFrameInResizeObserver = statefulStream(false);
+        connect(
+          pipe(
+            scrollContainerState,
+            map(({ scrollTop: scrollTop2 }) => scrollTop2)
+          ),
+          scrollTop
+        );
+        connect(
+          pipe(
+            scrollContainerState,
+            map(({ scrollHeight: scrollHeight2 }) => scrollHeight2)
+          ),
+          scrollHeight
+        );
+        connect(scrollTop, statefulScrollTop);
+        return {
+          // input
+          scrollContainerState,
+          scrollTop,
+          viewportHeight,
+          headerHeight,
+          fixedHeaderHeight,
+          fixedFooterHeight,
+          footerHeight,
+          scrollHeight,
+          smoothScrollTargetReached,
+          horizontalDirection,
+          skipAnimationFrameInResizeObserver,
+          // signals
+          scrollTo,
+          scrollBy,
+          // state
+          statefulScrollTop,
+          deviation,
+          scrollingInProgress
+        };
+      },
+      [],
+      { singleton: true }
+    );
+    const NIL_NODE = { lvl: 0 };
+    function newAANode(k2, v2, lvl, l2 = NIL_NODE, r2 = NIL_NODE) {
+      return { k: k2, v: v2, lvl, l: l2, r: r2 };
+    }
+    function empty(node) {
+      return node === NIL_NODE;
+    }
+    function newTree() {
+      return NIL_NODE;
+    }
+    function remove$1(node, key2) {
+      if (empty(node)) return NIL_NODE;
+      const { k: k2, l: l2, r: r2 } = node;
+      if (key2 === k2) {
+        if (empty(l2)) {
+          return r2;
+        } else if (empty(r2)) {
+          return l2;
+        } else {
+          const [lastKey, lastValue] = last(l2);
+          return adjust(clone$1(node, { k: lastKey, v: lastValue, l: deleteLast(l2) }));
+        }
+      } else if (key2 < k2) {
+        return adjust(clone$1(node, { l: remove$1(l2, key2) }));
+      } else {
+        return adjust(clone$1(node, { r: remove$1(r2, key2) }));
+      }
+    }
+    function find$1(node, key2) {
+      if (empty(node)) {
+        return;
+      }
+      if (key2 === node.k) {
+        return node.v;
+      } else if (key2 < node.k) {
+        return find$1(node.l, key2);
+      } else {
+        return find$1(node.r, key2);
+      }
+    }
+    function findMaxKeyValue(node, value, field = "k") {
+      if (empty(node)) {
+        return [-Infinity, void 0];
+      }
+      if (Number(node[field]) === value) {
+        return [node.k, node.v];
+      }
+      if (Number(node[field]) < value) {
+        const r2 = findMaxKeyValue(node.r, value, field);
+        if (r2[0] === -Infinity) {
+          return [node.k, node.v];
+        } else {
+          return r2;
+        }
+      }
+      return findMaxKeyValue(node.l, value, field);
+    }
+    function insert$2(node, k2, v2) {
+      if (empty(node)) {
+        return newAANode(k2, v2, 1);
+      }
+      if (k2 === node.k) {
+        return clone$1(node, { k: k2, v: v2 });
+      } else if (k2 < node.k) {
+        return rebalance(clone$1(node, { l: insert$2(node.l, k2, v2) }));
+      } else {
+        return rebalance(clone$1(node, { r: insert$2(node.r, k2, v2) }));
+      }
+    }
+    function walkWithin(node, start2, end2) {
+      if (empty(node)) {
+        return [];
+      }
+      const { k: k2, v: v2, l: l2, r: r2 } = node;
+      let result = [];
+      if (k2 > start2) {
+        result = result.concat(walkWithin(l2, start2, end2));
+      }
+      if (k2 >= start2 && k2 <= end2) {
+        result.push({ k: k2, v: v2 });
+      }
+      if (k2 <= end2) {
+        result = result.concat(walkWithin(r2, start2, end2));
+      }
+      return result;
+    }
+    function walk(node) {
+      if (empty(node)) {
+        return [];
+      }
+      return [...walk(node.l), { k: node.k, v: node.v }, ...walk(node.r)];
+    }
+    function last(node) {
+      return empty(node.r) ? [node.k, node.v] : last(node.r);
+    }
+    function deleteLast(node) {
+      return empty(node.r) ? node.l : adjust(clone$1(node, { r: deleteLast(node.r) }));
+    }
+    function clone$1(node, args) {
+      return newAANode(
+        args.k !== void 0 ? args.k : node.k,
+        args.v !== void 0 ? args.v : node.v,
+        args.lvl !== void 0 ? args.lvl : node.lvl,
+        args.l !== void 0 ? args.l : node.l,
+        args.r !== void 0 ? args.r : node.r
+      );
+    }
+    function isSingle(node) {
+      return empty(node) || node.lvl > node.r.lvl;
+    }
+    function rebalance(node) {
+      return split(skew(node));
+    }
+    function adjust(node) {
+      const { l: l2, r: r2, lvl } = node;
+      if (r2.lvl >= lvl - 1 && l2.lvl >= lvl - 1) {
+        return node;
+      } else if (lvl > r2.lvl + 1) {
+        if (isSingle(l2)) {
+          return skew(clone$1(node, { lvl: lvl - 1 }));
+        } else {
+          if (!empty(l2) && !empty(l2.r)) {
+            return clone$1(l2.r, {
+              l: clone$1(l2, { r: l2.r.l }),
+              r: clone$1(node, {
+                l: l2.r.r,
+                lvl: lvl - 1
+              }),
+              lvl
+            });
+          } else {
+            throw new Error("Unexpected empty nodes");
+          }
+        }
+      } else {
+        if (isSingle(node)) {
+          return split(clone$1(node, { lvl: lvl - 1 }));
+        } else {
+          if (!empty(r2) && !empty(r2.l)) {
+            const rl = r2.l;
+            const rlvl = isSingle(rl) ? r2.lvl - 1 : r2.lvl;
+            return clone$1(rl, {
+              l: clone$1(node, {
+                r: rl.l,
+                lvl: lvl - 1
+              }),
+              r: split(clone$1(r2, { l: rl.r, lvl: rlvl })),
+              lvl: rl.lvl + 1
+            });
+          } else {
+            throw new Error("Unexpected empty nodes");
+          }
+        }
+      }
+    }
+    function rangesWithin(node, startIndex, endIndex) {
+      if (empty(node)) {
+        return [];
+      }
+      const adjustedStart = findMaxKeyValue(node, startIndex)[0];
+      return toRanges(walkWithin(node, adjustedStart, endIndex));
+    }
+    function arrayToRanges(items, parser2) {
+      const length = items.length;
+      if (length === 0) {
+        return [];
+      }
+      let { index: start2, value } = parser2(items[0]);
+      const result = [];
+      for (let i2 = 1; i2 < length; i2++) {
+        const { index: nextIndex, value: nextValue } = parser2(items[i2]);
+        result.push({ start: start2, end: nextIndex - 1, value });
+        start2 = nextIndex;
+        value = nextValue;
+      }
+      result.push({ start: start2, end: Infinity, value });
+      return result;
+    }
+    function toRanges(nodes) {
+      return arrayToRanges(nodes, ({ k: index, v: value }) => ({ index, value }));
+    }
+    function split(node) {
+      const { r: r2, lvl } = node;
+      return !empty(r2) && !empty(r2.r) && r2.lvl === lvl && r2.r.lvl === lvl ? clone$1(r2, { l: clone$1(node, { r: r2.l }), lvl: lvl + 1 }) : node;
+    }
+    function skew(node) {
+      const { l: l2 } = node;
+      return !empty(l2) && l2.lvl === node.lvl ? clone$1(l2, { r: clone$1(node, { l: l2.r }) }) : node;
+    }
+    function findIndexOfClosestSmallerOrEqual(items, value, comparator, start2 = 0) {
+      let end2 = items.length - 1;
+      while (start2 <= end2) {
+        const index = Math.floor((start2 + end2) / 2);
+        const item = items[index];
+        const match = comparator(item, value);
+        if (match === 0) {
+          return index;
+        }
+        if (match === -1) {
+          if (end2 - start2 < 2) {
+            return index - 1;
+          }
+          end2 = index - 1;
+        } else {
+          if (end2 === start2) {
+            return index;
+          }
+          start2 = index + 1;
+        }
+      }
+      throw new Error(`Failed binary finding record in array - ${items.join(",")}, searched for ${value}`);
+    }
+    function findClosestSmallerOrEqual(items, value, comparator) {
+      return items[findIndexOfClosestSmallerOrEqual(items, value, comparator)];
+    }
+    function findRange(items, startValue, endValue, comparator) {
+      const startIndex = findIndexOfClosestSmallerOrEqual(items, startValue, comparator);
+      const endIndex = findIndexOfClosestSmallerOrEqual(items, endValue, comparator, startIndex);
+      return items.slice(startIndex, endIndex + 1);
+    }
+    const recalcSystem = system(
+      () => {
+        const recalcInProgress = statefulStream(false);
+        return { recalcInProgress };
+      },
+      [],
+      { singleton: true }
+    );
+    function rangeIncludes(refRange) {
+      const { size, startIndex, endIndex } = refRange;
+      return (range) => {
+        return range.start === startIndex && (range.end === endIndex || range.end === Infinity) && range.value === size;
+      };
+    }
+    function affectedGroupCount(offset2, groupIndices) {
+      let recognizedOffsetItems = 0;
+      let groupIndex = 0;
+      while (recognizedOffsetItems < offset2) {
+        recognizedOffsetItems += groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
+        groupIndex++;
+      }
+      const offsetIsExact = recognizedOffsetItems === offset2;
+      return groupIndex - (offsetIsExact ? 0 : 1);
+    }
+    function insertRanges(sizeTree, ranges) {
+      let syncStart = empty(sizeTree) ? 0 : Infinity;
+      for (const range of ranges) {
+        const { size, startIndex, endIndex } = range;
+        syncStart = Math.min(syncStart, startIndex);
+        if (empty(sizeTree)) {
+          sizeTree = insert$2(sizeTree, 0, size);
+          continue;
+        }
+        const overlappingRanges = rangesWithin(sizeTree, startIndex - 1, endIndex + 1);
+        if (overlappingRanges.some(rangeIncludes(range))) {
+          continue;
+        }
+        let firstPassDone = false;
+        let shouldInsert = false;
+        for (const { start: rangeStart, end: rangeEnd2, value: rangeValue } of overlappingRanges) {
+          if (!firstPassDone) {
+            shouldInsert = rangeValue !== size;
+            firstPassDone = true;
+          } else {
+            if (endIndex >= rangeStart || size === rangeValue) {
+              sizeTree = remove$1(sizeTree, rangeStart);
+            }
+          }
+          if (rangeEnd2 > endIndex && endIndex >= rangeStart) {
+            if (rangeValue !== size) {
+              sizeTree = insert$2(sizeTree, endIndex + 1, rangeValue);
+            }
+          }
+        }
+        if (shouldInsert) {
+          sizeTree = insert$2(sizeTree, startIndex, size);
+        }
+      }
+      return [sizeTree, syncStart];
+    }
+    function initialSizeState() {
+      return {
+        offsetTree: [],
+        sizeTree: newTree(),
+        groupOffsetTree: newTree(),
+        lastIndex: 0,
+        lastOffset: 0,
+        lastSize: 0,
+        groupIndices: []
+      };
+    }
+    function indexComparator({ index: itemIndex }, index) {
+      return index === itemIndex ? 0 : index < itemIndex ? -1 : 1;
+    }
+    function offsetComparator({ offset: itemOffset }, offset2) {
+      return offset2 === itemOffset ? 0 : offset2 < itemOffset ? -1 : 1;
+    }
+    function offsetPointParser(point) {
+      return { index: point.index, value: point };
+    }
+    function rangesWithinOffsets(tree, startOffset, endOffset, minStartIndex = 0) {
+      if (minStartIndex > 0) {
+        startOffset = Math.max(startOffset, findClosestSmallerOrEqual(tree, minStartIndex, indexComparator).offset);
+      }
+      return arrayToRanges(findRange(tree, startOffset, endOffset, offsetComparator), offsetPointParser);
+    }
+    function createOffsetTree(prevOffsetTree, syncStart, sizeTree, gap) {
+      let offsetTree = prevOffsetTree;
+      let prevIndex = 0;
+      let prevSize = 0;
+      let prevOffset = 0;
+      let startIndex = 0;
+      if (syncStart !== 0) {
+        startIndex = findIndexOfClosestSmallerOrEqual(offsetTree, syncStart - 1, indexComparator);
+        const offsetInfo = offsetTree[startIndex];
+        prevOffset = offsetInfo.offset;
+        const kv = findMaxKeyValue(sizeTree, syncStart - 1);
+        prevIndex = kv[0];
+        prevSize = kv[1];
+        if (offsetTree.length && offsetTree[startIndex].size === findMaxKeyValue(sizeTree, syncStart)[1]) {
+          startIndex -= 1;
+        }
+        offsetTree = offsetTree.slice(0, startIndex + 1);
+      } else {
+        offsetTree = [];
+      }
+      for (const { start: startIndex2, value } of rangesWithin(sizeTree, syncStart, Infinity)) {
+        const indexOffset = startIndex2 - prevIndex;
+        const aOffset = indexOffset * prevSize + prevOffset + indexOffset * gap;
+        offsetTree.push({
+          offset: aOffset,
+          size: value,
+          index: startIndex2
+        });
+        prevIndex = startIndex2;
+        prevOffset = aOffset;
+        prevSize = value;
+      }
+      return {
+        offsetTree,
+        lastIndex: prevIndex,
+        lastOffset: prevOffset,
+        lastSize: prevSize
+      };
+    }
+    function sizeStateReducer(state, [ranges, groupIndices, log, gap]) {
+      if (ranges.length > 0) {
+        log("received item sizes", ranges, LogLevel.DEBUG);
+      }
+      const sizeTree = state.sizeTree;
+      let newSizeTree = sizeTree;
+      let syncStart = 0;
+      if (groupIndices.length > 0 && empty(sizeTree) && ranges.length === 2) {
+        const groupSize = ranges[0].size;
+        const itemSize = ranges[1].size;
+        newSizeTree = groupIndices.reduce((tree, groupIndex) => {
+          return insert$2(insert$2(tree, groupIndex, groupSize), groupIndex + 1, itemSize);
+        }, newSizeTree);
+      } else {
+        [newSizeTree, syncStart] = insertRanges(newSizeTree, ranges);
+      }
+      if (newSizeTree === sizeTree) {
+        return state;
+      }
+      const { offsetTree: newOffsetTree, lastIndex, lastSize, lastOffset } = createOffsetTree(state.offsetTree, syncStart, newSizeTree, gap);
+      return {
+        sizeTree: newSizeTree,
+        offsetTree: newOffsetTree,
+        lastIndex,
+        lastOffset,
+        lastSize,
+        groupOffsetTree: groupIndices.reduce((tree, index) => {
+          return insert$2(tree, index, offsetOf(index, newOffsetTree, gap));
+        }, newTree()),
+        groupIndices
+      };
+    }
+    function offsetOf(index, tree, gap) {
+      if (tree.length === 0) {
+        return 0;
+      }
+      const { offset: offset2, index: startIndex, size } = findClosestSmallerOrEqual(tree, index, indexComparator);
+      const itemCount = index - startIndex;
+      const top2 = size * itemCount + (itemCount - 1) * gap + offset2;
+      return top2 > 0 ? top2 + gap : top2;
+    }
+    function isGroupLocation(location) {
+      return typeof location.groupIndex !== "undefined";
+    }
+    function originalIndexFromLocation(location, sizes, lastIndex) {
+      if (isGroupLocation(location)) {
+        return sizes.groupIndices[location.groupIndex] + 1;
+      } else {
+        const numericIndex = location.index === "LAST" ? lastIndex : location.index;
+        let result = originalIndexFromItemIndex(numericIndex, sizes);
+        result = Math.max(0, result, Math.min(lastIndex, result));
+        return result;
+      }
+    }
+    function originalIndexFromItemIndex(itemIndex, sizes) {
+      if (!hasGroups(sizes)) {
+        return itemIndex;
+      }
+      let groupOffset = 0;
+      while (sizes.groupIndices[groupOffset] <= itemIndex + groupOffset) {
+        groupOffset++;
+      }
+      return itemIndex + groupOffset;
+    }
+    function hasGroups(sizes) {
+      return !empty(sizes.groupOffsetTree);
+    }
+    function sizeTreeToRanges(sizeTree) {
+      return walk(sizeTree).map(({ k: startIndex, v: size }, index, sizeArray) => {
+        const nextSize = sizeArray[index + 1];
+        const endIndex = nextSize ? nextSize.k - 1 : Infinity;
+        return { startIndex, endIndex, size };
+      });
+    }
+    const SIZE_MAP = {
+      offsetHeight: "height",
+      offsetWidth: "width"
+    };
+    const sizeSystem = system(
+      ([{ log }, { recalcInProgress }]) => {
+        const sizeRanges = stream();
+        const totalCount = stream();
+        const statefulTotalCount = statefulStreamFromEmitter(totalCount, 0);
+        const unshiftWith = stream();
+        const shiftWith = stream();
+        const firstItemIndex = statefulStream(0);
+        const groupIndices = statefulStream([]);
+        const fixedItemSize = statefulStream(void 0);
+        const defaultItemSize = statefulStream(void 0);
+        const itemSize = statefulStream((el, field) => correctItemSize(el, SIZE_MAP[field]));
+        const data = statefulStream(void 0);
+        const gap = statefulStream(0);
+        const initial = initialSizeState();
+        const sizes = statefulStreamFromEmitter(
+          pipe(sizeRanges, withLatestFrom(groupIndices, log, gap), scan(sizeStateReducer, initial), distinctUntilChanged()),
+          initial
+        );
+        const prevGroupIndices = statefulStreamFromEmitter(
+          pipe(
+            groupIndices,
+            distinctUntilChanged(),
+            scan((prev, curr) => ({ prev: prev.current, current: curr }), {
+              prev: [],
+              current: []
+            }),
+            map(({ prev }) => prev)
+          ),
+          []
+        );
+        connect(
+          pipe(
+            groupIndices,
+            filter((indexes) => indexes.length > 0),
+            withLatestFrom(sizes, gap),
+            map(([groupIndices2, sizes2, gap2]) => {
+              const groupOffsetTree = groupIndices2.reduce((tree, index, idx) => {
+                return insert$2(tree, index, offsetOf(index, sizes2.offsetTree, gap2) || idx);
+              }, newTree());
+              return {
+                ...sizes2,
+                groupIndices: groupIndices2,
+                groupOffsetTree
+              };
+            })
+          ),
+          sizes
+        );
+        connect(
+          pipe(
+            totalCount,
+            withLatestFrom(sizes),
+            filter(([totalCount2, { lastIndex }]) => {
+              return totalCount2 < lastIndex;
+            }),
+            map(([totalCount2, { lastIndex, lastSize }]) => {
+              return [
+                {
+                  startIndex: totalCount2,
+                  endIndex: lastIndex,
+                  size: lastSize
+                }
+              ];
+            })
+          ),
+          sizeRanges
+        );
+        connect(fixedItemSize, defaultItemSize);
+        const trackItemSizes = statefulStreamFromEmitter(
+          pipe(
+            fixedItemSize,
+            map((size) => size === void 0)
+          ),
+          true
+        );
+        connect(
+          pipe(
+            defaultItemSize,
+            filter((value) => {
+              return value !== void 0 && empty(getValue(sizes).sizeTree);
+            }),
+            map((size) => [{ startIndex: 0, endIndex: 0, size }])
+          ),
+          sizeRanges
+        );
+        const listRefresh = streamFromEmitter(
+          pipe(
+            sizeRanges,
+            withLatestFrom(sizes),
+            scan(
+              ({ sizes: oldSizes }, [_2, newSizes]) => {
+                return {
+                  changed: newSizes !== oldSizes,
+                  sizes: newSizes
+                };
+              },
+              { changed: false, sizes: initial }
+            ),
+            map((value) => value.changed)
+          )
+        );
+        subscribe(
+          pipe(
+            firstItemIndex,
+            scan(
+              (prev, next) => {
+                return { diff: prev.prev - next, prev: next };
+              },
+              { diff: 0, prev: 0 }
+            ),
+            map((val) => val.diff)
+          ),
+          (offset2) => {
+            const { groupIndices: groupIndices2 } = getValue(sizes);
+            if (offset2 > 0) {
+              publish(recalcInProgress, true);
+              publish(unshiftWith, offset2 + affectedGroupCount(offset2, groupIndices2));
+            } else if (offset2 < 0) {
+              const prevGroupIndicesValue = getValue(prevGroupIndices);
+              if (prevGroupIndicesValue.length > 0) {
+                offset2 -= affectedGroupCount(-offset2, prevGroupIndicesValue);
+              }
+              publish(shiftWith, offset2);
+            }
+          }
+        );
+        subscribe(pipe(firstItemIndex, withLatestFrom(log)), ([index, log2]) => {
+          if (index < 0) {
+            log2(
+              "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
+              { firstItemIndex },
+              LogLevel.ERROR
+            );
+          }
+        });
+        const beforeUnshiftWith = streamFromEmitter(unshiftWith);
+        connect(
+          pipe(
+            unshiftWith,
+            withLatestFrom(sizes),
+            map(([unshiftWith2, sizes2]) => {
+              const groupedMode = sizes2.groupIndices.length > 0;
+              const initialRanges = [];
+              const defaultSize = sizes2.lastSize;
+              if (groupedMode) {
+                const firstGroupSize = find$1(sizes2.sizeTree, 0);
+                let prependedGroupItemsCount = 0;
+                let groupIndex = 0;
+                while (prependedGroupItemsCount < unshiftWith2) {
+                  const theGroupIndex = sizes2.groupIndices[groupIndex];
+                  const groupItemCount = sizes2.groupIndices.length === groupIndex + 1 ? Infinity : sizes2.groupIndices[groupIndex + 1] - theGroupIndex - 1;
+                  initialRanges.push({
+                    startIndex: theGroupIndex,
+                    endIndex: theGroupIndex,
+                    size: firstGroupSize
+                  });
+                  initialRanges.push({
+                    startIndex: theGroupIndex + 1,
+                    endIndex: theGroupIndex + 1 + groupItemCount - 1,
+                    size: defaultSize
+                  });
+                  groupIndex++;
+                  prependedGroupItemsCount += groupItemCount + 1;
+                }
+                const sizeTreeKV = walk(sizes2.sizeTree);
+                const firstGroupIsExpanded = prependedGroupItemsCount !== unshiftWith2;
+                if (firstGroupIsExpanded) {
+                  sizeTreeKV.shift();
+                }
+                return sizeTreeKV.reduce(
+                  (acc, { k: index, v: size }) => {
+                    let ranges = acc.ranges;
+                    if (acc.prevSize !== 0) {
+                      ranges = [
+                        ...acc.ranges,
+                        {
+                          startIndex: acc.prevIndex,
+                          endIndex: index + unshiftWith2 - 1,
+                          size: acc.prevSize
+                        }
+                      ];
+                    }
+                    return {
+                      ranges,
+                      prevIndex: index + unshiftWith2,
+                      prevSize: size
+                    };
+                  },
+                  {
+                    ranges: initialRanges,
+                    prevIndex: unshiftWith2,
+                    prevSize: 0
+                  }
+                ).ranges;
+              }
+              return walk(sizes2.sizeTree).reduce(
+                (acc, { k: index, v: size }) => {
+                  return {
+                    ranges: [...acc.ranges, { startIndex: acc.prevIndex, endIndex: index + unshiftWith2 - 1, size: acc.prevSize }],
+                    prevIndex: index + unshiftWith2,
+                    prevSize: size
+                  };
+                },
+                {
+                  ranges: [],
+                  prevIndex: 0,
+                  prevSize: defaultSize
+                }
+              ).ranges;
+            })
+          ),
+          sizeRanges
+        );
+        const shiftWithOffset = streamFromEmitter(
+          pipe(
+            shiftWith,
+            withLatestFrom(sizes, gap),
+            map(([shiftWith2, { offsetTree }, gap2]) => {
+              const newFirstItemIndex = -shiftWith2;
+              return offsetOf(newFirstItemIndex, offsetTree, gap2);
+            })
+          )
+        );
+        connect(
+          pipe(
+            shiftWith,
+            withLatestFrom(sizes, gap),
+            map(([shiftWith2, sizes2, gap2]) => {
+              const groupedMode = sizes2.groupIndices.length > 0;
+              if (groupedMode) {
+                if (empty(sizes2.sizeTree)) {
+                  return sizes2;
+                }
+                let newSizeTree = newTree();
+                const prevGroupIndicesValue = getValue(prevGroupIndices);
+                let removedItemsCount = 0;
+                let groupIndex = 0;
+                let groupOffset = 0;
+                while (removedItemsCount < -shiftWith2) {
+                  groupOffset = prevGroupIndicesValue[groupIndex];
+                  const groupItemCount = prevGroupIndicesValue[groupIndex + 1] - groupOffset - 1;
+                  groupIndex++;
+                  removedItemsCount += groupItemCount + 1;
+                }
+                newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
+                  return insert$2(acc, Math.max(0, k2 + shiftWith2), v2);
+                }, newSizeTree);
+                const aGroupIsShrunk = removedItemsCount !== -shiftWith2;
+                if (aGroupIsShrunk) {
+                  const firstGroupSize = find$1(sizes2.sizeTree, groupOffset);
+                  newSizeTree = insert$2(newSizeTree, 0, firstGroupSize);
+                  const nextItemSize = findMaxKeyValue(sizes2.sizeTree, -shiftWith2 + 1)[1];
+                  newSizeTree = insert$2(newSizeTree, 1, nextItemSize);
+                }
+                return {
+                  ...sizes2,
+                  sizeTree: newSizeTree,
+                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
+                };
+              } else {
+                const newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
+                  return insert$2(acc, Math.max(0, k2 + shiftWith2), v2);
+                }, newTree());
+                return {
+                  ...sizes2,
+                  sizeTree: newSizeTree,
+                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
+                };
+              }
+            })
+          ),
+          sizes
+        );
+        return {
+          // input
+          data,
+          totalCount,
+          sizeRanges,
+          groupIndices,
+          defaultItemSize,
+          fixedItemSize,
+          unshiftWith,
+          shiftWith,
+          shiftWithOffset,
+          beforeUnshiftWith,
+          firstItemIndex,
+          gap,
+          // output
+          sizes,
+          listRefresh,
+          statefulTotalCount,
+          trackItemSizes,
+          itemSize
+        };
+      },
+      tup(loggerSystem, recalcSystem),
+      { singleton: true }
+    );
+    const SUPPORTS_SCROLL_TO_OPTIONS = typeof document !== "undefined" && "scrollBehavior" in document.documentElement.style;
+    function normalizeIndexLocation(location) {
+      const result = typeof location === "number" ? { index: location } : location;
+      if (!result.align) {
+        result.align = "start";
+      }
+      if (!result.behavior || !SUPPORTS_SCROLL_TO_OPTIONS) {
+        result.behavior = "auto";
+      }
+      if (!result.offset) {
+        result.offset = 0;
+      }
+      return result;
+    }
+    const scrollToIndexSystem = system(
+      ([
+        { sizes, totalCount, listRefresh, gap },
+        {
+          scrollingInProgress,
+          viewportHeight,
+          scrollTo,
+          smoothScrollTargetReached,
+          headerHeight,
+          footerHeight,
+          fixedHeaderHeight,
+          fixedFooterHeight
+        },
+        { log }
+      ]) => {
+        const scrollToIndex = stream();
+        const scrollTargetReached = stream();
+        const topListHeight = statefulStream(0);
+        let unsubscribeNextListRefresh = null;
+        let cleartTimeoutRef = null;
+        let unsubscribeListRefresh = null;
+        function cleanup() {
+          if (unsubscribeNextListRefresh) {
+            unsubscribeNextListRefresh();
+            unsubscribeNextListRefresh = null;
+          }
+          if (unsubscribeListRefresh) {
+            unsubscribeListRefresh();
+            unsubscribeListRefresh = null;
+          }
+          if (cleartTimeoutRef) {
+            clearTimeout(cleartTimeoutRef);
+            cleartTimeoutRef = null;
+          }
+          publish(scrollingInProgress, false);
+        }
+        connect(
+          pipe(
+            scrollToIndex,
+            withLatestFrom(sizes, viewportHeight, totalCount, topListHeight, headerHeight, footerHeight, log),
+            withLatestFrom(gap, fixedHeaderHeight, fixedFooterHeight),
+            map(
+              ([
+                [location, sizes2, viewportHeight2, totalCount2, topListHeight2, headerHeight2, footerHeight2, log2],
+                gap2,
+                fixedHeaderHeight2,
+                fixedFooterHeight2
+              ]) => {
+                const normalLocation = normalizeIndexLocation(location);
+                const { align, behavior, offset: offset2 } = normalLocation;
+                const lastIndex = totalCount2 - 1;
+                const index = originalIndexFromLocation(normalLocation, sizes2, lastIndex);
+                let top2 = offsetOf(index, sizes2.offsetTree, gap2) + headerHeight2;
+                if (align === "end") {
+                  top2 += fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2;
+                  if (index === lastIndex) {
+                    top2 += footerHeight2;
+                  }
+                } else if (align === "center") {
+                  top2 += (fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2) / 2;
+                } else {
+                  top2 -= topListHeight2;
+                }
+                if (offset2) {
+                  top2 += offset2;
+                }
+                const retry = (listChanged) => {
+                  cleanup();
+                  if (listChanged) {
+                    log2("retrying to scroll to", { location }, LogLevel.DEBUG);
+                    publish(scrollToIndex, location);
+                  } else {
+                    publish(scrollTargetReached, true);
+                    log2("list did not change, scroll successful", {}, LogLevel.DEBUG);
+                  }
+                };
+                cleanup();
+                if (behavior === "smooth") {
+                  let listChanged = false;
+                  unsubscribeListRefresh = subscribe(listRefresh, (changed) => {
+                    listChanged = listChanged || changed;
+                  });
+                  unsubscribeNextListRefresh = handleNext(smoothScrollTargetReached, () => {
+                    retry(listChanged);
+                  });
+                } else {
+                  unsubscribeNextListRefresh = handleNext(pipe(listRefresh, watchChangesFor(150)), retry);
+                }
+                cleartTimeoutRef = setTimeout(() => {
+                  cleanup();
+                }, 1200);
+                publish(scrollingInProgress, true);
+                log2("scrolling from index to", { index, top: top2, behavior }, LogLevel.DEBUG);
+                return { top: top2, behavior };
+              }
+            )
+          ),
+          scrollTo
+        );
+        return {
+          scrollToIndex,
+          scrollTargetReached,
+          topListHeight
+        };
+      },
+      tup(sizeSystem, domIOSystem, loggerSystem),
+      { singleton: true }
+    );
+    function watchChangesFor(limit) {
+      return (done) => {
+        const timeoutRef = setTimeout(() => {
+          done(false);
+        }, limit);
+        return (value) => {
+          if (value) {
+            done(true);
+            clearTimeout(timeoutRef);
+          }
+        };
+      };
+    }
+    const UP = "up";
+    const DOWN = "down";
+    const NONE$1 = "none";
+    const INITIAL_BOTTOM_STATE = {
+      atBottom: false,
+      notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
+      state: {
+        offsetBottom: 0,
+        scrollTop: 0,
+        viewportHeight: 0,
+        scrollHeight: 0
+      }
+    };
+    const DEFAULT_AT_TOP_THRESHOLD = 0;
+    const stateFlagsSystem = system(([{ scrollContainerState, scrollTop, viewportHeight, headerHeight, footerHeight, scrollBy }]) => {
+      const isAtBottom = statefulStream(false);
+      const isAtTop = statefulStream(true);
+      const atBottomStateChange = stream();
+      const atTopStateChange = stream();
+      const atBottomThreshold = statefulStream(4);
+      const atTopThreshold = statefulStream(DEFAULT_AT_TOP_THRESHOLD);
+      const isScrolling = statefulStreamFromEmitter(
+        pipe(
+          merge(pipe(duc(scrollTop), skip(1), mapTo(true)), pipe(duc(scrollTop), skip(1), mapTo(false), debounceTime(100))),
+          distinctUntilChanged()
+        ),
+        false
+      );
+      const isScrollingBy = statefulStreamFromEmitter(
+        pipe(merge(pipe(scrollBy, mapTo(true)), pipe(scrollBy, mapTo(false), debounceTime(200))), distinctUntilChanged()),
+        false
+      );
+      connect(
+        pipe(
+          combineLatest(duc(scrollTop), duc(atTopThreshold)),
+          map(([top2, atTopThreshold2]) => top2 <= atTopThreshold2),
+          distinctUntilChanged()
+        ),
+        isAtTop
+      );
+      connect(pipe(isAtTop, throttleTime(50)), atTopStateChange);
+      const atBottomState = streamFromEmitter(
+        pipe(
+          combineLatest(scrollContainerState, duc(viewportHeight), duc(headerHeight), duc(footerHeight), duc(atBottomThreshold)),
+          scan((current, [{ scrollTop: scrollTop2, scrollHeight }, viewportHeight2, _headerHeight, _footerHeight, atBottomThreshold2]) => {
+            const isAtBottom2 = scrollTop2 + viewportHeight2 - scrollHeight > -atBottomThreshold2;
+            const state = {
+              viewportHeight: viewportHeight2,
+              scrollTop: scrollTop2,
+              scrollHeight
+            };
+            if (isAtBottom2) {
+              let atBottomBecause;
+              let scrollTopDelta;
+              if (scrollTop2 > current.state.scrollTop) {
+                atBottomBecause = "SCROLLED_DOWN";
+                scrollTopDelta = current.state.scrollTop - scrollTop2;
+              } else {
+                atBottomBecause = "SIZE_DECREASED";
+                scrollTopDelta = current.state.scrollTop - scrollTop2 || current.scrollTopDelta;
+              }
+              return {
+                atBottom: true,
+                state,
+                atBottomBecause,
+                scrollTopDelta
+              };
+            }
+            let notAtBottomBecause;
+            if (state.scrollHeight > current.state.scrollHeight) {
+              notAtBottomBecause = "SIZE_INCREASED";
+            } else if (viewportHeight2 < current.state.viewportHeight) {
+              notAtBottomBecause = "VIEWPORT_HEIGHT_DECREASING";
+            } else if (scrollTop2 < current.state.scrollTop) {
+              notAtBottomBecause = "SCROLLING_UPWARDS";
+            } else {
+              notAtBottomBecause = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM";
+            }
+            return {
+              atBottom: false,
+              notAtBottomBecause,
+              state
+            };
+          }, INITIAL_BOTTOM_STATE),
+          distinctUntilChanged((prev, next) => {
+            return prev && prev.atBottom === next.atBottom;
+          })
+        )
+      );
+      const lastJumpDueToItemResize = statefulStreamFromEmitter(
+        pipe(
+          scrollContainerState,
+          scan(
+            (current, { scrollTop: scrollTop2, scrollHeight, viewportHeight: viewportHeight2 }) => {
+              if (!approximatelyEqual(current.scrollHeight, scrollHeight)) {
+                const atBottom = scrollHeight - (scrollTop2 + viewportHeight2) < 1;
+                if (current.scrollTop !== scrollTop2 && atBottom) {
+                  return {
+                    scrollHeight,
+                    scrollTop: scrollTop2,
+                    jump: current.scrollTop - scrollTop2,
+                    changed: true
+                  };
+                } else {
+                  return {
+                    scrollHeight,
+                    scrollTop: scrollTop2,
+                    jump: 0,
+                    changed: true
+                  };
+                }
+              } else {
+                return {
+                  scrollTop: scrollTop2,
+                  scrollHeight,
+                  jump: 0,
+                  changed: false
+                };
+              }
+            },
+            { scrollHeight: 0, jump: 0, scrollTop: 0, changed: false }
+          ),
+          filter((value) => value.changed),
+          map((value) => value.jump)
+        ),
+        0
+      );
+      connect(
+        pipe(
+          atBottomState,
+          map((state) => state.atBottom)
+        ),
+        isAtBottom
+      );
+      connect(pipe(isAtBottom, throttleTime(50)), atBottomStateChange);
+      const scrollDirection = statefulStream(DOWN);
+      connect(
+        pipe(
+          scrollContainerState,
+          map(({ scrollTop: scrollTop2 }) => scrollTop2),
+          distinctUntilChanged(),
+          scan(
+            (acc, scrollTop2) => {
+              if (getValue(isScrollingBy)) {
+                return { direction: acc.direction, prevScrollTop: scrollTop2 };
+              }
+              return { direction: scrollTop2 < acc.prevScrollTop ? UP : DOWN, prevScrollTop: scrollTop2 };
+            },
+            { direction: DOWN, prevScrollTop: 0 }
+          ),
+          map((value) => value.direction)
+        ),
+        scrollDirection
+      );
+      connect(pipe(scrollContainerState, throttleTime(50), mapTo(NONE$1)), scrollDirection);
+      const scrollVelocity = statefulStream(0);
+      connect(
+        pipe(
+          isScrolling,
+          filter((value) => !value),
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          mapTo(0)
+        ),
+        scrollVelocity
+      );
+      connect(
+        pipe(
+          scrollTop,
+          throttleTime(100),
+          withLatestFrom(isScrolling),
+          filter(([_2, isScrolling2]) => !!isScrolling2),
+          scan(([_2, prev], [next]) => [prev, next], [0, 0]),
+          map(([prev, next]) => next - prev)
+        ),
+        scrollVelocity
+      );
+      return {
+        isScrolling,
+        isAtTop,
+        isAtBottom,
+        atBottomState,
+        atTopStateChange,
+        atBottomStateChange,
+        scrollDirection,
+        atBottomThreshold,
+        atTopThreshold,
+        scrollVelocity,
+        lastJumpDueToItemResize
+      };
+    }, tup(domIOSystem));
+    const propsReadySystem = system(
+      ([{ log }]) => {
+        const propsReady = statefulStream(false);
+        const didMount = streamFromEmitter(
+          pipe(
+            propsReady,
+            filter((ready) => ready),
+            distinctUntilChanged()
+          )
+        );
+        subscribe(propsReady, (value) => {
+          value && getValue(log)("props updated", {}, LogLevel.DEBUG);
+        });
+        return { propsReady, didMount };
+      },
+      tup(loggerSystem),
+      { singleton: true }
+    );
+    function skipFrames(frameCount, callback) {
+      if (frameCount == 0) {
+        callback();
+      } else {
+        requestAnimationFrame(() => skipFrames(frameCount - 1, callback));
+      }
+    }
+    function getInitialTopMostItemIndexNumber(location, totalCount) {
+      const lastIndex = totalCount - 1;
+      const index = typeof location === "number" ? location : location.index === "LAST" ? lastIndex : location.index;
+      return index;
+    }
+    const initialTopMostItemIndexSystem = system(
+      ([{ sizes, listRefresh, defaultItemSize }, { scrollTop }, { scrollToIndex, scrollTargetReached }, { didMount }]) => {
+        const scrolledToInitialItem = statefulStream(true);
+        const initialTopMostItemIndex = statefulStream(0);
+        const initialItemFinalLocationReached = statefulStream(true);
+        connect(
+          pipe(
+            didMount,
+            withLatestFrom(initialTopMostItemIndex),
+            filter(([_2, location]) => !!location),
+            mapTo(false)
+          ),
+          scrolledToInitialItem
+        );
+        connect(
+          pipe(
+            didMount,
+            withLatestFrom(initialTopMostItemIndex),
+            filter(([_2, location]) => !!location),
+            mapTo(false)
+          ),
+          initialItemFinalLocationReached
+        );
+        subscribe(
+          pipe(
+            combineLatest(listRefresh, didMount),
+            withLatestFrom(scrolledToInitialItem, sizes, defaultItemSize, initialItemFinalLocationReached),
+            filter(([[, didMount2], scrolledToInitialItem2, { sizeTree }, defaultItemSize2, scrollScheduled]) => {
+              return didMount2 && (!empty(sizeTree) || isDefined(defaultItemSize2)) && !scrolledToInitialItem2 && !scrollScheduled;
+            }),
+            withLatestFrom(initialTopMostItemIndex)
+          ),
+          ([, initialTopMostItemIndex2]) => {
+            handleNext(scrollTargetReached, () => {
+              publish(initialItemFinalLocationReached, true);
+            });
+            skipFrames(4, () => {
+              handleNext(scrollTop, () => {
+                publish(scrolledToInitialItem, true);
+              });
+              publish(scrollToIndex, initialTopMostItemIndex2);
+            });
+          }
+        );
+        return {
+          scrolledToInitialItem,
+          initialTopMostItemIndex,
+          initialItemFinalLocationReached
+        };
+      },
+      tup(sizeSystem, domIOSystem, scrollToIndexSystem, propsReadySystem),
+      { singleton: true }
+    );
+    function normalizeFollowOutput(follow) {
+      if (!follow) {
+        return false;
+      }
+      return follow === "smooth" ? "smooth" : "auto";
+    }
+    const behaviorFromFollowOutput = (follow, isAtBottom) => {
+      if (typeof follow === "function") {
+        return normalizeFollowOutput(follow(isAtBottom));
+      }
+      return isAtBottom && normalizeFollowOutput(follow);
+    };
+    const followOutputSystem = system(
+      ([
+        { totalCount, listRefresh },
+        { isAtBottom, atBottomState },
+        { scrollToIndex },
+        { scrolledToInitialItem },
+        { propsReady, didMount },
+        { log },
+        { scrollingInProgress }
+      ]) => {
+        const followOutput = statefulStream(false);
+        const autoscrollToBottom = stream();
+        let pendingScrollHandle = null;
+        function scrollToBottom(followOutputBehavior) {
+          publish(scrollToIndex, {
+            index: "LAST",
+            align: "end",
+            behavior: followOutputBehavior
+          });
+        }
+        subscribe(
+          pipe(
+            combineLatest(pipe(duc(totalCount), skip(1)), didMount),
+            withLatestFrom(duc(followOutput), isAtBottom, scrolledToInitialItem, scrollingInProgress),
+            map(([[totalCount2, didMount2], followOutput2, isAtBottom2, scrolledToInitialItem2, scrollingInProgress2]) => {
+              let shouldFollow = didMount2 && scrolledToInitialItem2;
+              let followOutputBehavior = "auto";
+              if (shouldFollow) {
+                followOutputBehavior = behaviorFromFollowOutput(followOutput2, isAtBottom2 || scrollingInProgress2);
+                shouldFollow = shouldFollow && !!followOutputBehavior;
+              }
+              return { totalCount: totalCount2, shouldFollow, followOutputBehavior };
+            }),
+            filter(({ shouldFollow }) => shouldFollow)
+          ),
+          ({ totalCount: totalCount2, followOutputBehavior }) => {
+            if (pendingScrollHandle) {
+              pendingScrollHandle();
+              pendingScrollHandle = null;
+            }
+            pendingScrollHandle = handleNext(listRefresh, () => {
+              getValue(log)("following output to ", { totalCount: totalCount2 }, LogLevel.DEBUG);
+              scrollToBottom(followOutputBehavior);
+              pendingScrollHandle = null;
+            });
+          }
+        );
+        function trapNextSizeIncrease(followOutput2) {
+          const cancel = handleNext(atBottomState, (state) => {
+            if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "SIZE_INCREASED" && !pendingScrollHandle) {
+              getValue(log)("scrolling to bottom due to increased size", {}, LogLevel.DEBUG);
+              scrollToBottom("auto");
+            }
+          });
+          setTimeout(cancel, 100);
+        }
+        subscribe(
+          pipe(
+            combineLatest(duc(followOutput), totalCount, propsReady),
+            filter(([follow, , ready]) => follow && ready),
+            scan(
+              ({ value }, [, next]) => {
+                return { refreshed: value === next, value: next };
+              },
+              { refreshed: false, value: 0 }
+            ),
+            filter(({ refreshed }) => refreshed),
+            withLatestFrom(followOutput, totalCount)
+          ),
+          ([, followOutput2]) => {
+            if (getValue(scrolledToInitialItem)) {
+              trapNextSizeIncrease(followOutput2 !== false);
+            }
+          }
+        );
+        subscribe(autoscrollToBottom, () => {
+          trapNextSizeIncrease(getValue(followOutput) !== false);
+        });
+        subscribe(combineLatest(duc(followOutput), atBottomState), ([followOutput2, state]) => {
+          if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING") {
+            scrollToBottom("auto");
+          }
+        });
+        return { followOutput, autoscrollToBottom };
+      },
+      tup(sizeSystem, stateFlagsSystem, scrollToIndexSystem, initialTopMostItemIndexSystem, propsReadySystem, loggerSystem, domIOSystem)
+    );
+    function groupCountsToIndicesAndCount(counts) {
+      return counts.reduce(
+        (acc, groupCount) => {
+          acc.groupIndices.push(acc.totalCount);
+          acc.totalCount += groupCount + 1;
+          return acc;
+        },
+        {
+          totalCount: 0,
+          groupIndices: []
+        }
+      );
+    }
+    const groupedListSystem = system(([{ totalCount, groupIndices, sizes }, { scrollTop, headerHeight }]) => {
+      const groupCounts = stream();
+      const topItemsIndexes = stream();
+      const groupIndicesAndCount = streamFromEmitter(pipe(groupCounts, map(groupCountsToIndicesAndCount)));
+      connect(
+        pipe(
+          groupIndicesAndCount,
+          map((value) => value.totalCount)
+        ),
+        totalCount
+      );
+      connect(
+        pipe(
+          groupIndicesAndCount,
+          map((value) => value.groupIndices)
+        ),
+        groupIndices
+      );
+      connect(
+        pipe(
+          combineLatest(scrollTop, sizes, headerHeight),
+          filter(([_2, sizes2]) => hasGroups(sizes2)),
+          map(([scrollTop2, state, headerHeight2]) => findMaxKeyValue(state.groupOffsetTree, Math.max(scrollTop2 - headerHeight2, 0), "v")[0]),
+          distinctUntilChanged(),
+          map((index) => [index])
+        ),
+        topItemsIndexes
+      );
+      return { groupCounts, topItemsIndexes };
+    }, tup(sizeSystem, domIOSystem));
+    function tupleComparator(prev, current) {
+      return !!(prev && prev[0] === current[0] && prev[1] === current[1]);
+    }
+    function rangeComparator(prev, next) {
+      return !!(prev && prev.startIndex === next.startIndex && prev.endIndex === next.endIndex);
+    }
+    const TOP = "top";
+    const BOTTOM = "bottom";
+    const NONE = "none";
+    function getOverscan(overscan, end2, direction) {
+      if (typeof overscan === "number") {
+        return direction === UP && end2 === TOP || direction === DOWN && end2 === BOTTOM ? overscan : 0;
+      } else {
+        if (direction === UP) {
+          return end2 === TOP ? overscan.main : overscan.reverse;
+        } else {
+          return end2 === BOTTOM ? overscan.main : overscan.reverse;
+        }
+      }
+    }
+    function getViewportIncrease(value, end2) {
+      return typeof value === "number" ? value : value[end2] || 0;
+    }
+    const sizeRangeSystem = system(
+      ([{ scrollTop, viewportHeight, deviation, headerHeight, fixedHeaderHeight }]) => {
+        const listBoundary = stream();
+        const topListHeight = statefulStream(0);
+        const increaseViewportBy = statefulStream(0);
+        const overscan = statefulStream(0);
+        const visibleRange = statefulStreamFromEmitter(
+          pipe(
+            combineLatest(
+              duc(scrollTop),
+              duc(viewportHeight),
+              duc(headerHeight),
+              duc(listBoundary, tupleComparator),
+              duc(overscan),
+              duc(topListHeight),
+              duc(fixedHeaderHeight),
+              duc(deviation),
+              duc(increaseViewportBy)
+            ),
+            map(
+              ([
+                scrollTop2,
+                viewportHeight2,
+                headerHeight2,
+                [listTop, listBottom],
+                overscan2,
+                topListHeight2,
+                fixedHeaderHeight2,
+                deviation2,
+                increaseViewportBy2
+              ]) => {
+                const top2 = scrollTop2 - deviation2;
+                const stickyHeaderHeight = topListHeight2 + fixedHeaderHeight2;
+                const headerVisible = Math.max(headerHeight2 - top2, 0);
+                let direction = NONE;
+                const topViewportAddition = getViewportIncrease(increaseViewportBy2, TOP);
+                const bottomViewportAddition = getViewportIncrease(increaseViewportBy2, BOTTOM);
+                listTop -= deviation2;
+                listTop += headerHeight2 + fixedHeaderHeight2;
+                listBottom += headerHeight2 + fixedHeaderHeight2;
+                listBottom -= deviation2;
+                if (listTop > scrollTop2 + stickyHeaderHeight - topViewportAddition) {
+                  direction = UP;
+                }
+                if (listBottom < scrollTop2 - headerVisible + viewportHeight2 + bottomViewportAddition) {
+                  direction = DOWN;
+                }
+                if (direction !== NONE) {
+                  return [
+                    Math.max(top2 - headerHeight2 - getOverscan(overscan2, TOP, direction) - topViewportAddition, 0),
+                    top2 - headerVisible - fixedHeaderHeight2 + viewportHeight2 + getOverscan(overscan2, BOTTOM, direction) + bottomViewportAddition
+                  ];
+                }
+                return null;
+              }
+            ),
+            filter((value) => value != null),
+            distinctUntilChanged(tupleComparator)
+          ),
+          [0, 0]
+        );
+        return {
+          // input
+          listBoundary,
+          overscan,
+          topListHeight,
+          increaseViewportBy,
+          // output
+          visibleRange
+        };
+      },
+      tup(domIOSystem),
+      { singleton: true }
+    );
+    function probeItemSet(index, sizes, data) {
+      if (hasGroups(sizes)) {
+        const itemIndex = originalIndexFromItemIndex(index, sizes);
+        const groupIndex = findMaxKeyValue(sizes.groupOffsetTree, itemIndex)[0];
+        return [
+          { index: groupIndex, size: 0, offset: 0 },
+          { index: itemIndex, size: 0, offset: 0, data: data && data[0] }
+        ];
+      }
+      return [{ index, size: 0, offset: 0, data: data && data[0] }];
+    }
+    const EMPTY_LIST_STATE = {
+      items: [],
+      topItems: [],
+      offsetTop: 0,
+      offsetBottom: 0,
+      top: 0,
+      bottom: 0,
+      topListHeight: 0,
+      totalCount: 0,
+      firstItemIndex: 0
+    };
+    function transposeItems(items, sizes, firstItemIndex) {
+      if (items.length === 0) {
+        return [];
+      }
+      if (!hasGroups(sizes)) {
+        return items.map((item) => ({ ...item, index: item.index + firstItemIndex, originalIndex: item.index }));
+      }
+      const startIndex = items[0].index;
+      const endIndex = items[items.length - 1].index;
+      const transposedItems = [];
+      const groupRanges = rangesWithin(sizes.groupOffsetTree, startIndex, endIndex);
+      let currentRange = void 0;
+      let currentGroupIndex = 0;
+      for (const item of items) {
+        if (!currentRange || currentRange.end < item.index) {
+          currentRange = groupRanges.shift();
+          currentGroupIndex = sizes.groupIndices.indexOf(currentRange.start);
+        }
+        let transposedItem;
+        if (item.index === currentRange.start) {
+          transposedItem = {
+            type: "group",
+            index: currentGroupIndex
+          };
+        } else {
+          transposedItem = {
+            index: item.index - (currentGroupIndex + 1) + firstItemIndex,
+            groupIndex: currentGroupIndex
+          };
+        }
+        transposedItems.push({
+          ...transposedItem,
+          size: item.size,
+          offset: item.offset,
+          originalIndex: item.index,
+          data: item.data
+        });
+      }
+      return transposedItems;
+    }
+    function buildListState(items, topItems, totalCount, gap, sizes, firstItemIndex) {
+      const { lastSize, lastOffset, lastIndex } = sizes;
+      let offsetTop = 0;
+      let bottom2 = 0;
+      if (items.length > 0) {
+        offsetTop = items[0].offset;
+        const lastItem = items[items.length - 1];
+        bottom2 = lastItem.offset + lastItem.size;
+      }
+      const itemCount = totalCount - lastIndex;
+      const total = lastOffset + itemCount * lastSize + (itemCount - 1) * gap;
+      const top2 = offsetTop;
+      const offsetBottom = total - bottom2;
+      return {
+        items: transposeItems(items, sizes, firstItemIndex),
+        topItems: transposeItems(topItems, sizes, firstItemIndex),
+        topListHeight: topItems.reduce((height, item) => item.size + height, 0),
+        offsetTop,
+        offsetBottom,
+        top: top2,
+        bottom: bottom2,
+        totalCount,
+        firstItemIndex
+      };
+    }
+    function buildListStateFromItemCount(itemCount, initialTopMostItemIndex, sizes, firstItemIndex, gap, data) {
+      let includedGroupsCount = 0;
+      if (sizes.groupIndices.length > 0) {
+        for (const index of sizes.groupIndices) {
+          if (index - includedGroupsCount >= itemCount) {
+            break;
+          }
+          includedGroupsCount++;
+        }
+      }
+      const adjustedCount = itemCount + includedGroupsCount;
+      const initialTopMostItemIndexNumber = getInitialTopMostItemIndexNumber(initialTopMostItemIndex, adjustedCount);
+      const items = Array.from({ length: adjustedCount }).map((_2, index) => ({
+        index: index + initialTopMostItemIndexNumber,
+        size: 0,
+        offset: 0,
+        data: data[index + initialTopMostItemIndexNumber]
+      }));
+      return buildListState(items, [], adjustedCount, gap, sizes, firstItemIndex);
+    }
+    const listStateSystem = system(
+      ([
+        { sizes, totalCount, data, firstItemIndex, gap },
+        groupedListSystem2,
+        { visibleRange, listBoundary, topListHeight: rangeTopListHeight },
+        { scrolledToInitialItem, initialTopMostItemIndex },
+        { topListHeight },
+        stateFlags,
+        { didMount },
+        { recalcInProgress }
+      ]) => {
+        const topItemsIndexes = statefulStream([]);
+        const initialItemCount = statefulStream(0);
+        const itemsRendered = stream();
+        connect(groupedListSystem2.topItemsIndexes, topItemsIndexes);
+        const listState = statefulStreamFromEmitter(
+          pipe(
+            combineLatest(
+              didMount,
+              recalcInProgress,
+              duc(visibleRange, tupleComparator),
+              duc(totalCount),
+              duc(sizes),
+              duc(initialTopMostItemIndex),
+              scrolledToInitialItem,
+              duc(topItemsIndexes),
+              duc(firstItemIndex),
+              duc(gap),
+              data
+            ),
+            filter(([mount, recalcInProgress2, , totalCount2, , , , , , , data2]) => {
+              const dataChangeInProgress = data2 && data2.length !== totalCount2;
+              return mount && !recalcInProgress2 && !dataChangeInProgress;
+            }),
+            map(
+              ([
+                ,
+                ,
+                [startOffset, endOffset],
+                totalCount2,
+                sizes2,
+                initialTopMostItemIndex2,
+                scrolledToInitialItem2,
+                topItemsIndexes2,
+                firstItemIndex2,
+                gap2,
+                data2
+              ]) => {
+                const sizesValue = sizes2;
+                const { sizeTree, offsetTree } = sizesValue;
+                const initialItemCountValue = getValue(initialItemCount);
+                if (totalCount2 === 0) {
+                  return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
+                }
+                if (startOffset === 0 && endOffset === 0) {
+                  if (initialItemCountValue === 0) {
+                    return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
+                  } else {
+                    return buildListStateFromItemCount(initialItemCountValue, initialTopMostItemIndex2, sizes2, firstItemIndex2, gap2, data2 || []);
+                  }
+                }
+                if (empty(sizeTree)) {
+                  if (initialItemCountValue > 0) {
+                    return null;
+                  }
+                  const state = buildListState(
+                    probeItemSet(getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2), sizesValue, data2),
+                    [],
+                    totalCount2,
+                    gap2,
+                    sizesValue,
+                    firstItemIndex2
+                  );
+                  return state;
+                }
+                const topItems = [];
+                if (topItemsIndexes2.length > 0) {
+                  const startIndex = topItemsIndexes2[0];
+                  const endIndex = topItemsIndexes2[topItemsIndexes2.length - 1];
+                  let offset2 = 0;
+                  for (const range of rangesWithin(sizeTree, startIndex, endIndex)) {
+                    const size = range.value;
+                    const rangeStartIndex = Math.max(range.start, startIndex);
+                    const rangeEndIndex = Math.min(range.end, endIndex);
+                    for (let i2 = rangeStartIndex; i2 <= rangeEndIndex; i2++) {
+                      topItems.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
+                      offset2 += size;
+                    }
+                  }
+                }
+                if (!scrolledToInitialItem2) {
+                  return buildListState([], topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
+                }
+                const minStartIndex = topItemsIndexes2.length > 0 ? topItemsIndexes2[topItemsIndexes2.length - 1] + 1 : 0;
+                const offsetPointRanges = rangesWithinOffsets(offsetTree, startOffset, endOffset, minStartIndex);
+                if (offsetPointRanges.length === 0) {
+                  return null;
+                }
+                const maxIndex = totalCount2 - 1;
+                const items = tap([], (result) => {
+                  for (const range of offsetPointRanges) {
+                    const point = range.value;
+                    let offset2 = point.offset;
+                    let rangeStartIndex = range.start;
+                    const size = point.size;
+                    if (point.offset < startOffset) {
+                      rangeStartIndex += Math.floor((startOffset - point.offset + gap2) / (size + gap2));
+                      const itemCount = rangeStartIndex - range.start;
+                      offset2 += itemCount * size + itemCount * gap2;
+                    }
+                    if (rangeStartIndex < minStartIndex) {
+                      offset2 += (minStartIndex - rangeStartIndex) * size;
+                      rangeStartIndex = minStartIndex;
+                    }
+                    const endIndex = Math.min(range.end, maxIndex);
+                    for (let i2 = rangeStartIndex; i2 <= endIndex; i2++) {
+                      if (offset2 >= endOffset) {
+                        break;
+                      }
+                      result.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
+                      offset2 += size + gap2;
+                    }
+                  }
+                });
+                return buildListState(items, topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
+              }
+            ),
+            //@ts-expect-error filter needs to be fixed
+            filter((value) => value !== null),
+            distinctUntilChanged()
+          ),
+          EMPTY_LIST_STATE
+        );
+        connect(
+          pipe(
+            data,
+            filter(isDefined),
+            map((data2) => data2 == null ? void 0 : data2.length)
+          ),
+          totalCount
+        );
+        connect(
+          pipe(
+            listState,
+            map((value) => value.topListHeight)
+          ),
+          topListHeight
+        );
+        connect(topListHeight, rangeTopListHeight);
+        connect(
+          pipe(
+            listState,
+            map((state) => [state.top, state.bottom])
+          ),
+          listBoundary
+        );
+        connect(
+          pipe(
+            listState,
+            map((state) => state.items)
+          ),
+          itemsRendered
+        );
+        const endReached = streamFromEmitter(
+          pipe(
+            listState,
+            filter(({ items }) => items.length > 0),
+            withLatestFrom(totalCount, data),
+            filter(([{ items }, totalCount2]) => items[items.length - 1].originalIndex === totalCount2 - 1),
+            map(([, totalCount2, data2]) => [totalCount2 - 1, data2]),
+            distinctUntilChanged(tupleComparator),
+            map(([count]) => count)
+          )
+        );
+        const startReached = streamFromEmitter(
+          pipe(
+            listState,
+            throttleTime(200),
+            filter(({ items, topItems }) => {
+              return items.length > 0 && items[0].originalIndex === topItems.length;
+            }),
+            map(({ items }) => items[0].index),
+            distinctUntilChanged()
+          )
+        );
+        const rangeChanged = streamFromEmitter(
+          pipe(
+            listState,
+            filter(({ items }) => items.length > 0),
+            map(({ items }) => {
+              let startIndex = 0;
+              let endIndex = items.length - 1;
+              while (items[startIndex].type === "group" && startIndex < endIndex) {
+                startIndex++;
+              }
+              while (items[endIndex].type === "group" && endIndex > startIndex) {
+                endIndex--;
+              }
+              return {
+                startIndex: items[startIndex].index,
+                endIndex: items[endIndex].index
+              };
+            }),
+            distinctUntilChanged(rangeComparator)
+          )
+        );
+        return { listState, topItemsIndexes, endReached, startReached, rangeChanged, itemsRendered, initialItemCount, ...stateFlags };
+      },
+      tup(
+        sizeSystem,
+        groupedListSystem,
+        sizeRangeSystem,
+        initialTopMostItemIndexSystem,
+        scrollToIndexSystem,
+        stateFlagsSystem,
+        propsReadySystem,
+        recalcSystem
+      ),
+      { singleton: true }
+    );
+    const initialItemCountSystem = system(
+      ([{ sizes, firstItemIndex, data, gap }, { initialTopMostItemIndex }, { initialItemCount, listState }, { didMount }]) => {
+        connect(
+          pipe(
+            didMount,
+            withLatestFrom(initialItemCount),
+            filter(([, count]) => count !== 0),
+            withLatestFrom(initialTopMostItemIndex, sizes, firstItemIndex, gap, data),
+            map(([[, count], initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2 = []]) => {
+              return buildListStateFromItemCount(count, initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2);
+            })
+          ),
+          listState
+        );
+        return {};
+      },
+      tup(sizeSystem, initialTopMostItemIndexSystem, listStateSystem, propsReadySystem),
+      { singleton: true }
+    );
+    const scrollSeekSystem = system(
+      ([{ scrollVelocity }]) => {
+        const isSeeking = statefulStream(false);
+        const rangeChanged = stream();
+        const scrollSeekConfiguration = statefulStream(false);
+        connect(
+          pipe(
+            scrollVelocity,
+            withLatestFrom(scrollSeekConfiguration, isSeeking, rangeChanged),
+            filter(([_2, config2]) => !!config2),
+            map(([speed, config2, isSeeking2, range]) => {
+              const { exit, enter } = config2;
+              if (isSeeking2) {
+                if (exit(speed, range)) {
+                  return false;
+                }
+              } else {
+                if (enter(speed, range)) {
+                  return true;
+                }
+              }
+              return isSeeking2;
+            }),
+            distinctUntilChanged()
+          ),
+          isSeeking
+        );
+        subscribe(
+          pipe(combineLatest(isSeeking, scrollVelocity, rangeChanged), withLatestFrom(scrollSeekConfiguration)),
+          ([[isSeeking2, velocity, range], config2]) => isSeeking2 && config2 && config2.change && config2.change(velocity, range)
+        );
+        return { isSeeking, scrollSeekConfiguration, scrollVelocity, scrollSeekRangeChanged: rangeChanged };
+      },
+      tup(stateFlagsSystem),
+      { singleton: true }
+    );
+    const topItemCountSystem = system(([{ topItemsIndexes }]) => {
+      const topItemCount = statefulStream(0);
+      connect(
+        pipe(
+          topItemCount,
+          filter((length) => length >= 0),
+          map((length) => Array.from({ length }).map((_2, index) => index))
+        ),
+        topItemsIndexes
+      );
+      return { topItemCount };
+    }, tup(listStateSystem));
+    const totalListHeightSystem = system(
+      ([{ footerHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight }, { listState }]) => {
+        const totalListHeightChanged = stream();
+        const totalListHeight = statefulStreamFromEmitter(
+          pipe(
+            combineLatest(footerHeight, fixedFooterHeight, headerHeight, fixedHeaderHeight, listState),
+            map(([footerHeight2, fixedFooterHeight2, headerHeight2, fixedHeaderHeight2, listState2]) => {
+              return footerHeight2 + fixedFooterHeight2 + headerHeight2 + fixedHeaderHeight2 + listState2.offsetBottom + listState2.bottom;
+            })
+          ),
+          0
+        );
+        connect(duc(totalListHeight), totalListHeightChanged);
+        return { totalListHeight, totalListHeightChanged };
+      },
+      tup(domIOSystem, listStateSystem),
+      { singleton: true }
+    );
+    function simpleMemoize(func) {
+      let called = false;
+      let result;
+      return () => {
+        if (!called) {
+          called = true;
+          result = func();
+        }
+        return result;
+      };
+    }
+    const isMobileSafari = simpleMemoize(() => {
+      return /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent);
+    });
+    const upwardScrollFixSystem = system(
+      ([
+        { scrollBy, scrollTop, deviation, scrollingInProgress },
+        { isScrolling, isAtBottom, scrollDirection, lastJumpDueToItemResize },
+        { listState },
+        { beforeUnshiftWith, shiftWithOffset, sizes, gap },
+        { log },
+        { recalcInProgress }
+      ]) => {
+        const deviationOffset = streamFromEmitter(
+          pipe(
+            listState,
+            withLatestFrom(lastJumpDueToItemResize),
+            scan(
+              ([, prevItems, prevTotalCount, prevTotalHeight], [{ items, totalCount, bottom: bottom2, offsetBottom }, lastJumpDueToItemResize2]) => {
+                const totalHeight = bottom2 + offsetBottom;
+                let newDev = 0;
+                if (prevTotalCount === totalCount) {
+                  if (prevItems.length > 0 && items.length > 0) {
+                    const atStart = items[0].originalIndex === 0 && prevItems[0].originalIndex === 0;
+                    if (!atStart) {
+                      newDev = totalHeight - prevTotalHeight;
+                      if (newDev !== 0) {
+                        newDev += lastJumpDueToItemResize2;
+                      }
+                    }
+                  }
+                }
+                return [newDev, items, totalCount, totalHeight];
+              },
+              [0, [], 0, 0]
+            ),
+            filter(([amount]) => amount !== 0),
+            withLatestFrom(scrollTop, scrollDirection, scrollingInProgress, isAtBottom, log, recalcInProgress),
+            filter(([, scrollTop2, scrollDirection2, scrollingInProgress2, , , recalcInProgress2]) => {
+              return !recalcInProgress2 && !scrollingInProgress2 && scrollTop2 !== 0 && scrollDirection2 === UP;
+            }),
+            map(([[amount], , , , , log2]) => {
+              log2("Upward scrolling compensation", { amount }, LogLevel.DEBUG);
+              return amount;
+            })
+          )
+        );
+        function scrollByWith(offset2) {
+          if (offset2 > 0) {
+            publish(scrollBy, { top: -offset2, behavior: "auto" });
+            publish(deviation, 0);
+          } else {
+            publish(deviation, 0);
+            publish(scrollBy, { top: -offset2, behavior: "auto" });
+          }
+        }
+        subscribe(pipe(deviationOffset, withLatestFrom(deviation, isScrolling)), ([offset2, deviationAmount, isScrolling2]) => {
+          if (isScrolling2 && isMobileSafari()) {
+            publish(deviation, deviationAmount - offset2);
+          } else {
+            scrollByWith(-offset2);
+          }
+        });
+        subscribe(
+          pipe(
+            combineLatest(statefulStreamFromEmitter(isScrolling, false), deviation, recalcInProgress),
+            filter(([is, deviation2, recalc]) => !is && !recalc && deviation2 !== 0),
+            map(([_2, deviation2]) => deviation2),
+            throttleTime(1)
+          ),
+          scrollByWith
+        );
+        connect(
+          pipe(
+            shiftWithOffset,
+            map((offset2) => {
+              return { top: -offset2 };
+            })
+          ),
+          scrollBy
+        );
+        subscribe(
+          pipe(
+            beforeUnshiftWith,
+            withLatestFrom(sizes, gap),
+            map(([offset2, { lastSize: defaultItemSize, groupIndices, sizeTree }, gap2]) => {
+              function getItemOffset(itemCount) {
+                return itemCount * (defaultItemSize + gap2);
+              }
+              if (groupIndices.length === 0) {
+                return getItemOffset(offset2);
+              } else {
+                let amount = 0;
+                const defaultGroupSize = find$1(sizeTree, 0);
+                let recognizedOffsetItems = 0;
+                let groupIndex = 0;
+                while (recognizedOffsetItems < offset2) {
+                  recognizedOffsetItems++;
+                  amount += defaultGroupSize;
+                  let groupItemCount = groupIndices.length === groupIndex + 1 ? Infinity : groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
+                  if (recognizedOffsetItems + groupItemCount > offset2) {
+                    amount -= defaultGroupSize;
+                    groupItemCount = offset2 - recognizedOffsetItems + 1;
+                  }
+                  recognizedOffsetItems += groupItemCount;
+                  amount += getItemOffset(groupItemCount);
+                  groupIndex++;
+                }
+                return amount;
+              }
+            })
+          ),
+          (offset2) => {
+            publish(deviation, offset2);
+            requestAnimationFrame(() => {
+              publish(scrollBy, { top: offset2 });
+              requestAnimationFrame(() => {
+                publish(deviation, 0);
+                publish(recalcInProgress, false);
+              });
+            });
+          }
+        );
+        return { deviation };
+      },
+      tup(domIOSystem, stateFlagsSystem, listStateSystem, sizeSystem, loggerSystem, recalcSystem)
+    );
+    const initialScrollTopSystem = system(
+      ([{ didMount }, { scrollTo }, { listState }]) => {
+        const initialScrollTop = statefulStream(0);
+        subscribe(
+          pipe(
+            didMount,
+            withLatestFrom(initialScrollTop),
+            filter(([, offset2]) => offset2 !== 0),
+            map(([, offset2]) => ({ top: offset2 }))
+          ),
+          (location) => {
+            handleNext(
+              pipe(
+                listState,
+                skip(1),
+                filter((state) => state.items.length > 1)
+              ),
+              () => {
+                requestAnimationFrame(() => {
+                  publish(scrollTo, location);
+                });
+              }
+            );
+          }
+        );
+        return {
+          initialScrollTop
+        };
+      },
+      tup(propsReadySystem, domIOSystem, listStateSystem),
+      { singleton: true }
+    );
+    const alignToBottomSystem = system(
+      ([{ viewportHeight }, { totalListHeight }]) => {
+        const alignToBottom = statefulStream(false);
+        const paddingTopAddition = statefulStreamFromEmitter(
+          pipe(
+            combineLatest(alignToBottom, viewportHeight, totalListHeight),
+            filter(([enabled]) => enabled),
+            map(([, viewportHeight2, totalListHeight2]) => {
+              return Math.max(0, viewportHeight2 - totalListHeight2);
+            }),
+            throttleTime(0),
+            distinctUntilChanged()
+          ),
+          0
+        );
+        return { alignToBottom, paddingTopAddition };
+      },
+      tup(domIOSystem, totalListHeightSystem),
+      { singleton: true }
+    );
+    const windowScrollerSystem = system(([{ scrollTo, scrollContainerState }]) => {
+      const windowScrollContainerState = stream();
+      const windowViewportRect = stream();
+      const windowScrollTo = stream();
+      const useWindowScroll = statefulStream(false);
+      const customScrollParent = statefulStream(void 0);
+      connect(
+        pipe(
+          combineLatest(windowScrollContainerState, windowViewportRect),
+          map(([{ viewportHeight, scrollTop: windowScrollTop, scrollHeight }, { offsetTop }]) => {
+            return {
+              scrollTop: Math.max(0, windowScrollTop - offsetTop),
+              scrollHeight,
+              viewportHeight
+            };
+          })
+        ),
+        scrollContainerState
+      );
+      connect(
+        pipe(
+          scrollTo,
+          withLatestFrom(windowViewportRect),
+          map(([scrollTo2, { offsetTop }]) => {
+            return {
+              ...scrollTo2,
+              top: scrollTo2.top + offsetTop
+            };
+          })
+        ),
+        windowScrollTo
+      );
+      return {
+        // config
+        useWindowScroll,
+        customScrollParent,
+        // input
+        windowScrollContainerState,
+        windowViewportRect,
+        // signals
+        windowScrollTo
+      };
+    }, tup(domIOSystem));
+    const defaultCalculateViewLocation = ({
+      itemTop: itemTop2,
+      itemBottom,
+      viewportTop,
+      viewportBottom,
+      locationParams: { behavior, align, ...rest }
+    }) => {
+      if (itemTop2 < viewportTop) {
+        return { ...rest, behavior, align: align != null ? align : "start" };
+      }
+      if (itemBottom > viewportBottom) {
+        return { ...rest, behavior, align: align != null ? align : "end" };
+      }
+      return null;
+    };
+    const scrollIntoViewSystem = system(
+      ([
+        { sizes, totalCount, gap },
+        { scrollTop, viewportHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollingInProgress },
+        { scrollToIndex }
+      ]) => {
+        const scrollIntoView2 = stream();
+        connect(
+          pipe(
+            scrollIntoView2,
+            withLatestFrom(sizes, viewportHeight, totalCount, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollTop),
+            withLatestFrom(gap),
+            map(([[viewLocation, sizes2, viewportHeight2, totalCount2, headerHeight2, fixedHeaderHeight2, fixedFooterHeight2, scrollTop2], gap2]) => {
+              const { done, behavior, align, calculateViewLocation = defaultCalculateViewLocation, ...rest } = viewLocation;
+              const actualIndex = originalIndexFromLocation(viewLocation, sizes2, totalCount2 - 1);
+              const itemTop2 = offsetOf(actualIndex, sizes2.offsetTree, gap2) + headerHeight2 + fixedHeaderHeight2;
+              const itemBottom = itemTop2 + findMaxKeyValue(sizes2.sizeTree, actualIndex)[1];
+              const viewportTop = scrollTop2 + fixedHeaderHeight2;
+              const viewportBottom = scrollTop2 + viewportHeight2 - fixedFooterHeight2;
+              const location = calculateViewLocation({
+                itemTop: itemTop2,
+                itemBottom,
+                viewportTop,
+                viewportBottom,
+                locationParams: { behavior, align, ...rest }
+              });
+              if (location) {
+                done && handleNext(
+                  pipe(
+                    scrollingInProgress,
+                    filter((value) => value === false),
+                    // skips the initial publish of false, and the cleanup call.
+                    // but if scrollingInProgress is true, we skip the initial publish.
+                    skip(getValue(scrollingInProgress) ? 1 : 2)
+                  ),
+                  done
+                );
+              } else {
+                done && done();
+              }
+              return location;
+            }),
+            filter((value) => value !== null)
+          ),
+          scrollToIndex
+        );
+        return {
+          scrollIntoView: scrollIntoView2
+        };
+      },
+      tup(sizeSystem, domIOSystem, scrollToIndexSystem, listStateSystem, loggerSystem),
+      { singleton: true }
+    );
+    const stateLoadSystem = system(
+      ([
+        { sizes, sizeRanges },
+        { scrollTop, headerHeight },
+        { initialTopMostItemIndex },
+        { didMount },
+        { useWindowScroll, windowScrollContainerState, windowViewportRect }
+      ]) => {
+        const getState = stream();
+        const restoreStateFrom = statefulStream(void 0);
+        const statefulWindowScrollContainerState = statefulStream(null);
+        const statefulWindowViewportRect = statefulStream(null);
+        connect(windowScrollContainerState, statefulWindowScrollContainerState);
+        connect(windowViewportRect, statefulWindowViewportRect);
+        subscribe(
+          pipe(
+            getState,
+            withLatestFrom(sizes, scrollTop, useWindowScroll, statefulWindowScrollContainerState, statefulWindowViewportRect, headerHeight)
+          ),
+          ([callback, sizes2, scrollTop2, useWindowScroll2, windowScrollContainerState2, windowViewportRect2, headerHeight2]) => {
+            const ranges = sizeTreeToRanges(sizes2.sizeTree);
+            if (useWindowScroll2 && windowScrollContainerState2 !== null && windowViewportRect2 !== null) {
+              scrollTop2 = windowScrollContainerState2.scrollTop - windowViewportRect2.offsetTop;
+            }
+            scrollTop2 -= headerHeight2;
+            callback({ ranges, scrollTop: scrollTop2 });
+          }
+        );
+        connect(pipe(restoreStateFrom, filter(isDefined), map(locationFromSnapshot)), initialTopMostItemIndex);
+        connect(
+          pipe(
+            didMount,
+            withLatestFrom(restoreStateFrom),
+            filter(([, state]) => state !== void 0),
+            distinctUntilChanged(),
+            map(([, snapshot]) => {
+              return snapshot.ranges;
+            })
+          ),
+          sizeRanges
+        );
+        return {
+          getState,
+          restoreStateFrom
+        };
+      },
+      tup(sizeSystem, domIOSystem, initialTopMostItemIndexSystem, propsReadySystem, windowScrollerSystem)
+    );
+    function locationFromSnapshot(snapshot) {
+      return { offset: snapshot.scrollTop, index: 0, align: "start" };
+    }
+    const featureGroup1System = system(
+      ([
+        sizeRange,
+        initialItemCount,
+        propsReady,
+        scrollSeek,
+        totalListHeight,
+        initialScrollTopSystem2,
+        alignToBottom,
+        windowScroller,
+        scrollIntoView2,
+        logger
+      ]) => {
+        return {
+          ...sizeRange,
+          ...initialItemCount,
+          ...propsReady,
+          ...scrollSeek,
+          ...totalListHeight,
+          ...initialScrollTopSystem2,
+          ...alignToBottom,
+          ...windowScroller,
+          ...scrollIntoView2,
+          ...logger
+        };
+      },
+      tup(
+        sizeRangeSystem,
+        initialItemCountSystem,
+        propsReadySystem,
+        scrollSeekSystem,
+        totalListHeightSystem,
+        initialScrollTopSystem,
+        alignToBottomSystem,
+        windowScrollerSystem,
+        scrollIntoViewSystem,
+        loggerSystem
+      )
+    );
+    const listSystem = system(
+      ([
+        {
+          totalCount,
+          sizeRanges,
+          fixedItemSize,
+          defaultItemSize,
+          trackItemSizes,
+          itemSize,
+          data,
+          firstItemIndex,
+          groupIndices,
+          statefulTotalCount,
+          gap,
+          sizes
+        },
+        { initialTopMostItemIndex, scrolledToInitialItem, initialItemFinalLocationReached },
+        domIO,
+        stateLoad,
+        followOutput,
+        { listState, topItemsIndexes, ...flags },
+        { scrollToIndex },
+        _2,
+        { topItemCount },
+        { groupCounts },
+        featureGroup1
+      ]) => {
+        connect(flags.rangeChanged, featureGroup1.scrollSeekRangeChanged);
+        connect(
+          pipe(
+            featureGroup1.windowViewportRect,
+            map((value) => value.visibleHeight)
+          ),
+          domIO.viewportHeight
+        );
+        return {
+          // input
+          totalCount,
+          data,
+          firstItemIndex,
+          sizeRanges,
+          initialTopMostItemIndex,
+          scrolledToInitialItem,
+          initialItemFinalLocationReached,
+          topItemsIndexes,
+          topItemCount,
+          groupCounts,
+          fixedItemHeight: fixedItemSize,
+          defaultItemHeight: defaultItemSize,
+          gap,
+          ...followOutput,
+          // output
+          statefulTotalCount,
+          listState,
+          scrollToIndex,
+          trackItemSizes,
+          itemSize,
+          groupIndices,
+          // exported from stateFlagsSystem
+          ...flags,
+          // the bag of IO from featureGroup1System
+          ...featureGroup1,
+          ...domIO,
+          sizes,
+          ...stateLoad
+        };
+      },
+      tup(
+        sizeSystem,
+        initialTopMostItemIndexSystem,
+        domIOSystem,
+        stateLoadSystem,
+        followOutputSystem,
+        listStateSystem,
+        scrollToIndexSystem,
+        upwardScrollFixSystem,
+        topItemCountSystem,
+        groupedListSystem,
+        featureGroup1System
+      )
+    );
+    const WEBKIT_STICKY = "-webkit-sticky";
+    const STICKY = "sticky";
+    const positionStickyCssValue = simpleMemoize(() => {
+      if (typeof document === "undefined") {
+        return STICKY;
+      }
+      const node = document.createElement("div");
+      node.style.position = WEBKIT_STICKY;
+      return node.style.position === WEBKIT_STICKY ? WEBKIT_STICKY : STICKY;
+    });
+    function useWindowViewportRectRef(callback, customScrollParent, skipAnimationFrame) {
+      const viewportInfo = xn.useRef(null);
+      const calculateInfo = xn.useCallback(
+        (element) => {
+          if (element === null || !element.offsetParent) {
+            return;
+          }
+          const rect = element.getBoundingClientRect();
+          const visibleWidth = rect.width;
+          let visibleHeight, offsetTop;
+          if (customScrollParent) {
+            const customScrollParentRect = customScrollParent.getBoundingClientRect();
+            const deltaTop = rect.top - customScrollParentRect.top;
+            visibleHeight = customScrollParentRect.height - Math.max(0, deltaTop);
+            offsetTop = deltaTop + customScrollParent.scrollTop;
+          } else {
+            visibleHeight = window.innerHeight - Math.max(0, rect.top);
+            offsetTop = rect.top + window.pageYOffset;
+          }
+          viewportInfo.current = {
+            offsetTop,
+            visibleHeight,
+            visibleWidth
+          };
+          callback(viewportInfo.current);
+        },
+        [callback, customScrollParent]
+      );
+      const { callbackRef, ref } = useSizeWithElRef(calculateInfo, true, skipAnimationFrame);
+      const scrollAndResizeEventHandler = xn.useCallback(() => {
+        calculateInfo(ref.current);
+      }, [calculateInfo, ref]);
+      xn.useEffect(() => {
+        if (customScrollParent) {
+          customScrollParent.addEventListener("scroll", scrollAndResizeEventHandler);
+          const observer = new ResizeObserver(() => {
+            requestAnimationFrame(scrollAndResizeEventHandler);
+          });
+          observer.observe(customScrollParent);
+          return () => {
+            customScrollParent.removeEventListener("scroll", scrollAndResizeEventHandler);
+            observer.unobserve(customScrollParent);
+          };
+        } else {
+          window.addEventListener("scroll", scrollAndResizeEventHandler);
+          window.addEventListener("resize", scrollAndResizeEventHandler);
+          return () => {
+            window.removeEventListener("scroll", scrollAndResizeEventHandler);
+            window.removeEventListener("resize", scrollAndResizeEventHandler);
+          };
+        }
+      }, [scrollAndResizeEventHandler, customScrollParent]);
+      return callbackRef;
+    }
+    const VirtuosoMockContext = xn.createContext(void 0);
+    const VirtuosoGridMockContext = xn.createContext(void 0);
+    function identity(value) {
+      return value;
+    }
+    const listComponentPropsSystem = /* @__PURE__ */ system(() => {
+      const itemContent = statefulStream((index) => `Item ${index}`);
+      const context = statefulStream(null);
+      const groupContent = statefulStream((index) => `Group ${index}`);
+      const components = statefulStream({});
+      const computeItemKey = statefulStream(identity);
+      const HeaderFooterTag = statefulStream("div");
+      const scrollerRef = statefulStream(noop);
+      const distinctProp = (propName, defaultValue = null) => {
+        return statefulStreamFromEmitter(
+          pipe(
+            components,
+            map((components2) => components2[propName]),
+            distinctUntilChanged()
+          ),
+          defaultValue
+        );
+      };
+      return {
+        context,
+        itemContent,
+        groupContent,
+        components,
+        computeItemKey,
+        HeaderFooterTag,
+        scrollerRef,
+        FooterComponent: distinctProp("Footer"),
+        HeaderComponent: distinctProp("Header"),
+        TopItemListComponent: distinctProp("TopItemList"),
+        ListComponent: distinctProp("List", "div"),
+        ItemComponent: distinctProp("Item", "div"),
+        GroupComponent: distinctProp("Group", "div"),
+        ScrollerComponent: distinctProp("Scroller", "div"),
+        EmptyPlaceholder: distinctProp("EmptyPlaceholder"),
+        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder")
+      };
+    });
+    const combinedSystem$2 = /* @__PURE__ */ system(([listSystem2, propsSystem]) => {
+      return { ...listSystem2, ...propsSystem };
+    }, tup(listSystem, listComponentPropsSystem));
+    const DefaultScrollSeekPlaceholder$1 = ({ height }) => /* @__PURE__ */ u("div", { style: { height } });
+    const GROUP_STYLE = { position: positionStickyCssValue(), zIndex: 1, overflowAnchor: "none" };
+    const ITEM_STYLE$1 = { overflowAnchor: "none" };
+    const HORIZONTAL_ITEM_STYLE = { ...ITEM_STYLE$1, display: "inline-block", height: "100%" };
+    const Items$1 = /* @__PURE__ */ xn.memo(function VirtuosoItems({ showTopList = false }) {
+      const listState = useEmitterValue$2("listState");
+      const sizeRanges = usePublisher$2("sizeRanges");
+      const useWindowScroll = useEmitterValue$2("useWindowScroll");
+      const customScrollParent = useEmitterValue$2("customScrollParent");
+      const windowScrollContainerStateCallback = usePublisher$2("windowScrollContainerState");
+      const _scrollContainerStateCallback = usePublisher$2("scrollContainerState");
+      const scrollContainerStateCallback = customScrollParent || useWindowScroll ? windowScrollContainerStateCallback : _scrollContainerStateCallback;
+      const itemContent = useEmitterValue$2("itemContent");
+      const context = useEmitterValue$2("context");
+      const groupContent = useEmitterValue$2("groupContent");
+      const trackItemSizes = useEmitterValue$2("trackItemSizes");
+      const itemSize = useEmitterValue$2("itemSize");
+      const log = useEmitterValue$2("log");
+      const listGap = usePublisher$2("gap");
+      const horizontalDirection = useEmitterValue$2("horizontalDirection");
+      const { callbackRef } = useChangedListContentsSizes(
+        sizeRanges,
+        itemSize,
+        trackItemSizes,
+        showTopList ? noop : scrollContainerStateCallback,
+        log,
+        listGap,
+        customScrollParent,
+        horizontalDirection,
+        useEmitterValue$2("skipAnimationFrameInResizeObserver")
+      );
+      const [deviation, setDeviation] = xn.useState(0);
+      useEmitter$2("deviation", (value) => {
+        if (deviation !== value) {
+          setDeviation(value);
+        }
+      });
+      const EmptyPlaceholder = useEmitterValue$2("EmptyPlaceholder");
+      const ScrollSeekPlaceholder = useEmitterValue$2("ScrollSeekPlaceholder") || DefaultScrollSeekPlaceholder$1;
+      const ListComponent = useEmitterValue$2("ListComponent");
+      const ItemComponent = useEmitterValue$2("ItemComponent");
+      const GroupComponent = useEmitterValue$2("GroupComponent");
+      const computeItemKey = useEmitterValue$2("computeItemKey");
+      const isSeeking = useEmitterValue$2("isSeeking");
+      const hasGroups2 = useEmitterValue$2("groupIndices").length > 0;
+      const alignToBottom = useEmitterValue$2("alignToBottom");
+      const initialItemFinalLocationReached = useEmitterValue$2("initialItemFinalLocationReached");
+      const containerStyle = showTopList ? {} : {
+        boxSizing: "border-box",
+        ...horizontalDirection ? {
+          whiteSpace: "nowrap",
+          display: "inline-block",
+          height: "100%",
+          paddingLeft: listState.offsetTop,
+          paddingRight: listState.offsetBottom,
+          marginLeft: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0
+        } : {
+          marginTop: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0,
+          paddingTop: listState.offsetTop,
+          paddingBottom: listState.offsetBottom
+        },
+        ...initialItemFinalLocationReached ? {} : { visibility: "hidden" }
+      };
+      if (!showTopList && listState.totalCount === 0 && EmptyPlaceholder) {
+        return /* @__PURE__ */ u(EmptyPlaceholder, { ...contextPropIfNotDomElement(EmptyPlaceholder, context) });
+      }
+      return /* @__PURE__ */ u(
+        ListComponent,
+        {
+          ...contextPropIfNotDomElement(ListComponent, context),
+          ref: callbackRef,
+          style: containerStyle,
+          "data-testid": showTopList ? "virtuoso-top-item-list" : "virtuoso-item-list",
+          children: (showTopList ? listState.topItems : listState.items).map((item) => {
+            const index = item.originalIndex;
+            const key2 = computeItemKey(index + listState.firstItemIndex, item.data, context);
+            if (isSeeking) {
+              return /* @__PURE__ */ g$2(
+                ScrollSeekPlaceholder,
+                {
+                  ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
+                  key: key2,
+                  index: item.index,
+                  height: item.size,
+                  type: item.type || "item",
+                  ...item.type === "group" ? {} : { groupIndex: item.groupIndex }
+                }
+              );
+            }
+            if (item.type === "group") {
+              return /* @__PURE__ */ g$2(
+                GroupComponent,
+                {
+                  ...contextPropIfNotDomElement(GroupComponent, context),
+                  key: key2,
+                  "data-index": index,
+                  "data-known-size": item.size,
+                  "data-item-index": item.index,
+                  style: GROUP_STYLE
+                },
+                groupContent(item.index, context)
+              );
+            } else {
+              return /* @__PURE__ */ g$2(
+                ItemComponent,
+                {
+                  ...contextPropIfNotDomElement(ItemComponent, context),
+                  ...itemPropIfNotDomElement(ItemComponent, item.data),
+                  key: key2,
+                  "data-index": index,
+                  "data-known-size": item.size,
+                  "data-item-index": item.index,
+                  "data-item-group-index": item.groupIndex,
+                  style: horizontalDirection ? HORIZONTAL_ITEM_STYLE : ITEM_STYLE$1
+                },
+                hasGroups2 ? itemContent(item.index, item.groupIndex, item.data, context) : itemContent(item.index, item.data, context)
+              );
+            }
+          })
+        }
+      );
+    });
+    const scrollerStyle = {
+      height: "100%",
+      outline: "none",
+      overflowY: "auto",
+      position: "relative",
+      WebkitOverflowScrolling: "touch"
+    };
+    const horizontalScrollerStyle = {
+      outline: "none",
+      overflowX: "auto",
+      position: "relative"
+    };
+    const viewportStyle = (alignToBottom) => ({
+      width: "100%",
+      height: "100%",
+      position: "absolute",
+      top: 0,
+      ...alignToBottom ? { display: "flex", flexDirection: "column" } : {}
+    });
+    const topItemListStyle = {
+      width: "100%",
+      position: positionStickyCssValue(),
+      top: 0,
+      zIndex: 1
+    };
+    function contextPropIfNotDomElement(element, context) {
+      if (typeof element === "string") {
+        return void 0;
+      }
+      return { context };
+    }
+    function itemPropIfNotDomElement(element, item) {
+      return { item: typeof element === "string" ? void 0 : item };
+    }
+    const Header$1 = /* @__PURE__ */ xn.memo(function VirtuosoHeader() {
+      const Header2 = useEmitterValue$2("HeaderComponent");
+      const headerHeight = usePublisher$2("headerHeight");
+      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
+      const ref = useSize(
+        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
+        true,
+        useEmitterValue$2("skipAnimationFrameInResizeObserver")
+      );
+      const context = useEmitterValue$2("context");
+      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
+    });
+    const Footer$1 = /* @__PURE__ */ xn.memo(function VirtuosoFooter() {
+      const Footer2 = useEmitterValue$2("FooterComponent");
+      const footerHeight = usePublisher$2("footerHeight");
+      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
+      const ref = useSize(
+        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
+        true,
+        useEmitterValue$2("skipAnimationFrameInResizeObserver")
+      );
+      const context = useEmitterValue$2("context");
+      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
+    });
+    function buildScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
+      const Scroller2 = xn.memo(function VirtuosoScroller({ style: style2, children: children2, ...props }) {
+        const scrollContainerStateCallback = usePublisher2("scrollContainerState");
+        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
+        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
+        const scrollerRefCallback = useEmitterValue2("scrollerRef");
+        const context = useEmitterValue2("context");
+        const horizontalDirection = useEmitterValue2("horizontalDirection") || false;
+        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
+          scrollContainerStateCallback,
+          smoothScrollTargetReached,
+          ScrollerComponent,
+          scrollerRefCallback,
+          void 0,
+          horizontalDirection
+        );
+        useEmitter2("scrollTo", scrollToCallback);
+        useEmitter2("scrollBy", scrollByCallback);
+        const defaultStyle = horizontalDirection ? horizontalScrollerStyle : scrollerStyle;
+        return /* @__PURE__ */ u(
+          ScrollerComponent,
+          {
+            ref: scrollerRef,
+            style: { ...defaultStyle, ...style2 },
+            "data-testid": "virtuoso-scroller",
+            "data-virtuoso-scroller": true,
+            tabIndex: 0,
+            ...props,
+            ...contextPropIfNotDomElement(ScrollerComponent, context),
+            children: children2
+          }
+        );
+      });
+      return Scroller2;
+    }
+    function buildWindowScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
+      const Scroller2 = xn.memo(function VirtuosoWindowScroller({ style: style2, children: children2, ...props }) {
+        const scrollContainerStateCallback = usePublisher2("windowScrollContainerState");
+        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
+        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
+        const totalListHeight = useEmitterValue2("totalListHeight");
+        const deviation = useEmitterValue2("deviation");
+        const customScrollParent = useEmitterValue2("customScrollParent");
+        const context = useEmitterValue2("context");
+        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
+          scrollContainerStateCallback,
+          smoothScrollTargetReached,
+          ScrollerComponent,
+          noop,
+          customScrollParent
+        );
+        useIsomorphicLayoutEffect(() => {
+          scrollerRef.current = customScrollParent ? customScrollParent : window;
+          return () => {
+            scrollerRef.current = null;
+          };
+        }, [scrollerRef, customScrollParent]);
+        useEmitter2("windowScrollTo", scrollToCallback);
+        useEmitter2("scrollBy", scrollByCallback);
+        return /* @__PURE__ */ u(
+          ScrollerComponent,
+          {
+            style: { position: "relative", ...style2, ...totalListHeight !== 0 ? { height: totalListHeight + deviation } : {} },
+            "data-virtuoso-scroller": true,
+            ...props,
+            ...contextPropIfNotDomElement(ScrollerComponent, context),
+            children: children2
+          }
+        );
+      });
+      return Scroller2;
+    }
+    const Viewport$2 = ({ children: children2 }) => {
+      const ctx = xn.useContext(VirtuosoMockContext);
+      const viewportHeight = usePublisher$2("viewportHeight");
+      const fixedItemHeight = usePublisher$2("fixedItemHeight");
+      const alignToBottom = useEmitterValue$2("alignToBottom");
+      const horizontalDirection = useEmitterValue$2("horizontalDirection");
+      const viewportSizeCallbackMemo = xn.useMemo(
+        () => compose$1(viewportHeight, (el) => correctItemSize(el, horizontalDirection ? "width" : "height")),
+        [viewportHeight, horizontalDirection]
+      );
+      const viewportRef = useSize(viewportSizeCallbackMemo, true, useEmitterValue$2("skipAnimationFrameInResizeObserver"));
+      xn.useEffect(() => {
+        if (ctx) {
+          viewportHeight(ctx.viewportHeight);
+          fixedItemHeight(ctx.itemHeight);
+        }
+      }, [ctx, viewportHeight, fixedItemHeight]);
+      return /* @__PURE__ */ u("div", { style: viewportStyle(alignToBottom), ref: viewportRef, "data-viewport-type": "element", children: children2 });
+    };
+    const WindowViewport$2 = ({ children: children2 }) => {
+      const ctx = xn.useContext(VirtuosoMockContext);
+      const windowViewportRect = usePublisher$2("windowViewportRect");
+      const fixedItemHeight = usePublisher$2("fixedItemHeight");
+      const customScrollParent = useEmitterValue$2("customScrollParent");
+      const viewportRef = useWindowViewportRectRef(
+        windowViewportRect,
+        customScrollParent,
+        useEmitterValue$2("skipAnimationFrameInResizeObserver")
+      );
+      const alignToBottom = useEmitterValue$2("alignToBottom");
+      xn.useEffect(() => {
+        if (ctx) {
+          fixedItemHeight(ctx.itemHeight);
+          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: 100 });
+        }
+      }, [ctx, windowViewportRect, fixedItemHeight]);
+      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(alignToBottom), "data-viewport-type": "window", children: children2 });
+    };
+    const TopItemListContainer = ({ children: children2 }) => {
+      const TopItemList = useEmitterValue$2("TopItemListComponent") || "div";
+      const headerHeight = useEmitterValue$2("headerHeight");
+      const style2 = { ...topItemListStyle, marginTop: `${headerHeight}px` };
+      const context = useEmitterValue$2("context");
+      return /* @__PURE__ */ u(TopItemList, { style: style2, ...contextPropIfNotDomElement(TopItemList, context), children: children2 });
+    };
+    const ListRoot = /* @__PURE__ */ xn.memo(function VirtuosoRoot(props) {
+      const useWindowScroll = useEmitterValue$2("useWindowScroll");
+      const showTopList = useEmitterValue$2("topItemsIndexes").length > 0;
+      const customScrollParent = useEmitterValue$2("customScrollParent");
+      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$2 : Scroller$2;
+      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$2 : Viewport$2;
+      return /* @__PURE__ */ u(TheScroller, { ...props, children: [
+        showTopList && /* @__PURE__ */ u(TopItemListContainer, { children: /* @__PURE__ */ u(Items$1, { showTopList: true }) }),
+        /* @__PURE__ */ u(TheViewport, { children: [
+          /* @__PURE__ */ u(Header$1, {}),
+          /* @__PURE__ */ u(Items$1, {}),
+          /* @__PURE__ */ u(Footer$1, {})
+        ] })
+      ] });
+    });
+    const {
+      Component: List,
+      usePublisher: usePublisher$2,
+      useEmitterValue: useEmitterValue$2,
+      useEmitter: useEmitter$2
+    } = /* @__PURE__ */ systemToComponent(
+      combinedSystem$2,
+      {
+        required: {},
+        optional: {
+          restoreStateFrom: "restoreStateFrom",
+          context: "context",
+          followOutput: "followOutput",
+          itemContent: "itemContent",
+          groupContent: "groupContent",
+          overscan: "overscan",
+          increaseViewportBy: "increaseViewportBy",
+          totalCount: "totalCount",
+          groupCounts: "groupCounts",
+          topItemCount: "topItemCount",
+          firstItemIndex: "firstItemIndex",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          components: "components",
+          atBottomThreshold: "atBottomThreshold",
+          atTopThreshold: "atTopThreshold",
+          computeItemKey: "computeItemKey",
+          defaultItemHeight: "defaultItemHeight",
+          fixedItemHeight: "fixedItemHeight",
+          itemSize: "itemSize",
+          scrollSeekConfiguration: "scrollSeekConfiguration",
+          headerFooterTag: "HeaderFooterTag",
+          data: "data",
+          initialItemCount: "initialItemCount",
+          initialScrollTop: "initialScrollTop",
+          alignToBottom: "alignToBottom",
+          useWindowScroll: "useWindowScroll",
+          customScrollParent: "customScrollParent",
+          scrollerRef: "scrollerRef",
+          logLevel: "logLevel",
+          horizontalDirection: "horizontalDirection",
+          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
+        },
+        methods: {
+          scrollToIndex: "scrollToIndex",
+          scrollIntoView: "scrollIntoView",
+          scrollTo: "scrollTo",
+          scrollBy: "scrollBy",
+          autoscrollToBottom: "autoscrollToBottom",
+          getState: "getState"
+        },
+        events: {
+          isScrolling: "isScrolling",
+          endReached: "endReached",
+          startReached: "startReached",
+          rangeChanged: "rangeChanged",
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          totalListHeightChanged: "totalListHeightChanged",
+          itemsRendered: "itemsRendered",
+          groupIndices: "groupIndices"
+        }
+      },
+      ListRoot
+    );
+    const Scroller$2 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
+    const WindowScroller$2 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
+    const Virtuoso = List;
+    const INITIAL_GRID_STATE = {
+      items: [],
+      offsetBottom: 0,
+      offsetTop: 0,
+      top: 0,
+      bottom: 0,
+      itemHeight: 0,
+      itemWidth: 0
+    };
+    const PROBE_GRID_STATE = {
+      items: [{ index: 0 }],
+      offsetBottom: 0,
+      offsetTop: 0,
+      top: 0,
+      bottom: 0,
+      itemHeight: 0,
+      itemWidth: 0
+    };
+    const { round, ceil, floor, min: min$1, max: max$2 } = Math;
+    function buildProbeGridState(items) {
+      return {
+        ...PROBE_GRID_STATE,
+        items
+      };
+    }
+    function buildItems(startIndex, endIndex, data) {
+      return Array.from({ length: endIndex - startIndex + 1 }).map((_2, i2) => {
+        const dataItem = data === null ? null : data[i2 + startIndex];
+        return { index: i2 + startIndex, data: dataItem };
+      });
+    }
+    function gapComparator(prev, next) {
+      return prev && prev.column === next.column && prev.row === next.row;
+    }
+    function dimensionComparator(prev, next) {
+      return prev && prev.width === next.width && prev.height === next.height;
+    }
+    const gridSystem = /* @__PURE__ */ system(
+      ([
+        { overscan, visibleRange, listBoundary, increaseViewportBy },
+        { scrollTop, viewportHeight, scrollBy, scrollTo, smoothScrollTargetReached, scrollContainerState, footerHeight, headerHeight },
+        stateFlags,
+        scrollSeek,
+        { propsReady, didMount },
+        { windowViewportRect, useWindowScroll, customScrollParent, windowScrollContainerState, windowScrollTo },
+        log
+      ]) => {
+        const totalCount = statefulStream(0);
+        const initialItemCount = statefulStream(0);
+        const gridState = statefulStream(INITIAL_GRID_STATE);
+        const viewportDimensions = statefulStream({ height: 0, width: 0 });
+        const itemDimensions = statefulStream({ height: 0, width: 0 });
+        const scrollToIndex = stream();
+        const scrollHeight = stream();
+        const deviation = statefulStream(0);
+        const data = statefulStream(null);
+        const gap = statefulStream({ row: 0, column: 0 });
+        const stateChanged = stream();
+        const restoreStateFrom = stream();
+        const stateRestoreInProgress = statefulStream(false);
+        const initialTopMostItemIndex = statefulStream(0);
+        const scrolledToInitialItem = statefulStream(true);
+        const scrollScheduled = statefulStream(false);
+        const horizontalDirection = statefulStream(false);
+        subscribe(
+          pipe(
+            didMount,
+            withLatestFrom(initialTopMostItemIndex),
+            filter(([_2, location]) => !!location)
+          ),
+          () => {
+            publish(scrolledToInitialItem, false);
+          }
+        );
+        subscribe(
+          pipe(
+            combineLatest(didMount, scrolledToInitialItem, itemDimensions, viewportDimensions, initialTopMostItemIndex, scrollScheduled),
+            filter(([didMount2, scrolledToInitialItem2, itemDimensions2, viewportDimensions2, , scrollScheduled2]) => {
+              return didMount2 && !scrolledToInitialItem2 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0 && !scrollScheduled2;
+            })
+          ),
+          ([, , , , initialTopMostItemIndex2]) => {
+            publish(scrollScheduled, true);
+            skipFrames(1, () => {
+              publish(scrollToIndex, initialTopMostItemIndex2);
+            });
+            handleNext(pipe(scrollTop), () => {
+              publish(listBoundary, [0, 0]);
+              publish(scrolledToInitialItem, true);
+            });
+          }
+        );
+        connect(
+          pipe(
+            restoreStateFrom,
+            filter((value) => value !== void 0 && value !== null && value.scrollTop > 0),
+            mapTo(0)
+          ),
+          initialItemCount
+        );
+        subscribe(
+          pipe(
+            didMount,
+            withLatestFrom(restoreStateFrom),
+            filter(([, snapshot]) => snapshot !== void 0 && snapshot !== null)
+          ),
+          ([, snapshot]) => {
+            if (!snapshot) {
+              return;
+            }
+            publish(viewportDimensions, snapshot.viewport), publish(itemDimensions, snapshot == null ? void 0 : snapshot.item);
+            publish(gap, snapshot.gap);
+            if (snapshot.scrollTop > 0) {
+              publish(stateRestoreInProgress, true);
+              handleNext(pipe(scrollTop, skip(1)), (_value) => {
+                publish(stateRestoreInProgress, false);
+              });
+              publish(scrollTo, { top: snapshot.scrollTop });
+            }
+          }
+        );
+        connect(
+          pipe(
+            viewportDimensions,
+            map(({ height }) => height)
+          ),
+          viewportHeight
+        );
+        connect(
+          pipe(
+            combineLatest(
+              duc(viewportDimensions, dimensionComparator),
+              duc(itemDimensions, dimensionComparator),
+              duc(gap, (prev, next) => prev && prev.column === next.column && prev.row === next.row),
+              duc(scrollTop)
+            ),
+            map(([viewport2, item, gap2, scrollTop2]) => ({
+              viewport: viewport2,
+              item,
+              gap: gap2,
+              scrollTop: scrollTop2
+            }))
+          ),
+          stateChanged
+        );
+        connect(
+          pipe(
+            combineLatest(
+              duc(totalCount),
+              visibleRange,
+              duc(gap, gapComparator),
+              duc(itemDimensions, dimensionComparator),
+              duc(viewportDimensions, dimensionComparator),
+              duc(data),
+              duc(initialItemCount),
+              duc(stateRestoreInProgress),
+              duc(scrolledToInitialItem),
+              duc(initialTopMostItemIndex)
+            ),
+            filter(([, , , , , , , stateRestoreInProgress2]) => {
+              return !stateRestoreInProgress2;
+            }),
+            map(
+              ([
+                totalCount2,
+                [startOffset, endOffset],
+                gap2,
+                item,
+                viewport2,
+                data2,
+                initialItemCount2,
+                ,
+                scrolledToInitialItem2,
+                initialTopMostItemIndex2
+              ]) => {
+                const { row: rowGap, column: columnGap } = gap2;
+                const { height: itemHeight, width: itemWidth } = item;
+                const { width: viewportWidth } = viewport2;
+                if (initialItemCount2 === 0 && (totalCount2 === 0 || viewportWidth === 0)) {
+                  return INITIAL_GRID_STATE;
+                }
+                if (itemWidth === 0) {
+                  const startIndex2 = getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2);
+                  const endIndex2 = startIndex2 + Math.max(initialItemCount2 - 1, 0);
+                  return buildProbeGridState(buildItems(startIndex2, endIndex2, data2));
+                }
+                const perRow = itemsPerRow(viewportWidth, itemWidth, columnGap);
+                let startIndex;
+                let endIndex;
+                if (!scrolledToInitialItem2) {
+                  startIndex = 0;
+                  endIndex = -1;
+                } else if (startOffset === 0 && endOffset === 0 && initialItemCount2 > 0) {
+                  startIndex = 0;
+                  endIndex = initialItemCount2 - 1;
+                } else {
+                  startIndex = perRow * floor((startOffset + rowGap) / (itemHeight + rowGap));
+                  endIndex = perRow * ceil((endOffset + rowGap) / (itemHeight + rowGap)) - 1;
+                  endIndex = min$1(totalCount2 - 1, max$2(endIndex, perRow - 1));
+                  startIndex = min$1(endIndex, max$2(0, startIndex));
+                }
+                const items = buildItems(startIndex, endIndex, data2);
+                const { top: top2, bottom: bottom2 } = gridLayout(viewport2, gap2, item, items);
+                const rowCount = ceil(totalCount2 / perRow);
+                const totalHeight = rowCount * itemHeight + (rowCount - 1) * rowGap;
+                const offsetBottom = totalHeight - bottom2;
+                return { items, offsetTop: top2, offsetBottom, top: top2, bottom: bottom2, itemHeight, itemWidth };
+              }
+            )
+          ),
+          gridState
+        );
+        connect(
+          pipe(
+            data,
+            filter((data2) => data2 !== null),
+            map((data2) => data2.length)
+          ),
+          totalCount
+        );
+        connect(
+          pipe(
+            combineLatest(viewportDimensions, itemDimensions, gridState, gap),
+            filter(([viewportDimensions2, itemDimensions2, { items }]) => {
+              return items.length > 0 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0;
+            }),
+            map(([viewportDimensions2, itemDimensions2, { items }, gap2]) => {
+              const { top: top2, bottom: bottom2 } = gridLayout(viewportDimensions2, gap2, itemDimensions2, items);
+              return [top2, bottom2];
+            }),
+            distinctUntilChanged(tupleComparator)
+          ),
+          listBoundary
+        );
+        const hasScrolled = statefulStream(false);
+        connect(
+          pipe(
+            scrollTop,
+            withLatestFrom(hasScrolled),
+            map(([scrollTop2, hasScrolled2]) => {
+              return hasScrolled2 || scrollTop2 !== 0;
+            })
+          ),
+          hasScrolled
+        );
+        const endReached = streamFromEmitter(
+          pipe(
+            combineLatest(gridState, totalCount),
+            filter(([{ items }]) => items.length > 0),
+            withLatestFrom(hasScrolled),
+            filter(([[gridState2, totalCount2], hasScrolled2]) => {
+              const lastIndex = gridState2.items[gridState2.items.length - 1].index;
+              const isLastItemRendered = lastIndex === totalCount2 - 1;
+              if (hasScrolled2) return isLastItemRendered;
+              const isFullyRendered = gridState2.bottom > 0 && gridState2.itemHeight > 0 && gridState2.offsetBottom === 0 && gridState2.items.length === totalCount2;
+              return isFullyRendered && isLastItemRendered;
+            }),
+            map(([[, totalCount2]]) => {
+              return totalCount2 - 1;
+            }),
+            distinctUntilChanged()
+          )
+        );
+        const startReached = streamFromEmitter(
+          pipe(
+            duc(gridState),
+            filter(({ items }) => {
+              return items.length > 0 && items[0].index === 0;
+            }),
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+            mapTo(0),
+            distinctUntilChanged()
+          )
+        );
+        const rangeChanged = streamFromEmitter(
+          pipe(
+            duc(gridState),
+            withLatestFrom(stateRestoreInProgress),
+            filter(([{ items }, stateRestoreInProgress2]) => items.length > 0 && !stateRestoreInProgress2),
+            map(([{ items }]) => {
+              return {
+                startIndex: items[0].index,
+                endIndex: items[items.length - 1].index
+              };
+            }),
+            distinctUntilChanged(rangeComparator),
+            throttleTime(0)
+          )
+        );
+        connect(rangeChanged, scrollSeek.scrollSeekRangeChanged);
+        connect(
+          pipe(
+            scrollToIndex,
+            withLatestFrom(viewportDimensions, itemDimensions, totalCount, gap),
+            map(([location, viewportDimensions2, itemDimensions2, totalCount2, gap2]) => {
+              const normalLocation = normalizeIndexLocation(location);
+              const { align, behavior, offset: offset2 } = normalLocation;
+              let index = normalLocation.index;
+              if (index === "LAST") {
+                index = totalCount2 - 1;
+              }
+              index = max$2(0, index, min$1(totalCount2 - 1, index));
+              let top2 = itemTop(viewportDimensions2, gap2, itemDimensions2, index);
+              if (align === "end") {
+                top2 = round(top2 - viewportDimensions2.height + itemDimensions2.height);
+              } else if (align === "center") {
+                top2 = round(top2 - viewportDimensions2.height / 2 + itemDimensions2.height / 2);
+              }
+              if (offset2) {
+                top2 += offset2;
+              }
+              return { top: top2, behavior };
+            })
+          ),
+          scrollTo
+        );
+        const totalListHeight = statefulStreamFromEmitter(
+          pipe(
+            gridState,
+            map((gridState2) => {
+              return gridState2.offsetBottom + gridState2.bottom;
+            })
+          ),
+          0
+        );
+        connect(
+          pipe(
+            windowViewportRect,
+            map((viewportInfo) => ({ width: viewportInfo.visibleWidth, height: viewportInfo.visibleHeight }))
+          ),
+          viewportDimensions
+        );
+        return {
+          // input
+          data,
+          totalCount,
+          viewportDimensions,
+          itemDimensions,
+          scrollTop,
+          scrollHeight,
+          overscan,
+          increaseViewportBy,
+          scrollBy,
+          scrollTo,
+          scrollToIndex,
+          smoothScrollTargetReached,
+          windowViewportRect,
+          windowScrollTo,
+          useWindowScroll,
+          customScrollParent,
+          windowScrollContainerState,
+          deviation,
+          scrollContainerState,
+          footerHeight,
+          headerHeight,
+          initialItemCount,
+          gap,
+          restoreStateFrom,
+          ...scrollSeek,
+          initialTopMostItemIndex,
+          horizontalDirection,
+          // output
+          gridState,
+          totalListHeight,
+          ...stateFlags,
+          startReached,
+          endReached,
+          rangeChanged,
+          stateChanged,
+          propsReady,
+          stateRestoreInProgress,
+          ...log
+        };
+      },
+      tup(sizeRangeSystem, domIOSystem, stateFlagsSystem, scrollSeekSystem, propsReadySystem, windowScrollerSystem, loggerSystem)
+    );
+    function gridLayout(viewport2, gap, item, items) {
+      const { height: itemHeight } = item;
+      if (itemHeight === void 0 || items.length === 0) {
+        return { top: 0, bottom: 0 };
+      }
+      const top2 = itemTop(viewport2, gap, item, items[0].index);
+      const bottom2 = itemTop(viewport2, gap, item, items[items.length - 1].index) + itemHeight;
+      return { top: top2, bottom: bottom2 };
+    }
+    function itemTop(viewport2, gap, item, index) {
+      const perRow = itemsPerRow(viewport2.width, item.width, gap.column);
+      const rowCount = floor(index / perRow);
+      const top2 = rowCount * item.height + max$2(0, rowCount - 1) * gap.row;
+      return top2 > 0 ? top2 + gap.row : top2;
+    }
+    function itemsPerRow(viewportWidth, itemWidth, gap) {
+      return max$2(1, floor((viewportWidth + gap) / (floor(itemWidth) + gap)));
+    }
+    const gridComponentPropsSystem = /* @__PURE__ */ system(() => {
+      const itemContent = statefulStream((index) => `Item ${index}`);
+      const components = statefulStream({});
+      const context = statefulStream(null);
+      const itemClassName = statefulStream("virtuoso-grid-item");
+      const listClassName = statefulStream("virtuoso-grid-list");
+      const computeItemKey = statefulStream(identity);
+      const headerFooterTag = statefulStream("div");
+      const scrollerRef = statefulStream(noop);
+      const distinctProp = (propName, defaultValue = null) => {
+        return statefulStreamFromEmitter(
+          pipe(
+            components,
+            map((components2) => components2[propName]),
+            distinctUntilChanged()
+          ),
+          defaultValue
+        );
+      };
+      const readyStateChanged = statefulStream(false);
+      const reportReadyState = statefulStream(false);
+      connect(duc(reportReadyState), readyStateChanged);
+      return {
+        readyStateChanged,
+        reportReadyState,
+        context,
+        itemContent,
+        components,
+        computeItemKey,
+        itemClassName,
+        listClassName,
+        headerFooterTag,
+        scrollerRef,
+        FooterComponent: distinctProp("Footer"),
+        HeaderComponent: distinctProp("Header"),
+        ListComponent: distinctProp("List", "div"),
+        ItemComponent: distinctProp("Item", "div"),
+        ScrollerComponent: distinctProp("Scroller", "div"),
+        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder", "div")
+      };
+    });
+    const combinedSystem$1 = /* @__PURE__ */ system(([gridSystem2, gridComponentPropsSystem2]) => {
+      return { ...gridSystem2, ...gridComponentPropsSystem2 };
+    }, tup(gridSystem, gridComponentPropsSystem));
+    const GridItems = /* @__PURE__ */ xn.memo(function GridItems2() {
+      const gridState = useEmitterValue$1("gridState");
+      const listClassName = useEmitterValue$1("listClassName");
+      const itemClassName = useEmitterValue$1("itemClassName");
+      const itemContent = useEmitterValue$1("itemContent");
+      const computeItemKey = useEmitterValue$1("computeItemKey");
+      const isSeeking = useEmitterValue$1("isSeeking");
+      const scrollHeightCallback = usePublisher$1("scrollHeight");
+      const ItemComponent = useEmitterValue$1("ItemComponent");
+      const ListComponent = useEmitterValue$1("ListComponent");
+      const ScrollSeekPlaceholder = useEmitterValue$1("ScrollSeekPlaceholder");
+      const context = useEmitterValue$1("context");
+      const itemDimensions = usePublisher$1("itemDimensions");
+      const gridGap = usePublisher$1("gap");
+      const log = useEmitterValue$1("log");
+      const stateRestoreInProgress = useEmitterValue$1("stateRestoreInProgress");
+      const reportReadyState = usePublisher$1("reportReadyState");
+      const listRef = useSize(
+        xn.useMemo(
+          () => (el) => {
+            const scrollHeight = el.parentElement.parentElement.scrollHeight;
+            scrollHeightCallback(scrollHeight);
+            const firstItem = el.firstChild;
+            if (firstItem) {
+              const { width, height } = firstItem.getBoundingClientRect();
+              itemDimensions({ width, height });
+            }
+            gridGap({
+              row: resolveGapValue("row-gap", getComputedStyle(el).rowGap, log),
+              column: resolveGapValue("column-gap", getComputedStyle(el).columnGap, log)
+            });
+          },
+          [scrollHeightCallback, itemDimensions, gridGap, log]
+        ),
+        true,
+        false
+      );
+      useIsomorphicLayoutEffect(() => {
+        if (gridState.itemHeight > 0 && gridState.itemWidth > 0) {
+          reportReadyState(true);
+        }
+      }, [gridState]);
+      if (stateRestoreInProgress) {
+        return null;
+      }
+      return /* @__PURE__ */ u(
+        ListComponent,
+        {
+          ref: listRef,
+          className: listClassName,
+          ...contextPropIfNotDomElement(ListComponent, context),
+          style: { paddingTop: gridState.offsetTop, paddingBottom: gridState.offsetBottom },
+          "data-testid": "virtuoso-item-list",
+          children: gridState.items.map((item) => {
+            const key2 = computeItemKey(item.index, item.data, context);
+            return isSeeking ? /* @__PURE__ */ u(
+              ScrollSeekPlaceholder,
+              {
+                ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
+                index: item.index,
+                height: gridState.itemHeight,
+                width: gridState.itemWidth
+              },
+              key2
+            ) : /* @__PURE__ */ g$2(
+              ItemComponent,
+              {
+                ...contextPropIfNotDomElement(ItemComponent, context),
+                className: itemClassName,
+                "data-index": item.index,
+                key: key2
+              },
+              itemContent(item.index, item.data, context)
+            );
+          })
+        }
+      );
+    });
+    const Header = xn.memo(function VirtuosoHeader2() {
+      const Header2 = useEmitterValue$1("HeaderComponent");
+      const headerHeight = usePublisher$1("headerHeight");
+      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
+      const ref = useSize(
+        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
+        true,
+        false
+      );
+      const context = useEmitterValue$1("context");
+      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
+    });
+    const Footer = xn.memo(function VirtuosoGridFooter() {
+      const Footer2 = useEmitterValue$1("FooterComponent");
+      const footerHeight = usePublisher$1("footerHeight");
+      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
+      const ref = useSize(
+        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
+        true,
+        false
+      );
+      const context = useEmitterValue$1("context");
+      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
+    });
+    const Viewport$1 = ({ children: children2 }) => {
+      const ctx = xn.useContext(VirtuosoGridMockContext);
+      const itemDimensions = usePublisher$1("itemDimensions");
+      const viewportDimensions = usePublisher$1("viewportDimensions");
+      const viewportRef = useSize(
+        xn.useMemo(
+          () => (el) => {
+            viewportDimensions(el.getBoundingClientRect());
+          },
+          [viewportDimensions]
+        ),
+        true,
+        false
+      );
+      xn.useEffect(() => {
+        if (ctx) {
+          viewportDimensions({ height: ctx.viewportHeight, width: ctx.viewportWidth });
+          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
+        }
+      }, [ctx, viewportDimensions, itemDimensions]);
+      return /* @__PURE__ */ u("div", { style: viewportStyle(false), ref: viewportRef, children: children2 });
+    };
+    const WindowViewport$1 = ({ children: children2 }) => {
+      const ctx = xn.useContext(VirtuosoGridMockContext);
+      const windowViewportRect = usePublisher$1("windowViewportRect");
+      const itemDimensions = usePublisher$1("itemDimensions");
+      const customScrollParent = useEmitterValue$1("customScrollParent");
+      const viewportRef = useWindowViewportRectRef(windowViewportRect, customScrollParent, false);
+      xn.useEffect(() => {
+        if (ctx) {
+          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
+          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: ctx.viewportWidth });
+        }
+      }, [ctx, windowViewportRect, itemDimensions]);
+      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(false), children: children2 });
+    };
+    const GridRoot = /* @__PURE__ */ xn.memo(function GridRoot2({ ...props }) {
+      const useWindowScroll = useEmitterValue$1("useWindowScroll");
+      const customScrollParent = useEmitterValue$1("customScrollParent");
+      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$1 : Scroller$1;
+      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$1 : Viewport$1;
+      return /* @__PURE__ */ u(TheScroller, { ...props, children: /* @__PURE__ */ u(TheViewport, { children: [
+        /* @__PURE__ */ u(Header, {}),
+        /* @__PURE__ */ u(GridItems, {}),
+        /* @__PURE__ */ u(Footer, {})
+      ] }) });
+    });
+    const {
+      Component: Grid,
+      usePublisher: usePublisher$1,
+      useEmitterValue: useEmitterValue$1,
+      useEmitter: useEmitter$1
+    } = /* @__PURE__ */ systemToComponent(
+      combinedSystem$1,
+      {
+        optional: {
+          context: "context",
+          totalCount: "totalCount",
+          overscan: "overscan",
+          itemContent: "itemContent",
+          components: "components",
+          computeItemKey: "computeItemKey",
+          data: "data",
+          initialItemCount: "initialItemCount",
+          scrollSeekConfiguration: "scrollSeekConfiguration",
+          headerFooterTag: "headerFooterTag",
+          listClassName: "listClassName",
+          itemClassName: "itemClassName",
+          useWindowScroll: "useWindowScroll",
+          customScrollParent: "customScrollParent",
+          scrollerRef: "scrollerRef",
+          logLevel: "logLevel",
+          restoreStateFrom: "restoreStateFrom",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          increaseViewportBy: "increaseViewportBy"
+        },
+        methods: {
+          scrollTo: "scrollTo",
+          scrollBy: "scrollBy",
+          scrollToIndex: "scrollToIndex"
+        },
+        events: {
+          isScrolling: "isScrolling",
+          endReached: "endReached",
+          startReached: "startReached",
+          rangeChanged: "rangeChanged",
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          stateChanged: "stateChanged",
+          readyStateChanged: "readyStateChanged"
+        }
+      },
+      GridRoot
+    );
+    const Scroller$1 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
+    const WindowScroller$1 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
+    function resolveGapValue(property, value, log) {
+      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
+        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
+      }
+      if (value === "normal") {
+        return 0;
+      }
+      return parseInt(value != null ? value : "0", 10);
+    }
     const ChatView = ({
       id: id2,
       messages,
@@ -15665,6 +20098,64 @@ var require_assets = __commonJS({
       indented,
       numbered = true
     }) => {
+      const collapsedMessages = resolveMessages(messages);
+      const result = m$1`
+    <div style=${style2}>
+      ${collapsedMessages.map((msg, index) => {
+        const number2 = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
+        return m$1`<${ChatMessageRow}
+              id=${id2}
+              number=${number2}
+              resolvedMessage=${msg}
+              indented=${indented}
+              toolCallStyle=${toolCallStyle}/>`;
+      })}
+    </div>`;
+      return result;
+    };
+    const ChatMessageRow = ({
+      id: id2,
+      number: number2,
+      resolvedMessage,
+      toolCallStyle,
+      indented
+    }) => {
+      if (number2) {
+        return m$1` <div
+        style=${{
+          display: "grid",
+          gridTemplateColumns: "max-content auto",
+          columnGap: "0.4em"
+        }}
+      >
+        <div
+          style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.secondary,
+          marginTop: "0.1em"
+        }}
+        >
+          ${number2}
+        </div>
+        <${ChatMessage}
+          id=${`${id2}-chat-messages`}
+          message=${resolvedMessage.message}
+          toolMessages=${resolvedMessage.toolMessages}
+          indented=${indented}
+          toolCallStyle=${toolCallStyle}
+        />
+      </div>`;
+      } else {
+        return m$1`<${ChatMessage}
+        id=${`${id2}-chat-messages`}
+        message=${resolvedMessage.message}
+        toolMessages=${resolvedMessage.toolMessages}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />`;
+      }
+    };
+    const resolveMessages = (messages) => {
       const resolvedMessages = [];
       for (const message of messages) {
         if (message.role === "tool") {
@@ -15698,47 +20189,7 @@ var require_assets = __commonJS({
       if (systemMessage && systemMessage.content.length > 0) {
         collapsedMessages.unshift({ message: systemMessage });
       }
-      const result = m$1`
-    <div style=${style2}>
-      ${collapsedMessages.map((msg, index) => {
-        if (collapsedMessages.length > 1 && numbered) {
-          return m$1` <div
-            style=${{
-            display: "grid",
-            gridTemplateColumns: "max-content auto",
-            columnGap: "0.4em"
-          }}
-          >
-            <div
-              style=${{
-            fontSize: FontSize.smaller,
-            ...TextStyle.secondary,
-            marginTop: "0.1em"
-          }}
-            >
-              ${index + 1}
-            </div>
-            <${ChatMessage}
-              id=${`${id2}-chat-messages`}
-              message=${msg.message}
-              toolMessages=${msg.toolMessages}
-              indented=${indented}
-              toolCallStyle=${toolCallStyle}
-            />
-          </div>`;
-        } else {
-          return m$1` <${ChatMessage}
-            id=${`${id2}-chat-messages`}
-            message=${msg.message}
-            toolMessages=${msg.toolMessages}
-            indented=${indented}
-            toolCallStyle=${toolCallStyle}
-          />`;
-        }
-      })}
-    </div>
-  `;
-      return result;
+      return collapsedMessages;
     };
     const normalizeContent = (content2) => {
       if (typeof content2 === "string") {
@@ -17997,7 +22448,7 @@ ${entry.value}</pre
       let disposer;
       createRoot((dispose2) => {
         disposer = dispose2;
-        element === document ? code2() : insert$2(element, code2(), element.firstChild ? null : void 0, init2);
+        element === document ? code2() : insert$1(element, code2(), element.firstChild ? null : void 0, init2);
       }, options.owner);
       return () => {
         disposer();
@@ -18016,7 +22467,7 @@ ${entry.value}</pre
         const name2 = eventNames[i2];
         if (!e2.has(name2)) {
           e2.add(name2);
-          document2.addEventListener(name2, eventHandler$1);
+          document2.addEventListener(name2, eventHandler);
         }
       }
     }
@@ -18059,12 +22510,12 @@ ${entry.value}</pre
     function use(fn2, element, arg) {
       return untrack(() => fn2(element, arg));
     }
-    function insert$2(parent, accessor, marker, initial) {
+    function insert$1(parent, accessor, marker, initial) {
       if (marker !== void 0 && !initial) initial = [];
       if (typeof accessor !== "function") return insertExpression(parent, accessor, initial, marker);
       createRenderEffect((current) => insertExpression(parent, accessor(), current, marker), initial);
     }
-    function eventHandler$1(e2) {
+    function eventHandler(e2) {
       const key2 = `$$${e2.type}`;
       let node = e2.composedPath && e2.composedPath()[0] || e2.target;
       if (e2.target !== node) {
@@ -19452,7 +23903,7 @@ ${val.stack}`;
       const className$1 = createMemo(() => buildClassName(props.pen, codePoint(), props.extraClass));
       return (() => {
         const _el$ = _tmpl$$9.cloneNode(true);
-        insert$2(_el$, text2);
+        insert$1(_el$, text2);
         createRenderEffect((_p$) => {
           const _v$ = className$1(), _v$2 = style$1();
           _v$ !== _p$._v$ && className(_el$, _p$._v$ = _v$);
@@ -19570,7 +24021,7 @@ ${val.stack}`;
       };
       return (() => {
         const _el$ = _tmpl$$8.cloneNode(true);
-        insert$2(_el$, createComponent(Index, {
+        insert$1(_el$, createComponent(Index, {
           get each() {
             return segments();
           },
@@ -19604,7 +24055,7 @@ ${val.stack}`;
         const _el$ = _tmpl$$7.cloneNode(true);
         const _ref$ = props.ref;
         typeof _ref$ === "function" ? use(_ref$, _el$) : props.ref = _el$;
-        insert$2(_el$, createComponent(For, {
+        insert$1(_el$, createComponent(For, {
           get each() {
             return props.lines;
           },
@@ -19714,14 +24165,14 @@ ${val.stack}`;
         const _el$ = _tmpl$5.cloneNode(true), _el$5 = _el$.firstChild, _el$6 = _el$5.firstChild, _el$7 = _el$6.nextSibling, _el$12 = _el$5.nextSibling;
         const _ref$ = props.ref;
         typeof _ref$ === "function" ? use(_ref$, _el$) : props.ref = _el$;
-        insert$2(_el$, createComponent(Show, {
+        insert$1(_el$, createComponent(Show, {
           get when() {
             return props.isPausable;
           },
           get children() {
             const _el$2 = _tmpl$3.cloneNode(true);
             addEventListener(_el$2, "click", e2(props.onPlayClick));
-            insert$2(_el$2, createComponent(Switch, {
+            insert$1(_el$2, createComponent(Switch, {
               get children() {
                 return [createComponent(Match, {
                   get when() {
@@ -19743,9 +24194,9 @@ ${val.stack}`;
             return _el$2;
           }
         }), _el$5);
-        insert$2(_el$6, currentTime);
-        insert$2(_el$7, remainingTime);
-        insert$2(_el$, createComponent(Show, {
+        insert$1(_el$6, currentTime);
+        insert$1(_el$7, remainingTime);
+        insert$1(_el$, createComponent(Show, {
           get when() {
             return typeof props.progress === "number" || props.isSeekable;
           },
@@ -19753,7 +24204,7 @@ ${val.stack}`;
             const _el$8 = _tmpl$4.cloneNode(true), _el$9 = _el$8.firstChild, _el$10 = _el$9.firstChild, _el$11 = _el$10.nextSibling;
             _el$9.$$mousemove = onMove;
             _el$9.$$mousedown = onMouseDown;
-            insert$2(_el$9, createComponent(For, {
+            insert$1(_el$9, createComponent(For, {
               get each() {
                 return markers();
               },
@@ -19763,7 +24214,7 @@ ${val.stack}`;
                   e3._marker = true;
                 };
                 addEventListener(_el$13, "click", seekToMarker(i2()));
-                insert$2(_el$15, () => markerText(m2));
+                insert$1(_el$15, () => markerText(m2));
                 createRenderEffect((_p$) => {
                   const _v$ = markerPosition(m2), _v$2 = !!isPastMarker(m2);
                   _v$ !== _p$._v$ && _el$13.style.setProperty("left", _p$._v$ = _v$);
@@ -19803,7 +24254,7 @@ ${val.stack}`;
       };
       return (() => {
         const _el$ = _tmpl$$3.cloneNode(true), _el$2 = _el$.firstChild;
-        insert$2(_el$2, () => props.message);
+        insert$1(_el$2, () => props.message);
         createRenderEffect((_$p) => style(_el$2, style$1(), _$p));
         return _el$;
       })();
@@ -20280,7 +24731,7 @@ ${val.stack}`;
         typeof _ref$2 === "function" ? use(_ref$2, _el$2) : playerRef = _el$2;
         _el$2.$$mousemove = () => onUserActive(true);
         _el$2.addEventListener("mouseleave", playerOnMouseLeave);
-        insert$2(_el$2, createComponent(Terminal, {
+        insert$1(_el$2, createComponent(Terminal, {
           get cols() {
             return terminalCols();
           },
@@ -20313,7 +24764,7 @@ ${val.stack}`;
             typeof _ref$3 === "function" ? _ref$3(r$) : terminalRef = r$;
           }
         }), null);
-        insert$2(_el$2, createComponent(Show, {
+        insert$1(_el$2, createComponent(Show, {
           get when() {
             return props.controls !== false;
           },
@@ -20351,7 +24802,7 @@ ${val.stack}`;
             });
           }
         }), null);
-        insert$2(_el$2, createComponent(Switch, {
+        insert$1(_el$2, createComponent(Switch, {
           get children() {
             return [createComponent(Match, {
               get when() {
@@ -20393,7 +24844,7 @@ ${val.stack}`;
             })];
           }
         }), null);
-        insert$2(_el$2, createComponent(Show, {
+        insert$1(_el$2, createComponent(Show, {
           get when() {
             return isHelpVisible();
           },
@@ -20503,7 +24954,7 @@ ${val.stack}`;
         let v2 = 0;
         let values = [];
         let flushed = false;
-        const xf = compose$1(this.xfs, (val) => values.push(val));
+        const xf = compose(this.xfs, (val) => values.push(val));
         return {
           next: () => {
             if (v2 === values.length) {
@@ -20581,7 +25032,7 @@ ${val.stack}`;
         };
       };
     }
-    function compose$1(xfs, push2) {
+    function compose(xfs, push2) {
       return xfs.reverse().reduce((next, curr) => {
         const xf = toXf(curr(next.step));
         return {
@@ -21527,8 +25978,8 @@ ${events}
           return bufferTime;
         }
         latencies = latencies.slice(-windowSize);
-        const currentMinJitter = min$1(latencies);
-        const currentMaxJitter = max$2(latencies);
+        const currentMinJitter = min(latencies);
+        const currentMaxJitter = max$1(latencies);
         const currentJitterRange = currentMaxJitter - currentMinJitter;
         maxJitter = currentMaxJitter * smoothingFactor + maxJitter * (1 - smoothingFactor);
         jitterRange = currentJitterRange * smoothingFactor + jitterRange * (1 - smoothingFactor);
@@ -21568,10 +26019,10 @@ ${events}
         return bufferTime;
       };
     }
-    function min$1(numbers) {
+    function min(numbers) {
       return numbers.reduce((prev, cur2) => cur2 < prev ? cur2 : prev);
     }
-    function max$2(numbers) {
+    function max$1(numbers) {
       return numbers.reduce((prev, cur2) => cur2 > prev ? cur2 : prev);
     }
     function exponentialDelay(attempt) {
@@ -22785,7 +27236,7 @@ ${events}
       const regexMatch = /^\/(.*)\/([gimyu]*)$/.exec(re.toString());
       return new RegExp(regexMatch[1], regexMatch[2]);
     }
-    function clone$1(arg) {
+    function clone(arg) {
       if (typeof arg !== "object") {
         return arg;
       }
@@ -22793,7 +27244,7 @@ ${events}
         return null;
       }
       if (Array.isArray(arg)) {
-        return arg.map(clone$1);
+        return arg.map(clone);
       }
       if (arg instanceof Date) {
         return new Date(arg.getTime());
@@ -22804,7 +27255,7 @@ ${events}
       const cloned = {};
       for (const name2 in arg) {
         if (Object.prototype.hasOwnProperty.call(arg, name2)) {
-          cloned[name2] = clone$1(arg[name2]);
+          cloned[name2] = clone(arg[name2]);
         }
       }
       return cloned;
@@ -22818,12 +27269,12 @@ ${events}
       }
       setResult(result) {
         if (this.options.cloneDiffValues && typeof result === "object") {
-          const clone2 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone$1;
+          const clone$12 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
           if (typeof result[0] === "object") {
-            result[0] = clone2(result[0]);
+            result[0] = clone$12(result[0]);
           }
           if (typeof result[1] === "object") {
-            result[1] = clone2(result[1]);
+            result[1] = clone$12(result[1]);
           }
         }
         return super.setResult(result);
@@ -23647,7 +28098,7 @@ ${events}
         return this.patch(right2, this.reverse(delta));
       }
       clone(value) {
-        return clone$1(value);
+        return clone(value);
       }
     }
     let defaultInstance$1;
@@ -24996,4453 +29447,21 @@ ${events}
         this.depth = depth;
       }
     }
-    function g(n2, t2) {
-      for (var e2 in n2) if ("__source" !== e2 && !(e2 in t2)) return true;
-      for (var r2 in t2) if ("__source" !== r2 && n2[r2] !== t2[r2]) return true;
-      return false;
-    }
-    function E(n2, t2) {
-      var e2 = t2(), r2 = h({ t: { __: e2, u: t2 } }), u2 = r2[0].t, o2 = r2[1];
-      return _(function() {
-        u2.__ = e2, u2.u = t2, C$1(u2) && o2({ t: u2 });
-      }, [n2, e2, t2]), y(function() {
-        return C$1(u2) && o2({ t: u2 }), n2(function() {
-          C$1(u2) && o2({ t: u2 });
-        });
-      }, [n2]), e2;
-    }
-    function C$1(n2) {
-      var t2, e2, r2 = n2.u, u2 = n2.__;
-      try {
-        var o2 = r2();
-        return !((t2 = u2) === (e2 = o2) && (0 !== t2 || 1 / t2 == 1 / e2) || t2 != t2 && e2 != e2);
-      } catch (n3) {
-        return true;
-      }
-    }
-    function x$1(n2) {
-      n2();
-    }
-    function R(n2) {
-      return n2;
-    }
-    function w() {
-      return [false, x$1];
-    }
-    var k = _;
-    function I(n2, t2) {
-      this.props = n2, this.context = t2;
-    }
-    function N(n2, e2) {
-      function r2(n3) {
-        var t2 = this.props.ref, r3 = t2 == n3.ref;
-        return !r3 && t2 && (t2.call ? t2(null) : t2.current = null), e2 ? !e2(this.props, n3) || !r3 : g(this.props, n3);
-      }
-      function u2(e3) {
-        return this.shouldComponentUpdate = r2, g$2(n2, e3);
-      }
-      return u2.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u2.prototype.isReactComponent = true, u2.__f = true, u2;
-    }
-    (I.prototype = new x$3()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
-      return g(this.props, n2) || g(this.state, t2);
-    };
-    var M = l$1.__b;
-    l$1.__b = function(n2) {
-      n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), M && M(n2);
-    };
-    var T = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
-    function A(n2) {
-      function t2(t3) {
-        if (!("ref" in t3)) return n2(t3, null);
-        var e2 = t3.ref;
-        delete t3.ref;
-        var r2 = n2(t3, e2);
-        return t3.ref = e2, r2;
-      }
-      return t2.$$typeof = T, t2.render = t2, t2.prototype.isReactComponent = t2.__f = true, t2.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t2;
-    }
-    var D = function(n2, t2) {
-      return null == n2 ? null : L$1(L$1(n2).map(t2));
-    }, L = { map: D, forEach: D, count: function(n2) {
-      return n2 ? L$1(n2).length : 0;
-    }, only: function(n2) {
-      var t2 = L$1(n2);
-      if (1 !== t2.length) throw "Children.only";
-      return t2[0];
-    }, toArray: L$1 }, O = l$1.__e;
-    l$1.__e = function(n2, t2, e2, r2) {
-      if (n2.then) {
-        for (var u2, o2 = t2; o2 = o2.__; ) if ((u2 = o2.__c) && u2.__c) return null == t2.__e && (t2.__e = e2.__e, t2.__k = e2.__k), u2.__c(n2, t2);
-      }
-      O(n2, t2, e2, r2);
-    };
-    var F = l$1.unmount;
-    function U(n2, t2, e2) {
-      return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
-        "function" == typeof n3.__c && n3.__c();
-      }), n2.__c.__H = null), null != (n2 = function(n3, t3) {
-        for (var e3 in t3) n3[e3] = t3[e3];
-        return n3;
-      }({}, n2)).__c && (n2.__c.__P === e2 && (n2.__c.__P = t2), n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return U(n3, t2, e2);
-      })), n2;
-    }
-    function V(n2, t2, e2) {
-      return n2 && e2 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return V(n3, t2, e2);
-      }), n2.__c && n2.__c.__P === t2 && (n2.__e && e2.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e2)), n2;
-    }
-    function W() {
-      this.__u = 0, this.o = null, this.__b = null;
-    }
-    function P(n2) {
-      var t2 = n2.__.__c;
-      return t2 && t2.__a && t2.__a(n2);
-    }
-    function j(n2) {
-      var e2, r2, u2;
-      function o2(o3) {
-        if (e2 || (e2 = n2()).then(function(n3) {
-          r2 = n3.default || n3;
-        }, function(n3) {
-          u2 = n3;
-        }), u2) throw u2;
-        if (!r2) throw e2;
-        return g$2(r2, o3);
-      }
-      return o2.displayName = "Lazy", o2.__f = true, o2;
-    }
-    function z() {
-      this.i = null, this.l = null;
-    }
-    l$1.unmount = function(n2) {
-      var t2 = n2.__c;
-      t2 && t2.__R && t2.__R(), t2 && 32 & n2.__u && (n2.type = null), F && F(n2);
-    }, (W.prototype = new x$3()).__c = function(n2, t2) {
-      var e2 = t2.__c, r2 = this;
-      null == r2.o && (r2.o = []), r2.o.push(e2);
-      var u2 = P(r2.__v), o2 = false, i2 = function() {
-        o2 || (o2 = true, e2.__R = null, u2 ? u2(c2) : c2());
-      };
-      e2.__R = i2;
-      var c2 = function() {
-        if (!--r2.__u) {
-          if (r2.state.__a) {
-            var n3 = r2.state.__a;
-            r2.__v.__k[0] = V(n3, n3.__c.__P, n3.__c.__O);
-          }
-          var t3;
-          for (r2.setState({ __a: r2.__b = null }); t3 = r2.o.pop(); ) t3.forceUpdate();
-        }
-      };
-      r2.__u++ || 32 & t2.__u || r2.setState({ __a: r2.__b = r2.__v.__k[0] }), n2.then(i2, i2);
-    }, W.prototype.componentWillUnmount = function() {
-      this.o = [];
-    }, W.prototype.render = function(n2, e2) {
-      if (this.__b) {
-        if (this.__v.__k) {
-          var r2 = document.createElement("div"), o2 = this.__v.__k[0].__c;
-          this.__v.__k[0] = U(this.__b, r2, o2.__O = o2.__P);
-        }
-        this.__b = null;
-      }
-      var i2 = e2.__a && g$2(k$2, null, n2.fallback);
-      return i2 && (i2.__u &= -33), [g$2(k$2, null, e2.__a ? null : n2.children), i2];
-    };
-    var B = function(n2, t2, e2) {
-      if (++e2[1] === e2[0] && n2.l.delete(t2), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e2 = n2.i; e2; ) {
-        for (; e2.length > 3; ) e2.pop()();
-        if (e2[1] < e2[0]) break;
-        n2.i = e2 = e2[2];
-      }
-    };
-    function H(n2) {
-      return this.getChildContext = function() {
-        return n2.context;
-      }, n2.children;
-    }
-    function Z(n2) {
-      var e2 = this, r2 = n2.h;
-      e2.componentWillUnmount = function() {
-        D$2(null, e2.v), e2.v = null, e2.h = null;
-      }, e2.h && e2.h !== r2 && e2.componentWillUnmount(), e2.v || (e2.h = r2, e2.v = { nodeType: 1, parentNode: r2, childNodes: [], contains: function() {
-        return true;
-      }, appendChild: function(n3) {
-        this.childNodes.push(n3), e2.h.appendChild(n3);
-      }, insertBefore: function(n3, t2) {
-        this.childNodes.push(n3), e2.h.insertBefore(n3, t2);
-      }, removeChild: function(n3) {
-        this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e2.h.removeChild(n3);
-      } }), D$2(g$2(H, { context: e2.context }, n2.__v), e2.v);
-    }
-    function Y(n2, e2) {
-      var r2 = g$2(Z, { __v: n2, h: e2 });
-      return r2.containerInfo = e2, r2;
-    }
-    (z.prototype = new x$3()).__a = function(n2) {
-      var t2 = this, e2 = P(t2.__v), r2 = t2.l.get(n2);
-      return r2[0]++, function(u2) {
-        var o2 = function() {
-          t2.props.revealOrder ? (r2.push(u2), B(t2, n2, r2)) : u2();
-        };
-        e2 ? e2(o2) : o2();
-      };
-    }, z.prototype.render = function(n2) {
-      this.i = null, this.l = /* @__PURE__ */ new Map();
-      var t2 = L$1(n2.children);
-      n2.revealOrder && "b" === n2.revealOrder[0] && t2.reverse();
-      for (var e2 = t2.length; e2--; ) this.l.set(t2[e2], this.i = [1, 0, this.i]);
-      return n2.children;
-    }, z.prototype.componentDidUpdate = z.prototype.componentDidMount = function() {
-      var n2 = this;
-      this.l.forEach(function(t2, e2) {
-        B(n2, e2, t2);
-      });
-    };
-    var $ = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103, q = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/, G = /^on(Ani|Tra|Tou|BeforeInp|Compo)/, J = /[A-Z0-9]/g, K = "undefined" != typeof document, Q = function(n2) {
-      return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
-    };
-    function X(n2, t2, e2) {
-      return null == t2.__k && (t2.textContent = ""), D$2(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    function nn(n2, t2, e2) {
-      return E$1(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    x$3.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
-      Object.defineProperty(x$3.prototype, t2, { configurable: true, get: function() {
-        return this["UNSAFE_" + t2];
-      }, set: function(n2) {
-        Object.defineProperty(this, t2, { configurable: true, writable: true, value: n2 });
-      } });
-    });
-    var tn = l$1.event;
-    function en() {
-    }
-    function rn() {
-      return this.cancelBubble;
-    }
-    function un() {
-      return this.defaultPrevented;
-    }
-    l$1.event = function(n2) {
-      return tn && (n2 = tn(n2)), n2.persist = en, n2.isPropagationStopped = rn, n2.isDefaultPrevented = un, n2.nativeEvent = n2;
-    };
-    var on, cn = { enumerable: false, configurable: true, get: function() {
-      return this.class;
-    } }, fn = l$1.vnode;
-    l$1.vnode = function(n2) {
-      "string" == typeof n2.type && function(n3) {
-        var t2 = n3.props, e2 = n3.type, u2 = {}, o2 = -1 === e2.indexOf("-");
-        for (var i2 in t2) {
-          var c2 = t2[i2];
-          if (!("value" === i2 && "defaultValue" in t2 && null == c2 || K && "children" === i2 && "noscript" === e2 || "class" === i2 || "className" === i2)) {
-            var f2 = i2.toLowerCase();
-            "defaultValue" === i2 && "value" in t2 && null == t2.value ? i2 = "value" : "download" === i2 && true === c2 ? c2 = "" : "translate" === f2 && "no" === c2 ? c2 = false : "o" === f2[0] && "n" === f2[1] ? "ondoubleclick" === f2 ? i2 = "ondblclick" : "onchange" !== f2 || "input" !== e2 && "textarea" !== e2 || Q(t2.type) ? "onfocus" === f2 ? i2 = "onfocusin" : "onblur" === f2 ? i2 = "onfocusout" : G.test(i2) && (i2 = f2) : f2 = i2 = "oninput" : o2 && q.test(i2) ? i2 = i2.replace(J, "-$&").toLowerCase() : null === c2 && (c2 = void 0), "oninput" === f2 && u2[i2 = f2] && (i2 = "oninputCapture"), u2[i2] = c2;
-          }
-        }
-        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = -1 != u2.value.indexOf(n4.props.value);
-        })), "select" == e2 && null != u2.defaultValue && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = u2.multiple ? -1 != u2.defaultValue.indexOf(n4.props.value) : u2.defaultValue == n4.props.value;
-        })), t2.class && !t2.className ? (u2.class = t2.class, Object.defineProperty(u2, "className", cn)) : (t2.className && !t2.class || t2.class && t2.className) && (u2.class = u2.className = t2.className), n3.props = u2;
-      }(n2), n2.$$typeof = $, fn && fn(n2);
-    };
-    var ln = l$1.__r;
-    l$1.__r = function(n2) {
-      ln && ln(n2), on = n2.__c;
-    };
-    var an = l$1.diffed;
-    l$1.diffed = function(n2) {
-      an && an(n2);
-      var t2 = n2.props, e2 = n2.__e;
-      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value), on = null;
-    };
-    var sn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
-      return on.__n[n2.__c].props.value;
-    }, useCallback: q$1, useContext: x$2, useDebugValue: P$2, useDeferredValue: R, useEffect: y, useId: g$1, useImperativeHandle: F$1, useInsertionEffect: k, useLayoutEffect: _, useMemo: T$1, useReducer: p, useRef: A$1, useState: h, useSyncExternalStore: E, useTransition: w } } };
-    function vn(n2) {
-      return g$2.bind(null, n2);
-    }
-    function dn(n2) {
-      return !!n2 && n2.$$typeof === $;
-    }
-    function pn(n2) {
-      return dn(n2) && n2.type === k$2;
-    }
-    function mn(n2) {
-      return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
-    }
-    function yn(n2) {
-      return dn(n2) ? G$1.apply(null, arguments) : n2;
-    }
-    function _n(n2) {
-      return !!n2.__k && (D$2(null, n2), true);
-    }
-    function bn(n2) {
-      return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
-    }
-    var Sn = function(n2, t2) {
-      return n2(t2);
-    }, gn = function(n2, t2) {
-      return n2(t2);
-    }, En = k$2, Cn = dn, xn = { useState: h, useId: g$1, useReducer: p, useEffect: y, useLayoutEffect: _, useInsertionEffect: k, useTransition: w, useDeferredValue: R, useSyncExternalStore: E, startTransition: x$1, useRef: A$1, useImperativeHandle: F$1, useMemo: T$1, useCallback: q$1, useContext: x$2, useDebugValue: P$2, version: "18.3.1", Children: L, render: X, hydrate: nn, unmountComponentAtNode: _n, createPortal: Y, createElement: g$2, createContext: J$1, createFactory: vn, cloneElement: yn, createRef: b, Fragment: k$2, isValidElement: dn, isElement: Cn, isFragment: pn, isMemo: mn, findDOMNode: bn, Component: x$3, PureComponent: I, memo: N, forwardRef: A, flushSync: gn, unstable_batchedUpdates: Sn, StrictMode: En, Suspense: W, SuspenseList: z, lazy: j, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: sn };
-    var f = 0;
-    function u(e2, t2, n2, o2, i2, u2) {
-      t2 || (t2 = {});
-      var a2, c2, l2 = t2;
-      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
-      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
-      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
-      return l$1.vnode && l$1.vnode(p2), p2;
-    }
-    const PUBLISH = 0;
-    const SUBSCRIBE = 1;
-    const RESET = 2;
-    const VALUE = 4;
-    function compose(a2, b2) {
-      return (arg) => a2(b2(arg));
-    }
-    function thrush(arg, proc) {
-      return proc(arg);
-    }
-    function curry2to1(proc, arg1) {
-      return (arg2) => proc(arg1, arg2);
-    }
-    function curry1to0(proc, arg) {
-      return () => proc(arg);
-    }
-    function tap(arg, proc) {
-      proc(arg);
-      return arg;
-    }
-    function tup(...args) {
-      return args;
-    }
-    function call(proc) {
-      proc();
-    }
-    function always(value) {
-      return () => value;
-    }
-    function joinProc(...procs) {
-      return () => {
-        procs.map(call);
-      };
-    }
-    function isDefined(arg) {
-      return arg !== void 0;
-    }
-    function noop() {
-    }
-    function subscribe(emitter, subscription) {
-      return emitter(SUBSCRIBE, subscription);
-    }
-    function publish(publisher, value) {
-      publisher(PUBLISH, value);
-    }
-    function reset(emitter) {
-      emitter(RESET);
-    }
-    function getValue(depot) {
-      return depot(VALUE);
-    }
-    function connect(emitter, publisher) {
-      return subscribe(emitter, curry2to1(publisher, PUBLISH));
-    }
-    function handleNext(emitter, subscription) {
-      const unsub = emitter(SUBSCRIBE, (value) => {
-        unsub();
-        subscription(value);
-      });
-      return unsub;
-    }
-    function stream() {
-      const subscriptions = [];
-      return (action, arg) => {
-        switch (action) {
-          case RESET:
-            subscriptions.splice(0, subscriptions.length);
-            return;
-          case SUBSCRIBE:
-            subscriptions.push(arg);
-            return () => {
-              const indexOf = subscriptions.indexOf(arg);
-              if (indexOf > -1) {
-                subscriptions.splice(indexOf, 1);
-              }
-            };
-          case PUBLISH:
-            subscriptions.slice().forEach((subscription) => {
-              subscription(arg);
-            });
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function statefulStream(initial) {
-      let value = initial;
-      const innerSubject = stream();
-      return (action, arg) => {
-        switch (action) {
-          case SUBSCRIBE:
-            const subscription = arg;
-            subscription(value);
-            break;
-          case PUBLISH:
-            value = arg;
-            break;
-          case VALUE:
-            return value;
-        }
-        return innerSubject(action, arg);
-      };
-    }
-    function eventHandler(emitter) {
-      let unsub;
-      let currentSubscription;
-      const cleanup = () => unsub && unsub();
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            if (subscription) {
-              if (currentSubscription === subscription) {
-                return;
-              }
-              cleanup();
-              currentSubscription = subscription;
-              unsub = subscribe(emitter, subscription);
-              return unsub;
-            } else {
-              cleanup();
-              return noop;
-            }
-          case RESET:
-            cleanup();
-            currentSubscription = null;
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function streamFromEmitter(emitter) {
-      return tap(stream(), (stream2) => connect(emitter, stream2));
-    }
-    function statefulStreamFromEmitter(emitter, initial) {
-      return tap(statefulStream(initial), (stream2) => connect(emitter, stream2));
-    }
-    function combineOperators(...operators) {
-      return (subscriber) => {
-        return operators.reduceRight(thrush, subscriber);
-      };
-    }
-    function pipe(source2, ...operators) {
-      const project = combineOperators(...operators);
-      return (action, subscription) => {
-        switch (action) {
-          case SUBSCRIBE:
-            return subscribe(source2, project(subscription));
-          case RESET:
-            reset(source2);
-            return;
-        }
-      };
-    }
-    function defaultComparator(previous, next) {
-      return previous === next;
-    }
-    function distinctUntilChanged(comparator = defaultComparator) {
-      let current;
-      return (done) => (next) => {
-        if (!comparator(current, next)) {
-          current = next;
-          done(next);
-        }
-      };
-    }
-    function filter(predicate) {
-      return (done) => (value) => {
-        predicate(value) && done(value);
-      };
-    }
-    function map(project) {
-      return (done) => compose(done, project);
-    }
-    function mapTo(value) {
-      return (done) => () => done(value);
-    }
-    function scan(scanner, initial) {
-      return (done) => (value) => done(initial = scanner(initial, value));
-    }
-    function skip(times) {
-      return (done) => (value) => {
-        times > 0 ? times-- : done(value);
-      };
-    }
-    function throttleTime(interval) {
-      let currentValue = null;
-      let timeout;
-      return (done) => (value) => {
-        currentValue = value;
-        if (timeout) {
-          return;
-        }
-        timeout = setTimeout(() => {
-          timeout = void 0;
-          done(currentValue);
-        }, interval);
-      };
-    }
-    function debounceTime(interval) {
-      let currentValue;
-      let timeout;
-      return (done) => (value) => {
-        currentValue = value;
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        timeout = setTimeout(() => {
-          done(currentValue);
-        }, interval);
-      };
-    }
-    function withLatestFrom(...sources) {
-      const values = new Array(sources.length);
-      let called = 0;
-      let pendingCall = null;
-      const allCalled = Math.pow(2, sources.length) - 1;
-      sources.forEach((source2, index) => {
-        const bit = Math.pow(2, index);
-        subscribe(source2, (value) => {
-          const prevCalled = called;
-          called = called | bit;
-          values[index] = value;
-          if (prevCalled !== allCalled && called === allCalled && pendingCall) {
-            pendingCall();
-            pendingCall = null;
-          }
-        });
-      });
-      return (done) => (value) => {
-        const call2 = () => done([value].concat(values));
-        if (called === allCalled) {
-          call2();
-        } else {
-          pendingCall = call2;
-        }
-      };
-    }
-    function merge(...sources) {
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            return joinProc(...sources.map((source2) => subscribe(source2, subscription)));
-          case RESET:
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function duc(source2, comparator = defaultComparator) {
-      return pipe(source2, distinctUntilChanged(comparator));
-    }
-    function combineLatest(...emitters) {
-      const innerSubject = stream();
-      const values = new Array(emitters.length);
-      let called = 0;
-      const allCalled = Math.pow(2, emitters.length) - 1;
-      emitters.forEach((source2, index) => {
-        const bit = Math.pow(2, index);
-        subscribe(source2, (value) => {
-          values[index] = value;
-          called = called | bit;
-          if (called === allCalled) {
-            publish(innerSubject, values);
-          }
-        });
-      });
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            if (called === allCalled) {
-              subscription(values);
-            }
-            return subscribe(innerSubject, subscription);
-          case RESET:
-            return reset(innerSubject);
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function system(constructor, dependencies = [], { singleton } = { singleton: true }) {
-      return {
-        id: id(),
-        constructor,
-        dependencies,
-        singleton
-      };
-    }
-    const id = () => Symbol();
-    function init(systemSpec) {
-      const singletons = /* @__PURE__ */ new Map();
-      const _init = ({ id: id2, constructor, dependencies, singleton }) => {
-        if (singleton && singletons.has(id2)) {
-          return singletons.get(id2);
-        }
-        const system2 = constructor(dependencies.map((e2) => _init(e2)));
-        if (singleton) {
-          singletons.set(id2, system2);
-        }
-        return system2;
-      };
-      return _init(systemSpec);
-    }
-    function omit(keys, obj) {
-      const result = {};
-      const index = {};
-      let idx = 0;
-      const len = keys.length;
-      while (idx < len) {
-        index[keys[idx]] = 1;
-        idx += 1;
-      }
-      for (const prop in obj) {
-        if (!index.hasOwnProperty(prop)) {
-          result[prop] = obj[prop];
-        }
-      }
-      return result;
-    }
-    const useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
-    function systemToComponent(systemSpec, map2, Root) {
-      const requiredPropNames = Object.keys(map2.required || {});
-      const optionalPropNames = Object.keys(map2.optional || {});
-      const methodNames = Object.keys(map2.methods || {});
-      const eventNames = Object.keys(map2.events || {});
-      const Context2 = xn.createContext({});
-      function applyPropsToSystem(system2, props) {
-        if (system2["propsReady"]) {
-          publish(system2["propsReady"], false);
-        }
-        for (const requiredPropName of requiredPropNames) {
-          const stream2 = system2[map2.required[requiredPropName]];
-          publish(stream2, props[requiredPropName]);
-        }
-        for (const optionalPropName of optionalPropNames) {
-          if (optionalPropName in props) {
-            const stream2 = system2[map2.optional[optionalPropName]];
-            publish(stream2, props[optionalPropName]);
-          }
-        }
-        if (system2["propsReady"]) {
-          publish(system2["propsReady"], true);
-        }
-      }
-      function buildMethods(system2) {
-        return methodNames.reduce((acc, methodName) => {
-          acc[methodName] = (value) => {
-            const stream2 = system2[map2.methods[methodName]];
-            publish(stream2, value);
-          };
-          return acc;
-        }, {});
-      }
-      function buildEventHandlers(system2) {
-        return eventNames.reduce((handlers2, eventName) => {
-          handlers2[eventName] = eventHandler(system2[map2.events[eventName]]);
-          return handlers2;
-        }, {});
-      }
-      const Component = xn.forwardRef((propsWithChildren, ref) => {
-        const { children: children2, ...props } = propsWithChildren;
-        const [system2] = xn.useState(() => {
-          return tap(init(systemSpec), (system22) => applyPropsToSystem(system22, props));
-        });
-        const [handlers2] = xn.useState(curry1to0(buildEventHandlers, system2));
-        useIsomorphicLayoutEffect$1(() => {
-          for (const eventName of eventNames) {
-            if (eventName in props) {
-              subscribe(handlers2[eventName], props[eventName]);
-            }
-          }
-          return () => {
-            Object.values(handlers2).map(reset);
-          };
-        }, [props, handlers2, system2]);
-        useIsomorphicLayoutEffect$1(() => {
-          applyPropsToSystem(system2, props);
-        });
-        xn.useImperativeHandle(ref, always(buildMethods(system2)));
-        const RootComponent = Root;
-        return /* @__PURE__ */ u(Context2.Provider, { value: system2, children: Root ? /* @__PURE__ */ u(RootComponent, { ...omit([...requiredPropNames, ...optionalPropNames, ...eventNames], props), children: children2 }) : children2 });
-      });
-      const usePublisher2 = (key2) => {
-        return xn.useCallback(curry2to1(publish, xn.useContext(Context2)[key2]), [key2]);
-      };
-      const useEmitterValue18 = (key2) => {
-        const system2 = xn.useContext(Context2);
-        const source2 = system2[key2];
-        const cb = xn.useCallback(
-          (c2) => {
-            return subscribe(source2, c2);
-          },
-          [source2]
-        );
-        return xn.useSyncExternalStore(
-          cb,
-          () => getValue(source2),
-          () => getValue(source2)
-        );
-      };
-      const useEmitterValueLegacy = (key2) => {
-        const system2 = xn.useContext(Context2);
-        const source2 = system2[key2];
-        const [value, setValue] = xn.useState(curry1to0(getValue, source2));
-        useIsomorphicLayoutEffect$1(
-          () => subscribe(source2, (next) => {
-            if (next !== value) {
-              setValue(always(next));
-            }
-          }),
-          [source2, value]
-        );
-        return value;
-      };
-      const useEmitterValue2 = xn.version.startsWith("18") ? useEmitterValue18 : useEmitterValueLegacy;
-      const useEmitter2 = (key2, callback) => {
-        const context = xn.useContext(Context2);
-        const source2 = context[key2];
-        useIsomorphicLayoutEffect$1(() => subscribe(source2, callback), [callback, source2]);
-      };
-      return {
-        Component,
-        usePublisher: usePublisher2,
-        useEmitterValue: useEmitterValue2,
-        useEmitter: useEmitter2
-      };
-    }
-    const useIsomorphicLayoutEffect = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
-    var LogLevel = /* @__PURE__ */ ((LogLevel2) => {
-      LogLevel2[LogLevel2["DEBUG"] = 0] = "DEBUG";
-      LogLevel2[LogLevel2["INFO"] = 1] = "INFO";
-      LogLevel2[LogLevel2["WARN"] = 2] = "WARN";
-      LogLevel2[LogLevel2["ERROR"] = 3] = "ERROR";
-      return LogLevel2;
-    })(LogLevel || {});
-    const CONSOLE_METHOD_MAP = {
-      [
-        0
-        /* DEBUG */
-      ]: "debug",
-      [
-        1
-        /* INFO */
-      ]: "log",
-      [
-        2
-        /* WARN */
-      ]: "warn",
-      [
-        3
-        /* ERROR */
-      ]: "error"
-    };
-    const getGlobalThis = () => typeof globalThis === "undefined" ? window : globalThis;
-    const loggerSystem = system(
-      () => {
-        const logLevel = statefulStream(
-          3
-          /* ERROR */
-        );
-        const log = statefulStream((label, message, level = 1) => {
-          var _a2;
-          const currentLevel = (_a2 = getGlobalThis()["VIRTUOSO_LOG_LEVEL"]) != null ? _a2 : getValue(logLevel);
-          if (level >= currentLevel) {
-            console[CONSOLE_METHOD_MAP[level]](
-              "%creact-virtuoso: %c%s %o",
-              "color: #0253b3; font-weight: bold",
-              "color: initial",
-              label,
-              message
-            );
-          }
-        });
-        return {
-          log,
-          logLevel
-        };
-      },
-      [],
-      { singleton: true }
-    );
-    function useSizeWithElRef(callback, enabled, skipAnimationFrame) {
-      const ref = xn.useRef(null);
-      let callbackRef = (_el) => {
-      };
-      if (typeof ResizeObserver !== "undefined") {
-        const observer = xn.useMemo(() => {
-          return new ResizeObserver((entries) => {
-            const code2 = () => {
-              const element = entries[0].target;
-              if (element.offsetParent !== null) {
-                callback(element);
-              }
-            };
-            skipAnimationFrame ? code2() : requestAnimationFrame(code2);
-          });
-        }, [callback]);
-        callbackRef = (elRef) => {
-          if (elRef && enabled) {
-            observer.observe(elRef);
-            ref.current = elRef;
-          } else {
-            if (ref.current) {
-              observer.unobserve(ref.current);
-            }
-            ref.current = null;
-          }
-        };
-      }
-      return { ref, callbackRef };
-    }
-    function useSize(callback, enabled, skipAnimationFrame) {
-      return useSizeWithElRef(callback, enabled, skipAnimationFrame).callbackRef;
-    }
-    function useChangedListContentsSizes(callback, itemSize, enabled, scrollContainerStateCallback, log, gap, customScrollParent, horizontalDirection, skipAnimationFrame) {
-      const memoedCallback = xn.useCallback(
-        (el) => {
-          const ranges = getChangedChildSizes(el.children, itemSize, horizontalDirection ? "offsetWidth" : "offsetHeight", log);
-          let scrollableElement = el.parentElement;
-          while (!scrollableElement.dataset["virtuosoScroller"]) {
-            scrollableElement = scrollableElement.parentElement;
-          }
-          const windowScrolling = scrollableElement.lastElementChild.dataset["viewportType"] === "window";
-          const scrollTop = customScrollParent ? horizontalDirection ? customScrollParent.scrollLeft : customScrollParent.scrollTop : windowScrolling ? horizontalDirection ? window.pageXOffset || document.documentElement.scrollLeft : window.pageYOffset || document.documentElement.scrollTop : horizontalDirection ? scrollableElement.scrollLeft : scrollableElement.scrollTop;
-          const scrollHeight = customScrollParent ? horizontalDirection ? customScrollParent.scrollWidth : customScrollParent.scrollHeight : windowScrolling ? horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight : horizontalDirection ? scrollableElement.scrollWidth : scrollableElement.scrollHeight;
-          const viewportHeight = customScrollParent ? horizontalDirection ? customScrollParent.offsetWidth : customScrollParent.offsetHeight : windowScrolling ? horizontalDirection ? window.innerWidth : window.innerHeight : horizontalDirection ? scrollableElement.offsetWidth : scrollableElement.offsetHeight;
-          scrollContainerStateCallback({
-            scrollTop: Math.max(scrollTop, 0),
-            scrollHeight,
-            viewportHeight
-          });
-          gap == null ? void 0 : gap(
-            horizontalDirection ? resolveGapValue$1("column-gap", getComputedStyle(el).columnGap, log) : resolveGapValue$1("row-gap", getComputedStyle(el).rowGap, log)
-          );
-          if (ranges !== null) {
-            callback(ranges);
-          }
-        },
-        [callback, itemSize, log, gap, customScrollParent, scrollContainerStateCallback]
-      );
-      return useSizeWithElRef(memoedCallback, enabled, skipAnimationFrame);
-    }
-    function getChangedChildSizes(children2, itemSize, field, log) {
-      const length = children2.length;
-      if (length === 0) {
-        return null;
-      }
-      const results = [];
-      for (let i2 = 0; i2 < length; i2++) {
-        const child = children2.item(i2);
-        if (!child || child.dataset.index === void 0) {
-          continue;
-        }
-        const index = parseInt(child.dataset.index);
-        const knownSize = parseFloat(child.dataset.knownSize);
-        const size = itemSize(child, field);
-        if (size === 0) {
-          log("Zero-sized element, this should not happen", { child }, LogLevel.ERROR);
-        }
-        if (size === knownSize) {
-          continue;
-        }
-        const lastResult = results[results.length - 1];
-        if (results.length === 0 || lastResult.size !== size || lastResult.endIndex !== index - 1) {
-          results.push({ startIndex: index, endIndex: index, size });
-        } else {
-          results[results.length - 1].endIndex++;
-        }
-      }
-      return results;
-    }
-    function resolveGapValue$1(property, value, log) {
-      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
-        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
-      }
-      if (value === "normal") {
-        return 0;
-      }
-      return parseInt(value != null ? value : "0", 10);
-    }
-    function correctItemSize(el, dimension) {
-      return Math.round(el.getBoundingClientRect()[dimension]);
-    }
-    function approximatelyEqual(num1, num2) {
-      return Math.abs(num1 - num2) < 1.01;
-    }
-    function useScrollTop(scrollContainerStateCallback, smoothScrollTargetReached, scrollerElement, scrollerRefCallback = noop, customScrollParent, horizontalDirection) {
-      const scrollerRef = xn.useRef(null);
-      const scrollTopTarget = xn.useRef(null);
-      const timeoutRef = xn.useRef(null);
-      const handler = xn.useCallback(
-        (ev) => {
-          const el = ev.target;
-          const windowScroll = el === window || el === document;
-          const scrollTop = horizontalDirection ? windowScroll ? window.pageXOffset || document.documentElement.scrollLeft : el.scrollLeft : windowScroll ? window.pageYOffset || document.documentElement.scrollTop : el.scrollTop;
-          const scrollHeight = horizontalDirection ? windowScroll ? document.documentElement.scrollWidth : el.scrollWidth : windowScroll ? document.documentElement.scrollHeight : el.scrollHeight;
-          const viewportHeight = horizontalDirection ? windowScroll ? window.innerWidth : el.offsetWidth : windowScroll ? window.innerHeight : el.offsetHeight;
-          const call2 = () => {
-            scrollContainerStateCallback({
-              scrollTop: Math.max(scrollTop, 0),
-              scrollHeight,
-              viewportHeight
-            });
-          };
-          if (ev.suppressFlushSync) {
-            call2();
-          } else {
-            xn.flushSync(call2);
-          }
-          if (scrollTopTarget.current !== null) {
-            if (scrollTop === scrollTopTarget.current || scrollTop <= 0 || scrollTop === scrollHeight - viewportHeight) {
-              scrollTopTarget.current = null;
-              smoothScrollTargetReached(true);
-              if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-              }
-            }
-          }
-        },
-        [scrollContainerStateCallback, smoothScrollTargetReached]
-      );
-      xn.useEffect(() => {
-        const localRef = customScrollParent ? customScrollParent : scrollerRef.current;
-        scrollerRefCallback(customScrollParent ? customScrollParent : scrollerRef.current);
-        handler({ target: localRef, suppressFlushSync: true });
-        localRef.addEventListener("scroll", handler, { passive: true });
-        return () => {
-          scrollerRefCallback(null);
-          localRef.removeEventListener("scroll", handler);
-        };
-      }, [scrollerRef, handler, scrollerElement, scrollerRefCallback, customScrollParent]);
-      function scrollToCallback(location) {
-        const scrollerElement2 = scrollerRef.current;
-        if (!scrollerElement2 || (horizontalDirection ? "offsetWidth" in scrollerElement2 && scrollerElement2.offsetWidth === 0 : "offsetHeight" in scrollerElement2 && scrollerElement2.offsetHeight === 0)) {
-          return;
-        }
-        const isSmooth = location.behavior === "smooth";
-        let offsetHeight;
-        let scrollHeight;
-        let scrollTop;
-        if (scrollerElement2 === window) {
-          scrollHeight = Math.max(
-            correctItemSize(document.documentElement, horizontalDirection ? "width" : "height"),
-            horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight
-          );
-          offsetHeight = horizontalDirection ? window.innerWidth : window.innerHeight;
-          scrollTop = horizontalDirection ? document.documentElement.scrollLeft : document.documentElement.scrollTop;
-        } else {
-          scrollHeight = scrollerElement2[horizontalDirection ? "scrollWidth" : "scrollHeight"];
-          offsetHeight = correctItemSize(scrollerElement2, horizontalDirection ? "width" : "height");
-          scrollTop = scrollerElement2[horizontalDirection ? "scrollLeft" : "scrollTop"];
-        }
-        const maxScrollTop = scrollHeight - offsetHeight;
-        location.top = Math.ceil(Math.max(Math.min(maxScrollTop, location.top), 0));
-        if (approximatelyEqual(offsetHeight, scrollHeight) || location.top === scrollTop) {
-          scrollContainerStateCallback({ scrollTop, scrollHeight, viewportHeight: offsetHeight });
-          if (isSmooth) {
-            smoothScrollTargetReached(true);
-          }
-          return;
-        }
-        if (isSmooth) {
-          scrollTopTarget.current = location.top;
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-          timeoutRef.current = setTimeout(() => {
-            timeoutRef.current = null;
-            scrollTopTarget.current = null;
-            smoothScrollTargetReached(true);
-          }, 1e3);
-        } else {
-          scrollTopTarget.current = null;
-        }
-        if (horizontalDirection) {
-          location = { left: location.top, behavior: location.behavior };
-        }
-        scrollerElement2.scrollTo(location);
-      }
-      function scrollByCallback(location) {
-        if (horizontalDirection) {
-          location = { left: location.top, behavior: location.behavior };
-        }
-        scrollerRef.current.scrollBy(location);
-      }
-      return { scrollerRef, scrollByCallback, scrollToCallback };
-    }
-    const domIOSystem = system(
-      () => {
-        const scrollContainerState = stream();
-        const scrollTop = stream();
-        const deviation = statefulStream(0);
-        const smoothScrollTargetReached = stream();
-        const statefulScrollTop = statefulStream(0);
-        const viewportHeight = stream();
-        const scrollHeight = stream();
-        const headerHeight = statefulStream(0);
-        const fixedHeaderHeight = statefulStream(0);
-        const fixedFooterHeight = statefulStream(0);
-        const footerHeight = statefulStream(0);
-        const scrollTo = stream();
-        const scrollBy = stream();
-        const scrollingInProgress = statefulStream(false);
-        const horizontalDirection = statefulStream(false);
-        const skipAnimationFrameInResizeObserver = statefulStream(false);
-        connect(
-          pipe(
-            scrollContainerState,
-            map(({ scrollTop: scrollTop2 }) => scrollTop2)
-          ),
-          scrollTop
-        );
-        connect(
-          pipe(
-            scrollContainerState,
-            map(({ scrollHeight: scrollHeight2 }) => scrollHeight2)
-          ),
-          scrollHeight
-        );
-        connect(scrollTop, statefulScrollTop);
-        return {
-          // input
-          scrollContainerState,
-          scrollTop,
-          viewportHeight,
-          headerHeight,
-          fixedHeaderHeight,
-          fixedFooterHeight,
-          footerHeight,
-          scrollHeight,
-          smoothScrollTargetReached,
-          horizontalDirection,
-          skipAnimationFrameInResizeObserver,
-          // signals
-          scrollTo,
-          scrollBy,
-          // state
-          statefulScrollTop,
-          deviation,
-          scrollingInProgress
-        };
-      },
-      [],
-      { singleton: true }
-    );
-    const NIL_NODE = { lvl: 0 };
-    function newAANode(k2, v2, lvl, l2 = NIL_NODE, r2 = NIL_NODE) {
-      return { k: k2, v: v2, lvl, l: l2, r: r2 };
-    }
-    function empty(node) {
-      return node === NIL_NODE;
-    }
-    function newTree() {
-      return NIL_NODE;
-    }
-    function remove$1(node, key2) {
-      if (empty(node)) return NIL_NODE;
-      const { k: k2, l: l2, r: r2 } = node;
-      if (key2 === k2) {
-        if (empty(l2)) {
-          return r2;
-        } else if (empty(r2)) {
-          return l2;
-        } else {
-          const [lastKey, lastValue] = last(l2);
-          return adjust(clone(node, { k: lastKey, v: lastValue, l: deleteLast(l2) }));
-        }
-      } else if (key2 < k2) {
-        return adjust(clone(node, { l: remove$1(l2, key2) }));
-      } else {
-        return adjust(clone(node, { r: remove$1(r2, key2) }));
-      }
-    }
-    function find$1(node, key2) {
-      if (empty(node)) {
-        return;
-      }
-      if (key2 === node.k) {
-        return node.v;
-      } else if (key2 < node.k) {
-        return find$1(node.l, key2);
-      } else {
-        return find$1(node.r, key2);
-      }
-    }
-    function findMaxKeyValue(node, value, field = "k") {
-      if (empty(node)) {
-        return [-Infinity, void 0];
-      }
-      if (Number(node[field]) === value) {
-        return [node.k, node.v];
-      }
-      if (Number(node[field]) < value) {
-        const r2 = findMaxKeyValue(node.r, value, field);
-        if (r2[0] === -Infinity) {
-          return [node.k, node.v];
-        } else {
-          return r2;
-        }
-      }
-      return findMaxKeyValue(node.l, value, field);
-    }
-    function insert$1(node, k2, v2) {
-      if (empty(node)) {
-        return newAANode(k2, v2, 1);
-      }
-      if (k2 === node.k) {
-        return clone(node, { k: k2, v: v2 });
-      } else if (k2 < node.k) {
-        return rebalance(clone(node, { l: insert$1(node.l, k2, v2) }));
-      } else {
-        return rebalance(clone(node, { r: insert$1(node.r, k2, v2) }));
-      }
-    }
-    function walkWithin(node, start2, end2) {
-      if (empty(node)) {
-        return [];
-      }
-      const { k: k2, v: v2, l: l2, r: r2 } = node;
-      let result = [];
-      if (k2 > start2) {
-        result = result.concat(walkWithin(l2, start2, end2));
-      }
-      if (k2 >= start2 && k2 <= end2) {
-        result.push({ k: k2, v: v2 });
-      }
-      if (k2 <= end2) {
-        result = result.concat(walkWithin(r2, start2, end2));
-      }
-      return result;
-    }
-    function walk(node) {
-      if (empty(node)) {
-        return [];
-      }
-      return [...walk(node.l), { k: node.k, v: node.v }, ...walk(node.r)];
-    }
-    function last(node) {
-      return empty(node.r) ? [node.k, node.v] : last(node.r);
-    }
-    function deleteLast(node) {
-      return empty(node.r) ? node.l : adjust(clone(node, { r: deleteLast(node.r) }));
-    }
-    function clone(node, args) {
-      return newAANode(
-        args.k !== void 0 ? args.k : node.k,
-        args.v !== void 0 ? args.v : node.v,
-        args.lvl !== void 0 ? args.lvl : node.lvl,
-        args.l !== void 0 ? args.l : node.l,
-        args.r !== void 0 ? args.r : node.r
-      );
-    }
-    function isSingle(node) {
-      return empty(node) || node.lvl > node.r.lvl;
-    }
-    function rebalance(node) {
-      return split(skew(node));
-    }
-    function adjust(node) {
-      const { l: l2, r: r2, lvl } = node;
-      if (r2.lvl >= lvl - 1 && l2.lvl >= lvl - 1) {
-        return node;
-      } else if (lvl > r2.lvl + 1) {
-        if (isSingle(l2)) {
-          return skew(clone(node, { lvl: lvl - 1 }));
-        } else {
-          if (!empty(l2) && !empty(l2.r)) {
-            return clone(l2.r, {
-              l: clone(l2, { r: l2.r.l }),
-              r: clone(node, {
-                l: l2.r.r,
-                lvl: lvl - 1
-              }),
-              lvl
-            });
-          } else {
-            throw new Error("Unexpected empty nodes");
-          }
-        }
-      } else {
-        if (isSingle(node)) {
-          return split(clone(node, { lvl: lvl - 1 }));
-        } else {
-          if (!empty(r2) && !empty(r2.l)) {
-            const rl = r2.l;
-            const rlvl = isSingle(rl) ? r2.lvl - 1 : r2.lvl;
-            return clone(rl, {
-              l: clone(node, {
-                r: rl.l,
-                lvl: lvl - 1
-              }),
-              r: split(clone(r2, { l: rl.r, lvl: rlvl })),
-              lvl: rl.lvl + 1
-            });
-          } else {
-            throw new Error("Unexpected empty nodes");
-          }
-        }
-      }
-    }
-    function rangesWithin(node, startIndex, endIndex) {
-      if (empty(node)) {
-        return [];
-      }
-      const adjustedStart = findMaxKeyValue(node, startIndex)[0];
-      return toRanges(walkWithin(node, adjustedStart, endIndex));
-    }
-    function arrayToRanges(items, parser2) {
-      const length = items.length;
-      if (length === 0) {
-        return [];
-      }
-      let { index: start2, value } = parser2(items[0]);
-      const result = [];
-      for (let i2 = 1; i2 < length; i2++) {
-        const { index: nextIndex, value: nextValue } = parser2(items[i2]);
-        result.push({ start: start2, end: nextIndex - 1, value });
-        start2 = nextIndex;
-        value = nextValue;
-      }
-      result.push({ start: start2, end: Infinity, value });
-      return result;
-    }
-    function toRanges(nodes) {
-      return arrayToRanges(nodes, ({ k: index, v: value }) => ({ index, value }));
-    }
-    function split(node) {
-      const { r: r2, lvl } = node;
-      return !empty(r2) && !empty(r2.r) && r2.lvl === lvl && r2.r.lvl === lvl ? clone(r2, { l: clone(node, { r: r2.l }), lvl: lvl + 1 }) : node;
-    }
-    function skew(node) {
-      const { l: l2 } = node;
-      return !empty(l2) && l2.lvl === node.lvl ? clone(l2, { r: clone(node, { l: l2.r }) }) : node;
-    }
-    function findIndexOfClosestSmallerOrEqual(items, value, comparator, start2 = 0) {
-      let end2 = items.length - 1;
-      while (start2 <= end2) {
-        const index = Math.floor((start2 + end2) / 2);
-        const item = items[index];
-        const match = comparator(item, value);
-        if (match === 0) {
-          return index;
-        }
-        if (match === -1) {
-          if (end2 - start2 < 2) {
-            return index - 1;
-          }
-          end2 = index - 1;
-        } else {
-          if (end2 === start2) {
-            return index;
-          }
-          start2 = index + 1;
-        }
-      }
-      throw new Error(`Failed binary finding record in array - ${items.join(",")}, searched for ${value}`);
-    }
-    function findClosestSmallerOrEqual(items, value, comparator) {
-      return items[findIndexOfClosestSmallerOrEqual(items, value, comparator)];
-    }
-    function findRange(items, startValue, endValue, comparator) {
-      const startIndex = findIndexOfClosestSmallerOrEqual(items, startValue, comparator);
-      const endIndex = findIndexOfClosestSmallerOrEqual(items, endValue, comparator, startIndex);
-      return items.slice(startIndex, endIndex + 1);
-    }
-    const recalcSystem = system(
-      () => {
-        const recalcInProgress = statefulStream(false);
-        return { recalcInProgress };
-      },
-      [],
-      { singleton: true }
-    );
-    function rangeIncludes(refRange) {
-      const { size, startIndex, endIndex } = refRange;
-      return (range) => {
-        return range.start === startIndex && (range.end === endIndex || range.end === Infinity) && range.value === size;
-      };
-    }
-    function affectedGroupCount(offset2, groupIndices) {
-      let recognizedOffsetItems = 0;
-      let groupIndex = 0;
-      while (recognizedOffsetItems < offset2) {
-        recognizedOffsetItems += groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
-        groupIndex++;
-      }
-      const offsetIsExact = recognizedOffsetItems === offset2;
-      return groupIndex - (offsetIsExact ? 0 : 1);
-    }
-    function insertRanges(sizeTree, ranges) {
-      let syncStart = empty(sizeTree) ? 0 : Infinity;
-      for (const range of ranges) {
-        const { size, startIndex, endIndex } = range;
-        syncStart = Math.min(syncStart, startIndex);
-        if (empty(sizeTree)) {
-          sizeTree = insert$1(sizeTree, 0, size);
-          continue;
-        }
-        const overlappingRanges = rangesWithin(sizeTree, startIndex - 1, endIndex + 1);
-        if (overlappingRanges.some(rangeIncludes(range))) {
-          continue;
-        }
-        let firstPassDone = false;
-        let shouldInsert = false;
-        for (const { start: rangeStart, end: rangeEnd2, value: rangeValue } of overlappingRanges) {
-          if (!firstPassDone) {
-            shouldInsert = rangeValue !== size;
-            firstPassDone = true;
-          } else {
-            if (endIndex >= rangeStart || size === rangeValue) {
-              sizeTree = remove$1(sizeTree, rangeStart);
-            }
-          }
-          if (rangeEnd2 > endIndex && endIndex >= rangeStart) {
-            if (rangeValue !== size) {
-              sizeTree = insert$1(sizeTree, endIndex + 1, rangeValue);
-            }
-          }
-        }
-        if (shouldInsert) {
-          sizeTree = insert$1(sizeTree, startIndex, size);
-        }
-      }
-      return [sizeTree, syncStart];
-    }
-    function initialSizeState() {
-      return {
-        offsetTree: [],
-        sizeTree: newTree(),
-        groupOffsetTree: newTree(),
-        lastIndex: 0,
-        lastOffset: 0,
-        lastSize: 0,
-        groupIndices: []
-      };
-    }
-    function indexComparator({ index: itemIndex }, index) {
-      return index === itemIndex ? 0 : index < itemIndex ? -1 : 1;
-    }
-    function offsetComparator({ offset: itemOffset }, offset2) {
-      return offset2 === itemOffset ? 0 : offset2 < itemOffset ? -1 : 1;
-    }
-    function offsetPointParser(point) {
-      return { index: point.index, value: point };
-    }
-    function rangesWithinOffsets(tree, startOffset, endOffset, minStartIndex = 0) {
-      if (minStartIndex > 0) {
-        startOffset = Math.max(startOffset, findClosestSmallerOrEqual(tree, minStartIndex, indexComparator).offset);
-      }
-      return arrayToRanges(findRange(tree, startOffset, endOffset, offsetComparator), offsetPointParser);
-    }
-    function createOffsetTree(prevOffsetTree, syncStart, sizeTree, gap) {
-      let offsetTree = prevOffsetTree;
-      let prevIndex = 0;
-      let prevSize = 0;
-      let prevOffset = 0;
-      let startIndex = 0;
-      if (syncStart !== 0) {
-        startIndex = findIndexOfClosestSmallerOrEqual(offsetTree, syncStart - 1, indexComparator);
-        const offsetInfo = offsetTree[startIndex];
-        prevOffset = offsetInfo.offset;
-        const kv = findMaxKeyValue(sizeTree, syncStart - 1);
-        prevIndex = kv[0];
-        prevSize = kv[1];
-        if (offsetTree.length && offsetTree[startIndex].size === findMaxKeyValue(sizeTree, syncStart)[1]) {
-          startIndex -= 1;
-        }
-        offsetTree = offsetTree.slice(0, startIndex + 1);
-      } else {
-        offsetTree = [];
-      }
-      for (const { start: startIndex2, value } of rangesWithin(sizeTree, syncStart, Infinity)) {
-        const indexOffset = startIndex2 - prevIndex;
-        const aOffset = indexOffset * prevSize + prevOffset + indexOffset * gap;
-        offsetTree.push({
-          offset: aOffset,
-          size: value,
-          index: startIndex2
-        });
-        prevIndex = startIndex2;
-        prevOffset = aOffset;
-        prevSize = value;
-      }
-      return {
-        offsetTree,
-        lastIndex: prevIndex,
-        lastOffset: prevOffset,
-        lastSize: prevSize
-      };
-    }
-    function sizeStateReducer(state, [ranges, groupIndices, log, gap]) {
-      if (ranges.length > 0) {
-        log("received item sizes", ranges, LogLevel.DEBUG);
-      }
-      const sizeTree = state.sizeTree;
-      let newSizeTree = sizeTree;
-      let syncStart = 0;
-      if (groupIndices.length > 0 && empty(sizeTree) && ranges.length === 2) {
-        const groupSize = ranges[0].size;
-        const itemSize = ranges[1].size;
-        newSizeTree = groupIndices.reduce((tree, groupIndex) => {
-          return insert$1(insert$1(tree, groupIndex, groupSize), groupIndex + 1, itemSize);
-        }, newSizeTree);
-      } else {
-        [newSizeTree, syncStart] = insertRanges(newSizeTree, ranges);
-      }
-      if (newSizeTree === sizeTree) {
-        return state;
-      }
-      const { offsetTree: newOffsetTree, lastIndex, lastSize, lastOffset } = createOffsetTree(state.offsetTree, syncStart, newSizeTree, gap);
-      return {
-        sizeTree: newSizeTree,
-        offsetTree: newOffsetTree,
-        lastIndex,
-        lastOffset,
-        lastSize,
-        groupOffsetTree: groupIndices.reduce((tree, index) => {
-          return insert$1(tree, index, offsetOf(index, newOffsetTree, gap));
-        }, newTree()),
-        groupIndices
-      };
-    }
-    function offsetOf(index, tree, gap) {
-      if (tree.length === 0) {
-        return 0;
-      }
-      const { offset: offset2, index: startIndex, size } = findClosestSmallerOrEqual(tree, index, indexComparator);
-      const itemCount = index - startIndex;
-      const top2 = size * itemCount + (itemCount - 1) * gap + offset2;
-      return top2 > 0 ? top2 + gap : top2;
-    }
-    function isGroupLocation(location) {
-      return typeof location.groupIndex !== "undefined";
-    }
-    function originalIndexFromLocation(location, sizes, lastIndex) {
-      if (isGroupLocation(location)) {
-        return sizes.groupIndices[location.groupIndex] + 1;
-      } else {
-        const numericIndex = location.index === "LAST" ? lastIndex : location.index;
-        let result = originalIndexFromItemIndex(numericIndex, sizes);
-        result = Math.max(0, result, Math.min(lastIndex, result));
-        return result;
-      }
-    }
-    function originalIndexFromItemIndex(itemIndex, sizes) {
-      if (!hasGroups(sizes)) {
-        return itemIndex;
-      }
-      let groupOffset = 0;
-      while (sizes.groupIndices[groupOffset] <= itemIndex + groupOffset) {
-        groupOffset++;
-      }
-      return itemIndex + groupOffset;
-    }
-    function hasGroups(sizes) {
-      return !empty(sizes.groupOffsetTree);
-    }
-    function sizeTreeToRanges(sizeTree) {
-      return walk(sizeTree).map(({ k: startIndex, v: size }, index, sizeArray) => {
-        const nextSize = sizeArray[index + 1];
-        const endIndex = nextSize ? nextSize.k - 1 : Infinity;
-        return { startIndex, endIndex, size };
-      });
-    }
-    const SIZE_MAP = {
-      offsetHeight: "height",
-      offsetWidth: "width"
-    };
-    const sizeSystem = system(
-      ([{ log }, { recalcInProgress }]) => {
-        const sizeRanges = stream();
-        const totalCount = stream();
-        const statefulTotalCount = statefulStreamFromEmitter(totalCount, 0);
-        const unshiftWith = stream();
-        const shiftWith = stream();
-        const firstItemIndex = statefulStream(0);
-        const groupIndices = statefulStream([]);
-        const fixedItemSize = statefulStream(void 0);
-        const defaultItemSize = statefulStream(void 0);
-        const itemSize = statefulStream((el, field) => correctItemSize(el, SIZE_MAP[field]));
-        const data = statefulStream(void 0);
-        const gap = statefulStream(0);
-        const initial = initialSizeState();
-        const sizes = statefulStreamFromEmitter(
-          pipe(sizeRanges, withLatestFrom(groupIndices, log, gap), scan(sizeStateReducer, initial), distinctUntilChanged()),
-          initial
-        );
-        const prevGroupIndices = statefulStreamFromEmitter(
-          pipe(
-            groupIndices,
-            distinctUntilChanged(),
-            scan((prev, curr) => ({ prev: prev.current, current: curr }), {
-              prev: [],
-              current: []
-            }),
-            map(({ prev }) => prev)
-          ),
-          []
-        );
-        connect(
-          pipe(
-            groupIndices,
-            filter((indexes) => indexes.length > 0),
-            withLatestFrom(sizes, gap),
-            map(([groupIndices2, sizes2, gap2]) => {
-              const groupOffsetTree = groupIndices2.reduce((tree, index, idx) => {
-                return insert$1(tree, index, offsetOf(index, sizes2.offsetTree, gap2) || idx);
-              }, newTree());
-              return {
-                ...sizes2,
-                groupIndices: groupIndices2,
-                groupOffsetTree
-              };
-            })
-          ),
-          sizes
-        );
-        connect(
-          pipe(
-            totalCount,
-            withLatestFrom(sizes),
-            filter(([totalCount2, { lastIndex }]) => {
-              return totalCount2 < lastIndex;
-            }),
-            map(([totalCount2, { lastIndex, lastSize }]) => {
-              return [
-                {
-                  startIndex: totalCount2,
-                  endIndex: lastIndex,
-                  size: lastSize
-                }
-              ];
-            })
-          ),
-          sizeRanges
-        );
-        connect(fixedItemSize, defaultItemSize);
-        const trackItemSizes = statefulStreamFromEmitter(
-          pipe(
-            fixedItemSize,
-            map((size) => size === void 0)
-          ),
-          true
-        );
-        connect(
-          pipe(
-            defaultItemSize,
-            filter((value) => {
-              return value !== void 0 && empty(getValue(sizes).sizeTree);
-            }),
-            map((size) => [{ startIndex: 0, endIndex: 0, size }])
-          ),
-          sizeRanges
-        );
-        const listRefresh = streamFromEmitter(
-          pipe(
-            sizeRanges,
-            withLatestFrom(sizes),
-            scan(
-              ({ sizes: oldSizes }, [_2, newSizes]) => {
-                return {
-                  changed: newSizes !== oldSizes,
-                  sizes: newSizes
-                };
-              },
-              { changed: false, sizes: initial }
-            ),
-            map((value) => value.changed)
-          )
-        );
-        subscribe(
-          pipe(
-            firstItemIndex,
-            scan(
-              (prev, next) => {
-                return { diff: prev.prev - next, prev: next };
-              },
-              { diff: 0, prev: 0 }
-            ),
-            map((val) => val.diff)
-          ),
-          (offset2) => {
-            const { groupIndices: groupIndices2 } = getValue(sizes);
-            if (offset2 > 0) {
-              publish(recalcInProgress, true);
-              publish(unshiftWith, offset2 + affectedGroupCount(offset2, groupIndices2));
-            } else if (offset2 < 0) {
-              const prevGroupIndicesValue = getValue(prevGroupIndices);
-              if (prevGroupIndicesValue.length > 0) {
-                offset2 -= affectedGroupCount(-offset2, prevGroupIndicesValue);
-              }
-              publish(shiftWith, offset2);
-            }
-          }
-        );
-        subscribe(pipe(firstItemIndex, withLatestFrom(log)), ([index, log2]) => {
-          if (index < 0) {
-            log2(
-              "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
-              { firstItemIndex },
-              LogLevel.ERROR
-            );
-          }
-        });
-        const beforeUnshiftWith = streamFromEmitter(unshiftWith);
-        connect(
-          pipe(
-            unshiftWith,
-            withLatestFrom(sizes),
-            map(([unshiftWith2, sizes2]) => {
-              const groupedMode = sizes2.groupIndices.length > 0;
-              const initialRanges = [];
-              const defaultSize = sizes2.lastSize;
-              if (groupedMode) {
-                const firstGroupSize = find$1(sizes2.sizeTree, 0);
-                let prependedGroupItemsCount = 0;
-                let groupIndex = 0;
-                while (prependedGroupItemsCount < unshiftWith2) {
-                  const theGroupIndex = sizes2.groupIndices[groupIndex];
-                  const groupItemCount = sizes2.groupIndices.length === groupIndex + 1 ? Infinity : sizes2.groupIndices[groupIndex + 1] - theGroupIndex - 1;
-                  initialRanges.push({
-                    startIndex: theGroupIndex,
-                    endIndex: theGroupIndex,
-                    size: firstGroupSize
-                  });
-                  initialRanges.push({
-                    startIndex: theGroupIndex + 1,
-                    endIndex: theGroupIndex + 1 + groupItemCount - 1,
-                    size: defaultSize
-                  });
-                  groupIndex++;
-                  prependedGroupItemsCount += groupItemCount + 1;
-                }
-                const sizeTreeKV = walk(sizes2.sizeTree);
-                const firstGroupIsExpanded = prependedGroupItemsCount !== unshiftWith2;
-                if (firstGroupIsExpanded) {
-                  sizeTreeKV.shift();
-                }
-                return sizeTreeKV.reduce(
-                  (acc, { k: index, v: size }) => {
-                    let ranges = acc.ranges;
-                    if (acc.prevSize !== 0) {
-                      ranges = [
-                        ...acc.ranges,
-                        {
-                          startIndex: acc.prevIndex,
-                          endIndex: index + unshiftWith2 - 1,
-                          size: acc.prevSize
-                        }
-                      ];
-                    }
-                    return {
-                      ranges,
-                      prevIndex: index + unshiftWith2,
-                      prevSize: size
-                    };
-                  },
-                  {
-                    ranges: initialRanges,
-                    prevIndex: unshiftWith2,
-                    prevSize: 0
-                  }
-                ).ranges;
-              }
-              return walk(sizes2.sizeTree).reduce(
-                (acc, { k: index, v: size }) => {
-                  return {
-                    ranges: [...acc.ranges, { startIndex: acc.prevIndex, endIndex: index + unshiftWith2 - 1, size: acc.prevSize }],
-                    prevIndex: index + unshiftWith2,
-                    prevSize: size
-                  };
-                },
-                {
-                  ranges: [],
-                  prevIndex: 0,
-                  prevSize: defaultSize
-                }
-              ).ranges;
-            })
-          ),
-          sizeRanges
-        );
-        const shiftWithOffset = streamFromEmitter(
-          pipe(
-            shiftWith,
-            withLatestFrom(sizes, gap),
-            map(([shiftWith2, { offsetTree }, gap2]) => {
-              const newFirstItemIndex = -shiftWith2;
-              return offsetOf(newFirstItemIndex, offsetTree, gap2);
-            })
-          )
-        );
-        connect(
-          pipe(
-            shiftWith,
-            withLatestFrom(sizes, gap),
-            map(([shiftWith2, sizes2, gap2]) => {
-              const groupedMode = sizes2.groupIndices.length > 0;
-              if (groupedMode) {
-                if (empty(sizes2.sizeTree)) {
-                  return sizes2;
-                }
-                let newSizeTree = newTree();
-                const prevGroupIndicesValue = getValue(prevGroupIndices);
-                let removedItemsCount = 0;
-                let groupIndex = 0;
-                let groupOffset = 0;
-                while (removedItemsCount < -shiftWith2) {
-                  groupOffset = prevGroupIndicesValue[groupIndex];
-                  const groupItemCount = prevGroupIndicesValue[groupIndex + 1] - groupOffset - 1;
-                  groupIndex++;
-                  removedItemsCount += groupItemCount + 1;
-                }
-                newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
-                  return insert$1(acc, Math.max(0, k2 + shiftWith2), v2);
-                }, newSizeTree);
-                const aGroupIsShrunk = removedItemsCount !== -shiftWith2;
-                if (aGroupIsShrunk) {
-                  const firstGroupSize = find$1(sizes2.sizeTree, groupOffset);
-                  newSizeTree = insert$1(newSizeTree, 0, firstGroupSize);
-                  const nextItemSize = findMaxKeyValue(sizes2.sizeTree, -shiftWith2 + 1)[1];
-                  newSizeTree = insert$1(newSizeTree, 1, nextItemSize);
-                }
-                return {
-                  ...sizes2,
-                  sizeTree: newSizeTree,
-                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
-                };
-              } else {
-                const newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
-                  return insert$1(acc, Math.max(0, k2 + shiftWith2), v2);
-                }, newTree());
-                return {
-                  ...sizes2,
-                  sizeTree: newSizeTree,
-                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
-                };
-              }
-            })
-          ),
-          sizes
-        );
-        return {
-          // input
-          data,
-          totalCount,
-          sizeRanges,
-          groupIndices,
-          defaultItemSize,
-          fixedItemSize,
-          unshiftWith,
-          shiftWith,
-          shiftWithOffset,
-          beforeUnshiftWith,
-          firstItemIndex,
-          gap,
-          // output
-          sizes,
-          listRefresh,
-          statefulTotalCount,
-          trackItemSizes,
-          itemSize
-        };
-      },
-      tup(loggerSystem, recalcSystem),
-      { singleton: true }
-    );
-    const SUPPORTS_SCROLL_TO_OPTIONS = typeof document !== "undefined" && "scrollBehavior" in document.documentElement.style;
-    function normalizeIndexLocation(location) {
-      const result = typeof location === "number" ? { index: location } : location;
-      if (!result.align) {
-        result.align = "start";
-      }
-      if (!result.behavior || !SUPPORTS_SCROLL_TO_OPTIONS) {
-        result.behavior = "auto";
-      }
-      if (!result.offset) {
-        result.offset = 0;
-      }
-      return result;
-    }
-    const scrollToIndexSystem = system(
-      ([
-        { sizes, totalCount, listRefresh, gap },
-        {
-          scrollingInProgress,
-          viewportHeight,
-          scrollTo,
-          smoothScrollTargetReached,
-          headerHeight,
-          footerHeight,
-          fixedHeaderHeight,
-          fixedFooterHeight
-        },
-        { log }
-      ]) => {
-        const scrollToIndex = stream();
-        const scrollTargetReached = stream();
-        const topListHeight = statefulStream(0);
-        let unsubscribeNextListRefresh = null;
-        let cleartTimeoutRef = null;
-        let unsubscribeListRefresh = null;
-        function cleanup() {
-          if (unsubscribeNextListRefresh) {
-            unsubscribeNextListRefresh();
-            unsubscribeNextListRefresh = null;
-          }
-          if (unsubscribeListRefresh) {
-            unsubscribeListRefresh();
-            unsubscribeListRefresh = null;
-          }
-          if (cleartTimeoutRef) {
-            clearTimeout(cleartTimeoutRef);
-            cleartTimeoutRef = null;
-          }
-          publish(scrollingInProgress, false);
-        }
-        connect(
-          pipe(
-            scrollToIndex,
-            withLatestFrom(sizes, viewportHeight, totalCount, topListHeight, headerHeight, footerHeight, log),
-            withLatestFrom(gap, fixedHeaderHeight, fixedFooterHeight),
-            map(
-              ([
-                [location, sizes2, viewportHeight2, totalCount2, topListHeight2, headerHeight2, footerHeight2, log2],
-                gap2,
-                fixedHeaderHeight2,
-                fixedFooterHeight2
-              ]) => {
-                const normalLocation = normalizeIndexLocation(location);
-                const { align, behavior, offset: offset2 } = normalLocation;
-                const lastIndex = totalCount2 - 1;
-                const index = originalIndexFromLocation(normalLocation, sizes2, lastIndex);
-                let top2 = offsetOf(index, sizes2.offsetTree, gap2) + headerHeight2;
-                if (align === "end") {
-                  top2 += fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2;
-                  if (index === lastIndex) {
-                    top2 += footerHeight2;
-                  }
-                } else if (align === "center") {
-                  top2 += (fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2) / 2;
-                } else {
-                  top2 -= topListHeight2;
-                }
-                if (offset2) {
-                  top2 += offset2;
-                }
-                const retry = (listChanged) => {
-                  cleanup();
-                  if (listChanged) {
-                    log2("retrying to scroll to", { location }, LogLevel.DEBUG);
-                    publish(scrollToIndex, location);
-                  } else {
-                    publish(scrollTargetReached, true);
-                    log2("list did not change, scroll successful", {}, LogLevel.DEBUG);
-                  }
-                };
-                cleanup();
-                if (behavior === "smooth") {
-                  let listChanged = false;
-                  unsubscribeListRefresh = subscribe(listRefresh, (changed) => {
-                    listChanged = listChanged || changed;
-                  });
-                  unsubscribeNextListRefresh = handleNext(smoothScrollTargetReached, () => {
-                    retry(listChanged);
-                  });
-                } else {
-                  unsubscribeNextListRefresh = handleNext(pipe(listRefresh, watchChangesFor(150)), retry);
-                }
-                cleartTimeoutRef = setTimeout(() => {
-                  cleanup();
-                }, 1200);
-                publish(scrollingInProgress, true);
-                log2("scrolling from index to", { index, top: top2, behavior }, LogLevel.DEBUG);
-                return { top: top2, behavior };
-              }
-            )
-          ),
-          scrollTo
-        );
-        return {
-          scrollToIndex,
-          scrollTargetReached,
-          topListHeight
-        };
-      },
-      tup(sizeSystem, domIOSystem, loggerSystem),
-      { singleton: true }
-    );
-    function watchChangesFor(limit) {
-      return (done) => {
-        const timeoutRef = setTimeout(() => {
-          done(false);
-        }, limit);
-        return (value) => {
-          if (value) {
-            done(true);
-            clearTimeout(timeoutRef);
-          }
-        };
-      };
-    }
-    const UP = "up";
-    const DOWN = "down";
-    const NONE$1 = "none";
-    const INITIAL_BOTTOM_STATE = {
-      atBottom: false,
-      notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
-      state: {
-        offsetBottom: 0,
-        scrollTop: 0,
-        viewportHeight: 0,
-        scrollHeight: 0
-      }
-    };
-    const DEFAULT_AT_TOP_THRESHOLD = 0;
-    const stateFlagsSystem = system(([{ scrollContainerState, scrollTop, viewportHeight, headerHeight, footerHeight, scrollBy }]) => {
-      const isAtBottom = statefulStream(false);
-      const isAtTop = statefulStream(true);
-      const atBottomStateChange = stream();
-      const atTopStateChange = stream();
-      const atBottomThreshold = statefulStream(4);
-      const atTopThreshold = statefulStream(DEFAULT_AT_TOP_THRESHOLD);
-      const isScrolling = statefulStreamFromEmitter(
-        pipe(
-          merge(pipe(duc(scrollTop), skip(1), mapTo(true)), pipe(duc(scrollTop), skip(1), mapTo(false), debounceTime(100))),
-          distinctUntilChanged()
-        ),
-        false
-      );
-      const isScrollingBy = statefulStreamFromEmitter(
-        pipe(merge(pipe(scrollBy, mapTo(true)), pipe(scrollBy, mapTo(false), debounceTime(200))), distinctUntilChanged()),
-        false
-      );
-      connect(
-        pipe(
-          combineLatest(duc(scrollTop), duc(atTopThreshold)),
-          map(([top2, atTopThreshold2]) => top2 <= atTopThreshold2),
-          distinctUntilChanged()
-        ),
-        isAtTop
-      );
-      connect(pipe(isAtTop, throttleTime(50)), atTopStateChange);
-      const atBottomState = streamFromEmitter(
-        pipe(
-          combineLatest(scrollContainerState, duc(viewportHeight), duc(headerHeight), duc(footerHeight), duc(atBottomThreshold)),
-          scan((current, [{ scrollTop: scrollTop2, scrollHeight }, viewportHeight2, _headerHeight, _footerHeight, atBottomThreshold2]) => {
-            const isAtBottom2 = scrollTop2 + viewportHeight2 - scrollHeight > -atBottomThreshold2;
-            const state = {
-              viewportHeight: viewportHeight2,
-              scrollTop: scrollTop2,
-              scrollHeight
-            };
-            if (isAtBottom2) {
-              let atBottomBecause;
-              let scrollTopDelta;
-              if (scrollTop2 > current.state.scrollTop) {
-                atBottomBecause = "SCROLLED_DOWN";
-                scrollTopDelta = current.state.scrollTop - scrollTop2;
-              } else {
-                atBottomBecause = "SIZE_DECREASED";
-                scrollTopDelta = current.state.scrollTop - scrollTop2 || current.scrollTopDelta;
-              }
-              return {
-                atBottom: true,
-                state,
-                atBottomBecause,
-                scrollTopDelta
-              };
-            }
-            let notAtBottomBecause;
-            if (state.scrollHeight > current.state.scrollHeight) {
-              notAtBottomBecause = "SIZE_INCREASED";
-            } else if (viewportHeight2 < current.state.viewportHeight) {
-              notAtBottomBecause = "VIEWPORT_HEIGHT_DECREASING";
-            } else if (scrollTop2 < current.state.scrollTop) {
-              notAtBottomBecause = "SCROLLING_UPWARDS";
-            } else {
-              notAtBottomBecause = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM";
-            }
-            return {
-              atBottom: false,
-              notAtBottomBecause,
-              state
-            };
-          }, INITIAL_BOTTOM_STATE),
-          distinctUntilChanged((prev, next) => {
-            return prev && prev.atBottom === next.atBottom;
-          })
-        )
-      );
-      const lastJumpDueToItemResize = statefulStreamFromEmitter(
-        pipe(
-          scrollContainerState,
-          scan(
-            (current, { scrollTop: scrollTop2, scrollHeight, viewportHeight: viewportHeight2 }) => {
-              if (!approximatelyEqual(current.scrollHeight, scrollHeight)) {
-                const atBottom = scrollHeight - (scrollTop2 + viewportHeight2) < 1;
-                if (current.scrollTop !== scrollTop2 && atBottom) {
-                  return {
-                    scrollHeight,
-                    scrollTop: scrollTop2,
-                    jump: current.scrollTop - scrollTop2,
-                    changed: true
-                  };
-                } else {
-                  return {
-                    scrollHeight,
-                    scrollTop: scrollTop2,
-                    jump: 0,
-                    changed: true
-                  };
-                }
-              } else {
-                return {
-                  scrollTop: scrollTop2,
-                  scrollHeight,
-                  jump: 0,
-                  changed: false
-                };
-              }
-            },
-            { scrollHeight: 0, jump: 0, scrollTop: 0, changed: false }
-          ),
-          filter((value) => value.changed),
-          map((value) => value.jump)
-        ),
-        0
-      );
-      connect(
-        pipe(
-          atBottomState,
-          map((state) => state.atBottom)
-        ),
-        isAtBottom
-      );
-      connect(pipe(isAtBottom, throttleTime(50)), atBottomStateChange);
-      const scrollDirection = statefulStream(DOWN);
-      connect(
-        pipe(
-          scrollContainerState,
-          map(({ scrollTop: scrollTop2 }) => scrollTop2),
-          distinctUntilChanged(),
-          scan(
-            (acc, scrollTop2) => {
-              if (getValue(isScrollingBy)) {
-                return { direction: acc.direction, prevScrollTop: scrollTop2 };
-              }
-              return { direction: scrollTop2 < acc.prevScrollTop ? UP : DOWN, prevScrollTop: scrollTop2 };
-            },
-            { direction: DOWN, prevScrollTop: 0 }
-          ),
-          map((value) => value.direction)
-        ),
-        scrollDirection
-      );
-      connect(pipe(scrollContainerState, throttleTime(50), mapTo(NONE$1)), scrollDirection);
-      const scrollVelocity = statefulStream(0);
-      connect(
-        pipe(
-          isScrolling,
-          filter((value) => !value),
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-          mapTo(0)
-        ),
-        scrollVelocity
-      );
-      connect(
-        pipe(
-          scrollTop,
-          throttleTime(100),
-          withLatestFrom(isScrolling),
-          filter(([_2, isScrolling2]) => !!isScrolling2),
-          scan(([_2, prev], [next]) => [prev, next], [0, 0]),
-          map(([prev, next]) => next - prev)
-        ),
-        scrollVelocity
-      );
-      return {
-        isScrolling,
-        isAtTop,
-        isAtBottom,
-        atBottomState,
-        atTopStateChange,
-        atBottomStateChange,
-        scrollDirection,
-        atBottomThreshold,
-        atTopThreshold,
-        scrollVelocity,
-        lastJumpDueToItemResize
-      };
-    }, tup(domIOSystem));
-    const propsReadySystem = system(
-      ([{ log }]) => {
-        const propsReady = statefulStream(false);
-        const didMount = streamFromEmitter(
-          pipe(
-            propsReady,
-            filter((ready) => ready),
-            distinctUntilChanged()
-          )
-        );
-        subscribe(propsReady, (value) => {
-          value && getValue(log)("props updated", {}, LogLevel.DEBUG);
-        });
-        return { propsReady, didMount };
-      },
-      tup(loggerSystem),
-      { singleton: true }
-    );
-    function skipFrames(frameCount, callback) {
-      if (frameCount == 0) {
-        callback();
-      } else {
-        requestAnimationFrame(() => skipFrames(frameCount - 1, callback));
-      }
-    }
-    function getInitialTopMostItemIndexNumber(location, totalCount) {
-      const lastIndex = totalCount - 1;
-      const index = typeof location === "number" ? location : location.index === "LAST" ? lastIndex : location.index;
-      return index;
-    }
-    const initialTopMostItemIndexSystem = system(
-      ([{ sizes, listRefresh, defaultItemSize }, { scrollTop }, { scrollToIndex, scrollTargetReached }, { didMount }]) => {
-        const scrolledToInitialItem = statefulStream(true);
-        const initialTopMostItemIndex = statefulStream(0);
-        const initialItemFinalLocationReached = statefulStream(true);
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location),
-            mapTo(false)
-          ),
-          scrolledToInitialItem
-        );
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location),
-            mapTo(false)
-          ),
-          initialItemFinalLocationReached
-        );
-        subscribe(
-          pipe(
-            combineLatest(listRefresh, didMount),
-            withLatestFrom(scrolledToInitialItem, sizes, defaultItemSize, initialItemFinalLocationReached),
-            filter(([[, didMount2], scrolledToInitialItem2, { sizeTree }, defaultItemSize2, scrollScheduled]) => {
-              return didMount2 && (!empty(sizeTree) || isDefined(defaultItemSize2)) && !scrolledToInitialItem2 && !scrollScheduled;
-            }),
-            withLatestFrom(initialTopMostItemIndex)
-          ),
-          ([, initialTopMostItemIndex2]) => {
-            handleNext(scrollTargetReached, () => {
-              publish(initialItemFinalLocationReached, true);
-            });
-            skipFrames(4, () => {
-              handleNext(scrollTop, () => {
-                publish(scrolledToInitialItem, true);
-              });
-              publish(scrollToIndex, initialTopMostItemIndex2);
-            });
-          }
-        );
-        return {
-          scrolledToInitialItem,
-          initialTopMostItemIndex,
-          initialItemFinalLocationReached
-        };
-      },
-      tup(sizeSystem, domIOSystem, scrollToIndexSystem, propsReadySystem),
-      { singleton: true }
-    );
-    function normalizeFollowOutput(follow) {
-      if (!follow) {
-        return false;
-      }
-      return follow === "smooth" ? "smooth" : "auto";
-    }
-    const behaviorFromFollowOutput = (follow, isAtBottom) => {
-      if (typeof follow === "function") {
-        return normalizeFollowOutput(follow(isAtBottom));
-      }
-      return isAtBottom && normalizeFollowOutput(follow);
-    };
-    const followOutputSystem = system(
-      ([
-        { totalCount, listRefresh },
-        { isAtBottom, atBottomState },
-        { scrollToIndex },
-        { scrolledToInitialItem },
-        { propsReady, didMount },
-        { log },
-        { scrollingInProgress }
-      ]) => {
-        const followOutput = statefulStream(false);
-        const autoscrollToBottom = stream();
-        let pendingScrollHandle = null;
-        function scrollToBottom(followOutputBehavior) {
-          publish(scrollToIndex, {
-            index: "LAST",
-            align: "end",
-            behavior: followOutputBehavior
-          });
-        }
-        subscribe(
-          pipe(
-            combineLatest(pipe(duc(totalCount), skip(1)), didMount),
-            withLatestFrom(duc(followOutput), isAtBottom, scrolledToInitialItem, scrollingInProgress),
-            map(([[totalCount2, didMount2], followOutput2, isAtBottom2, scrolledToInitialItem2, scrollingInProgress2]) => {
-              let shouldFollow = didMount2 && scrolledToInitialItem2;
-              let followOutputBehavior = "auto";
-              if (shouldFollow) {
-                followOutputBehavior = behaviorFromFollowOutput(followOutput2, isAtBottom2 || scrollingInProgress2);
-                shouldFollow = shouldFollow && !!followOutputBehavior;
-              }
-              return { totalCount: totalCount2, shouldFollow, followOutputBehavior };
-            }),
-            filter(({ shouldFollow }) => shouldFollow)
-          ),
-          ({ totalCount: totalCount2, followOutputBehavior }) => {
-            if (pendingScrollHandle) {
-              pendingScrollHandle();
-              pendingScrollHandle = null;
-            }
-            pendingScrollHandle = handleNext(listRefresh, () => {
-              getValue(log)("following output to ", { totalCount: totalCount2 }, LogLevel.DEBUG);
-              scrollToBottom(followOutputBehavior);
-              pendingScrollHandle = null;
-            });
-          }
-        );
-        function trapNextSizeIncrease(followOutput2) {
-          const cancel = handleNext(atBottomState, (state) => {
-            if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "SIZE_INCREASED" && !pendingScrollHandle) {
-              getValue(log)("scrolling to bottom due to increased size", {}, LogLevel.DEBUG);
-              scrollToBottom("auto");
-            }
-          });
-          setTimeout(cancel, 100);
-        }
-        subscribe(
-          pipe(
-            combineLatest(duc(followOutput), totalCount, propsReady),
-            filter(([follow, , ready]) => follow && ready),
-            scan(
-              ({ value }, [, next]) => {
-                return { refreshed: value === next, value: next };
-              },
-              { refreshed: false, value: 0 }
-            ),
-            filter(({ refreshed }) => refreshed),
-            withLatestFrom(followOutput, totalCount)
-          ),
-          ([, followOutput2]) => {
-            if (getValue(scrolledToInitialItem)) {
-              trapNextSizeIncrease(followOutput2 !== false);
-            }
-          }
-        );
-        subscribe(autoscrollToBottom, () => {
-          trapNextSizeIncrease(getValue(followOutput) !== false);
-        });
-        subscribe(combineLatest(duc(followOutput), atBottomState), ([followOutput2, state]) => {
-          if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING") {
-            scrollToBottom("auto");
-          }
-        });
-        return { followOutput, autoscrollToBottom };
-      },
-      tup(sizeSystem, stateFlagsSystem, scrollToIndexSystem, initialTopMostItemIndexSystem, propsReadySystem, loggerSystem, domIOSystem)
-    );
-    function groupCountsToIndicesAndCount(counts) {
-      return counts.reduce(
-        (acc, groupCount) => {
-          acc.groupIndices.push(acc.totalCount);
-          acc.totalCount += groupCount + 1;
-          return acc;
-        },
-        {
-          totalCount: 0,
-          groupIndices: []
-        }
-      );
-    }
-    const groupedListSystem = system(([{ totalCount, groupIndices, sizes }, { scrollTop, headerHeight }]) => {
-      const groupCounts = stream();
-      const topItemsIndexes = stream();
-      const groupIndicesAndCount = streamFromEmitter(pipe(groupCounts, map(groupCountsToIndicesAndCount)));
-      connect(
-        pipe(
-          groupIndicesAndCount,
-          map((value) => value.totalCount)
-        ),
-        totalCount
-      );
-      connect(
-        pipe(
-          groupIndicesAndCount,
-          map((value) => value.groupIndices)
-        ),
-        groupIndices
-      );
-      connect(
-        pipe(
-          combineLatest(scrollTop, sizes, headerHeight),
-          filter(([_2, sizes2]) => hasGroups(sizes2)),
-          map(([scrollTop2, state, headerHeight2]) => findMaxKeyValue(state.groupOffsetTree, Math.max(scrollTop2 - headerHeight2, 0), "v")[0]),
-          distinctUntilChanged(),
-          map((index) => [index])
-        ),
-        topItemsIndexes
-      );
-      return { groupCounts, topItemsIndexes };
-    }, tup(sizeSystem, domIOSystem));
-    function tupleComparator(prev, current) {
-      return !!(prev && prev[0] === current[0] && prev[1] === current[1]);
-    }
-    function rangeComparator(prev, next) {
-      return !!(prev && prev.startIndex === next.startIndex && prev.endIndex === next.endIndex);
-    }
-    const TOP = "top";
-    const BOTTOM = "bottom";
-    const NONE = "none";
-    function getOverscan(overscan, end2, direction) {
-      if (typeof overscan === "number") {
-        return direction === UP && end2 === TOP || direction === DOWN && end2 === BOTTOM ? overscan : 0;
-      } else {
-        if (direction === UP) {
-          return end2 === TOP ? overscan.main : overscan.reverse;
-        } else {
-          return end2 === BOTTOM ? overscan.main : overscan.reverse;
-        }
-      }
-    }
-    function getViewportIncrease(value, end2) {
-      return typeof value === "number" ? value : value[end2] || 0;
-    }
-    const sizeRangeSystem = system(
-      ([{ scrollTop, viewportHeight, deviation, headerHeight, fixedHeaderHeight }]) => {
-        const listBoundary = stream();
-        const topListHeight = statefulStream(0);
-        const increaseViewportBy = statefulStream(0);
-        const overscan = statefulStream(0);
-        const visibleRange = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(
-              duc(scrollTop),
-              duc(viewportHeight),
-              duc(headerHeight),
-              duc(listBoundary, tupleComparator),
-              duc(overscan),
-              duc(topListHeight),
-              duc(fixedHeaderHeight),
-              duc(deviation),
-              duc(increaseViewportBy)
-            ),
-            map(
-              ([
-                scrollTop2,
-                viewportHeight2,
-                headerHeight2,
-                [listTop, listBottom],
-                overscan2,
-                topListHeight2,
-                fixedHeaderHeight2,
-                deviation2,
-                increaseViewportBy2
-              ]) => {
-                const top2 = scrollTop2 - deviation2;
-                const stickyHeaderHeight = topListHeight2 + fixedHeaderHeight2;
-                const headerVisible = Math.max(headerHeight2 - top2, 0);
-                let direction = NONE;
-                const topViewportAddition = getViewportIncrease(increaseViewportBy2, TOP);
-                const bottomViewportAddition = getViewportIncrease(increaseViewportBy2, BOTTOM);
-                listTop -= deviation2;
-                listTop += headerHeight2 + fixedHeaderHeight2;
-                listBottom += headerHeight2 + fixedHeaderHeight2;
-                listBottom -= deviation2;
-                if (listTop > scrollTop2 + stickyHeaderHeight - topViewportAddition) {
-                  direction = UP;
-                }
-                if (listBottom < scrollTop2 - headerVisible + viewportHeight2 + bottomViewportAddition) {
-                  direction = DOWN;
-                }
-                if (direction !== NONE) {
-                  return [
-                    Math.max(top2 - headerHeight2 - getOverscan(overscan2, TOP, direction) - topViewportAddition, 0),
-                    top2 - headerVisible - fixedHeaderHeight2 + viewportHeight2 + getOverscan(overscan2, BOTTOM, direction) + bottomViewportAddition
-                  ];
-                }
-                return null;
-              }
-            ),
-            filter((value) => value != null),
-            distinctUntilChanged(tupleComparator)
-          ),
-          [0, 0]
-        );
-        return {
-          // input
-          listBoundary,
-          overscan,
-          topListHeight,
-          increaseViewportBy,
-          // output
-          visibleRange
-        };
-      },
-      tup(domIOSystem),
-      { singleton: true }
-    );
-    function probeItemSet(index, sizes, data) {
-      if (hasGroups(sizes)) {
-        const itemIndex = originalIndexFromItemIndex(index, sizes);
-        const groupIndex = findMaxKeyValue(sizes.groupOffsetTree, itemIndex)[0];
-        return [
-          { index: groupIndex, size: 0, offset: 0 },
-          { index: itemIndex, size: 0, offset: 0, data: data && data[0] }
-        ];
-      }
-      return [{ index, size: 0, offset: 0, data: data && data[0] }];
-    }
-    const EMPTY_LIST_STATE = {
-      items: [],
-      topItems: [],
-      offsetTop: 0,
-      offsetBottom: 0,
-      top: 0,
-      bottom: 0,
-      topListHeight: 0,
-      totalCount: 0,
-      firstItemIndex: 0
-    };
-    function transposeItems(items, sizes, firstItemIndex) {
-      if (items.length === 0) {
-        return [];
-      }
-      if (!hasGroups(sizes)) {
-        return items.map((item) => ({ ...item, index: item.index + firstItemIndex, originalIndex: item.index }));
-      }
-      const startIndex = items[0].index;
-      const endIndex = items[items.length - 1].index;
-      const transposedItems = [];
-      const groupRanges = rangesWithin(sizes.groupOffsetTree, startIndex, endIndex);
-      let currentRange = void 0;
-      let currentGroupIndex = 0;
-      for (const item of items) {
-        if (!currentRange || currentRange.end < item.index) {
-          currentRange = groupRanges.shift();
-          currentGroupIndex = sizes.groupIndices.indexOf(currentRange.start);
-        }
-        let transposedItem;
-        if (item.index === currentRange.start) {
-          transposedItem = {
-            type: "group",
-            index: currentGroupIndex
-          };
-        } else {
-          transposedItem = {
-            index: item.index - (currentGroupIndex + 1) + firstItemIndex,
-            groupIndex: currentGroupIndex
-          };
-        }
-        transposedItems.push({
-          ...transposedItem,
-          size: item.size,
-          offset: item.offset,
-          originalIndex: item.index,
-          data: item.data
-        });
-      }
-      return transposedItems;
-    }
-    function buildListState(items, topItems, totalCount, gap, sizes, firstItemIndex) {
-      const { lastSize, lastOffset, lastIndex } = sizes;
-      let offsetTop = 0;
-      let bottom2 = 0;
-      if (items.length > 0) {
-        offsetTop = items[0].offset;
-        const lastItem = items[items.length - 1];
-        bottom2 = lastItem.offset + lastItem.size;
-      }
-      const itemCount = totalCount - lastIndex;
-      const total = lastOffset + itemCount * lastSize + (itemCount - 1) * gap;
-      const top2 = offsetTop;
-      const offsetBottom = total - bottom2;
-      return {
-        items: transposeItems(items, sizes, firstItemIndex),
-        topItems: transposeItems(topItems, sizes, firstItemIndex),
-        topListHeight: topItems.reduce((height, item) => item.size + height, 0),
-        offsetTop,
-        offsetBottom,
-        top: top2,
-        bottom: bottom2,
-        totalCount,
-        firstItemIndex
-      };
-    }
-    function buildListStateFromItemCount(itemCount, initialTopMostItemIndex, sizes, firstItemIndex, gap, data) {
-      let includedGroupsCount = 0;
-      if (sizes.groupIndices.length > 0) {
-        for (const index of sizes.groupIndices) {
-          if (index - includedGroupsCount >= itemCount) {
-            break;
-          }
-          includedGroupsCount++;
-        }
-      }
-      const adjustedCount = itemCount + includedGroupsCount;
-      const initialTopMostItemIndexNumber = getInitialTopMostItemIndexNumber(initialTopMostItemIndex, adjustedCount);
-      const items = Array.from({ length: adjustedCount }).map((_2, index) => ({
-        index: index + initialTopMostItemIndexNumber,
-        size: 0,
-        offset: 0,
-        data: data[index + initialTopMostItemIndexNumber]
-      }));
-      return buildListState(items, [], adjustedCount, gap, sizes, firstItemIndex);
-    }
-    const listStateSystem = system(
-      ([
-        { sizes, totalCount, data, firstItemIndex, gap },
-        groupedListSystem2,
-        { visibleRange, listBoundary, topListHeight: rangeTopListHeight },
-        { scrolledToInitialItem, initialTopMostItemIndex },
-        { topListHeight },
-        stateFlags,
-        { didMount },
-        { recalcInProgress }
-      ]) => {
-        const topItemsIndexes = statefulStream([]);
-        const initialItemCount = statefulStream(0);
-        const itemsRendered = stream();
-        connect(groupedListSystem2.topItemsIndexes, topItemsIndexes);
-        const listState = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(
-              didMount,
-              recalcInProgress,
-              duc(visibleRange, tupleComparator),
-              duc(totalCount),
-              duc(sizes),
-              duc(initialTopMostItemIndex),
-              scrolledToInitialItem,
-              duc(topItemsIndexes),
-              duc(firstItemIndex),
-              duc(gap),
-              data
-            ),
-            filter(([mount, recalcInProgress2, , totalCount2, , , , , , , data2]) => {
-              const dataChangeInProgress = data2 && data2.length !== totalCount2;
-              return mount && !recalcInProgress2 && !dataChangeInProgress;
-            }),
-            map(
-              ([
-                ,
-                ,
-                [startOffset, endOffset],
-                totalCount2,
-                sizes2,
-                initialTopMostItemIndex2,
-                scrolledToInitialItem2,
-                topItemsIndexes2,
-                firstItemIndex2,
-                gap2,
-                data2
-              ]) => {
-                const sizesValue = sizes2;
-                const { sizeTree, offsetTree } = sizesValue;
-                const initialItemCountValue = getValue(initialItemCount);
-                if (totalCount2 === 0) {
-                  return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
-                }
-                if (startOffset === 0 && endOffset === 0) {
-                  if (initialItemCountValue === 0) {
-                    return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
-                  } else {
-                    return buildListStateFromItemCount(initialItemCountValue, initialTopMostItemIndex2, sizes2, firstItemIndex2, gap2, data2 || []);
-                  }
-                }
-                if (empty(sizeTree)) {
-                  if (initialItemCountValue > 0) {
-                    return null;
-                  }
-                  const state = buildListState(
-                    probeItemSet(getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2), sizesValue, data2),
-                    [],
-                    totalCount2,
-                    gap2,
-                    sizesValue,
-                    firstItemIndex2
-                  );
-                  return state;
-                }
-                const topItems = [];
-                if (topItemsIndexes2.length > 0) {
-                  const startIndex = topItemsIndexes2[0];
-                  const endIndex = topItemsIndexes2[topItemsIndexes2.length - 1];
-                  let offset2 = 0;
-                  for (const range of rangesWithin(sizeTree, startIndex, endIndex)) {
-                    const size = range.value;
-                    const rangeStartIndex = Math.max(range.start, startIndex);
-                    const rangeEndIndex = Math.min(range.end, endIndex);
-                    for (let i2 = rangeStartIndex; i2 <= rangeEndIndex; i2++) {
-                      topItems.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
-                      offset2 += size;
-                    }
-                  }
-                }
-                if (!scrolledToInitialItem2) {
-                  return buildListState([], topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
-                }
-                const minStartIndex = topItemsIndexes2.length > 0 ? topItemsIndexes2[topItemsIndexes2.length - 1] + 1 : 0;
-                const offsetPointRanges = rangesWithinOffsets(offsetTree, startOffset, endOffset, minStartIndex);
-                if (offsetPointRanges.length === 0) {
-                  return null;
-                }
-                const maxIndex = totalCount2 - 1;
-                const items = tap([], (result) => {
-                  for (const range of offsetPointRanges) {
-                    const point = range.value;
-                    let offset2 = point.offset;
-                    let rangeStartIndex = range.start;
-                    const size = point.size;
-                    if (point.offset < startOffset) {
-                      rangeStartIndex += Math.floor((startOffset - point.offset + gap2) / (size + gap2));
-                      const itemCount = rangeStartIndex - range.start;
-                      offset2 += itemCount * size + itemCount * gap2;
-                    }
-                    if (rangeStartIndex < minStartIndex) {
-                      offset2 += (minStartIndex - rangeStartIndex) * size;
-                      rangeStartIndex = minStartIndex;
-                    }
-                    const endIndex = Math.min(range.end, maxIndex);
-                    for (let i2 = rangeStartIndex; i2 <= endIndex; i2++) {
-                      if (offset2 >= endOffset) {
-                        break;
-                      }
-                      result.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
-                      offset2 += size + gap2;
-                    }
-                  }
-                });
-                return buildListState(items, topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
-              }
-            ),
-            //@ts-expect-error filter needs to be fixed
-            filter((value) => value !== null),
-            distinctUntilChanged()
-          ),
-          EMPTY_LIST_STATE
-        );
-        connect(
-          pipe(
-            data,
-            filter(isDefined),
-            map((data2) => data2 == null ? void 0 : data2.length)
-          ),
-          totalCount
-        );
-        connect(
-          pipe(
-            listState,
-            map((value) => value.topListHeight)
-          ),
-          topListHeight
-        );
-        connect(topListHeight, rangeTopListHeight);
-        connect(
-          pipe(
-            listState,
-            map((state) => [state.top, state.bottom])
-          ),
-          listBoundary
-        );
-        connect(
-          pipe(
-            listState,
-            map((state) => state.items)
-          ),
-          itemsRendered
-        );
-        const endReached = streamFromEmitter(
-          pipe(
-            listState,
-            filter(({ items }) => items.length > 0),
-            withLatestFrom(totalCount, data),
-            filter(([{ items }, totalCount2]) => items[items.length - 1].originalIndex === totalCount2 - 1),
-            map(([, totalCount2, data2]) => [totalCount2 - 1, data2]),
-            distinctUntilChanged(tupleComparator),
-            map(([count]) => count)
-          )
-        );
-        const startReached = streamFromEmitter(
-          pipe(
-            listState,
-            throttleTime(200),
-            filter(({ items, topItems }) => {
-              return items.length > 0 && items[0].originalIndex === topItems.length;
-            }),
-            map(({ items }) => items[0].index),
-            distinctUntilChanged()
-          )
-        );
-        const rangeChanged = streamFromEmitter(
-          pipe(
-            listState,
-            filter(({ items }) => items.length > 0),
-            map(({ items }) => {
-              let startIndex = 0;
-              let endIndex = items.length - 1;
-              while (items[startIndex].type === "group" && startIndex < endIndex) {
-                startIndex++;
-              }
-              while (items[endIndex].type === "group" && endIndex > startIndex) {
-                endIndex--;
-              }
-              return {
-                startIndex: items[startIndex].index,
-                endIndex: items[endIndex].index
-              };
-            }),
-            distinctUntilChanged(rangeComparator)
-          )
-        );
-        return { listState, topItemsIndexes, endReached, startReached, rangeChanged, itemsRendered, initialItemCount, ...stateFlags };
-      },
-      tup(
-        sizeSystem,
-        groupedListSystem,
-        sizeRangeSystem,
-        initialTopMostItemIndexSystem,
-        scrollToIndexSystem,
-        stateFlagsSystem,
-        propsReadySystem,
-        recalcSystem
-      ),
-      { singleton: true }
-    );
-    const initialItemCountSystem = system(
-      ([{ sizes, firstItemIndex, data, gap }, { initialTopMostItemIndex }, { initialItemCount, listState }, { didMount }]) => {
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialItemCount),
-            filter(([, count]) => count !== 0),
-            withLatestFrom(initialTopMostItemIndex, sizes, firstItemIndex, gap, data),
-            map(([[, count], initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2 = []]) => {
-              return buildListStateFromItemCount(count, initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2);
-            })
-          ),
-          listState
-        );
-        return {};
-      },
-      tup(sizeSystem, initialTopMostItemIndexSystem, listStateSystem, propsReadySystem),
-      { singleton: true }
-    );
-    const scrollSeekSystem = system(
-      ([{ scrollVelocity }]) => {
-        const isSeeking = statefulStream(false);
-        const rangeChanged = stream();
-        const scrollSeekConfiguration = statefulStream(false);
-        connect(
-          pipe(
-            scrollVelocity,
-            withLatestFrom(scrollSeekConfiguration, isSeeking, rangeChanged),
-            filter(([_2, config2]) => !!config2),
-            map(([speed, config2, isSeeking2, range]) => {
-              const { exit, enter } = config2;
-              if (isSeeking2) {
-                if (exit(speed, range)) {
-                  return false;
-                }
-              } else {
-                if (enter(speed, range)) {
-                  return true;
-                }
-              }
-              return isSeeking2;
-            }),
-            distinctUntilChanged()
-          ),
-          isSeeking
-        );
-        subscribe(
-          pipe(combineLatest(isSeeking, scrollVelocity, rangeChanged), withLatestFrom(scrollSeekConfiguration)),
-          ([[isSeeking2, velocity, range], config2]) => isSeeking2 && config2 && config2.change && config2.change(velocity, range)
-        );
-        return { isSeeking, scrollSeekConfiguration, scrollVelocity, scrollSeekRangeChanged: rangeChanged };
-      },
-      tup(stateFlagsSystem),
-      { singleton: true }
-    );
-    const topItemCountSystem = system(([{ topItemsIndexes }]) => {
-      const topItemCount = statefulStream(0);
-      connect(
-        pipe(
-          topItemCount,
-          filter((length) => length >= 0),
-          map((length) => Array.from({ length }).map((_2, index) => index))
-        ),
-        topItemsIndexes
-      );
-      return { topItemCount };
-    }, tup(listStateSystem));
-    const totalListHeightSystem = system(
-      ([{ footerHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight }, { listState }]) => {
-        const totalListHeightChanged = stream();
-        const totalListHeight = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(footerHeight, fixedFooterHeight, headerHeight, fixedHeaderHeight, listState),
-            map(([footerHeight2, fixedFooterHeight2, headerHeight2, fixedHeaderHeight2, listState2]) => {
-              return footerHeight2 + fixedFooterHeight2 + headerHeight2 + fixedHeaderHeight2 + listState2.offsetBottom + listState2.bottom;
-            })
-          ),
-          0
-        );
-        connect(duc(totalListHeight), totalListHeightChanged);
-        return { totalListHeight, totalListHeightChanged };
-      },
-      tup(domIOSystem, listStateSystem),
-      { singleton: true }
-    );
-    function simpleMemoize(func) {
-      let called = false;
-      let result;
-      return () => {
-        if (!called) {
-          called = true;
-          result = func();
-        }
-        return result;
-      };
-    }
-    const isMobileSafari = simpleMemoize(() => {
-      return /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent);
-    });
-    const upwardScrollFixSystem = system(
-      ([
-        { scrollBy, scrollTop, deviation, scrollingInProgress },
-        { isScrolling, isAtBottom, scrollDirection, lastJumpDueToItemResize },
-        { listState },
-        { beforeUnshiftWith, shiftWithOffset, sizes, gap },
-        { log },
-        { recalcInProgress }
-      ]) => {
-        const deviationOffset = streamFromEmitter(
-          pipe(
-            listState,
-            withLatestFrom(lastJumpDueToItemResize),
-            scan(
-              ([, prevItems, prevTotalCount, prevTotalHeight], [{ items, totalCount, bottom: bottom2, offsetBottom }, lastJumpDueToItemResize2]) => {
-                const totalHeight = bottom2 + offsetBottom;
-                let newDev = 0;
-                if (prevTotalCount === totalCount) {
-                  if (prevItems.length > 0 && items.length > 0) {
-                    const atStart = items[0].originalIndex === 0 && prevItems[0].originalIndex === 0;
-                    if (!atStart) {
-                      newDev = totalHeight - prevTotalHeight;
-                      if (newDev !== 0) {
-                        newDev += lastJumpDueToItemResize2;
-                      }
-                    }
-                  }
-                }
-                return [newDev, items, totalCount, totalHeight];
-              },
-              [0, [], 0, 0]
-            ),
-            filter(([amount]) => amount !== 0),
-            withLatestFrom(scrollTop, scrollDirection, scrollingInProgress, isAtBottom, log, recalcInProgress),
-            filter(([, scrollTop2, scrollDirection2, scrollingInProgress2, , , recalcInProgress2]) => {
-              return !recalcInProgress2 && !scrollingInProgress2 && scrollTop2 !== 0 && scrollDirection2 === UP;
-            }),
-            map(([[amount], , , , , log2]) => {
-              log2("Upward scrolling compensation", { amount }, LogLevel.DEBUG);
-              return amount;
-            })
-          )
-        );
-        function scrollByWith(offset2) {
-          if (offset2 > 0) {
-            publish(scrollBy, { top: -offset2, behavior: "auto" });
-            publish(deviation, 0);
-          } else {
-            publish(deviation, 0);
-            publish(scrollBy, { top: -offset2, behavior: "auto" });
-          }
-        }
-        subscribe(pipe(deviationOffset, withLatestFrom(deviation, isScrolling)), ([offset2, deviationAmount, isScrolling2]) => {
-          if (isScrolling2 && isMobileSafari()) {
-            publish(deviation, deviationAmount - offset2);
-          } else {
-            scrollByWith(-offset2);
-          }
-        });
-        subscribe(
-          pipe(
-            combineLatest(statefulStreamFromEmitter(isScrolling, false), deviation, recalcInProgress),
-            filter(([is, deviation2, recalc]) => !is && !recalc && deviation2 !== 0),
-            map(([_2, deviation2]) => deviation2),
-            throttleTime(1)
-          ),
-          scrollByWith
-        );
-        connect(
-          pipe(
-            shiftWithOffset,
-            map((offset2) => {
-              return { top: -offset2 };
-            })
-          ),
-          scrollBy
-        );
-        subscribe(
-          pipe(
-            beforeUnshiftWith,
-            withLatestFrom(sizes, gap),
-            map(([offset2, { lastSize: defaultItemSize, groupIndices, sizeTree }, gap2]) => {
-              function getItemOffset(itemCount) {
-                return itemCount * (defaultItemSize + gap2);
-              }
-              if (groupIndices.length === 0) {
-                return getItemOffset(offset2);
-              } else {
-                let amount = 0;
-                const defaultGroupSize = find$1(sizeTree, 0);
-                let recognizedOffsetItems = 0;
-                let groupIndex = 0;
-                while (recognizedOffsetItems < offset2) {
-                  recognizedOffsetItems++;
-                  amount += defaultGroupSize;
-                  let groupItemCount = groupIndices.length === groupIndex + 1 ? Infinity : groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
-                  if (recognizedOffsetItems + groupItemCount > offset2) {
-                    amount -= defaultGroupSize;
-                    groupItemCount = offset2 - recognizedOffsetItems + 1;
-                  }
-                  recognizedOffsetItems += groupItemCount;
-                  amount += getItemOffset(groupItemCount);
-                  groupIndex++;
-                }
-                return amount;
-              }
-            })
-          ),
-          (offset2) => {
-            publish(deviation, offset2);
-            requestAnimationFrame(() => {
-              publish(scrollBy, { top: offset2 });
-              requestAnimationFrame(() => {
-                publish(deviation, 0);
-                publish(recalcInProgress, false);
-              });
-            });
-          }
-        );
-        return { deviation };
-      },
-      tup(domIOSystem, stateFlagsSystem, listStateSystem, sizeSystem, loggerSystem, recalcSystem)
-    );
-    const initialScrollTopSystem = system(
-      ([{ didMount }, { scrollTo }, { listState }]) => {
-        const initialScrollTop = statefulStream(0);
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(initialScrollTop),
-            filter(([, offset2]) => offset2 !== 0),
-            map(([, offset2]) => ({ top: offset2 }))
-          ),
-          (location) => {
-            handleNext(
-              pipe(
-                listState,
-                skip(1),
-                filter((state) => state.items.length > 1)
-              ),
-              () => {
-                requestAnimationFrame(() => {
-                  publish(scrollTo, location);
-                });
-              }
-            );
-          }
-        );
-        return {
-          initialScrollTop
-        };
-      },
-      tup(propsReadySystem, domIOSystem, listStateSystem),
-      { singleton: true }
-    );
-    const alignToBottomSystem = system(
-      ([{ viewportHeight }, { totalListHeight }]) => {
-        const alignToBottom = statefulStream(false);
-        const paddingTopAddition = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(alignToBottom, viewportHeight, totalListHeight),
-            filter(([enabled]) => enabled),
-            map(([, viewportHeight2, totalListHeight2]) => {
-              return Math.max(0, viewportHeight2 - totalListHeight2);
-            }),
-            throttleTime(0),
-            distinctUntilChanged()
-          ),
-          0
-        );
-        return { alignToBottom, paddingTopAddition };
-      },
-      tup(domIOSystem, totalListHeightSystem),
-      { singleton: true }
-    );
-    const windowScrollerSystem = system(([{ scrollTo, scrollContainerState }]) => {
-      const windowScrollContainerState = stream();
-      const windowViewportRect = stream();
-      const windowScrollTo = stream();
-      const useWindowScroll = statefulStream(false);
-      const customScrollParent = statefulStream(void 0);
-      connect(
-        pipe(
-          combineLatest(windowScrollContainerState, windowViewportRect),
-          map(([{ viewportHeight, scrollTop: windowScrollTop, scrollHeight }, { offsetTop }]) => {
-            return {
-              scrollTop: Math.max(0, windowScrollTop - offsetTop),
-              scrollHeight,
-              viewportHeight
-            };
-          })
-        ),
-        scrollContainerState
-      );
-      connect(
-        pipe(
-          scrollTo,
-          withLatestFrom(windowViewportRect),
-          map(([scrollTo2, { offsetTop }]) => {
-            return {
-              ...scrollTo2,
-              top: scrollTo2.top + offsetTop
-            };
-          })
-        ),
-        windowScrollTo
-      );
-      return {
-        // config
-        useWindowScroll,
-        customScrollParent,
-        // input
-        windowScrollContainerState,
-        windowViewportRect,
-        // signals
-        windowScrollTo
-      };
-    }, tup(domIOSystem));
-    const defaultCalculateViewLocation = ({
-      itemTop: itemTop2,
-      itemBottom,
-      viewportTop,
-      viewportBottom,
-      locationParams: { behavior, align, ...rest }
-    }) => {
-      if (itemTop2 < viewportTop) {
-        return { ...rest, behavior, align: align != null ? align : "start" };
-      }
-      if (itemBottom > viewportBottom) {
-        return { ...rest, behavior, align: align != null ? align : "end" };
-      }
-      return null;
-    };
-    const scrollIntoViewSystem = system(
-      ([
-        { sizes, totalCount, gap },
-        { scrollTop, viewportHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollingInProgress },
-        { scrollToIndex }
-      ]) => {
-        const scrollIntoView2 = stream();
-        connect(
-          pipe(
-            scrollIntoView2,
-            withLatestFrom(sizes, viewportHeight, totalCount, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollTop),
-            withLatestFrom(gap),
-            map(([[viewLocation, sizes2, viewportHeight2, totalCount2, headerHeight2, fixedHeaderHeight2, fixedFooterHeight2, scrollTop2], gap2]) => {
-              const { done, behavior, align, calculateViewLocation = defaultCalculateViewLocation, ...rest } = viewLocation;
-              const actualIndex = originalIndexFromLocation(viewLocation, sizes2, totalCount2 - 1);
-              const itemTop2 = offsetOf(actualIndex, sizes2.offsetTree, gap2) + headerHeight2 + fixedHeaderHeight2;
-              const itemBottom = itemTop2 + findMaxKeyValue(sizes2.sizeTree, actualIndex)[1];
-              const viewportTop = scrollTop2 + fixedHeaderHeight2;
-              const viewportBottom = scrollTop2 + viewportHeight2 - fixedFooterHeight2;
-              const location = calculateViewLocation({
-                itemTop: itemTop2,
-                itemBottom,
-                viewportTop,
-                viewportBottom,
-                locationParams: { behavior, align, ...rest }
-              });
-              if (location) {
-                done && handleNext(
-                  pipe(
-                    scrollingInProgress,
-                    filter((value) => value === false),
-                    // skips the initial publish of false, and the cleanup call.
-                    // but if scrollingInProgress is true, we skip the initial publish.
-                    skip(getValue(scrollingInProgress) ? 1 : 2)
-                  ),
-                  done
-                );
-              } else {
-                done && done();
-              }
-              return location;
-            }),
-            filter((value) => value !== null)
-          ),
-          scrollToIndex
-        );
-        return {
-          scrollIntoView: scrollIntoView2
-        };
-      },
-      tup(sizeSystem, domIOSystem, scrollToIndexSystem, listStateSystem, loggerSystem),
-      { singleton: true }
-    );
-    const stateLoadSystem = system(
-      ([
-        { sizes, sizeRanges },
-        { scrollTop, headerHeight },
-        { initialTopMostItemIndex },
-        { didMount },
-        { useWindowScroll, windowScrollContainerState, windowViewportRect }
-      ]) => {
-        const getState = stream();
-        const restoreStateFrom = statefulStream(void 0);
-        const statefulWindowScrollContainerState = statefulStream(null);
-        const statefulWindowViewportRect = statefulStream(null);
-        connect(windowScrollContainerState, statefulWindowScrollContainerState);
-        connect(windowViewportRect, statefulWindowViewportRect);
-        subscribe(
-          pipe(
-            getState,
-            withLatestFrom(sizes, scrollTop, useWindowScroll, statefulWindowScrollContainerState, statefulWindowViewportRect, headerHeight)
-          ),
-          ([callback, sizes2, scrollTop2, useWindowScroll2, windowScrollContainerState2, windowViewportRect2, headerHeight2]) => {
-            const ranges = sizeTreeToRanges(sizes2.sizeTree);
-            if (useWindowScroll2 && windowScrollContainerState2 !== null && windowViewportRect2 !== null) {
-              scrollTop2 = windowScrollContainerState2.scrollTop - windowViewportRect2.offsetTop;
-            }
-            scrollTop2 -= headerHeight2;
-            callback({ ranges, scrollTop: scrollTop2 });
-          }
-        );
-        connect(pipe(restoreStateFrom, filter(isDefined), map(locationFromSnapshot)), initialTopMostItemIndex);
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(restoreStateFrom),
-            filter(([, state]) => state !== void 0),
-            distinctUntilChanged(),
-            map(([, snapshot]) => {
-              return snapshot.ranges;
-            })
-          ),
-          sizeRanges
-        );
-        return {
-          getState,
-          restoreStateFrom
-        };
-      },
-      tup(sizeSystem, domIOSystem, initialTopMostItemIndexSystem, propsReadySystem, windowScrollerSystem)
-    );
-    function locationFromSnapshot(snapshot) {
-      return { offset: snapshot.scrollTop, index: 0, align: "start" };
-    }
-    const featureGroup1System = system(
-      ([
-        sizeRange,
-        initialItemCount,
-        propsReady,
-        scrollSeek,
-        totalListHeight,
-        initialScrollTopSystem2,
-        alignToBottom,
-        windowScroller,
-        scrollIntoView2,
-        logger
-      ]) => {
-        return {
-          ...sizeRange,
-          ...initialItemCount,
-          ...propsReady,
-          ...scrollSeek,
-          ...totalListHeight,
-          ...initialScrollTopSystem2,
-          ...alignToBottom,
-          ...windowScroller,
-          ...scrollIntoView2,
-          ...logger
-        };
-      },
-      tup(
-        sizeRangeSystem,
-        initialItemCountSystem,
-        propsReadySystem,
-        scrollSeekSystem,
-        totalListHeightSystem,
-        initialScrollTopSystem,
-        alignToBottomSystem,
-        windowScrollerSystem,
-        scrollIntoViewSystem,
-        loggerSystem
-      )
-    );
-    const listSystem = system(
-      ([
-        {
-          totalCount,
-          sizeRanges,
-          fixedItemSize,
-          defaultItemSize,
-          trackItemSizes,
-          itemSize,
-          data,
-          firstItemIndex,
-          groupIndices,
-          statefulTotalCount,
-          gap,
-          sizes
-        },
-        { initialTopMostItemIndex, scrolledToInitialItem, initialItemFinalLocationReached },
-        domIO,
-        stateLoad,
-        followOutput,
-        { listState, topItemsIndexes, ...flags },
-        { scrollToIndex },
-        _2,
-        { topItemCount },
-        { groupCounts },
-        featureGroup1
-      ]) => {
-        connect(flags.rangeChanged, featureGroup1.scrollSeekRangeChanged);
-        connect(
-          pipe(
-            featureGroup1.windowViewportRect,
-            map((value) => value.visibleHeight)
-          ),
-          domIO.viewportHeight
-        );
-        return {
-          // input
-          totalCount,
-          data,
-          firstItemIndex,
-          sizeRanges,
-          initialTopMostItemIndex,
-          scrolledToInitialItem,
-          initialItemFinalLocationReached,
-          topItemsIndexes,
-          topItemCount,
-          groupCounts,
-          fixedItemHeight: fixedItemSize,
-          defaultItemHeight: defaultItemSize,
-          gap,
-          ...followOutput,
-          // output
-          statefulTotalCount,
-          listState,
-          scrollToIndex,
-          trackItemSizes,
-          itemSize,
-          groupIndices,
-          // exported from stateFlagsSystem
-          ...flags,
-          // the bag of IO from featureGroup1System
-          ...featureGroup1,
-          ...domIO,
-          sizes,
-          ...stateLoad
-        };
-      },
-      tup(
-        sizeSystem,
-        initialTopMostItemIndexSystem,
-        domIOSystem,
-        stateLoadSystem,
-        followOutputSystem,
-        listStateSystem,
-        scrollToIndexSystem,
-        upwardScrollFixSystem,
-        topItemCountSystem,
-        groupedListSystem,
-        featureGroup1System
-      )
-    );
-    const WEBKIT_STICKY = "-webkit-sticky";
-    const STICKY = "sticky";
-    const positionStickyCssValue = simpleMemoize(() => {
-      if (typeof document === "undefined") {
-        return STICKY;
-      }
-      const node = document.createElement("div");
-      node.style.position = WEBKIT_STICKY;
-      return node.style.position === WEBKIT_STICKY ? WEBKIT_STICKY : STICKY;
-    });
-    function useWindowViewportRectRef(callback, customScrollParent, skipAnimationFrame) {
-      const viewportInfo = xn.useRef(null);
-      const calculateInfo = xn.useCallback(
-        (element) => {
-          if (element === null || !element.offsetParent) {
-            return;
-          }
-          const rect = element.getBoundingClientRect();
-          const visibleWidth = rect.width;
-          let visibleHeight, offsetTop;
-          if (customScrollParent) {
-            const customScrollParentRect = customScrollParent.getBoundingClientRect();
-            const deltaTop = rect.top - customScrollParentRect.top;
-            visibleHeight = customScrollParentRect.height - Math.max(0, deltaTop);
-            offsetTop = deltaTop + customScrollParent.scrollTop;
-          } else {
-            visibleHeight = window.innerHeight - Math.max(0, rect.top);
-            offsetTop = rect.top + window.pageYOffset;
-          }
-          viewportInfo.current = {
-            offsetTop,
-            visibleHeight,
-            visibleWidth
-          };
-          callback(viewportInfo.current);
-        },
-        [callback, customScrollParent]
-      );
-      const { callbackRef, ref } = useSizeWithElRef(calculateInfo, true, skipAnimationFrame);
-      const scrollAndResizeEventHandler = xn.useCallback(() => {
-        calculateInfo(ref.current);
-      }, [calculateInfo, ref]);
-      xn.useEffect(() => {
-        if (customScrollParent) {
-          customScrollParent.addEventListener("scroll", scrollAndResizeEventHandler);
-          const observer = new ResizeObserver(() => {
-            requestAnimationFrame(scrollAndResizeEventHandler);
-          });
-          observer.observe(customScrollParent);
-          return () => {
-            customScrollParent.removeEventListener("scroll", scrollAndResizeEventHandler);
-            observer.unobserve(customScrollParent);
-          };
-        } else {
-          window.addEventListener("scroll", scrollAndResizeEventHandler);
-          window.addEventListener("resize", scrollAndResizeEventHandler);
-          return () => {
-            window.removeEventListener("scroll", scrollAndResizeEventHandler);
-            window.removeEventListener("resize", scrollAndResizeEventHandler);
-          };
-        }
-      }, [scrollAndResizeEventHandler, customScrollParent]);
-      return callbackRef;
-    }
-    const VirtuosoMockContext = xn.createContext(void 0);
-    const VirtuosoGridMockContext = xn.createContext(void 0);
-    function identity(value) {
-      return value;
-    }
-    const listComponentPropsSystem = /* @__PURE__ */ system(() => {
-      const itemContent = statefulStream((index) => `Item ${index}`);
-      const context = statefulStream(null);
-      const groupContent = statefulStream((index) => `Group ${index}`);
-      const components = statefulStream({});
-      const computeItemKey = statefulStream(identity);
-      const HeaderFooterTag = statefulStream("div");
-      const scrollerRef = statefulStream(noop);
-      const distinctProp = (propName, defaultValue = null) => {
-        return statefulStreamFromEmitter(
-          pipe(
-            components,
-            map((components2) => components2[propName]),
-            distinctUntilChanged()
-          ),
-          defaultValue
-        );
-      };
-      return {
-        context,
-        itemContent,
-        groupContent,
-        components,
-        computeItemKey,
-        HeaderFooterTag,
-        scrollerRef,
-        FooterComponent: distinctProp("Footer"),
-        HeaderComponent: distinctProp("Header"),
-        TopItemListComponent: distinctProp("TopItemList"),
-        ListComponent: distinctProp("List", "div"),
-        ItemComponent: distinctProp("Item", "div"),
-        GroupComponent: distinctProp("Group", "div"),
-        ScrollerComponent: distinctProp("Scroller", "div"),
-        EmptyPlaceholder: distinctProp("EmptyPlaceholder"),
-        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder")
-      };
-    });
-    const combinedSystem$2 = /* @__PURE__ */ system(([listSystem2, propsSystem]) => {
-      return { ...listSystem2, ...propsSystem };
-    }, tup(listSystem, listComponentPropsSystem));
-    const DefaultScrollSeekPlaceholder$1 = ({ height }) => /* @__PURE__ */ u("div", { style: { height } });
-    const GROUP_STYLE = { position: positionStickyCssValue(), zIndex: 1, overflowAnchor: "none" };
-    const ITEM_STYLE$1 = { overflowAnchor: "none" };
-    const HORIZONTAL_ITEM_STYLE = { ...ITEM_STYLE$1, display: "inline-block", height: "100%" };
-    const Items$1 = /* @__PURE__ */ xn.memo(function VirtuosoItems({ showTopList = false }) {
-      const listState = useEmitterValue$2("listState");
-      const sizeRanges = usePublisher$2("sizeRanges");
-      const useWindowScroll = useEmitterValue$2("useWindowScroll");
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const windowScrollContainerStateCallback = usePublisher$2("windowScrollContainerState");
-      const _scrollContainerStateCallback = usePublisher$2("scrollContainerState");
-      const scrollContainerStateCallback = customScrollParent || useWindowScroll ? windowScrollContainerStateCallback : _scrollContainerStateCallback;
-      const itemContent = useEmitterValue$2("itemContent");
-      const context = useEmitterValue$2("context");
-      const groupContent = useEmitterValue$2("groupContent");
-      const trackItemSizes = useEmitterValue$2("trackItemSizes");
-      const itemSize = useEmitterValue$2("itemSize");
-      const log = useEmitterValue$2("log");
-      const listGap = usePublisher$2("gap");
-      const horizontalDirection = useEmitterValue$2("horizontalDirection");
-      const { callbackRef } = useChangedListContentsSizes(
-        sizeRanges,
-        itemSize,
-        trackItemSizes,
-        showTopList ? noop : scrollContainerStateCallback,
-        log,
-        listGap,
-        customScrollParent,
-        horizontalDirection,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const [deviation, setDeviation] = xn.useState(0);
-      useEmitter$2("deviation", (value) => {
-        if (deviation !== value) {
-          setDeviation(value);
-        }
-      });
-      const EmptyPlaceholder = useEmitterValue$2("EmptyPlaceholder");
-      const ScrollSeekPlaceholder = useEmitterValue$2("ScrollSeekPlaceholder") || DefaultScrollSeekPlaceholder$1;
-      const ListComponent = useEmitterValue$2("ListComponent");
-      const ItemComponent = useEmitterValue$2("ItemComponent");
-      const GroupComponent = useEmitterValue$2("GroupComponent");
-      const computeItemKey = useEmitterValue$2("computeItemKey");
-      const isSeeking = useEmitterValue$2("isSeeking");
-      const hasGroups2 = useEmitterValue$2("groupIndices").length > 0;
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      const initialItemFinalLocationReached = useEmitterValue$2("initialItemFinalLocationReached");
-      const containerStyle = showTopList ? {} : {
-        boxSizing: "border-box",
-        ...horizontalDirection ? {
-          whiteSpace: "nowrap",
-          display: "inline-block",
-          height: "100%",
-          paddingLeft: listState.offsetTop,
-          paddingRight: listState.offsetBottom,
-          marginLeft: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0
-        } : {
-          marginTop: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0,
-          paddingTop: listState.offsetTop,
-          paddingBottom: listState.offsetBottom
-        },
-        ...initialItemFinalLocationReached ? {} : { visibility: "hidden" }
-      };
-      if (!showTopList && listState.totalCount === 0 && EmptyPlaceholder) {
-        return /* @__PURE__ */ u(EmptyPlaceholder, { ...contextPropIfNotDomElement(EmptyPlaceholder, context) });
-      }
-      return /* @__PURE__ */ u(
-        ListComponent,
-        {
-          ...contextPropIfNotDomElement(ListComponent, context),
-          ref: callbackRef,
-          style: containerStyle,
-          "data-testid": showTopList ? "virtuoso-top-item-list" : "virtuoso-item-list",
-          children: (showTopList ? listState.topItems : listState.items).map((item) => {
-            const index = item.originalIndex;
-            const key2 = computeItemKey(index + listState.firstItemIndex, item.data, context);
-            if (isSeeking) {
-              return /* @__PURE__ */ g$2(
-                ScrollSeekPlaceholder,
-                {
-                  ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
-                  key: key2,
-                  index: item.index,
-                  height: item.size,
-                  type: item.type || "item",
-                  ...item.type === "group" ? {} : { groupIndex: item.groupIndex }
-                }
-              );
-            }
-            if (item.type === "group") {
-              return /* @__PURE__ */ g$2(
-                GroupComponent,
-                {
-                  ...contextPropIfNotDomElement(GroupComponent, context),
-                  key: key2,
-                  "data-index": index,
-                  "data-known-size": item.size,
-                  "data-item-index": item.index,
-                  style: GROUP_STYLE
-                },
-                groupContent(item.index, context)
-              );
-            } else {
-              return /* @__PURE__ */ g$2(
-                ItemComponent,
-                {
-                  ...contextPropIfNotDomElement(ItemComponent, context),
-                  ...itemPropIfNotDomElement(ItemComponent, item.data),
-                  key: key2,
-                  "data-index": index,
-                  "data-known-size": item.size,
-                  "data-item-index": item.index,
-                  "data-item-group-index": item.groupIndex,
-                  style: horizontalDirection ? HORIZONTAL_ITEM_STYLE : ITEM_STYLE$1
-                },
-                hasGroups2 ? itemContent(item.index, item.groupIndex, item.data, context) : itemContent(item.index, item.data, context)
-              );
-            }
-          })
-        }
-      );
-    });
-    const scrollerStyle = {
-      height: "100%",
-      outline: "none",
-      overflowY: "auto",
-      position: "relative",
-      WebkitOverflowScrolling: "touch"
-    };
-    const horizontalScrollerStyle = {
-      outline: "none",
-      overflowX: "auto",
-      position: "relative"
-    };
-    const viewportStyle = (alignToBottom) => ({
-      width: "100%",
-      height: "100%",
-      position: "absolute",
-      top: 0,
-      ...alignToBottom ? { display: "flex", flexDirection: "column" } : {}
-    });
-    const topItemListStyle = {
-      width: "100%",
-      position: positionStickyCssValue(),
-      top: 0,
-      zIndex: 1
-    };
-    function contextPropIfNotDomElement(element, context) {
-      if (typeof element === "string") {
-        return void 0;
-      }
-      return { context };
-    }
-    function itemPropIfNotDomElement(element, item) {
-      return { item: typeof element === "string" ? void 0 : item };
-    }
-    const Header$1 = /* @__PURE__ */ xn.memo(function VirtuosoHeader() {
-      const Header2 = useEmitterValue$2("HeaderComponent");
-      const headerHeight = usePublisher$2("headerHeight");
-      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
-        true,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const context = useEmitterValue$2("context");
-      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
-    });
-    const Footer$1 = /* @__PURE__ */ xn.memo(function VirtuosoFooter() {
-      const Footer2 = useEmitterValue$2("FooterComponent");
-      const footerHeight = usePublisher$2("footerHeight");
-      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
-        true,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const context = useEmitterValue$2("context");
-      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
-    });
-    function buildScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
-      const Scroller2 = xn.memo(function VirtuosoScroller({ style: style2, children: children2, ...props }) {
-        const scrollContainerStateCallback = usePublisher2("scrollContainerState");
-        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
-        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
-        const scrollerRefCallback = useEmitterValue2("scrollerRef");
-        const context = useEmitterValue2("context");
-        const horizontalDirection = useEmitterValue2("horizontalDirection") || false;
-        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
-          scrollContainerStateCallback,
-          smoothScrollTargetReached,
-          ScrollerComponent,
-          scrollerRefCallback,
-          void 0,
-          horizontalDirection
-        );
-        useEmitter2("scrollTo", scrollToCallback);
-        useEmitter2("scrollBy", scrollByCallback);
-        const defaultStyle = horizontalDirection ? horizontalScrollerStyle : scrollerStyle;
-        return /* @__PURE__ */ u(
-          ScrollerComponent,
-          {
-            ref: scrollerRef,
-            style: { ...defaultStyle, ...style2 },
-            "data-testid": "virtuoso-scroller",
-            "data-virtuoso-scroller": true,
-            tabIndex: 0,
-            ...props,
-            ...contextPropIfNotDomElement(ScrollerComponent, context),
-            children: children2
-          }
-        );
-      });
-      return Scroller2;
-    }
-    function buildWindowScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
-      const Scroller2 = xn.memo(function VirtuosoWindowScroller({ style: style2, children: children2, ...props }) {
-        const scrollContainerStateCallback = usePublisher2("windowScrollContainerState");
-        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
-        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
-        const totalListHeight = useEmitterValue2("totalListHeight");
-        const deviation = useEmitterValue2("deviation");
-        const customScrollParent = useEmitterValue2("customScrollParent");
-        const context = useEmitterValue2("context");
-        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
-          scrollContainerStateCallback,
-          smoothScrollTargetReached,
-          ScrollerComponent,
-          noop,
-          customScrollParent
-        );
-        useIsomorphicLayoutEffect(() => {
-          scrollerRef.current = customScrollParent ? customScrollParent : window;
-          return () => {
-            scrollerRef.current = null;
-          };
-        }, [scrollerRef, customScrollParent]);
-        useEmitter2("windowScrollTo", scrollToCallback);
-        useEmitter2("scrollBy", scrollByCallback);
-        return /* @__PURE__ */ u(
-          ScrollerComponent,
-          {
-            style: { position: "relative", ...style2, ...totalListHeight !== 0 ? { height: totalListHeight + deviation } : {} },
-            "data-virtuoso-scroller": true,
-            ...props,
-            ...contextPropIfNotDomElement(ScrollerComponent, context),
-            children: children2
-          }
-        );
-      });
-      return Scroller2;
-    }
-    const Viewport$2 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoMockContext);
-      const viewportHeight = usePublisher$2("viewportHeight");
-      const fixedItemHeight = usePublisher$2("fixedItemHeight");
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      const horizontalDirection = useEmitterValue$2("horizontalDirection");
-      const viewportSizeCallbackMemo = xn.useMemo(
-        () => compose(viewportHeight, (el) => correctItemSize(el, horizontalDirection ? "width" : "height")),
-        [viewportHeight, horizontalDirection]
-      );
-      const viewportRef = useSize(viewportSizeCallbackMemo, true, useEmitterValue$2("skipAnimationFrameInResizeObserver"));
-      xn.useEffect(() => {
-        if (ctx) {
-          viewportHeight(ctx.viewportHeight);
-          fixedItemHeight(ctx.itemHeight);
-        }
-      }, [ctx, viewportHeight, fixedItemHeight]);
-      return /* @__PURE__ */ u("div", { style: viewportStyle(alignToBottom), ref: viewportRef, "data-viewport-type": "element", children: children2 });
-    };
-    const WindowViewport$2 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoMockContext);
-      const windowViewportRect = usePublisher$2("windowViewportRect");
-      const fixedItemHeight = usePublisher$2("fixedItemHeight");
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const viewportRef = useWindowViewportRectRef(
-        windowViewportRect,
-        customScrollParent,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      xn.useEffect(() => {
-        if (ctx) {
-          fixedItemHeight(ctx.itemHeight);
-          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: 100 });
-        }
-      }, [ctx, windowViewportRect, fixedItemHeight]);
-      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(alignToBottom), "data-viewport-type": "window", children: children2 });
-    };
-    const TopItemListContainer = ({ children: children2 }) => {
-      const TopItemList = useEmitterValue$2("TopItemListComponent") || "div";
-      const headerHeight = useEmitterValue$2("headerHeight");
-      const style2 = { ...topItemListStyle, marginTop: `${headerHeight}px` };
-      const context = useEmitterValue$2("context");
-      return /* @__PURE__ */ u(TopItemList, { style: style2, ...contextPropIfNotDomElement(TopItemList, context), children: children2 });
-    };
-    const ListRoot = /* @__PURE__ */ xn.memo(function VirtuosoRoot(props) {
-      const useWindowScroll = useEmitterValue$2("useWindowScroll");
-      const showTopList = useEmitterValue$2("topItemsIndexes").length > 0;
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$2 : Scroller$2;
-      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$2 : Viewport$2;
-      return /* @__PURE__ */ u(TheScroller, { ...props, children: [
-        showTopList && /* @__PURE__ */ u(TopItemListContainer, { children: /* @__PURE__ */ u(Items$1, { showTopList: true }) }),
-        /* @__PURE__ */ u(TheViewport, { children: [
-          /* @__PURE__ */ u(Header$1, {}),
-          /* @__PURE__ */ u(Items$1, {}),
-          /* @__PURE__ */ u(Footer$1, {})
-        ] })
-      ] });
-    });
-    const {
-      Component: List,
-      usePublisher: usePublisher$2,
-      useEmitterValue: useEmitterValue$2,
-      useEmitter: useEmitter$2
-    } = /* @__PURE__ */ systemToComponent(
-      combinedSystem$2,
-      {
-        required: {},
-        optional: {
-          restoreStateFrom: "restoreStateFrom",
-          context: "context",
-          followOutput: "followOutput",
-          itemContent: "itemContent",
-          groupContent: "groupContent",
-          overscan: "overscan",
-          increaseViewportBy: "increaseViewportBy",
-          totalCount: "totalCount",
-          groupCounts: "groupCounts",
-          topItemCount: "topItemCount",
-          firstItemIndex: "firstItemIndex",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          components: "components",
-          atBottomThreshold: "atBottomThreshold",
-          atTopThreshold: "atTopThreshold",
-          computeItemKey: "computeItemKey",
-          defaultItemHeight: "defaultItemHeight",
-          fixedItemHeight: "fixedItemHeight",
-          itemSize: "itemSize",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          headerFooterTag: "HeaderFooterTag",
-          data: "data",
-          initialItemCount: "initialItemCount",
-          initialScrollTop: "initialScrollTop",
-          alignToBottom: "alignToBottom",
-          useWindowScroll: "useWindowScroll",
-          customScrollParent: "customScrollParent",
-          scrollerRef: "scrollerRef",
-          logLevel: "logLevel",
-          horizontalDirection: "horizontalDirection",
-          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
-        },
-        methods: {
-          scrollToIndex: "scrollToIndex",
-          scrollIntoView: "scrollIntoView",
-          scrollTo: "scrollTo",
-          scrollBy: "scrollBy",
-          autoscrollToBottom: "autoscrollToBottom",
-          getState: "getState"
-        },
-        events: {
-          isScrolling: "isScrolling",
-          endReached: "endReached",
-          startReached: "startReached",
-          rangeChanged: "rangeChanged",
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          totalListHeightChanged: "totalListHeightChanged",
-          itemsRendered: "itemsRendered",
-          groupIndices: "groupIndices"
-        }
-      },
-      ListRoot
-    );
-    const Scroller$2 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
-    const WindowScroller$2 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
-    const Virtuoso = List;
-    const INITIAL_GRID_STATE = {
-      items: [],
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0,
-      bottom: 0,
-      itemHeight: 0,
-      itemWidth: 0
-    };
-    const PROBE_GRID_STATE = {
-      items: [{ index: 0 }],
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0,
-      bottom: 0,
-      itemHeight: 0,
-      itemWidth: 0
-    };
-    const { round, ceil, floor, min, max: max$1 } = Math;
-    function buildProbeGridState(items) {
-      return {
-        ...PROBE_GRID_STATE,
-        items
-      };
-    }
-    function buildItems(startIndex, endIndex, data) {
-      return Array.from({ length: endIndex - startIndex + 1 }).map((_2, i2) => {
-        const dataItem = data === null ? null : data[i2 + startIndex];
-        return { index: i2 + startIndex, data: dataItem };
-      });
-    }
-    function gapComparator(prev, next) {
-      return prev && prev.column === next.column && prev.row === next.row;
-    }
-    function dimensionComparator(prev, next) {
-      return prev && prev.width === next.width && prev.height === next.height;
-    }
-    const gridSystem = /* @__PURE__ */ system(
-      ([
-        { overscan, visibleRange, listBoundary, increaseViewportBy },
-        { scrollTop, viewportHeight, scrollBy, scrollTo, smoothScrollTargetReached, scrollContainerState, footerHeight, headerHeight },
-        stateFlags,
-        scrollSeek,
-        { propsReady, didMount },
-        { windowViewportRect, useWindowScroll, customScrollParent, windowScrollContainerState, windowScrollTo },
-        log
-      ]) => {
-        const totalCount = statefulStream(0);
-        const initialItemCount = statefulStream(0);
-        const gridState = statefulStream(INITIAL_GRID_STATE);
-        const viewportDimensions = statefulStream({ height: 0, width: 0 });
-        const itemDimensions = statefulStream({ height: 0, width: 0 });
-        const scrollToIndex = stream();
-        const scrollHeight = stream();
-        const deviation = statefulStream(0);
-        const data = statefulStream(null);
-        const gap = statefulStream({ row: 0, column: 0 });
-        const stateChanged = stream();
-        const restoreStateFrom = stream();
-        const stateRestoreInProgress = statefulStream(false);
-        const initialTopMostItemIndex = statefulStream(0);
-        const scrolledToInitialItem = statefulStream(true);
-        const scrollScheduled = statefulStream(false);
-        const horizontalDirection = statefulStream(false);
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location)
-          ),
-          () => {
-            publish(scrolledToInitialItem, false);
-          }
-        );
-        subscribe(
-          pipe(
-            combineLatest(didMount, scrolledToInitialItem, itemDimensions, viewportDimensions, initialTopMostItemIndex, scrollScheduled),
-            filter(([didMount2, scrolledToInitialItem2, itemDimensions2, viewportDimensions2, , scrollScheduled2]) => {
-              return didMount2 && !scrolledToInitialItem2 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0 && !scrollScheduled2;
-            })
-          ),
-          ([, , , , initialTopMostItemIndex2]) => {
-            publish(scrollScheduled, true);
-            skipFrames(1, () => {
-              publish(scrollToIndex, initialTopMostItemIndex2);
-            });
-            handleNext(pipe(scrollTop), () => {
-              publish(listBoundary, [0, 0]);
-              publish(scrolledToInitialItem, true);
-            });
-          }
-        );
-        connect(
-          pipe(
-            restoreStateFrom,
-            filter((value) => value !== void 0 && value !== null && value.scrollTop > 0),
-            mapTo(0)
-          ),
-          initialItemCount
-        );
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(restoreStateFrom),
-            filter(([, snapshot]) => snapshot !== void 0 && snapshot !== null)
-          ),
-          ([, snapshot]) => {
-            if (!snapshot) {
-              return;
-            }
-            publish(viewportDimensions, snapshot.viewport), publish(itemDimensions, snapshot == null ? void 0 : snapshot.item);
-            publish(gap, snapshot.gap);
-            if (snapshot.scrollTop > 0) {
-              publish(stateRestoreInProgress, true);
-              handleNext(pipe(scrollTop, skip(1)), (_value) => {
-                publish(stateRestoreInProgress, false);
-              });
-              publish(scrollTo, { top: snapshot.scrollTop });
-            }
-          }
-        );
-        connect(
-          pipe(
-            viewportDimensions,
-            map(({ height }) => height)
-          ),
-          viewportHeight
-        );
-        connect(
-          pipe(
-            combineLatest(
-              duc(viewportDimensions, dimensionComparator),
-              duc(itemDimensions, dimensionComparator),
-              duc(gap, (prev, next) => prev && prev.column === next.column && prev.row === next.row),
-              duc(scrollTop)
-            ),
-            map(([viewport2, item, gap2, scrollTop2]) => ({
-              viewport: viewport2,
-              item,
-              gap: gap2,
-              scrollTop: scrollTop2
-            }))
-          ),
-          stateChanged
-        );
-        connect(
-          pipe(
-            combineLatest(
-              duc(totalCount),
-              visibleRange,
-              duc(gap, gapComparator),
-              duc(itemDimensions, dimensionComparator),
-              duc(viewportDimensions, dimensionComparator),
-              duc(data),
-              duc(initialItemCount),
-              duc(stateRestoreInProgress),
-              duc(scrolledToInitialItem),
-              duc(initialTopMostItemIndex)
-            ),
-            filter(([, , , , , , , stateRestoreInProgress2]) => {
-              return !stateRestoreInProgress2;
-            }),
-            map(
-              ([
-                totalCount2,
-                [startOffset, endOffset],
-                gap2,
-                item,
-                viewport2,
-                data2,
-                initialItemCount2,
-                ,
-                scrolledToInitialItem2,
-                initialTopMostItemIndex2
-              ]) => {
-                const { row: rowGap, column: columnGap } = gap2;
-                const { height: itemHeight, width: itemWidth } = item;
-                const { width: viewportWidth } = viewport2;
-                if (initialItemCount2 === 0 && (totalCount2 === 0 || viewportWidth === 0)) {
-                  return INITIAL_GRID_STATE;
-                }
-                if (itemWidth === 0) {
-                  const startIndex2 = getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2);
-                  const endIndex2 = startIndex2 + Math.max(initialItemCount2 - 1, 0);
-                  return buildProbeGridState(buildItems(startIndex2, endIndex2, data2));
-                }
-                const perRow = itemsPerRow(viewportWidth, itemWidth, columnGap);
-                let startIndex;
-                let endIndex;
-                if (!scrolledToInitialItem2) {
-                  startIndex = 0;
-                  endIndex = -1;
-                } else if (startOffset === 0 && endOffset === 0 && initialItemCount2 > 0) {
-                  startIndex = 0;
-                  endIndex = initialItemCount2 - 1;
-                } else {
-                  startIndex = perRow * floor((startOffset + rowGap) / (itemHeight + rowGap));
-                  endIndex = perRow * ceil((endOffset + rowGap) / (itemHeight + rowGap)) - 1;
-                  endIndex = min(totalCount2 - 1, max$1(endIndex, perRow - 1));
-                  startIndex = min(endIndex, max$1(0, startIndex));
-                }
-                const items = buildItems(startIndex, endIndex, data2);
-                const { top: top2, bottom: bottom2 } = gridLayout(viewport2, gap2, item, items);
-                const rowCount = ceil(totalCount2 / perRow);
-                const totalHeight = rowCount * itemHeight + (rowCount - 1) * rowGap;
-                const offsetBottom = totalHeight - bottom2;
-                return { items, offsetTop: top2, offsetBottom, top: top2, bottom: bottom2, itemHeight, itemWidth };
-              }
-            )
-          ),
-          gridState
-        );
-        connect(
-          pipe(
-            data,
-            filter((data2) => data2 !== null),
-            map((data2) => data2.length)
-          ),
-          totalCount
-        );
-        connect(
-          pipe(
-            combineLatest(viewportDimensions, itemDimensions, gridState, gap),
-            filter(([viewportDimensions2, itemDimensions2, { items }]) => {
-              return items.length > 0 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0;
-            }),
-            map(([viewportDimensions2, itemDimensions2, { items }, gap2]) => {
-              const { top: top2, bottom: bottom2 } = gridLayout(viewportDimensions2, gap2, itemDimensions2, items);
-              return [top2, bottom2];
-            }),
-            distinctUntilChanged(tupleComparator)
-          ),
-          listBoundary
-        );
-        const hasScrolled = statefulStream(false);
-        connect(
-          pipe(
-            scrollTop,
-            withLatestFrom(hasScrolled),
-            map(([scrollTop2, hasScrolled2]) => {
-              return hasScrolled2 || scrollTop2 !== 0;
-            })
-          ),
-          hasScrolled
-        );
-        const endReached = streamFromEmitter(
-          pipe(
-            combineLatest(gridState, totalCount),
-            filter(([{ items }]) => items.length > 0),
-            withLatestFrom(hasScrolled),
-            filter(([[gridState2, totalCount2], hasScrolled2]) => {
-              const lastIndex = gridState2.items[gridState2.items.length - 1].index;
-              const isLastItemRendered = lastIndex === totalCount2 - 1;
-              if (hasScrolled2) return isLastItemRendered;
-              const isFullyRendered = gridState2.bottom > 0 && gridState2.itemHeight > 0 && gridState2.offsetBottom === 0 && gridState2.items.length === totalCount2;
-              return isFullyRendered && isLastItemRendered;
-            }),
-            map(([[, totalCount2]]) => {
-              return totalCount2 - 1;
-            }),
-            distinctUntilChanged()
-          )
-        );
-        const startReached = streamFromEmitter(
-          pipe(
-            duc(gridState),
-            filter(({ items }) => {
-              return items.length > 0 && items[0].index === 0;
-            }),
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-            mapTo(0),
-            distinctUntilChanged()
-          )
-        );
-        const rangeChanged = streamFromEmitter(
-          pipe(
-            duc(gridState),
-            withLatestFrom(stateRestoreInProgress),
-            filter(([{ items }, stateRestoreInProgress2]) => items.length > 0 && !stateRestoreInProgress2),
-            map(([{ items }]) => {
-              return {
-                startIndex: items[0].index,
-                endIndex: items[items.length - 1].index
-              };
-            }),
-            distinctUntilChanged(rangeComparator),
-            throttleTime(0)
-          )
-        );
-        connect(rangeChanged, scrollSeek.scrollSeekRangeChanged);
-        connect(
-          pipe(
-            scrollToIndex,
-            withLatestFrom(viewportDimensions, itemDimensions, totalCount, gap),
-            map(([location, viewportDimensions2, itemDimensions2, totalCount2, gap2]) => {
-              const normalLocation = normalizeIndexLocation(location);
-              const { align, behavior, offset: offset2 } = normalLocation;
-              let index = normalLocation.index;
-              if (index === "LAST") {
-                index = totalCount2 - 1;
-              }
-              index = max$1(0, index, min(totalCount2 - 1, index));
-              let top2 = itemTop(viewportDimensions2, gap2, itemDimensions2, index);
-              if (align === "end") {
-                top2 = round(top2 - viewportDimensions2.height + itemDimensions2.height);
-              } else if (align === "center") {
-                top2 = round(top2 - viewportDimensions2.height / 2 + itemDimensions2.height / 2);
-              }
-              if (offset2) {
-                top2 += offset2;
-              }
-              return { top: top2, behavior };
-            })
-          ),
-          scrollTo
-        );
-        const totalListHeight = statefulStreamFromEmitter(
-          pipe(
-            gridState,
-            map((gridState2) => {
-              return gridState2.offsetBottom + gridState2.bottom;
-            })
-          ),
-          0
-        );
-        connect(
-          pipe(
-            windowViewportRect,
-            map((viewportInfo) => ({ width: viewportInfo.visibleWidth, height: viewportInfo.visibleHeight }))
-          ),
-          viewportDimensions
-        );
-        return {
-          // input
-          data,
-          totalCount,
-          viewportDimensions,
-          itemDimensions,
-          scrollTop,
-          scrollHeight,
-          overscan,
-          increaseViewportBy,
-          scrollBy,
-          scrollTo,
-          scrollToIndex,
-          smoothScrollTargetReached,
-          windowViewportRect,
-          windowScrollTo,
-          useWindowScroll,
-          customScrollParent,
-          windowScrollContainerState,
-          deviation,
-          scrollContainerState,
-          footerHeight,
-          headerHeight,
-          initialItemCount,
-          gap,
-          restoreStateFrom,
-          ...scrollSeek,
-          initialTopMostItemIndex,
-          horizontalDirection,
-          // output
-          gridState,
-          totalListHeight,
-          ...stateFlags,
-          startReached,
-          endReached,
-          rangeChanged,
-          stateChanged,
-          propsReady,
-          stateRestoreInProgress,
-          ...log
-        };
-      },
-      tup(sizeRangeSystem, domIOSystem, stateFlagsSystem, scrollSeekSystem, propsReadySystem, windowScrollerSystem, loggerSystem)
-    );
-    function gridLayout(viewport2, gap, item, items) {
-      const { height: itemHeight } = item;
-      if (itemHeight === void 0 || items.length === 0) {
-        return { top: 0, bottom: 0 };
-      }
-      const top2 = itemTop(viewport2, gap, item, items[0].index);
-      const bottom2 = itemTop(viewport2, gap, item, items[items.length - 1].index) + itemHeight;
-      return { top: top2, bottom: bottom2 };
-    }
-    function itemTop(viewport2, gap, item, index) {
-      const perRow = itemsPerRow(viewport2.width, item.width, gap.column);
-      const rowCount = floor(index / perRow);
-      const top2 = rowCount * item.height + max$1(0, rowCount - 1) * gap.row;
-      return top2 > 0 ? top2 + gap.row : top2;
-    }
-    function itemsPerRow(viewportWidth, itemWidth, gap) {
-      return max$1(1, floor((viewportWidth + gap) / (floor(itemWidth) + gap)));
-    }
-    const gridComponentPropsSystem = /* @__PURE__ */ system(() => {
-      const itemContent = statefulStream((index) => `Item ${index}`);
-      const components = statefulStream({});
-      const context = statefulStream(null);
-      const itemClassName = statefulStream("virtuoso-grid-item");
-      const listClassName = statefulStream("virtuoso-grid-list");
-      const computeItemKey = statefulStream(identity);
-      const headerFooterTag = statefulStream("div");
-      const scrollerRef = statefulStream(noop);
-      const distinctProp = (propName, defaultValue = null) => {
-        return statefulStreamFromEmitter(
-          pipe(
-            components,
-            map((components2) => components2[propName]),
-            distinctUntilChanged()
-          ),
-          defaultValue
-        );
-      };
-      const readyStateChanged = statefulStream(false);
-      const reportReadyState = statefulStream(false);
-      connect(duc(reportReadyState), readyStateChanged);
-      return {
-        readyStateChanged,
-        reportReadyState,
-        context,
-        itemContent,
-        components,
-        computeItemKey,
-        itemClassName,
-        listClassName,
-        headerFooterTag,
-        scrollerRef,
-        FooterComponent: distinctProp("Footer"),
-        HeaderComponent: distinctProp("Header"),
-        ListComponent: distinctProp("List", "div"),
-        ItemComponent: distinctProp("Item", "div"),
-        ScrollerComponent: distinctProp("Scroller", "div"),
-        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder", "div")
-      };
-    });
-    const combinedSystem$1 = /* @__PURE__ */ system(([gridSystem2, gridComponentPropsSystem2]) => {
-      return { ...gridSystem2, ...gridComponentPropsSystem2 };
-    }, tup(gridSystem, gridComponentPropsSystem));
-    const GridItems = /* @__PURE__ */ xn.memo(function GridItems2() {
-      const gridState = useEmitterValue$1("gridState");
-      const listClassName = useEmitterValue$1("listClassName");
-      const itemClassName = useEmitterValue$1("itemClassName");
-      const itemContent = useEmitterValue$1("itemContent");
-      const computeItemKey = useEmitterValue$1("computeItemKey");
-      const isSeeking = useEmitterValue$1("isSeeking");
-      const scrollHeightCallback = usePublisher$1("scrollHeight");
-      const ItemComponent = useEmitterValue$1("ItemComponent");
-      const ListComponent = useEmitterValue$1("ListComponent");
-      const ScrollSeekPlaceholder = useEmitterValue$1("ScrollSeekPlaceholder");
-      const context = useEmitterValue$1("context");
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const gridGap = usePublisher$1("gap");
-      const log = useEmitterValue$1("log");
-      const stateRestoreInProgress = useEmitterValue$1("stateRestoreInProgress");
-      const reportReadyState = usePublisher$1("reportReadyState");
-      const listRef = useSize(
-        xn.useMemo(
-          () => (el) => {
-            const scrollHeight = el.parentElement.parentElement.scrollHeight;
-            scrollHeightCallback(scrollHeight);
-            const firstItem = el.firstChild;
-            if (firstItem) {
-              const { width, height } = firstItem.getBoundingClientRect();
-              itemDimensions({ width, height });
-            }
-            gridGap({
-              row: resolveGapValue("row-gap", getComputedStyle(el).rowGap, log),
-              column: resolveGapValue("column-gap", getComputedStyle(el).columnGap, log)
-            });
-          },
-          [scrollHeightCallback, itemDimensions, gridGap, log]
-        ),
-        true,
-        false
-      );
-      useIsomorphicLayoutEffect(() => {
-        if (gridState.itemHeight > 0 && gridState.itemWidth > 0) {
-          reportReadyState(true);
-        }
-      }, [gridState]);
-      if (stateRestoreInProgress) {
-        return null;
-      }
-      return /* @__PURE__ */ u(
-        ListComponent,
-        {
-          ref: listRef,
-          className: listClassName,
-          ...contextPropIfNotDomElement(ListComponent, context),
-          style: { paddingTop: gridState.offsetTop, paddingBottom: gridState.offsetBottom },
-          "data-testid": "virtuoso-item-list",
-          children: gridState.items.map((item) => {
-            const key2 = computeItemKey(item.index, item.data, context);
-            return isSeeking ? /* @__PURE__ */ u(
-              ScrollSeekPlaceholder,
-              {
-                ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
-                index: item.index,
-                height: gridState.itemHeight,
-                width: gridState.itemWidth
-              },
-              key2
-            ) : /* @__PURE__ */ g$2(
-              ItemComponent,
-              {
-                ...contextPropIfNotDomElement(ItemComponent, context),
-                className: itemClassName,
-                "data-index": item.index,
-                key: key2
-              },
-              itemContent(item.index, item.data, context)
-            );
-          })
-        }
-      );
-    });
-    const Header = xn.memo(function VirtuosoHeader2() {
-      const Header2 = useEmitterValue$1("HeaderComponent");
-      const headerHeight = usePublisher$1("headerHeight");
-      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
-        true,
-        false
-      );
-      const context = useEmitterValue$1("context");
-      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
-    });
-    const Footer = xn.memo(function VirtuosoGridFooter() {
-      const Footer2 = useEmitterValue$1("FooterComponent");
-      const footerHeight = usePublisher$1("footerHeight");
-      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
-        true,
-        false
-      );
-      const context = useEmitterValue$1("context");
-      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
-    });
-    const Viewport$1 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoGridMockContext);
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const viewportDimensions = usePublisher$1("viewportDimensions");
-      const viewportRef = useSize(
-        xn.useMemo(
-          () => (el) => {
-            viewportDimensions(el.getBoundingClientRect());
-          },
-          [viewportDimensions]
-        ),
-        true,
-        false
-      );
-      xn.useEffect(() => {
-        if (ctx) {
-          viewportDimensions({ height: ctx.viewportHeight, width: ctx.viewportWidth });
-          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
-        }
-      }, [ctx, viewportDimensions, itemDimensions]);
-      return /* @__PURE__ */ u("div", { style: viewportStyle(false), ref: viewportRef, children: children2 });
-    };
-    const WindowViewport$1 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoGridMockContext);
-      const windowViewportRect = usePublisher$1("windowViewportRect");
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const customScrollParent = useEmitterValue$1("customScrollParent");
-      const viewportRef = useWindowViewportRectRef(windowViewportRect, customScrollParent, false);
-      xn.useEffect(() => {
-        if (ctx) {
-          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
-          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: ctx.viewportWidth });
-        }
-      }, [ctx, windowViewportRect, itemDimensions]);
-      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(false), children: children2 });
-    };
-    const GridRoot = /* @__PURE__ */ xn.memo(function GridRoot2({ ...props }) {
-      const useWindowScroll = useEmitterValue$1("useWindowScroll");
-      const customScrollParent = useEmitterValue$1("customScrollParent");
-      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$1 : Scroller$1;
-      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$1 : Viewport$1;
-      return /* @__PURE__ */ u(TheScroller, { ...props, children: /* @__PURE__ */ u(TheViewport, { children: [
-        /* @__PURE__ */ u(Header, {}),
-        /* @__PURE__ */ u(GridItems, {}),
-        /* @__PURE__ */ u(Footer, {})
-      ] }) });
-    });
-    const {
-      Component: Grid,
-      usePublisher: usePublisher$1,
-      useEmitterValue: useEmitterValue$1,
-      useEmitter: useEmitter$1
-    } = /* @__PURE__ */ systemToComponent(
-      combinedSystem$1,
-      {
-        optional: {
-          context: "context",
-          totalCount: "totalCount",
-          overscan: "overscan",
-          itemContent: "itemContent",
-          components: "components",
-          computeItemKey: "computeItemKey",
-          data: "data",
-          initialItemCount: "initialItemCount",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          headerFooterTag: "headerFooterTag",
-          listClassName: "listClassName",
-          itemClassName: "itemClassName",
-          useWindowScroll: "useWindowScroll",
-          customScrollParent: "customScrollParent",
-          scrollerRef: "scrollerRef",
-          logLevel: "logLevel",
-          restoreStateFrom: "restoreStateFrom",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          increaseViewportBy: "increaseViewportBy"
-        },
-        methods: {
-          scrollTo: "scrollTo",
-          scrollBy: "scrollBy",
-          scrollToIndex: "scrollToIndex"
-        },
-        events: {
-          isScrolling: "isScrolling",
-          endReached: "endReached",
-          startReached: "startReached",
-          rangeChanged: "rangeChanged",
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          stateChanged: "stateChanged",
-          readyStateChanged: "readyStateChanged"
-        }
-      },
-      GridRoot
-    );
-    const Scroller$1 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
-    const WindowScroller$1 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
-    function resolveGapValue(property, value, log) {
-      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
-        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
-      }
-      if (value === "normal") {
-        return 0;
-      }
-      return parseInt(value != null ? value : "0", 10);
-    }
     const TranscriptView = ({ id: id2, events, depth = 0 }) => {
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
       return m$1` <${TranscriptComponent} id=${id2} eventNodes=${eventNodes} /> `;
     };
-    const TranscriptVirtualList = ({ id: id2, scrollRef, events, depth, style: style2 }) => {
+    const TranscriptVirtualList = (props) => {
+      let { id: id2, scrollRef, events, depth, style: style2 } = props;
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
-      const count = eventNodes ? eventNodes.length : 0;
       return m$1`<${Virtuoso}
       id=${`${id2}-virtual-list`}
+      logLevel=${LogLevel.DEBUG}
       style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
       customScrollParent=${scrollRef.current}
-      totalCount=${count}
+      data=${eventNodes}
       overscan=${{
         reverse: 3,
         main: 2
@@ -29905,16 +29924,18 @@ ${events}
       </${TabPanel}>`
         );
       }
-      tabs.push(m$1`<${TabPanel} 
-          id=${kSampleJsonTabId} 
-          classes="sample-tab"
-          title="JSON" 
-          onSelected=${onSelectedTab} 
-          selected=${selectedTab === kSampleJsonTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-          <${JSONPanel} data=${sample} simple=${true}/>
-        </div>
-      </${TabPanel}>`);
+      if (sample.messages.length < 100) {
+        tabs.push(m$1`<${TabPanel} 
+        id=${kSampleJsonTabId} 
+        classes="sample-tab"
+        title="JSON" 
+        onSelected=${onSelectedTab} 
+        selected=${selectedTab === kSampleJsonTabId}>
+      <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+        <${JSONPanel} data=${sample} simple=${true}/>
+      </div>
+    </${TabPanel}>`);
+      }
       const tabsetId = `task-sample-details-tab-${id2}`;
       const targetId = `${tabsetId}-content`;
       const printSample = () => {
