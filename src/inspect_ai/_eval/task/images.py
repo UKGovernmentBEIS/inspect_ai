@@ -1,7 +1,7 @@
 import asyncio
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ChatMessageUser, Content, ContentImage
@@ -85,7 +85,7 @@ def message_without_base64_image(message: ChatMessage) -> ChatMessage:
 async def chat_content_with_base64_image(content: Content) -> Content:
     if isinstance(content, ContentImage):
         return ContentImage(
-            image=await image_as_data_uri(content.image),
+            image=await file_as_data_uri(content.image),
             detail=content.detail,
         )
     else:

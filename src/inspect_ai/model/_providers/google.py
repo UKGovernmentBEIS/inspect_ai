@@ -45,8 +45,14 @@ from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import file_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
@@ -370,13 +376,21 @@ async def content_part(content: Content | str) -> PartDict:
     elif isinstance(content, ContentText):
         return PartDict(text=content.text or NO_CONTENT)
     else:
-        return PartDict(inline_data=await chat_content_image_to_blob(content))
+        return PartDict(inline_data=await chat_content_to_blob(content))
 
 
-async def chat_content_image_to_blob(image: ContentImage) -> Blob:
-    image_url = image.image
-    image_bytes, mime_type = await image_as_data(image_url)
-    return Blob(mime_type=mime_type, data=image_bytes)
+async def chat_content_to_blob(
+    content: ContentImage | ContentAudio | ContentVideo,
+) -> Blob:
+    if isinstance(content, ContentImage):
+        file = content.image
+    elif isinstance(content, ContentAudio):
+        file = content.audio
+    elif isinstance(content, ContentVideo):
+        file = content.video
+
+    content_bytes, mime_type = await file_as_data(file)
+    return Blob(mime_type=mime_type, data=content_bytes)
 
 
 def prepend_system_messages(
