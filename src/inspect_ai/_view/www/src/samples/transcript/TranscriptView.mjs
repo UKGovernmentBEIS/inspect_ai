@@ -15,7 +15,8 @@ import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
-import { Virtuoso } from "react-virtuoso";
+// @ts-ignore
+import { Virtuoso, LogLevel } from "react-virtuoso";
 
 /**
  * Renders the TranscriptView component.
@@ -33,7 +34,6 @@ export const TranscriptView = ({ id, events, depth = 0 }) => {
   return html` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
 };
 
-
 /**
  * Renders the Transcript component.
  *
@@ -45,23 +45,28 @@ export const TranscriptView = ({ id, events, depth = 0 }) => {
  * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptVirtualList = ({ id, scrollRef, events, depth, style }) => {
+export const TranscriptVirtualList = (props) => {
+  let { id, scrollRef, events, depth, style } = props;
+
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
-  
-  const count = eventNodes ? eventNodes.length : 0;
+
+
+
   return html`<${Virtuoso}
       id=${`${id}-virtual-list`}
+      logLevel=${LogLevel.DEBUG}
       style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
       customScrollParent=${scrollRef.current}
-      totalCount=${count}
+      data=${eventNodes}
       overscan=${{
         reverse: 3,
         main: 2
       }}
       itemContent=${(index) => {
           const node = eventNodes[index];
+          
           const toggleStyle = {};
           if (node.depth % 2 == 0) {
             toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";

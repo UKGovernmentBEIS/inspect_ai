@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { ChatView } from "../components/ChatView.mjs";
+import { ChatView, ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
@@ -47,6 +47,7 @@ import {
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable element whic contains this display
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({
@@ -205,16 +206,19 @@ export const SampleDisplay = ({
     );
   }
 
-  tabs.push(html`<${TabPanel} 
-          id=${kSampleJsonTabId} 
-          classes="sample-tab"
-          title="JSON" 
-          onSelected=${onSelectedTab} 
-          selected=${selectedTab === kSampleJsonTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-          <${JSONPanel} data=${sample} simple=${true}/>
-        </div>
-      </${TabPanel}>`);
+  if (sample.messages.length < 100) {
+    tabs.push(html`<${TabPanel} 
+        id=${kSampleJsonTabId} 
+        classes="sample-tab"
+        title="JSON" 
+        onSelected=${onSelectedTab} 
+        selected=${selectedTab === kSampleJsonTabId}>
+      <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+        <${JSONPanel} data=${sample} simple=${true}/>
+      </div>
+    </${TabPanel}>`);
+
+  }
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
