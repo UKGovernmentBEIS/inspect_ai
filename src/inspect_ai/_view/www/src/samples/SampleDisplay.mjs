@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { ChatView, ChatViewVirtualList } from "../components/ChatView.mjs";
+import { ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
@@ -103,7 +103,7 @@ export const SampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
-  scrollRef
+  scrollRef,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
@@ -126,7 +126,7 @@ export const SampleDisplay = ({
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === kSampleMessagesTabId
     }>
-      <${ChatView} 
+      <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id}`} 
         id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
@@ -217,7 +217,6 @@ export const SampleDisplay = ({
         <${JSONPanel} data=${sample} simple=${true}/>
       </div>
     </${TabPanel}>`);
-
   }
 
   const tabsetId = `task-sample-details-tab-${id}`;

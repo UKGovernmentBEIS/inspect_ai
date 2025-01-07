@@ -21,9 +21,8 @@ export const LargeModal = ({
   warning,
   warningHidden,
   setWarningHidden,
-  scrollRef
+  scrollRef,
 }) => {
-
   // The footer
   const modalFooter = footer
     ? html`<div class="modal-footer">${footer}</div>`

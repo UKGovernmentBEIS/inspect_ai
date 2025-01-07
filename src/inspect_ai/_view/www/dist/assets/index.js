@@ -28658,7 +28658,7 @@ ${events}
     function initializeObject(current) {
       return current ?? {};
     }
-    const StepEventView = ({ event, children: children2, style: style2 }) => {
+    const StepEventView = ({ event, children: children2, style: style2, scrollRef }) => {
       const descriptor = stepDescriptor(event);
       const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
@@ -28673,9 +28673,10 @@ ${events}
     collapse=${false}
     text=${text2}
   >
-    <${TranscriptComponent}
+    <${TranscriptVirtualListComponent}
       id=${`step-${event.name}-transcript`}
       eventNodes=${children2}
+      scrollRef=${scrollRef}
     />
   </EventPanel>
   `;
@@ -29456,17 +29457,24 @@ ${events}
       let { id: id2, scrollRef, events, depth, style: style2 } = props;
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
+      return m$1`<${TranscriptVirtualListComponent}
+                  id=${id2}
+                  eventNodes=${eventNodes}
+                  style=${style2}
+                  scrollRef=${scrollRef}/>`;
+    };
+    const TranscriptVirtualListComponent = ({ id: id2, eventNodes, style: style2, scrollRef }) => {
       return m$1`<${Virtuoso}
-      id=${`${id2}-virtual-list`}
-      logLevel=${LogLevel.DEBUG}
-      style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
-      customScrollParent=${scrollRef.current}
-      data=${eventNodes}
-      overscan=${{
+                id=${`${id2}-virtual-list`}
+                logLevel=${LogLevel.DEBUG}
+                style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
+                customScrollParent=${scrollRef.current}
+                data=${eventNodes}
+                overscan=${{
         reverse: 3,
         main: 2
       }}
-      itemContent=${(index) => {
+                itemContent=${(index) => {
         const node = eventNodes[index];
         const toggleStyle = {};
         if (node.depth % 2 == 0) {
@@ -29479,17 +29487,18 @@ ${events}
           paddingTop = ".5em";
         }
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
-                        <${RenderedEventNode}
-                          id=${`${id2}-event${index}`}
-                          node=${node}
-                          style=${{
+                                  <${RenderedEventNode}
+                                    id=${`${id2}-event${index}`}
+                                    node=${node}
+                                    style=${{
           ...toggleStyle,
           ...style2
         }}
-                        />
-                      </div>`;
+                                    scrollRef=${scrollRef}
+                                  />
+                                </div>`;
       }}
-    />`;
+              />`;
     };
     const TranscriptComponent = ({ id: id2, eventNodes, style: style2 }) => {
       const rows = eventNodes.map((eventNode, index) => {
@@ -29535,7 +29544,7 @@ ${events}
     ${rows}
   </div>`;
     };
-    const RenderedEventNode = ({ id: id2, node, style: style2 }) => {
+    const RenderedEventNode = ({ id: id2, node, style: style2, scrollRef }) => {
       switch (node.event.event) {
         case "sample_init":
           return m$1`<${SampleInitEventView}
@@ -29585,6 +29594,7 @@ ${events}
         event=${node.event}
         children=${node.children}
         style=${style2}
+        scrollRef=${scrollRef}
       />`;
         case "store":
           return m$1`<${StateEventView}

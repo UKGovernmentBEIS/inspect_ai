@@ -31,7 +31,7 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {import("htm/preact").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
  * @param {(position: number) => void} props.setSampleScrollPosition - sets the sample scroll position
- * @param {import("htm/preact").MutableRef<HTMLElement>} props.sampleTabScrollRef - the sample scroll element 
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.sampleTabScrollRef - the sample scroll element
  * @param {any} props.sort - the selected sort
  *
  * @returns {import("preact").JSX.Element[]} The TranscriptView component.
@@ -55,7 +55,7 @@ export const SamplesTab = ({
   setSelectedSampleTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
-  sampleTabScrollRef
+  sampleTabScrollRef,
 }) => {
   /** @type {[ListItem[], function(ListItem[]): void]} */
   const [items, setItems] = useState([]);
