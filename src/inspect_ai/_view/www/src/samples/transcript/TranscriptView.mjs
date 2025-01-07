@@ -81,6 +81,7 @@ export const TranscriptVirtualListComponent = ({
     style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
     customScrollParent=${scrollRef.current}
     data=${eventNodes}
+    skipAnimationFrameInResizeObserver=${true}
     increaseViewportBy=${{
       top: 1000,
       bottom: 1000,
