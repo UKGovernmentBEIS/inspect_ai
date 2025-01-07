@@ -46,12 +46,12 @@ export const ChatViewVirtualList = ({
   };
 
   const result = html`<${VirtualList}
-      data=${collapsedMessages}
-      tabIndex="0"
-      renderRow=${renderRow}
-      scrollRef=${scrollRef}
-      style=${{width: "100%", marginTop: "1em", ...style}}
-  />`
+    data=${collapsedMessages}
+    tabIndex="0"
+    renderRow=${renderRow}
+    scrollRef=${scrollRef}
+    style=${{ width: "100%", marginTop: "1em", ...style }}
+  />`;
 
   return result;
 };
