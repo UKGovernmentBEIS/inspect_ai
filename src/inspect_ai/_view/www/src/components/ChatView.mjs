@@ -7,7 +7,6 @@ import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
-import { Virtuoso } from "react-virtuoso";
 import { VirtualList } from "./VirtualList.mjs";
 
 /**
@@ -51,7 +50,7 @@ export const ChatViewVirtualList = ({
       tabIndex="0"
       renderRow=${renderRow}
       scrollRef=${scrollRef}
-      style=${{width: "100%", marginTop: "1em"}}
+      style=${{width: "100%", marginTop: "1em", ...style}}
   />`
 
   return result;
