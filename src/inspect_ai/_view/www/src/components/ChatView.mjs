@@ -43,9 +43,9 @@ export const ChatViewVirtualList = ({
     }}
     customScrollParent=${scrollRef.current}
     totalCount=${collapsedMessages.length}
-    overscan=${{
-      reverse: 3,
-      main: 2,
+    increaseViewportBy=${{
+      top: 1000,
+      bottom: 1000,
     }}
     itemContent=${(index) => {
       const number =

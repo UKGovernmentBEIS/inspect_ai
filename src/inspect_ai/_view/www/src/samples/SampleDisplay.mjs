@@ -132,6 +132,7 @@ export const SampleDisplay = ({
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
+        scrollRef=${scrollRef}
       />
     </${TabPanel}>`,
   ];
