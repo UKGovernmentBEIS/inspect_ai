@@ -78,13 +78,12 @@ export const TranscriptVirtualListComponent = ({
 }) => {
   return html`<${Virtuoso}
     id=${`${id}-virtual-list`}
-    logLevel=${LogLevel.DEBUG}
     style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
     customScrollParent=${scrollRef.current}
     data=${eventNodes}
-    overscan=${{
-      reverse: 3,
-      main: 2,
+    increaseViewportBy=${{
+      top: 1000,
+      bottom: 1000,
     }}
     itemContent=${(index) => {
       const node = eventNodes[index];
