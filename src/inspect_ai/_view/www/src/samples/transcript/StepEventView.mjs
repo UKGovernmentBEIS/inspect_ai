@@ -1,9 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
-import {
-  TranscriptVirtualListComponent,
-} from "./TranscriptView.mjs";
+import { TranscriptVirtualListComponent } from "./TranscriptView.mjs";
 import { formatDateTime } from "../../utils/Format.mjs";
 
 /**

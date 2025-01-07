@@ -16,7 +16,7 @@ import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 // @ts-ignore
-import { Virtuoso, LogLevel } from "react-virtuoso";
+import { Virtuoso } from "react-virtuoso";
 
 /**
  * Renders the TranscriptView component.
