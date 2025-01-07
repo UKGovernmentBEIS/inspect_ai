@@ -16,6 +16,7 @@ from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
+from inspect_ai.dataset._dataset import MT, metadata_as
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -24,6 +25,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._store import Store
+from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
 
@@ -158,8 +161,30 @@ class EvalSample(BaseModel):
     metadata: dict[str, Any]
     """Additional sample metadata."""
 
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Pydantic model interface to metadata.
+
+        Args:
+          metadata_cls: Pydantic model type
+
+        Returns:
+          BaseModel: Instance of metadata_cls bound to sample metadata.
+        """
+        return metadata_as(self.metadata, metadata_cls)
+
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
+
+    def store_as(self, model_cls: Type[SMT]) -> SMT:
+        """Pydantic model interface to the store.
+
+        Args:
+          model_cls: Pydantic model type (must derive from StoreModel)
+
+        Returns:
+          StoreModel: Instance of model_cls bound to sample store data.
+        """
+        return model_cls(store=Store(self.store))
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""

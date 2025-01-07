@@ -119,8 +119,8 @@ export class InspectCodeLensProvider implements CodeLensProvider {
 }
 
 const fromImportPattern =
-  /from\s+inspect\s+import\s+(?:\(\s*)?(?:[\w,\s]*,\s*)?task(?:\s+as\s+(\w+))?/;
-const hasImportPattern = /import\s+inspect\b/;
+  /from\s+inspect_ai\s+import\s+(?:\(\s*)?(?:[\w,\s]*,\s*)?task(?:\s+as\s+(\w+))?/;
+const hasImportPattern = /import\s+inspect_ai\b/;
 const kFuncPattern = /^\s*def\s*(.*)\(.*$/;
-const kDecoratorPattern = /^\s*@(inspect\.)?task\b|@(\w+)\b/;
+const kDecoratorPattern = /^\s*@(inspect_ai\.)?task\b|@(\w+)\b/;
 const normalizeTextPattern = /\(\s*\n\s*([^)]+)\s*\n\s*\)/g;

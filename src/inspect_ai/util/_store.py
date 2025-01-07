@@ -34,8 +34,8 @@ class Store:
     inheriting from Pydantic `BaseModel`)
     """
 
-    def __init__(self) -> None:
-        self._data: dict[str, Any] = {}
+    def __init__(self, data: dict[str, Any] | None = None) -> None:
+        self._data = deepcopy(data) if data else {}
 
     @overload
     def get(self, key: str, default: None = None) -> Any: ...
