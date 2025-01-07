@@ -25666,6 +25666,7 @@ ${events}
       overscanCount = 10,
       estimatedRowHeight = 50,
       sync,
+      scrollRef,
       ...props
     }) {
       const [height, setHeight] = h(0);
@@ -25712,13 +25713,15 @@ ${events}
         setTotalHeight(total);
       };
       const resize = () => {
-        if (baseRef.current && height !== baseRef.current.offsetHeight) {
-          setHeight(baseRef.current.offsetHeight);
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement && height !== scrollElement.offsetHeight) {
+          setHeight(scrollElement.offsetHeight);
         }
       };
       const handleScroll = throttle$1(() => {
-        if (baseRef.current) {
-          setOffset(baseRef.current.scrollTop);
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement) {
+          setOffset(scrollElement.scrollTop);
         }
         if (sync) {
           setOffset((prev) => prev);

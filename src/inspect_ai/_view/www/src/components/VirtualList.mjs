@@ -14,6 +14,7 @@ import { throttle } from "../utils/sync.mjs";
  * @param {number} [props.overscanCount=10] - Number of extra rows to render above and below the visible area
  * @param {number} [props.estimatedRowHeight=50] - Estimated height of each row before measurement
  * @param {boolean} [props.sync] - If true, forces a re-render on scroll
+ * @param {import("preact").RefObject<HTMLElement>} [props.scrollRef] - Optional ref to use as scroll container
  * @param {Object} [props.props] - Additional props to be spread onto the container element
  * @returns {preact.VNode} The virtual list component
  */
@@ -23,6 +24,7 @@ export function VirtualList({
   overscanCount = 10,
   estimatedRowHeight = 50,
   sync,
+  scrollRef,
   ...props
 }) {
   const [height, setHeight] = useState(0);
@@ -84,15 +86,17 @@ export function VirtualList({
 
   // Handle container resize
   const resize = () => {
-    if (baseRef.current && height !== baseRef.current.offsetHeight) {
-      setHeight(baseRef.current.offsetHeight);
+    const scrollElement = scrollRef?.current || baseRef.current;
+    if (scrollElement && height !== scrollElement.offsetHeight) {
+      setHeight(scrollElement.offsetHeight);
     }
   };
 
   // Handle scroll with throttling
   const handleScroll = throttle(() => {
-    if (baseRef.current) {
-      setOffset(baseRef.current.scrollTop);
+    const scrollElement = scrollRef?.current || baseRef.current;
+    if (scrollElement) {
+      setOffset(scrollElement.scrollTop);
     }
     if (sync) {
       setOffset((prev) => prev);
