@@ -19,7 +19,9 @@ export const asyncJsonParse = async (text) => {
         reject(new Error(error.message));
       };
     });
-    worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [encodedText.buffer]);
+    worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [
+      encodedText.buffer,
+    ]);
     return await result;
   } finally {
     worker.terminate();

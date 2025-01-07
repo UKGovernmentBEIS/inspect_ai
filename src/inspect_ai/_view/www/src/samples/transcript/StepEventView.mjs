@@ -1,7 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
-import { TranscriptComponent } from "./TranscriptView.mjs";
+import {
+  TranscriptVirtualListComponent,
+} from "./TranscriptView.mjs";
 import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
@@ -11,9 +13,10 @@ import { formatDateTime } from "../../utils/Format.mjs";
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
  * @param {import("./Types.mjs").EventNode[]} props.children - The event notes children of this step
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The component that displays event details.
  */
-export const StepEventView = ({ event, children, style }) => {
+export const StepEventView = ({ event, children, style, scrollRef }) => {
   const descriptor = stepDescriptor(event);
   const title =
     descriptor.name ||
@@ -31,9 +34,10 @@ export const StepEventView = ({ event, children, style }) => {
     collapse=${false}
     text=${text}
   >
-    <${TranscriptComponent}
+    <${TranscriptVirtualListComponent}
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
+      scrollRef=${scrollRef}
     />
   </EventPanel>
   `;

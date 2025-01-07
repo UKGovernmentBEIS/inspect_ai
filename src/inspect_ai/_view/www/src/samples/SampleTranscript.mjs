@@ -12,5 +12,9 @@ import { TranscriptVirtualList } from "./transcript/TranscriptView.mjs";
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const SampleTranscript = ({ id, evalEvents, scrollRef }) => {
-  return html`<${TranscriptVirtualList} id=${id} events=${evalEvents} scrollRef=${scrollRef}/>`;
+  return html`<${TranscriptVirtualList}
+    id=${id}
+    events=${evalEvents}
+    scrollRef=${scrollRef}
+  />`;
 };
