@@ -8,7 +8,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import json_dataset
-from inspect_ai.scorer._classification import f1
+from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 
 
@@ -19,7 +19,7 @@ def audio():
             os.path.join("tests", "util", "test_audio", "audio.jsonl")
         ),
         solver=[generate()],
-        scorer=f1(),
+        scorer=includes(),
     )
 
 
@@ -39,4 +39,4 @@ def test_vertex_audio():
 
 @skip_if_no_openai
 def test_openai_audio():
-    check_audio("openai/gpt-4o")
+    check_audio("openai/gpt-4o-audio-preview")
