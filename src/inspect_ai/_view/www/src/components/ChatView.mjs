@@ -8,6 +8,7 @@ import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 import { Virtuoso } from "react-virtuoso";
+import { VirtualList } from "./VirtualList.mjs";
 
 /**
  * Renders the ChatViewVirtualList component.
@@ -33,33 +34,26 @@ export const ChatViewVirtualList = ({
 }) => {
   const collapsedMessages = resolveMessages(messages);
 
-  const result = html`<${Virtuoso}
-    id=${`${id}-virtual-list`}
-    style=${{
-      width: "100%",
-      overflowY: "unset",
-      boxSizing: "border-box",
-      ...style,
-    }}
-    customScrollParent=${scrollRef.current}
-    totalCount=${collapsedMessages.length}
-    increaseViewportBy=${{
-      top: 1000,
-      bottom: 1000,
-    }}
-    skipAnimationFrameInResizeObserver=${true}
-    itemContent=${(index) => {
-      const number =
-        collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
-      return html`<${ChatMessageRow}
-        id=${id}
-        number=${number}
-        resolvedMessage=${collapsedMessages[index]}
-        indented=${indented}
-        toolCallStyle=${toolCallStyle}
-      />`;
-    }}
-  />`;
+  const renderRow = (item, index) => {
+    const number =
+      collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+    return html`<${ChatMessageRow}
+      id=${id}
+      number=${number}
+      resolvedMessage=${item}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
+  };
+
+  const result = html`<${VirtualList}
+      data=${collapsedMessages}
+      tabIndex="0"
+      renderRow=${renderRow}
+      scrollRef=${scrollRef}
+      style=${{width: "100%", marginTop: "1em"}}
+  />`
+
   return result;
 };
 
