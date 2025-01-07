@@ -1587,6 +1587,17 @@
     ]
   },
   {
+    "objectID": "typing.html#log-samples",
+    "href": "typing.html#log-samples",
+    "title": "Typing",
+    "section": "Log Samples",
+    "text": "Log Samples\n\n\n\n\n\n\nTyped access to log sample store and metadata are supported only in the development version of Inspect. To install the development version from GitHub:\npip install git+https://github.com/UKGovernmentBEIS/inspect_ai\n\n\n\nThe store_as() and metadata_as() typed accessors are also available when reading samples from the eval log. Continuing from the examples above, you access typed interfaces as follows from an EvalLog:\n# typed store\nactivity = log.samples[0].store_as(Activity)\n\n# typed metadata\nmetadata = log.samples[0].metadata_as(PopularityMetadata)",
+    "crumbs": [
+      "Advanced",
+      "Typing"
+    ]
+  },
+  {
     "objectID": "parallelism.html",
     "href": "parallelism.html",
     "title": "Parallelism",
