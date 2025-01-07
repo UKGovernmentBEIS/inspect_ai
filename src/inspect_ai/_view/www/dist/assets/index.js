@@ -20100,7 +20100,7 @@ var require_assets = __commonJS({
       scrollRef
     }) => {
       const collapsedMessages = resolveMessages(messages);
-      const result = m$1` <${Virtuoso}
+      const result = m$1`<${Virtuoso}
     id=${`${id2}-virtual-list`}
     style=${{
         width: "100%",
@@ -20114,6 +20114,7 @@ var require_assets = __commonJS({
         top: 1e3,
         bottom: 1e3
       }}
+    skipAnimationFrameInResizeObserver=${true}
     itemContent=${(index) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
@@ -29512,6 +29513,7 @@ ${events}
     style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
     customScrollParent=${scrollRef.current}
     data=${eventNodes}
+    skipAnimationFrameInResizeObserver=${true}
     increaseViewportBy=${{
         top: 1e3,
         bottom: 1e3

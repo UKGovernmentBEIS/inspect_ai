@@ -33,7 +33,7 @@ export const ChatViewVirtualList = ({
 }) => {
   const collapsedMessages = resolveMessages(messages);
 
-  const result = html` <${Virtuoso}
+  const result = html`<${Virtuoso}
     id=${`${id}-virtual-list`}
     style=${{
       width: "100%",
@@ -47,6 +47,7 @@ export const ChatViewVirtualList = ({
       top: 1000,
       bottom: 1000,
     }}
+    skipAnimationFrameInResizeObserver=${true}
     itemContent=${(index) => {
       const number =
         collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
