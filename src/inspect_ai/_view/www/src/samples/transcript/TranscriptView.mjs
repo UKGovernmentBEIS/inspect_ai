@@ -17,6 +17,7 @@ import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 // @ts-ignore
 import { Virtuoso } from "react-virtuoso";
+import { VirtualList } from "../../components/VirtualList.mjs";
 
 /**
  * Renders the TranscriptView component.
@@ -76,43 +77,39 @@ export const TranscriptVirtualListComponent = ({
   style,
   scrollRef,
 }) => {
-  return html`<${Virtuoso}
-    id=${`${id}-virtual-list`}
-    style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
-    customScrollParent=${scrollRef.current}
-    data=${eventNodes}
-    skipAnimationFrameInResizeObserver=${true}
-    increaseViewportBy=${{
-      top: 1000,
-      bottom: 1000,
-    }}
-    itemContent=${(index) => {
-      const node = eventNodes[index];
 
-      const toggleStyle = {};
-      if (node.depth % 2 == 0) {
-        toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
-      } else {
-        toggleStyle.backgroundColor = "var(--bs-body-bg)";
-      }
+  const renderRow = (item, index) => {
+    const toggleStyle = {};
+    if (item.depth % 2 == 0) {
+      toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
+    } else {
+      toggleStyle.backgroundColor = "var(--bs-body-bg)";
+    }
 
-      let paddingTop = "0";
-      if (index === 0) {
-        paddingTop = ".5em";
-      }
+    let paddingTop = "0";
+    if (index === 0) {
+      paddingTop = ".5em";
+    }
 
-      return html`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
-        <${RenderedEventNode}
-          id=${`${id}-event${index}`}
-          node=${node}
-          style=${{
-            ...toggleStyle,
-            ...style,
-          }}
-          scrollRef=${scrollRef}
-        />
-      </div>`;
-    }}
+    return html`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
+      <${RenderedEventNode}
+        id=${`${id}-event${index}`}
+        node=${item}
+        style=${{
+          ...toggleStyle,
+          ...style,
+        }}
+        scrollRef=${scrollRef}
+      />
+    </div>`;
+  }
+
+  return html`<${VirtualList} 
+      data=${eventNodes}
+      tabIndex="0"
+      renderRow=${renderRow}
+      scrollRef=${scrollRef}
+      style=${{width: "100%", marginTop: "1em"}}
   />`;
 };
 

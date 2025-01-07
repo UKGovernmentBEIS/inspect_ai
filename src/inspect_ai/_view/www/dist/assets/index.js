@@ -44,37 +44,34 @@ var require_assets = __commonJS({
         fetch(link2.href, fetchOpts);
       }
     })();
-    var n$2, l$1, u$2, i$2, r$2, o$1, e$3, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
-    function w$2(n2, l2) {
+    var n$2, l$1, u$1, i$2, r$2, o$1, e$3, f$1, c$2, s$1, a$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
+    function w$1(n2, l2) {
       for (var u2 in l2) n2[u2] = l2[u2];
       return n2;
     }
-    function _$1(n2) {
+    function _(n2) {
       n2 && n2.parentNode && n2.parentNode.removeChild(n2);
     }
-    function g$2(l2, u2, t2) {
+    function g(l2, u2, t2) {
       var i2, r2, o2, e2 = {};
       for (o2 in u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : e2[o2] = u2[o2];
       if (arguments.length > 2 && (e2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (o2 in l2.defaultProps) void 0 === e2[o2] && (e2[o2] = l2.defaultProps[o2]);
       return m$2(l2, e2, i2, r2, null);
     }
     function m$2(n2, t2, i2, r2, o2) {
-      var e2 = { type: n2, props: t2, key: i2, ref: r2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: null == o2 ? ++u$2 : o2, __i: -1, __u: 0 };
+      var e2 = { type: n2, props: t2, key: i2, ref: r2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: null == o2 ? ++u$1 : o2, __i: -1, __u: 0 };
       return null == o2 && null != l$1.vnode && l$1.vnode(e2), e2;
     }
-    function b() {
-      return { current: null };
-    }
-    function k$2(n2) {
+    function k$1(n2) {
       return n2.children;
     }
-    function x$3(n2, l2) {
+    function x$1(n2, l2) {
       this.props = n2, this.context = l2;
     }
-    function C$2(n2, l2) {
-      if (null == l2) return n2.__ ? C$2(n2.__, n2.__i + 1) : null;
+    function C$1(n2, l2) {
+      if (null == l2) return n2.__ ? C$1(n2.__, n2.__i + 1) : null;
       for (var u2; l2 < n2.__k.length; l2++) if (null != (u2 = n2.__k[l2]) && null != u2.__e) return u2.__e;
-      return "function" == typeof n2.type ? C$2(n2) : null;
+      return "function" == typeof n2.type ? C$1(n2) : null;
     }
     function S(n2) {
       var l2, u2;
@@ -86,46 +83,41 @@ var require_assets = __commonJS({
         return S(n2);
       }
     }
-    function M$1(n2) {
-      (!n2.__d && (n2.__d = true) && i$2.push(n2) && !P$3.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$3);
+    function M(n2) {
+      (!n2.__d && (n2.__d = true) && i$2.push(n2) && !P$1.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$1);
     }
-    function P$3() {
+    function P$1() {
       var n2, u2, t2, r2, o2, f2, c2, s2;
-      for (i$2.sort(e$3); n2 = i$2.shift(); ) n2.__d && (u2 = i$2.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$2({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$2(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$2(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$2(c2, r2, s2), r2.__e != f2 && S(r2)), i$2.length > u2 && i$2.sort(e$3));
-      P$3.__r = 0;
+      for (i$2.sort(e$3); n2 = i$2.shift(); ) n2.__d && (u2 = i$2.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$1({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$1(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$1(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$1(c2, r2, s2), r2.__e != f2 && S(r2)), i$2.length > u2 && i$2.sort(e$3));
+      P$1.__r = 0;
     }
-    function $$1(n2, l2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
+    function $(n2, l2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
       var a2, h2, y2, d2, w2, _2, g2 = t2 && t2.__k || v$1, m2 = l2.length;
-      for (f2 = I$1(u2, l2, g2, f2), a2 = 0; a2 < m2; a2++) null != (y2 = u2.__k[a2]) && (h2 = -1 === y2.__i ? p$1 : g2[y2.__i] || p$1, y2.__i = a2, _2 = j$2(n2, y2, h2, i2, r2, o2, e2, f2, c2, s2), d2 = y2.__e, y2.ref && h2.ref != y2.ref && (h2.ref && V$1(h2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 4 & y2.__u || h2.__k === y2.__k ? f2 = H$1(y2, f2, n2) : "function" == typeof y2.type && void 0 !== _2 ? f2 = _2 : d2 && (f2 = d2.nextSibling), y2.__u &= -7);
+      for (f2 = I(u2, l2, g2, f2), a2 = 0; a2 < m2; a2++) null != (y2 = u2.__k[a2]) && (h2 = -1 === y2.__i ? p$1 : g2[y2.__i] || p$1, y2.__i = a2, _2 = j$1(n2, y2, h2, i2, r2, o2, e2, f2, c2, s2), d2 = y2.__e, y2.ref && h2.ref != y2.ref && (h2.ref && V(h2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 4 & y2.__u || h2.__k === y2.__k ? f2 = H(y2, f2, n2) : "function" == typeof y2.type && void 0 !== _2 ? f2 = _2 : d2 && (f2 = d2.nextSibling), y2.__u &= -7);
       return u2.__e = w2, f2;
     }
-    function I$1(n2, l2, u2, t2) {
+    function I(n2, l2, u2, t2) {
       var i2, r2, o2, e2, f2, c2 = l2.length, s2 = u2.length, a2 = s2, h2 = 0;
-      for (n2.__k = [], i2 = 0; i2 < c2; i2++) null != (r2 = l2[i2]) && "boolean" != typeof r2 && "function" != typeof r2 ? (e2 = i2 + h2, (r2 = n2.__k[i2] = "string" == typeof r2 || "number" == typeof r2 || "bigint" == typeof r2 || r2.constructor == String ? m$2(null, r2, null, null, null) : d$1(r2) ? m$2(k$2, { children: r2 }, null, null, null) : void 0 === r2.constructor && r2.__b > 0 ? m$2(r2.type, r2.props, r2.key, r2.ref ? r2.ref : null, r2.__v) : r2).__ = n2, r2.__b = n2.__b + 1, o2 = null, -1 !== (f2 = r2.__i = T$2(r2, u2, e2, a2)) && (a2--, (o2 = u2[f2]) && (o2.__u |= 2)), null == o2 || null === o2.__v ? (-1 == f2 && h2--, "function" != typeof r2.type && (r2.__u |= 4)) : f2 !== e2 && (f2 == e2 - 1 ? h2-- : f2 == e2 + 1 ? h2++ : (f2 > e2 ? h2-- : h2++, r2.__u |= 4))) : r2 = n2.__k[i2] = null;
-      if (a2) for (i2 = 0; i2 < s2; i2++) null != (o2 = u2[i2]) && 0 == (2 & o2.__u) && (o2.__e == t2 && (t2 = C$2(o2)), q$2(o2, o2));
+      for (n2.__k = [], i2 = 0; i2 < c2; i2++) null != (r2 = l2[i2]) && "boolean" != typeof r2 && "function" != typeof r2 ? (e2 = i2 + h2, (r2 = n2.__k[i2] = "string" == typeof r2 || "number" == typeof r2 || "bigint" == typeof r2 || r2.constructor == String ? m$2(null, r2, null, null, null) : d$1(r2) ? m$2(k$1, { children: r2 }, null, null, null) : void 0 === r2.constructor && r2.__b > 0 ? m$2(r2.type, r2.props, r2.key, r2.ref ? r2.ref : null, r2.__v) : r2).__ = n2, r2.__b = n2.__b + 1, o2 = null, -1 !== (f2 = r2.__i = T$1(r2, u2, e2, a2)) && (a2--, (o2 = u2[f2]) && (o2.__u |= 2)), null == o2 || null === o2.__v ? (-1 == f2 && h2--, "function" != typeof r2.type && (r2.__u |= 4)) : f2 !== e2 && (f2 == e2 - 1 ? h2-- : f2 == e2 + 1 ? h2++ : (f2 > e2 ? h2-- : h2++, r2.__u |= 4))) : r2 = n2.__k[i2] = null;
+      if (a2) for (i2 = 0; i2 < s2; i2++) null != (o2 = u2[i2]) && 0 == (2 & o2.__u) && (o2.__e == t2 && (t2 = C$1(o2)), q$1(o2, o2));
       return t2;
     }
-    function H$1(n2, l2, u2) {
+    function H(n2, l2, u2) {
       var t2, i2;
       if ("function" == typeof n2.type) {
-        for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = H$1(t2[i2], l2, u2));
+        for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = H(t2[i2], l2, u2));
         return l2;
       }
-      n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = C$2(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
+      n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = C$1(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
       do {
         l2 = l2 && l2.nextSibling;
       } while (null != l2 && 8 === l2.nodeType);
       return l2;
     }
-    function L$1(n2, l2) {
-      return l2 = l2 || [], null == n2 || "boolean" == typeof n2 || (d$1(n2) ? n2.some(function(n3) {
-        L$1(n3, l2);
-      }) : l2.push(n2)), l2;
-    }
-    function T$2(n2, l2, u2, t2) {
+    function T$1(n2, l2, u2, t2) {
       var i2 = n2.key, r2 = n2.type, o2 = u2 - 1, e2 = u2 + 1, f2 = l2[u2];
       if (null === f2 || f2 && i2 == f2.key && r2 === f2.type && 0 == (2 & f2.__u)) return u2;
-      if (("function" != typeof r2 || r2 === k$2 || i2) && t2 > (null != f2 && 0 == (2 & f2.__u) ? 1 : 0)) for (; o2 >= 0 || e2 < l2.length; ) {
+      if (("function" != typeof r2 || r2 === k$1 || i2) && t2 > (null != f2 && 0 == (2 & f2.__u) ? 1 : 0)) for (; o2 >= 0 || e2 < l2.length; ) {
         if (o2 >= 0) {
           if ((f2 = l2[o2]) && 0 == (2 & f2.__u) && i2 == f2.key && r2 === f2.type) return o2;
           o2--;
@@ -137,17 +129,17 @@ var require_assets = __commonJS({
       }
       return -1;
     }
-    function A$2(n2, l2, u2) {
+    function A$1(n2, l2, u2) {
       "-" === l2[0] ? n2.setProperty(l2, null == u2 ? "" : u2) : n2[l2] = null == u2 ? "" : "number" != typeof u2 || y$1.test(l2) ? u2 : u2 + "px";
     }
-    function F$2(n2, l2, u2, t2, i2) {
+    function F(n2, l2, u2, t2, i2) {
       var r2;
       n: if ("style" === l2) if ("string" == typeof u2) n2.style.cssText = u2;
       else {
-        if ("string" == typeof t2 && (n2.style.cssText = t2 = ""), t2) for (l2 in t2) u2 && l2 in u2 || A$2(n2.style, l2, "");
-        if (u2) for (l2 in u2) t2 && u2[l2] === t2[l2] || A$2(n2.style, l2, u2[l2]);
+        if ("string" == typeof t2 && (n2.style.cssText = t2 = ""), t2) for (l2 in t2) u2 && l2 in u2 || A$1(n2.style, l2, "");
+        if (u2) for (l2 in u2) t2 && u2[l2] === t2[l2] || A$1(n2.style, l2, u2[l2]);
       }
-      else if ("o" === l2[0] && "n" === l2[1]) r2 = l2 !== (l2 = l2.replace(f$2, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + r2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = c$2, n2.addEventListener(l2, r2 ? a$1 : s$1, r2)) : n2.removeEventListener(l2, r2 ? a$1 : s$1, r2);
+      else if ("o" === l2[0] && "n" === l2[1]) r2 = l2 !== (l2 = l2.replace(f$1, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + r2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = c$2, n2.addEventListener(l2, r2 ? a$1 : s$1, r2)) : n2.removeEventListener(l2, r2 ? a$1 : s$1, r2);
       else {
         if ("http://www.w3.org/2000/svg" == i2) l2 = l2.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
         else if ("width" != l2 && "height" != l2 && "href" != l2 && "list" != l2 && "form" != l2 && "tabIndex" != l2 && "download" != l2 && "rowSpan" != l2 && "colSpan" != l2 && "role" != l2 && "popover" != l2 && l2 in n2) try {
@@ -158,7 +150,7 @@ var require_assets = __commonJS({
         "function" == typeof u2 || (null == u2 || false === u2 && "-" !== l2[4] ? n2.removeAttribute(l2) : n2.setAttribute(l2, "popover" == l2 && 1 == u2 ? "" : u2));
       }
     }
-    function O$1(n2) {
+    function O(n2) {
       return function(u2) {
         if (this.l) {
           var t2 = this.l[u2.type + n2];
@@ -168,44 +160,44 @@ var require_assets = __commonJS({
         }
       };
     }
-    function j$2(n2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
-      var a2, h2, p2, v2, y2, g2, m2, b2, C2, S2, M2, P2, I2, H2, L2, T2, A2, F2 = u2.type;
+    function j$1(n2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
+      var a2, h2, p2, v2, y2, g2, m2, b, C2, S2, M2, P2, I2, H2, L, T2, A2, F2 = u2.type;
       if (void 0 !== u2.constructor) return null;
       128 & t2.__u && (c2 = !!(32 & t2.__u), o2 = [f2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
       n: if ("function" == typeof F2) try {
-        if (b2 = u2.props, C2 = "prototype" in F2 && F2.prototype.render, S2 = (a2 = F2.contextType) && i2[a2.__c], M2 = a2 ? S2 ? S2.props.value : a2.__ : i2, t2.__c ? m2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (C2 ? u2.__c = h2 = new F2(b2, M2) : (u2.__c = h2 = new x$3(b2, M2), h2.constructor = F2, h2.render = B$2), S2 && S2.sub(h2), h2.props = b2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), C2 && null == h2.__s && (h2.__s = h2.state), C2 && null != F2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = w$2({}, h2.__s)), w$2(h2.__s, F2.getDerivedStateFromProps(b2, h2.__s))), v2 = h2.props, y2 = h2.state, h2.__v = u2, p2) C2 && null == F2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), C2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+        if (b = u2.props, C2 = "prototype" in F2 && F2.prototype.render, S2 = (a2 = F2.contextType) && i2[a2.__c], M2 = a2 ? S2 ? S2.props.value : a2.__ : i2, t2.__c ? m2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (C2 ? u2.__c = h2 = new F2(b, M2) : (u2.__c = h2 = new x$1(b, M2), h2.constructor = F2, h2.render = B$1), S2 && S2.sub(h2), h2.props = b, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), C2 && null == h2.__s && (h2.__s = h2.state), C2 && null != F2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = w$1({}, h2.__s)), w$1(h2.__s, F2.getDerivedStateFromProps(b, h2.__s))), v2 = h2.props, y2 = h2.state, h2.__v = u2, p2) C2 && null == F2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), C2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
         else {
-          if (C2 && null == F2.getDerivedStateFromProps && b2 !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(b2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(b2, h2.__s, M2) || u2.__v === t2.__v)) {
-            for (u2.__v !== t2.__v && (h2.props = b2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
+          if (C2 && null == F2.getDerivedStateFromProps && b !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(b, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(b, h2.__s, M2) || u2.__v === t2.__v)) {
+            for (u2.__v !== t2.__v && (h2.props = b, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
               n3 && (n3.__ = u2);
             }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
             h2._sb = [], h2.__h.length && e2.push(h2);
             break n;
           }
-          null != h2.componentWillUpdate && h2.componentWillUpdate(b2, h2.__s, M2), C2 && null != h2.componentDidUpdate && h2.__h.push(function() {
+          null != h2.componentWillUpdate && h2.componentWillUpdate(b, h2.__s, M2), C2 && null != h2.componentDidUpdate && h2.__h.push(function() {
             h2.componentDidUpdate(v2, y2, g2);
           });
         }
-        if (h2.context = M2, h2.props = b2, h2.__P = n2, h2.__e = false, I2 = l$1.__r, H2 = 0, C2) {
-          for (h2.state = h2.__s, h2.__d = false, I2 && I2(u2), a2 = h2.render(h2.props, h2.state, h2.context), L2 = 0; L2 < h2._sb.length; L2++) h2.__h.push(h2._sb[L2]);
+        if (h2.context = M2, h2.props = b, h2.__P = n2, h2.__e = false, I2 = l$1.__r, H2 = 0, C2) {
+          for (h2.state = h2.__s, h2.__d = false, I2 && I2(u2), a2 = h2.render(h2.props, h2.state, h2.context), L = 0; L < h2._sb.length; L++) h2.__h.push(h2._sb[L]);
           h2._sb = [];
         } else do {
           h2.__d = false, I2 && I2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
         } while (h2.__d && ++H2 < 25);
-        h2.state = h2.__s, null != h2.getChildContext && (i2 = w$2(w$2({}, i2), h2.getChildContext())), C2 && !p2 && null != h2.getSnapshotBeforeUpdate && (g2 = h2.getSnapshotBeforeUpdate(v2, y2)), f2 = $$1(n2, d$1(T2 = null != a2 && a2.type === k$2 && null == a2.key ? a2.props.children : a2) ? T2 : [T2], u2, t2, i2, r2, o2, e2, f2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && e2.push(h2), m2 && (h2.__E = h2.__ = null);
+        h2.state = h2.__s, null != h2.getChildContext && (i2 = w$1(w$1({}, i2), h2.getChildContext())), C2 && !p2 && null != h2.getSnapshotBeforeUpdate && (g2 = h2.getSnapshotBeforeUpdate(v2, y2)), f2 = $(n2, d$1(T2 = null != a2 && a2.type === k$1 && null == a2.key ? a2.props.children : a2) ? T2 : [T2], u2, t2, i2, r2, o2, e2, f2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && e2.push(h2), m2 && (h2.__E = h2.__ = null);
       } catch (n3) {
         if (u2.__v = null, c2 || null != o2) if (n3.then) {
           for (u2.__u |= c2 ? 160 : 128; f2 && 8 === f2.nodeType && f2.nextSibling; ) f2 = f2.nextSibling;
           o2[o2.indexOf(f2)] = null, u2.__e = f2;
-        } else for (A2 = o2.length; A2--; ) _$1(o2[A2]);
+        } else for (A2 = o2.length; A2--; ) _(o2[A2]);
         else u2.__e = t2.__e, u2.__k = t2.__k;
         l$1.__e(n3, u2, t2);
       }
-      else null == o2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : f2 = u2.__e = N$1(t2.__e, u2, t2, i2, r2, o2, e2, c2, s2);
+      else null == o2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : f2 = u2.__e = N(t2.__e, u2, t2, i2, r2, o2, e2, c2, s2);
       return (a2 = l$1.diffed) && a2(u2), 128 & u2.__u ? void 0 : f2;
     }
-    function z$2(n2, u2, t2) {
-      for (var i2 = 0; i2 < t2.length; i2++) V$1(t2[i2], t2[++i2], t2[++i2]);
+    function z$1(n2, u2, t2) {
+      for (var i2 = 0; i2 < t2.length; i2++) V(t2[i2], t2[++i2], t2[++i2]);
       l$1.__c && l$1.__c(u2, n2), n2.some(function(u3) {
         try {
           n2 = u3.__h, u3.__h = [], n2.some(function(n3) {
@@ -216,8 +208,8 @@ var require_assets = __commonJS({
         }
       });
     }
-    function N$1(u2, t2, i2, r2, o2, e2, f2, c2, s2) {
-      var a2, h2, v2, y2, w2, g2, m2, b2 = i2.props, k2 = t2.props, x2 = t2.type;
+    function N(u2, t2, i2, r2, o2, e2, f2, c2, s2) {
+      var a2, h2, v2, y2, w2, g2, m2, b = i2.props, k2 = t2.props, x2 = t2.type;
       if ("svg" === x2 ? o2 = "http://www.w3.org/2000/svg" : "math" === x2 ? o2 = "http://www.w3.org/1998/Math/MathML" : o2 || (o2 = "http://www.w3.org/1999/xhtml"), null != e2) {
         for (a2 = 0; a2 < e2.length; a2++) if ((w2 = e2[a2]) && "setAttribute" in w2 == !!x2 && (x2 ? w2.localName === x2 : 3 === w2.nodeType)) {
           u2 = w2, e2[a2] = null;
@@ -228,23 +220,23 @@ var require_assets = __commonJS({
         if (null === x2) return document.createTextNode(k2);
         u2 = document.createElementNS(o2, x2, k2.is && k2), c2 && (l$1.__m && l$1.__m(t2, e2), c2 = false), e2 = null;
       }
-      if (null === x2) b2 === k2 || c2 && u2.data === k2 || (u2.data = k2);
+      if (null === x2) b === k2 || c2 && u2.data === k2 || (u2.data = k2);
       else {
-        if (e2 = e2 && n$2.call(u2.childNodes), b2 = i2.props || p$1, !c2 && null != e2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(w2 = u2.attributes[a2]).name] = w2.value;
-        for (a2 in b2) if (w2 = b2[a2], "children" == a2) ;
+        if (e2 = e2 && n$2.call(u2.childNodes), b = i2.props || p$1, !c2 && null != e2) for (b = {}, a2 = 0; a2 < u2.attributes.length; a2++) b[(w2 = u2.attributes[a2]).name] = w2.value;
+        for (a2 in b) if (w2 = b[a2], "children" == a2) ;
         else if ("dangerouslySetInnerHTML" == a2) v2 = w2;
         else if (!(a2 in k2)) {
           if ("value" == a2 && "defaultValue" in k2 || "checked" == a2 && "defaultChecked" in k2) continue;
-          F$2(u2, a2, null, w2, o2);
+          F(u2, a2, null, w2, o2);
         }
-        for (a2 in k2) w2 = k2[a2], "children" == a2 ? y2 = w2 : "dangerouslySetInnerHTML" == a2 ? h2 = w2 : "value" == a2 ? g2 = w2 : "checked" == a2 ? m2 = w2 : c2 && "function" != typeof w2 || b2[a2] === w2 || F$2(u2, a2, w2, b2[a2], o2);
+        for (a2 in k2) w2 = k2[a2], "children" == a2 ? y2 = w2 : "dangerouslySetInnerHTML" == a2 ? h2 = w2 : "value" == a2 ? g2 = w2 : "checked" == a2 ? m2 = w2 : c2 && "function" != typeof w2 || b[a2] === w2 || F(u2, a2, w2, b[a2], o2);
         if (h2) c2 || v2 && (h2.__html === v2.__html || h2.__html === u2.innerHTML) || (u2.innerHTML = h2.__html), t2.__k = [];
-        else if (v2 && (u2.innerHTML = ""), $$1(u2, d$1(y2) ? y2 : [y2], t2, i2, r2, "foreignObject" === x2 ? "http://www.w3.org/1999/xhtml" : o2, e2, f2, e2 ? e2[0] : i2.__k && C$2(i2, 0), c2, s2), null != e2) for (a2 = e2.length; a2--; ) _$1(e2[a2]);
-        c2 || (a2 = "value", "progress" === x2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === x2 && !g2 || "option" === x2 && g2 !== b2[a2]) && F$2(u2, a2, g2, b2[a2], o2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && F$2(u2, a2, m2, b2[a2], o2));
+        else if (v2 && (u2.innerHTML = ""), $(u2, d$1(y2) ? y2 : [y2], t2, i2, r2, "foreignObject" === x2 ? "http://www.w3.org/1999/xhtml" : o2, e2, f2, e2 ? e2[0] : i2.__k && C$1(i2, 0), c2, s2), null != e2) for (a2 = e2.length; a2--; ) _(e2[a2]);
+        c2 || (a2 = "value", "progress" === x2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === x2 && !g2 || "option" === x2 && g2 !== b[a2]) && F(u2, a2, g2, b[a2], o2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && F(u2, a2, m2, b[a2], o2));
       }
       return u2;
     }
-    function V$1(n2, u2, t2) {
+    function V(n2, u2, t2) {
       try {
         if ("function" == typeof n2) {
           var i2 = "function" == typeof n2.__u;
@@ -254,9 +246,9 @@ var require_assets = __commonJS({
         l$1.__e(n3, t2);
       }
     }
-    function q$2(n2, u2, t2) {
+    function q$1(n2, u2, t2) {
       var i2, r2;
-      if (l$1.unmount && l$1.unmount(n2), (i2 = n2.ref) && (i2.current && i2.current !== n2.__e || V$1(i2, null, u2)), null != (i2 = n2.__c)) {
+      if (l$1.unmount && l$1.unmount(n2), (i2 = n2.ref) && (i2.current && i2.current !== n2.__e || V(i2, null, u2)), null != (i2 = n2.__c)) {
         if (i2.componentWillUnmount) try {
           i2.componentWillUnmount();
         } catch (n3) {
@@ -264,46 +256,15 @@ var require_assets = __commonJS({
         }
         i2.base = i2.__P = null;
       }
-      if (i2 = n2.__k) for (r2 = 0; r2 < i2.length; r2++) i2[r2] && q$2(i2[r2], u2, t2 || "function" != typeof n2.type);
-      t2 || _$1(n2.__e), n2.__c = n2.__ = n2.__e = void 0;
+      if (i2 = n2.__k) for (r2 = 0; r2 < i2.length; r2++) i2[r2] && q$1(i2[r2], u2, t2 || "function" != typeof n2.type);
+      t2 || _(n2.__e), n2.__c = n2.__ = n2.__e = void 0;
     }
-    function B$2(n2, l2, u2) {
+    function B$1(n2, l2, u2) {
       return this.constructor(n2, u2);
     }
-    function D$2(u2, t2, i2) {
+    function D$1(u2, t2, i2) {
       var r2, o2, e2, f2;
-      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : i2 && i2.__k || t2.__k, e2 = [], f2 = [], j$2(t2, u2 = (!r2 && i2 || t2).__k = g$2(k$2, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$2(e2, u2, f2);
-    }
-    function E$1(n2, l2) {
-      D$2(n2, l2, E$1);
-    }
-    function G$1(l2, u2, t2) {
-      var i2, r2, o2, e2, f2 = w$2({}, l2.props);
-      for (o2 in l2.type && l2.type.defaultProps && (e2 = l2.type.defaultProps), u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : f2[o2] = void 0 === u2[o2] && void 0 !== e2 ? e2[o2] : u2[o2];
-      return arguments.length > 2 && (f2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), m$2(l2.type, f2, i2 || l2.key, r2 || l2.ref, null);
-    }
-    function J$1(n2, l2) {
-      var u2 = { __c: l2 = "__cC" + h$1++, __: n2, Consumer: function(n3, l3) {
-        return n3.children(l3);
-      }, Provider: function(n3) {
-        var u3, t2;
-        return this.getChildContext || (u3 = /* @__PURE__ */ new Set(), (t2 = {})[l2] = this, this.getChildContext = function() {
-          return t2;
-        }, this.componentWillUnmount = function() {
-          u3 = null;
-        }, this.shouldComponentUpdate = function(n4) {
-          this.props.value !== n4.value && u3.forEach(function(n5) {
-            n5.__e = true, M$1(n5);
-          });
-        }, this.sub = function(n4) {
-          u3.add(n4);
-          var l3 = n4.componentWillUnmount;
-          n4.componentWillUnmount = function() {
-            u3 && u3.delete(n4), l3 && l3.call(n4);
-          };
-        }), n3.children;
-      } };
-      return u2.Provider.__ = u2.Consumer.contextType = u2;
+      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : t2.__k, e2 = [], f2 = [], j$1(t2, u2 = (!r2 && i2 || t2).__k = g(k$1, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$1(e2, u2, f2);
     }
     n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
       for (var i2, r2, o2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
@@ -312,14 +273,14 @@ var require_assets = __commonJS({
         n2 = l3;
       }
       throw n2;
-    } }, u$2 = 0, x$3.prototype.setState = function(n2, l2) {
+    } }, u$1 = 0, x$1.prototype.setState = function(n2, l2) {
       var u2;
-      u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$2({}, this.state), "function" == typeof n2 && (n2 = n2(w$2({}, u2), this.props)), n2 && w$2(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M$1(this));
-    }, x$3.prototype.forceUpdate = function(n2) {
-      this.__v && (this.__e = true, n2 && this.__h.push(n2), M$1(this));
-    }, x$3.prototype.render = k$2, i$2 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
+      u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$1({}, this.state), "function" == typeof n2 && (n2 = n2(w$1({}, u2), this.props)), n2 && w$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M(this));
+    }, x$1.prototype.forceUpdate = function(n2) {
+      this.__v && (this.__e = true, n2 && this.__h.push(n2), M(this));
+    }, x$1.prototype.render = k$1, i$2 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
       return n2.__v.__b - l2.__v.__b;
-    }, P$3.__r = 0, f$2 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true), h$1 = 0;
+    }, P$1.__r = 0, f$1 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O(false), a$1 = O(true);
     var n$1 = function(t2, s2, r2, e2) {
       var u2;
       s2[0] = 0;
@@ -341,7 +302,7 @@ var require_assets = __commonJS({
         return p2(), h2;
       }(s2)), r2), arguments, [])).length > 1 ? r2 : r2[0];
     }
-    var m$1 = e$2.bind(g$2);
+    var m$1 = e$2.bind(g);
     var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
     function getDefaultExportFromCjs(x2) {
       return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -469,16 +430,16 @@ var require_assets = __commonJS({
             clone: function deepClone(o2, visited) {
               visited = visited || {};
               var clone2;
-              var id2;
+              var id;
               switch (_2.util.type(o2)) {
                 case "Object":
-                  id2 = _2.util.objId(o2);
-                  if (visited[id2]) {
-                    return visited[id2];
+                  id = _2.util.objId(o2);
+                  if (visited[id]) {
+                    return visited[id];
                   }
                   clone2 = /** @type {Record<string, any>} */
                   {};
-                  visited[id2] = clone2;
+                  visited[id] = clone2;
                   for (var key2 in o2) {
                     if (o2.hasOwnProperty(key2)) {
                       clone2[key2] = deepClone(o2[key2], visited);
@@ -489,12 +450,12 @@ var require_assets = __commonJS({
                     clone2
                   );
                 case "Array":
-                  id2 = _2.util.objId(o2);
-                  if (visited[id2]) {
-                    return visited[id2];
+                  id = _2.util.objId(o2);
+                  if (visited[id]) {
+                    return visited[id];
                   }
                   clone2 = [];
-                  visited[id2] = clone2;
+                  visited[id] = clone2;
                   /** @type {Array} */
                   /** @type {any} */
                   o2.forEach(function(v2, i2) {
@@ -646,8 +607,8 @@ var require_assets = __commonJS({
              *     'color': /\b(?:red|green|blue)\b/
              * });
              */
-            extend: function(id2, redef) {
-              var lang2 = _2.util.clone(_2.languages[id2]);
+            extend: function(id, redef) {
+              var lang2 = _2.util.clone(_2.languages[id]);
               for (var key2 in redef) {
                 lang2[key2] = redef[key2];
               }
@@ -1989,9 +1950,9 @@ var require_assets = __commonJS({
                       return _possibleConstructorReturn(this, result);
                     };
                   }
-                  function _possibleConstructorReturn(self2, call2) {
-                    if (call2 && (clipboard_typeof(call2) === "object" || typeof call2 === "function")) {
-                      return call2;
+                  function _possibleConstructorReturn(self2, call) {
+                    if (call && (clipboard_typeof(call) === "object" || typeof call === "function")) {
+                      return call;
                     }
                     return _assertThisInitialized(self2);
                   }
@@ -2340,9 +2301,9 @@ var require_assets = __commonJS({
               279: (
                 /***/
                 function(module3) {
-                  function E2() {
+                  function E() {
                   }
-                  E2.prototype = {
+                  E.prototype = {
                     on: function(name, callback, ctx) {
                       var e2 = this.e || (this.e = {});
                       (e2[name] || (e2[name] = [])).push({
@@ -2384,8 +2345,8 @@ var require_assets = __commonJS({
                       return this;
                     }
                   };
-                  module3.exports = E2;
-                  module3.exports.TinyEmitter = E2;
+                  module3.exports = E;
+                  module3.exports.TinyEmitter = E;
                 }
               )
               /******/
@@ -2570,9 +2531,9 @@ var require_assets = __commonJS({
     function getBasePlacement(placement) {
       return placement.split("-")[0];
     }
-    var max$3 = Math.max;
-    var min$2 = Math.min;
-    var round$1 = Math.round;
+    var max$2 = Math.max;
+    var min$1 = Math.min;
+    var round = Math.round;
     function getUAString() {
       var uaData = navigator.userAgentData;
       if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) {
@@ -2596,8 +2557,8 @@ var require_assets = __commonJS({
       var scaleX = 1;
       var scaleY = 1;
       if (includeScale && isHTMLElement(element)) {
-        scaleX = element.offsetWidth > 0 ? round$1(clientRect.width) / element.offsetWidth || 1 : 1;
-        scaleY = element.offsetHeight > 0 ? round$1(clientRect.height) / element.offsetHeight || 1 : 1;
+        scaleX = element.offsetWidth > 0 ? round(clientRect.width) / element.offsetWidth || 1 : 1;
+        scaleY = element.offsetHeight > 0 ? round(clientRect.height) / element.offsetHeight || 1 : 1;
       }
       var _ref = isElement$1(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
       var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
@@ -2720,7 +2681,7 @@ var require_assets = __commonJS({
       return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
     }
     function within(min2, value, max2) {
-      return max$3(min2, min$2(value, max2));
+      return max$2(min2, min$1(value, max2));
     }
     function withinMaxClamp(min2, value, max2) {
       var v2 = within(min2, value, max2);
@@ -2816,8 +2777,8 @@ var require_assets = __commonJS({
       var x2 = _ref.x, y2 = _ref.y;
       var dpr = win.devicePixelRatio || 1;
       return {
-        x: round$1(x2 * dpr) / dpr || 0,
-        y: round$1(y2 * dpr) / dpr || 0
+        x: round(x2 * dpr) / dpr || 0,
+        y: round(y2 * dpr) / dpr || 0
       };
     }
     function mapToStyles(_ref2) {
@@ -2956,7 +2917,7 @@ var require_assets = __commonJS({
       name: "eventListeners",
       enabled: true,
       phase: "write",
-      fn: function fn2() {
+      fn: function fn() {
       },
       effect,
       data: {}
@@ -3022,12 +2983,12 @@ var require_assets = __commonJS({
       var html = getDocumentElement(element);
       var winScroll = getWindowScroll(element);
       var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-      var width = max$3(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-      var height = max$3(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
+      var width = max$2(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
+      var height = max$2(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
       var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
       var y2 = -winScroll.scrollTop;
       if (getComputedStyle$1(body || html).direction === "rtl") {
-        x2 += max$3(html.clientWidth, body ? body.clientWidth : 0) - width;
+        x2 += max$2(html.clientWidth, body ? body.clientWidth : 0) - width;
       }
       return {
         width,
@@ -3104,10 +3065,10 @@ var require_assets = __commonJS({
       var firstClippingParent = clippingParents2[0];
       var clippingRect = clippingParents2.reduce(function(accRect, clippingParent) {
         var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-        accRect.top = max$3(rect.top, accRect.top);
-        accRect.right = min$2(rect.right, accRect.right);
-        accRect.bottom = min$2(rect.bottom, accRect.bottom);
-        accRect.left = max$3(rect.left, accRect.left);
+        accRect.top = max$2(rect.top, accRect.top);
+        accRect.right = min$1(rect.right, accRect.right);
+        accRect.bottom = min$1(rect.bottom, accRect.bottom);
+        accRect.left = max$2(rect.left, accRect.left);
         return accRect;
       }, getClientRectFromMixedType(element, firstClippingParent, strategy));
       clippingRect.width = clippingRect.right - clippingRect.left;
@@ -3228,8 +3189,8 @@ var require_assets = __commonJS({
         })[getBasePlacement(placement2)];
         return acc;
       }, {});
-      return Object.keys(overflows).sort(function(a2, b2) {
-        return overflows[a2] - overflows[b2];
+      return Object.keys(overflows).sort(function(a2, b) {
+        return overflows[a2] - overflows[b];
       });
     }
     function getExpandedFallbackPlacements(placement) {
@@ -3505,7 +3466,7 @@ var require_assets = __commonJS({
         var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
         var tetherMin = offset2 + minOffset - offsetModifierValue - clientOffset;
         var tetherMax = offset2 + maxOffset - offsetModifierValue;
-        var preventedOffset = within(tether ? min$2(min2, tetherMin) : min2, offset2, tether ? max$3(max2, tetherMax) : max2);
+        var preventedOffset = within(tether ? min$1(min2, tetherMin) : min2, offset2, tether ? max$2(max2, tetherMax) : max2);
         popperOffsets2[mainAxis] = preventedOffset;
         data[mainAxis] = preventedOffset - offset2;
       }
@@ -3549,8 +3510,8 @@ var require_assets = __commonJS({
     }
     function isElementScaled(element) {
       var rect = element.getBoundingClientRect();
-      var scaleX = round$1(rect.width) / element.offsetWidth || 1;
-      var scaleY = round$1(rect.height) / element.offsetHeight || 1;
+      var scaleX = round(rect.width) / element.offsetWidth || 1;
+      var scaleY = round(rect.height) / element.offsetHeight || 1;
       return scaleX !== 1 || scaleY !== 1;
     }
     function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
@@ -3624,14 +3585,14 @@ var require_assets = __commonJS({
         }));
       }, []);
     }
-    function debounce$2(fn2) {
+    function debounce$2(fn) {
       var pending;
       return function() {
         if (!pending) {
           pending = new Promise(function(resolve) {
             Promise.resolve().then(function() {
               pending = void 0;
-              resolve(fn2());
+              resolve(fn());
             });
           });
         }
@@ -3732,9 +3693,9 @@ var require_assets = __commonJS({
                 index = -1;
                 continue;
               }
-              var _state$orderedModifie = state.orderedModifiers[index], fn2 = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name = _state$orderedModifie.name;
-              if (typeof fn2 === "function") {
-                state = fn2({
+              var _state$orderedModifie = state.orderedModifiers[index], fn = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name = _state$orderedModifie.name;
+              if (typeof fn === "function") {
+                state = fn({
                   state,
                   options: _options,
                   name,
@@ -3781,8 +3742,8 @@ var require_assets = __commonJS({
           });
         }
         function cleanupModifierEffects() {
-          effectCleanupFns.forEach(function(fn2) {
-            return fn2();
+          effectCleanupFns.forEach(function(fn) {
+            return fn();
           });
           effectCleanupFns = [];
         }
@@ -3879,7 +3840,7 @@ var require_assets = __commonJS({
     const TRANSITION_END = "transitionend";
     const parseSelector = (selector) => {
       if (selector && window.CSS && window.CSS.escape) {
-        selector = selector.replace(/#([^\s"#']+)/g, (match, id2) => `#${CSS.escape(id2)}`);
+        selector = selector.replace(/#([^\s"#']+)/g, (match, id) => `#${CSS.escape(id)}`);
       }
       return selector;
     };
@@ -3981,7 +3942,7 @@ var require_assets = __commonJS({
       }
       return findShadowRoot(element.parentNode);
     };
-    const noop$1 = () => {
+    const noop = () => {
     };
     const reflow = (element) => {
       element.offsetHeight;
@@ -4082,18 +4043,18 @@ var require_assets = __commonJS({
       eventRegistry[uid] = eventRegistry[uid] || {};
       return eventRegistry[uid];
     }
-    function bootstrapHandler(element, fn2) {
+    function bootstrapHandler(element, fn) {
       return function handler(event) {
         hydrateObj(event, {
           delegateTarget: element
         });
         if (handler.oneOff) {
-          EventHandler.off(element, event.type, fn2);
+          EventHandler.off(element, event.type, fn);
         }
-        return fn2.apply(element, [event]);
+        return fn.apply(element, [event]);
       };
     }
-    function bootstrapDelegationHandler(element, selector, fn2) {
+    function bootstrapDelegationHandler(element, selector, fn) {
       return function handler(event) {
         const domElements = element.querySelectorAll(selector);
         for (let {
@@ -4107,9 +4068,9 @@ var require_assets = __commonJS({
               delegateTarget: target
             });
             if (handler.oneOff) {
-              EventHandler.off(element, event.type, selector, fn2);
+              EventHandler.off(element, event.type, selector, fn);
             }
-            return fn2.apply(target, [event]);
+            return fn.apply(target, [event]);
           }
         }
       };
@@ -4132,10 +4093,10 @@ var require_assets = __commonJS({
       }
       let [isDelegated, callable, typeEvent] = normalizeParameters(originalTypeEvent, handler, delegationFunction);
       if (originalTypeEvent in customEvents) {
-        const wrapFunction = (fn3) => {
+        const wrapFunction = (fn2) => {
           return function(event) {
             if (!event.relatedTarget || event.relatedTarget !== event.delegateTarget && !event.delegateTarget.contains(event.relatedTarget)) {
-              return fn3.call(this, event);
+              return fn2.call(this, event);
             }
           };
         };
@@ -4149,21 +4110,21 @@ var require_assets = __commonJS({
         return;
       }
       const uid = makeEventUid(callable, originalTypeEvent.replace(namespaceRegex, ""));
-      const fn2 = isDelegated ? bootstrapDelegationHandler(element, handler, callable) : bootstrapHandler(element, callable);
-      fn2.delegationSelector = isDelegated ? handler : null;
-      fn2.callable = callable;
-      fn2.oneOff = oneOff;
-      fn2.uidEvent = uid;
-      handlers[uid] = fn2;
-      element.addEventListener(typeEvent, fn2, isDelegated);
+      const fn = isDelegated ? bootstrapDelegationHandler(element, handler, callable) : bootstrapHandler(element, callable);
+      fn.delegationSelector = isDelegated ? handler : null;
+      fn.callable = callable;
+      fn.oneOff = oneOff;
+      fn.uidEvent = uid;
+      handlers[uid] = fn;
+      element.addEventListener(typeEvent, fn, isDelegated);
     }
     function removeHandler(element, events, typeEvent, handler, delegationSelector) {
-      const fn2 = findHandler(events[typeEvent], handler, delegationSelector);
-      if (!fn2) {
+      const fn = findHandler(events[typeEvent], handler, delegationSelector);
+      if (!fn) {
         return;
       }
-      element.removeEventListener(typeEvent, fn2, Boolean(delegationSelector));
-      delete events[typeEvent][fn2.uidEvent];
+      element.removeEventListener(typeEvent, fn, Boolean(delegationSelector));
+      delete events[typeEvent][fn.uidEvent];
     }
     function removeNamespacedHandlers(element, events, typeEvent, namespace) {
       const storeElementEvent = events[typeEvent] || {};
@@ -5274,7 +5235,7 @@ var require_assets = __commonJS({
         this._createPopper();
         if ("ontouchstart" in document.documentElement && !this._parent.closest(SELECTOR_NAVBAR_NAV)) {
           for (const element of [].concat(...document.body.children)) {
-            EventHandler.on(element, "mouseover", noop$1);
+            EventHandler.on(element, "mouseover", noop);
           }
         }
         this._element.focus();
@@ -5312,7 +5273,7 @@ var require_assets = __commonJS({
         }
         if ("ontouchstart" in document.documentElement) {
           for (const element of [].concat(...document.body.children)) {
-            EventHandler.off(element, "mouseover", noop$1);
+            EventHandler.off(element, "mouseover", noop);
           }
         }
         if (this._popper) {
@@ -6553,7 +6514,7 @@ var require_assets = __commonJS({
         tip.classList.add(CLASS_NAME_SHOW$2);
         if ("ontouchstart" in document.documentElement) {
           for (const element of [].concat(...document.body.children)) {
-            EventHandler.on(element, "mouseover", noop$1);
+            EventHandler.on(element, "mouseover", noop);
           }
         }
         const complete = () => {
@@ -6577,7 +6538,7 @@ var require_assets = __commonJS({
         tip.classList.remove(CLASS_NAME_SHOW$2);
         if ("ontouchstart" in document.documentElement) {
           for (const element of [].concat(...document.body.children)) {
-            EventHandler.off(element, "mouseover", noop$1);
+            EventHandler.off(element, "mouseover", noop);
           }
         }
         this._activeTrigger[TRIGGER_CLICK] = false;
@@ -7493,18 +7454,18 @@ var require_assets = __commonJS({
     }
     enableDismissTrigger(Toast);
     defineJQueryPlugin(Toast);
-    var t$1, r$1, u$1, i$1, o = 0, f$1 = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
+    var t$1, r$1, u, i$1, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
     function d(n2, t2) {
       c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
       var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
       return n2 >= u2.__.length && u2.__.push({}), u2.__[n2];
     }
     function h(n2) {
-      return o = 1, p(D$1, n2);
+      return o = 1, p(D, n2);
     }
     function p(n2, u2, i2) {
       var o2 = d(t$1++, 2);
-      if (o2.t = n2, !o2.__c && (o2.__ = [i2 ? i2(u2) : D$1(void 0, u2), function(n3) {
+      if (o2.t = n2, !o2.__c && (o2.__ = [D(void 0, u2), function(n3) {
         var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
         t2 !== r2 && (o2.__N = [r2, o2.__[1]], o2.__c.setState({}));
       }], o2.__c = r$1, !r$1.u)) {
@@ -7538,54 +7499,25 @@ var require_assets = __commonJS({
     }
     function y(n2, u2) {
       var i2 = d(t$1++, 3);
-      !c$1.__s && C$1(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
+      !c$1.__s && C(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
     }
-    function _(n2, u2) {
-      var i2 = d(t$1++, 4);
-      !c$1.__s && C$1(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__h.push(i2));
-    }
-    function A$1(n2) {
-      return o = 5, T$1(function() {
+    function A(n2) {
+      return o = 5, T(function() {
         return { current: n2 };
       }, []);
     }
-    function F$1(n2, t2, r2) {
-      o = 6, _(function() {
-        return "function" == typeof n2 ? (n2(t2()), function() {
-          return n2(null);
-        }) : n2 ? (n2.current = t2(), function() {
-          return n2.current = null;
-        }) : void 0;
-      }, null == r2 ? r2 : r2.concat(n2));
-    }
-    function T$1(n2, r2) {
+    function T(n2, r2) {
       var u2 = d(t$1++, 7);
-      return C$1(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
+      return C(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
     }
-    function q$1(n2, t2) {
-      return o = 8, T$1(function() {
+    function q(n2, t2) {
+      return o = 8, T(function() {
         return n2;
       }, t2);
     }
-    function x$2(n2) {
-      var u2 = r$1.context[n2.__c], i2 = d(t$1++, 9);
-      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r$1)), u2.props.value) : n2.__;
-    }
-    function P$2(n2, t2) {
-      c$1.useDebugValue && c$1.useDebugValue(t2 ? t2(n2) : n2);
-    }
-    function g$1() {
-      var n2 = d(t$1++, 11);
-      if (!n2.__) {
-        for (var u2 = r$1.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
-        var i2 = u2.__m || (u2.__m = [0, 0]);
-        n2.__ = "P" + i2[0] + "-" + i2[1]++;
-      }
-      return n2.__;
-    }
-    function j$1() {
-      for (var n2; n2 = f$1.shift(); ) if (n2.__P && n2.__H) try {
-        n2.__H.__h.forEach(z$1), n2.__H.__h.forEach(B$1), n2.__H.__h = [];
+    function j() {
+      for (var n2; n2 = f.shift(); ) if (n2.__P && n2.__H) try {
+        n2.__H.__h.forEach(z), n2.__H.__h.forEach(B), n2.__H.__h = [];
       } catch (t2) {
         n2.__H.__h = [], c$1.__e(t2, n2.__v);
       }
@@ -7597,20 +7529,20 @@ var require_assets = __commonJS({
     }, c$1.__r = function(n2) {
       a && a(n2), t$1 = 0;
       var i2 = (r$1 = n2.__c).__H;
-      i2 && (u$1 === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
+      i2 && (u === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
         n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
-      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$1 = 0)), u$1 = r$1;
+      })) : (i2.__h.forEach(z), i2.__h.forEach(B), i2.__h = [], t$1 = 0)), u = r$1;
     }, c$1.diffed = function(n2) {
       v && v(n2);
       var t2 = n2.__c;
-      t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$1 === c$1.requestAnimationFrame || ((i$1 = c$1.requestAnimationFrame) || w$1)(j$1)), t2.__H.__.forEach(function(n3) {
+      t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i$1 === c$1.requestAnimationFrame || ((i$1 = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
         n3.i && (n3.__H = n3.i), n3.i = void 0;
-      })), u$1 = r$1 = null;
+      })), u = r$1 = null;
     }, c$1.__c = function(n2, t2) {
       t2.some(function(n3) {
         try {
-          n3.__h.forEach(z$1), n3.__h = n3.__h.filter(function(n4) {
-            return !n4.__ || B$1(n4);
+          n3.__h.forEach(z), n3.__h = n3.__h.filter(function(n4) {
+            return !n4.__ || B(n4);
           });
         } catch (r2) {
           t2.some(function(n4) {
@@ -7623,33 +7555,33 @@ var require_assets = __commonJS({
       var t2, r2 = n2.__c;
       r2 && r2.__H && (r2.__H.__.forEach(function(n3) {
         try {
-          z$1(n3);
+          z(n3);
         } catch (n4) {
           t2 = n4;
         }
       }), r2.__H = void 0, t2 && c$1.__e(t2, r2.__v));
     };
-    var k$1 = "function" == typeof requestAnimationFrame;
-    function w$1(n2) {
+    var k = "function" == typeof requestAnimationFrame;
+    function w(n2) {
       var t2, r2 = function() {
-        clearTimeout(u2), k$1 && cancelAnimationFrame(t2), setTimeout(n2);
+        clearTimeout(u2), k && cancelAnimationFrame(t2), setTimeout(n2);
       }, u2 = setTimeout(r2, 100);
-      k$1 && (t2 = requestAnimationFrame(r2));
+      k && (t2 = requestAnimationFrame(r2));
     }
-    function z$1(n2) {
+    function z(n2) {
       var t2 = r$1, u2 = n2.__c;
       "function" == typeof u2 && (n2.__c = void 0, u2()), r$1 = t2;
     }
-    function B$1(n2) {
+    function B(n2) {
       var t2 = r$1;
       n2.__c = n2.__(), r$1 = t2;
     }
-    function C$1(n2, t2) {
+    function C(n2, t2) {
       return !n2 || n2.length !== t2.length || t2.some(function(t3, r2) {
         return t3 !== n2[r2];
       });
     }
-    function D$1(n2, t2) {
+    function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
     const arrayToString = (val) => {
@@ -7813,9 +7745,9 @@ var require_assets = __commonJS({
       let timeout, context, args, result;
       let lastCallTime = null;
       const later = () => {
-        const last2 = Date.now() - lastCallTime;
-        if (last2 < wait && last2 >= 0) {
-          timeout = setTimeout(later, wait - last2);
+        const last = Date.now() - lastCallTime;
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
         } else {
           timeout = null;
           if (!options.leading) {
@@ -7971,7 +7903,7 @@ var require_assets = __commonJS({
         color: "var(--bs-tertiary-color)"
       }
     };
-    const ErrorPanel = ({ id: id2, classes, title, error: error2 }) => {
+    const ErrorPanel = ({ id, classes, title, error: error2 }) => {
       const emptyStyle = {
         display: "flex",
         flex: "0 0 content",
@@ -7983,7 +7915,7 @@ var require_assets = __commonJS({
       return m$1`
     <div style=${{ overflowY: "auto", height: "100vh" }}>
       <div
-        ...${{ id: id2 }}
+        ...${{ id }}
         class="${classes ? classes : ""}"
         style=${{
         ...emptyStyle,
@@ -8031,7 +7963,7 @@ var require_assets = __commonJS({
     </div>
   `;
     };
-    class AppErrorBoundary extends x$3 {
+    class AppErrorBoundary extends x$1 {
       constructor(props) {
         super(props);
         this.state = { hasError: false };
@@ -8517,7 +8449,7 @@ var require_assets = __commonJS({
     </span>`;
       }
     };
-    const EmptyPanel = ({ id: id2, classes, height, style: style2, children: children2 }) => {
+    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
       const emptyStyle = {
         display: "flex",
         textAlign: "center",
@@ -8528,7 +8460,7 @@ var require_assets = __commonJS({
       };
       return m$1`
     <div
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="${classes ? classes : ""}"
       style=${{ width: "100%" }}
     >
@@ -8538,8 +8470,8 @@ var require_assets = __commonJS({
     </div>
   `;
     };
-    const TabSet = ({ id: id2, type, classes, tools, styles, children: children2 }) => {
-      if (!id2) {
+    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
+      if (!id) {
         throw new Error("Tabsets require an id to function properly");
       }
       const tabs = children2;
@@ -8548,7 +8480,7 @@ var require_assets = __commonJS({
         alignItems: "space-between"
       };
       return m$1`<ul
-      ...${{ id: id2 }}
+      ...${{ id }}
       class="nav nav-${tabType} ${classes ? classes : ""}"
       role="tablist"
       aria-orientation="horizontal"
@@ -8557,10 +8489,10 @@ var require_assets = __commonJS({
       <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
       <${TabTools} tools=${tools} />
     </ul>
-    <${TabPanels} id=${id2} tabs=${tabs} style=${styles.tabBody} />`;
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
     };
     const TabPanel = ({
-      id: id2,
+      id,
       index,
       selected,
       style: style2,
@@ -8571,8 +8503,8 @@ var require_assets = __commonJS({
       setScrollPosition,
       children: children2
     }) => {
-      const tabContentsId = computeTabContentsId(id2, index);
-      const tabContentsRef = scrollRef || A$1(
+      const tabContentsId = computeTabContentsId(id, index);
+      const tabContentsRef = scrollRef || A(
         /** @type {HTMLElement|null} */
         null
       );
@@ -8583,7 +8515,7 @@ var require_assets = __commonJS({
           }
         }, 0);
       });
-      const onScroll = q$1(
+      const onScroll = q(
         (e2) => {
           setScrollPosition(e2.srcElement.scrollTop);
         },
@@ -8676,19 +8608,19 @@ var require_assets = __commonJS({
     ${tools}
   </div>`;
     };
-    const TabPanels = ({ id: id2, tabs, style: style2 }) => {
-      return m$1`<div class="tab-content" id="${id2}-content" style=${{ ...style2 }}>
+    const TabPanels = ({ id, tabs, style: style2 }) => {
+      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
     ${tabs.map((tab, index) => {
         tab.props.index = index;
         return tab;
       })}
   </div>`;
     };
-    const computeTabId = (id2, index) => {
-      return `${id2}-${index}`;
+    const computeTabId = (id, index) => {
+      return `${id}-${index}`;
     };
-    const computeTabContentsId = (id2, index) => {
-      return `${id2}-contents-${index}`;
+    const computeTabContentsId = (id, index) => {
+      return `${id}-contents-${index}`;
     };
     const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
       const attr = {
@@ -8698,16 +8630,16 @@ var require_assets = __commonJS({
         ...rest
       };
       const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
-      return g$2("button", attr, m$1`${iconEl}${name}`);
+      return g("button", attr, m$1`${iconEl}${name}`);
     };
     const ghCommitUrl = (origin, commit) => {
       const baseUrl = origin.replace(/\.git$/, "");
       return `${baseUrl}/commit/${commit}`;
     };
-    const CardHeader = ({ id: id2, icon, label, classes, style: style2, children: children2 }) => {
+    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
       return m$1`<div
     class="${classes || ""}"
-    ...${{ id: id2 }}
+    ...${{ id }}
     style=${{
         display: "grid",
         gridTemplateColumns: "max-content auto",
@@ -8732,10 +8664,10 @@ var require_assets = __commonJS({
     ${label ? label : ""} ${children2}
   </div> `;
     };
-    const CardBody = ({ id: id2, classes, style: style2, children: children2 }) => {
+    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
       return m$1`<div
     class="${classes || ""}"
-    ...${{ id: id2 }}
+    ...${{ id }}
     style=${{
         backgroundColor: "var(--bs-body-bg)",
         border: "solid 1px var(--bs-light-border-subtle)",
@@ -8748,11 +8680,11 @@ var require_assets = __commonJS({
     ${children2}
   </div>`;
     };
-    const Card = ({ id: id2, classes, style: style2, children: children2 }) => {
+    const Card = ({ id, classes, style: style2, children: children2 }) => {
       return m$1`
     <div
       class="${classes || ""}"
-      ...${{ id: id2 }}
+      ...${{ id }}
       style=${{
         backgroundColor: "var(--bs-light-bg-subtle)",
         border: "solid 1px var(--bs-light-border-subtle)",
@@ -9910,17 +9842,17 @@ var require_assets = __commonJS({
     const Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
     const Cc = /[\0-\x1F\x7F-\x9F]/;
     const regex$1 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
-    const P$1 = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
+    const P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
     const regex = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
-    const Z$1 = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
+    const Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
     const ucmicro = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
       __proto__: null,
       Any,
       Cc,
       Cf: regex$1,
-      P: P$1,
+      P,
       S: regex,
-      Z: Z$1
+      Z
     }, Symbol.toStringTag, { value: "Module" }));
     const htmlDecodeTree = new Uint16Array(
       // prettier-ignore
@@ -10495,7 +10427,7 @@ var require_assets = __commonJS({
       return false;
     }
     function isPunctChar(ch3) {
-      return P$1.test(ch3) || regex.test(ch3);
+      return P.test(ch3) || regex.test(ch3);
     }
     function isMdAsciiPunct(ch3) {
       switch (ch3) {
@@ -10926,17 +10858,17 @@ var require_assets = __commonJS({
         });
       });
     };
-    Ruler.prototype.at = function(name, fn2, options) {
+    Ruler.prototype.at = function(name, fn, options) {
       const index = this.__find__(name);
       const opt = options || {};
       if (index === -1) {
         throw new Error("Parser rule not found: " + name);
       }
-      this.__rules__[index].fn = fn2;
+      this.__rules__[index].fn = fn;
       this.__rules__[index].alt = opt.alt || [];
       this.__cache__ = null;
     };
-    Ruler.prototype.before = function(beforeName, ruleName, fn2, options) {
+    Ruler.prototype.before = function(beforeName, ruleName, fn, options) {
       const index = this.__find__(beforeName);
       const opt = options || {};
       if (index === -1) {
@@ -10945,12 +10877,12 @@ var require_assets = __commonJS({
       this.__rules__.splice(index, 0, {
         name: ruleName,
         enabled: true,
-        fn: fn2,
+        fn,
         alt: opt.alt || []
       });
       this.__cache__ = null;
     };
-    Ruler.prototype.after = function(afterName, ruleName, fn2, options) {
+    Ruler.prototype.after = function(afterName, ruleName, fn, options) {
       const index = this.__find__(afterName);
       const opt = options || {};
       if (index === -1) {
@@ -10959,17 +10891,17 @@ var require_assets = __commonJS({
       this.__rules__.splice(index + 1, 0, {
         name: ruleName,
         enabled: true,
-        fn: fn2,
+        fn,
         alt: opt.alt || []
       });
       this.__cache__ = null;
     };
-    Ruler.prototype.push = function(ruleName, fn2, options) {
+    Ruler.prototype.push = function(ruleName, fn, options) {
       const opt = options || {};
       this.__rules__.push({
         name: ruleName,
         enabled: true,
-        fn: fn2,
+        fn,
         alt: opt.alt || []
       });
       this.__cache__ = null;
@@ -11169,21 +11101,21 @@ var require_assets = __commonJS({
             if (links.length > 0 && links[0].index === 0 && i2 > 0 && tokens[i2 - 1].type === "text_special") {
               links = links.slice(1);
             }
-            for (let ln2 = 0; ln2 < links.length; ln2++) {
-              const url = links[ln2].url;
+            for (let ln = 0; ln < links.length; ln++) {
+              const url = links[ln].url;
               const fullUrl = state.md.normalizeLink(url);
               if (!state.md.validateLink(fullUrl)) {
                 continue;
               }
-              let urlText = links[ln2].text;
-              if (!links[ln2].schema) {
+              let urlText = links[ln].text;
+              if (!links[ln].schema) {
                 urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
-              } else if (links[ln2].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
+              } else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
                 urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
               } else {
                 urlText = state.md.normalizeLinkText(urlText);
               }
-              const pos2 = links[ln2].index;
+              const pos2 = links[ln].index;
               if (pos2 > lastPos) {
                 const token2 = new state.Token("text", "", 0);
                 token2.content = text2.slice(lastPos, pos2);
@@ -11205,7 +11137,7 @@ var require_assets = __commonJS({
               token_c.markup = "linkify";
               token_c.info = "auto";
               nodes.push(token_c);
-              lastPos = links[ln2].lastIndex;
+              lastPos = links[ln].lastIndex;
             }
             if (lastPos < text2.length) {
               const token2 = new state.Token("text", "", 0);
@@ -11312,7 +11244,7 @@ var require_assets = __commonJS({
             let canOpen = true;
             let canClose = true;
             pos2 = t2.index + 1;
-            const isSingle2 = t2[0] === "'";
+            const isSingle = t2[0] === "'";
             let lastChar = 32;
             if (t2.index - 1 >= 0) {
               lastChar = text2.charCodeAt(t2.index - 1);
@@ -11363,7 +11295,7 @@ var require_assets = __commonJS({
               canClose = isNextPunctChar;
             }
             if (!canOpen && !canClose) {
-              if (isSingle2) {
+              if (isSingle) {
                 token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
               }
               continue;
@@ -11374,11 +11306,11 @@ var require_assets = __commonJS({
                 if (stack2[j2].level < thisLevel) {
                   break;
                 }
-                if (item.single === isSingle2 && stack2[j2].level === thisLevel) {
+                if (item.single === isSingle && stack2[j2].level === thisLevel) {
                   item = stack2[j2];
                   let openQuote;
                   let closeQuote;
-                  if (isSingle2) {
+                  if (isSingle) {
                     openQuote = state.md.options.quotes[2];
                     closeQuote = state.md.options.quotes[3];
                   } else {
@@ -11406,10 +11338,10 @@ var require_assets = __commonJS({
               stack2.push({
                 token: i2,
                 pos: t2.index,
-                single: isSingle2,
+                single: isSingle,
                 level: thisLevel
               });
-            } else if (canClose && isSingle2) {
+            } else if (canClose && isSingle) {
               token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
             }
           }
@@ -11427,7 +11359,7 @@ var require_assets = __commonJS({
       }
     }
     function text_join(state) {
-      let curr, last2;
+      let curr, last;
       const blockTokens = state.tokens;
       const l2 = blockTokens.length;
       for (let j2 = 0; j2 < l2; j2++) {
@@ -11439,18 +11371,18 @@ var require_assets = __commonJS({
             tokens[curr].type = "text";
           }
         }
-        for (curr = last2 = 0; curr < max2; curr++) {
+        for (curr = last = 0; curr < max2; curr++) {
           if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
             tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
           } else {
-            if (curr !== last2) {
-              tokens[last2] = tokens[curr];
+            if (curr !== last) {
+              tokens[last] = tokens[curr];
             }
-            last2++;
+            last++;
           }
         }
-        if (curr !== last2) {
-          tokens.length = last2;
+        if (curr !== last) {
+          tokens.length = last;
         }
       }
     }
@@ -11602,13 +11534,13 @@ var require_assets = __commonJS({
         let lineIndent = 0;
         const lineStart = this.bMarks[line2];
         let first = lineStart;
-        let last2;
+        let last;
         if (line2 + 1 < end2 || keepLastLF) {
-          last2 = this.eMarks[line2] + 1;
+          last = this.eMarks[line2] + 1;
         } else {
-          last2 = this.eMarks[line2];
+          last = this.eMarks[line2];
         }
-        while (first < last2 && lineIndent < indent) {
+        while (first < last && lineIndent < indent) {
           const ch3 = this.src.charCodeAt(first);
           if (isSpace(ch3)) {
             if (ch3 === 9) {
@@ -11624,9 +11556,9 @@ var require_assets = __commonJS({
           first++;
         }
         if (lineIndent > indent) {
-          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last2);
+          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
         } else {
-          queue[i2] = this.src.slice(first, last2);
+          queue[i2] = this.src.slice(first, last);
         }
       }
       return queue.join("");
@@ -11825,7 +11757,7 @@ var require_assets = __commonJS({
         return false;
       }
       let nextLine = startLine + 1;
-      let last2 = nextLine;
+      let last = nextLine;
       while (nextLine < endLine) {
         if (state.isEmpty(nextLine)) {
           nextLine++;
@@ -11833,14 +11765,14 @@ var require_assets = __commonJS({
         }
         if (state.sCount[nextLine] - state.blkIndent >= 4) {
           nextLine++;
-          last2 = nextLine;
+          last = nextLine;
           continue;
         }
         break;
       }
-      state.line = last2;
+      state.line = last;
       const token2 = state.push("code_block", "code", 0);
-      token2.content = state.getLines(startLine, last2, 4 + state.blkIndent, false) + "\n";
+      token2.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
       token2.map = [startLine, state.line];
       return true;
     }
@@ -13660,25 +13592,25 @@ var require_assets = __commonJS({
       }
     }
     function fragments_join(state) {
-      let curr, last2;
+      let curr, last;
       let level = 0;
       const tokens = state.tokens;
       const max2 = state.tokens.length;
-      for (curr = last2 = 0; curr < max2; curr++) {
+      for (curr = last = 0; curr < max2; curr++) {
         if (tokens[curr].nesting < 0) level--;
         tokens[curr].level = level;
         if (tokens[curr].nesting > 0) level++;
         if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
           tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
         } else {
-          if (curr !== last2) {
-            tokens[last2] = tokens[curr];
+          if (curr !== last) {
+            tokens[last] = tokens[curr];
           }
-          last2++;
+          last++;
         }
       }
-      if (curr !== last2) {
-        tokens.length = last2;
+      if (curr !== last) {
+        tokens.length = last;
       }
     }
     const _rules = [
@@ -13790,8 +13722,8 @@ var require_assets = __commonJS({
       opts = opts || {};
       re.src_Any = Any.source;
       re.src_Cc = Cc.source;
-      re.src_Z = Z$1.source;
-      re.src_P = P$1.source;
+      re.src_Z = Z.source;
+      re.src_P = P.source;
       re.src_ZPCc = [re.src_Z, re.src_P, re.src_Cc].join("|");
       re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
       const text_separators = "[><｜]";
@@ -14179,7 +14111,7 @@ var require_assets = __commonJS({
     const base = 36;
     const tMin = 1;
     const tMax = 26;
-    const skew$1 = 38;
+    const skew = 38;
     const damp = 700;
     const initialBias = 72;
     const initialN = 128;
@@ -14193,12 +14125,12 @@ var require_assets = __commonJS({
       "invalid-input": "Invalid input"
     };
     const baseMinusTMin = base - tMin;
-    const floor$1 = Math.floor;
+    const floor = Math.floor;
     const stringFromCharCode = String.fromCharCode;
     function error(type) {
       throw new RangeError(errors[type]);
     }
-    function map$1(array, callback) {
+    function map(array, callback) {
       const result = [];
       let length = array.length;
       while (length--) {
@@ -14215,7 +14147,7 @@ var require_assets = __commonJS({
       }
       domain = domain.replace(regexSeparators, ".");
       const labels = domain.split(".");
-      const encoded = map$1(labels, callback).join(".");
+      const encoded = map(labels, callback).join(".");
       return result + encoded;
     }
     function ucs2decode(string) {
@@ -14256,12 +14188,12 @@ var require_assets = __commonJS({
     };
     const adapt = function(delta, numPoints, firstTime) {
       let k2 = 0;
-      delta = firstTime ? floor$1(delta / damp) : delta >> 1;
-      delta += floor$1(delta / numPoints);
+      delta = firstTime ? floor(delta / damp) : delta >> 1;
+      delta += floor(delta / numPoints);
       for (; delta > baseMinusTMin * tMax >> 1; k2 += base) {
-        delta = floor$1(delta / baseMinusTMin);
+        delta = floor(delta / baseMinusTMin);
       }
-      return floor$1(k2 + (baseMinusTMin + 1) * delta / (delta + skew$1));
+      return floor(k2 + (baseMinusTMin + 1) * delta / (delta + skew));
     };
     const decode = function(input) {
       const output = [];
@@ -14289,7 +14221,7 @@ var require_assets = __commonJS({
           if (digit >= base) {
             error("invalid-input");
           }
-          if (digit > floor$1((maxInt - i2) / w2)) {
+          if (digit > floor((maxInt - i2) / w2)) {
             error("overflow");
           }
           i2 += digit * w2;
@@ -14298,17 +14230,17 @@ var require_assets = __commonJS({
             break;
           }
           const baseMinusT = base - t2;
-          if (w2 > floor$1(maxInt / baseMinusT)) {
+          if (w2 > floor(maxInt / baseMinusT)) {
             error("overflow");
           }
           w2 *= baseMinusT;
         }
         const out = output.length + 1;
         bias = adapt(i2 - oldi, out, oldi == 0);
-        if (floor$1(i2 / out) > maxInt - n2) {
+        if (floor(i2 / out) > maxInt - n2) {
           error("overflow");
         }
-        n2 += floor$1(i2 / out);
+        n2 += floor(i2 / out);
         i2 %= out;
         output.splice(i2++, 0, n2);
       }
@@ -14339,7 +14271,7 @@ var require_assets = __commonJS({
           }
         }
         const handledCPCountPlusOne = handledCPCount + 1;
-        if (m2 - n2 > floor$1((maxInt - delta) / handledCPCountPlusOne)) {
+        if (m2 - n2 > floor((maxInt - delta) / handledCPCountPlusOne)) {
           error("overflow");
         }
         delta += (m2 - n2) * handledCPCountPlusOne;
@@ -14360,7 +14292,7 @@ var require_assets = __commonJS({
               output.push(
                 stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0))
               );
-              q2 = floor$1(qMinusT / baseMinusT);
+              q2 = floor(qMinusT / baseMinusT);
             }
             output.push(stringFromCharCode(digitToBasic(q2, 0)));
             bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
@@ -15214,18 +15146,18 @@ var require_assets = __commonJS({
     }) => {
       const [collapsed, setCollapsed] = h(collapse);
       const [showToggle, setShowToggle] = h(false);
-      const contentsRef = A$1(
+      const contentsRef = A(
         /** @type {HTMLElement|null} */
         null
       );
-      const observerRef = A$1(
+      const observerRef = A(
         /** @type {IntersectionObserver|null} */
         null
       );
       y(() => {
         setCollapsed(collapse);
       }, [children2, collapse]);
-      const refreshCollapse = q$1(() => {
+      const refreshCollapse = q(() => {
         if (collapse && contentsRef.current) {
           const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
           setShowToggle(isScrollable);
@@ -15318,8 +15250,8 @@ var require_assets = __commonJS({
     </div>
   `;
     };
-    const resolveToolInput = (fn2, toolArgs) => {
-      const toolName = fn2;
+    const resolveToolInput = (fn, toolArgs) => {
+      const toolName = fn;
       const [inputKey, inputType] = extractInputMetadata(toolName);
       const { input, args } = extractInput(inputKey, toolArgs);
       const functionCall = args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
@@ -15400,7 +15332,7 @@ var require_assets = __commonJS({
         return "";
       }
       if (view) {
-        const toolInputRef = A$1(
+        const toolInputRef = A(
           /** @type {import("preact").Component & { base: Element }} */
           null
         );
@@ -15428,7 +15360,7 @@ var require_assets = __commonJS({
       style=${style2}
     />`;
       } else {
-        const toolInputRef = A$1(
+        const toolInputRef = A(
           /** @type {HTMLElement|null} */
           null
         );
@@ -15623,4439 +15555,6 @@ var require_assets = __commonJS({
         }
       }
     };
-    function g(n2, t2) {
-      for (var e2 in n2) if ("__source" !== e2 && !(e2 in t2)) return true;
-      for (var r2 in t2) if ("__source" !== r2 && n2[r2] !== t2[r2]) return true;
-      return false;
-    }
-    function E(n2, t2) {
-      var e2 = t2(), r2 = h({ t: { __: e2, u: t2 } }), u2 = r2[0].t, o2 = r2[1];
-      return _(function() {
-        u2.__ = e2, u2.u = t2, C(u2) && o2({ t: u2 });
-      }, [n2, e2, t2]), y(function() {
-        return C(u2) && o2({ t: u2 }), n2(function() {
-          C(u2) && o2({ t: u2 });
-        });
-      }, [n2]), e2;
-    }
-    function C(n2) {
-      var t2, e2, r2 = n2.u, u2 = n2.__;
-      try {
-        var o2 = r2();
-        return !((t2 = u2) === (e2 = o2) && (0 !== t2 || 1 / t2 == 1 / e2) || t2 != t2 && e2 != e2);
-      } catch (n3) {
-        return true;
-      }
-    }
-    function x$1(n2) {
-      n2();
-    }
-    function R(n2) {
-      return n2;
-    }
-    function w() {
-      return [false, x$1];
-    }
-    var k = _;
-    function I(n2, t2) {
-      this.props = n2, this.context = t2;
-    }
-    function N(n2, e2) {
-      function r2(n3) {
-        var t2 = this.props.ref, r3 = t2 == n3.ref;
-        return !r3 && t2 && (t2.call ? t2(null) : t2.current = null), e2 ? !e2(this.props, n3) || !r3 : g(this.props, n3);
-      }
-      function u2(e3) {
-        return this.shouldComponentUpdate = r2, g$2(n2, e3);
-      }
-      return u2.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u2.prototype.isReactComponent = true, u2.__f = true, u2;
-    }
-    (I.prototype = new x$3()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
-      return g(this.props, n2) || g(this.state, t2);
-    };
-    var M = l$1.__b;
-    l$1.__b = function(n2) {
-      n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), M && M(n2);
-    };
-    var T = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
-    function A(n2) {
-      function t2(t3) {
-        if (!("ref" in t3)) return n2(t3, null);
-        var e2 = t3.ref;
-        delete t3.ref;
-        var r2 = n2(t3, e2);
-        return t3.ref = e2, r2;
-      }
-      return t2.$$typeof = T, t2.render = t2, t2.prototype.isReactComponent = t2.__f = true, t2.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t2;
-    }
-    var D = function(n2, t2) {
-      return null == n2 ? null : L$1(L$1(n2).map(t2));
-    }, L = { map: D, forEach: D, count: function(n2) {
-      return n2 ? L$1(n2).length : 0;
-    }, only: function(n2) {
-      var t2 = L$1(n2);
-      if (1 !== t2.length) throw "Children.only";
-      return t2[0];
-    }, toArray: L$1 }, O = l$1.__e;
-    l$1.__e = function(n2, t2, e2, r2) {
-      if (n2.then) {
-        for (var u2, o2 = t2; o2 = o2.__; ) if ((u2 = o2.__c) && u2.__c) return null == t2.__e && (t2.__e = e2.__e, t2.__k = e2.__k), u2.__c(n2, t2);
-      }
-      O(n2, t2, e2, r2);
-    };
-    var F = l$1.unmount;
-    function U(n2, t2, e2) {
-      return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
-        "function" == typeof n3.__c && n3.__c();
-      }), n2.__c.__H = null), null != (n2 = function(n3, t3) {
-        for (var e3 in t3) n3[e3] = t3[e3];
-        return n3;
-      }({}, n2)).__c && (n2.__c.__P === e2 && (n2.__c.__P = t2), n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return U(n3, t2, e2);
-      })), n2;
-    }
-    function V(n2, t2, e2) {
-      return n2 && e2 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return V(n3, t2, e2);
-      }), n2.__c && n2.__c.__P === t2 && (n2.__e && e2.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e2)), n2;
-    }
-    function W() {
-      this.__u = 0, this.o = null, this.__b = null;
-    }
-    function P(n2) {
-      var t2 = n2.__.__c;
-      return t2 && t2.__a && t2.__a(n2);
-    }
-    function j(n2) {
-      var e2, r2, u2;
-      function o2(o3) {
-        if (e2 || (e2 = n2()).then(function(n3) {
-          r2 = n3.default || n3;
-        }, function(n3) {
-          u2 = n3;
-        }), u2) throw u2;
-        if (!r2) throw e2;
-        return g$2(r2, o3);
-      }
-      return o2.displayName = "Lazy", o2.__f = true, o2;
-    }
-    function z() {
-      this.i = null, this.l = null;
-    }
-    l$1.unmount = function(n2) {
-      var t2 = n2.__c;
-      t2 && t2.__R && t2.__R(), t2 && 32 & n2.__u && (n2.type = null), F && F(n2);
-    }, (W.prototype = new x$3()).__c = function(n2, t2) {
-      var e2 = t2.__c, r2 = this;
-      null == r2.o && (r2.o = []), r2.o.push(e2);
-      var u2 = P(r2.__v), o2 = false, i2 = function() {
-        o2 || (o2 = true, e2.__R = null, u2 ? u2(c2) : c2());
-      };
-      e2.__R = i2;
-      var c2 = function() {
-        if (!--r2.__u) {
-          if (r2.state.__a) {
-            var n3 = r2.state.__a;
-            r2.__v.__k[0] = V(n3, n3.__c.__P, n3.__c.__O);
-          }
-          var t3;
-          for (r2.setState({ __a: r2.__b = null }); t3 = r2.o.pop(); ) t3.forceUpdate();
-        }
-      };
-      r2.__u++ || 32 & t2.__u || r2.setState({ __a: r2.__b = r2.__v.__k[0] }), n2.then(i2, i2);
-    }, W.prototype.componentWillUnmount = function() {
-      this.o = [];
-    }, W.prototype.render = function(n2, e2) {
-      if (this.__b) {
-        if (this.__v.__k) {
-          var r2 = document.createElement("div"), o2 = this.__v.__k[0].__c;
-          this.__v.__k[0] = U(this.__b, r2, o2.__O = o2.__P);
-        }
-        this.__b = null;
-      }
-      var i2 = e2.__a && g$2(k$2, null, n2.fallback);
-      return i2 && (i2.__u &= -33), [g$2(k$2, null, e2.__a ? null : n2.children), i2];
-    };
-    var B = function(n2, t2, e2) {
-      if (++e2[1] === e2[0] && n2.l.delete(t2), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e2 = n2.i; e2; ) {
-        for (; e2.length > 3; ) e2.pop()();
-        if (e2[1] < e2[0]) break;
-        n2.i = e2 = e2[2];
-      }
-    };
-    function H(n2) {
-      return this.getChildContext = function() {
-        return n2.context;
-      }, n2.children;
-    }
-    function Z(n2) {
-      var e2 = this, r2 = n2.h;
-      e2.componentWillUnmount = function() {
-        D$2(null, e2.v), e2.v = null, e2.h = null;
-      }, e2.h && e2.h !== r2 && e2.componentWillUnmount(), e2.v || (e2.h = r2, e2.v = { nodeType: 1, parentNode: r2, childNodes: [], contains: function() {
-        return true;
-      }, appendChild: function(n3) {
-        this.childNodes.push(n3), e2.h.appendChild(n3);
-      }, insertBefore: function(n3, t2) {
-        this.childNodes.push(n3), e2.h.insertBefore(n3, t2);
-      }, removeChild: function(n3) {
-        this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e2.h.removeChild(n3);
-      } }), D$2(g$2(H, { context: e2.context }, n2.__v), e2.v);
-    }
-    function Y(n2, e2) {
-      var r2 = g$2(Z, { __v: n2, h: e2 });
-      return r2.containerInfo = e2, r2;
-    }
-    (z.prototype = new x$3()).__a = function(n2) {
-      var t2 = this, e2 = P(t2.__v), r2 = t2.l.get(n2);
-      return r2[0]++, function(u2) {
-        var o2 = function() {
-          t2.props.revealOrder ? (r2.push(u2), B(t2, n2, r2)) : u2();
-        };
-        e2 ? e2(o2) : o2();
-      };
-    }, z.prototype.render = function(n2) {
-      this.i = null, this.l = /* @__PURE__ */ new Map();
-      var t2 = L$1(n2.children);
-      n2.revealOrder && "b" === n2.revealOrder[0] && t2.reverse();
-      for (var e2 = t2.length; e2--; ) this.l.set(t2[e2], this.i = [1, 0, this.i]);
-      return n2.children;
-    }, z.prototype.componentDidUpdate = z.prototype.componentDidMount = function() {
-      var n2 = this;
-      this.l.forEach(function(t2, e2) {
-        B(n2, e2, t2);
-      });
-    };
-    var $ = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103, q = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/, G = /^on(Ani|Tra|Tou|BeforeInp|Compo)/, J = /[A-Z0-9]/g, K = "undefined" != typeof document, Q = function(n2) {
-      return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
-    };
-    function X(n2, t2, e2) {
-      return null == t2.__k && (t2.textContent = ""), D$2(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    function nn(n2, t2, e2) {
-      return E$1(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    x$3.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
-      Object.defineProperty(x$3.prototype, t2, { configurable: true, get: function() {
-        return this["UNSAFE_" + t2];
-      }, set: function(n2) {
-        Object.defineProperty(this, t2, { configurable: true, writable: true, value: n2 });
-      } });
-    });
-    var tn = l$1.event;
-    function en() {
-    }
-    function rn() {
-      return this.cancelBubble;
-    }
-    function un() {
-      return this.defaultPrevented;
-    }
-    l$1.event = function(n2) {
-      return tn && (n2 = tn(n2)), n2.persist = en, n2.isPropagationStopped = rn, n2.isDefaultPrevented = un, n2.nativeEvent = n2;
-    };
-    var on, cn = { enumerable: false, configurable: true, get: function() {
-      return this.class;
-    } }, fn = l$1.vnode;
-    l$1.vnode = function(n2) {
-      "string" == typeof n2.type && function(n3) {
-        var t2 = n3.props, e2 = n3.type, u2 = {}, o2 = -1 === e2.indexOf("-");
-        for (var i2 in t2) {
-          var c2 = t2[i2];
-          if (!("value" === i2 && "defaultValue" in t2 && null == c2 || K && "children" === i2 && "noscript" === e2 || "class" === i2 || "className" === i2)) {
-            var f2 = i2.toLowerCase();
-            "defaultValue" === i2 && "value" in t2 && null == t2.value ? i2 = "value" : "download" === i2 && true === c2 ? c2 = "" : "translate" === f2 && "no" === c2 ? c2 = false : "o" === f2[0] && "n" === f2[1] ? "ondoubleclick" === f2 ? i2 = "ondblclick" : "onchange" !== f2 || "input" !== e2 && "textarea" !== e2 || Q(t2.type) ? "onfocus" === f2 ? i2 = "onfocusin" : "onblur" === f2 ? i2 = "onfocusout" : G.test(i2) && (i2 = f2) : f2 = i2 = "oninput" : o2 && q.test(i2) ? i2 = i2.replace(J, "-$&").toLowerCase() : null === c2 && (c2 = void 0), "oninput" === f2 && u2[i2 = f2] && (i2 = "oninputCapture"), u2[i2] = c2;
-          }
-        }
-        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = -1 != u2.value.indexOf(n4.props.value);
-        })), "select" == e2 && null != u2.defaultValue && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = u2.multiple ? -1 != u2.defaultValue.indexOf(n4.props.value) : u2.defaultValue == n4.props.value;
-        })), t2.class && !t2.className ? (u2.class = t2.class, Object.defineProperty(u2, "className", cn)) : (t2.className && !t2.class || t2.class && t2.className) && (u2.class = u2.className = t2.className), n3.props = u2;
-      }(n2), n2.$$typeof = $, fn && fn(n2);
-    };
-    var ln = l$1.__r;
-    l$1.__r = function(n2) {
-      ln && ln(n2), on = n2.__c;
-    };
-    var an = l$1.diffed;
-    l$1.diffed = function(n2) {
-      an && an(n2);
-      var t2 = n2.props, e2 = n2.__e;
-      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value), on = null;
-    };
-    var sn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
-      return on.__n[n2.__c].props.value;
-    }, useCallback: q$1, useContext: x$2, useDebugValue: P$2, useDeferredValue: R, useEffect: y, useId: g$1, useImperativeHandle: F$1, useInsertionEffect: k, useLayoutEffect: _, useMemo: T$1, useReducer: p, useRef: A$1, useState: h, useSyncExternalStore: E, useTransition: w } } };
-    function vn(n2) {
-      return g$2.bind(null, n2);
-    }
-    function dn(n2) {
-      return !!n2 && n2.$$typeof === $;
-    }
-    function pn(n2) {
-      return dn(n2) && n2.type === k$2;
-    }
-    function mn(n2) {
-      return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
-    }
-    function yn(n2) {
-      return dn(n2) ? G$1.apply(null, arguments) : n2;
-    }
-    function _n(n2) {
-      return !!n2.__k && (D$2(null, n2), true);
-    }
-    function bn(n2) {
-      return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
-    }
-    var Sn = function(n2, t2) {
-      return n2(t2);
-    }, gn = function(n2, t2) {
-      return n2(t2);
-    }, En = k$2, Cn = dn, xn = { useState: h, useId: g$1, useReducer: p, useEffect: y, useLayoutEffect: _, useInsertionEffect: k, useTransition: w, useDeferredValue: R, useSyncExternalStore: E, startTransition: x$1, useRef: A$1, useImperativeHandle: F$1, useMemo: T$1, useCallback: q$1, useContext: x$2, useDebugValue: P$2, version: "18.3.1", Children: L, render: X, hydrate: nn, unmountComponentAtNode: _n, createPortal: Y, createElement: g$2, createContext: J$1, createFactory: vn, cloneElement: yn, createRef: b, Fragment: k$2, isValidElement: dn, isElement: Cn, isFragment: pn, isMemo: mn, findDOMNode: bn, Component: x$3, PureComponent: I, memo: N, forwardRef: A, flushSync: gn, unstable_batchedUpdates: Sn, StrictMode: En, Suspense: W, SuspenseList: z, lazy: j, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: sn };
-    var f = 0;
-    function u(e2, t2, n2, o2, i2, u2) {
-      t2 || (t2 = {});
-      var a2, c2, l2 = t2;
-      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
-      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
-      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
-      return l$1.vnode && l$1.vnode(p2), p2;
-    }
-    const PUBLISH = 0;
-    const SUBSCRIBE = 1;
-    const RESET = 2;
-    const VALUE = 4;
-    function compose$1(a2, b2) {
-      return (arg) => a2(b2(arg));
-    }
-    function thrush(arg, proc) {
-      return proc(arg);
-    }
-    function curry2to1(proc, arg1) {
-      return (arg2) => proc(arg1, arg2);
-    }
-    function curry1to0(proc, arg) {
-      return () => proc(arg);
-    }
-    function tap(arg, proc) {
-      proc(arg);
-      return arg;
-    }
-    function tup(...args) {
-      return args;
-    }
-    function call(proc) {
-      proc();
-    }
-    function always(value) {
-      return () => value;
-    }
-    function joinProc(...procs) {
-      return () => {
-        procs.map(call);
-      };
-    }
-    function isDefined(arg) {
-      return arg !== void 0;
-    }
-    function noop() {
-    }
-    function subscribe(emitter, subscription) {
-      return emitter(SUBSCRIBE, subscription);
-    }
-    function publish(publisher, value) {
-      publisher(PUBLISH, value);
-    }
-    function reset(emitter) {
-      emitter(RESET);
-    }
-    function getValue(depot) {
-      return depot(VALUE);
-    }
-    function connect(emitter, publisher) {
-      return subscribe(emitter, curry2to1(publisher, PUBLISH));
-    }
-    function handleNext(emitter, subscription) {
-      const unsub = emitter(SUBSCRIBE, (value) => {
-        unsub();
-        subscription(value);
-      });
-      return unsub;
-    }
-    function stream() {
-      const subscriptions = [];
-      return (action, arg) => {
-        switch (action) {
-          case RESET:
-            subscriptions.splice(0, subscriptions.length);
-            return;
-          case SUBSCRIBE:
-            subscriptions.push(arg);
-            return () => {
-              const indexOf = subscriptions.indexOf(arg);
-              if (indexOf > -1) {
-                subscriptions.splice(indexOf, 1);
-              }
-            };
-          case PUBLISH:
-            subscriptions.slice().forEach((subscription) => {
-              subscription(arg);
-            });
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function statefulStream(initial) {
-      let value = initial;
-      const innerSubject = stream();
-      return (action, arg) => {
-        switch (action) {
-          case SUBSCRIBE:
-            const subscription = arg;
-            subscription(value);
-            break;
-          case PUBLISH:
-            value = arg;
-            break;
-          case VALUE:
-            return value;
-        }
-        return innerSubject(action, arg);
-      };
-    }
-    function eventHandler$1(emitter) {
-      let unsub;
-      let currentSubscription;
-      const cleanup = () => unsub && unsub();
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            if (subscription) {
-              if (currentSubscription === subscription) {
-                return;
-              }
-              cleanup();
-              currentSubscription = subscription;
-              unsub = subscribe(emitter, subscription);
-              return unsub;
-            } else {
-              cleanup();
-              return noop;
-            }
-          case RESET:
-            cleanup();
-            currentSubscription = null;
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function streamFromEmitter(emitter) {
-      return tap(stream(), (stream2) => connect(emitter, stream2));
-    }
-    function statefulStreamFromEmitter(emitter, initial) {
-      return tap(statefulStream(initial), (stream2) => connect(emitter, stream2));
-    }
-    function combineOperators(...operators) {
-      return (subscriber) => {
-        return operators.reduceRight(thrush, subscriber);
-      };
-    }
-    function pipe(source2, ...operators) {
-      const project = combineOperators(...operators);
-      return (action, subscription) => {
-        switch (action) {
-          case SUBSCRIBE:
-            return subscribe(source2, project(subscription));
-          case RESET:
-            reset(source2);
-            return;
-        }
-      };
-    }
-    function defaultComparator(previous, next) {
-      return previous === next;
-    }
-    function distinctUntilChanged(comparator = defaultComparator) {
-      let current;
-      return (done) => (next) => {
-        if (!comparator(current, next)) {
-          current = next;
-          done(next);
-        }
-      };
-    }
-    function filter(predicate) {
-      return (done) => (value) => {
-        predicate(value) && done(value);
-      };
-    }
-    function map(project) {
-      return (done) => compose$1(done, project);
-    }
-    function mapTo(value) {
-      return (done) => () => done(value);
-    }
-    function scan(scanner, initial) {
-      return (done) => (value) => done(initial = scanner(initial, value));
-    }
-    function skip(times) {
-      return (done) => (value) => {
-        times > 0 ? times-- : done(value);
-      };
-    }
-    function throttleTime(interval) {
-      let currentValue = null;
-      let timeout;
-      return (done) => (value) => {
-        currentValue = value;
-        if (timeout) {
-          return;
-        }
-        timeout = setTimeout(() => {
-          timeout = void 0;
-          done(currentValue);
-        }, interval);
-      };
-    }
-    function debounceTime(interval) {
-      let currentValue;
-      let timeout;
-      return (done) => (value) => {
-        currentValue = value;
-        if (timeout) {
-          clearTimeout(timeout);
-        }
-        timeout = setTimeout(() => {
-          done(currentValue);
-        }, interval);
-      };
-    }
-    function withLatestFrom(...sources) {
-      const values = new Array(sources.length);
-      let called = 0;
-      let pendingCall = null;
-      const allCalled = Math.pow(2, sources.length) - 1;
-      sources.forEach((source2, index) => {
-        const bit = Math.pow(2, index);
-        subscribe(source2, (value) => {
-          const prevCalled = called;
-          called = called | bit;
-          values[index] = value;
-          if (prevCalled !== allCalled && called === allCalled && pendingCall) {
-            pendingCall();
-            pendingCall = null;
-          }
-        });
-      });
-      return (done) => (value) => {
-        const call2 = () => done([value].concat(values));
-        if (called === allCalled) {
-          call2();
-        } else {
-          pendingCall = call2;
-        }
-      };
-    }
-    function merge(...sources) {
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            return joinProc(...sources.map((source2) => subscribe(source2, subscription)));
-          case RESET:
-            return;
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function duc(source2, comparator = defaultComparator) {
-      return pipe(source2, distinctUntilChanged(comparator));
-    }
-    function combineLatest(...emitters) {
-      const innerSubject = stream();
-      const values = new Array(emitters.length);
-      let called = 0;
-      const allCalled = Math.pow(2, emitters.length) - 1;
-      emitters.forEach((source2, index) => {
-        const bit = Math.pow(2, index);
-        subscribe(source2, (value) => {
-          values[index] = value;
-          called = called | bit;
-          if (called === allCalled) {
-            publish(innerSubject, values);
-          }
-        });
-      });
-      return function(action, subscription) {
-        switch (action) {
-          case SUBSCRIBE:
-            if (called === allCalled) {
-              subscription(values);
-            }
-            return subscribe(innerSubject, subscription);
-          case RESET:
-            return reset(innerSubject);
-          default:
-            throw new Error(`unrecognized action ${action}`);
-        }
-      };
-    }
-    function system(constructor, dependencies = [], { singleton } = { singleton: true }) {
-      return {
-        id: id(),
-        constructor,
-        dependencies,
-        singleton
-      };
-    }
-    const id = () => Symbol();
-    function init(systemSpec) {
-      const singletons = /* @__PURE__ */ new Map();
-      const _init = ({ id: id2, constructor, dependencies, singleton }) => {
-        if (singleton && singletons.has(id2)) {
-          return singletons.get(id2);
-        }
-        const system2 = constructor(dependencies.map((e2) => _init(e2)));
-        if (singleton) {
-          singletons.set(id2, system2);
-        }
-        return system2;
-      };
-      return _init(systemSpec);
-    }
-    function omit(keys, obj) {
-      const result = {};
-      const index = {};
-      let idx = 0;
-      const len = keys.length;
-      while (idx < len) {
-        index[keys[idx]] = 1;
-        idx += 1;
-      }
-      for (const prop in obj) {
-        if (!index.hasOwnProperty(prop)) {
-          result[prop] = obj[prop];
-        }
-      }
-      return result;
-    }
-    const useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
-    function systemToComponent(systemSpec, map2, Root) {
-      const requiredPropNames = Object.keys(map2.required || {});
-      const optionalPropNames = Object.keys(map2.optional || {});
-      const methodNames = Object.keys(map2.methods || {});
-      const eventNames = Object.keys(map2.events || {});
-      const Context2 = xn.createContext({});
-      function applyPropsToSystem(system2, props) {
-        if (system2["propsReady"]) {
-          publish(system2["propsReady"], false);
-        }
-        for (const requiredPropName of requiredPropNames) {
-          const stream2 = system2[map2.required[requiredPropName]];
-          publish(stream2, props[requiredPropName]);
-        }
-        for (const optionalPropName of optionalPropNames) {
-          if (optionalPropName in props) {
-            const stream2 = system2[map2.optional[optionalPropName]];
-            publish(stream2, props[optionalPropName]);
-          }
-        }
-        if (system2["propsReady"]) {
-          publish(system2["propsReady"], true);
-        }
-      }
-      function buildMethods(system2) {
-        return methodNames.reduce((acc, methodName) => {
-          acc[methodName] = (value) => {
-            const stream2 = system2[map2.methods[methodName]];
-            publish(stream2, value);
-          };
-          return acc;
-        }, {});
-      }
-      function buildEventHandlers(system2) {
-        return eventNames.reduce((handlers, eventName) => {
-          handlers[eventName] = eventHandler$1(system2[map2.events[eventName]]);
-          return handlers;
-        }, {});
-      }
-      const Component = xn.forwardRef((propsWithChildren, ref) => {
-        const { children: children2, ...props } = propsWithChildren;
-        const [system2] = xn.useState(() => {
-          return tap(init(systemSpec), (system22) => applyPropsToSystem(system22, props));
-        });
-        const [handlers] = xn.useState(curry1to0(buildEventHandlers, system2));
-        useIsomorphicLayoutEffect$1(() => {
-          for (const eventName of eventNames) {
-            if (eventName in props) {
-              subscribe(handlers[eventName], props[eventName]);
-            }
-          }
-          return () => {
-            Object.values(handlers).map(reset);
-          };
-        }, [props, handlers, system2]);
-        useIsomorphicLayoutEffect$1(() => {
-          applyPropsToSystem(system2, props);
-        });
-        xn.useImperativeHandle(ref, always(buildMethods(system2)));
-        const RootComponent = Root;
-        return /* @__PURE__ */ u(Context2.Provider, { value: system2, children: Root ? /* @__PURE__ */ u(RootComponent, { ...omit([...requiredPropNames, ...optionalPropNames, ...eventNames], props), children: children2 }) : children2 });
-      });
-      const usePublisher2 = (key2) => {
-        return xn.useCallback(curry2to1(publish, xn.useContext(Context2)[key2]), [key2]);
-      };
-      const useEmitterValue18 = (key2) => {
-        const system2 = xn.useContext(Context2);
-        const source2 = system2[key2];
-        const cb = xn.useCallback(
-          (c2) => {
-            return subscribe(source2, c2);
-          },
-          [source2]
-        );
-        return xn.useSyncExternalStore(
-          cb,
-          () => getValue(source2),
-          () => getValue(source2)
-        );
-      };
-      const useEmitterValueLegacy = (key2) => {
-        const system2 = xn.useContext(Context2);
-        const source2 = system2[key2];
-        const [value, setValue] = xn.useState(curry1to0(getValue, source2));
-        useIsomorphicLayoutEffect$1(
-          () => subscribe(source2, (next) => {
-            if (next !== value) {
-              setValue(always(next));
-            }
-          }),
-          [source2, value]
-        );
-        return value;
-      };
-      const useEmitterValue2 = xn.version.startsWith("18") ? useEmitterValue18 : useEmitterValueLegacy;
-      const useEmitter2 = (key2, callback) => {
-        const context = xn.useContext(Context2);
-        const source2 = context[key2];
-        useIsomorphicLayoutEffect$1(() => subscribe(source2, callback), [callback, source2]);
-      };
-      return {
-        Component,
-        usePublisher: usePublisher2,
-        useEmitterValue: useEmitterValue2,
-        useEmitter: useEmitter2
-      };
-    }
-    const useIsomorphicLayoutEffect = typeof document !== "undefined" ? xn.useLayoutEffect : xn.useEffect;
-    var LogLevel = /* @__PURE__ */ ((LogLevel2) => {
-      LogLevel2[LogLevel2["DEBUG"] = 0] = "DEBUG";
-      LogLevel2[LogLevel2["INFO"] = 1] = "INFO";
-      LogLevel2[LogLevel2["WARN"] = 2] = "WARN";
-      LogLevel2[LogLevel2["ERROR"] = 3] = "ERROR";
-      return LogLevel2;
-    })(LogLevel || {});
-    const CONSOLE_METHOD_MAP = {
-      [
-        0
-        /* DEBUG */
-      ]: "debug",
-      [
-        1
-        /* INFO */
-      ]: "log",
-      [
-        2
-        /* WARN */
-      ]: "warn",
-      [
-        3
-        /* ERROR */
-      ]: "error"
-    };
-    const getGlobalThis = () => typeof globalThis === "undefined" ? window : globalThis;
-    const loggerSystem = system(
-      () => {
-        const logLevel = statefulStream(
-          3
-          /* ERROR */
-        );
-        const log = statefulStream((label, message, level = 1) => {
-          var _a2;
-          const currentLevel = (_a2 = getGlobalThis()["VIRTUOSO_LOG_LEVEL"]) != null ? _a2 : getValue(logLevel);
-          if (level >= currentLevel) {
-            console[CONSOLE_METHOD_MAP[level]](
-              "%creact-virtuoso: %c%s %o",
-              "color: #0253b3; font-weight: bold",
-              "color: initial",
-              label,
-              message
-            );
-          }
-        });
-        return {
-          log,
-          logLevel
-        };
-      },
-      [],
-      { singleton: true }
-    );
-    function useSizeWithElRef(callback, enabled, skipAnimationFrame) {
-      const ref = xn.useRef(null);
-      let callbackRef = (_el) => {
-      };
-      if (typeof ResizeObserver !== "undefined") {
-        const observer = xn.useMemo(() => {
-          return new ResizeObserver((entries) => {
-            const code2 = () => {
-              const element = entries[0].target;
-              if (element.offsetParent !== null) {
-                callback(element);
-              }
-            };
-            skipAnimationFrame ? code2() : requestAnimationFrame(code2);
-          });
-        }, [callback]);
-        callbackRef = (elRef) => {
-          if (elRef && enabled) {
-            observer.observe(elRef);
-            ref.current = elRef;
-          } else {
-            if (ref.current) {
-              observer.unobserve(ref.current);
-            }
-            ref.current = null;
-          }
-        };
-      }
-      return { ref, callbackRef };
-    }
-    function useSize(callback, enabled, skipAnimationFrame) {
-      return useSizeWithElRef(callback, enabled, skipAnimationFrame).callbackRef;
-    }
-    function useChangedListContentsSizes(callback, itemSize, enabled, scrollContainerStateCallback, log, gap, customScrollParent, horizontalDirection, skipAnimationFrame) {
-      const memoedCallback = xn.useCallback(
-        (el) => {
-          const ranges = getChangedChildSizes(el.children, itemSize, horizontalDirection ? "offsetWidth" : "offsetHeight", log);
-          let scrollableElement = el.parentElement;
-          while (!scrollableElement.dataset["virtuosoScroller"]) {
-            scrollableElement = scrollableElement.parentElement;
-          }
-          const windowScrolling = scrollableElement.lastElementChild.dataset["viewportType"] === "window";
-          const scrollTop = customScrollParent ? horizontalDirection ? customScrollParent.scrollLeft : customScrollParent.scrollTop : windowScrolling ? horizontalDirection ? window.pageXOffset || document.documentElement.scrollLeft : window.pageYOffset || document.documentElement.scrollTop : horizontalDirection ? scrollableElement.scrollLeft : scrollableElement.scrollTop;
-          const scrollHeight = customScrollParent ? horizontalDirection ? customScrollParent.scrollWidth : customScrollParent.scrollHeight : windowScrolling ? horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight : horizontalDirection ? scrollableElement.scrollWidth : scrollableElement.scrollHeight;
-          const viewportHeight = customScrollParent ? horizontalDirection ? customScrollParent.offsetWidth : customScrollParent.offsetHeight : windowScrolling ? horizontalDirection ? window.innerWidth : window.innerHeight : horizontalDirection ? scrollableElement.offsetWidth : scrollableElement.offsetHeight;
-          scrollContainerStateCallback({
-            scrollTop: Math.max(scrollTop, 0),
-            scrollHeight,
-            viewportHeight
-          });
-          gap == null ? void 0 : gap(
-            horizontalDirection ? resolveGapValue$1("column-gap", getComputedStyle(el).columnGap, log) : resolveGapValue$1("row-gap", getComputedStyle(el).rowGap, log)
-          );
-          if (ranges !== null) {
-            callback(ranges);
-          }
-        },
-        [callback, itemSize, log, gap, customScrollParent, scrollContainerStateCallback]
-      );
-      return useSizeWithElRef(memoedCallback, enabled, skipAnimationFrame);
-    }
-    function getChangedChildSizes(children2, itemSize, field, log) {
-      const length = children2.length;
-      if (length === 0) {
-        return null;
-      }
-      const results = [];
-      for (let i2 = 0; i2 < length; i2++) {
-        const child = children2.item(i2);
-        if (!child || child.dataset.index === void 0) {
-          continue;
-        }
-        const index = parseInt(child.dataset.index);
-        const knownSize = parseFloat(child.dataset.knownSize);
-        const size = itemSize(child, field);
-        if (size === 0) {
-          log("Zero-sized element, this should not happen", { child }, LogLevel.ERROR);
-        }
-        if (size === knownSize) {
-          continue;
-        }
-        const lastResult = results[results.length - 1];
-        if (results.length === 0 || lastResult.size !== size || lastResult.endIndex !== index - 1) {
-          results.push({ startIndex: index, endIndex: index, size });
-        } else {
-          results[results.length - 1].endIndex++;
-        }
-      }
-      return results;
-    }
-    function resolveGapValue$1(property, value, log) {
-      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
-        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
-      }
-      if (value === "normal") {
-        return 0;
-      }
-      return parseInt(value != null ? value : "0", 10);
-    }
-    function correctItemSize(el, dimension) {
-      return Math.round(el.getBoundingClientRect()[dimension]);
-    }
-    function approximatelyEqual(num1, num2) {
-      return Math.abs(num1 - num2) < 1.01;
-    }
-    function useScrollTop(scrollContainerStateCallback, smoothScrollTargetReached, scrollerElement, scrollerRefCallback = noop, customScrollParent, horizontalDirection) {
-      const scrollerRef = xn.useRef(null);
-      const scrollTopTarget = xn.useRef(null);
-      const timeoutRef = xn.useRef(null);
-      const handler = xn.useCallback(
-        (ev) => {
-          const el = ev.target;
-          const windowScroll = el === window || el === document;
-          const scrollTop = horizontalDirection ? windowScroll ? window.pageXOffset || document.documentElement.scrollLeft : el.scrollLeft : windowScroll ? window.pageYOffset || document.documentElement.scrollTop : el.scrollTop;
-          const scrollHeight = horizontalDirection ? windowScroll ? document.documentElement.scrollWidth : el.scrollWidth : windowScroll ? document.documentElement.scrollHeight : el.scrollHeight;
-          const viewportHeight = horizontalDirection ? windowScroll ? window.innerWidth : el.offsetWidth : windowScroll ? window.innerHeight : el.offsetHeight;
-          const call2 = () => {
-            scrollContainerStateCallback({
-              scrollTop: Math.max(scrollTop, 0),
-              scrollHeight,
-              viewportHeight
-            });
-          };
-          if (ev.suppressFlushSync) {
-            call2();
-          } else {
-            xn.flushSync(call2);
-          }
-          if (scrollTopTarget.current !== null) {
-            if (scrollTop === scrollTopTarget.current || scrollTop <= 0 || scrollTop === scrollHeight - viewportHeight) {
-              scrollTopTarget.current = null;
-              smoothScrollTargetReached(true);
-              if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-                timeoutRef.current = null;
-              }
-            }
-          }
-        },
-        [scrollContainerStateCallback, smoothScrollTargetReached]
-      );
-      xn.useEffect(() => {
-        const localRef = customScrollParent ? customScrollParent : scrollerRef.current;
-        scrollerRefCallback(customScrollParent ? customScrollParent : scrollerRef.current);
-        handler({ target: localRef, suppressFlushSync: true });
-        localRef.addEventListener("scroll", handler, { passive: true });
-        return () => {
-          scrollerRefCallback(null);
-          localRef.removeEventListener("scroll", handler);
-        };
-      }, [scrollerRef, handler, scrollerElement, scrollerRefCallback, customScrollParent]);
-      function scrollToCallback(location) {
-        const scrollerElement2 = scrollerRef.current;
-        if (!scrollerElement2 || (horizontalDirection ? "offsetWidth" in scrollerElement2 && scrollerElement2.offsetWidth === 0 : "offsetHeight" in scrollerElement2 && scrollerElement2.offsetHeight === 0)) {
-          return;
-        }
-        const isSmooth = location.behavior === "smooth";
-        let offsetHeight;
-        let scrollHeight;
-        let scrollTop;
-        if (scrollerElement2 === window) {
-          scrollHeight = Math.max(
-            correctItemSize(document.documentElement, horizontalDirection ? "width" : "height"),
-            horizontalDirection ? document.documentElement.scrollWidth : document.documentElement.scrollHeight
-          );
-          offsetHeight = horizontalDirection ? window.innerWidth : window.innerHeight;
-          scrollTop = horizontalDirection ? document.documentElement.scrollLeft : document.documentElement.scrollTop;
-        } else {
-          scrollHeight = scrollerElement2[horizontalDirection ? "scrollWidth" : "scrollHeight"];
-          offsetHeight = correctItemSize(scrollerElement2, horizontalDirection ? "width" : "height");
-          scrollTop = scrollerElement2[horizontalDirection ? "scrollLeft" : "scrollTop"];
-        }
-        const maxScrollTop = scrollHeight - offsetHeight;
-        location.top = Math.ceil(Math.max(Math.min(maxScrollTop, location.top), 0));
-        if (approximatelyEqual(offsetHeight, scrollHeight) || location.top === scrollTop) {
-          scrollContainerStateCallback({ scrollTop, scrollHeight, viewportHeight: offsetHeight });
-          if (isSmooth) {
-            smoothScrollTargetReached(true);
-          }
-          return;
-        }
-        if (isSmooth) {
-          scrollTopTarget.current = location.top;
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-          timeoutRef.current = setTimeout(() => {
-            timeoutRef.current = null;
-            scrollTopTarget.current = null;
-            smoothScrollTargetReached(true);
-          }, 1e3);
-        } else {
-          scrollTopTarget.current = null;
-        }
-        if (horizontalDirection) {
-          location = { left: location.top, behavior: location.behavior };
-        }
-        scrollerElement2.scrollTo(location);
-      }
-      function scrollByCallback(location) {
-        if (horizontalDirection) {
-          location = { left: location.top, behavior: location.behavior };
-        }
-        scrollerRef.current.scrollBy(location);
-      }
-      return { scrollerRef, scrollByCallback, scrollToCallback };
-    }
-    const domIOSystem = system(
-      () => {
-        const scrollContainerState = stream();
-        const scrollTop = stream();
-        const deviation = statefulStream(0);
-        const smoothScrollTargetReached = stream();
-        const statefulScrollTop = statefulStream(0);
-        const viewportHeight = stream();
-        const scrollHeight = stream();
-        const headerHeight = statefulStream(0);
-        const fixedHeaderHeight = statefulStream(0);
-        const fixedFooterHeight = statefulStream(0);
-        const footerHeight = statefulStream(0);
-        const scrollTo = stream();
-        const scrollBy = stream();
-        const scrollingInProgress = statefulStream(false);
-        const horizontalDirection = statefulStream(false);
-        const skipAnimationFrameInResizeObserver = statefulStream(false);
-        connect(
-          pipe(
-            scrollContainerState,
-            map(({ scrollTop: scrollTop2 }) => scrollTop2)
-          ),
-          scrollTop
-        );
-        connect(
-          pipe(
-            scrollContainerState,
-            map(({ scrollHeight: scrollHeight2 }) => scrollHeight2)
-          ),
-          scrollHeight
-        );
-        connect(scrollTop, statefulScrollTop);
-        return {
-          // input
-          scrollContainerState,
-          scrollTop,
-          viewportHeight,
-          headerHeight,
-          fixedHeaderHeight,
-          fixedFooterHeight,
-          footerHeight,
-          scrollHeight,
-          smoothScrollTargetReached,
-          horizontalDirection,
-          skipAnimationFrameInResizeObserver,
-          // signals
-          scrollTo,
-          scrollBy,
-          // state
-          statefulScrollTop,
-          deviation,
-          scrollingInProgress
-        };
-      },
-      [],
-      { singleton: true }
-    );
-    const NIL_NODE = { lvl: 0 };
-    function newAANode(k2, v2, lvl, l2 = NIL_NODE, r2 = NIL_NODE) {
-      return { k: k2, v: v2, lvl, l: l2, r: r2 };
-    }
-    function empty(node) {
-      return node === NIL_NODE;
-    }
-    function newTree() {
-      return NIL_NODE;
-    }
-    function remove(node, key2) {
-      if (empty(node)) return NIL_NODE;
-      const { k: k2, l: l2, r: r2 } = node;
-      if (key2 === k2) {
-        if (empty(l2)) {
-          return r2;
-        } else if (empty(r2)) {
-          return l2;
-        } else {
-          const [lastKey, lastValue] = last(l2);
-          return adjust(clone$1(node, { k: lastKey, v: lastValue, l: deleteLast(l2) }));
-        }
-      } else if (key2 < k2) {
-        return adjust(clone$1(node, { l: remove(l2, key2) }));
-      } else {
-        return adjust(clone$1(node, { r: remove(r2, key2) }));
-      }
-    }
-    function find(node, key2) {
-      if (empty(node)) {
-        return;
-      }
-      if (key2 === node.k) {
-        return node.v;
-      } else if (key2 < node.k) {
-        return find(node.l, key2);
-      } else {
-        return find(node.r, key2);
-      }
-    }
-    function findMaxKeyValue(node, value, field = "k") {
-      if (empty(node)) {
-        return [-Infinity, void 0];
-      }
-      if (Number(node[field]) === value) {
-        return [node.k, node.v];
-      }
-      if (Number(node[field]) < value) {
-        const r2 = findMaxKeyValue(node.r, value, field);
-        if (r2[0] === -Infinity) {
-          return [node.k, node.v];
-        } else {
-          return r2;
-        }
-      }
-      return findMaxKeyValue(node.l, value, field);
-    }
-    function insert$1(node, k2, v2) {
-      if (empty(node)) {
-        return newAANode(k2, v2, 1);
-      }
-      if (k2 === node.k) {
-        return clone$1(node, { k: k2, v: v2 });
-      } else if (k2 < node.k) {
-        return rebalance(clone$1(node, { l: insert$1(node.l, k2, v2) }));
-      } else {
-        return rebalance(clone$1(node, { r: insert$1(node.r, k2, v2) }));
-      }
-    }
-    function walkWithin(node, start2, end2) {
-      if (empty(node)) {
-        return [];
-      }
-      const { k: k2, v: v2, l: l2, r: r2 } = node;
-      let result = [];
-      if (k2 > start2) {
-        result = result.concat(walkWithin(l2, start2, end2));
-      }
-      if (k2 >= start2 && k2 <= end2) {
-        result.push({ k: k2, v: v2 });
-      }
-      if (k2 <= end2) {
-        result = result.concat(walkWithin(r2, start2, end2));
-      }
-      return result;
-    }
-    function walk(node) {
-      if (empty(node)) {
-        return [];
-      }
-      return [...walk(node.l), { k: node.k, v: node.v }, ...walk(node.r)];
-    }
-    function last(node) {
-      return empty(node.r) ? [node.k, node.v] : last(node.r);
-    }
-    function deleteLast(node) {
-      return empty(node.r) ? node.l : adjust(clone$1(node, { r: deleteLast(node.r) }));
-    }
-    function clone$1(node, args) {
-      return newAANode(
-        args.k !== void 0 ? args.k : node.k,
-        args.v !== void 0 ? args.v : node.v,
-        args.lvl !== void 0 ? args.lvl : node.lvl,
-        args.l !== void 0 ? args.l : node.l,
-        args.r !== void 0 ? args.r : node.r
-      );
-    }
-    function isSingle(node) {
-      return empty(node) || node.lvl > node.r.lvl;
-    }
-    function rebalance(node) {
-      return split(skew(node));
-    }
-    function adjust(node) {
-      const { l: l2, r: r2, lvl } = node;
-      if (r2.lvl >= lvl - 1 && l2.lvl >= lvl - 1) {
-        return node;
-      } else if (lvl > r2.lvl + 1) {
-        if (isSingle(l2)) {
-          return skew(clone$1(node, { lvl: lvl - 1 }));
-        } else {
-          if (!empty(l2) && !empty(l2.r)) {
-            return clone$1(l2.r, {
-              l: clone$1(l2, { r: l2.r.l }),
-              r: clone$1(node, {
-                l: l2.r.r,
-                lvl: lvl - 1
-              }),
-              lvl
-            });
-          } else {
-            throw new Error("Unexpected empty nodes");
-          }
-        }
-      } else {
-        if (isSingle(node)) {
-          return split(clone$1(node, { lvl: lvl - 1 }));
-        } else {
-          if (!empty(r2) && !empty(r2.l)) {
-            const rl = r2.l;
-            const rlvl = isSingle(rl) ? r2.lvl - 1 : r2.lvl;
-            return clone$1(rl, {
-              l: clone$1(node, {
-                r: rl.l,
-                lvl: lvl - 1
-              }),
-              r: split(clone$1(r2, { l: rl.r, lvl: rlvl })),
-              lvl: rl.lvl + 1
-            });
-          } else {
-            throw new Error("Unexpected empty nodes");
-          }
-        }
-      }
-    }
-    function rangesWithin(node, startIndex, endIndex) {
-      if (empty(node)) {
-        return [];
-      }
-      const adjustedStart = findMaxKeyValue(node, startIndex)[0];
-      return toRanges(walkWithin(node, adjustedStart, endIndex));
-    }
-    function arrayToRanges(items, parser) {
-      const length = items.length;
-      if (length === 0) {
-        return [];
-      }
-      let { index: start2, value } = parser(items[0]);
-      const result = [];
-      for (let i2 = 1; i2 < length; i2++) {
-        const { index: nextIndex, value: nextValue } = parser(items[i2]);
-        result.push({ start: start2, end: nextIndex - 1, value });
-        start2 = nextIndex;
-        value = nextValue;
-      }
-      result.push({ start: start2, end: Infinity, value });
-      return result;
-    }
-    function toRanges(nodes) {
-      return arrayToRanges(nodes, ({ k: index, v: value }) => ({ index, value }));
-    }
-    function split(node) {
-      const { r: r2, lvl } = node;
-      return !empty(r2) && !empty(r2.r) && r2.lvl === lvl && r2.r.lvl === lvl ? clone$1(r2, { l: clone$1(node, { r: r2.l }), lvl: lvl + 1 }) : node;
-    }
-    function skew(node) {
-      const { l: l2 } = node;
-      return !empty(l2) && l2.lvl === node.lvl ? clone$1(l2, { r: clone$1(node, { l: l2.r }) }) : node;
-    }
-    function findIndexOfClosestSmallerOrEqual(items, value, comparator, start2 = 0) {
-      let end2 = items.length - 1;
-      while (start2 <= end2) {
-        const index = Math.floor((start2 + end2) / 2);
-        const item = items[index];
-        const match = comparator(item, value);
-        if (match === 0) {
-          return index;
-        }
-        if (match === -1) {
-          if (end2 - start2 < 2) {
-            return index - 1;
-          }
-          end2 = index - 1;
-        } else {
-          if (end2 === start2) {
-            return index;
-          }
-          start2 = index + 1;
-        }
-      }
-      throw new Error(`Failed binary finding record in array - ${items.join(",")}, searched for ${value}`);
-    }
-    function findClosestSmallerOrEqual(items, value, comparator) {
-      return items[findIndexOfClosestSmallerOrEqual(items, value, comparator)];
-    }
-    function findRange(items, startValue, endValue, comparator) {
-      const startIndex = findIndexOfClosestSmallerOrEqual(items, startValue, comparator);
-      const endIndex = findIndexOfClosestSmallerOrEqual(items, endValue, comparator, startIndex);
-      return items.slice(startIndex, endIndex + 1);
-    }
-    const recalcSystem = system(
-      () => {
-        const recalcInProgress = statefulStream(false);
-        return { recalcInProgress };
-      },
-      [],
-      { singleton: true }
-    );
-    function rangeIncludes(refRange) {
-      const { size, startIndex, endIndex } = refRange;
-      return (range) => {
-        return range.start === startIndex && (range.end === endIndex || range.end === Infinity) && range.value === size;
-      };
-    }
-    function affectedGroupCount(offset2, groupIndices) {
-      let recognizedOffsetItems = 0;
-      let groupIndex = 0;
-      while (recognizedOffsetItems < offset2) {
-        recognizedOffsetItems += groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
-        groupIndex++;
-      }
-      const offsetIsExact = recognizedOffsetItems === offset2;
-      return groupIndex - (offsetIsExact ? 0 : 1);
-    }
-    function insertRanges(sizeTree, ranges) {
-      let syncStart = empty(sizeTree) ? 0 : Infinity;
-      for (const range of ranges) {
-        const { size, startIndex, endIndex } = range;
-        syncStart = Math.min(syncStart, startIndex);
-        if (empty(sizeTree)) {
-          sizeTree = insert$1(sizeTree, 0, size);
-          continue;
-        }
-        const overlappingRanges = rangesWithin(sizeTree, startIndex - 1, endIndex + 1);
-        if (overlappingRanges.some(rangeIncludes(range))) {
-          continue;
-        }
-        let firstPassDone = false;
-        let shouldInsert = false;
-        for (const { start: rangeStart, end: rangeEnd, value: rangeValue } of overlappingRanges) {
-          if (!firstPassDone) {
-            shouldInsert = rangeValue !== size;
-            firstPassDone = true;
-          } else {
-            if (endIndex >= rangeStart || size === rangeValue) {
-              sizeTree = remove(sizeTree, rangeStart);
-            }
-          }
-          if (rangeEnd > endIndex && endIndex >= rangeStart) {
-            if (rangeValue !== size) {
-              sizeTree = insert$1(sizeTree, endIndex + 1, rangeValue);
-            }
-          }
-        }
-        if (shouldInsert) {
-          sizeTree = insert$1(sizeTree, startIndex, size);
-        }
-      }
-      return [sizeTree, syncStart];
-    }
-    function initialSizeState() {
-      return {
-        offsetTree: [],
-        sizeTree: newTree(),
-        groupOffsetTree: newTree(),
-        lastIndex: 0,
-        lastOffset: 0,
-        lastSize: 0,
-        groupIndices: []
-      };
-    }
-    function indexComparator({ index: itemIndex }, index) {
-      return index === itemIndex ? 0 : index < itemIndex ? -1 : 1;
-    }
-    function offsetComparator({ offset: itemOffset }, offset2) {
-      return offset2 === itemOffset ? 0 : offset2 < itemOffset ? -1 : 1;
-    }
-    function offsetPointParser(point) {
-      return { index: point.index, value: point };
-    }
-    function rangesWithinOffsets(tree, startOffset, endOffset, minStartIndex = 0) {
-      if (minStartIndex > 0) {
-        startOffset = Math.max(startOffset, findClosestSmallerOrEqual(tree, minStartIndex, indexComparator).offset);
-      }
-      return arrayToRanges(findRange(tree, startOffset, endOffset, offsetComparator), offsetPointParser);
-    }
-    function createOffsetTree(prevOffsetTree, syncStart, sizeTree, gap) {
-      let offsetTree = prevOffsetTree;
-      let prevIndex = 0;
-      let prevSize = 0;
-      let prevOffset = 0;
-      let startIndex = 0;
-      if (syncStart !== 0) {
-        startIndex = findIndexOfClosestSmallerOrEqual(offsetTree, syncStart - 1, indexComparator);
-        const offsetInfo = offsetTree[startIndex];
-        prevOffset = offsetInfo.offset;
-        const kv = findMaxKeyValue(sizeTree, syncStart - 1);
-        prevIndex = kv[0];
-        prevSize = kv[1];
-        if (offsetTree.length && offsetTree[startIndex].size === findMaxKeyValue(sizeTree, syncStart)[1]) {
-          startIndex -= 1;
-        }
-        offsetTree = offsetTree.slice(0, startIndex + 1);
-      } else {
-        offsetTree = [];
-      }
-      for (const { start: startIndex2, value } of rangesWithin(sizeTree, syncStart, Infinity)) {
-        const indexOffset = startIndex2 - prevIndex;
-        const aOffset = indexOffset * prevSize + prevOffset + indexOffset * gap;
-        offsetTree.push({
-          offset: aOffset,
-          size: value,
-          index: startIndex2
-        });
-        prevIndex = startIndex2;
-        prevOffset = aOffset;
-        prevSize = value;
-      }
-      return {
-        offsetTree,
-        lastIndex: prevIndex,
-        lastOffset: prevOffset,
-        lastSize: prevSize
-      };
-    }
-    function sizeStateReducer(state, [ranges, groupIndices, log, gap]) {
-      if (ranges.length > 0) {
-        log("received item sizes", ranges, LogLevel.DEBUG);
-      }
-      const sizeTree = state.sizeTree;
-      let newSizeTree = sizeTree;
-      let syncStart = 0;
-      if (groupIndices.length > 0 && empty(sizeTree) && ranges.length === 2) {
-        const groupSize = ranges[0].size;
-        const itemSize = ranges[1].size;
-        newSizeTree = groupIndices.reduce((tree, groupIndex) => {
-          return insert$1(insert$1(tree, groupIndex, groupSize), groupIndex + 1, itemSize);
-        }, newSizeTree);
-      } else {
-        [newSizeTree, syncStart] = insertRanges(newSizeTree, ranges);
-      }
-      if (newSizeTree === sizeTree) {
-        return state;
-      }
-      const { offsetTree: newOffsetTree, lastIndex, lastSize, lastOffset } = createOffsetTree(state.offsetTree, syncStart, newSizeTree, gap);
-      return {
-        sizeTree: newSizeTree,
-        offsetTree: newOffsetTree,
-        lastIndex,
-        lastOffset,
-        lastSize,
-        groupOffsetTree: groupIndices.reduce((tree, index) => {
-          return insert$1(tree, index, offsetOf(index, newOffsetTree, gap));
-        }, newTree()),
-        groupIndices
-      };
-    }
-    function offsetOf(index, tree, gap) {
-      if (tree.length === 0) {
-        return 0;
-      }
-      const { offset: offset2, index: startIndex, size } = findClosestSmallerOrEqual(tree, index, indexComparator);
-      const itemCount = index - startIndex;
-      const top2 = size * itemCount + (itemCount - 1) * gap + offset2;
-      return top2 > 0 ? top2 + gap : top2;
-    }
-    function isGroupLocation(location) {
-      return typeof location.groupIndex !== "undefined";
-    }
-    function originalIndexFromLocation(location, sizes, lastIndex) {
-      if (isGroupLocation(location)) {
-        return sizes.groupIndices[location.groupIndex] + 1;
-      } else {
-        const numericIndex = location.index === "LAST" ? lastIndex : location.index;
-        let result = originalIndexFromItemIndex(numericIndex, sizes);
-        result = Math.max(0, result, Math.min(lastIndex, result));
-        return result;
-      }
-    }
-    function originalIndexFromItemIndex(itemIndex, sizes) {
-      if (!hasGroups(sizes)) {
-        return itemIndex;
-      }
-      let groupOffset = 0;
-      while (sizes.groupIndices[groupOffset] <= itemIndex + groupOffset) {
-        groupOffset++;
-      }
-      return itemIndex + groupOffset;
-    }
-    function hasGroups(sizes) {
-      return !empty(sizes.groupOffsetTree);
-    }
-    function sizeTreeToRanges(sizeTree) {
-      return walk(sizeTree).map(({ k: startIndex, v: size }, index, sizeArray) => {
-        const nextSize = sizeArray[index + 1];
-        const endIndex = nextSize ? nextSize.k - 1 : Infinity;
-        return { startIndex, endIndex, size };
-      });
-    }
-    const SIZE_MAP = {
-      offsetHeight: "height",
-      offsetWidth: "width"
-    };
-    const sizeSystem = system(
-      ([{ log }, { recalcInProgress }]) => {
-        const sizeRanges = stream();
-        const totalCount = stream();
-        const statefulTotalCount = statefulStreamFromEmitter(totalCount, 0);
-        const unshiftWith = stream();
-        const shiftWith = stream();
-        const firstItemIndex = statefulStream(0);
-        const groupIndices = statefulStream([]);
-        const fixedItemSize = statefulStream(void 0);
-        const defaultItemSize = statefulStream(void 0);
-        const itemSize = statefulStream((el, field) => correctItemSize(el, SIZE_MAP[field]));
-        const data = statefulStream(void 0);
-        const gap = statefulStream(0);
-        const initial = initialSizeState();
-        const sizes = statefulStreamFromEmitter(
-          pipe(sizeRanges, withLatestFrom(groupIndices, log, gap), scan(sizeStateReducer, initial), distinctUntilChanged()),
-          initial
-        );
-        const prevGroupIndices = statefulStreamFromEmitter(
-          pipe(
-            groupIndices,
-            distinctUntilChanged(),
-            scan((prev, curr) => ({ prev: prev.current, current: curr }), {
-              prev: [],
-              current: []
-            }),
-            map(({ prev }) => prev)
-          ),
-          []
-        );
-        connect(
-          pipe(
-            groupIndices,
-            filter((indexes) => indexes.length > 0),
-            withLatestFrom(sizes, gap),
-            map(([groupIndices2, sizes2, gap2]) => {
-              const groupOffsetTree = groupIndices2.reduce((tree, index, idx) => {
-                return insert$1(tree, index, offsetOf(index, sizes2.offsetTree, gap2) || idx);
-              }, newTree());
-              return {
-                ...sizes2,
-                groupIndices: groupIndices2,
-                groupOffsetTree
-              };
-            })
-          ),
-          sizes
-        );
-        connect(
-          pipe(
-            totalCount,
-            withLatestFrom(sizes),
-            filter(([totalCount2, { lastIndex }]) => {
-              return totalCount2 < lastIndex;
-            }),
-            map(([totalCount2, { lastIndex, lastSize }]) => {
-              return [
-                {
-                  startIndex: totalCount2,
-                  endIndex: lastIndex,
-                  size: lastSize
-                }
-              ];
-            })
-          ),
-          sizeRanges
-        );
-        connect(fixedItemSize, defaultItemSize);
-        const trackItemSizes = statefulStreamFromEmitter(
-          pipe(
-            fixedItemSize,
-            map((size) => size === void 0)
-          ),
-          true
-        );
-        connect(
-          pipe(
-            defaultItemSize,
-            filter((value) => {
-              return value !== void 0 && empty(getValue(sizes).sizeTree);
-            }),
-            map((size) => [{ startIndex: 0, endIndex: 0, size }])
-          ),
-          sizeRanges
-        );
-        const listRefresh = streamFromEmitter(
-          pipe(
-            sizeRanges,
-            withLatestFrom(sizes),
-            scan(
-              ({ sizes: oldSizes }, [_2, newSizes]) => {
-                return {
-                  changed: newSizes !== oldSizes,
-                  sizes: newSizes
-                };
-              },
-              { changed: false, sizes: initial }
-            ),
-            map((value) => value.changed)
-          )
-        );
-        subscribe(
-          pipe(
-            firstItemIndex,
-            scan(
-              (prev, next) => {
-                return { diff: prev.prev - next, prev: next };
-              },
-              { diff: 0, prev: 0 }
-            ),
-            map((val) => val.diff)
-          ),
-          (offset2) => {
-            const { groupIndices: groupIndices2 } = getValue(sizes);
-            if (offset2 > 0) {
-              publish(recalcInProgress, true);
-              publish(unshiftWith, offset2 + affectedGroupCount(offset2, groupIndices2));
-            } else if (offset2 < 0) {
-              const prevGroupIndicesValue = getValue(prevGroupIndices);
-              if (prevGroupIndicesValue.length > 0) {
-                offset2 -= affectedGroupCount(-offset2, prevGroupIndicesValue);
-              }
-              publish(shiftWith, offset2);
-            }
-          }
-        );
-        subscribe(pipe(firstItemIndex, withLatestFrom(log)), ([index, log2]) => {
-          if (index < 0) {
-            log2(
-              "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
-              { firstItemIndex },
-              LogLevel.ERROR
-            );
-          }
-        });
-        const beforeUnshiftWith = streamFromEmitter(unshiftWith);
-        connect(
-          pipe(
-            unshiftWith,
-            withLatestFrom(sizes),
-            map(([unshiftWith2, sizes2]) => {
-              const groupedMode = sizes2.groupIndices.length > 0;
-              const initialRanges = [];
-              const defaultSize = sizes2.lastSize;
-              if (groupedMode) {
-                const firstGroupSize = find(sizes2.sizeTree, 0);
-                let prependedGroupItemsCount = 0;
-                let groupIndex = 0;
-                while (prependedGroupItemsCount < unshiftWith2) {
-                  const theGroupIndex = sizes2.groupIndices[groupIndex];
-                  const groupItemCount = sizes2.groupIndices.length === groupIndex + 1 ? Infinity : sizes2.groupIndices[groupIndex + 1] - theGroupIndex - 1;
-                  initialRanges.push({
-                    startIndex: theGroupIndex,
-                    endIndex: theGroupIndex,
-                    size: firstGroupSize
-                  });
-                  initialRanges.push({
-                    startIndex: theGroupIndex + 1,
-                    endIndex: theGroupIndex + 1 + groupItemCount - 1,
-                    size: defaultSize
-                  });
-                  groupIndex++;
-                  prependedGroupItemsCount += groupItemCount + 1;
-                }
-                const sizeTreeKV = walk(sizes2.sizeTree);
-                const firstGroupIsExpanded = prependedGroupItemsCount !== unshiftWith2;
-                if (firstGroupIsExpanded) {
-                  sizeTreeKV.shift();
-                }
-                return sizeTreeKV.reduce(
-                  (acc, { k: index, v: size }) => {
-                    let ranges = acc.ranges;
-                    if (acc.prevSize !== 0) {
-                      ranges = [
-                        ...acc.ranges,
-                        {
-                          startIndex: acc.prevIndex,
-                          endIndex: index + unshiftWith2 - 1,
-                          size: acc.prevSize
-                        }
-                      ];
-                    }
-                    return {
-                      ranges,
-                      prevIndex: index + unshiftWith2,
-                      prevSize: size
-                    };
-                  },
-                  {
-                    ranges: initialRanges,
-                    prevIndex: unshiftWith2,
-                    prevSize: 0
-                  }
-                ).ranges;
-              }
-              return walk(sizes2.sizeTree).reduce(
-                (acc, { k: index, v: size }) => {
-                  return {
-                    ranges: [...acc.ranges, { startIndex: acc.prevIndex, endIndex: index + unshiftWith2 - 1, size: acc.prevSize }],
-                    prevIndex: index + unshiftWith2,
-                    prevSize: size
-                  };
-                },
-                {
-                  ranges: [],
-                  prevIndex: 0,
-                  prevSize: defaultSize
-                }
-              ).ranges;
-            })
-          ),
-          sizeRanges
-        );
-        const shiftWithOffset = streamFromEmitter(
-          pipe(
-            shiftWith,
-            withLatestFrom(sizes, gap),
-            map(([shiftWith2, { offsetTree }, gap2]) => {
-              const newFirstItemIndex = -shiftWith2;
-              return offsetOf(newFirstItemIndex, offsetTree, gap2);
-            })
-          )
-        );
-        connect(
-          pipe(
-            shiftWith,
-            withLatestFrom(sizes, gap),
-            map(([shiftWith2, sizes2, gap2]) => {
-              const groupedMode = sizes2.groupIndices.length > 0;
-              if (groupedMode) {
-                if (empty(sizes2.sizeTree)) {
-                  return sizes2;
-                }
-                let newSizeTree = newTree();
-                const prevGroupIndicesValue = getValue(prevGroupIndices);
-                let removedItemsCount = 0;
-                let groupIndex = 0;
-                let groupOffset = 0;
-                while (removedItemsCount < -shiftWith2) {
-                  groupOffset = prevGroupIndicesValue[groupIndex];
-                  const groupItemCount = prevGroupIndicesValue[groupIndex + 1] - groupOffset - 1;
-                  groupIndex++;
-                  removedItemsCount += groupItemCount + 1;
-                }
-                newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
-                  return insert$1(acc, Math.max(0, k2 + shiftWith2), v2);
-                }, newSizeTree);
-                const aGroupIsShrunk = removedItemsCount !== -shiftWith2;
-                if (aGroupIsShrunk) {
-                  const firstGroupSize = find(sizes2.sizeTree, groupOffset);
-                  newSizeTree = insert$1(newSizeTree, 0, firstGroupSize);
-                  const nextItemSize = findMaxKeyValue(sizes2.sizeTree, -shiftWith2 + 1)[1];
-                  newSizeTree = insert$1(newSizeTree, 1, nextItemSize);
-                }
-                return {
-                  ...sizes2,
-                  sizeTree: newSizeTree,
-                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
-                };
-              } else {
-                const newSizeTree = walk(sizes2.sizeTree).reduce((acc, { k: k2, v: v2 }) => {
-                  return insert$1(acc, Math.max(0, k2 + shiftWith2), v2);
-                }, newTree());
-                return {
-                  ...sizes2,
-                  sizeTree: newSizeTree,
-                  ...createOffsetTree(sizes2.offsetTree, 0, newSizeTree, gap2)
-                };
-              }
-            })
-          ),
-          sizes
-        );
-        return {
-          // input
-          data,
-          totalCount,
-          sizeRanges,
-          groupIndices,
-          defaultItemSize,
-          fixedItemSize,
-          unshiftWith,
-          shiftWith,
-          shiftWithOffset,
-          beforeUnshiftWith,
-          firstItemIndex,
-          gap,
-          // output
-          sizes,
-          listRefresh,
-          statefulTotalCount,
-          trackItemSizes,
-          itemSize
-        };
-      },
-      tup(loggerSystem, recalcSystem),
-      { singleton: true }
-    );
-    const SUPPORTS_SCROLL_TO_OPTIONS = typeof document !== "undefined" && "scrollBehavior" in document.documentElement.style;
-    function normalizeIndexLocation(location) {
-      const result = typeof location === "number" ? { index: location } : location;
-      if (!result.align) {
-        result.align = "start";
-      }
-      if (!result.behavior || !SUPPORTS_SCROLL_TO_OPTIONS) {
-        result.behavior = "auto";
-      }
-      if (!result.offset) {
-        result.offset = 0;
-      }
-      return result;
-    }
-    const scrollToIndexSystem = system(
-      ([
-        { sizes, totalCount, listRefresh, gap },
-        {
-          scrollingInProgress,
-          viewportHeight,
-          scrollTo,
-          smoothScrollTargetReached,
-          headerHeight,
-          footerHeight,
-          fixedHeaderHeight,
-          fixedFooterHeight
-        },
-        { log }
-      ]) => {
-        const scrollToIndex = stream();
-        const scrollTargetReached = stream();
-        const topListHeight = statefulStream(0);
-        let unsubscribeNextListRefresh = null;
-        let cleartTimeoutRef = null;
-        let unsubscribeListRefresh = null;
-        function cleanup() {
-          if (unsubscribeNextListRefresh) {
-            unsubscribeNextListRefresh();
-            unsubscribeNextListRefresh = null;
-          }
-          if (unsubscribeListRefresh) {
-            unsubscribeListRefresh();
-            unsubscribeListRefresh = null;
-          }
-          if (cleartTimeoutRef) {
-            clearTimeout(cleartTimeoutRef);
-            cleartTimeoutRef = null;
-          }
-          publish(scrollingInProgress, false);
-        }
-        connect(
-          pipe(
-            scrollToIndex,
-            withLatestFrom(sizes, viewportHeight, totalCount, topListHeight, headerHeight, footerHeight, log),
-            withLatestFrom(gap, fixedHeaderHeight, fixedFooterHeight),
-            map(
-              ([
-                [location, sizes2, viewportHeight2, totalCount2, topListHeight2, headerHeight2, footerHeight2, log2],
-                gap2,
-                fixedHeaderHeight2,
-                fixedFooterHeight2
-              ]) => {
-                const normalLocation = normalizeIndexLocation(location);
-                const { align, behavior, offset: offset2 } = normalLocation;
-                const lastIndex = totalCount2 - 1;
-                const index = originalIndexFromLocation(normalLocation, sizes2, lastIndex);
-                let top2 = offsetOf(index, sizes2.offsetTree, gap2) + headerHeight2;
-                if (align === "end") {
-                  top2 += fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2;
-                  if (index === lastIndex) {
-                    top2 += footerHeight2;
-                  }
-                } else if (align === "center") {
-                  top2 += (fixedHeaderHeight2 + findMaxKeyValue(sizes2.sizeTree, index)[1] - viewportHeight2 + fixedFooterHeight2) / 2;
-                } else {
-                  top2 -= topListHeight2;
-                }
-                if (offset2) {
-                  top2 += offset2;
-                }
-                const retry = (listChanged) => {
-                  cleanup();
-                  if (listChanged) {
-                    log2("retrying to scroll to", { location }, LogLevel.DEBUG);
-                    publish(scrollToIndex, location);
-                  } else {
-                    publish(scrollTargetReached, true);
-                    log2("list did not change, scroll successful", {}, LogLevel.DEBUG);
-                  }
-                };
-                cleanup();
-                if (behavior === "smooth") {
-                  let listChanged = false;
-                  unsubscribeListRefresh = subscribe(listRefresh, (changed) => {
-                    listChanged = listChanged || changed;
-                  });
-                  unsubscribeNextListRefresh = handleNext(smoothScrollTargetReached, () => {
-                    retry(listChanged);
-                  });
-                } else {
-                  unsubscribeNextListRefresh = handleNext(pipe(listRefresh, watchChangesFor(150)), retry);
-                }
-                cleartTimeoutRef = setTimeout(() => {
-                  cleanup();
-                }, 1200);
-                publish(scrollingInProgress, true);
-                log2("scrolling from index to", { index, top: top2, behavior }, LogLevel.DEBUG);
-                return { top: top2, behavior };
-              }
-            )
-          ),
-          scrollTo
-        );
-        return {
-          scrollToIndex,
-          scrollTargetReached,
-          topListHeight
-        };
-      },
-      tup(sizeSystem, domIOSystem, loggerSystem),
-      { singleton: true }
-    );
-    function watchChangesFor(limit) {
-      return (done) => {
-        const timeoutRef = setTimeout(() => {
-          done(false);
-        }, limit);
-        return (value) => {
-          if (value) {
-            done(true);
-            clearTimeout(timeoutRef);
-          }
-        };
-      };
-    }
-    const UP = "up";
-    const DOWN = "down";
-    const NONE$1 = "none";
-    const INITIAL_BOTTOM_STATE = {
-      atBottom: false,
-      notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
-      state: {
-        offsetBottom: 0,
-        scrollTop: 0,
-        viewportHeight: 0,
-        scrollHeight: 0
-      }
-    };
-    const DEFAULT_AT_TOP_THRESHOLD = 0;
-    const stateFlagsSystem = system(([{ scrollContainerState, scrollTop, viewportHeight, headerHeight, footerHeight, scrollBy }]) => {
-      const isAtBottom = statefulStream(false);
-      const isAtTop = statefulStream(true);
-      const atBottomStateChange = stream();
-      const atTopStateChange = stream();
-      const atBottomThreshold = statefulStream(4);
-      const atTopThreshold = statefulStream(DEFAULT_AT_TOP_THRESHOLD);
-      const isScrolling = statefulStreamFromEmitter(
-        pipe(
-          merge(pipe(duc(scrollTop), skip(1), mapTo(true)), pipe(duc(scrollTop), skip(1), mapTo(false), debounceTime(100))),
-          distinctUntilChanged()
-        ),
-        false
-      );
-      const isScrollingBy = statefulStreamFromEmitter(
-        pipe(merge(pipe(scrollBy, mapTo(true)), pipe(scrollBy, mapTo(false), debounceTime(200))), distinctUntilChanged()),
-        false
-      );
-      connect(
-        pipe(
-          combineLatest(duc(scrollTop), duc(atTopThreshold)),
-          map(([top2, atTopThreshold2]) => top2 <= atTopThreshold2),
-          distinctUntilChanged()
-        ),
-        isAtTop
-      );
-      connect(pipe(isAtTop, throttleTime(50)), atTopStateChange);
-      const atBottomState = streamFromEmitter(
-        pipe(
-          combineLatest(scrollContainerState, duc(viewportHeight), duc(headerHeight), duc(footerHeight), duc(atBottomThreshold)),
-          scan((current, [{ scrollTop: scrollTop2, scrollHeight }, viewportHeight2, _headerHeight, _footerHeight, atBottomThreshold2]) => {
-            const isAtBottom2 = scrollTop2 + viewportHeight2 - scrollHeight > -atBottomThreshold2;
-            const state = {
-              viewportHeight: viewportHeight2,
-              scrollTop: scrollTop2,
-              scrollHeight
-            };
-            if (isAtBottom2) {
-              let atBottomBecause;
-              let scrollTopDelta;
-              if (scrollTop2 > current.state.scrollTop) {
-                atBottomBecause = "SCROLLED_DOWN";
-                scrollTopDelta = current.state.scrollTop - scrollTop2;
-              } else {
-                atBottomBecause = "SIZE_DECREASED";
-                scrollTopDelta = current.state.scrollTop - scrollTop2 || current.scrollTopDelta;
-              }
-              return {
-                atBottom: true,
-                state,
-                atBottomBecause,
-                scrollTopDelta
-              };
-            }
-            let notAtBottomBecause;
-            if (state.scrollHeight > current.state.scrollHeight) {
-              notAtBottomBecause = "SIZE_INCREASED";
-            } else if (viewportHeight2 < current.state.viewportHeight) {
-              notAtBottomBecause = "VIEWPORT_HEIGHT_DECREASING";
-            } else if (scrollTop2 < current.state.scrollTop) {
-              notAtBottomBecause = "SCROLLING_UPWARDS";
-            } else {
-              notAtBottomBecause = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM";
-            }
-            return {
-              atBottom: false,
-              notAtBottomBecause,
-              state
-            };
-          }, INITIAL_BOTTOM_STATE),
-          distinctUntilChanged((prev, next) => {
-            return prev && prev.atBottom === next.atBottom;
-          })
-        )
-      );
-      const lastJumpDueToItemResize = statefulStreamFromEmitter(
-        pipe(
-          scrollContainerState,
-          scan(
-            (current, { scrollTop: scrollTop2, scrollHeight, viewportHeight: viewportHeight2 }) => {
-              if (!approximatelyEqual(current.scrollHeight, scrollHeight)) {
-                const atBottom = scrollHeight - (scrollTop2 + viewportHeight2) < 1;
-                if (current.scrollTop !== scrollTop2 && atBottom) {
-                  return {
-                    scrollHeight,
-                    scrollTop: scrollTop2,
-                    jump: current.scrollTop - scrollTop2,
-                    changed: true
-                  };
-                } else {
-                  return {
-                    scrollHeight,
-                    scrollTop: scrollTop2,
-                    jump: 0,
-                    changed: true
-                  };
-                }
-              } else {
-                return {
-                  scrollTop: scrollTop2,
-                  scrollHeight,
-                  jump: 0,
-                  changed: false
-                };
-              }
-            },
-            { scrollHeight: 0, jump: 0, scrollTop: 0, changed: false }
-          ),
-          filter((value) => value.changed),
-          map((value) => value.jump)
-        ),
-        0
-      );
-      connect(
-        pipe(
-          atBottomState,
-          map((state) => state.atBottom)
-        ),
-        isAtBottom
-      );
-      connect(pipe(isAtBottom, throttleTime(50)), atBottomStateChange);
-      const scrollDirection = statefulStream(DOWN);
-      connect(
-        pipe(
-          scrollContainerState,
-          map(({ scrollTop: scrollTop2 }) => scrollTop2),
-          distinctUntilChanged(),
-          scan(
-            (acc, scrollTop2) => {
-              if (getValue(isScrollingBy)) {
-                return { direction: acc.direction, prevScrollTop: scrollTop2 };
-              }
-              return { direction: scrollTop2 < acc.prevScrollTop ? UP : DOWN, prevScrollTop: scrollTop2 };
-            },
-            { direction: DOWN, prevScrollTop: 0 }
-          ),
-          map((value) => value.direction)
-        ),
-        scrollDirection
-      );
-      connect(pipe(scrollContainerState, throttleTime(50), mapTo(NONE$1)), scrollDirection);
-      const scrollVelocity = statefulStream(0);
-      connect(
-        pipe(
-          isScrolling,
-          filter((value) => !value),
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-          mapTo(0)
-        ),
-        scrollVelocity
-      );
-      connect(
-        pipe(
-          scrollTop,
-          throttleTime(100),
-          withLatestFrom(isScrolling),
-          filter(([_2, isScrolling2]) => !!isScrolling2),
-          scan(([_2, prev], [next]) => [prev, next], [0, 0]),
-          map(([prev, next]) => next - prev)
-        ),
-        scrollVelocity
-      );
-      return {
-        isScrolling,
-        isAtTop,
-        isAtBottom,
-        atBottomState,
-        atTopStateChange,
-        atBottomStateChange,
-        scrollDirection,
-        atBottomThreshold,
-        atTopThreshold,
-        scrollVelocity,
-        lastJumpDueToItemResize
-      };
-    }, tup(domIOSystem));
-    const propsReadySystem = system(
-      ([{ log }]) => {
-        const propsReady = statefulStream(false);
-        const didMount = streamFromEmitter(
-          pipe(
-            propsReady,
-            filter((ready) => ready),
-            distinctUntilChanged()
-          )
-        );
-        subscribe(propsReady, (value) => {
-          value && getValue(log)("props updated", {}, LogLevel.DEBUG);
-        });
-        return { propsReady, didMount };
-      },
-      tup(loggerSystem),
-      { singleton: true }
-    );
-    function skipFrames(frameCount, callback) {
-      if (frameCount == 0) {
-        callback();
-      } else {
-        requestAnimationFrame(() => skipFrames(frameCount - 1, callback));
-      }
-    }
-    function getInitialTopMostItemIndexNumber(location, totalCount) {
-      const lastIndex = totalCount - 1;
-      const index = typeof location === "number" ? location : location.index === "LAST" ? lastIndex : location.index;
-      return index;
-    }
-    const initialTopMostItemIndexSystem = system(
-      ([{ sizes, listRefresh, defaultItemSize }, { scrollTop }, { scrollToIndex, scrollTargetReached }, { didMount }]) => {
-        const scrolledToInitialItem = statefulStream(true);
-        const initialTopMostItemIndex = statefulStream(0);
-        const initialItemFinalLocationReached = statefulStream(true);
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location),
-            mapTo(false)
-          ),
-          scrolledToInitialItem
-        );
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location),
-            mapTo(false)
-          ),
-          initialItemFinalLocationReached
-        );
-        subscribe(
-          pipe(
-            combineLatest(listRefresh, didMount),
-            withLatestFrom(scrolledToInitialItem, sizes, defaultItemSize, initialItemFinalLocationReached),
-            filter(([[, didMount2], scrolledToInitialItem2, { sizeTree }, defaultItemSize2, scrollScheduled]) => {
-              return didMount2 && (!empty(sizeTree) || isDefined(defaultItemSize2)) && !scrolledToInitialItem2 && !scrollScheduled;
-            }),
-            withLatestFrom(initialTopMostItemIndex)
-          ),
-          ([, initialTopMostItemIndex2]) => {
-            handleNext(scrollTargetReached, () => {
-              publish(initialItemFinalLocationReached, true);
-            });
-            skipFrames(4, () => {
-              handleNext(scrollTop, () => {
-                publish(scrolledToInitialItem, true);
-              });
-              publish(scrollToIndex, initialTopMostItemIndex2);
-            });
-          }
-        );
-        return {
-          scrolledToInitialItem,
-          initialTopMostItemIndex,
-          initialItemFinalLocationReached
-        };
-      },
-      tup(sizeSystem, domIOSystem, scrollToIndexSystem, propsReadySystem),
-      { singleton: true }
-    );
-    function normalizeFollowOutput(follow) {
-      if (!follow) {
-        return false;
-      }
-      return follow === "smooth" ? "smooth" : "auto";
-    }
-    const behaviorFromFollowOutput = (follow, isAtBottom) => {
-      if (typeof follow === "function") {
-        return normalizeFollowOutput(follow(isAtBottom));
-      }
-      return isAtBottom && normalizeFollowOutput(follow);
-    };
-    const followOutputSystem = system(
-      ([
-        { totalCount, listRefresh },
-        { isAtBottom, atBottomState },
-        { scrollToIndex },
-        { scrolledToInitialItem },
-        { propsReady, didMount },
-        { log },
-        { scrollingInProgress }
-      ]) => {
-        const followOutput = statefulStream(false);
-        const autoscrollToBottom = stream();
-        let pendingScrollHandle = null;
-        function scrollToBottom(followOutputBehavior) {
-          publish(scrollToIndex, {
-            index: "LAST",
-            align: "end",
-            behavior: followOutputBehavior
-          });
-        }
-        subscribe(
-          pipe(
-            combineLatest(pipe(duc(totalCount), skip(1)), didMount),
-            withLatestFrom(duc(followOutput), isAtBottom, scrolledToInitialItem, scrollingInProgress),
-            map(([[totalCount2, didMount2], followOutput2, isAtBottom2, scrolledToInitialItem2, scrollingInProgress2]) => {
-              let shouldFollow = didMount2 && scrolledToInitialItem2;
-              let followOutputBehavior = "auto";
-              if (shouldFollow) {
-                followOutputBehavior = behaviorFromFollowOutput(followOutput2, isAtBottom2 || scrollingInProgress2);
-                shouldFollow = shouldFollow && !!followOutputBehavior;
-              }
-              return { totalCount: totalCount2, shouldFollow, followOutputBehavior };
-            }),
-            filter(({ shouldFollow }) => shouldFollow)
-          ),
-          ({ totalCount: totalCount2, followOutputBehavior }) => {
-            if (pendingScrollHandle) {
-              pendingScrollHandle();
-              pendingScrollHandle = null;
-            }
-            pendingScrollHandle = handleNext(listRefresh, () => {
-              getValue(log)("following output to ", { totalCount: totalCount2 }, LogLevel.DEBUG);
-              scrollToBottom(followOutputBehavior);
-              pendingScrollHandle = null;
-            });
-          }
-        );
-        function trapNextSizeIncrease(followOutput2) {
-          const cancel = handleNext(atBottomState, (state) => {
-            if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "SIZE_INCREASED" && !pendingScrollHandle) {
-              getValue(log)("scrolling to bottom due to increased size", {}, LogLevel.DEBUG);
-              scrollToBottom("auto");
-            }
-          });
-          setTimeout(cancel, 100);
-        }
-        subscribe(
-          pipe(
-            combineLatest(duc(followOutput), totalCount, propsReady),
-            filter(([follow, , ready]) => follow && ready),
-            scan(
-              ({ value }, [, next]) => {
-                return { refreshed: value === next, value: next };
-              },
-              { refreshed: false, value: 0 }
-            ),
-            filter(({ refreshed }) => refreshed),
-            withLatestFrom(followOutput, totalCount)
-          ),
-          ([, followOutput2]) => {
-            if (getValue(scrolledToInitialItem)) {
-              trapNextSizeIncrease(followOutput2 !== false);
-            }
-          }
-        );
-        subscribe(autoscrollToBottom, () => {
-          trapNextSizeIncrease(getValue(followOutput) !== false);
-        });
-        subscribe(combineLatest(duc(followOutput), atBottomState), ([followOutput2, state]) => {
-          if (followOutput2 && !state.atBottom && state.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING") {
-            scrollToBottom("auto");
-          }
-        });
-        return { followOutput, autoscrollToBottom };
-      },
-      tup(sizeSystem, stateFlagsSystem, scrollToIndexSystem, initialTopMostItemIndexSystem, propsReadySystem, loggerSystem, domIOSystem)
-    );
-    function groupCountsToIndicesAndCount(counts) {
-      return counts.reduce(
-        (acc, groupCount) => {
-          acc.groupIndices.push(acc.totalCount);
-          acc.totalCount += groupCount + 1;
-          return acc;
-        },
-        {
-          totalCount: 0,
-          groupIndices: []
-        }
-      );
-    }
-    const groupedListSystem = system(([{ totalCount, groupIndices, sizes }, { scrollTop, headerHeight }]) => {
-      const groupCounts = stream();
-      const topItemsIndexes = stream();
-      const groupIndicesAndCount = streamFromEmitter(pipe(groupCounts, map(groupCountsToIndicesAndCount)));
-      connect(
-        pipe(
-          groupIndicesAndCount,
-          map((value) => value.totalCount)
-        ),
-        totalCount
-      );
-      connect(
-        pipe(
-          groupIndicesAndCount,
-          map((value) => value.groupIndices)
-        ),
-        groupIndices
-      );
-      connect(
-        pipe(
-          combineLatest(scrollTop, sizes, headerHeight),
-          filter(([_2, sizes2]) => hasGroups(sizes2)),
-          map(([scrollTop2, state, headerHeight2]) => findMaxKeyValue(state.groupOffsetTree, Math.max(scrollTop2 - headerHeight2, 0), "v")[0]),
-          distinctUntilChanged(),
-          map((index) => [index])
-        ),
-        topItemsIndexes
-      );
-      return { groupCounts, topItemsIndexes };
-    }, tup(sizeSystem, domIOSystem));
-    function tupleComparator(prev, current) {
-      return !!(prev && prev[0] === current[0] && prev[1] === current[1]);
-    }
-    function rangeComparator(prev, next) {
-      return !!(prev && prev.startIndex === next.startIndex && prev.endIndex === next.endIndex);
-    }
-    const TOP = "top";
-    const BOTTOM = "bottom";
-    const NONE = "none";
-    function getOverscan(overscan, end2, direction) {
-      if (typeof overscan === "number") {
-        return direction === UP && end2 === TOP || direction === DOWN && end2 === BOTTOM ? overscan : 0;
-      } else {
-        if (direction === UP) {
-          return end2 === TOP ? overscan.main : overscan.reverse;
-        } else {
-          return end2 === BOTTOM ? overscan.main : overscan.reverse;
-        }
-      }
-    }
-    function getViewportIncrease(value, end2) {
-      return typeof value === "number" ? value : value[end2] || 0;
-    }
-    const sizeRangeSystem = system(
-      ([{ scrollTop, viewportHeight, deviation, headerHeight, fixedHeaderHeight }]) => {
-        const listBoundary = stream();
-        const topListHeight = statefulStream(0);
-        const increaseViewportBy = statefulStream(0);
-        const overscan = statefulStream(0);
-        const visibleRange = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(
-              duc(scrollTop),
-              duc(viewportHeight),
-              duc(headerHeight),
-              duc(listBoundary, tupleComparator),
-              duc(overscan),
-              duc(topListHeight),
-              duc(fixedHeaderHeight),
-              duc(deviation),
-              duc(increaseViewportBy)
-            ),
-            map(
-              ([
-                scrollTop2,
-                viewportHeight2,
-                headerHeight2,
-                [listTop, listBottom],
-                overscan2,
-                topListHeight2,
-                fixedHeaderHeight2,
-                deviation2,
-                increaseViewportBy2
-              ]) => {
-                const top2 = scrollTop2 - deviation2;
-                const stickyHeaderHeight = topListHeight2 + fixedHeaderHeight2;
-                const headerVisible = Math.max(headerHeight2 - top2, 0);
-                let direction = NONE;
-                const topViewportAddition = getViewportIncrease(increaseViewportBy2, TOP);
-                const bottomViewportAddition = getViewportIncrease(increaseViewportBy2, BOTTOM);
-                listTop -= deviation2;
-                listTop += headerHeight2 + fixedHeaderHeight2;
-                listBottom += headerHeight2 + fixedHeaderHeight2;
-                listBottom -= deviation2;
-                if (listTop > scrollTop2 + stickyHeaderHeight - topViewportAddition) {
-                  direction = UP;
-                }
-                if (listBottom < scrollTop2 - headerVisible + viewportHeight2 + bottomViewportAddition) {
-                  direction = DOWN;
-                }
-                if (direction !== NONE) {
-                  return [
-                    Math.max(top2 - headerHeight2 - getOverscan(overscan2, TOP, direction) - topViewportAddition, 0),
-                    top2 - headerVisible - fixedHeaderHeight2 + viewportHeight2 + getOverscan(overscan2, BOTTOM, direction) + bottomViewportAddition
-                  ];
-                }
-                return null;
-              }
-            ),
-            filter((value) => value != null),
-            distinctUntilChanged(tupleComparator)
-          ),
-          [0, 0]
-        );
-        return {
-          // input
-          listBoundary,
-          overscan,
-          topListHeight,
-          increaseViewportBy,
-          // output
-          visibleRange
-        };
-      },
-      tup(domIOSystem),
-      { singleton: true }
-    );
-    function probeItemSet(index, sizes, data) {
-      if (hasGroups(sizes)) {
-        const itemIndex = originalIndexFromItemIndex(index, sizes);
-        const groupIndex = findMaxKeyValue(sizes.groupOffsetTree, itemIndex)[0];
-        return [
-          { index: groupIndex, size: 0, offset: 0 },
-          { index: itemIndex, size: 0, offset: 0, data: data && data[0] }
-        ];
-      }
-      return [{ index, size: 0, offset: 0, data: data && data[0] }];
-    }
-    const EMPTY_LIST_STATE = {
-      items: [],
-      topItems: [],
-      offsetTop: 0,
-      offsetBottom: 0,
-      top: 0,
-      bottom: 0,
-      topListHeight: 0,
-      totalCount: 0,
-      firstItemIndex: 0
-    };
-    function transposeItems(items, sizes, firstItemIndex) {
-      if (items.length === 0) {
-        return [];
-      }
-      if (!hasGroups(sizes)) {
-        return items.map((item) => ({ ...item, index: item.index + firstItemIndex, originalIndex: item.index }));
-      }
-      const startIndex = items[0].index;
-      const endIndex = items[items.length - 1].index;
-      const transposedItems = [];
-      const groupRanges = rangesWithin(sizes.groupOffsetTree, startIndex, endIndex);
-      let currentRange = void 0;
-      let currentGroupIndex = 0;
-      for (const item of items) {
-        if (!currentRange || currentRange.end < item.index) {
-          currentRange = groupRanges.shift();
-          currentGroupIndex = sizes.groupIndices.indexOf(currentRange.start);
-        }
-        let transposedItem;
-        if (item.index === currentRange.start) {
-          transposedItem = {
-            type: "group",
-            index: currentGroupIndex
-          };
-        } else {
-          transposedItem = {
-            index: item.index - (currentGroupIndex + 1) + firstItemIndex,
-            groupIndex: currentGroupIndex
-          };
-        }
-        transposedItems.push({
-          ...transposedItem,
-          size: item.size,
-          offset: item.offset,
-          originalIndex: item.index,
-          data: item.data
-        });
-      }
-      return transposedItems;
-    }
-    function buildListState(items, topItems, totalCount, gap, sizes, firstItemIndex) {
-      const { lastSize, lastOffset, lastIndex } = sizes;
-      let offsetTop = 0;
-      let bottom2 = 0;
-      if (items.length > 0) {
-        offsetTop = items[0].offset;
-        const lastItem = items[items.length - 1];
-        bottom2 = lastItem.offset + lastItem.size;
-      }
-      const itemCount = totalCount - lastIndex;
-      const total = lastOffset + itemCount * lastSize + (itemCount - 1) * gap;
-      const top2 = offsetTop;
-      const offsetBottom = total - bottom2;
-      return {
-        items: transposeItems(items, sizes, firstItemIndex),
-        topItems: transposeItems(topItems, sizes, firstItemIndex),
-        topListHeight: topItems.reduce((height, item) => item.size + height, 0),
-        offsetTop,
-        offsetBottom,
-        top: top2,
-        bottom: bottom2,
-        totalCount,
-        firstItemIndex
-      };
-    }
-    function buildListStateFromItemCount(itemCount, initialTopMostItemIndex, sizes, firstItemIndex, gap, data) {
-      let includedGroupsCount = 0;
-      if (sizes.groupIndices.length > 0) {
-        for (const index of sizes.groupIndices) {
-          if (index - includedGroupsCount >= itemCount) {
-            break;
-          }
-          includedGroupsCount++;
-        }
-      }
-      const adjustedCount = itemCount + includedGroupsCount;
-      const initialTopMostItemIndexNumber = getInitialTopMostItemIndexNumber(initialTopMostItemIndex, adjustedCount);
-      const items = Array.from({ length: adjustedCount }).map((_2, index) => ({
-        index: index + initialTopMostItemIndexNumber,
-        size: 0,
-        offset: 0,
-        data: data[index + initialTopMostItemIndexNumber]
-      }));
-      return buildListState(items, [], adjustedCount, gap, sizes, firstItemIndex);
-    }
-    const listStateSystem = system(
-      ([
-        { sizes, totalCount, data, firstItemIndex, gap },
-        groupedListSystem2,
-        { visibleRange, listBoundary, topListHeight: rangeTopListHeight },
-        { scrolledToInitialItem, initialTopMostItemIndex },
-        { topListHeight },
-        stateFlags,
-        { didMount },
-        { recalcInProgress }
-      ]) => {
-        const topItemsIndexes = statefulStream([]);
-        const initialItemCount = statefulStream(0);
-        const itemsRendered = stream();
-        connect(groupedListSystem2.topItemsIndexes, topItemsIndexes);
-        const listState = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(
-              didMount,
-              recalcInProgress,
-              duc(visibleRange, tupleComparator),
-              duc(totalCount),
-              duc(sizes),
-              duc(initialTopMostItemIndex),
-              scrolledToInitialItem,
-              duc(topItemsIndexes),
-              duc(firstItemIndex),
-              duc(gap),
-              data
-            ),
-            filter(([mount, recalcInProgress2, , totalCount2, , , , , , , data2]) => {
-              const dataChangeInProgress = data2 && data2.length !== totalCount2;
-              return mount && !recalcInProgress2 && !dataChangeInProgress;
-            }),
-            map(
-              ([
-                ,
-                ,
-                [startOffset, endOffset],
-                totalCount2,
-                sizes2,
-                initialTopMostItemIndex2,
-                scrolledToInitialItem2,
-                topItemsIndexes2,
-                firstItemIndex2,
-                gap2,
-                data2
-              ]) => {
-                const sizesValue = sizes2;
-                const { sizeTree, offsetTree } = sizesValue;
-                const initialItemCountValue = getValue(initialItemCount);
-                if (totalCount2 === 0) {
-                  return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
-                }
-                if (startOffset === 0 && endOffset === 0) {
-                  if (initialItemCountValue === 0) {
-                    return { ...EMPTY_LIST_STATE, totalCount: totalCount2 };
-                  } else {
-                    return buildListStateFromItemCount(initialItemCountValue, initialTopMostItemIndex2, sizes2, firstItemIndex2, gap2, data2 || []);
-                  }
-                }
-                if (empty(sizeTree)) {
-                  if (initialItemCountValue > 0) {
-                    return null;
-                  }
-                  const state = buildListState(
-                    probeItemSet(getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2), sizesValue, data2),
-                    [],
-                    totalCount2,
-                    gap2,
-                    sizesValue,
-                    firstItemIndex2
-                  );
-                  return state;
-                }
-                const topItems = [];
-                if (topItemsIndexes2.length > 0) {
-                  const startIndex = topItemsIndexes2[0];
-                  const endIndex = topItemsIndexes2[topItemsIndexes2.length - 1];
-                  let offset2 = 0;
-                  for (const range of rangesWithin(sizeTree, startIndex, endIndex)) {
-                    const size = range.value;
-                    const rangeStartIndex = Math.max(range.start, startIndex);
-                    const rangeEndIndex = Math.min(range.end, endIndex);
-                    for (let i2 = rangeStartIndex; i2 <= rangeEndIndex; i2++) {
-                      topItems.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
-                      offset2 += size;
-                    }
-                  }
-                }
-                if (!scrolledToInitialItem2) {
-                  return buildListState([], topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
-                }
-                const minStartIndex = topItemsIndexes2.length > 0 ? topItemsIndexes2[topItemsIndexes2.length - 1] + 1 : 0;
-                const offsetPointRanges = rangesWithinOffsets(offsetTree, startOffset, endOffset, minStartIndex);
-                if (offsetPointRanges.length === 0) {
-                  return null;
-                }
-                const maxIndex = totalCount2 - 1;
-                const items = tap([], (result) => {
-                  for (const range of offsetPointRanges) {
-                    const point = range.value;
-                    let offset2 = point.offset;
-                    let rangeStartIndex = range.start;
-                    const size = point.size;
-                    if (point.offset < startOffset) {
-                      rangeStartIndex += Math.floor((startOffset - point.offset + gap2) / (size + gap2));
-                      const itemCount = rangeStartIndex - range.start;
-                      offset2 += itemCount * size + itemCount * gap2;
-                    }
-                    if (rangeStartIndex < minStartIndex) {
-                      offset2 += (minStartIndex - rangeStartIndex) * size;
-                      rangeStartIndex = minStartIndex;
-                    }
-                    const endIndex = Math.min(range.end, maxIndex);
-                    for (let i2 = rangeStartIndex; i2 <= endIndex; i2++) {
-                      if (offset2 >= endOffset) {
-                        break;
-                      }
-                      result.push({ index: i2, size, offset: offset2, data: data2 && data2[i2] });
-                      offset2 += size + gap2;
-                    }
-                  }
-                });
-                return buildListState(items, topItems, totalCount2, gap2, sizesValue, firstItemIndex2);
-              }
-            ),
-            //@ts-expect-error filter needs to be fixed
-            filter((value) => value !== null),
-            distinctUntilChanged()
-          ),
-          EMPTY_LIST_STATE
-        );
-        connect(
-          pipe(
-            data,
-            filter(isDefined),
-            map((data2) => data2 == null ? void 0 : data2.length)
-          ),
-          totalCount
-        );
-        connect(
-          pipe(
-            listState,
-            map((value) => value.topListHeight)
-          ),
-          topListHeight
-        );
-        connect(topListHeight, rangeTopListHeight);
-        connect(
-          pipe(
-            listState,
-            map((state) => [state.top, state.bottom])
-          ),
-          listBoundary
-        );
-        connect(
-          pipe(
-            listState,
-            map((state) => state.items)
-          ),
-          itemsRendered
-        );
-        const endReached = streamFromEmitter(
-          pipe(
-            listState,
-            filter(({ items }) => items.length > 0),
-            withLatestFrom(totalCount, data),
-            filter(([{ items }, totalCount2]) => items[items.length - 1].originalIndex === totalCount2 - 1),
-            map(([, totalCount2, data2]) => [totalCount2 - 1, data2]),
-            distinctUntilChanged(tupleComparator),
-            map(([count]) => count)
-          )
-        );
-        const startReached = streamFromEmitter(
-          pipe(
-            listState,
-            throttleTime(200),
-            filter(({ items, topItems }) => {
-              return items.length > 0 && items[0].originalIndex === topItems.length;
-            }),
-            map(({ items }) => items[0].index),
-            distinctUntilChanged()
-          )
-        );
-        const rangeChanged = streamFromEmitter(
-          pipe(
-            listState,
-            filter(({ items }) => items.length > 0),
-            map(({ items }) => {
-              let startIndex = 0;
-              let endIndex = items.length - 1;
-              while (items[startIndex].type === "group" && startIndex < endIndex) {
-                startIndex++;
-              }
-              while (items[endIndex].type === "group" && endIndex > startIndex) {
-                endIndex--;
-              }
-              return {
-                startIndex: items[startIndex].index,
-                endIndex: items[endIndex].index
-              };
-            }),
-            distinctUntilChanged(rangeComparator)
-          )
-        );
-        return { listState, topItemsIndexes, endReached, startReached, rangeChanged, itemsRendered, initialItemCount, ...stateFlags };
-      },
-      tup(
-        sizeSystem,
-        groupedListSystem,
-        sizeRangeSystem,
-        initialTopMostItemIndexSystem,
-        scrollToIndexSystem,
-        stateFlagsSystem,
-        propsReadySystem,
-        recalcSystem
-      ),
-      { singleton: true }
-    );
-    const initialItemCountSystem = system(
-      ([{ sizes, firstItemIndex, data, gap }, { initialTopMostItemIndex }, { initialItemCount, listState }, { didMount }]) => {
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(initialItemCount),
-            filter(([, count]) => count !== 0),
-            withLatestFrom(initialTopMostItemIndex, sizes, firstItemIndex, gap, data),
-            map(([[, count], initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2 = []]) => {
-              return buildListStateFromItemCount(count, initialTopMostItemIndexValue, sizes2, firstItemIndex2, gap2, data2);
-            })
-          ),
-          listState
-        );
-        return {};
-      },
-      tup(sizeSystem, initialTopMostItemIndexSystem, listStateSystem, propsReadySystem),
-      { singleton: true }
-    );
-    const scrollSeekSystem = system(
-      ([{ scrollVelocity }]) => {
-        const isSeeking = statefulStream(false);
-        const rangeChanged = stream();
-        const scrollSeekConfiguration = statefulStream(false);
-        connect(
-          pipe(
-            scrollVelocity,
-            withLatestFrom(scrollSeekConfiguration, isSeeking, rangeChanged),
-            filter(([_2, config2]) => !!config2),
-            map(([speed, config2, isSeeking2, range]) => {
-              const { exit, enter } = config2;
-              if (isSeeking2) {
-                if (exit(speed, range)) {
-                  return false;
-                }
-              } else {
-                if (enter(speed, range)) {
-                  return true;
-                }
-              }
-              return isSeeking2;
-            }),
-            distinctUntilChanged()
-          ),
-          isSeeking
-        );
-        subscribe(
-          pipe(combineLatest(isSeeking, scrollVelocity, rangeChanged), withLatestFrom(scrollSeekConfiguration)),
-          ([[isSeeking2, velocity, range], config2]) => isSeeking2 && config2 && config2.change && config2.change(velocity, range)
-        );
-        return { isSeeking, scrollSeekConfiguration, scrollVelocity, scrollSeekRangeChanged: rangeChanged };
-      },
-      tup(stateFlagsSystem),
-      { singleton: true }
-    );
-    const topItemCountSystem = system(([{ topItemsIndexes }]) => {
-      const topItemCount = statefulStream(0);
-      connect(
-        pipe(
-          topItemCount,
-          filter((length) => length >= 0),
-          map((length) => Array.from({ length }).map((_2, index) => index))
-        ),
-        topItemsIndexes
-      );
-      return { topItemCount };
-    }, tup(listStateSystem));
-    const totalListHeightSystem = system(
-      ([{ footerHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight }, { listState }]) => {
-        const totalListHeightChanged = stream();
-        const totalListHeight = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(footerHeight, fixedFooterHeight, headerHeight, fixedHeaderHeight, listState),
-            map(([footerHeight2, fixedFooterHeight2, headerHeight2, fixedHeaderHeight2, listState2]) => {
-              return footerHeight2 + fixedFooterHeight2 + headerHeight2 + fixedHeaderHeight2 + listState2.offsetBottom + listState2.bottom;
-            })
-          ),
-          0
-        );
-        connect(duc(totalListHeight), totalListHeightChanged);
-        return { totalListHeight, totalListHeightChanged };
-      },
-      tup(domIOSystem, listStateSystem),
-      { singleton: true }
-    );
-    function simpleMemoize(func) {
-      let called = false;
-      let result;
-      return () => {
-        if (!called) {
-          called = true;
-          result = func();
-        }
-        return result;
-      };
-    }
-    const isMobileSafari = simpleMemoize(() => {
-      return /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent);
-    });
-    const upwardScrollFixSystem = system(
-      ([
-        { scrollBy, scrollTop, deviation, scrollingInProgress },
-        { isScrolling, isAtBottom, scrollDirection, lastJumpDueToItemResize },
-        { listState },
-        { beforeUnshiftWith, shiftWithOffset, sizes, gap },
-        { log },
-        { recalcInProgress }
-      ]) => {
-        const deviationOffset = streamFromEmitter(
-          pipe(
-            listState,
-            withLatestFrom(lastJumpDueToItemResize),
-            scan(
-              ([, prevItems, prevTotalCount, prevTotalHeight], [{ items, totalCount, bottom: bottom2, offsetBottom }, lastJumpDueToItemResize2]) => {
-                const totalHeight = bottom2 + offsetBottom;
-                let newDev = 0;
-                if (prevTotalCount === totalCount) {
-                  if (prevItems.length > 0 && items.length > 0) {
-                    const atStart = items[0].originalIndex === 0 && prevItems[0].originalIndex === 0;
-                    if (!atStart) {
-                      newDev = totalHeight - prevTotalHeight;
-                      if (newDev !== 0) {
-                        newDev += lastJumpDueToItemResize2;
-                      }
-                    }
-                  }
-                }
-                return [newDev, items, totalCount, totalHeight];
-              },
-              [0, [], 0, 0]
-            ),
-            filter(([amount]) => amount !== 0),
-            withLatestFrom(scrollTop, scrollDirection, scrollingInProgress, isAtBottom, log, recalcInProgress),
-            filter(([, scrollTop2, scrollDirection2, scrollingInProgress2, , , recalcInProgress2]) => {
-              return !recalcInProgress2 && !scrollingInProgress2 && scrollTop2 !== 0 && scrollDirection2 === UP;
-            }),
-            map(([[amount], , , , , log2]) => {
-              log2("Upward scrolling compensation", { amount }, LogLevel.DEBUG);
-              return amount;
-            })
-          )
-        );
-        function scrollByWith(offset2) {
-          if (offset2 > 0) {
-            publish(scrollBy, { top: -offset2, behavior: "auto" });
-            publish(deviation, 0);
-          } else {
-            publish(deviation, 0);
-            publish(scrollBy, { top: -offset2, behavior: "auto" });
-          }
-        }
-        subscribe(pipe(deviationOffset, withLatestFrom(deviation, isScrolling)), ([offset2, deviationAmount, isScrolling2]) => {
-          if (isScrolling2 && isMobileSafari()) {
-            publish(deviation, deviationAmount - offset2);
-          } else {
-            scrollByWith(-offset2);
-          }
-        });
-        subscribe(
-          pipe(
-            combineLatest(statefulStreamFromEmitter(isScrolling, false), deviation, recalcInProgress),
-            filter(([is, deviation2, recalc]) => !is && !recalc && deviation2 !== 0),
-            map(([_2, deviation2]) => deviation2),
-            throttleTime(1)
-          ),
-          scrollByWith
-        );
-        connect(
-          pipe(
-            shiftWithOffset,
-            map((offset2) => {
-              return { top: -offset2 };
-            })
-          ),
-          scrollBy
-        );
-        subscribe(
-          pipe(
-            beforeUnshiftWith,
-            withLatestFrom(sizes, gap),
-            map(([offset2, { lastSize: defaultItemSize, groupIndices, sizeTree }, gap2]) => {
-              function getItemOffset(itemCount) {
-                return itemCount * (defaultItemSize + gap2);
-              }
-              if (groupIndices.length === 0) {
-                return getItemOffset(offset2);
-              } else {
-                let amount = 0;
-                const defaultGroupSize = find(sizeTree, 0);
-                let recognizedOffsetItems = 0;
-                let groupIndex = 0;
-                while (recognizedOffsetItems < offset2) {
-                  recognizedOffsetItems++;
-                  amount += defaultGroupSize;
-                  let groupItemCount = groupIndices.length === groupIndex + 1 ? Infinity : groupIndices[groupIndex + 1] - groupIndices[groupIndex] - 1;
-                  if (recognizedOffsetItems + groupItemCount > offset2) {
-                    amount -= defaultGroupSize;
-                    groupItemCount = offset2 - recognizedOffsetItems + 1;
-                  }
-                  recognizedOffsetItems += groupItemCount;
-                  amount += getItemOffset(groupItemCount);
-                  groupIndex++;
-                }
-                return amount;
-              }
-            })
-          ),
-          (offset2) => {
-            publish(deviation, offset2);
-            requestAnimationFrame(() => {
-              publish(scrollBy, { top: offset2 });
-              requestAnimationFrame(() => {
-                publish(deviation, 0);
-                publish(recalcInProgress, false);
-              });
-            });
-          }
-        );
-        return { deviation };
-      },
-      tup(domIOSystem, stateFlagsSystem, listStateSystem, sizeSystem, loggerSystem, recalcSystem)
-    );
-    const initialScrollTopSystem = system(
-      ([{ didMount }, { scrollTo }, { listState }]) => {
-        const initialScrollTop = statefulStream(0);
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(initialScrollTop),
-            filter(([, offset2]) => offset2 !== 0),
-            map(([, offset2]) => ({ top: offset2 }))
-          ),
-          (location) => {
-            handleNext(
-              pipe(
-                listState,
-                skip(1),
-                filter((state) => state.items.length > 1)
-              ),
-              () => {
-                requestAnimationFrame(() => {
-                  publish(scrollTo, location);
-                });
-              }
-            );
-          }
-        );
-        return {
-          initialScrollTop
-        };
-      },
-      tup(propsReadySystem, domIOSystem, listStateSystem),
-      { singleton: true }
-    );
-    const alignToBottomSystem = system(
-      ([{ viewportHeight }, { totalListHeight }]) => {
-        const alignToBottom = statefulStream(false);
-        const paddingTopAddition = statefulStreamFromEmitter(
-          pipe(
-            combineLatest(alignToBottom, viewportHeight, totalListHeight),
-            filter(([enabled]) => enabled),
-            map(([, viewportHeight2, totalListHeight2]) => {
-              return Math.max(0, viewportHeight2 - totalListHeight2);
-            }),
-            throttleTime(0),
-            distinctUntilChanged()
-          ),
-          0
-        );
-        return { alignToBottom, paddingTopAddition };
-      },
-      tup(domIOSystem, totalListHeightSystem),
-      { singleton: true }
-    );
-    const windowScrollerSystem = system(([{ scrollTo, scrollContainerState }]) => {
-      const windowScrollContainerState = stream();
-      const windowViewportRect = stream();
-      const windowScrollTo = stream();
-      const useWindowScroll = statefulStream(false);
-      const customScrollParent = statefulStream(void 0);
-      connect(
-        pipe(
-          combineLatest(windowScrollContainerState, windowViewportRect),
-          map(([{ viewportHeight, scrollTop: windowScrollTop, scrollHeight }, { offsetTop }]) => {
-            return {
-              scrollTop: Math.max(0, windowScrollTop - offsetTop),
-              scrollHeight,
-              viewportHeight
-            };
-          })
-        ),
-        scrollContainerState
-      );
-      connect(
-        pipe(
-          scrollTo,
-          withLatestFrom(windowViewportRect),
-          map(([scrollTo2, { offsetTop }]) => {
-            return {
-              ...scrollTo2,
-              top: scrollTo2.top + offsetTop
-            };
-          })
-        ),
-        windowScrollTo
-      );
-      return {
-        // config
-        useWindowScroll,
-        customScrollParent,
-        // input
-        windowScrollContainerState,
-        windowViewportRect,
-        // signals
-        windowScrollTo
-      };
-    }, tup(domIOSystem));
-    const defaultCalculateViewLocation = ({
-      itemTop: itemTop2,
-      itemBottom,
-      viewportTop,
-      viewportBottom,
-      locationParams: { behavior, align, ...rest }
-    }) => {
-      if (itemTop2 < viewportTop) {
-        return { ...rest, behavior, align: align != null ? align : "start" };
-      }
-      if (itemBottom > viewportBottom) {
-        return { ...rest, behavior, align: align != null ? align : "end" };
-      }
-      return null;
-    };
-    const scrollIntoViewSystem = system(
-      ([
-        { sizes, totalCount, gap },
-        { scrollTop, viewportHeight, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollingInProgress },
-        { scrollToIndex }
-      ]) => {
-        const scrollIntoView = stream();
-        connect(
-          pipe(
-            scrollIntoView,
-            withLatestFrom(sizes, viewportHeight, totalCount, headerHeight, fixedHeaderHeight, fixedFooterHeight, scrollTop),
-            withLatestFrom(gap),
-            map(([[viewLocation, sizes2, viewportHeight2, totalCount2, headerHeight2, fixedHeaderHeight2, fixedFooterHeight2, scrollTop2], gap2]) => {
-              const { done, behavior, align, calculateViewLocation = defaultCalculateViewLocation, ...rest } = viewLocation;
-              const actualIndex = originalIndexFromLocation(viewLocation, sizes2, totalCount2 - 1);
-              const itemTop2 = offsetOf(actualIndex, sizes2.offsetTree, gap2) + headerHeight2 + fixedHeaderHeight2;
-              const itemBottom = itemTop2 + findMaxKeyValue(sizes2.sizeTree, actualIndex)[1];
-              const viewportTop = scrollTop2 + fixedHeaderHeight2;
-              const viewportBottom = scrollTop2 + viewportHeight2 - fixedFooterHeight2;
-              const location = calculateViewLocation({
-                itemTop: itemTop2,
-                itemBottom,
-                viewportTop,
-                viewportBottom,
-                locationParams: { behavior, align, ...rest }
-              });
-              if (location) {
-                done && handleNext(
-                  pipe(
-                    scrollingInProgress,
-                    filter((value) => value === false),
-                    // skips the initial publish of false, and the cleanup call.
-                    // but if scrollingInProgress is true, we skip the initial publish.
-                    skip(getValue(scrollingInProgress) ? 1 : 2)
-                  ),
-                  done
-                );
-              } else {
-                done && done();
-              }
-              return location;
-            }),
-            filter((value) => value !== null)
-          ),
-          scrollToIndex
-        );
-        return {
-          scrollIntoView
-        };
-      },
-      tup(sizeSystem, domIOSystem, scrollToIndexSystem, listStateSystem, loggerSystem),
-      { singleton: true }
-    );
-    const stateLoadSystem = system(
-      ([
-        { sizes, sizeRanges },
-        { scrollTop, headerHeight },
-        { initialTopMostItemIndex },
-        { didMount },
-        { useWindowScroll, windowScrollContainerState, windowViewportRect }
-      ]) => {
-        const getState = stream();
-        const restoreStateFrom = statefulStream(void 0);
-        const statefulWindowScrollContainerState = statefulStream(null);
-        const statefulWindowViewportRect = statefulStream(null);
-        connect(windowScrollContainerState, statefulWindowScrollContainerState);
-        connect(windowViewportRect, statefulWindowViewportRect);
-        subscribe(
-          pipe(
-            getState,
-            withLatestFrom(sizes, scrollTop, useWindowScroll, statefulWindowScrollContainerState, statefulWindowViewportRect, headerHeight)
-          ),
-          ([callback, sizes2, scrollTop2, useWindowScroll2, windowScrollContainerState2, windowViewportRect2, headerHeight2]) => {
-            const ranges = sizeTreeToRanges(sizes2.sizeTree);
-            if (useWindowScroll2 && windowScrollContainerState2 !== null && windowViewportRect2 !== null) {
-              scrollTop2 = windowScrollContainerState2.scrollTop - windowViewportRect2.offsetTop;
-            }
-            scrollTop2 -= headerHeight2;
-            callback({ ranges, scrollTop: scrollTop2 });
-          }
-        );
-        connect(pipe(restoreStateFrom, filter(isDefined), map(locationFromSnapshot)), initialTopMostItemIndex);
-        connect(
-          pipe(
-            didMount,
-            withLatestFrom(restoreStateFrom),
-            filter(([, state]) => state !== void 0),
-            distinctUntilChanged(),
-            map(([, snapshot]) => {
-              return snapshot.ranges;
-            })
-          ),
-          sizeRanges
-        );
-        return {
-          getState,
-          restoreStateFrom
-        };
-      },
-      tup(sizeSystem, domIOSystem, initialTopMostItemIndexSystem, propsReadySystem, windowScrollerSystem)
-    );
-    function locationFromSnapshot(snapshot) {
-      return { offset: snapshot.scrollTop, index: 0, align: "start" };
-    }
-    const featureGroup1System = system(
-      ([
-        sizeRange,
-        initialItemCount,
-        propsReady,
-        scrollSeek,
-        totalListHeight,
-        initialScrollTopSystem2,
-        alignToBottom,
-        windowScroller,
-        scrollIntoView,
-        logger
-      ]) => {
-        return {
-          ...sizeRange,
-          ...initialItemCount,
-          ...propsReady,
-          ...scrollSeek,
-          ...totalListHeight,
-          ...initialScrollTopSystem2,
-          ...alignToBottom,
-          ...windowScroller,
-          ...scrollIntoView,
-          ...logger
-        };
-      },
-      tup(
-        sizeRangeSystem,
-        initialItemCountSystem,
-        propsReadySystem,
-        scrollSeekSystem,
-        totalListHeightSystem,
-        initialScrollTopSystem,
-        alignToBottomSystem,
-        windowScrollerSystem,
-        scrollIntoViewSystem,
-        loggerSystem
-      )
-    );
-    const listSystem = system(
-      ([
-        {
-          totalCount,
-          sizeRanges,
-          fixedItemSize,
-          defaultItemSize,
-          trackItemSizes,
-          itemSize,
-          data,
-          firstItemIndex,
-          groupIndices,
-          statefulTotalCount,
-          gap,
-          sizes
-        },
-        { initialTopMostItemIndex, scrolledToInitialItem, initialItemFinalLocationReached },
-        domIO,
-        stateLoad,
-        followOutput,
-        { listState, topItemsIndexes, ...flags },
-        { scrollToIndex },
-        _2,
-        { topItemCount },
-        { groupCounts },
-        featureGroup1
-      ]) => {
-        connect(flags.rangeChanged, featureGroup1.scrollSeekRangeChanged);
-        connect(
-          pipe(
-            featureGroup1.windowViewportRect,
-            map((value) => value.visibleHeight)
-          ),
-          domIO.viewportHeight
-        );
-        return {
-          // input
-          totalCount,
-          data,
-          firstItemIndex,
-          sizeRanges,
-          initialTopMostItemIndex,
-          scrolledToInitialItem,
-          initialItemFinalLocationReached,
-          topItemsIndexes,
-          topItemCount,
-          groupCounts,
-          fixedItemHeight: fixedItemSize,
-          defaultItemHeight: defaultItemSize,
-          gap,
-          ...followOutput,
-          // output
-          statefulTotalCount,
-          listState,
-          scrollToIndex,
-          trackItemSizes,
-          itemSize,
-          groupIndices,
-          // exported from stateFlagsSystem
-          ...flags,
-          // the bag of IO from featureGroup1System
-          ...featureGroup1,
-          ...domIO,
-          sizes,
-          ...stateLoad
-        };
-      },
-      tup(
-        sizeSystem,
-        initialTopMostItemIndexSystem,
-        domIOSystem,
-        stateLoadSystem,
-        followOutputSystem,
-        listStateSystem,
-        scrollToIndexSystem,
-        upwardScrollFixSystem,
-        topItemCountSystem,
-        groupedListSystem,
-        featureGroup1System
-      )
-    );
-    const WEBKIT_STICKY = "-webkit-sticky";
-    const STICKY = "sticky";
-    const positionStickyCssValue = simpleMemoize(() => {
-      if (typeof document === "undefined") {
-        return STICKY;
-      }
-      const node = document.createElement("div");
-      node.style.position = WEBKIT_STICKY;
-      return node.style.position === WEBKIT_STICKY ? WEBKIT_STICKY : STICKY;
-    });
-    function useWindowViewportRectRef(callback, customScrollParent, skipAnimationFrame) {
-      const viewportInfo = xn.useRef(null);
-      const calculateInfo = xn.useCallback(
-        (element) => {
-          if (element === null || !element.offsetParent) {
-            return;
-          }
-          const rect = element.getBoundingClientRect();
-          const visibleWidth = rect.width;
-          let visibleHeight, offsetTop;
-          if (customScrollParent) {
-            const customScrollParentRect = customScrollParent.getBoundingClientRect();
-            const deltaTop = rect.top - customScrollParentRect.top;
-            visibleHeight = customScrollParentRect.height - Math.max(0, deltaTop);
-            offsetTop = deltaTop + customScrollParent.scrollTop;
-          } else {
-            visibleHeight = window.innerHeight - Math.max(0, rect.top);
-            offsetTop = rect.top + window.pageYOffset;
-          }
-          viewportInfo.current = {
-            offsetTop,
-            visibleHeight,
-            visibleWidth
-          };
-          callback(viewportInfo.current);
-        },
-        [callback, customScrollParent]
-      );
-      const { callbackRef, ref } = useSizeWithElRef(calculateInfo, true, skipAnimationFrame);
-      const scrollAndResizeEventHandler = xn.useCallback(() => {
-        calculateInfo(ref.current);
-      }, [calculateInfo, ref]);
-      xn.useEffect(() => {
-        if (customScrollParent) {
-          customScrollParent.addEventListener("scroll", scrollAndResizeEventHandler);
-          const observer = new ResizeObserver(() => {
-            requestAnimationFrame(scrollAndResizeEventHandler);
-          });
-          observer.observe(customScrollParent);
-          return () => {
-            customScrollParent.removeEventListener("scroll", scrollAndResizeEventHandler);
-            observer.unobserve(customScrollParent);
-          };
-        } else {
-          window.addEventListener("scroll", scrollAndResizeEventHandler);
-          window.addEventListener("resize", scrollAndResizeEventHandler);
-          return () => {
-            window.removeEventListener("scroll", scrollAndResizeEventHandler);
-            window.removeEventListener("resize", scrollAndResizeEventHandler);
-          };
-        }
-      }, [scrollAndResizeEventHandler, customScrollParent]);
-      return callbackRef;
-    }
-    const VirtuosoMockContext = xn.createContext(void 0);
-    const VirtuosoGridMockContext = xn.createContext(void 0);
-    function identity(value) {
-      return value;
-    }
-    const listComponentPropsSystem = /* @__PURE__ */ system(() => {
-      const itemContent = statefulStream((index) => `Item ${index}`);
-      const context = statefulStream(null);
-      const groupContent = statefulStream((index) => `Group ${index}`);
-      const components = statefulStream({});
-      const computeItemKey = statefulStream(identity);
-      const HeaderFooterTag = statefulStream("div");
-      const scrollerRef = statefulStream(noop);
-      const distinctProp = (propName, defaultValue = null) => {
-        return statefulStreamFromEmitter(
-          pipe(
-            components,
-            map((components2) => components2[propName]),
-            distinctUntilChanged()
-          ),
-          defaultValue
-        );
-      };
-      return {
-        context,
-        itemContent,
-        groupContent,
-        components,
-        computeItemKey,
-        HeaderFooterTag,
-        scrollerRef,
-        FooterComponent: distinctProp("Footer"),
-        HeaderComponent: distinctProp("Header"),
-        TopItemListComponent: distinctProp("TopItemList"),
-        ListComponent: distinctProp("List", "div"),
-        ItemComponent: distinctProp("Item", "div"),
-        GroupComponent: distinctProp("Group", "div"),
-        ScrollerComponent: distinctProp("Scroller", "div"),
-        EmptyPlaceholder: distinctProp("EmptyPlaceholder"),
-        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder")
-      };
-    });
-    const combinedSystem$2 = /* @__PURE__ */ system(([listSystem2, propsSystem]) => {
-      return { ...listSystem2, ...propsSystem };
-    }, tup(listSystem, listComponentPropsSystem));
-    const DefaultScrollSeekPlaceholder$1 = ({ height }) => /* @__PURE__ */ u("div", { style: { height } });
-    const GROUP_STYLE = { position: positionStickyCssValue(), zIndex: 1, overflowAnchor: "none" };
-    const ITEM_STYLE$1 = { overflowAnchor: "none" };
-    const HORIZONTAL_ITEM_STYLE = { ...ITEM_STYLE$1, display: "inline-block", height: "100%" };
-    const Items$1 = /* @__PURE__ */ xn.memo(function VirtuosoItems({ showTopList = false }) {
-      const listState = useEmitterValue$2("listState");
-      const sizeRanges = usePublisher$2("sizeRanges");
-      const useWindowScroll = useEmitterValue$2("useWindowScroll");
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const windowScrollContainerStateCallback = usePublisher$2("windowScrollContainerState");
-      const _scrollContainerStateCallback = usePublisher$2("scrollContainerState");
-      const scrollContainerStateCallback = customScrollParent || useWindowScroll ? windowScrollContainerStateCallback : _scrollContainerStateCallback;
-      const itemContent = useEmitterValue$2("itemContent");
-      const context = useEmitterValue$2("context");
-      const groupContent = useEmitterValue$2("groupContent");
-      const trackItemSizes = useEmitterValue$2("trackItemSizes");
-      const itemSize = useEmitterValue$2("itemSize");
-      const log = useEmitterValue$2("log");
-      const listGap = usePublisher$2("gap");
-      const horizontalDirection = useEmitterValue$2("horizontalDirection");
-      const { callbackRef } = useChangedListContentsSizes(
-        sizeRanges,
-        itemSize,
-        trackItemSizes,
-        showTopList ? noop : scrollContainerStateCallback,
-        log,
-        listGap,
-        customScrollParent,
-        horizontalDirection,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const [deviation, setDeviation] = xn.useState(0);
-      useEmitter$2("deviation", (value) => {
-        if (deviation !== value) {
-          setDeviation(value);
-        }
-      });
-      const EmptyPlaceholder = useEmitterValue$2("EmptyPlaceholder");
-      const ScrollSeekPlaceholder = useEmitterValue$2("ScrollSeekPlaceholder") || DefaultScrollSeekPlaceholder$1;
-      const ListComponent = useEmitterValue$2("ListComponent");
-      const ItemComponent = useEmitterValue$2("ItemComponent");
-      const GroupComponent = useEmitterValue$2("GroupComponent");
-      const computeItemKey = useEmitterValue$2("computeItemKey");
-      const isSeeking = useEmitterValue$2("isSeeking");
-      const hasGroups2 = useEmitterValue$2("groupIndices").length > 0;
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      const initialItemFinalLocationReached = useEmitterValue$2("initialItemFinalLocationReached");
-      const containerStyle = showTopList ? {} : {
-        boxSizing: "border-box",
-        ...horizontalDirection ? {
-          whiteSpace: "nowrap",
-          display: "inline-block",
-          height: "100%",
-          paddingLeft: listState.offsetTop,
-          paddingRight: listState.offsetBottom,
-          marginLeft: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0
-        } : {
-          marginTop: deviation !== 0 ? deviation : alignToBottom ? "auto" : 0,
-          paddingTop: listState.offsetTop,
-          paddingBottom: listState.offsetBottom
-        },
-        ...initialItemFinalLocationReached ? {} : { visibility: "hidden" }
-      };
-      if (!showTopList && listState.totalCount === 0 && EmptyPlaceholder) {
-        return /* @__PURE__ */ u(EmptyPlaceholder, { ...contextPropIfNotDomElement(EmptyPlaceholder, context) });
-      }
-      return /* @__PURE__ */ u(
-        ListComponent,
-        {
-          ...contextPropIfNotDomElement(ListComponent, context),
-          ref: callbackRef,
-          style: containerStyle,
-          "data-testid": showTopList ? "virtuoso-top-item-list" : "virtuoso-item-list",
-          children: (showTopList ? listState.topItems : listState.items).map((item) => {
-            const index = item.originalIndex;
-            const key2 = computeItemKey(index + listState.firstItemIndex, item.data, context);
-            if (isSeeking) {
-              return /* @__PURE__ */ g$2(
-                ScrollSeekPlaceholder,
-                {
-                  ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
-                  key: key2,
-                  index: item.index,
-                  height: item.size,
-                  type: item.type || "item",
-                  ...item.type === "group" ? {} : { groupIndex: item.groupIndex }
-                }
-              );
-            }
-            if (item.type === "group") {
-              return /* @__PURE__ */ g$2(
-                GroupComponent,
-                {
-                  ...contextPropIfNotDomElement(GroupComponent, context),
-                  key: key2,
-                  "data-index": index,
-                  "data-known-size": item.size,
-                  "data-item-index": item.index,
-                  style: GROUP_STYLE
-                },
-                groupContent(item.index, context)
-              );
-            } else {
-              return /* @__PURE__ */ g$2(
-                ItemComponent,
-                {
-                  ...contextPropIfNotDomElement(ItemComponent, context),
-                  ...itemPropIfNotDomElement(ItemComponent, item.data),
-                  key: key2,
-                  "data-index": index,
-                  "data-known-size": item.size,
-                  "data-item-index": item.index,
-                  "data-item-group-index": item.groupIndex,
-                  style: horizontalDirection ? HORIZONTAL_ITEM_STYLE : ITEM_STYLE$1
-                },
-                hasGroups2 ? itemContent(item.index, item.groupIndex, item.data, context) : itemContent(item.index, item.data, context)
-              );
-            }
-          })
-        }
-      );
-    });
-    const scrollerStyle = {
-      height: "100%",
-      outline: "none",
-      overflowY: "auto",
-      position: "relative",
-      WebkitOverflowScrolling: "touch"
-    };
-    const horizontalScrollerStyle = {
-      outline: "none",
-      overflowX: "auto",
-      position: "relative"
-    };
-    const viewportStyle = (alignToBottom) => ({
-      width: "100%",
-      height: "100%",
-      position: "absolute",
-      top: 0,
-      ...alignToBottom ? { display: "flex", flexDirection: "column" } : {}
-    });
-    const topItemListStyle = {
-      width: "100%",
-      position: positionStickyCssValue(),
-      top: 0,
-      zIndex: 1
-    };
-    function contextPropIfNotDomElement(element, context) {
-      if (typeof element === "string") {
-        return void 0;
-      }
-      return { context };
-    }
-    function itemPropIfNotDomElement(element, item) {
-      return { item: typeof element === "string" ? void 0 : item };
-    }
-    const Header$1 = /* @__PURE__ */ xn.memo(function VirtuosoHeader() {
-      const Header2 = useEmitterValue$2("HeaderComponent");
-      const headerHeight = usePublisher$2("headerHeight");
-      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
-        true,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const context = useEmitterValue$2("context");
-      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
-    });
-    const Footer$1 = /* @__PURE__ */ xn.memo(function VirtuosoFooter() {
-      const Footer2 = useEmitterValue$2("FooterComponent");
-      const footerHeight = usePublisher$2("footerHeight");
-      const HeaderFooterTag = useEmitterValue$2("HeaderFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
-        true,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const context = useEmitterValue$2("context");
-      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
-    });
-    function buildScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
-      const Scroller2 = xn.memo(function VirtuosoScroller({ style: style2, children: children2, ...props }) {
-        const scrollContainerStateCallback = usePublisher2("scrollContainerState");
-        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
-        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
-        const scrollerRefCallback = useEmitterValue2("scrollerRef");
-        const context = useEmitterValue2("context");
-        const horizontalDirection = useEmitterValue2("horizontalDirection") || false;
-        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
-          scrollContainerStateCallback,
-          smoothScrollTargetReached,
-          ScrollerComponent,
-          scrollerRefCallback,
-          void 0,
-          horizontalDirection
-        );
-        useEmitter2("scrollTo", scrollToCallback);
-        useEmitter2("scrollBy", scrollByCallback);
-        const defaultStyle = horizontalDirection ? horizontalScrollerStyle : scrollerStyle;
-        return /* @__PURE__ */ u(
-          ScrollerComponent,
-          {
-            ref: scrollerRef,
-            style: { ...defaultStyle, ...style2 },
-            "data-testid": "virtuoso-scroller",
-            "data-virtuoso-scroller": true,
-            tabIndex: 0,
-            ...props,
-            ...contextPropIfNotDomElement(ScrollerComponent, context),
-            children: children2
-          }
-        );
-      });
-      return Scroller2;
-    }
-    function buildWindowScroller({ usePublisher: usePublisher2, useEmitter: useEmitter2, useEmitterValue: useEmitterValue2 }) {
-      const Scroller2 = xn.memo(function VirtuosoWindowScroller({ style: style2, children: children2, ...props }) {
-        const scrollContainerStateCallback = usePublisher2("windowScrollContainerState");
-        const ScrollerComponent = useEmitterValue2("ScrollerComponent");
-        const smoothScrollTargetReached = usePublisher2("smoothScrollTargetReached");
-        const totalListHeight = useEmitterValue2("totalListHeight");
-        const deviation = useEmitterValue2("deviation");
-        const customScrollParent = useEmitterValue2("customScrollParent");
-        const context = useEmitterValue2("context");
-        const { scrollerRef, scrollByCallback, scrollToCallback } = useScrollTop(
-          scrollContainerStateCallback,
-          smoothScrollTargetReached,
-          ScrollerComponent,
-          noop,
-          customScrollParent
-        );
-        useIsomorphicLayoutEffect(() => {
-          scrollerRef.current = customScrollParent ? customScrollParent : window;
-          return () => {
-            scrollerRef.current = null;
-          };
-        }, [scrollerRef, customScrollParent]);
-        useEmitter2("windowScrollTo", scrollToCallback);
-        useEmitter2("scrollBy", scrollByCallback);
-        return /* @__PURE__ */ u(
-          ScrollerComponent,
-          {
-            style: { position: "relative", ...style2, ...totalListHeight !== 0 ? { height: totalListHeight + deviation } : {} },
-            "data-virtuoso-scroller": true,
-            ...props,
-            ...contextPropIfNotDomElement(ScrollerComponent, context),
-            children: children2
-          }
-        );
-      });
-      return Scroller2;
-    }
-    const Viewport$2 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoMockContext);
-      const viewportHeight = usePublisher$2("viewportHeight");
-      const fixedItemHeight = usePublisher$2("fixedItemHeight");
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      const horizontalDirection = useEmitterValue$2("horizontalDirection");
-      const viewportSizeCallbackMemo = xn.useMemo(
-        () => compose$1(viewportHeight, (el) => correctItemSize(el, horizontalDirection ? "width" : "height")),
-        [viewportHeight, horizontalDirection]
-      );
-      const viewportRef = useSize(viewportSizeCallbackMemo, true, useEmitterValue$2("skipAnimationFrameInResizeObserver"));
-      xn.useEffect(() => {
-        if (ctx) {
-          viewportHeight(ctx.viewportHeight);
-          fixedItemHeight(ctx.itemHeight);
-        }
-      }, [ctx, viewportHeight, fixedItemHeight]);
-      return /* @__PURE__ */ u("div", { style: viewportStyle(alignToBottom), ref: viewportRef, "data-viewport-type": "element", children: children2 });
-    };
-    const WindowViewport$2 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoMockContext);
-      const windowViewportRect = usePublisher$2("windowViewportRect");
-      const fixedItemHeight = usePublisher$2("fixedItemHeight");
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const viewportRef = useWindowViewportRectRef(
-        windowViewportRect,
-        customScrollParent,
-        useEmitterValue$2("skipAnimationFrameInResizeObserver")
-      );
-      const alignToBottom = useEmitterValue$2("alignToBottom");
-      xn.useEffect(() => {
-        if (ctx) {
-          fixedItemHeight(ctx.itemHeight);
-          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: 100 });
-        }
-      }, [ctx, windowViewportRect, fixedItemHeight]);
-      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(alignToBottom), "data-viewport-type": "window", children: children2 });
-    };
-    const TopItemListContainer = ({ children: children2 }) => {
-      const TopItemList = useEmitterValue$2("TopItemListComponent") || "div";
-      const headerHeight = useEmitterValue$2("headerHeight");
-      const style2 = { ...topItemListStyle, marginTop: `${headerHeight}px` };
-      const context = useEmitterValue$2("context");
-      return /* @__PURE__ */ u(TopItemList, { style: style2, ...contextPropIfNotDomElement(TopItemList, context), children: children2 });
-    };
-    const ListRoot = /* @__PURE__ */ xn.memo(function VirtuosoRoot(props) {
-      const useWindowScroll = useEmitterValue$2("useWindowScroll");
-      const showTopList = useEmitterValue$2("topItemsIndexes").length > 0;
-      const customScrollParent = useEmitterValue$2("customScrollParent");
-      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$2 : Scroller$2;
-      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$2 : Viewport$2;
-      return /* @__PURE__ */ u(TheScroller, { ...props, children: [
-        showTopList && /* @__PURE__ */ u(TopItemListContainer, { children: /* @__PURE__ */ u(Items$1, { showTopList: true }) }),
-        /* @__PURE__ */ u(TheViewport, { children: [
-          /* @__PURE__ */ u(Header$1, {}),
-          /* @__PURE__ */ u(Items$1, {}),
-          /* @__PURE__ */ u(Footer$1, {})
-        ] })
-      ] });
-    });
-    const {
-      Component: List,
-      usePublisher: usePublisher$2,
-      useEmitterValue: useEmitterValue$2,
-      useEmitter: useEmitter$2
-    } = /* @__PURE__ */ systemToComponent(
-      combinedSystem$2,
-      {
-        required: {},
-        optional: {
-          restoreStateFrom: "restoreStateFrom",
-          context: "context",
-          followOutput: "followOutput",
-          itemContent: "itemContent",
-          groupContent: "groupContent",
-          overscan: "overscan",
-          increaseViewportBy: "increaseViewportBy",
-          totalCount: "totalCount",
-          groupCounts: "groupCounts",
-          topItemCount: "topItemCount",
-          firstItemIndex: "firstItemIndex",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          components: "components",
-          atBottomThreshold: "atBottomThreshold",
-          atTopThreshold: "atTopThreshold",
-          computeItemKey: "computeItemKey",
-          defaultItemHeight: "defaultItemHeight",
-          fixedItemHeight: "fixedItemHeight",
-          itemSize: "itemSize",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          headerFooterTag: "HeaderFooterTag",
-          data: "data",
-          initialItemCount: "initialItemCount",
-          initialScrollTop: "initialScrollTop",
-          alignToBottom: "alignToBottom",
-          useWindowScroll: "useWindowScroll",
-          customScrollParent: "customScrollParent",
-          scrollerRef: "scrollerRef",
-          logLevel: "logLevel",
-          horizontalDirection: "horizontalDirection",
-          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver"
-        },
-        methods: {
-          scrollToIndex: "scrollToIndex",
-          scrollIntoView: "scrollIntoView",
-          scrollTo: "scrollTo",
-          scrollBy: "scrollBy",
-          autoscrollToBottom: "autoscrollToBottom",
-          getState: "getState"
-        },
-        events: {
-          isScrolling: "isScrolling",
-          endReached: "endReached",
-          startReached: "startReached",
-          rangeChanged: "rangeChanged",
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          totalListHeightChanged: "totalListHeightChanged",
-          itemsRendered: "itemsRendered",
-          groupIndices: "groupIndices"
-        }
-      },
-      ListRoot
-    );
-    const Scroller$2 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
-    const WindowScroller$2 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$2, useEmitterValue: useEmitterValue$2, useEmitter: useEmitter$2 });
-    const Virtuoso = List;
-    const INITIAL_GRID_STATE = {
-      items: [],
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0,
-      bottom: 0,
-      itemHeight: 0,
-      itemWidth: 0
-    };
-    const PROBE_GRID_STATE = {
-      items: [{ index: 0 }],
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0,
-      bottom: 0,
-      itemHeight: 0,
-      itemWidth: 0
-    };
-    const { round, ceil, floor, min: min$1, max: max$2 } = Math;
-    function buildProbeGridState(items) {
-      return {
-        ...PROBE_GRID_STATE,
-        items
-      };
-    }
-    function buildItems(startIndex, endIndex, data) {
-      return Array.from({ length: endIndex - startIndex + 1 }).map((_2, i2) => {
-        const dataItem = data === null ? null : data[i2 + startIndex];
-        return { index: i2 + startIndex, data: dataItem };
-      });
-    }
-    function gapComparator(prev, next) {
-      return prev && prev.column === next.column && prev.row === next.row;
-    }
-    function dimensionComparator(prev, next) {
-      return prev && prev.width === next.width && prev.height === next.height;
-    }
-    const gridSystem = /* @__PURE__ */ system(
-      ([
-        { overscan, visibleRange, listBoundary, increaseViewportBy },
-        { scrollTop, viewportHeight, scrollBy, scrollTo, smoothScrollTargetReached, scrollContainerState, footerHeight, headerHeight },
-        stateFlags,
-        scrollSeek,
-        { propsReady, didMount },
-        { windowViewportRect, useWindowScroll, customScrollParent, windowScrollContainerState, windowScrollTo },
-        log
-      ]) => {
-        const totalCount = statefulStream(0);
-        const initialItemCount = statefulStream(0);
-        const gridState = statefulStream(INITIAL_GRID_STATE);
-        const viewportDimensions = statefulStream({ height: 0, width: 0 });
-        const itemDimensions = statefulStream({ height: 0, width: 0 });
-        const scrollToIndex = stream();
-        const scrollHeight = stream();
-        const deviation = statefulStream(0);
-        const data = statefulStream(null);
-        const gap = statefulStream({ row: 0, column: 0 });
-        const stateChanged = stream();
-        const restoreStateFrom = stream();
-        const stateRestoreInProgress = statefulStream(false);
-        const initialTopMostItemIndex = statefulStream(0);
-        const scrolledToInitialItem = statefulStream(true);
-        const scrollScheduled = statefulStream(false);
-        const horizontalDirection = statefulStream(false);
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(initialTopMostItemIndex),
-            filter(([_2, location]) => !!location)
-          ),
-          () => {
-            publish(scrolledToInitialItem, false);
-          }
-        );
-        subscribe(
-          pipe(
-            combineLatest(didMount, scrolledToInitialItem, itemDimensions, viewportDimensions, initialTopMostItemIndex, scrollScheduled),
-            filter(([didMount2, scrolledToInitialItem2, itemDimensions2, viewportDimensions2, , scrollScheduled2]) => {
-              return didMount2 && !scrolledToInitialItem2 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0 && !scrollScheduled2;
-            })
-          ),
-          ([, , , , initialTopMostItemIndex2]) => {
-            publish(scrollScheduled, true);
-            skipFrames(1, () => {
-              publish(scrollToIndex, initialTopMostItemIndex2);
-            });
-            handleNext(pipe(scrollTop), () => {
-              publish(listBoundary, [0, 0]);
-              publish(scrolledToInitialItem, true);
-            });
-          }
-        );
-        connect(
-          pipe(
-            restoreStateFrom,
-            filter((value) => value !== void 0 && value !== null && value.scrollTop > 0),
-            mapTo(0)
-          ),
-          initialItemCount
-        );
-        subscribe(
-          pipe(
-            didMount,
-            withLatestFrom(restoreStateFrom),
-            filter(([, snapshot]) => snapshot !== void 0 && snapshot !== null)
-          ),
-          ([, snapshot]) => {
-            if (!snapshot) {
-              return;
-            }
-            publish(viewportDimensions, snapshot.viewport), publish(itemDimensions, snapshot == null ? void 0 : snapshot.item);
-            publish(gap, snapshot.gap);
-            if (snapshot.scrollTop > 0) {
-              publish(stateRestoreInProgress, true);
-              handleNext(pipe(scrollTop, skip(1)), (_value) => {
-                publish(stateRestoreInProgress, false);
-              });
-              publish(scrollTo, { top: snapshot.scrollTop });
-            }
-          }
-        );
-        connect(
-          pipe(
-            viewportDimensions,
-            map(({ height }) => height)
-          ),
-          viewportHeight
-        );
-        connect(
-          pipe(
-            combineLatest(
-              duc(viewportDimensions, dimensionComparator),
-              duc(itemDimensions, dimensionComparator),
-              duc(gap, (prev, next) => prev && prev.column === next.column && prev.row === next.row),
-              duc(scrollTop)
-            ),
-            map(([viewport2, item, gap2, scrollTop2]) => ({
-              viewport: viewport2,
-              item,
-              gap: gap2,
-              scrollTop: scrollTop2
-            }))
-          ),
-          stateChanged
-        );
-        connect(
-          pipe(
-            combineLatest(
-              duc(totalCount),
-              visibleRange,
-              duc(gap, gapComparator),
-              duc(itemDimensions, dimensionComparator),
-              duc(viewportDimensions, dimensionComparator),
-              duc(data),
-              duc(initialItemCount),
-              duc(stateRestoreInProgress),
-              duc(scrolledToInitialItem),
-              duc(initialTopMostItemIndex)
-            ),
-            filter(([, , , , , , , stateRestoreInProgress2]) => {
-              return !stateRestoreInProgress2;
-            }),
-            map(
-              ([
-                totalCount2,
-                [startOffset, endOffset],
-                gap2,
-                item,
-                viewport2,
-                data2,
-                initialItemCount2,
-                ,
-                scrolledToInitialItem2,
-                initialTopMostItemIndex2
-              ]) => {
-                const { row: rowGap, column: columnGap } = gap2;
-                const { height: itemHeight, width: itemWidth } = item;
-                const { width: viewportWidth } = viewport2;
-                if (initialItemCount2 === 0 && (totalCount2 === 0 || viewportWidth === 0)) {
-                  return INITIAL_GRID_STATE;
-                }
-                if (itemWidth === 0) {
-                  const startIndex2 = getInitialTopMostItemIndexNumber(initialTopMostItemIndex2, totalCount2);
-                  const endIndex2 = startIndex2 + Math.max(initialItemCount2 - 1, 0);
-                  return buildProbeGridState(buildItems(startIndex2, endIndex2, data2));
-                }
-                const perRow = itemsPerRow(viewportWidth, itemWidth, columnGap);
-                let startIndex;
-                let endIndex;
-                if (!scrolledToInitialItem2) {
-                  startIndex = 0;
-                  endIndex = -1;
-                } else if (startOffset === 0 && endOffset === 0 && initialItemCount2 > 0) {
-                  startIndex = 0;
-                  endIndex = initialItemCount2 - 1;
-                } else {
-                  startIndex = perRow * floor((startOffset + rowGap) / (itemHeight + rowGap));
-                  endIndex = perRow * ceil((endOffset + rowGap) / (itemHeight + rowGap)) - 1;
-                  endIndex = min$1(totalCount2 - 1, max$2(endIndex, perRow - 1));
-                  startIndex = min$1(endIndex, max$2(0, startIndex));
-                }
-                const items = buildItems(startIndex, endIndex, data2);
-                const { top: top2, bottom: bottom2 } = gridLayout(viewport2, gap2, item, items);
-                const rowCount = ceil(totalCount2 / perRow);
-                const totalHeight = rowCount * itemHeight + (rowCount - 1) * rowGap;
-                const offsetBottom = totalHeight - bottom2;
-                return { items, offsetTop: top2, offsetBottom, top: top2, bottom: bottom2, itemHeight, itemWidth };
-              }
-            )
-          ),
-          gridState
-        );
-        connect(
-          pipe(
-            data,
-            filter((data2) => data2 !== null),
-            map((data2) => data2.length)
-          ),
-          totalCount
-        );
-        connect(
-          pipe(
-            combineLatest(viewportDimensions, itemDimensions, gridState, gap),
-            filter(([viewportDimensions2, itemDimensions2, { items }]) => {
-              return items.length > 0 && itemDimensions2.height !== 0 && viewportDimensions2.height !== 0;
-            }),
-            map(([viewportDimensions2, itemDimensions2, { items }, gap2]) => {
-              const { top: top2, bottom: bottom2 } = gridLayout(viewportDimensions2, gap2, itemDimensions2, items);
-              return [top2, bottom2];
-            }),
-            distinctUntilChanged(tupleComparator)
-          ),
-          listBoundary
-        );
-        const hasScrolled = statefulStream(false);
-        connect(
-          pipe(
-            scrollTop,
-            withLatestFrom(hasScrolled),
-            map(([scrollTop2, hasScrolled2]) => {
-              return hasScrolled2 || scrollTop2 !== 0;
-            })
-          ),
-          hasScrolled
-        );
-        const endReached = streamFromEmitter(
-          pipe(
-            combineLatest(gridState, totalCount),
-            filter(([{ items }]) => items.length > 0),
-            withLatestFrom(hasScrolled),
-            filter(([[gridState2, totalCount2], hasScrolled2]) => {
-              const lastIndex = gridState2.items[gridState2.items.length - 1].index;
-              const isLastItemRendered = lastIndex === totalCount2 - 1;
-              if (hasScrolled2) return isLastItemRendered;
-              const isFullyRendered = gridState2.bottom > 0 && gridState2.itemHeight > 0 && gridState2.offsetBottom === 0 && gridState2.items.length === totalCount2;
-              return isFullyRendered && isLastItemRendered;
-            }),
-            map(([[, totalCount2]]) => {
-              return totalCount2 - 1;
-            }),
-            distinctUntilChanged()
-          )
-        );
-        const startReached = streamFromEmitter(
-          pipe(
-            duc(gridState),
-            filter(({ items }) => {
-              return items.length > 0 && items[0].index === 0;
-            }),
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-            mapTo(0),
-            distinctUntilChanged()
-          )
-        );
-        const rangeChanged = streamFromEmitter(
-          pipe(
-            duc(gridState),
-            withLatestFrom(stateRestoreInProgress),
-            filter(([{ items }, stateRestoreInProgress2]) => items.length > 0 && !stateRestoreInProgress2),
-            map(([{ items }]) => {
-              return {
-                startIndex: items[0].index,
-                endIndex: items[items.length - 1].index
-              };
-            }),
-            distinctUntilChanged(rangeComparator),
-            throttleTime(0)
-          )
-        );
-        connect(rangeChanged, scrollSeek.scrollSeekRangeChanged);
-        connect(
-          pipe(
-            scrollToIndex,
-            withLatestFrom(viewportDimensions, itemDimensions, totalCount, gap),
-            map(([location, viewportDimensions2, itemDimensions2, totalCount2, gap2]) => {
-              const normalLocation = normalizeIndexLocation(location);
-              const { align, behavior, offset: offset2 } = normalLocation;
-              let index = normalLocation.index;
-              if (index === "LAST") {
-                index = totalCount2 - 1;
-              }
-              index = max$2(0, index, min$1(totalCount2 - 1, index));
-              let top2 = itemTop(viewportDimensions2, gap2, itemDimensions2, index);
-              if (align === "end") {
-                top2 = round(top2 - viewportDimensions2.height + itemDimensions2.height);
-              } else if (align === "center") {
-                top2 = round(top2 - viewportDimensions2.height / 2 + itemDimensions2.height / 2);
-              }
-              if (offset2) {
-                top2 += offset2;
-              }
-              return { top: top2, behavior };
-            })
-          ),
-          scrollTo
-        );
-        const totalListHeight = statefulStreamFromEmitter(
-          pipe(
-            gridState,
-            map((gridState2) => {
-              return gridState2.offsetBottom + gridState2.bottom;
-            })
-          ),
-          0
-        );
-        connect(
-          pipe(
-            windowViewportRect,
-            map((viewportInfo) => ({ width: viewportInfo.visibleWidth, height: viewportInfo.visibleHeight }))
-          ),
-          viewportDimensions
-        );
-        return {
-          // input
-          data,
-          totalCount,
-          viewportDimensions,
-          itemDimensions,
-          scrollTop,
-          scrollHeight,
-          overscan,
-          increaseViewportBy,
-          scrollBy,
-          scrollTo,
-          scrollToIndex,
-          smoothScrollTargetReached,
-          windowViewportRect,
-          windowScrollTo,
-          useWindowScroll,
-          customScrollParent,
-          windowScrollContainerState,
-          deviation,
-          scrollContainerState,
-          footerHeight,
-          headerHeight,
-          initialItemCount,
-          gap,
-          restoreStateFrom,
-          ...scrollSeek,
-          initialTopMostItemIndex,
-          horizontalDirection,
-          // output
-          gridState,
-          totalListHeight,
-          ...stateFlags,
-          startReached,
-          endReached,
-          rangeChanged,
-          stateChanged,
-          propsReady,
-          stateRestoreInProgress,
-          ...log
-        };
-      },
-      tup(sizeRangeSystem, domIOSystem, stateFlagsSystem, scrollSeekSystem, propsReadySystem, windowScrollerSystem, loggerSystem)
-    );
-    function gridLayout(viewport2, gap, item, items) {
-      const { height: itemHeight } = item;
-      if (itemHeight === void 0 || items.length === 0) {
-        return { top: 0, bottom: 0 };
-      }
-      const top2 = itemTop(viewport2, gap, item, items[0].index);
-      const bottom2 = itemTop(viewport2, gap, item, items[items.length - 1].index) + itemHeight;
-      return { top: top2, bottom: bottom2 };
-    }
-    function itemTop(viewport2, gap, item, index) {
-      const perRow = itemsPerRow(viewport2.width, item.width, gap.column);
-      const rowCount = floor(index / perRow);
-      const top2 = rowCount * item.height + max$2(0, rowCount - 1) * gap.row;
-      return top2 > 0 ? top2 + gap.row : top2;
-    }
-    function itemsPerRow(viewportWidth, itemWidth, gap) {
-      return max$2(1, floor((viewportWidth + gap) / (floor(itemWidth) + gap)));
-    }
-    const gridComponentPropsSystem = /* @__PURE__ */ system(() => {
-      const itemContent = statefulStream((index) => `Item ${index}`);
-      const components = statefulStream({});
-      const context = statefulStream(null);
-      const itemClassName = statefulStream("virtuoso-grid-item");
-      const listClassName = statefulStream("virtuoso-grid-list");
-      const computeItemKey = statefulStream(identity);
-      const headerFooterTag = statefulStream("div");
-      const scrollerRef = statefulStream(noop);
-      const distinctProp = (propName, defaultValue = null) => {
-        return statefulStreamFromEmitter(
-          pipe(
-            components,
-            map((components2) => components2[propName]),
-            distinctUntilChanged()
-          ),
-          defaultValue
-        );
-      };
-      const readyStateChanged = statefulStream(false);
-      const reportReadyState = statefulStream(false);
-      connect(duc(reportReadyState), readyStateChanged);
-      return {
-        readyStateChanged,
-        reportReadyState,
-        context,
-        itemContent,
-        components,
-        computeItemKey,
-        itemClassName,
-        listClassName,
-        headerFooterTag,
-        scrollerRef,
-        FooterComponent: distinctProp("Footer"),
-        HeaderComponent: distinctProp("Header"),
-        ListComponent: distinctProp("List", "div"),
-        ItemComponent: distinctProp("Item", "div"),
-        ScrollerComponent: distinctProp("Scroller", "div"),
-        ScrollSeekPlaceholder: distinctProp("ScrollSeekPlaceholder", "div")
-      };
-    });
-    const combinedSystem$1 = /* @__PURE__ */ system(([gridSystem2, gridComponentPropsSystem2]) => {
-      return { ...gridSystem2, ...gridComponentPropsSystem2 };
-    }, tup(gridSystem, gridComponentPropsSystem));
-    const GridItems = /* @__PURE__ */ xn.memo(function GridItems2() {
-      const gridState = useEmitterValue$1("gridState");
-      const listClassName = useEmitterValue$1("listClassName");
-      const itemClassName = useEmitterValue$1("itemClassName");
-      const itemContent = useEmitterValue$1("itemContent");
-      const computeItemKey = useEmitterValue$1("computeItemKey");
-      const isSeeking = useEmitterValue$1("isSeeking");
-      const scrollHeightCallback = usePublisher$1("scrollHeight");
-      const ItemComponent = useEmitterValue$1("ItemComponent");
-      const ListComponent = useEmitterValue$1("ListComponent");
-      const ScrollSeekPlaceholder = useEmitterValue$1("ScrollSeekPlaceholder");
-      const context = useEmitterValue$1("context");
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const gridGap = usePublisher$1("gap");
-      const log = useEmitterValue$1("log");
-      const stateRestoreInProgress = useEmitterValue$1("stateRestoreInProgress");
-      const reportReadyState = usePublisher$1("reportReadyState");
-      const listRef = useSize(
-        xn.useMemo(
-          () => (el) => {
-            const scrollHeight = el.parentElement.parentElement.scrollHeight;
-            scrollHeightCallback(scrollHeight);
-            const firstItem = el.firstChild;
-            if (firstItem) {
-              const { width, height } = firstItem.getBoundingClientRect();
-              itemDimensions({ width, height });
-            }
-            gridGap({
-              row: resolveGapValue("row-gap", getComputedStyle(el).rowGap, log),
-              column: resolveGapValue("column-gap", getComputedStyle(el).columnGap, log)
-            });
-          },
-          [scrollHeightCallback, itemDimensions, gridGap, log]
-        ),
-        true,
-        false
-      );
-      useIsomorphicLayoutEffect(() => {
-        if (gridState.itemHeight > 0 && gridState.itemWidth > 0) {
-          reportReadyState(true);
-        }
-      }, [gridState]);
-      if (stateRestoreInProgress) {
-        return null;
-      }
-      return /* @__PURE__ */ u(
-        ListComponent,
-        {
-          ref: listRef,
-          className: listClassName,
-          ...contextPropIfNotDomElement(ListComponent, context),
-          style: { paddingTop: gridState.offsetTop, paddingBottom: gridState.offsetBottom },
-          "data-testid": "virtuoso-item-list",
-          children: gridState.items.map((item) => {
-            const key2 = computeItemKey(item.index, item.data, context);
-            return isSeeking ? /* @__PURE__ */ u(
-              ScrollSeekPlaceholder,
-              {
-                ...contextPropIfNotDomElement(ScrollSeekPlaceholder, context),
-                index: item.index,
-                height: gridState.itemHeight,
-                width: gridState.itemWidth
-              },
-              key2
-            ) : /* @__PURE__ */ g$2(
-              ItemComponent,
-              {
-                ...contextPropIfNotDomElement(ItemComponent, context),
-                className: itemClassName,
-                "data-index": item.index,
-                key: key2
-              },
-              itemContent(item.index, item.data, context)
-            );
-          })
-        }
-      );
-    });
-    const Header = xn.memo(function VirtuosoHeader2() {
-      const Header2 = useEmitterValue$1("HeaderComponent");
-      const headerHeight = usePublisher$1("headerHeight");
-      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => headerHeight(correctItemSize(el, "height")), [headerHeight]),
-        true,
-        false
-      );
-      const context = useEmitterValue$1("context");
-      return Header2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Header2, { ...contextPropIfNotDomElement(Header2, context) }) }) : null;
-    });
-    const Footer = xn.memo(function VirtuosoGridFooter() {
-      const Footer2 = useEmitterValue$1("FooterComponent");
-      const footerHeight = usePublisher$1("footerHeight");
-      const HeaderFooterTag = useEmitterValue$1("headerFooterTag");
-      const ref = useSize(
-        xn.useMemo(() => (el) => footerHeight(correctItemSize(el, "height")), [footerHeight]),
-        true,
-        false
-      );
-      const context = useEmitterValue$1("context");
-      return Footer2 ? /* @__PURE__ */ u(HeaderFooterTag, { ref, children: /* @__PURE__ */ u(Footer2, { ...contextPropIfNotDomElement(Footer2, context) }) }) : null;
-    });
-    const Viewport$1 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoGridMockContext);
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const viewportDimensions = usePublisher$1("viewportDimensions");
-      const viewportRef = useSize(
-        xn.useMemo(
-          () => (el) => {
-            viewportDimensions(el.getBoundingClientRect());
-          },
-          [viewportDimensions]
-        ),
-        true,
-        false
-      );
-      xn.useEffect(() => {
-        if (ctx) {
-          viewportDimensions({ height: ctx.viewportHeight, width: ctx.viewportWidth });
-          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
-        }
-      }, [ctx, viewportDimensions, itemDimensions]);
-      return /* @__PURE__ */ u("div", { style: viewportStyle(false), ref: viewportRef, children: children2 });
-    };
-    const WindowViewport$1 = ({ children: children2 }) => {
-      const ctx = xn.useContext(VirtuosoGridMockContext);
-      const windowViewportRect = usePublisher$1("windowViewportRect");
-      const itemDimensions = usePublisher$1("itemDimensions");
-      const customScrollParent = useEmitterValue$1("customScrollParent");
-      const viewportRef = useWindowViewportRectRef(windowViewportRect, customScrollParent, false);
-      xn.useEffect(() => {
-        if (ctx) {
-          itemDimensions({ height: ctx.itemHeight, width: ctx.itemWidth });
-          windowViewportRect({ offsetTop: 0, visibleHeight: ctx.viewportHeight, visibleWidth: ctx.viewportWidth });
-        }
-      }, [ctx, windowViewportRect, itemDimensions]);
-      return /* @__PURE__ */ u("div", { ref: viewportRef, style: viewportStyle(false), children: children2 });
-    };
-    const GridRoot = /* @__PURE__ */ xn.memo(function GridRoot2({ ...props }) {
-      const useWindowScroll = useEmitterValue$1("useWindowScroll");
-      const customScrollParent = useEmitterValue$1("customScrollParent");
-      const TheScroller = customScrollParent || useWindowScroll ? WindowScroller$1 : Scroller$1;
-      const TheViewport = customScrollParent || useWindowScroll ? WindowViewport$1 : Viewport$1;
-      return /* @__PURE__ */ u(TheScroller, { ...props, children: /* @__PURE__ */ u(TheViewport, { children: [
-        /* @__PURE__ */ u(Header, {}),
-        /* @__PURE__ */ u(GridItems, {}),
-        /* @__PURE__ */ u(Footer, {})
-      ] }) });
-    });
-    const {
-      Component: Grid,
-      usePublisher: usePublisher$1,
-      useEmitterValue: useEmitterValue$1,
-      useEmitter: useEmitter$1
-    } = /* @__PURE__ */ systemToComponent(
-      combinedSystem$1,
-      {
-        optional: {
-          context: "context",
-          totalCount: "totalCount",
-          overscan: "overscan",
-          itemContent: "itemContent",
-          components: "components",
-          computeItemKey: "computeItemKey",
-          data: "data",
-          initialItemCount: "initialItemCount",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          headerFooterTag: "headerFooterTag",
-          listClassName: "listClassName",
-          itemClassName: "itemClassName",
-          useWindowScroll: "useWindowScroll",
-          customScrollParent: "customScrollParent",
-          scrollerRef: "scrollerRef",
-          logLevel: "logLevel",
-          restoreStateFrom: "restoreStateFrom",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          increaseViewportBy: "increaseViewportBy"
-        },
-        methods: {
-          scrollTo: "scrollTo",
-          scrollBy: "scrollBy",
-          scrollToIndex: "scrollToIndex"
-        },
-        events: {
-          isScrolling: "isScrolling",
-          endReached: "endReached",
-          startReached: "startReached",
-          rangeChanged: "rangeChanged",
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          stateChanged: "stateChanged",
-          readyStateChanged: "readyStateChanged"
-        }
-      },
-      GridRoot
-    );
-    const Scroller$1 = /* @__PURE__ */ buildScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
-    const WindowScroller$1 = /* @__PURE__ */ buildWindowScroller({ usePublisher: usePublisher$1, useEmitterValue: useEmitterValue$1, useEmitter: useEmitter$1 });
-    function resolveGapValue(property, value, log) {
-      if (value !== "normal" && !(value == null ? void 0 : value.endsWith("px"))) {
-        log(`${property} was not resolved to pixel value correctly`, value, LogLevel.WARN);
-      }
-      if (value === "normal") {
-        return 0;
-      }
-      return parseInt(value != null ? value : "0", 10);
-    }
     function VirtualList({
       data,
       renderRow,
@@ -20069,9 +15568,9 @@ var require_assets = __commonJS({
       const [offset2, setOffset] = h(0);
       const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
       const [totalHeight, setTotalHeight] = h(0);
-      const baseRef = A$1(null);
-      const containerRef = A$1(null);
-      const rowRefs = A$1(/* @__PURE__ */ new Map());
+      const baseRef = A(null);
+      const containerRef = A(null);
+      const rowRefs = A(/* @__PURE__ */ new Map());
       const getRowHeight = (index) => {
         return rowHeights.get(index) || estimatedRowHeight;
       };
@@ -20205,7 +15704,7 @@ var require_assets = __commonJS({
   `;
     }
     const ChatViewVirtualList = ({
-      id: id2,
+      id,
       messages,
       toolCallStyle,
       style: style2,
@@ -20217,7 +15716,7 @@ var require_assets = __commonJS({
       const renderRow = (item, index) => {
         const number = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
-      id=${id2}
+      id=${id}
       number=${number}
       resolvedMessage=${item}
       indented=${indented}
@@ -20234,7 +15733,7 @@ var require_assets = __commonJS({
       return result;
     };
     const ChatView = ({
-      id: id2,
+      id,
       messages,
       toolCallStyle,
       style: style2,
@@ -20246,7 +15745,7 @@ var require_assets = __commonJS({
     ${collapsedMessages.map((msg, index) => {
         const number = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
-        id=${id2}
+        id=${id}
         number=${number}
         resolvedMessage=${msg}
         indented=${indented}
@@ -20257,7 +15756,7 @@ var require_assets = __commonJS({
       return result;
     };
     const ChatMessageRow = ({
-      id: id2,
+      id,
       number,
       resolvedMessage,
       toolCallStyle,
@@ -20281,7 +15780,7 @@ var require_assets = __commonJS({
         ${number}
       </div>
       <${ChatMessage}
-        id=${`${id2}-chat-messages`}
+        id=${`${id}-chat-messages`}
         message=${resolvedMessage.message}
         toolMessages=${resolvedMessage.toolMessages}
         indented=${indented}
@@ -20290,7 +15789,7 @@ var require_assets = __commonJS({
     </div>`;
       } else {
         return m$1`<${ChatMessage}
-      id=${`${id2}-chat-messages`}
+      id=${`${id}-chat-messages`}
       message=${resolvedMessage.message}
       toolMessages=${resolvedMessage.toolMessages}
       indented=${indented}
@@ -20345,7 +15844,7 @@ var require_assets = __commonJS({
       }
     };
     const ChatMessage = ({
-      id: id2,
+      id,
       message,
       toolMessages,
       indented,
@@ -20379,7 +15878,7 @@ var require_assets = __commonJS({
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
-          key=${`${id2}-contents`}
+          key=${`${id}-contents`}
           message=${message}
           toolMessages=${toolMessages}
           toolCallStyle=${toolCallStyle}
@@ -20539,18 +16038,18 @@ var require_assets = __commonJS({
         const val = entry.value;
         return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
       },
-      render: (id2, entry) => {
+      render: (id, entry) => {
         return {
           rendered: m$1`
         <${NavPills}>
-        <${ChatSummary} title="Last Turn" id=${id2} messages=${entry.value} />
-        <${ChatView} title="All" id=${id2} messages=${entry.value} />
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
+        <${ChatView} title="All" id=${id} messages=${entry.value} />
         </${NavPills}>
         `
         };
       }
     };
-    const ChatSummary = ({ id: id2, messages }) => {
+    const ChatSummary = ({ id, messages }) => {
       const summaryMessages = [];
       for (const message of messages.slice().reverse()) {
         summaryMessages.unshift(message);
@@ -20558,22 +16057,22 @@ var require_assets = __commonJS({
           break;
         }
       }
-      return m$1`<${ChatView} id=${id2} messages=${summaryMessages} />`;
+      return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
     };
-    const RenderedContent = ({ id: id2, entry }) => {
+    const RenderedContent = ({ id, entry }) => {
       if (entry.value === null) {
         return "[null]";
       }
       const renderer = Object.keys(contentRenderers).map((key2) => {
         return contentRenderers[key2];
-      }).sort((a2, b2) => {
-        return a2.bucket - b2.bucket;
+      }).sort((a2, b) => {
+        return a2.bucket - b.bucket;
       }).find((renderer2) => {
         return renderer2.canRender(entry);
       });
       let value = entry.value;
       if (renderer) {
-        const { rendered } = renderer.render(id2, entry);
+        const { rendered } = renderer.render(id, entry);
         if (rendered !== void 0) {
           value = rendered;
         }
@@ -20586,7 +16085,7 @@ var require_assets = __commonJS({
         canRender: (entry) => {
           return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           return {
             rendered: m$1`<${ANSIDisplay} output=${entry.value} />`
           };
@@ -20608,9 +16107,9 @@ var require_assets = __commonJS({
         canRender: (entry) => {
           return typeof entry.value === "boolean";
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           entry.value = entry.value.toString();
-          return contentRenderers.String.render(id2, entry);
+          return contentRenderers.String.render(id, entry);
         }
       },
       Number: {
@@ -20618,9 +16117,9 @@ var require_assets = __commonJS({
         canRender: (entry) => {
           return typeof entry.value === "number";
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           entry.value = formatNumber(entry.value);
-          return contentRenderers.String.render(id2, entry);
+          return contentRenderers.String.render(id, entry);
         }
       },
       String: {
@@ -20650,13 +16149,13 @@ var require_assets = __commonJS({
             return false;
           }
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           const arrayMap = {};
           entry.value.forEach((entry2, index) => {
             arrayMap[`[${index}]`] = entry2;
           });
           const arrayRendered = m$1`<${MetaDataView}
-        id=${id2}
+        id=${id}
         style=${{ fontSize: FontSize.small }}
         entries="${arrayMap}"
         tableOptions="borderless,sm"
@@ -20716,7 +16215,7 @@ ${entry.value}</pre
         canRender: (entry) => {
           return typeof entry.value === "object" && entry.value._html;
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           return {
             rendered: entry.value._html
           };
@@ -20727,7 +16226,7 @@ ${entry.value}</pre
         canRender: (entry) => {
           return typeof entry.value === "string" && entry.value.startsWith("data:image/");
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           return {
             rendered: m$1`<img src=${entry.value} />`
           };
@@ -20738,7 +16237,7 @@ ${entry.value}</pre
         canRender: (entry) => {
           return typeof entry.value === "object";
         },
-        render: (id2, entry) => {
+        render: (id, entry) => {
           const summary = [];
           const keys = Object.keys(entry.value);
           if (keys.length > 4) {
@@ -20750,7 +16249,7 @@ ${entry.value}</pre
           }
           return {
             rendered: m$1`<${MetaDataView}
-          id=${id2}
+          id=${id}
           style=${{ fontSize: FontSize.smaller }}
           entries="${entry.value}"
           tableOptions="borderless,sm"
@@ -20761,7 +16260,7 @@ ${entry.value}</pre
       }
     };
     const MetaDataView = ({
-      id: id2,
+      id,
       baseClass,
       classes,
       style: style2,
@@ -20804,7 +16303,7 @@ ${entry.value}</pre
         }
       }
       const entryEls = (coercedEntries || []).map((entry, index) => {
-        const id3 = `${baseId}-value-${index}`;
+        const id2 = `${baseId}-value-${index}`;
         return m$1`<tr class="${baseId}-row">
       <td
         class="${baseId}-key"
@@ -20813,12 +16312,12 @@ ${entry.value}</pre
         ${entry.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent} id=${id3} entry=${entry} />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </td>
     </tr>`;
       });
       return m$1`<table
-    ...${{ id: id2 }}
+    ...${{ id }}
     class="${classes || ""} table ${tblClz.join(" ")}"
     style=${{
         paddingLeft: "0",
@@ -21229,7 +16728,7 @@ ${entry.value}</pre
   `;
     };
     const LargeModal = ({
-      id: id2,
+      id,
       title,
       detail,
       detailTools,
@@ -21247,7 +16746,7 @@ ${entry.value}</pre
       scrollRef
     }) => {
       const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
-      scrollRef = scrollRef || A$1(
+      scrollRef = scrollRef || A(
         /** @type {HTMLElement|null} */
         null
       );
@@ -21260,7 +16759,7 @@ ${entry.value}</pre
           }, 0);
         }
       }, []);
-      const onScroll = q$1(
+      const onScroll = q(
         (e2) => {
           setInitialScrollPosition(e2.srcElement.scrollTop);
         },
@@ -21323,7 +16822,7 @@ ${entry.value}</pre
       <${HtmlEntity}>&times;</${HtmlEntity}>
     </button>`);
       return m$1`<div
-    id=${id2}
+    id=${id}
     class="modal"
     tabindex="0"
     role="dialog"
@@ -21390,8 +16889,8 @@ ${entry.value}</pre
     <i class="${icon}" />
   </button>`;
     };
-    function escapeSelector(id2) {
-      return id2.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+    function escapeSelector(id) {
+      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
     const isVscode = () => {
       const bodyEl = document.querySelector("body");
@@ -21419,7 +16918,7 @@ ${entry.value}</pre
     </div>`;
       }
     };
-    const MetaDataGrid = ({ id: id2, entries, classes, style: style2, plain }) => {
+    const MetaDataGrid = ({ id, entries, classes, style: style2, plain }) => {
       const baseId = "metadata-grid";
       const cellKeyStyle = {
         fontWeight: "400",
@@ -21448,7 +16947,7 @@ ${entry.value}</pre
         }
       };
       const entryEls = entryRecords(entries).map((entry, index) => {
-        const id3 = `${baseId}-value-${index}`;
+        const id2 = `${baseId}-value-${index}`;
         return m$1`
       <div
         style=${{
@@ -21463,12 +16962,12 @@ ${entry.value}</pre
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent} id=${id3} entry=${entry} />
+        <${RenderedContent} id=${id2} entry=${entry} />
       </div>
     `;
       });
       return m$1`<div
-    ...${{ id: id2 }}
+    ...${{ id }}
     class="${classes || ""}"
     style=${{
         display: "grid",
@@ -21625,7 +17124,7 @@ ${entry.value}</pre
   `;
     };
     const EventPanel = ({
-      id: id2,
+      id,
       classes,
       title,
       subTitle,
@@ -21640,7 +17139,7 @@ ${entry.value}</pre
       const hasCollapse = collapse !== void 0;
       const [collapsed, setCollapsed] = h(!!collapse);
       const [selectedNav, setSelectedNav] = h("");
-      const filteredArrChildren = T$1(() => {
+      const filteredArrChildren = T(() => {
         const arrChildren = Array.isArray(children2) ? children2 : [children2];
         return arrChildren.filter((child) => !!child);
       }, [children2]);
@@ -21648,7 +17147,7 @@ ${entry.value}</pre
         setSelectedNav(pillId(0));
       }, [filteredArrChildren]);
       const pillId = (index) => {
-        return `${id2}-nav-pill-${index}`;
+        return `${id}-nav-pill-${index}`;
       };
       const gridColumns2 = [];
       if (hasCollapse) {
@@ -21734,7 +17233,7 @@ ${entry.value}</pre
         const defaultTitle = `Tab ${index}`;
         const title2 = child && typeof child === "object" ? ((_a2 = child["props"]) == null ? void 0 : _a2.name) || defaultTitle : defaultTitle;
         return {
-          id: `eventpanel-${id2}-${index}`,
+          id: `eventpanel-${id}-${index}`,
           title: title2,
           target: pillId(index)
         };
@@ -21745,7 +17244,7 @@ ${entry.value}</pre
           </div>
         </div>` : "";
       const card = m$1` <div
-    id=${id2}
+    id=${id}
     style=${{
         padding: "0.625rem",
         border: "solid 1px var(--bs-light-border-subtle)",
@@ -21763,10 +17262,10 @@ ${entry.value}</pre
       }}
     >
       ${filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
-        const id3 = pillId(index);
+        const id2 = pillId(index);
         return m$1`<div
-          id=${id3}
-          class="tab-pane show ${id3 === selectedNav ? "active" : ""}"
+          id=${id2}
+          class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
         >
           ${child}
         </div>`;
@@ -21848,7 +17347,7 @@ ${entry.value}</pre
         return [val];
       }
     };
-    const SampleInitEventView = ({ id: id2, event, style: style2 }) => {
+    const SampleInitEventView = ({ id, event, style: style2 }) => {
       const stateObj = event.state;
       const sections = [];
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
@@ -21866,7 +17365,7 @@ ${entry.value}</pre
   `);
       }
       return m$1`
-  <${EventPanel} id=${id2} style=${style2} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
+  <${EventPanel} id=${id} style=${style2} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
@@ -21902,7 +17401,7 @@ ${entry.value}</pre
     function setHydrateContext(context) {
       sharedConfig.context = context;
     }
-    const equalFn = (a2, b2) => a2 === b2;
+    const equalFn = (a2, b) => a2 === b;
     const $PROXY = Symbol("solid-proxy");
     const $TRACK = Symbol("solid-track");
     const signalOptions = {
@@ -21923,13 +17422,13 @@ ${entry.value}</pre
     let Updates = null;
     let Effects = null;
     let ExecCount = 0;
-    function createRoot(fn2, detachedOwner) {
-      const listener = Listener, owner = Owner, unowned = fn2.length === 0, root2 = unowned ? UNOWNED : {
+    function createRoot(fn, detachedOwner) {
+      const listener = Listener, owner = Owner, unowned = fn.length === 0, root2 = unowned ? UNOWNED : {
         owned: null,
         cleanups: null,
         context: null,
         owner: detachedOwner === void 0 ? owner : detachedOwner
-      }, updateFn = unowned ? fn2 : () => fn2(() => untrack(() => cleanNode(root2)));
+      }, updateFn = unowned ? fn : () => fn(() => untrack(() => cleanNode(root2)));
       Owner = root2;
       Listener = null;
       try {
@@ -21955,52 +17454,52 @@ ${entry.value}</pre
       };
       return [readSignal.bind(s2), setter];
     }
-    function createRenderEffect(fn2, value, options) {
-      const c2 = createComputation(fn2, value, false, STALE);
+    function createRenderEffect(fn, value, options) {
+      const c2 = createComputation(fn, value, false, STALE);
       updateComputation(c2);
     }
-    function createEffect(fn2, value, options) {
+    function createEffect(fn, value, options) {
       runEffects = runUserEffects;
-      const c2 = createComputation(fn2, value, false, STALE);
+      const c2 = createComputation(fn, value, false, STALE);
       c2.user = true;
       Effects ? Effects.push(c2) : updateComputation(c2);
     }
-    function createMemo(fn2, value, options) {
+    function createMemo(fn, value, options) {
       options = options ? Object.assign({}, signalOptions, options) : signalOptions;
-      const c2 = createComputation(fn2, value, true, 0);
+      const c2 = createComputation(fn, value, true, 0);
       c2.observers = null;
       c2.observerSlots = null;
       c2.comparator = options.equals || void 0;
       updateComputation(c2);
       return readSignal.bind(c2);
     }
-    function batch(fn2) {
-      return runUpdates(fn2, false);
+    function batch(fn) {
+      return runUpdates(fn, false);
     }
-    function untrack(fn2) {
-      if (Listener === null) return fn2();
+    function untrack(fn) {
+      if (Listener === null) return fn();
       const listener = Listener;
       Listener = null;
       try {
-        return fn2();
+        return fn();
       } finally {
         Listener = listener;
       }
     }
-    function onMount(fn2) {
-      createEffect(() => untrack(fn2));
+    function onMount(fn) {
+      createEffect(() => untrack(fn));
     }
-    function onCleanup(fn2) {
+    function onCleanup(fn) {
       if (Owner === null) ;
-      else if (Owner.cleanups === null) Owner.cleanups = [fn2];
-      else Owner.cleanups.push(fn2);
-      return fn2;
+      else if (Owner.cleanups === null) Owner.cleanups = [fn];
+      else Owner.cleanups.push(fn);
+      return fn;
     }
     function getListener() {
       return Listener;
     }
-    function children(fn2) {
-      const children2 = createMemo(fn2);
+    function children(fn) {
+      const children2 = createMemo(fn);
       const memo = createMemo(() => resolveChildren(children2()));
       memo.toArray = () => {
         const c2 = memo();
@@ -22096,16 +17595,16 @@ ${entry.value}</pre
         node.updatedAt = time;
       }
     }
-    function createComputation(fn2, init2, pure, state = STALE, options) {
+    function createComputation(fn, init, pure, state = STALE, options) {
       const c2 = {
-        fn: fn2,
+        fn,
         state,
         updatedAt: null,
         owned: null,
         sources: null,
         sourceSlots: null,
         cleanups: null,
-        value: init2,
+        value: init,
         owner: Owner,
         context: null,
         pure
@@ -22140,15 +17639,15 @@ ${entry.value}</pre
         }
       }
     }
-    function runUpdates(fn2, init2) {
-      if (Updates) return fn2();
+    function runUpdates(fn, init) {
+      if (Updates) return fn();
       let wait = false;
-      if (!init2) Updates = [];
+      if (!init) Updates = [];
       if (Effects) wait = true;
       else Effects = [];
       ExecCount++;
       try {
-        const res = fn2();
+        const res = fn();
         completeUpdates(wait);
         return res;
       } catch (err2) {
@@ -22495,15 +17994,15 @@ ${entry.value}</pre
       let strictEqual = false;
       const keyed = props.keyed;
       const condition = createMemo(() => props.when, void 0, {
-        equals: (a2, b2) => strictEqual ? a2 === b2 : !a2 === !b2
+        equals: (a2, b) => strictEqual ? a2 === b : !a2 === !b
       });
       return createMemo(() => {
         const c2 = condition();
         if (c2) {
           const child = props.children;
-          const fn2 = typeof child === "function" && child.length > 0;
-          strictEqual = keyed || fn2;
-          return fn2 ? untrack(() => child(c2)) : child;
+          const fn = typeof child === "function" && child.length > 0;
+          strictEqual = keyed || fn;
+          return fn ? untrack(() => child(c2)) : child;
         }
         return props.fallback;
       }, void 0, void 0);
@@ -22511,7 +18010,7 @@ ${entry.value}</pre
     function Switch(props) {
       let strictEqual = false;
       let keyed = false;
-      const equals = (a2, b2) => a2[0] === b2[0] && (strictEqual ? a2[1] === b2[1] : !a2[1] === !b2[1]) && a2[2] === b2[2];
+      const equals = (a2, b) => a2[0] === b[0] && (strictEqual ? a2[1] === b[1] : !a2[1] === !b[1]) && a2[2] === b[2];
       const conditions = children(() => props.children), evalConditions = createMemo(() => {
         let conds = conditions();
         if (!Array.isArray(conds)) conds = [conds];
@@ -22530,44 +18029,44 @@ ${entry.value}</pre
         const [index, when, cond] = evalConditions();
         if (index < 0) return props.fallback;
         const c2 = cond.children;
-        const fn2 = typeof c2 === "function" && c2.length > 0;
-        strictEqual = keyed || fn2;
-        return fn2 ? untrack(() => c2(when)) : c2;
+        const fn = typeof c2 === "function" && c2.length > 0;
+        strictEqual = keyed || fn;
+        return fn ? untrack(() => c2(when)) : c2;
       }, void 0, void 0);
     }
     function Match(props) {
       return props;
     }
-    function reconcileArrays(parentNode, a2, b2) {
-      let bLength = b2.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = a2[aEnd - 1].nextSibling, map2 = null;
+    function reconcileArrays(parentNode, a2, b) {
+      let bLength = b.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = a2[aEnd - 1].nextSibling, map2 = null;
       while (aStart < aEnd || bStart < bEnd) {
-        if (a2[aStart] === b2[bStart]) {
+        if (a2[aStart] === b[bStart]) {
           aStart++;
           bStart++;
           continue;
         }
-        while (a2[aEnd - 1] === b2[bEnd - 1]) {
+        while (a2[aEnd - 1] === b[bEnd - 1]) {
           aEnd--;
           bEnd--;
         }
         if (aEnd === aStart) {
-          const node = bEnd < bLength ? bStart ? b2[bStart - 1].nextSibling : b2[bEnd - bStart] : after;
-          while (bStart < bEnd) parentNode.insertBefore(b2[bStart++], node);
+          const node = bEnd < bLength ? bStart ? b[bStart - 1].nextSibling : b[bEnd - bStart] : after;
+          while (bStart < bEnd) parentNode.insertBefore(b[bStart++], node);
         } else if (bEnd === bStart) {
           while (aStart < aEnd) {
             if (!map2 || !map2.has(a2[aStart])) a2[aStart].remove();
             aStart++;
           }
-        } else if (a2[aStart] === b2[bEnd - 1] && b2[bStart] === a2[aEnd - 1]) {
+        } else if (a2[aStart] === b[bEnd - 1] && b[bStart] === a2[aEnd - 1]) {
           const node = a2[--aEnd].nextSibling;
-          parentNode.insertBefore(b2[bStart++], a2[aStart++].nextSibling);
-          parentNode.insertBefore(b2[--bEnd], node);
-          a2[aEnd] = b2[bEnd];
+          parentNode.insertBefore(b[bStart++], a2[aStart++].nextSibling);
+          parentNode.insertBefore(b[--bEnd], node);
+          a2[aEnd] = b[bEnd];
         } else {
           if (!map2) {
             map2 = /* @__PURE__ */ new Map();
             let i2 = bStart;
-            while (i2 < bEnd) map2.set(b2[i2], i2++);
+            while (i2 < bEnd) map2.set(b[i2], i2++);
           }
           const index = map2.get(a2[aStart]);
           if (index != null) {
@@ -22579,19 +18078,19 @@ ${entry.value}</pre
               }
               if (sequence > index - bStart) {
                 const node = a2[aStart];
-                while (bStart < index) parentNode.insertBefore(b2[bStart++], node);
-              } else parentNode.replaceChild(b2[bStart++], a2[aStart++]);
+                while (bStart < index) parentNode.insertBefore(b[bStart++], node);
+              } else parentNode.replaceChild(b[bStart++], a2[aStart++]);
             } else aStart++;
           } else a2[aStart++].remove();
         }
       }
     }
     const $$EVENTS = "_$DX_DELEGATE";
-    function render(code2, element, init2, options = {}) {
+    function render(code2, element, init, options = {}) {
       let disposer;
       createRoot((dispose2) => {
         disposer = dispose2;
-        element === document ? code2() : insert(element, code2(), element.firstChild ? null : void 0, init2);
+        element === document ? code2() : insert(element, code2(), element.firstChild ? null : void 0, init);
       }, options.owner);
       return () => {
         disposer();
@@ -22650,8 +18149,8 @@ ${entry.value}</pre
       }
       return prev;
     }
-    function use(fn2, element, arg) {
-      return untrack(() => fn2(element, arg));
+    function use(fn, element, arg) {
+      return untrack(() => fn(element, arg));
     }
     function insert(parent, accessor, marker, initial) {
       if (marker !== void 0 && !initial) initial = [];
@@ -23472,14 +18971,14 @@ ${val.stack}`;
         const now = this.now.bind(this);
         const setTimeout2 = (f2, t2) => window.setTimeout(f2, t2 / this.speed);
         const setInterval2 = (f2, t2) => window.setInterval(f2, t2 / this.speed);
-        const reset2 = this.resetVt.bind(this);
+        const reset = this.resetVt.bind(this);
         const setState = this.setState.bind(this);
         const posterTime = this.poster.type === "npt" ? this.poster.value : void 0;
         this.driver = this.driverFn({
           feed,
           onInput,
           onMarker,
-          reset: reset2,
+          reset,
           now,
           setTimeout: setTimeout2,
           setInterval: setInterval2,
@@ -23680,14 +19179,14 @@ ${val.stack}`;
         });
       }
       resetVt(cols, rows) {
-        let init2 = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : void 0;
+        let init = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : void 0;
         let theme = arguments.length > 3 && arguments[3] !== void 0 ? arguments[3] : void 0;
         this.cols = cols;
         this.rows = rows;
         this.cursor = void 0;
         this.initializeVt(cols, rows);
-        if (init2 !== void 0 && init2 !== "") {
-          this.doFeed(init2);
+        if (init !== void 0 && init !== "") {
+          this.doFeed(init);
         }
         this.dispatchEvent("reset", {
           cols,
@@ -23948,7 +19447,7 @@ ${val.stack}`;
       return [wrappedStore, setStore];
     }
     const $ROOT = Symbol("store-root");
-    function applyState(target, parent, property, merge2, key2) {
+    function applyState(target, parent, property, merge, key2) {
       const previous = parent[property];
       if (target === previous) return;
       if (!isWrappable(target) || !isWrappable(previous) || key2 && target[key2] !== previous[key2]) {
@@ -23959,10 +19458,10 @@ ${val.stack}`;
         return;
       }
       if (Array.isArray(target)) {
-        if (target.length && previous.length && (!merge2 || key2 && target[0] && target[0][key2] != null)) {
+        if (target.length && previous.length && (!merge || key2 && target[0] && target[0][key2] != null)) {
           let i2, j2, start2, end2, newEnd, item, newIndicesNext, keyVal;
           for (start2 = 0, end2 = Math.min(previous.length, target.length); start2 < end2 && (previous[start2] === target[start2] || key2 && previous[start2] && target[start2] && previous[start2][key2] === target[start2][key2]); start2++) {
-            applyState(target[start2], previous, start2, merge2, key2);
+            applyState(target[start2], previous, start2, merge, key2);
           }
           const temp = new Array(target.length), newIndices = /* @__PURE__ */ new Map();
           for (end2 = previous.length - 1, newEnd = target.length - 1; end2 >= start2 && newEnd >= start2 && (previous[end2] === target[newEnd] || key2 && previous[start2] && target[start2] && previous[end2][key2] === target[newEnd][key2]); end2--, newEnd--) {
@@ -23972,7 +19471,7 @@ ${val.stack}`;
             for (j2 = start2; j2 <= newEnd; j2++) setProperty(previous, j2, target[j2]);
             for (; j2 < target.length; j2++) {
               setProperty(previous, j2, temp[j2]);
-              applyState(target[j2], previous, j2, merge2, key2);
+              applyState(target[j2], previous, j2, merge, key2);
             }
             if (previous.length > target.length) setProperty(previous, "length", target.length);
             return;
@@ -23998,12 +19497,12 @@ ${val.stack}`;
           for (j2 = start2; j2 < target.length; j2++) {
             if (j2 in temp) {
               setProperty(previous, j2, temp[j2]);
-              applyState(target[j2], previous, j2, merge2, key2);
+              applyState(target[j2], previous, j2, merge, key2);
             } else setProperty(previous, j2, target[j2]);
           }
         } else {
           for (let i2 = 0, len = target.length; i2 < len; i2++) {
-            applyState(target[i2], previous, i2, merge2, key2);
+            applyState(target[i2], previous, i2, merge, key2);
           }
         }
         if (previous.length > target.length) setProperty(previous, "length", target.length);
@@ -24011,7 +19510,7 @@ ${val.stack}`;
       }
       const targetKeys = Object.keys(target);
       for (let i2 = 0, len = targetKeys.length; i2 < len; i2++) {
-        applyState(target[targetKeys[i2]], previous, targetKeys[i2], merge2, key2);
+        applyState(target[targetKeys[i2]], previous, targetKeys[i2], merge, key2);
       }
       const previousKeys = Object.keys(previous);
       for (let i2 = 0, len = previousKeys.length; i2 < len; i2++) {
@@ -24020,14 +19519,14 @@ ${val.stack}`;
     }
     function reconcile(value, options = {}) {
       const {
-        merge: merge2,
+        merge,
         key: key2 = "id"
       } = options, v2 = unwrap(value);
       return (state) => {
         if (!isWrappable(state) || !isWrappable(v2)) return v2;
         const res = applyState(v2, {
           [$ROOT]: state
-        }, $ROOT, merge2, key2);
+        }, $ROOT, merge, key2);
         return res === void 0 ? state : res;
       };
     }
@@ -25382,7 +20881,7 @@ ${events}
       let startTime;
       let pauseElapsedTime;
       let playCount = 0;
-      async function init2() {
+      async function init() {
         const {
           parser,
           minFrameTime,
@@ -25657,7 +21156,7 @@ ${events}
         feed(`\x1B[8;${initialRows};${initialCols};t`);
       }
       return {
-        init: init2,
+        init,
         play,
         pause,
         seek,
@@ -25726,12 +21225,12 @@ ${events}
       events = events.map(convertResizeEvent).transform(batcher(logger, minFrameTime)).map(timeLimiter(idleTimeLimit, startAt, limiterOutput)).map(markerWrapper());
       if (markers_ !== void 0) {
         markers_ = new Stream(markers_).map(normalizeMarker);
-        events = events.filter((e2) => e2[1] !== "m").multiplex(markers_, (a2, b2) => a2[0] < b2[0]).map(markerWrapper());
+        events = events.filter((e2) => e2[1] !== "m").multiplex(markers_, (a2, b) => a2[0] < b[0]).map(markerWrapper());
       }
       events = events.toArray();
       if (inputOffset !== void 0) {
         events = events.map((e2) => e2[1] === "i" ? [e2[0] + inputOffset, e2[1], e2[2]] : e2);
-        events.sort((a2, b2) => a2[0] - b2[0]);
+        events.sort((a2, b) => a2[0] - b[0]);
       }
       const duration = events[events.length - 1][0];
       const effectiveStartAt = startAt - limiterOutput.offset;
@@ -25751,7 +21250,7 @@ ${events}
       const o2 = new Stream(output).map((e2) => [e2[0], "o", e2[1]]);
       const i2 = new Stream(input).map((e2) => [e2[0], "i", e2[1]]);
       const m2 = new Stream(markers).map(normalizeMarker);
-      return o2.multiplex(i2, (a2, b2) => a2[0] < b2[0]).multiplex(m2, (a2, b2) => a2[0] < b2[0]);
+      return o2.multiplex(i2, (a2, b) => a2[0] < b[0]).multiplex(m2, (a2, b) => a2[0] < b[0]);
     }
     function convertResizeEvent(e2) {
       if (e2[1] === "r") {
@@ -26180,7 +21679,7 @@ ${events}
       } = _ref;
       let {
         feed,
-        reset: reset2,
+        reset,
         setState,
         logger
       } = _ref2;
@@ -26271,12 +21770,12 @@ ${events}
           }
           const initLen = view.getUint32(offset2, true);
           offset2 += 4;
-          let init2;
+          let init;
           if (initLen > 0) {
-            init2 = utfDecoder.decode(new Uint8Array(buffer2, offset2, initLen));
+            init = utfDecoder.decode(new Uint8Array(buffer2, offset2, initLen));
             offset2 += initLen;
           }
-          handleResetMessage(cols, rows, time, init2, theme);
+          handleResetMessage(cols, rows, time, init, theme);
         } else if (type === 111) {
           const time = view.getFloat32(1, true);
           const len = view.getUint32(5, true);
@@ -26306,8 +21805,8 @@ ${events}
           palette
         };
       }
-      function hexColor(r2, g2, b2) {
-        return `#${byteToHex(r2)}${byteToHex(g2)}${byteToHex(b2)}`;
+      function hexColor(r2, g2, b) {
+        return `#${byteToHex(r2)}${byteToHex(g2)}${byteToHex(b)}`;
       }
       function byteToHex(value) {
         return value.toString(16).padStart(2, "0");
@@ -26315,11 +21814,11 @@ ${events}
       function handleRawTextMessage(event) {
         buf.pushText(utfDecoder.decode(event.data));
       }
-      function handleResetMessage(cols, rows, time, init2, theme) {
+      function handleResetMessage(cols, rows, time, init, theme) {
         logger.debug(`stream reset (${cols}x${rows} @${time})`);
         setState("playing");
         initBuffer(time);
-        reset2(cols, rows, init2, theme);
+        reset(cols, rows, init, theme);
         clock2 = new Clock();
         wasOnline = true;
         if (typeof time === "number") {
@@ -26339,7 +21838,7 @@ ${events}
         }
         clock2 = new NullClock();
       }
-      function connect2() {
+      function connect() {
         socket = new WebSocket(url);
         socket.binaryType = "arraybuffer";
         socket.onopen = () => {
@@ -26360,14 +21859,14 @@ ${events}
             const delay = reconnectDelay(reconnectAttempt++);
             logger.info(`unclean close, reconnecting in ${delay}...`);
             setState("loading");
-            setTimeout(connect2, delay);
+            setTimeout(connect, delay);
           }
         };
         wasOnline = false;
       }
       return {
         play: () => {
-          connect2();
+          connect();
         },
         stop: () => {
           stop = true;
@@ -26385,7 +21884,7 @@ ${events}
       } = _ref;
       let {
         feed,
-        reset: reset2,
+        reset,
         setState,
         logger
       } = _ref2;
@@ -26421,7 +21920,7 @@ ${events}
               logger.debug(`vt reset (${cols}x${rows})`);
               setState("playing");
               initBuffer(e2.time);
-              reset2(cols, rows, e2.init ?? void 0);
+              reset(cols, rows, e2.init ?? void 0);
               clock2 = new Clock();
               if (typeof e2.time === "number") {
                 clock2.setTime(e2.time);
@@ -26700,7 +22199,7 @@ ${events}
       return metrics;
     }
     const AsciiCinemaPlayer = ({
-      id: id2,
+      id,
       rows,
       cols,
       inputUrl,
@@ -26714,7 +22213,7 @@ ${events}
       idleTimeLimit = 2,
       style: style2
     }) => {
-      const playerContainerRef = A$1();
+      const playerContainerRef = A();
       y(() => {
         const player = create(
           {
@@ -26740,7 +22239,7 @@ ${events}
       }, []);
       return m$1`
     <div
-      id="asciinema-player-${id2 || "default"}"
+      id="asciinema-player-${id || "default"}"
       ref=${playerContainerRef}
       style=${{ ...style2 }}
     ></div>
@@ -26766,12 +22265,12 @@ ${events}
           return () => clearTimeout(timer);
         }
       }, [isOpen, showOverlay]);
-      const showNext = q$1(() => {
+      const showNext = q(() => {
         setCurrentIndex((prev) => {
           return (prev + 1) % slides.length;
         });
       }, [slides]);
-      const showPrev = q$1(() => {
+      const showPrev = q(() => {
         setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
       }, [slides]);
       y(() => {
@@ -27205,29 +22704,29 @@ ${events}
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       pipe(name, pipeArg) {
-        let pipe2 = pipeArg;
+        let pipe = pipeArg;
         if (typeof name === "string") {
-          if (typeof pipe2 === "undefined") {
+          if (typeof pipe === "undefined") {
             return this.pipes[name];
           } else {
-            this.pipes[name] = pipe2;
+            this.pipes[name] = pipe;
           }
         }
         if (name && name.name) {
-          pipe2 = name;
-          if (pipe2.processor === this) {
-            return pipe2;
+          pipe = name;
+          if (pipe.processor === this) {
+            return pipe;
           }
-          this.pipes[pipe2.name] = pipe2;
+          this.pipes[pipe.name] = pipe;
         }
-        pipe2.processor = this;
-        return pipe2;
+        pipe.processor = this;
+        return pipe;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      process(input, pipe2) {
+      process(input, pipe) {
         let context = input;
         context.options = this.options();
-        let nextPipe = pipe2 || input.pipe || "default";
+        let nextPipe = pipe || input.pipe || "default";
         let lastPipe;
         while (nextPipe) {
           if (typeof context.nextAfterChildren !== "undefined") {
@@ -27263,11 +22762,11 @@ ${events}
         const length = this.filters.length;
         const context = input;
         for (let index = 0; index < length; index++) {
-          const filter2 = this.filters[index];
+          const filter = this.filters[index];
           if (debug) {
-            this.log(`filter: ${filter2.filterName}`);
+            this.log(`filter: ${filter.filterName}`);
           }
-          filter2(context);
+          filter(context);
           if (typeof context === "object" && context.exiting) {
             context.exiting = false;
             break;
@@ -27293,8 +22792,8 @@ ${events}
           throw new Error("a filter name is required");
         }
         for (let index = 0; index < this.filters.length; index++) {
-          const filter2 = this.filters[index];
-          if (filter2.filterName === filterName) {
+          const filter = this.filters[index];
+          if (filter.filterName === filterName) {
             return index;
           }
         }
@@ -27412,12 +22911,12 @@ ${events}
       }
       setResult(result) {
         if (this.options.cloneDiffValues && typeof result === "object") {
-          const clone$12 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
+          const clone$1 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
           if (typeof result[0] === "object") {
-            result[0] = clone$12(result[0]);
+            result[0] = clone$1(result[0]);
           }
           if (typeof result[1] === "object") {
-            result[1] = clone$12(result[1]);
+            result[1] = clone$1(result[1]);
           }
         }
         return super.setResult(result);
@@ -27901,11 +23400,11 @@ ${events}
     };
     diffFilter$2.filterName = "arrays";
     const compare = {
-      numerically(a2, b2) {
-        return a2 - b2;
+      numerically(a2, b) {
+        return a2 - b;
       },
       numericallyBy(name) {
-        return (a2, b2) => a2[name] - b2[name];
+        return (a2, b) => a2[name] - b[name];
       }
     };
     const patchFilter$1 = function nestedPatchFilter(context) {
@@ -28329,7 +23828,7 @@ ${events}
           this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
         });
       }
-      forEachDeltaKey(delta, left2, fn2) {
+      forEachDeltaKey(delta, left2, fn) {
         const keys = Object.keys(delta);
         const arrayKeys = delta._t === "a";
         const moveDestinations = {};
@@ -28372,7 +23871,7 @@ ${events}
           }
           const leftKey = arrayKeys ? parseInt(trimUnderscore(key2), 10) : key2;
           const isLast = index === length - 1;
-          fn2(key2, leftKey, moveDestinations[leftKey], isLast);
+          fn(key2, leftKey, moveDestinations[leftKey], isLast);
         }
       }
       getDeltaType(delta, movedFrom) {
@@ -28559,15 +24058,15 @@ ${events}
     const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
       const node = nodeArg || document;
       const getElementText = ({ textContent, innerText }) => textContent || innerText;
-      const eachByQuery = (el, query, fn2) => {
+      const eachByQuery = (el, query, fn) => {
         const elems = el.querySelectorAll(query);
         for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
-          fn2(elems[i2]);
+          fn(elems[i2]);
         }
       };
-      const eachChildren = ({ children: children2 }, fn2) => {
+      const eachChildren = ({ children: children2 }, fn) => {
         for (let i2 = 0, l2 = children2.length; i2 < l2; i2++) {
-          fn2(children2[i2], i2);
+          fn(children2[i2], i2);
         }
       };
       eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children: children2, style: style2 }) => {
@@ -28636,7 +24135,7 @@ ${events}
         ])
       );
     }
-    const StateEventView = ({ id: id2, event, isStore, style: style2 }) => {
+    const StateEventView = ({ id, event, isStore, style: style2 }) => {
       const summary = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
       const tabs = [
@@ -28661,7 +24160,7 @@ ${events}
       }
       const title = event.event === "state" ? "State Updated" : "Store Updated";
       return m$1`
-  <${EventPanel} id=${id2} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style2}>
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style2}>
     ${tabs}
   </${EventPanel}>`;
     };
@@ -28913,9 +24412,9 @@ ${events}
         }
       }
     };
-    const SubtaskEventView = ({ id: id2, event, style: style2, depth }) => {
+    const SubtaskEventView = ({ id, event, style: style2, depth }) => {
       const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
-          id="${id2}-subtask"
+          id="${id}-subtask"
           name="Transcript"
           events=${event.events}
           depth=${depth + 1}
@@ -28939,7 +24438,7 @@ ${events}
         `;
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return m$1`
-    <${EventPanel} id=${id2} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style2} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style2} collapse=${false}>
       ${body}
     </${EventPanel}>`;
     };
@@ -29164,7 +24663,7 @@ ${events}
       })}
   </div>`;
     };
-    const ModelEventView = ({ id: id2, event, style: style2 }) => {
+    const ModelEventView = ({ id, event, style: style2 }) => {
       var _a2, _b2;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
@@ -29196,11 +24695,11 @@ ${events}
         }
       }
       return m$1`
-  <${EventPanel} id=${id2} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style2}>
+  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style2}>
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
-      id="${id2}-model-output"
+      id="${id}-model-output"
       messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
       numbered=${false}
@@ -29227,7 +24726,7 @@ ${events}
 
       <${EventSection} title="Messages">
         <${ChatView}
-          id="${id2}-model-input-full"
+          id="${id}-model-input-full"
           messages=${[...event.input, ...outputMessages || []]}
           />      
       </${EventSection}>
@@ -29238,27 +24737,27 @@ ${events}
    
   </${EventPanel}>`;
     };
-    const APIView = ({ call: call2, style: style2 }) => {
-      if (!call2) {
+    const APIView = ({ call, style: style2 }) => {
+      if (!call) {
         return "";
       }
       return m$1`<div style=${style2}>
 
     <${EventSection} title="Request">
-      <${APICodeCell} contents=${call2.request} />
+      <${APICodeCell} contents=${call.request} />
     </${EventSection}>
     <${EventSection} title="Response">
-      <${APICodeCell} contents=${call2.response} />
+      <${APICodeCell} contents=${call.response} />
     </${EventSection}>
 
     </div>`;
     };
-    const APICodeCell = ({ id: id2, contents }) => {
+    const APICodeCell = ({ id, contents }) => {
       if (!contents) {
         return "";
       }
       const sourceCode = JSON.stringify(contents, void 0, 2);
-      const codeRef = A$1();
+      const codeRef = A();
       y(() => {
         if (codeRef.current) {
           codeRef.current.innerHTML = Prism$1.highlight(
@@ -29278,7 +24777,7 @@ ${events}
       }}
     >
       <code 
-        id=${id2} 
+        id=${id} 
         ref=${codeRef}
         class="sourceCode-js" 
         style=${{
@@ -29336,10 +24835,10 @@ ${events}
   </div>`;
       return card;
     };
-    const LoggerEventView = ({ id: id2, event, style: style2 }) => {
+    const LoggerEventView = ({ id, event, style: style2 }) => {
       return m$1`
   <${EventRow} 
-    id=${id2}
+    id=${id}
     title=${event.message.level} 
     icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
     style=${style2}
@@ -29353,9 +24852,9 @@ ${events}
   </${EventRow}>`;
     };
     const kPrismRenderMaxSize = 25e4;
-    const JSONPanel = ({ id: id2, json, data, simple, style: style2 }) => {
-      const codeRef = A$1();
-      const sourceCode = T$1(() => {
+    const JSONPanel = ({ id, json, data, simple, style: style2 }) => {
+      const codeRef = A();
+      const sourceCode = T(() => {
         return json || JSON.stringify(data, void 0, 2);
       }, [json, data]);
       y(() => {
@@ -29375,7 +24874,7 @@ ${events}
       class="jsonPanel"
     >
     <code 
-      id=${id2}
+      id=${id}
       ref=${codeRef}
       class="sourceCode language-javascript" 
       style=${{
@@ -29388,7 +24887,7 @@ ${events}
     </pre>
   </div>`;
     };
-    const InfoEventView = ({ id: id2, event, style: style2 }) => {
+    const InfoEventView = ({ id, event, style: style2 }) => {
       const panels = [];
       if (typeof event.data === "string") {
         panels.push(
@@ -29403,14 +24902,14 @@ ${events}
         );
       }
       return m$1`
-  <${EventPanel} id=${id2} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style2}>
+  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style2}>
     ${panels}
   </${EventPanel}>`;
     };
-    const ScoreEventView = ({ id: id2, event, style: style2 }) => {
+    const ScoreEventView = ({ id, event, style: style2 }) => {
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return m$1`
-  <${EventPanel} id=${id2} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style2}>
+  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style2}>
   
     <div
       name="Explanation"
@@ -29453,10 +24952,10 @@ ${events}
         return value;
       }
     };
-    const ApprovalEventView = ({ id: id2, event, style: style2 }) => {
+    const ApprovalEventView = ({ id, event, style: style2 }) => {
       return m$1`
   <${EventRow}
-      id=${id2}
+      id=${id}
       title="${decisionLabel(event.decision)}"
       icon=${decisionIcon(event.decision)}  
       style=${style2}
@@ -29496,7 +24995,7 @@ ${events}
           return ApplicationIcons.approve;
       }
     };
-    const ToolEventView = ({ id: id2, event, style: style2, depth }) => {
+    const ToolEventView = ({ id, event, style: style2, depth }) => {
       var _a2, _b2;
       const { input, functionCall, inputType } = resolveToolInput(
         event.function,
@@ -29507,7 +25006,7 @@ ${events}
       });
       const title = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return m$1`
-  <${EventPanel} id=${id2} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style2}>  
+  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style2}>  
   <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
@@ -29518,32 +25017,32 @@ ${events}
       view=${event.view}
       />
       ${approvalEvent ? m$1`<${ApprovalEventView}
-              id="${id2}-approval"
+              id="${id}-approval"
               event=${approvalEvent}
               style=${{ border: "none", padding: 0, marginBottom: 0 }}
             />` : ""}
   </div>
     ${event.events.length > 0 ? m$1`<${TranscriptView}
-            id="${id2}-subtask"
+            id="${id}-subtask"
             name="Transcript"
             events=${event.events}
             depth=${depth + 1}
           />` : ""}
   </${EventPanel}>`;
     };
-    const ErrorEventView = ({ id: id2, event, style: style2 }) => {
+    const ErrorEventView = ({ id, event, style: style2 }) => {
       return m$1`
-  <${EventPanel} id=${id2} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style2}>
+  <${EventPanel} id=${id} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style2}>
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
     };
-    const InputEventView = ({ id: id2, event, style: style2 }) => {
+    const InputEventView = ({ id, event, style: style2 }) => {
       return m$1`
-  <${EventPanel} id=${id2} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style2}>
+  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style2}>
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style2 }}/>
   </${EventPanel}>`;
     };
-    const SampleLimitEventView = ({ id: id2, event, style: style2 }) => {
+    const SampleLimitEventView = ({ id, event, style: style2 }) => {
       const resolve_title = (type) => {
         switch (type) {
           case "context":
@@ -29575,7 +25074,7 @@ ${events}
       const title = resolve_title(event.type);
       const icon = resolve_icon(event.type);
       return m$1`
-  <${EventPanel} id=${id2} title=${title} icon=${icon} style=${style2}>
+  <${EventPanel} id=${id} title=${title} icon=${icon} style=${style2}>
     ${event.message}
   </${EventPanel}>`;
     };
@@ -29591,42 +25090,31 @@ ${events}
         this.depth = depth;
       }
     }
-    const TranscriptView = ({ id: id2, events, depth = 0 }) => {
+    const TranscriptView = ({ id, events, depth = 0 }) => {
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
-      return m$1` <${TranscriptComponent} id=${id2} eventNodes=${eventNodes} /> `;
+      return m$1` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
     };
     const TranscriptVirtualList = (props) => {
-      let { id: id2, scrollRef, events, depth, style: style2 } = props;
+      let { id, scrollRef, events, depth, style: style2 } = props;
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
       return m$1`<${TranscriptVirtualListComponent}
-    id=${id2}
+    id=${id}
     eventNodes=${eventNodes}
     style=${style2}
     scrollRef=${scrollRef}
   />`;
     };
     const TranscriptVirtualListComponent = ({
-      id: id2,
+      id,
       eventNodes,
       style: style2,
       scrollRef
     }) => {
-      return m$1`<${Virtuoso}
-    id=${`${id2}-virtual-list`}
-    style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
-    customScrollParent=${scrollRef.current}
-    data=${eventNodes}
-    skipAnimationFrameInResizeObserver=${true}
-    increaseViewportBy=${{
-        top: 1e3,
-        bottom: 1e3
-      }}
-    itemContent=${(index) => {
-        const node = eventNodes[index];
+      const renderRow = (item, index) => {
         const toggleStyle = {};
-        if (node.depth % 2 == 0) {
+        if (item.depth % 2 == 0) {
           toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
         } else {
           toggleStyle.backgroundColor = "var(--bs-body-bg)";
@@ -29636,20 +25124,26 @@ ${events}
           paddingTop = ".5em";
         }
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
-        <${RenderedEventNode}
-          id=${`${id2}-event${index}`}
-          node=${node}
-          style=${{
+      <${RenderedEventNode}
+        id=${`${id}-event${index}`}
+        node=${item}
+        style=${{
           ...toggleStyle,
           ...style2
         }}
-          scrollRef=${scrollRef}
-        />
-      </div>`;
-      }}
+        scrollRef=${scrollRef}
+      />
+    </div>`;
+      };
+      return m$1`<${VirtualList} 
+      data=${eventNodes}
+      tabIndex="0"
+      renderRow=${renderRow}
+      scrollRef=${scrollRef}
+      style=${{ width: "100%", marginTop: "1em" }}
   />`;
     };
-    const TranscriptComponent = ({ id: id2, eventNodes, style: style2 }) => {
+    const TranscriptComponent = ({ id, eventNodes, style: style2 }) => {
       const rows = eventNodes.map((eventNode, index) => {
         const toggleStyle = {};
         if (eventNode.depth % 2 == 0) {
@@ -29669,7 +25163,7 @@ ${events}
         const row = m$1`
       <div style=${{ paddingBottom }}>
         <${RenderedEventNode}
-          id=${`${id2}-event${index}`}
+          id=${`${id}-event${index}`}
           node=${eventNode}
           style=${{
           ...toggleStyle,
@@ -29681,8 +25175,8 @@ ${events}
         return row;
       });
       return m$1`<div
-    id=${id2}
-    key=${id2}
+    id=${id}
+    key=${id}
     style=${{
         fontSize: FontSize.small,
         display: "grid",
@@ -29693,53 +25187,53 @@ ${events}
     ${rows}
   </div>`;
     };
-    const RenderedEventNode = ({ id: id2, node, style: style2, scrollRef }) => {
+    const RenderedEventNode = ({ id, node, style: style2, scrollRef }) => {
       switch (node.event.event) {
         case "sample_init":
           return m$1`<${SampleInitEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "sample_limit":
           return m$1`<${SampleLimitEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "info":
           return m$1`<${InfoEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "logger":
           return m$1`<${LoggerEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "model":
           return m$1`<${ModelEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "score":
           return m$1`<${ScoreEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "state":
           return m$1`<${StateEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "step":
           return m$1`<${StepEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         children=${node.children}
         style=${style2}
@@ -29747,40 +25241,40 @@ ${events}
       />`;
         case "store":
           return m$1`<${StateEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
         isStore=${true}
       />`;
         case "subtask":
           return m$1`<${SubtaskEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
         depth=${node.depth}
       />`;
         case "tool":
           return m$1`<${ToolEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
         depth=${node.depth}
       />`;
         case "input":
           return m$1`<${InputEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "error":
           return m$1`<${ErrorEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
         case "approval":
           return m$1`<${ApprovalEventView}
-        id=${id2}
+        id=${id}
         event=${node.event}
         style=${style2}
       />`;
@@ -29841,9 +25335,9 @@ ${events}
       });
       return rootNodes;
     }
-    const SampleTranscript = ({ id: id2, evalEvents, scrollRef }) => {
+    const SampleTranscript = ({ id, evalEvents, scrollRef }) => {
       return m$1`<${TranscriptVirtualList}
-    id=${id2}
+    id=${id}
     events=${evalEvents}
     scrollRef=${scrollRef}
   />`;
@@ -29966,7 +25460,7 @@ ${events}
     const kScoreDescVal = "score-desc";
     const kDefaultSort = kSampleAscVal;
     const InlineSampleDisplay = ({
-      id: id2,
+      id,
       sample,
       sampleStatus,
       sampleError,
@@ -29987,7 +25481,7 @@ ${events}
             title="Unable to load sample"
             error=${sampleError}
           />` : m$1` <${SampleDisplay}
-            id=${id2}
+            id=${id}
             sample=${sample}
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
@@ -29998,7 +25492,7 @@ ${events}
   </div>`;
     };
     const SampleDisplay = ({
-      id: id2,
+      id,
       sample,
       sampleDescriptor,
       selectedTab,
@@ -30010,16 +25504,16 @@ ${events}
         return m$1`<${EmptyPanel} />`;
       }
       const onSelectedTab = (e2) => {
-        const id3 = e2.currentTarget.id;
-        setSelectedTab(id3);
+        const id2 = e2.currentTarget.id;
+        setSelectedTab(id2);
         return false;
       };
       const tabs = [
         m$1`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId} scrollable=${false} style=${{ width: "100%" }}>
       <${ChatViewVirtualList} 
-        key=${`${baseId}-chat-${id2}`} 
-        id=${`${baseId}-chat-${id2}`} 
+        key=${`${baseId}-chat-${id}`} 
+        id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
         style=${{ marginLeft: ".8em", marginTop: "1em" }}
         indented=${true}
@@ -30030,7 +25524,7 @@ ${events}
       if (sample.events && sample.events.length > 0) {
         tabs.unshift(m$1`
       <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === kSampleTranscriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${id2}`} id=${`${baseId}-transcript-display-${id2}`} evalEvents=${sample.events} scrollRef=${scrollRef}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events} scrollRef=${scrollRef}/>
       </${TabPanel}>`);
       }
       const scorerNames = Object.keys(sample.scores);
@@ -30056,7 +25550,7 @@ ${events}
         </${TabPanel}>`);
         }
       }
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id2}`, sample);
+      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
       if (sampleMetadatas.length > 0) {
         tabs.push(
           m$1`
@@ -30099,7 +25593,7 @@ ${events}
       </div>
     </${TabPanel}>`);
       }
-      const tabsetId = `task-sample-details-tab-${id2}`;
+      const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
       const printSample = () => {
         const targetTabEl = document.querySelector(
@@ -30108,7 +25602,7 @@ ${events}
         if (targetTabEl) {
           const targetEl = targetTabEl.firstElementChild;
           if (targetEl) {
-            const headingId = `sample-heading-${id2}`;
+            const headingId = `sample-heading-${id}`;
             const headingEl = document.getElementById(headingId);
             const headingHtml = printHeadingHtml();
             const css = `
@@ -30166,7 +25660,7 @@ ${events}
         );
       }
       return m$1`<${SampleSummary}
-    id=${id2}
+    id=${id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
@@ -30180,7 +25674,7 @@ ${events}
     ${tabs}
   </${TabSet}>`;
     };
-    const metadataViewsForSample = (id2, sample) => {
+    const metadataViewsForSample = (id, sample) => {
       const sampleMetadatas = [];
       if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
         sampleMetadatas.push(m$1`
@@ -30198,7 +25692,7 @@ ${events}
         <${CardHeader} label="Metadata"/>
         <${CardBody}>
           <${MetaDataView}
-            id="task-sample-metadata-${id2}"
+            id="task-sample-metadata-${id}"
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
@@ -30214,7 +25708,7 @@ ${events}
         <${CardHeader} label="Store"/>
         <${CardBody}>
           <${MetaDataView}
-            id="task-sample-store-${id2}"
+            id="task-sample-store-${id}"
             classes="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
@@ -30344,7 +25838,7 @@ ${events}
   `;
     };
     const SampleDialog = ({
-      id: id2,
+      id,
       title,
       sample,
       sampleDescriptor,
@@ -30359,11 +25853,11 @@ ${events}
       sampleScrollPositionRef,
       setSampleScrollPosition
     }) => {
-      const scrollRef = A$1(
+      const scrollRef = A(
         /** @type {HTMLElement|null} */
         null
       );
-      const tools = T$1(() => {
+      const tools = T(() => {
         const nextTool = {
           label: "Next Sample",
           icon: ApplicationIcons.next,
@@ -30381,7 +25875,7 @@ ${events}
           right: [nextTool]
         };
       }, [prevSample, nextSample]);
-      const handleKeyUp = q$1(
+      const handleKeyUp = q(
         (e2) => {
           switch (e2.key) {
             case "ArrowRight":
@@ -30401,22 +25895,22 @@ ${events}
         },
         [prevSample, nextSample]
       );
-      const children2 = T$1(() => {
+      const children2 = T(() => {
         return sampleError ? m$1`<${ErrorPanel} title="Sample Error" error=${sampleError} />` : m$1`<${SampleDisplay}
-          id=${id2}
+          id=${id}
           sample=${sample}
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
           scrollRef=${scrollRef}
         />`;
-      }, [id2, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
-      const onHide = q$1(() => {
+      }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
+      const onHide = q(() => {
         setShowingSampleDialog(false);
       }, [setShowingSampleDialog]);
       return m$1`
     <${LargeModal} 
-      id=${id2} 
+      id=${id} 
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
@@ -30455,7 +25949,7 @@ ${events}
       const heightForType = (type) => {
         return type === "sample" ? kSampleHeight : kSeparatorHeight;
       };
-      const rowMap = T$1(() => {
+      const rowMap = T(() => {
         return items.reduce((values, current, index) => {
           const height = heightForType(current.type);
           const previous = values.length > 0 ? values[values.length - 1] : void 0;
@@ -30473,15 +25967,15 @@ ${events}
         if (listEl) {
           const selected = rowMap[selectedIndex];
           if (selected) {
-            const itemTop2 = selected.start;
+            const itemTop = selected.start;
             const itemBottom = selected.start + selected.height;
             const scrollTop = listEl.base.scrollTop;
             const scrollBottom = scrollTop + listEl.base.offsetHeight;
-            if (itemTop2 >= scrollTop && itemBottom <= scrollBottom) {
+            if (itemTop >= scrollTop && itemBottom <= scrollBottom) {
               return;
             }
-            if (itemTop2 < scrollTop) {
-              listEl.base.scrollTo({ top: itemTop2 });
+            if (itemTop < scrollTop) {
+              listEl.base.scrollTo({ top: itemTop });
               return;
             }
             if (itemBottom > scrollBottom) {
@@ -30518,7 +26012,7 @@ ${events}
           return "";
         }
       };
-      const onkeydown = q$1(
+      const onkeydown = q(
         (e2) => {
           switch (e2.key) {
             case "ArrowUp":
@@ -30620,9 +26114,9 @@ ${events}
     ${footerRow}
   </div>`;
     };
-    const SeparatorRow = ({ id: id2, title, height }) => {
+    const SeparatorRow = ({ id, title, height }) => {
       return m$1`<div
-    id=${id2}
+    id=${id}
     style=${{
         padding: ".25em 1em .25em 1em",
         textTransform: "uppercase",
@@ -30637,7 +26131,7 @@ ${events}
   </div>`;
     };
     const SampleRow = ({
-      id: id2,
+      id,
       index,
       sample,
       sampleDescriptor,
@@ -30654,7 +26148,7 @@ ${events}
       };
       return m$1`
     <div
-      id=${`sample-${id2}`}
+      id=${`sample-${id}`}
       onclick=${() => {
         showSample(index);
       }}
@@ -30741,10 +26235,10 @@ ${events}
   `;
     };
     const gridColumnStyles = (sampleDescriptor) => {
-      const { input, target, answer, limit, id: id2, score } = gridColumns(sampleDescriptor);
+      const { input, target, answer, limit, id, score } = gridColumns(sampleDescriptor);
       return {
         gridGap: "10px",
-        gridTemplateColumns: `${id2} ${input} ${target} ${answer} ${limit} ${score}`,
+        gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
         paddingLeft: "1rem",
         paddingRight: "1rem"
       };
@@ -30754,7 +26248,7 @@ ${events}
       const target = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limit = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const id2 = Math.max(2, Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id));
+      const id = Math.max(2, Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id));
       const score = Math.max(
         3,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.score)
@@ -30771,7 +26265,7 @@ ${events}
         target: frSize(target),
         answer: frSize(answer),
         limit: frSize(limit),
-        id: `${id2}rem`,
+        id: `${id}rem`,
         score: `${score}rem`
       };
     };
@@ -30798,15 +26292,15 @@ ${events}
     }) => {
       const [items, setItems] = h([]);
       const [sampleItems, setSampleItems] = h([]);
-      const sampleListRef = A$1(
+      const sampleListRef = A(
         /** @type {HTMLElement|null} */
         null
       );
-      const sampleDialogRef = A$1(
+      const sampleDialogRef = A(
         /** @type {HTMLElement|null} */
         null
       );
-      const showSample = q$1(
+      const showSample = q(
         (index2) => {
           setSelectedSampleIndex(index2);
           setShowingSampleDialog(true);
@@ -30847,23 +26341,23 @@ ${events}
           })
         );
       }, [samples, groupBy, groupByOrder, sampleDescriptor]);
-      const nextSampleIndex = q$1(() => {
+      const nextSampleIndex = q(() => {
         if (selectedSampleIndex < sampleItems.length - 1) {
           return selectedSampleIndex + 1;
         } else {
           return -1;
         }
       }, [selectedSampleIndex, items]);
-      const previousSampleIndex = q$1(() => {
+      const previousSampleIndex = q(() => {
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
       }, [selectedSampleIndex, items]);
-      const nextSample = q$1(() => {
+      const nextSample = q(() => {
         const next = nextSampleIndex();
         if (sampleStatus !== "loading" && next > -1) {
           setSelectedSampleIndex(next);
         }
       }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
-      const previousSample = q$1(() => {
+      const previousSample = q(() => {
         const prev = previousSampleIndex();
         if (sampleStatus !== "loading" && prev > -1) {
           setSelectedSampleIndex(prev);
@@ -30952,18 +26446,18 @@ ${events}
       };
     };
     const groupBySample = (samples, sampleDescriptor, order2) => {
-      samples = samples.sort((a2, b2) => {
+      samples = samples.sort((a2, b) => {
         if (typeof a2.id === "string") {
           if (order2 === "asc") {
-            return String(a2.id).localeCompare(String(b2.id));
+            return String(a2.id).localeCompare(String(b.id));
           } else {
-            return String(b2.id).localeCompare(String(a2.id));
+            return String(b.id).localeCompare(String(a2.id));
           }
         } else {
           if (order2 === "asc") {
-            return Number(a2.id) - Number(b2.id);
+            return Number(a2.id) - Number(b.id);
           } else {
-            return Number(b2.id) - Number(b2.id);
+            return Number(b.id) - Number(b.id);
           }
         }
       });
@@ -32182,7 +27676,7 @@ self.onmessage = function (e) {
           }
           product += c2;
         }
-        const quoteChar = quote || Object.keys(quotes).reduce((a2, b2) => quotes[a2] < quotes[b2] ? a2 : b2);
+        const quoteChar = quote || Object.keys(quotes).reduce((a2, b) => quotes[a2] < quotes[b] ? a2 : b);
         product = product.replace(new RegExp(quoteChar, "g"), replacements[quoteChar]);
         return quoteChar + product + quoteChar;
       }
@@ -32437,8 +27931,8 @@ self.onmessage = function (e) {
       open_log_file
     };
     var ch2 = {};
-    var wk = function(c2, id2, msg, transfer, cb) {
-      var w2 = new Worker(ch2[id2] || (ch2[id2] = URL.createObjectURL(new Blob([
+    var wk = function(c2, id, msg, transfer, cb) {
+      var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
         c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
       ], { type: "text/javascript" }))));
       w2.onmessage = function(e2) {
@@ -32528,17 +28022,17 @@ self.onmessage = function (e) {
     ]);
     var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
     var freb = function(eb, start2) {
-      var b2 = new u16(31);
+      var b = new u16(31);
       for (var i2 = 0; i2 < 31; ++i2) {
-        b2[i2] = start2 += 1 << eb[i2 - 1];
+        b[i2] = start2 += 1 << eb[i2 - 1];
       }
-      var r2 = new i32(b2[30]);
+      var r2 = new i32(b[30]);
       for (var i2 = 1; i2 < 30; ++i2) {
-        for (var j2 = b2[i2]; j2 < b2[i2 + 1]; ++j2) {
-          r2[j2] = j2 - b2[i2] << 5 | i2;
+        for (var j2 = b[i2]; j2 < b[i2 + 1]; ++j2) {
+          r2[j2] = j2 - b[i2] << 5 | i2;
         }
       }
-      return { b: b2, r: r2 };
+      return { b, r: r2 };
     };
     var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
     fl[28] = 258, revfl[258] = 28;
@@ -32755,9 +28249,9 @@ self.onmessage = function (e) {
           } else {
             var add = sym - 254;
             if (sym > 264) {
-              var i2 = sym - 257, b2 = fleb[i2];
-              add = bits(dat, pos2, (1 << b2) - 1) + fl[i2];
-              pos2 += b2;
+              var i2 = sym - 257, b = fleb[i2];
+              add = bits(dat, pos2, (1 << b) - 1) + fl[i2];
+              pos2 += b;
             }
             var d2 = dm[bits16(dat, pos2) & dms], dsym = d2 >> 4;
             if (!d2)
@@ -32765,8 +28259,8 @@ self.onmessage = function (e) {
             pos2 += d2 & 15;
             var dt = fd[dsym];
             if (dsym > 3) {
-              var b2 = fdeb[dsym];
-              dt += bits16(dat, pos2) & (1 << b2) - 1, pos2 += b2;
+              var b = fdeb[dsym];
+              dt += bits16(dat, pos2) & (1 << b) - 1, pos2 += b;
             }
             if (pos2 > tbts) {
               if (noSt)
@@ -32794,17 +28288,17 @@ self.onmessage = function (e) {
       return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
     };
     var et = /* @__PURE__ */ new u8(0);
-    var mrg = function(a2, b2) {
+    var mrg = function(a2, b) {
       var o2 = {};
       for (var k2 in a2)
         o2[k2] = a2[k2];
-      for (var k2 in b2)
-        o2[k2] = b2[k2];
+      for (var k2 in b)
+        o2[k2] = b[k2];
       return o2;
     };
-    var wcln = function(fn2, fnStr, td2) {
-      var dt = fn2();
-      var st = fn2.toString();
+    var wcln = function(fn, fnStr, td2) {
+      var dt = fn();
+      var st = fn.toString();
       var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
       for (var i2 = 0; i2 < dt.length; ++i2) {
         var v2 = dt[i2], k2 = ks[i2];
@@ -32837,15 +28331,15 @@ self.onmessage = function (e) {
       }
       return tl;
     };
-    var wrkr = function(fns, init2, id2, cb) {
-      if (!ch[id2]) {
+    var wrkr = function(fns, init, id, cb) {
+      if (!ch[id]) {
         var fnStr = "", td_1 = {}, m2 = fns.length - 1;
         for (var i2 = 0; i2 < m2; ++i2)
           fnStr = wcln(fns[i2], fnStr, td_1);
-        ch[id2] = { c: wcln(fns[m2], fnStr, td_1), e: td_1 };
+        ch[id] = { c: wcln(fns[m2], fnStr, td_1), e: td_1 };
       }
-      var td2 = mrg({}, ch[id2].e);
-      return wk(ch[id2].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init2.toString() + "}", id2, td2, cbfs(td2), cb);
+      var td2 = mrg({}, ch[id].e);
+      return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
     };
     var bInflt = function() {
       return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
@@ -32865,8 +28359,8 @@ self.onmessage = function (e) {
         dictionary: o2.dictionary
       };
     };
-    var cbify = function(dat, opts, fns, init2, id2, cb) {
-      var w2 = wrkr(fns, init2, id2, function(err2, dat2) {
+    var cbify = function(dat, opts, fns, init, id, cb) {
+      var w2 = wrkr(fns, init, id, function(err2, dat2) {
         w2.terminate();
         cb(err2, dat2);
       });
@@ -33505,12 +28999,12 @@ self.onmessage = function (e) {
        * @param {number} epoch - The name of the file that caused the error.
        * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
        */
-      constructor(id2, epoch, maxBytes) {
+      constructor(id, epoch, maxBytes) {
         super(
-          `Sample ${id2} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+          `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
         );
         this.name = "SampleSizeLimitedExceededError";
-        this.id = id2;
+        this.id = id;
         this.epoch = epoch;
         this.maxBytes = maxBytes;
         this.displayStack = false;
@@ -33581,15 +29075,15 @@ self.onmessage = function (e) {
           };
         }
       };
-      const get_log_sample = async (log_file, id2, epoch) => {
+      const get_log_sample = async (log_file, id, epoch) => {
         if (isEvalFile(log_file)) {
           const remoteLogFile = await remoteEvalFile(log_file, true);
           try {
-            const sample = await remoteLogFile.readSample(id2, epoch);
+            const sample = await remoteLogFile.readSample(id, epoch);
             return sample;
           } catch (error2) {
             if (error2 instanceof FileSizeLimitError) {
-              throw new SampleSizeLimitedExceededError(id2, epoch, error2.maxBytes);
+              throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
             } else {
               throw error2;
             }
@@ -33598,7 +29092,7 @@ self.onmessage = function (e) {
           const logContents = await get_log(log_file, true);
           if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
             return logContents.parsed.samples.find((sample) => {
-              return sample.id === id2 && sample.epoch === epoch;
+              return sample.id === id && sample.epoch === epoch;
             });
           }
         }
@@ -33638,7 +29132,7 @@ self.onmessage = function (e) {
           ...evalLogHeadersPromises,
           jsonLogHeadersPromise
         ]);
-        const orderedHeaders = headers.flat().sort((a2, b2) => a2.index - b2.index);
+        const orderedHeaders = headers.flat().sort((a2, b) => a2.index - b.index);
         return orderedHeaders.map(({ header }) => header);
       };
       return {
@@ -33843,56 +29337,56 @@ self.onmessage = function (e) {
     const bySample = (sort) => {
       return sort === kSampleAscVal || sort === kSampleDescVal;
     };
-    const sortId = (a2, b2) => {
-      if (isNumeric(a2.id) && isNumeric(b2.id)) {
-        return Number(a2.id) - Number(b2.id);
+    const sortId = (a2, b) => {
+      if (isNumeric(a2.id) && isNumeric(b.id)) {
+        return Number(a2.id) - Number(b.id);
       } else {
-        return String(a2.id).localeCompare(String(b2.id));
+        return String(a2.id).localeCompare(String(b.id));
       }
     };
     const sortSamples = (sort, samples, samplesDescriptor) => {
-      const sortedSamples = samples.sort((a2, b2) => {
+      const sortedSamples = samples.sort((a2, b) => {
         switch (sort) {
           case kSampleAscVal: {
-            const result = sortId(a2, b2);
+            const result = sortId(a2, b);
             if (result !== 0) {
               return result;
             } else {
-              return a2.epoch - b2.epoch;
+              return a2.epoch - b.epoch;
             }
           }
           case kSampleDescVal: {
-            const result = sortId(b2, a2);
+            const result = sortId(b, a2);
             if (result !== 0) {
               return result;
             } else {
-              return a2.epoch - b2.epoch;
+              return a2.epoch - b.epoch;
             }
           }
           case kEpochAscVal: {
-            const result = a2.epoch - b2.epoch;
+            const result = a2.epoch - b.epoch;
             if (result !== 0) {
               return result;
             } else {
-              return sortId(a2, b2);
+              return sortId(a2, b);
             }
           }
           case kEpochDescVal: {
-            const result = b2.epoch - a2.epoch;
+            const result = b.epoch - a2.epoch;
             if (result !== 0) {
               return result;
             } else {
-              return sortId(a2, b2);
+              return sortId(a2, b);
             }
           }
           case kScoreAscVal:
             return samplesDescriptor.selectedScoreDescriptor.compare(
               samplesDescriptor.selectedScore(a2).value,
-              samplesDescriptor.selectedScore(b2).value
+              samplesDescriptor.selectedScore(b).value
             );
           case kScoreDescVal:
             return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(b2).value,
+              samplesDescriptor.selectedScore(b).value,
               samplesDescriptor.selectedScore(a2).value
             );
         }
@@ -33902,7 +29396,7 @@ self.onmessage = function (e) {
         order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
       };
     };
-    const SampleFilter = ({ descriptor, filter: filter2, filterChanged }) => {
+    const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       var _a2;
       const updateCategoryValue = (e2) => {
         const val = e2.currentTarget.value;
@@ -33924,7 +29418,7 @@ self.onmessage = function (e) {
             })
           );
           return m$1`<${SelectFilter}
-        value=${filter2.value || "all"}
+        value=${filter.value || "all"}
         options=${options}
         onChange=${updateCategoryValue}
       />`;
@@ -33937,7 +29431,7 @@ self.onmessage = function (e) {
             })
           );
           return m$1`<${SelectFilter}
-        value=${filter2.value || "all"}
+        value=${filter.value || "all"}
         options=${options}
         onChange=${updateCategoryValue}
       />`;
@@ -33947,7 +29441,7 @@ self.onmessage = function (e) {
         <input
           type="text"
           class="form-control"
-          value=${filter2.value}
+          value=${filter.value}
           placeholder="Filter Samples (score)"
           style=${{ width: "150px" }}
           onInput=${(e2) => {
@@ -33970,7 +29464,7 @@ self.onmessage = function (e) {
             })
           );
           return m$1`<${SelectFilter}
-        value=${filter2.value || "all"}
+        value=${filter.value || "all"}
         options=${options}
         onChange=${updateCategoryValue}
       />`;
@@ -34129,7 +29623,7 @@ self.onmessage = function (e) {
       const {
         epoch,
         setEpoch,
-        filter: filter2,
+        filter,
         filterChanged,
         sort,
         setSort,
@@ -34161,7 +29655,7 @@ self.onmessage = function (e) {
       }
       tools.push(
         m$1`<${SampleFilter}
-      filter=${filter2}
+      filter=${filter}
       filterChanged=${filterChanged}
       descriptor=${sampleDescriptor}
     />`
@@ -34743,7 +30237,7 @@ self.onmessage = function (e) {
       epochs,
       epoch,
       setEpoch,
-      filter: filter2,
+      filter,
       setFilter,
       score,
       setScore,
@@ -34755,7 +30249,7 @@ self.onmessage = function (e) {
       workspaceTabScrollPositionRef,
       setWorkspaceTabScrollPosition
     }) => {
-      const divRef = A$1(
+      const divRef = A(
         /** @type {HTMLElement|null} */
         null
       );
@@ -34771,11 +30265,11 @@ self.onmessage = function (e) {
           divRef.current.scrollTop = 0;
         }
       }, [divRef, task_id]);
-      const sampleTabScrollRef = A$1(
+      const sampleTabScrollRef = A(
         /** @type {HTMLElement|null} */
         null
       );
-      const resolvedTabs = T$1(() => {
+      const resolvedTabs = T(() => {
         const resolvedTabs2 = {};
         if (sampleMode !== "none") {
           resolvedTabs2.samples = {
@@ -34801,7 +30295,7 @@ self.onmessage = function (e) {
             sampleDescriptor=${samplesDescriptor}
             selectedSampleTab=${selectedSampleTab}
             setSelectedSampleTab=${setSelectedSampleTab}
-            filter=${filter2}
+            filter=${filter}
             sort=${sort}
             epoch=${epoch}
             sampleScrollPositionRef=${sampleScrollPositionRef}
@@ -34818,7 +30312,7 @@ self.onmessage = function (e) {
               epoch=${epoch}
               epochs=${epochs}
               setEpoch=${setEpoch}
-              filter=${filter2}
+              filter=${filter}
               filterChanged=${setFilter}
               sort=${sort}
               setSort=${setSort}
@@ -34950,7 +30444,7 @@ self.onmessage = function (e) {
         samplesDescriptor,
         selectedSampleTab,
         setSelectedSampleTab,
-        filter2,
+        filter,
         sort,
         epoch,
         sampleScrollPositionRef,
@@ -35023,20 +30517,20 @@ self.onmessage = function (e) {
             return "";
           }
         });
-        const onScroll = q$1(
-          debounce$1((id2, position) => {
-            setWorkspaceTabScrollPosition(id2, position);
+        const onScroll = q(
+          debounce$1((id, position) => {
+            setWorkspaceTabScrollPosition(id, position);
           }, 100),
           [setWorkspaceTabScrollPosition]
         );
-        const onSelected = q$1(
+        const onSelected = q(
           (e2) => {
-            const id2 = e2.currentTarget.id;
-            setSelectedTab(id2);
+            const id = e2.currentTarget.id;
+            setSelectedTab(id);
           },
           [setSelectedTab]
         );
-        const tabPanels = T$1(() => {
+        const tabPanels = T(() => {
           return Object.keys(tabs).map((key2) => {
             const tab = tabs[key2];
             return m$1`<${TabPanel}
@@ -35047,7 +30541,7 @@ self.onmessage = function (e) {
         scrollable=${!!tab.scrollable}
         scrollRef=${tab.scrollRef}
         scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
-        setScrollPosition=${q$1(
+        setScrollPosition=${q(
               (position) => {
                 onScroll(tab.id, position);
               },
@@ -35112,7 +30606,7 @@ self.onmessage = function (e) {
       }
     };
     const FindBand = ({ hideBand }) => {
-      const searchBoxRef = A$1(
+      const searchBoxRef = A(
         /** @type {HTMLInputElement|null} */
         null
       );
@@ -35558,8 +31052,8 @@ self.onmessage = function (e) {
             return {
               scoreType: kScoreTypeCategorical,
               categories: values,
-              compare: (a2, b2) => {
-                return String(a2).localeCompare(String(b2));
+              compare: (a2, b) => {
+                return String(a2).localeCompare(String(b));
               },
               render: (score) => {
                 return score;
@@ -35583,9 +31077,9 @@ self.onmessage = function (e) {
               scoreType: kScoreTypeNumeric,
               min: Math.min(...onlyNumeric),
               max: Math.max(...onlyNumeric),
-              compare: (a2, b2) => {
-                if (typeof a2 === "number" && typeof b2 === "number") {
-                  return a2 - b2;
+              compare: (a2, b) => {
+                if (typeof a2 === "number" && typeof b === "number") {
+                  return a2 - b;
                 } else {
                   console.warn(
                     "Comparing non-numerics using a nuermic score descriptor"
@@ -35697,8 +31191,8 @@ self.onmessage = function (e) {
     const booleanScoreCategorizer = () => {
       return {
         scoreType: "boolean",
-        compare: (a2, b2) => {
-          return Number(a2.value) - Number(b2.value);
+        compare: (a2, b) => {
+          return Number(a2.value) - Number(b.value);
         },
         render: (score) => {
           const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
@@ -35779,8 +31273,8 @@ self.onmessage = function (e) {
             return score;
           }
         },
-        compare: (a2, b2) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+        compare: (a2, b) => {
+          const sort = order2.indexOf(a2.value) - order2.indexOf(b.value);
           return sort;
         }
       };
@@ -35806,9 +31300,9 @@ self.onmessage = function (e) {
       }
       return value;
     };
-    const filterFnForType = (filter2) => {
-      if (filter2.type) {
-        return filterFnsForType[filter2.type];
+    const filterFnForType = (filter) => {
+      if (filter.type) {
+        return filterFnsForType[filter.type];
       } else {
         return void 0;
       }
@@ -35873,14 +31367,14 @@ self.onmessage = function (e) {
               }
             }
           ];
-          for (const filter2 of filters) {
-            if (value == null ? void 0 : value.startsWith(filter2.prefix)) {
-              const val = value.slice(filter2.prefix.length).trim();
+          for (const filter of filters) {
+            if (value == null ? void 0 : value.startsWith(filter.prefix)) {
+              const val = value.slice(filter.prefix.length).trim();
               if (!val) {
                 return true;
               }
               const num = Number(val);
-              return filter2.fn(score.value, num);
+              return filter.fn(score.value, num);
             }
           }
           if (typeof score.value === "string") {
@@ -35932,9 +31426,9 @@ self.onmessage = function (e) {
       const [selectedSampleTab, setSelectedSampleTab] = h(
         initialState2 == null ? void 0 : initialState2.selectedSampleTab
       );
-      const sampleScrollPosition = A$1((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
-      const loadingSampleIndexRef = A$1(null);
-      const workspaceTabScrollPosition = A$1(
+      const sampleScrollPosition = A((initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0);
+      const loadingSampleIndexRef = A(null);
+      const workspaceTabScrollPosition = A(
         (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
       );
       const [showingSampleDialog, setShowingSampleDialog] = h(
@@ -35954,7 +31448,7 @@ self.onmessage = function (e) {
       );
       const [offcanvas, setOffcanvas] = h((initialState2 == null ? void 0 : initialState2.offcanvas) || false);
       const [showFind, setShowFind] = h((initialState2 == null ? void 0 : initialState2.showFind) || false);
-      const [filter2, setFilter] = h((initialState2 == null ? void 0 : initialState2.filter) || {});
+      const [filter, setFilter] = h((initialState2 == null ? void 0 : initialState2.filter) || {});
       const [epoch, setEpoch] = h((initialState2 == null ? void 0 : initialState2.epoch) || "all");
       const [sort, setSort] = h((initialState2 == null ? void 0 : initialState2.sort) || kDefaultSort);
       const [scores, setScores] = h((initialState2 == null ? void 0 : initialState2.scores) || []);
@@ -35967,7 +31461,7 @@ self.onmessage = function (e) {
         (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
       );
       const afterBodyElements = [];
-      const saveState = q$1(() => {
+      const saveState = q(() => {
         const state = {
           logs,
           selectedLogIndex,
@@ -35985,7 +31479,7 @@ self.onmessage = function (e) {
           capabilities,
           offcanvas,
           showFind,
-          filter: filter2,
+          filter,
           epoch,
           sort,
           scores,
@@ -36016,7 +31510,7 @@ self.onmessage = function (e) {
         capabilities,
         offcanvas,
         showFind,
-        filter2,
+        filter,
         epoch,
         sort,
         scores,
@@ -36025,18 +31519,18 @@ self.onmessage = function (e) {
         groupBy,
         groupByOrder
       ]);
-      const saveStateRef = A$1(saveState);
+      const saveStateRef = A(saveState);
       y(() => {
         saveStateRef.current = saveState;
       }, [saveState]);
-      const setSampleScrollPosition = q$1(
+      const setSampleScrollPosition = q(
         debounce$1((position) => {
           sampleScrollPosition.current = position;
           saveStateRef.current();
         }, 1e3),
         []
       );
-      const setWorkspaceTabScrollPosition = q$1(
+      const setWorkspaceTabScrollPosition = q(
         debounce$1((tab, position) => {
           if (workspaceTabScrollPosition.current[tab] !== position) {
             workspaceTabScrollPosition.current = {
@@ -36067,7 +31561,7 @@ self.onmessage = function (e) {
         capabilities,
         offcanvas,
         showFind,
-        filter2,
+        filter,
         epoch,
         sort,
         scores,
@@ -36076,7 +31570,7 @@ self.onmessage = function (e) {
         groupBy,
         groupByOrder
       ]);
-      const handleSampleShowingDialog = q$1(
+      const handleSampleShowingDialog = q(
         (show) => {
           setShowingSampleDialog(show);
           if (!show) {
@@ -36100,9 +31594,9 @@ self.onmessage = function (e) {
               return false;
             }
           }
-          const filterFn = filterFnForType(filter2);
-          if (filterFn && filter2.value) {
-            return filterFn(samplesDescriptor, sample, filter2.value);
+          const filterFn = filterFnForType(filter);
+          if (filterFn && filter.value) {
+            return filterFn(samplesDescriptor, sample, filter.value);
           } else {
             return true;
           }
@@ -36119,8 +31613,8 @@ self.onmessage = function (e) {
         setFilteredSamples(sorted);
         setGroupBy(grouping);
         setGroupByOrder(order2);
-      }, [selectedLog, filter2, sort, epoch]);
-      const evalDescriptor = T$1(() => {
+      }, [selectedLog, filter, sort, epoch]);
+      const evalDescriptor = T(() => {
         var _a3, _b3, _c2, _d2;
         return createEvalDescriptor(
           scores,
@@ -36128,10 +31622,10 @@ self.onmessage = function (e) {
           ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1
         );
       }, [selectedLog, scores]);
-      const samplesDescriptor = T$1(() => {
+      const samplesDescriptor = T(() => {
         return createSamplesDescriptor(evalDescriptor, score);
       }, [evalDescriptor, score]);
-      const refreshSampleTab = q$1(
+      const refreshSampleTab = q(
         (sample) => {
           if (selectedSampleTab === void 0) {
             const defaultTab = sample.events && sample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
@@ -36140,7 +31634,7 @@ self.onmessage = function (e) {
         },
         [selectedSampleTab, showingSampleDialog]
       );
-      const mainAppRef = A$1();
+      const mainAppRef = A();
       y(() => {
         if (!selectedLog || selectedSampleIndex === -1) {
           setSelectedSample(void 0);
@@ -36232,7 +31726,7 @@ self.onmessage = function (e) {
         };
         loadHeaders();
       }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-      const resetWorkspace = q$1(
+      const resetWorkspace = q(
         /**
          * @param {import("./api/Types.mjs").EvalSummary} log
          */
@@ -36316,7 +31810,7 @@ self.onmessage = function (e) {
           setStatus({ loading: false, error: e2 });
         }
       };
-      const refreshLog = q$1(async () => {
+      const refreshLog = q(async () => {
         try {
           setStatus({ loading: true, error: void 0 });
           const targetLog = logs.files[selectedLogIndex];
@@ -36350,7 +31844,7 @@ self.onmessage = function (e) {
           setStatus({ loading: false, error: e2 });
         }
       }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
-      const showLogFile = q$1(
+      const showLogFile = q(
         async (logUrl) => {
           const index = logs.files.findIndex((val) => {
             return logUrl.endsWith(val.name);
@@ -36368,7 +31862,7 @@ self.onmessage = function (e) {
         },
         [logs, setSelectedLogIndex, setLogs]
       );
-      const refreshLogList = q$1(async () => {
+      const refreshLogList = q(async () => {
         const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
         const refreshedLogs = await loadLogs();
         const newIndex = refreshedLogs.files.findIndex((file) => {
@@ -36377,7 +31871,7 @@ self.onmessage = function (e) {
         setLogs(refreshedLogs);
         setSelectedLogIndex(newIndex);
       }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
-      const onMessage = T$1(() => {
+      const onMessage = T(() => {
         return async (e2) => {
           const type = e2.data.type || e2.data.message;
           switch (type) {
@@ -36500,7 +31994,7 @@ self.onmessage = function (e) {
         ` : "";
       const fullScreenClz = fullScreen ? " full-screen" : "";
       const offcanvasClz = offcanvas ? " off-canvas" : "";
-      const hideFind = q$1(() => {
+      const hideFind = q(() => {
         clearDocumentSelection();
         if (showFind) {
           setShowFind(false);
@@ -36565,7 +32059,7 @@ self.onmessage = function (e) {
               epochs=${(_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs}
               epoch=${epoch}
               setEpoch=${setEpoch}
-              filter=${filter2}
+              filter=${filter}
               setFilter=${setFilter}
               score=${score}
               setScore=${setScore}
@@ -36623,7 +32117,7 @@ self.onmessage = function (e) {
     if (vscode) {
       initialState = vscode.getState();
     }
-    D$2(m$1`<${App}
+    D$1(m$1`<${App}
     api=${api}
     initialState=${initialState}
     saveInitialState=${throttle$1((state) => {
