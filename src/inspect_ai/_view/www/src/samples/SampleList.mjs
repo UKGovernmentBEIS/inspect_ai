@@ -254,7 +254,6 @@ export const SampleList = (props) => {
       tabIndex="0"
       renderRow=${renderRow}
       onkeydown=${onkeydown}
-      rowMap=${rowMap}
       style=${listStyle}
     />
     ${footerRow}
