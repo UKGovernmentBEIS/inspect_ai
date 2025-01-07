@@ -21,7 +21,7 @@ import { throttle } from "../utils/sync.mjs";
 export function VirtualList({
   data,
   renderRow,
-  overscanCount = 10,
+  overscanCount = 15,
   estimatedRowHeight = 50,
   sync,
   scrollRef,
@@ -101,14 +101,23 @@ export function VirtualList({
     if (sync) {
       setOffset((prev) => prev);
     }
-  }, 100);
+  }, 25);
 
-  // Setup resize listener
+  // Setup scroll and resize listeners
   useEffect(() => {
     resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, []);
+    const scrollElement = scrollRef?.current || baseRef.current;
+    
+    if (scrollElement) {
+      scrollElement.addEventListener("scroll", handleScroll);
+      window.addEventListener("resize", resize);
+      
+      return () => {
+        scrollElement.removeEventListener("scroll", handleScroll);
+        window.removeEventListener("resize", resize);
+      };
+    }
+  }, [scrollRef?.current]); // Re-run effect when scrollRef changes
 
   // Measure rows after render
   useEffect(() => {
@@ -151,7 +160,7 @@ export function VirtualList({
 
   const style_inner = {
     position: "relative",
-    overflow: "hidden",
+    overflow: scrollRef?.current ? "visible" : "hidden",
     width: "100%",
     minHeight: "100%",
   };
@@ -167,8 +176,11 @@ export function VirtualList({
 
   const top = rowPositions.get(start) || 0;
 
+  // Only attach onscroll to baseRef if no scrollRef is provided
+  const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
+
   return html`
-    <div onscroll=${handleScroll} ref=${baseRef} ...${props}>
+    <div ref=${baseRef} ...${props} ...${scrollProps}>
       <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
         <div style=${{ ...style_content, top: `${top}px` }} ref=${containerRef}>
           ${selection.map((item, index) => {
