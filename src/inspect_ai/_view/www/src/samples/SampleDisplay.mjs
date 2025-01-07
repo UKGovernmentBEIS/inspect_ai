@@ -125,12 +125,12 @@ export const SampleDisplay = ({
     html`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === kSampleMessagesTabId
-    }>
+    } scrollable=${false}>
       <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id}`} 
         id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
-        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        style=${{ marginLeft: ".8em", marginTop: "1em" }}
         indented=${true}
         scrollRef=${scrollRef}
       />

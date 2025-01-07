@@ -29910,12 +29910,12 @@ ${events}
       };
       const tabs = [
         m$1`
-    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId}>
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId} scrollable=${false}>
       <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id2}`} 
         id=${`${baseId}-chat-${id2}`} 
         messages=${sample.messages} 
-        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        style=${{ marginLeft: ".8em", marginTop: "1em" }}
         indented=${true}
         scrollRef=${scrollRef}
       />
