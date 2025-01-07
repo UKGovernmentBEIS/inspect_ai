@@ -9,7 +9,6 @@ import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 import { Virtuoso } from "react-virtuoso";
 
-
 /**
  * Renders the ChatViewVirtualList component.
  *
@@ -30,35 +29,38 @@ export const ChatViewVirtualList = ({
   style,
   indented,
   numbered = true,
-  scrollRef
+  scrollRef,
 }) => {
-
   const collapsedMessages = resolveMessages(messages);
 
-  const result = html`
-    <${Virtuoso}
-      id=${`${id}-virtual-list`}
-      style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box", ...style }}
-      customScrollParent=${scrollRef.current}
-      totalCount=${collapsedMessages.length}
-      overscan=${{
-        reverse: 3,
-        main: 2
-      }}
-      itemContent=${(index) => {
-        const number = collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
-        return html`<${ChatMessageRow}
-              id=${id}
-              number=${number}
-              resolvedMessage=${collapsedMessages[index]}
-              indented=${indented}
-              toolCallStyle=${toolCallStyle}/>`;
-      }
-      }
+  const result = html` <${Virtuoso}
+    id=${`${id}-virtual-list`}
+    style=${{
+      width: "100%",
+      overflowY: "unset",
+      boxSizing: "border-box",
+      ...style,
+    }}
+    customScrollParent=${scrollRef.current}
+    totalCount=${collapsedMessages.length}
+    overscan=${{
+      reverse: 3,
+      main: 2,
+    }}
+    itemContent=${(index) => {
+      const number =
+        collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+      return html`<${ChatMessageRow}
+        id=${id}
+        number=${number}
+        resolvedMessage=${collapsedMessages[index]}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
       />`;
+    }}
+  />`;
   return result;
 };
-
 
 /**
  * Renders the ChatView component.
@@ -81,20 +83,19 @@ export const ChatView = ({
   numbered = true,
 }) => {
   const collapsedMessages = resolveMessages(messages);
-  const result = html`
-    <div style=${style}>
-      ${
-        collapsedMessages.map((msg, index) => {
-          const number = collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
-            return html`<${ChatMessageRow}
-              id=${id}
-              number=${number}
-              resolvedMessage=${msg}
-              indented=${indented}
-              toolCallStyle=${toolCallStyle}/>`;
-        })        
-      }
-    </div>`;
+  const result = html` <div style=${style}>
+    ${collapsedMessages.map((msg, index) => {
+      const number =
+        collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+      return html`<${ChatMessageRow}
+        id=${id}
+        number=${number}
+        resolvedMessage=${msg}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />`;
+    })}
+  </div>`;
   return result;
 };
 
@@ -114,50 +115,49 @@ export const ChatMessageRow = ({
   number,
   resolvedMessage,
   toolCallStyle,
-  indented
+  indented,
 }) => {
-    if (number) {
-      return html` <div
+  if (number) {
+    return html` <div
+      style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0.4em",
+      }}
+    >
+      <div
         style=${{
-          display: "grid",
-          gridTemplateColumns: "max-content auto",
-          columnGap: "0.4em",
+          fontSize: FontSize.smaller,
+          ...TextStyle.secondary,
+          marginTop: "0.1em",
         }}
       >
-        <div
-          style=${{
-            fontSize: FontSize.smaller,
-            ...TextStyle.secondary,
-            marginTop: "0.1em",
-          }}
-        >
-          ${number}
-        </div>
-        <${ChatMessage}
-          id=${`${id}-chat-messages`}
-          message=${resolvedMessage.message}
-          toolMessages=${resolvedMessage.toolMessages}
-          indented=${indented}
-          toolCallStyle=${toolCallStyle}
-        />
-      </div>`;
-    } else {
-      return html`<${ChatMessage}
+        ${number}
+      </div>
+      <${ChatMessage}
         id=${`${id}-chat-messages`}
         message=${resolvedMessage.message}
         toolMessages=${resolvedMessage.toolMessages}
         indented=${indented}
         toolCallStyle=${toolCallStyle}
-      />`;
-    }
+      />
+    </div>`;
+  } else {
+    return html`<${ChatMessage}
+      id=${`${id}-chat-messages`}
+      message=${resolvedMessage.message}
+      toolMessages=${resolvedMessage.toolMessages}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
   }
+};
 
 /**
  * @typedef {Object} ResolvedMessage
  * @property {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} message - The main chat message.
  * @property {import("../types/log").ChatMessageTool[]} [toolMessages] - Optional array of tool-related messages.
  */
-
 
 /**
  * Renders the ChatView component.
@@ -166,7 +166,7 @@ export const ChatMessageRow = ({
  * @returns {ResolvedMessage[]} The component.
  */
 export const resolveMessages = (messages) => {
-// Filter tool messages into a sidelist that the chat stream
+  // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
 
   /**
@@ -225,9 +225,9 @@ export const resolveMessages = (messages) => {
   // Converge them
   if (systemMessage && systemMessage.content.length > 0) {
     collapsedMessages.unshift({ message: systemMessage });
-  }  
+  }
   return collapsedMessages;
-}
+};
 
 /**
  * Ensure that content is a proper content type

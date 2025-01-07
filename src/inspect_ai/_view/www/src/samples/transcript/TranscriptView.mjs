@@ -52,48 +52,69 @@ export const TranscriptVirtualList = (props) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
 
+  return html`<${TranscriptVirtualListComponent}
+    id=${id}
+    eventNodes=${eventNodes}
+    style=${style}
+    scrollRef=${scrollRef}
+  />`;
+};
 
-
+/**
+ * Renders the Transcript component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The identifier for this view
+ * @param {EventNode[]} props.eventNodes - The transcript events nodes to display.
+ * @param {Object} props.style - The transcript style to display.
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const TranscriptVirtualListComponent = ({
+  id,
+  eventNodes,
+  style,
+  scrollRef,
+}) => {
   return html`<${Virtuoso}
-      id=${`${id}-virtual-list`}
-      logLevel=${LogLevel.DEBUG}
-      style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
-      customScrollParent=${scrollRef.current}
-      data=${eventNodes}
-      overscan=${{
-        reverse: 3,
-        main: 2
-      }}
-      itemContent=${(index) => {
-          const node = eventNodes[index];
-          
-          const toggleStyle = {};
-          if (node.depth % 2 == 0) {
-            toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
-          } else {
-            toggleStyle.backgroundColor = "var(--bs-body-bg)";
-          }
-          
-          let paddingTop = "0";
-          if (index === 0) {
-            paddingTop = ".5em";
-          }
+    id=${`${id}-virtual-list`}
+    logLevel=${LogLevel.DEBUG}
+    style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
+    customScrollParent=${scrollRef.current}
+    data=${eventNodes}
+    overscan=${{
+      reverse: 3,
+      main: 2,
+    }}
+    itemContent=${(index) => {
+      const node = eventNodes[index];
 
-          return html`<div style=${{ paddingTop, paddingBottom: ".5em"}}>
-                        <${RenderedEventNode}
-                          id=${`${id}-event${index}`}
-                          node=${node}
-                          style=${{
-                            ...toggleStyle,
-                            ...style,
-                          }}
-                        />
-                      </div>`
-        }
+      const toggleStyle = {};
+      if (node.depth % 2 == 0) {
+        toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
+      } else {
+        toggleStyle.backgroundColor = "var(--bs-body-bg)";
       }
-    />`
 
-}
+      let paddingTop = "0";
+      if (index === 0) {
+        paddingTop = ".5em";
+      }
+
+      return html`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
+        <${RenderedEventNode}
+          id=${`${id}-event${index}`}
+          node=${node}
+          style=${{
+            ...toggleStyle,
+            ...style,
+          }}
+          scrollRef=${scrollRef}
+        />
+      </div>`;
+    }}
+  />`;
+};
 
 /**
  * Renders the Transcript component.
@@ -125,14 +146,14 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
 
     const row = html`
       <div style=${{ paddingBottom }}>
-      <${RenderedEventNode}
-        id=${`${id}-event${index}`}
-        node=${eventNode}
-        style=${{
-          ...toggleStyle,
-          ...style,
-        }}
-      />
+        <${RenderedEventNode}
+          id=${`${id}-event${index}`}
+          node=${eventNode}
+          style=${{
+            ...toggleStyle,
+            ...style,
+          }}
+        />
       </div>
     `;
     return row;
@@ -159,9 +180,10 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
  * @param {string} props.id - The id for this event.
  * @param { EventNode } props.node - This event.
  * @param { Object } props.style - The style for this node.
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const RenderedEventNode = ({ id, node, style }) => {
+export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
   switch (node.event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
@@ -218,6 +240,7 @@ export const RenderedEventNode = ({ id, node, style }) => {
         event=${node.event}
         children=${node.children}
         style=${style}
+        scrollRef=${scrollRef}
       />`;
 
     case "store":
