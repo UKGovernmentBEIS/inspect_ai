@@ -3,59 +3,93 @@ import { useRef, useState, useEffect } from "preact/hooks";
 import { throttle } from "../utils/sync.mjs";
 
 /**
- * @typedef {Object} RowMapItem
- * @property {number} start - The starting position of the row in pixels
- * @property {number} height - The height of the row in pixels
- */
-
-/**
  * A virtualized list component that efficiently renders large lists by only
  * rendering the items that are currently visible in the viewport.
+ * Supports dynamic row heights that are measured after rendering.
  *
  * @template T
  * @param {Object} props - The component props
  * @param {T[]} props.data - Array of items to be rendered in the list
- * @param {RowMapItem[]} props.rowMap - Array of objects containing the start position and height of each row
  * @param {(item: T, index: number) => preact.VNode} props.renderRow - Function to render each row
  * @param {number} [props.overscanCount=10] - Number of extra rows to render above and below the visible area
+ * @param {number} [props.estimatedRowHeight=50] - Estimated height of each row before measurement
  * @param {boolean} [props.sync] - If true, forces a re-render on scroll
  * @param {Object} [props.props] - Additional props to be spread onto the container element
  * @returns {preact.VNode} The virtual list component
  */
 export function VirtualList({
   data,
-  rowMap,
   renderRow,
   overscanCount = 10,
+  estimatedRowHeight = 50,
   sync,
   ...props
 }) {
-  /** @type {[number, (height: number | ((prev: number) => number)) => void]} */
   const [height, setHeight] = useState(0);
-
-  /** @type {[number, (offset: number | ((prev: number) => number)) => void]} */
   const [offset, setOffset] = useState(0);
+  const [rowHeights, setRowHeights] = useState(new Map());
+  const [totalHeight, setTotalHeight] = useState(0);
 
-  /** @type {import("preact").RefObject<HTMLElement>} */
   const baseRef = useRef(null);
-
-  /** @type {import("preact").RefObject<HTMLElement>} */
   const containerRef = useRef(null);
+  const rowRefs = useRef(new Map());
 
-  /**
-   * Updates the height state if the base element's height has changed
-   * @type {() => void}
-   */
+  // Function to get row height (measured or estimated)
+  const getRowHeight = (index) => {
+    return rowHeights.get(index) || estimatedRowHeight;
+  };
+
+  // Calculate row positions based on current heights
+  const calculateRowPositions = () => {
+    let currentPosition = 0;
+    const positions = new Map();
+    
+    for (let i = 0; i < data.length; i++) {
+      positions.set(i, currentPosition);
+      currentPosition += getRowHeight(i);
+    }
+    
+    return positions;
+  };
+
+  // Measure rendered rows and update heights if needed
+  const measureRows = () => {
+    let heightsUpdated = false;
+    const newHeights = new Map(rowHeights);
+
+    rowRefs.current.forEach((element, index) => {
+      if (element) {
+        const measuredHeight = element.offsetHeight;
+        if (measuredHeight && measuredHeight !== newHeights.get(index)) {
+          newHeights.set(index, measuredHeight);
+          heightsUpdated = true;
+        }
+      }
+    });
+
+    if (heightsUpdated) {
+      setRowHeights(newHeights);
+      updateTotalHeight(newHeights);
+    }
+  };
+
+  // Update total height based on current row heights
+  const updateTotalHeight = (heights = rowHeights) => {
+    let total = 0;
+    for (let i = 0; i < data.length; i++) {
+      total += heights.get(i) || estimatedRowHeight;
+    }
+    setTotalHeight(total);
+  };
+
+  // Handle container resize
   const resize = () => {
     if (baseRef.current && height !== baseRef.current.offsetHeight) {
       setHeight(baseRef.current.offsetHeight);
     }
   };
 
-  /**
-   * Handles scroll events with throttling
-   * @type {Function}
-   */
+  // Handle scroll with throttling
   const handleScroll = throttle(() => {
     if (baseRef.current) {
       setOffset(baseRef.current.scrollTop);
@@ -72,39 +106,45 @@ export function VirtualList({
     return () => window.removeEventListener("resize", resize);
   }, []);
 
-  // Update on height changes
+  // Measure rows after render
   useEffect(() => {
-    resize();
-  }, [height]);
-
-  // Find the first visible row index
-  const firstVisibleIdx = rowMap.findIndex((row) => {
-    return row.start + row.height >= offset;
+    measureRows();
   });
-  const firstIndex = firstVisibleIdx > -1 ? firstVisibleIdx : 0;
 
-  // Find the last visible row index
-  const lastVisibleIdx = rowMap.findIndex((row) => {
-    return row.start + row.height >= offset + height;
-  });
-  const lastIndex = lastVisibleIdx > -1 ? lastVisibleIdx : rowMap.length - 1;
+  // Calculate visible range
+  const rowPositions = calculateRowPositions();
+  
+  const findRowAtOffset = (targetOffset) => {
+    let low = 0;
+    let high = data.length - 1;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const rowStart = rowPositions.get(mid) || 0;
+      const rowEnd = rowStart + getRowHeight(mid);
+      
+      if (targetOffset >= rowStart && targetOffset < rowEnd) {
+        return mid;
+      }
+      
+      if (targetOffset < rowStart) {
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+    
+    return 0;
+  };
 
-  // Calculate total height of all rows
-  const lastRow = rowMap[rowMap.length - 1];
-  const totalHeight = lastRow ? lastRow.start + lastRow.height : 0;
+  const firstVisibleIdx = findRowAtOffset(offset);
+  const lastVisibleIdx = findRowAtOffset(offset + height);
 
-  // Calculate number of rows to render including overscan
-  let visibleRowCount = lastIndex - firstIndex;
-  if (overscanCount) {
-    visibleRowCount += overscanCount;
-  }
-
-  // Calculate the range of rows to render
-  const start = firstVisibleIdx;
-  const end = Math.min(data.length, start + visibleRowCount);
+  // Calculate range of rows to render including overscan
+  const start = Math.max(0, firstVisibleIdx - overscanCount);
+  const end = Math.min(data.length, lastVisibleIdx + overscanCount);
   const selection = data.slice(start, end);
 
-  /** @type {import("preact").JSX.CSSProperties} */
   const style_inner = {
     position: "relative",
     overflow: "hidden",
@@ -112,7 +152,6 @@ export function VirtualList({
     minHeight: "100%",
   };
 
-  /** @type {import("preact").JSX.CSSProperties} */
   const style_content = {
     position: "absolute",
     top: 0,
@@ -122,16 +161,27 @@ export function VirtualList({
     overflow: "visible",
   };
 
-  const top = firstVisibleIdx !== -1 ? rowMap[firstVisibleIdx].start : 0;
+  const top = rowPositions.get(start) || 0;
 
   return html`
     <div onscroll=${handleScroll} ref=${baseRef} ...${props}>
       <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
         <div style=${{ ...style_content, top: `${top}px` }} ref=${containerRef}>
           ${selection.map((item, index) => {
-            const component = renderRow(item, start + index);
+            const actualIndex = start + index;
             return html`
-              <div key=${`list-item-${start + index}`}>${component}</div>
+              <div
+                key=${`list-item-${actualIndex}`}
+                ref=${(el) => {
+                  if (el) {
+                    rowRefs.current.set(actualIndex, el);
+                  } else {
+                    rowRefs.current.delete(actualIndex);
+                  }
+                }}
+              >
+                ${renderRow(item, actualIndex)}
+              </div>
             `;
           })}
         </div>

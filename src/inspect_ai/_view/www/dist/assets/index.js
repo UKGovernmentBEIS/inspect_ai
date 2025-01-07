@@ -25697,16 +25697,55 @@ ${events}
     };
     function VirtualList({
       data,
-      rowMap,
       renderRow,
       overscanCount = 10,
+      estimatedRowHeight = 50,
       sync,
       ...props
     }) {
       const [height, setHeight] = h(0);
       const [offset2, setOffset] = h(0);
+      const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
+      const [totalHeight, setTotalHeight] = h(0);
       const baseRef = A(null);
       const containerRef = A(null);
+      const rowRefs = A(/* @__PURE__ */ new Map());
+      const getRowHeight = (index) => {
+        return rowHeights.get(index) || estimatedRowHeight;
+      };
+      const calculateRowPositions = () => {
+        let currentPosition = 0;
+        const positions = /* @__PURE__ */ new Map();
+        for (let i2 = 0; i2 < data.length; i2++) {
+          positions.set(i2, currentPosition);
+          currentPosition += getRowHeight(i2);
+        }
+        return positions;
+      };
+      const measureRows = () => {
+        let heightsUpdated = false;
+        const newHeights = new Map(rowHeights);
+        rowRefs.current.forEach((element, index) => {
+          if (element) {
+            const measuredHeight = element.offsetHeight;
+            if (measuredHeight && measuredHeight !== newHeights.get(index)) {
+              newHeights.set(index, measuredHeight);
+              heightsUpdated = true;
+            }
+          }
+        });
+        if (heightsUpdated) {
+          setRowHeights(newHeights);
+          updateTotalHeight(newHeights);
+        }
+      };
+      const updateTotalHeight = (heights = rowHeights) => {
+        let total = 0;
+        for (let i2 = 0; i2 < data.length; i2++) {
+          total += heights.get(i2) || estimatedRowHeight;
+        }
+        setTotalHeight(total);
+      };
       const resize = () => {
         if (baseRef.current && height !== baseRef.current.offsetHeight) {
           setHeight(baseRef.current.offsetHeight);
@@ -25726,24 +25765,31 @@ ${events}
         return () => window.removeEventListener("resize", resize);
       }, []);
       y(() => {
-        resize();
-      }, [height]);
-      const firstVisibleIdx = rowMap.findIndex((row) => {
-        return row.start + row.height >= offset2;
+        measureRows();
       });
-      const firstIndex = firstVisibleIdx > -1 ? firstVisibleIdx : 0;
-      const lastVisibleIdx = rowMap.findIndex((row) => {
-        return row.start + row.height >= offset2 + height;
-      });
-      const lastIndex = lastVisibleIdx > -1 ? lastVisibleIdx : rowMap.length - 1;
-      const lastRow = rowMap[rowMap.length - 1];
-      const totalHeight = lastRow ? lastRow.start + lastRow.height : 0;
-      let visibleRowCount = lastIndex - firstIndex;
-      if (overscanCount) {
-        visibleRowCount += overscanCount;
-      }
-      const start2 = firstVisibleIdx;
-      const end2 = Math.min(data.length, start2 + visibleRowCount);
+      const rowPositions = calculateRowPositions();
+      const findRowAtOffset = (targetOffset) => {
+        let low = 0;
+        let high = data.length - 1;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          const rowStart = rowPositions.get(mid) || 0;
+          const rowEnd = rowStart + getRowHeight(mid);
+          if (targetOffset >= rowStart && targetOffset < rowEnd) {
+            return mid;
+          }
+          if (targetOffset < rowStart) {
+            high = mid - 1;
+          } else {
+            low = mid + 1;
+          }
+        }
+        return 0;
+      };
+      const firstVisibleIdx = findRowAtOffset(offset2);
+      const lastVisibleIdx = findRowAtOffset(offset2 + height);
+      const start2 = Math.max(0, firstVisibleIdx - overscanCount);
+      const end2 = Math.min(data.length, lastVisibleIdx + overscanCount);
       const selection = data.slice(start2, end2);
       const style_inner = {
         position: "relative",
@@ -25759,15 +25805,26 @@ ${events}
         width: "100%",
         overflow: "visible"
       };
-      const top2 = firstVisibleIdx !== -1 ? rowMap[firstVisibleIdx].start : 0;
+      const top2 = rowPositions.get(start2) || 0;
       return m$1`
     <div onscroll=${handleScroll} ref=${baseRef} ...${props}>
       <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
         <div style=${{ ...style_content, top: `${top2}px` }} ref=${containerRef}>
           ${selection.map((item, index) => {
-        const component = renderRow(item, start2 + index);
+        const actualIndex = start2 + index;
         return m$1`
-              <div key=${`list-item-${start2 + index}`}>${component}</div>
+              <div
+                key=${`list-item-${actualIndex}`}
+                ref=${(el) => {
+          if (el) {
+            rowRefs.current.set(actualIndex, el);
+          } else {
+            rowRefs.current.delete(actualIndex);
+          }
+        }}
+              >
+                ${renderRow(item, actualIndex)}
+              </div>
             `;
       })}
         </div>
@@ -25960,7 +26017,6 @@ ${events}
       tabIndex="0"
       renderRow=${renderRow}
       onkeydown=${onkeydown}
-      rowMap=${rowMap}
       style=${listStyle}
     />
     ${footerRow}
