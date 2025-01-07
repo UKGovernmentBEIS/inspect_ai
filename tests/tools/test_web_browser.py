@@ -11,10 +11,6 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
 
-import dotenv
-
-dotenv.load_dotenv()
-
 
 @skip_if_no_docker
 @pytest.mark.slow
@@ -136,7 +132,7 @@ def test_web_browser_input():
     task = Task(
         dataset=[
             Sample(
-                input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the page's search interface to search for 'best-selling books ever written'"
+                input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the page's search interface to search for 'solvers'"
             )
         ],
         solver=[use_tools(web_browser()), generate()],
