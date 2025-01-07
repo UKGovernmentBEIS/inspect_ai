@@ -125,7 +125,7 @@ export const SampleDisplay = ({
     html`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === kSampleMessagesTabId
-    } scrollable=${false}>
+    } scrollable=${false} style=${{ width: "100%" }}>
       <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id}`} 
         id=${`${baseId}-chat-${id}`} 

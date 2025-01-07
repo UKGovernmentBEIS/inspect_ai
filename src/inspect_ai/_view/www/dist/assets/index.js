@@ -20090,6 +20090,154 @@ var require_assets = __commonJS({
       }
       return parseInt(value != null ? value : "0", 10);
     }
+    function VirtualList({
+      data,
+      renderRow,
+      overscanCount = 15,
+      estimatedRowHeight = 50,
+      sync,
+      scrollRef,
+      ...props
+    }) {
+      const [height, setHeight] = h(0);
+      const [offset2, setOffset] = h(0);
+      const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
+      const [totalHeight, setTotalHeight] = h(0);
+      const baseRef = A$1(null);
+      const containerRef = A$1(null);
+      const rowRefs = A$1(/* @__PURE__ */ new Map());
+      const getRowHeight = (index) => {
+        return rowHeights.get(index) || estimatedRowHeight;
+      };
+      const calculateRowPositions = () => {
+        let currentPosition = 0;
+        const positions = /* @__PURE__ */ new Map();
+        for (let i2 = 0; i2 < data.length; i2++) {
+          positions.set(i2, currentPosition);
+          currentPosition += getRowHeight(i2);
+        }
+        return positions;
+      };
+      const measureRows = () => {
+        let heightsUpdated = false;
+        const newHeights = new Map(rowHeights);
+        rowRefs.current.forEach((element, index) => {
+          if (element) {
+            const measuredHeight = element.offsetHeight;
+            if (measuredHeight && measuredHeight !== newHeights.get(index)) {
+              newHeights.set(index, measuredHeight);
+              heightsUpdated = true;
+            }
+          }
+        });
+        if (heightsUpdated) {
+          setRowHeights(newHeights);
+          updateTotalHeight(newHeights);
+        }
+      };
+      const updateTotalHeight = (heights = rowHeights) => {
+        let total = 0;
+        for (let i2 = 0; i2 < data.length; i2++) {
+          total += heights.get(i2) || estimatedRowHeight;
+        }
+        setTotalHeight(total);
+      };
+      const resize = () => {
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement && height !== scrollElement.offsetHeight) {
+          setHeight(scrollElement.offsetHeight);
+        }
+      };
+      const handleScroll = throttle$1(() => {
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement) {
+          setOffset(scrollElement.scrollTop);
+        }
+        if (sync) {
+          setOffset((prev) => prev);
+        }
+      }, 25);
+      y(() => {
+        resize();
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement) {
+          scrollElement.addEventListener("scroll", handleScroll);
+          window.addEventListener("resize", resize);
+          return () => {
+            scrollElement.removeEventListener("scroll", handleScroll);
+            window.removeEventListener("resize", resize);
+          };
+        }
+      }, [scrollRef == null ? void 0 : scrollRef.current]);
+      y(() => {
+        measureRows();
+      });
+      const rowPositions = calculateRowPositions();
+      const findRowAtOffset = (targetOffset) => {
+        let low = 0;
+        let high = data.length - 1;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          const rowStart = rowPositions.get(mid) || 0;
+          const rowEnd = rowStart + getRowHeight(mid);
+          if (targetOffset >= rowStart && targetOffset < rowEnd) {
+            return mid;
+          }
+          if (targetOffset < rowStart) {
+            high = mid - 1;
+          } else {
+            low = mid + 1;
+          }
+        }
+        return 0;
+      };
+      const firstVisibleIdx = findRowAtOffset(offset2);
+      const lastVisibleIdx = findRowAtOffset(offset2 + height);
+      const start2 = Math.max(0, firstVisibleIdx - overscanCount);
+      const end2 = Math.min(data.length, lastVisibleIdx + overscanCount);
+      const selection = data.slice(start2, end2);
+      const style_inner = {
+        position: "relative",
+        overflow: (scrollRef == null ? void 0 : scrollRef.current) ? "visible" : "hidden",
+        width: "100%",
+        minHeight: "100%"
+      };
+      const style_content = {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        height: "100%",
+        width: "100%",
+        overflow: "visible"
+      };
+      const top2 = rowPositions.get(start2) || 0;
+      const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
+      return m$1`
+    <div ref=${baseRef} ...${props} ...${scrollProps}>
+      <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
+        <div style=${{ ...style_content, top: `${top2}px` }} ref=${containerRef}>
+          ${selection.map((item, index) => {
+        const actualIndex = start2 + index;
+        return m$1`
+              <div
+                key=${`list-item-${actualIndex}`}
+                ref=${(el) => {
+          if (el) {
+            rowRefs.current.set(actualIndex, el);
+          } else {
+            rowRefs.current.delete(actualIndex);
+          }
+        }}
+              >
+                ${renderRow(item, actualIndex)}
+              </div>
+            `;
+      })}
+        </div>
+      </div>
+    </div>
+  `;
+    }
     const ChatViewVirtualList = ({
       id: id2,
       messages,
@@ -20100,31 +20248,22 @@ var require_assets = __commonJS({
       scrollRef
     }) => {
       const collapsedMessages = resolveMessages(messages);
-      const result = m$1`<${Virtuoso}
-    id=${`${id2}-virtual-list`}
-    style=${{
-        width: "100%",
-        overflowY: "unset",
-        boxSizing: "border-box",
-        ...style2
-      }}
-    customScrollParent=${scrollRef.current}
-    totalCount=${collapsedMessages.length}
-    increaseViewportBy=${{
-        top: 1e3,
-        bottom: 1e3
-      }}
-    skipAnimationFrameInResizeObserver=${true}
-    itemContent=${(index) => {
+      const renderRow = (item, index) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
-        id=${id2}
-        number=${number2}
-        resolvedMessage=${collapsedMessages[index]}
-        indented=${indented}
-        toolCallStyle=${toolCallStyle}
-      />`;
-      }}
+      id=${id2}
+      number=${number2}
+      resolvedMessage=${item}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
+      };
+      const result = m$1`<${VirtualList}
+      data=${collapsedMessages}
+      tabIndex="0"
+      renderRow=${renderRow}
+      scrollRef=${scrollRef}
+      style=${{ width: "100%", marginTop: "1em" }}
   />`;
       return result;
     };
@@ -29912,7 +30051,7 @@ ${events}
       };
       const tabs = [
         m$1`
-    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId} scrollable=${false}>
+    <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId} scrollable=${false} style=${{ width: "100%" }}>
       <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id2}`} 
         id=${`${baseId}-chat-${id2}`} 
@@ -30326,146 +30465,6 @@ ${events}
         ${children2}
     </${LargeModal}>`;
     };
-    function VirtualList({
-      data,
-      renderRow,
-      overscanCount = 10,
-      estimatedRowHeight = 50,
-      sync,
-      scrollRef,
-      ...props
-    }) {
-      const [height, setHeight] = h(0);
-      const [offset2, setOffset] = h(0);
-      const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
-      const [totalHeight, setTotalHeight] = h(0);
-      const baseRef = A$1(null);
-      const containerRef = A$1(null);
-      const rowRefs = A$1(/* @__PURE__ */ new Map());
-      const getRowHeight = (index) => {
-        return rowHeights.get(index) || estimatedRowHeight;
-      };
-      const calculateRowPositions = () => {
-        let currentPosition = 0;
-        const positions = /* @__PURE__ */ new Map();
-        for (let i2 = 0; i2 < data.length; i2++) {
-          positions.set(i2, currentPosition);
-          currentPosition += getRowHeight(i2);
-        }
-        return positions;
-      };
-      const measureRows = () => {
-        let heightsUpdated = false;
-        const newHeights = new Map(rowHeights);
-        rowRefs.current.forEach((element, index) => {
-          if (element) {
-            const measuredHeight = element.offsetHeight;
-            if (measuredHeight && measuredHeight !== newHeights.get(index)) {
-              newHeights.set(index, measuredHeight);
-              heightsUpdated = true;
-            }
-          }
-        });
-        if (heightsUpdated) {
-          setRowHeights(newHeights);
-          updateTotalHeight(newHeights);
-        }
-      };
-      const updateTotalHeight = (heights = rowHeights) => {
-        let total = 0;
-        for (let i2 = 0; i2 < data.length; i2++) {
-          total += heights.get(i2) || estimatedRowHeight;
-        }
-        setTotalHeight(total);
-      };
-      const resize = () => {
-        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-        if (scrollElement && height !== scrollElement.offsetHeight) {
-          setHeight(scrollElement.offsetHeight);
-        }
-      };
-      const handleScroll = throttle$1(() => {
-        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-        if (scrollElement) {
-          setOffset(scrollElement.scrollTop);
-        }
-        if (sync) {
-          setOffset((prev) => prev);
-        }
-      }, 100);
-      y(() => {
-        resize();
-        window.addEventListener("resize", resize);
-        return () => window.removeEventListener("resize", resize);
-      }, []);
-      y(() => {
-        measureRows();
-      });
-      const rowPositions = calculateRowPositions();
-      const findRowAtOffset = (targetOffset) => {
-        let low = 0;
-        let high = data.length - 1;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          const rowStart = rowPositions.get(mid) || 0;
-          const rowEnd = rowStart + getRowHeight(mid);
-          if (targetOffset >= rowStart && targetOffset < rowEnd) {
-            return mid;
-          }
-          if (targetOffset < rowStart) {
-            high = mid - 1;
-          } else {
-            low = mid + 1;
-          }
-        }
-        return 0;
-      };
-      const firstVisibleIdx = findRowAtOffset(offset2);
-      const lastVisibleIdx = findRowAtOffset(offset2 + height);
-      const start2 = Math.max(0, firstVisibleIdx - overscanCount);
-      const end2 = Math.min(data.length, lastVisibleIdx + overscanCount);
-      const selection = data.slice(start2, end2);
-      const style_inner = {
-        position: "relative",
-        overflow: "hidden",
-        width: "100%",
-        minHeight: "100%"
-      };
-      const style_content = {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        height: "100%",
-        width: "100%",
-        overflow: "visible"
-      };
-      const top2 = rowPositions.get(start2) || 0;
-      return m$1`
-    <div onscroll=${handleScroll} ref=${baseRef} ...${props}>
-      <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
-        <div style=${{ ...style_content, top: `${top2}px` }} ref=${containerRef}>
-          ${selection.map((item, index) => {
-        const actualIndex = start2 + index;
-        return m$1`
-              <div
-                key=${`list-item-${actualIndex}`}
-                ref=${(el) => {
-          if (el) {
-            rowRefs.current.set(actualIndex, el);
-          } else {
-            rowRefs.current.delete(actualIndex);
-          }
-        }}
-              >
-                ${renderRow(item, actualIndex)}
-              </div>
-            `;
-      })}
-        </div>
-      </div>
-    </div>
-  `;
-    }
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
     const SampleList = (props) => {
