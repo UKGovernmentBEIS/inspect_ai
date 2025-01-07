@@ -1,5 +1,6 @@
 import json
 from io import TextIOWrapper
+import os
 from pathlib import Path
 from typing import Any, cast
 
@@ -75,7 +76,7 @@ def json_dataset(
         dataset = MemoryDataset(
             samples=data_to_samples(dataset_reader(f), data_to_sample, auto_id),
             name=name,
-            location=json_file,
+            location=os.path.abspath(json_file),
         )
 
         # resolve relative file paths
