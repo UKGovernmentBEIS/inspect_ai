@@ -15762,7 +15762,7 @@ var require_assets = __commonJS({
       tabIndex="0"
       renderRow=${renderRow}
       scrollRef=${scrollRef}
-      style=${{ width: "100%", marginTop: "1em" }}
+      style=${{ width: "100%", marginTop: "1em", ...style2 }}
   />`;
       return result;
     };

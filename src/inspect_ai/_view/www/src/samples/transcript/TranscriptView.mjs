@@ -16,7 +16,6 @@ import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 // @ts-ignore
-import { Virtuoso } from "react-virtuoso";
 import { VirtualList } from "../../components/VirtualList.mjs";
 
 /**
