@@ -20056,6 +20056,43 @@ var require_assets = __commonJS({
       }
       return parseInt(value != null ? value : "0", 10);
     }
+    const ChatViewVirtualList = ({
+      id: id2,
+      messages,
+      toolCallStyle,
+      style: style2,
+      indented,
+      numbered = true,
+      scrollRef
+    }) => {
+      const collapsedMessages = resolveMessages(messages);
+      const result = m$1` <${Virtuoso}
+    id=${`${id2}-virtual-list`}
+    style=${{
+        width: "100%",
+        overflowY: "unset",
+        boxSizing: "border-box",
+        ...style2
+      }}
+    customScrollParent=${scrollRef.current}
+    totalCount=${collapsedMessages.length}
+    increaseViewportBy=${{
+        top: 1e3,
+        bottom: 1e3
+      }}
+    itemContent=${(index) => {
+        const number = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
+        return m$1`<${ChatMessageRow}
+        id=${id2}
+        number=${number}
+        resolvedMessage=${collapsedMessages[index]}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />`;
+      }}
+  />`;
+      return result;
+    };
     const ChatView = ({
       id: id2,
       messages,
@@ -20065,18 +20102,18 @@ var require_assets = __commonJS({
       numbered = true
     }) => {
       const collapsedMessages = resolveMessages(messages);
-      const result = m$1`
-    <div style=${style2}>
-      ${collapsedMessages.map((msg, index) => {
+      const result = m$1` <div style=${style2}>
+    ${collapsedMessages.map((msg, index) => {
         const number = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
-              id=${id2}
-              number=${number}
-              resolvedMessage=${msg}
-              indented=${indented}
-              toolCallStyle=${toolCallStyle}/>`;
+        id=${id2}
+        number=${number}
+        resolvedMessage=${msg}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />`;
       })}
-    </div>`;
+  </div>`;
       return result;
     };
     const ChatMessageRow = ({
@@ -20088,37 +20125,37 @@ var require_assets = __commonJS({
     }) => {
       if (number) {
         return m$1` <div
-        style=${{
+      style=${{
           display: "grid",
           gridTemplateColumns: "max-content auto",
           columnGap: "0.4em"
         }}
-      >
-        <div
-          style=${{
+    >
+      <div
+        style=${{
           fontSize: FontSize.smaller,
           ...TextStyle.secondary,
           marginTop: "0.1em"
         }}
-        >
-          ${number}
-        </div>
-        <${ChatMessage}
-          id=${`${id2}-chat-messages`}
-          message=${resolvedMessage.message}
-          toolMessages=${resolvedMessage.toolMessages}
-          indented=${indented}
-          toolCallStyle=${toolCallStyle}
-        />
-      </div>`;
-      } else {
-        return m$1`<${ChatMessage}
+      >
+        ${number}
+      </div>
+      <${ChatMessage}
         id=${`${id2}-chat-messages`}
         message=${resolvedMessage.message}
         toolMessages=${resolvedMessage.toolMessages}
         indented=${indented}
         toolCallStyle=${toolCallStyle}
-      />`;
+      />
+    </div>`;
+      } else {
+        return m$1`<${ChatMessage}
+      id=${`${id2}-chat-messages`}
+      message=${resolvedMessage.message}
+      toolMessages=${resolvedMessage.toolMessages}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
       }
     };
     const resolveMessages = (messages) => {
@@ -29424,23 +29461,28 @@ ${events}
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
       return m$1`<${TranscriptVirtualListComponent}
-                  id=${id2}
-                  eventNodes=${eventNodes}
-                  style=${style2}
-                  scrollRef=${scrollRef}/>`;
+    id=${id2}
+    eventNodes=${eventNodes}
+    style=${style2}
+    scrollRef=${scrollRef}
+  />`;
     };
-    const TranscriptVirtualListComponent = ({ id: id2, eventNodes, style: style2, scrollRef }) => {
+    const TranscriptVirtualListComponent = ({
+      id: id2,
+      eventNodes,
+      style: style2,
+      scrollRef
+    }) => {
       return m$1`<${Virtuoso}
-                id=${`${id2}-virtual-list`}
-                logLevel=${LogLevel.DEBUG}
-                style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
-                customScrollParent=${scrollRef.current}
-                data=${eventNodes}
-                overscan=${{
-        reverse: 3,
-        main: 2
+    id=${`${id2}-virtual-list`}
+    style=${{ width: "100%", overflowY: "unset", boxSizing: "border-box" }}
+    customScrollParent=${scrollRef.current}
+    data=${eventNodes}
+    increaseViewportBy=${{
+        top: 1e3,
+        bottom: 1e3
       }}
-                itemContent=${(index) => {
+    itemContent=${(index) => {
         const node = eventNodes[index];
         const toggleStyle = {};
         if (node.depth % 2 == 0) {
@@ -29453,18 +29495,18 @@ ${events}
           paddingTop = ".5em";
         }
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
-                                  <${RenderedEventNode}
-                                    id=${`${id2}-event${index}`}
-                                    node=${node}
-                                    style=${{
+        <${RenderedEventNode}
+          id=${`${id2}-event${index}`}
+          node=${node}
+          style=${{
           ...toggleStyle,
           ...style2
         }}
-                                    scrollRef=${scrollRef}
-                                  />
-                                </div>`;
+          scrollRef=${scrollRef}
+        />
+      </div>`;
       }}
-              />`;
+  />`;
     };
     const TranscriptComponent = ({ id: id2, eventNodes, style: style2 }) => {
       const rows = eventNodes.map((eventNode, index) => {
@@ -29485,14 +29527,14 @@ ${events}
         }
         const row = m$1`
       <div style=${{ paddingBottom }}>
-      <${RenderedEventNode}
-        id=${`${id2}-event${index}`}
-        node=${eventNode}
-        style=${{
+        <${RenderedEventNode}
+          id=${`${id2}-event${index}`}
+          node=${eventNode}
+          style=${{
           ...toggleStyle,
           ...style2
         }}
-      />
+        />
       </div>
     `;
         return row;
@@ -29659,7 +29701,11 @@ ${events}
       return rootNodes;
     }
     const SampleTranscript = ({ id: id2, evalEvents, scrollRef }) => {
-      return m$1`<${TranscriptVirtualList} id=${id2} events=${evalEvents} scrollRef=${scrollRef}/>`;
+      return m$1`<${TranscriptVirtualList}
+    id=${id2}
+    events=${evalEvents}
+    scrollRef=${scrollRef}
+  />`;
     };
     const SampleError = ({ message, align, style: style2 }) => {
       align = align || "center";
@@ -29830,12 +29876,13 @@ ${events}
       const tabs = [
         m$1`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId}>
-      <${ChatView} 
+      <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id2}`} 
         id=${`${baseId}-chat-${id2}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
+        scrollRef=${scrollRef}
       />
     </${TabPanel}>`
       ];
@@ -30955,7 +31002,9 @@ ${events}
             reject(new Error(error2.message));
           };
         });
-        worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [encodedText.buffer]);
+        worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [
+          encodedText.buffer
+        ]);
         return await result;
       } finally {
         worker.terminate();
