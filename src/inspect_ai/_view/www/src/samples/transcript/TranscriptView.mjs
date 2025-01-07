@@ -76,7 +76,6 @@ export const TranscriptVirtualListComponent = ({
   style,
   scrollRef,
 }) => {
-
   const renderRow = (item, index) => {
     const toggleStyle = {};
     if (item.depth % 2 == 0) {
@@ -101,14 +100,14 @@ export const TranscriptVirtualListComponent = ({
         scrollRef=${scrollRef}
       />
     </div>`;
-  }
+  };
 
-  return html`<${VirtualList} 
-      data=${eventNodes}
-      tabIndex="0"
-      renderRow=${renderRow}
-      scrollRef=${scrollRef}
-      style=${{width: "100%", marginTop: "1em"}}
+  return html`<${VirtualList}
+    data=${eventNodes}
+    tabIndex="0"
+    renderRow=${renderRow}
+    scrollRef=${scrollRef}
+    style=${{ width: "100%", marginTop: "1em" }}
   />`;
 };
 

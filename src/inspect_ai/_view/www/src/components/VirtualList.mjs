@@ -45,12 +45,12 @@ export function VirtualList({
   const calculateRowPositions = () => {
     let currentPosition = 0;
     const positions = new Map();
-    
+
     for (let i = 0; i < data.length; i++) {
       positions.set(i, currentPosition);
       currentPosition += getRowHeight(i);
     }
-    
+
     return positions;
   };
 
@@ -107,11 +107,11 @@ export function VirtualList({
   useEffect(() => {
     resize();
     const scrollElement = scrollRef?.current || baseRef.current;
-    
+
     if (scrollElement) {
       scrollElement.addEventListener("scroll", handleScroll);
       window.addEventListener("resize", resize);
-      
+
       return () => {
         scrollElement.removeEventListener("scroll", handleScroll);
         window.removeEventListener("resize", resize);
@@ -126,27 +126,27 @@ export function VirtualList({
 
   // Calculate visible range
   const rowPositions = calculateRowPositions();
-  
+
   const findRowAtOffset = (targetOffset) => {
     let low = 0;
     let high = data.length - 1;
-    
+
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
       const rowStart = rowPositions.get(mid) || 0;
       const rowEnd = rowStart + getRowHeight(mid);
-      
+
       if (targetOffset >= rowStart && targetOffset < rowEnd) {
         return mid;
       }
-      
+
       if (targetOffset < rowStart) {
         high = mid - 1;
       } else {
         low = mid + 1;
       }
     }
-    
+
     return 0;
   };
 
