@@ -15574,7 +15574,7 @@ var require_assets = __commonJS({
       const getRowHeight = (index) => {
         return rowHeights.get(index) || estimatedRowHeight;
       };
-      const calculateRowPositions = () => {
+      const rowPositions = T(() => {
         let currentPosition = 0;
         const positions = /* @__PURE__ */ new Map();
         for (let i2 = 0; i2 < data.length; i2++) {
@@ -15582,7 +15582,7 @@ var require_assets = __commonJS({
           currentPosition += getRowHeight(i2);
         }
         return positions;
-      };
+      }, [rowHeights, data.length]);
       const measureRows = () => {
         let heightsUpdated = false;
         const newHeights = new Map(rowHeights);
@@ -15621,7 +15621,7 @@ var require_assets = __commonJS({
         if (sync) {
           setOffset((prev) => prev);
         }
-      }, 25);
+      }, 100);
       y(() => {
         resize();
         const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
@@ -15637,7 +15637,6 @@ var require_assets = __commonJS({
       y(() => {
         measureRows();
       });
-      const rowPositions = calculateRowPositions();
       const findRowAtOffset = (targetOffset) => {
         let low = 0;
         let high = data.length - 1;
@@ -15660,7 +15659,26 @@ var require_assets = __commonJS({
       const lastVisibleIdx = findRowAtOffset(offset2 + height);
       const start2 = Math.max(0, firstVisibleIdx - overscanCount);
       const end2 = Math.min(data.length, lastVisibleIdx + overscanCount);
-      const selection = data.slice(start2, end2);
+      const renderedRows = T(() => {
+        const selection = data.slice(start2, end2);
+        return selection.map((item, index) => {
+          const actualIndex = start2 + index;
+          return m$1`
+        <div
+          key=${`list-item-${actualIndex}`}
+          ref=${(el) => {
+            if (el) {
+              rowRefs.current.set(actualIndex, el);
+            } else {
+              rowRefs.current.delete(actualIndex);
+            }
+          }}
+        >
+          ${renderRow(item, actualIndex)}
+        </div>
+      `;
+        });
+      }, [data, start2, end2, renderRow]);
       const style_inner = {
         position: "relative",
         overflow: (scrollRef == null ? void 0 : scrollRef.current) ? "visible" : "hidden",
@@ -15681,23 +15699,7 @@ var require_assets = __commonJS({
     <div ref=${baseRef} ...${props} ...${scrollProps}>
       <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
         <div style=${{ ...style_content, top: `${top2}px` }} ref=${containerRef}>
-          ${selection.map((item, index) => {
-        const actualIndex = start2 + index;
-        return m$1`
-              <div
-                key=${`list-item-${actualIndex}`}
-                ref=${(el) => {
-          if (el) {
-            rowRefs.current.set(actualIndex, el);
-          } else {
-            rowRefs.current.delete(actualIndex);
-          }
-        }}
-              >
-                ${renderRow(item, actualIndex)}
-              </div>
-            `;
-      })}
+          ${renderedRows}
         </div>
       </div>
     </div>
@@ -15724,11 +15726,11 @@ var require_assets = __commonJS({
     />`;
       };
       const result = m$1`<${VirtualList}
-      data=${collapsedMessages}
-      tabIndex="0"
-      renderRow=${renderRow}
-      scrollRef=${scrollRef}
-      style=${{ width: "100%", marginTop: "1em", ...style2 }}
+    data=${collapsedMessages}
+    tabIndex="0"
+    renderRow=${renderRow}
+    scrollRef=${scrollRef}
+    style=${{ width: "100%", marginTop: "1em", ...style2 }}
   />`;
       return result;
     };
@@ -25135,12 +25137,12 @@ ${events}
       />
     </div>`;
       };
-      return m$1`<${VirtualList} 
-      data=${eventNodes}
-      tabIndex="0"
-      renderRow=${renderRow}
-      scrollRef=${scrollRef}
-      style=${{ width: "100%", marginTop: "1em" }}
+      return m$1`<${VirtualList}
+    data=${eventNodes}
+    tabIndex="0"
+    renderRow=${renderRow}
+    scrollRef=${scrollRef}
+    style=${{ width: "100%", marginTop: "1em" }}
   />`;
     };
     const TranscriptComponent = ({ id, eventNodes, style: style2 }) => {
