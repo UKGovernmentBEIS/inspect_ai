@@ -6,7 +6,7 @@ import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
 
 import { html } from "htm/preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
@@ -137,17 +137,15 @@ export const APICodeCell = ({ id, contents }) => {
     return "";
   }
 
-  const sourceCode = JSON.stringify(contents, undefined, 2);
   const codeRef = useRef();
+  const sourceCode = useMemo(() => {
+    return JSON.stringify(contents, undefined, 2);
+  }, [contents]);
 
   useEffect(() => {
     if (codeRef.current) {
       // @ts-ignore
-      codeRef.current.innerHTML = Prism.highlight(
-        sourceCode,
-        Prism.languages.javascript,
-        "javacript",
-      );
+      Prism.highlightElement(codeRef.current);
     }
   }, [codeRef.current, contents]);
 
@@ -163,12 +161,13 @@ export const APICodeCell = ({ id, contents }) => {
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode-js" 
+        class="language-json" 
         style=${{
       fontSize: FontSize.small,
       whiteSpace: "pre-wrap",
       wordWrap: "anywhere",
     }}>
+        ${sourceCode}
       </code>
       </pre>
   </div>`;
