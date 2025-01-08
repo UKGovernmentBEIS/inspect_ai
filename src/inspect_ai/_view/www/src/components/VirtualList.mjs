@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useRef, useState, useEffect } from "preact/hooks";
+import { useRef, useState, useEffect, useMemo } from "preact/hooks";
 import { throttle } from "../utils/sync.mjs";
 
 /**
@@ -117,7 +117,7 @@ export function VirtualList({
         window.removeEventListener("resize", resize);
       };
     }
-  }, [scrollRef?.current]); // Re-run effect when scrollRef changes
+  }, [scrollRef?.current]);
 
   // Measure rows after render
   useEffect(() => {
@@ -156,7 +156,28 @@ export function VirtualList({
   // Calculate range of rows to render including overscan
   const start = Math.max(0, firstVisibleIdx - overscanCount);
   const end = Math.min(data.length, lastVisibleIdx + overscanCount);
-  const selection = data.slice(start, end);
+  
+  // Memoize the rendered rows to prevent unnecessary re-renders
+  const renderedRows = useMemo(() => {
+    const selection = data.slice(start, end);
+    return selection.map((item, index) => {
+      const actualIndex = start + index;
+      return html`
+        <div
+          key=${`list-item-${actualIndex}`}
+          ref=${(el) => {
+            if (el) {
+              rowRefs.current.set(actualIndex, el);
+            } else {
+              rowRefs.current.delete(actualIndex);
+            }
+          }}
+        >
+          ${renderRow(item, actualIndex)}
+        </div>
+      `;
+    });
+  }, [data, start, end, renderRow]);
 
   const style_inner = {
     position: "relative",
@@ -183,23 +204,7 @@ export function VirtualList({
     <div ref=${baseRef} ...${props} ...${scrollProps}>
       <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
         <div style=${{ ...style_content, top: `${top}px` }} ref=${containerRef}>
-          ${selection.map((item, index) => {
-            const actualIndex = start + index;
-            return html`
-              <div
-                key=${`list-item-${actualIndex}`}
-                ref=${(el) => {
-                  if (el) {
-                    rowRefs.current.set(actualIndex, el);
-                  } else {
-                    rowRefs.current.delete(actualIndex);
-                  }
-                }}
-              >
-                ${renderRow(item, actualIndex)}
-              </div>
-            `;
-          })}
+          ${renderedRows}
         </div>
       </div>
     </div>
