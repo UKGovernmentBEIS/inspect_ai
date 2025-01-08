@@ -1,9 +1,10 @@
-import { autocompletion } from "@codemirror/autocomplete";
+import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import {
   HighlightStyle,
   StreamLanguage,
-  syntaxHighlighting,
+  StringStream,
   bracketMatching,
+  syntaxHighlighting,
 } from "@codemirror/language";
 import { linter } from "@codemirror/lint";
 import { Compartment, EditorState } from "@codemirror/state";
@@ -13,6 +14,21 @@ import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import { scoreFilterItems } from "./filters.mjs";
+import {
+  kScoreTypeBoolean,
+  kScoreTypeCategorical,
+  kScoreTypeNumeric,
+  kScoreTypeOther,
+  kScoreTypePassFail,
+} from "../../constants.mjs";
+
+/**
+ * @typedef {Object} Token
+ * @property {string} type
+ * @property {string} text
+ * @property {number} from
+ * @property {number} to
+ */
 
 const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
 
@@ -39,7 +55,7 @@ const SAMPLE_FUNCTIONS = [
  * @param {import("@codemirror/state").Transaction} tr - The transaction to join lines in.
  * @returns {import("@codemirror/state").TransactionSpec} The transaction with joined lines, if any.
  */
-const joinLines = (tr) => {
+function joinLines(tr) {
   if (tr.newDoc.toString().includes("\n")) {
     const newContent = tr.newDoc.toString().replace(/\n/g, " ").trim();
     return {
@@ -48,7 +64,7 @@ const joinLines = (tr) => {
     };
   }
   return tr;
-};
+}
 
 // Based on CodeMirror default theme: https://codemirror.net/5/lib/codemirror.css
 const highlightStyle = HighlightStyle.define([
@@ -58,69 +74,383 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.function(tags.variableName), color: "#00c" },
 ]);
 
-const simpleHighlighter = StreamLanguage.define({
-  token(stream) {
-    const wordsRe = (words) => new RegExp(`^(${words.join("|")})\\b`);
-    const functions = [...MATH_FUNCTIONS, ...SAMPLE_FUNCTIONS].map(
-      ([label]) => label,
-    );
+/** @param {string} word */
+function countSpaces(word) {
+  return word.split(" ").length - 1;
+}
+
+const nextToken = (() => {
+  const wordsRe = (words) => new RegExp(`^(${words.join("|")})\\b`);
+  const keywordsRe = wordsRe(
+    // Sort to make sure "not in" is matched before "not".
+    KEYWORDS.sort((a, b) => countSpaces(b) - countSpaces(a)),
+  );
+  const mathFunctionsRe = wordsRe(MATH_FUNCTIONS.map(([label]) => label));
+  const sampleFunctionsRe = wordsRe(SAMPLE_FUNCTIONS.map(([label]) => label));
+
+  /** @param {import("@codemirror/language").StringStream} stream */
+  return function (stream) {
     if (stream.match(/"[^"]*"/)) return "string";
-    if (stream.match(/^-?\d*\.?\d+/)) return "number";
-    if (stream.match(wordsRe(KEYWORDS))) return "keyword";
-    if (stream.match(wordsRe(functions))) return "function";
+    if (stream.match(/"[^"]*/)) return "unterminatedString";
+    if (stream.match(/^(-|\+)?\d+(\.\d+)?/)) return "number";
+    if (stream.match(keywordsRe)) return "keyword";
+    if (stream.match(mathFunctionsRe)) return "mathFunction";
+    if (stream.match(sampleFunctionsRe)) return "sampleFunction";
+    if (stream.match(/^[a-zA-Z_][a-zA-Z0-9_]*/)) return "variable";
+    if (stream.match(/^(==|!=|<=|>=|<|>|~=)/)) return "relation";
+    if (stream.match(/^(=|!|~)/)) return "miscOperator"; // recognize relations while typing; not valid syntax per se
+    if (stream.match(/^(\+|-|\*|\/|\^|\(|\)|,|\.)/)) return "miscOperator";
     stream.next();
     return null;
-  },
+  };
+})();
+
+const language = StreamLanguage.define({
+  token: nextToken,
   tokenTable: {
-    function: tags.function(tags.variableName),
+    string: tags.string,
+    unterminatedString: tags.string,
+    number: tags.number,
+    keyword: tags.keyword,
+    mathFunction: tags.function(tags.variableName),
+    sampleFunction: tags.function(tags.variableName),
+    variable: tags.variableName,
+    relation: tags.operator,
+    miscOperator: tags.operator,
   },
 });
 
 /**
+ * @param {string} input
+ * @returns {Token[]}
+ */
+function tokenize(input) {
+  const tokens = [];
+  const stream = new StringStream(input, 0, 0);
+  while (stream.pos < input.length) {
+    const from = stream.pos;
+    const type = nextToken(stream);
+    if (type) {
+      tokens.push({
+        type,
+        text: input.slice(from, stream.pos),
+        from,
+        to: stream.pos,
+      });
+    }
+  }
+  return tokens;
+}
+
+/**
+ * @param {import("./filters.mjs").ScoreFilterItem[]} filterItems
+ * @param {string} scorer
+ * @returns {import("./filters.mjs").ScoreFilterItem[]}
+ */
+function getMemberScoreItems(filterItems, scorer) {
+  return filterItems.filter((item) =>
+    item?.qualifiedName?.startsWith(`${scorer}.`),
+  );
+}
+
+/**
+ * Generates completions for the filter expression. The main goal is to make the
+ * sample filter intuitive for beginners and to provide a smooth experience for
+ * simple cases. To this end, we proactively try to suggest the next step of the
+ * expression, in a wizard-style fashion. This logic is primarily intended to
+ * support unsophisticated expressions of the form
+ *   SUBEXPR and/or SUBEXPR or/not SUBEXPR ...
+ * where each SUBEXPR is
+ *   VARIABLE ==/!=/</>/in/... VALUE
+ * and VALUE is a literal (string, number, etc.)
+ * It does support some expressions more complex than that, but the completion
+ * algorithm is not intended to be comprehensive. This is why we usually add
+ * default completions to the list in case our guess was off.
+ *
  * @param {import("@codemirror/autocomplete").CompletionContext} context
  * @param {import("../../samples/tools/filters.mjs").ScoreFilterItem[]} filterItems
  * @returns {import("@codemirror/autocomplete").CompletionResult}
  */
 function getCompletions(context, filterItems) {
-  let word = context.matchBefore(/\w*/);
-  if (word.from == word.to && !context.explicit) return null;
+  /** @param {Token} token */
+  const isLiteral = (token) =>
+    ["string", "unterminatedString", "number"].includes(token?.type);
+  /** @param {Token} token */
+  const isLogicalOp = (token) => ["and", "or", "not"].includes(token?.text);
 
-  /** @type {import("@codemirror/autocomplete").Completion[]} */
-  const keywordCompletions = KEYWORDS.map((k) => ({
+  /**
+   * With most tokens we complete only after a space, but for sometimes it makes
+   * sense to start autocompletion as soon as the token was typed.
+   * @param {Token} token
+   */
+  const autocompleteImmediatelyAfter = (token) =>
+    ["(", "."].includes(token?.text);
+
+  /**
+   * @param {import("codemirror").EditorView} view
+   * @param {import("@codemirror/autocomplete").Completion} completion
+   * @param {number} from
+   * @param {number} to
+   */
+  function applyWithCall(view, completion, from, to) {
+    view.dispatch({
+      changes: { from, to, insert: `${completion.label}()` },
+      selection: { anchor: from + completion.label.length + 1 },
+    });
+  }
+
+  /** @type {(k: string) => import("@codemirror/autocomplete").Completion} */
+  const makeKeywordCompletion = (k) => ({
     label: k,
     type: "keyword",
     boost: -20,
-  }));
-  /** @type {import("@codemirror/autocomplete").Completion[]} */
-  const mathFunctionCompletions = MATH_FUNCTIONS.map(([label, info]) => ({
+  });
+  /** @type {([label, info]: [string, string]) => import("@codemirror/autocomplete").Completion} */
+  const makeMathFunctionCompletion = ([label, info]) => ({
     label,
     type: "function",
     info,
+    apply: applyWithCall,
     boost: -10,
-  }));
-  /** @type {import("@codemirror/autocomplete").Completion[]} */
-  const sampleFunctionCompletions = SAMPLE_FUNCTIONS.map(([label, info]) => ({
+  });
+  /** @type {([label, info]: [string, string]) => import("@codemirror/autocomplete").Completion} */
+  const makeSampleFunctionCompletion = ([label, info]) => ({
     label,
     type: "function",
     info,
+    apply: applyWithCall,
     boost: 0,
-  }));
-  /** @type {import("@codemirror/autocomplete").Completion[]} */
-  const variableCompletions = filterItems.map((item) => ({
+  });
+  /** @type {(k: string) => import("@codemirror/autocomplete").Completion} */
+  const makeLiteralCompletion = (k) => ({
+    label: k,
+    type: "text",
+    boost: 10,
+  });
+  /** @type {(item: import("./filters.mjs").ScoreFilterItem) => import("@codemirror/autocomplete").Completion} */
+  const makeCanonicalNameCompletion = (item) => ({
     label: item.canonicalName,
     type: "variable",
     info: item.tooltip,
     boost: 20,
-  }));
-  return {
-    from: word.from,
-    options: [
-      ...keywordCompletions,
-      ...mathFunctionCompletions,
-      ...sampleFunctionCompletions,
-      ...variableCompletions,
-    ],
+  });
+  /** @type {(item: import("./filters.mjs").ScoreFilterItem) => import("@codemirror/autocomplete").Completion} */
+  const makeMemberAccessCompletion = (item) => ({
+    label: item.qualifiedName.split(".")[1],
+    type: "variable",
+    info: item.tooltip,
+    boost: 20,
+  });
+
+  const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
+  const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
+    makeMathFunctionCompletion,
+  );
+  const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
+    makeSampleFunctionCompletion,
+  );
+  const variableCompletionItems = filterItems.map(makeCanonicalNameCompletion);
+
+  const defaultCompletionItems = [
+    ...keywordCompletionItems,
+    ...mathFunctionCompletionItems,
+    ...sampleFunctionCompletionItems,
+    ...variableCompletionItems,
+  ];
+
+  const input = context.state.doc.toString().slice(0, context.pos);
+  const tokens = tokenize(input);
+  const lastToken = tokens[tokens.length - 1];
+  const isCompletionInsideToken =
+    lastToken &&
+    context.pos == lastToken.to &&
+    !autocompleteImmediatelyAfter(lastToken);
+  const currentTokenIndex = isCompletionInsideToken
+    ? tokens.length - 1
+    : tokens.length; // `currentToken` is undefined when we are not inside a token
+
+  /**
+   * Returns nth token back away from the current token. Note that `prevToken(0)`
+   * is always reserved for the current token, whether it exists or not.
+   * @param {number} index
+   * @returns {Token | undefined}
+   */
+  const prevToken = (index) => tokens[currentTokenIndex - index];
+
+  const currentToken = prevToken(0);
+  const completionStart = currentToken ? currentToken.from : context.pos;
+
+  /**
+   * @param {number} endIndex
+   * @returns {import("../../samples/tools/filters.mjs").ScoreFilterItem | undefined}
+   */
+  const findFilterItem = (endIndex) => {
+    if (prevToken(endIndex)?.type == "variable") {
+      let name = prevToken(endIndex).text;
+      let i = endIndex;
+      while (prevToken(i + 1)?.text == ".") {
+        if (prevToken(i + 2)?.type == "variable") {
+          name = prevToken(i + 2).text + "." + name;
+          i += 2;
+        } else {
+          break;
+        }
+      }
+      return filterItems.find((item) => item.canonicalName == name);
+    }
+    return undefined;
   };
+
+  /**
+   * @param {import("@codemirror/autocomplete").Completion[]} priorityCompletions
+   * @param {Object} props
+   * @param {boolean} [props.enforceOrder] - If true, the priorityCompletions will be enforced in the order they are provided.
+   * @param {boolean} [props.includeDefault] - If true, the default completions will be included after the priority completions.
+   * @returns {import("@codemirror/autocomplete").CompletionResult}
+   */
+  const makeCompletions = (
+    priorityCompletions,
+    { enforceOrder = false, includeDefault = true } = {},
+  ) => {
+    const priorityCompletionsAdjusted = enforceOrder
+      ? priorityCompletions.map((c, idx) => ({
+          ...c,
+          boost: -idx,
+        }))
+      : priorityCompletions;
+    if (includeDefault) {
+      /** @type {import("@codemirror/autocomplete").CompletionSection} */
+      const miscSection = {
+        name: "misc",
+        header: () => {
+          const element = document.createElement("hr");
+          element.style.display = "list-item";
+          element.style.margin = "2px 0";
+          return element;
+        },
+      };
+      const priorityLabels = new Set(priorityCompletions.map((c) => c.label));
+      const defaultCompletionAdjusted = priorityCompletions
+        ? defaultCompletionItems
+            .filter((c) => !priorityLabels.has(c.label))
+            .map((c) => ({ ...c, section: miscSection }))
+        : defaultCompletionItems;
+      return {
+        from: completionStart,
+        options: [...priorityCompletionsAdjusted, ...defaultCompletionAdjusted],
+      };
+    } else {
+      return {
+        from: completionStart,
+        options: priorityCompletionsAdjusted,
+      };
+    }
+  };
+  const defaultCompletions = () => makeCompletions([]);
+  const noCompletions = () => (context.explicit ? defaultCompletions() : null);
+  const newExpressionCompletions = () =>
+    makeCompletions([
+      ...variableCompletionItems,
+      ...sampleFunctionCompletionItems,
+    ]);
+  const variableCompletions = () => makeCompletions(variableCompletionItems);
+  /** @param {import("./filters.mjs").ScoreFilterItem[]} items */
+  const memberAccessCompletions = (items) =>
+    makeCompletions(items.map(makeMemberAccessCompletion), {
+      includeDefault: false,
+    });
+  const logicalOpCompletions = () =>
+    makeCompletions(["and", "or"].map(makeKeywordCompletion), {
+      enforceOrder: true,
+    });
+  const descreteRelationCompletions = () =>
+    makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
+      enforceOrder: true,
+    });
+  const continuousRelationCompletions = () =>
+    makeCompletions(
+      ["<", "<=", ">", ">=", "==", "!="].map(makeKeywordCompletion),
+      { enforceOrder: true },
+    );
+  const customRelationCompletions = () =>
+    makeCompletions(
+      ["<", "<=", ">", ">=", "==", "!=", "~="].map(makeKeywordCompletion),
+      { enforceOrder: true },
+    );
+  /** @param {string[]} options */
+  const rhsCompletions = (options) =>
+    makeCompletions(options.map(makeLiteralCompletion));
+
+  if (!prevToken(1)) return newExpressionCompletions();
+
+  // Member access
+  if (prevToken(1)?.text == ".") {
+    const scorer = prevToken(2)?.text;
+    if (scorer) {
+      return memberAccessCompletions(getMemberScoreItems(filterItems, scorer));
+    }
+  }
+
+  // Start of a function call or of a bracketed expression
+  if (prevToken(1)?.text == "(") {
+    if (prevToken(2)?.type == "mathFunction") return variableCompletions();
+    if (prevToken(2)?.type == "sampleFunction") {
+      // All sample functions expect a literal (a string to search for).
+      return noCompletions();
+    }
+    // A grouping parenthesis, not a function call.
+    return newExpressionCompletions();
+  }
+
+  // End of a function call or of a bracketed expression
+  if (prevToken(1)?.text == ")") {
+    // Don't try to guess: too unpredictable. Could continue with an arithmetic
+    // operator (if constructing a complex expression), with a comparison (if
+    // comparing function call result to something) or with a logical connector
+    // (if a new subexpression is starting). Very hard to figure out what is
+    // going on without an AST, which we don't have here.
+    return noCompletions();
+  }
+
+  // Suggest relation based on variable type
+  if (prevToken(1)?.type == "variable") {
+    const scoreType = findFilterItem(1)?.scoreType;
+    if ([kScoreTypePassFail, kScoreTypeCategorical].includes(scoreType))
+      return descreteRelationCompletions();
+    if (scoreType == kScoreTypeNumeric) return continuousRelationCompletions();
+    if (scoreType == kScoreTypeOther) return customRelationCompletions();
+    if (scoreType == kScoreTypeBoolean) return logicalOpCompletions();
+  }
+
+  // Suggest comparison RHS based on the LHS
+  if (prevToken(1)?.type == "relation") {
+    const item = findFilterItem(2);
+    if (item) {
+      if (item?.categories?.length) {
+        return rhsCompletions(item.categories);
+      } else {
+        // Technically, it's possible to compare two scores, but comparison to a
+        // constant is much more likely.
+        return noCompletions();
+      }
+    } else {
+      // Most likely: comparison starting from a constant, perhaps beginning of
+      // a chain comparison.
+      return variableCompletions();
+    }
+  }
+
+  // Suggest connector to the next subexpression after `VARIABLE OP VALUE` subexpression finished.
+  if (isLiteral(prevToken(1)) && prevToken(2)?.type == "relation") {
+    return logicalOpCompletions();
+  }
+
+  // New subexpression begins after a logical connector.
+  if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
+
+  // Something unusual is going on. We don't have any good guesses, but the user
+  // can trigger completion manually with Ctrl+Space if they want.
+  return noCompletions();
 }
 
 /**
@@ -156,6 +486,14 @@ const editorTheme = EditorView.theme({
   },
 });
 
+const autocompleteOnFocus = EditorView.domEventHandlers({
+  focus(event, view) {
+    if (view.state.doc.toString() === "") {
+      setTimeout(() => startCompletion(view), 0);
+    }
+  },
+});
+
 /**
  * Renders the Sample Filter Control
  *
@@ -184,6 +522,13 @@ export const SampleFilter = ({
     [evalDescriptor],
   );
 
+  const makeAutocompletion = () =>
+    autocompletion({
+      override: [(context) => getCompletions(context, filterItems)],
+      // activateOnCompletion: () => true,
+    });
+  const makeLinter = () => linter((view) => getLints(view, filterError));
+
   // Initialize editor when component mounts
   useEffect(() => {
     editorViewRef.current?.destroy();
@@ -203,16 +548,11 @@ export const SampleFilter = ({
               filterChanged({ value: newFilter });
             }
           }),
-          simpleHighlighter,
+          language,
           syntaxHighlighting(highlightStyle),
-          autocompletionCompartment.current.of(
-            autocompletion({
-              override: [(context) => getCompletions(context, filterItems)],
-            }),
-          ),
-          linterCompartment.current.of(
-            linter((view) => getLints(view, filterError)),
-          ),
+          autocompleteOnFocus,
+          autocompletionCompartment.current.of(makeAutocompletion()),
+          linterCompartment.current.of(makeLinter()),
         ],
       }),
     });
@@ -241,11 +581,8 @@ export const SampleFilter = ({
   useEffect(() => {
     if (editorViewRef.current) {
       editorViewRef.current.dispatch({
-        effects: autocompletionCompartment.current.reconfigure(
-          autocompletion({
-            override: [(context) => getCompletions(context, filterItems)],
-          }),
-        ),
+        effects:
+          autocompletionCompartment.current.reconfigure(makeAutocompletion()),
       });
     }
   }, [filterItems]);
@@ -253,9 +590,7 @@ export const SampleFilter = ({
   useEffect(() => {
     if (editorViewRef.current) {
       editorViewRef.current.dispatch({
-        effects: linterCompartment.current.reconfigure(
-          linter((view) => getLints(view, filterError)),
-        ),
+        effects: linterCompartment.current.reconfigure(makeLinter()),
       });
     }
   }, [filterError]);
@@ -276,7 +611,7 @@ export const SampleFilter = ({
       >
       <div ref=${editorRef} style=${{ width: "300px" }}></div>
       <span
-        class="bi bi-info-circle"
+        class="bi bi-question-circle"
         style=${{
           position: "relative",
           marginLeft: "0.5em",
@@ -294,6 +629,7 @@ const filterTooltip = `
 Filter samples by:
   • Scores
   • Input and target regex search: input_contains, target_contains
+
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
   • Comparison: <, <=, >, >=, ==, !=, including chain comparisons, e.g. “10 <= x < 20”

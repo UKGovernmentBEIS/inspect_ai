@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { parseScoreLabelKey, scoreLabelKey } from "../SamplesDescriptor.mjs";
 
 /**
  * @param {Object} props
@@ -25,41 +26,62 @@ export const SelectScorer = ({ scores, score, setScore }) => {
       >
       <${ScoreSelector}
         scores=${scores}
-        selectedIndex=${scoreIndex(score, scores)}
-        selectedIndexChanged=${(index) => {
-          setScore(scores[index]);
-        }}
+        selectedScore=${score}
+        setScore=${setScore}
       />
     </div>
   `;
 };
 
-const ScoreSelector = ({
-  scores,
-  selectedIndex,
-  selectedIndexChanged,
-  style,
-}) => {
+/**
+ * @param {Object} props
+ * @param {import("../../Types.mjs").ScoreLabel[]} props.scores
+ * @param {import("../../Types.mjs").ScoreLabel} props.selectedScore
+ * @param {(score: import("../../Types.mjs").ScoreLabel) => void} props.setScore
+ * @returns {import("preact").JSX.Element}
+ */
+const ScoreSelector = ({ scores, selectedScore, setScore }) => {
+  const scorers = new Set(scores.map((score) => score.scorer));
+  const needHeadersAndIndent = scorers.size > 1;
+  const items = [];
+  let currentScorer = undefined;
+  for (const score of scores) {
+    const scoreKey = scoreLabelKey(score);
+    if (score.name == score.scorer) {
+      items.push({ display: score.name, value: scoreKey });
+    } else {
+      if (needHeadersAndIndent && currentScorer != score.scorer) {
+        // Cannot select the scorer object, select the first score instead.
+        items.push({
+          display: score.scorer,
+          value: `target:${scoreKey}`,
+        });
+      }
+      items.push({
+        display: (needHeadersAndIndent ? "- " : "") + score.name,
+        value: scoreKey,
+      });
+    }
+    currentScorer = score.scorer;
+  }
+  // TODO(andrei-apollo): Implement a custom <select> widget that:
+  //   - Makes unclickable titles properly unclickable (instead of selecting the
+  //     first score).
+  //   - Removes the bullet when the dropdown is closed. Or maybe shows
+  //     something like `scorer.score` with the first part grayed out.
+  //   - Renders the tree structure more beautifully.
   return html`<select
     class="form-select form-select-sm"
     aria-label=".select-scorer-label"
-    style=${{ fontSize: FontSize.smaller, ...style }}
-    value=${scores[selectedIndex].name}
+    style=${{ fontSize: FontSize.smaller }}
+    value=${scoreLabelKey(selectedScore)}
     onChange=${(e) => {
-      selectedIndexChanged(e.target.selectedIndex);
+      let value = e.target.value.replace(/^target:/, "");
+      setScore(parseScoreLabelKey(value));
     }}
   >
-    ${scores.map((score) => {
-      // Would be nice to hide the bullet when <select> is closed and only show it
-      // in the dropdown menu, but this requires a fully manual <select> replacement.
-      return html`<option value="${score.name}">
-        ${score.scorer != score.name ? "- " : ""}${score.name}
-      </option>`;
+    ${items.map(({ display, value }) => {
+      return html`<option value="${value}">${display}</option>`;
     })}
   </select>`;
 };
-
-const scoreIndex = (score, scores) =>
-  scores.findIndex((sc) => {
-    return sc.name === score.name && sc.scorer === score.scorer;
-  });

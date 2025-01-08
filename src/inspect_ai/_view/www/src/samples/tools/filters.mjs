@@ -1,10 +1,5 @@
 import { compileExpression } from "filtrex";
-import {
-  kScoreTypeBoolean,
-  kScoreTypeCategorical,
-  kScoreTypeNumeric,
-  kScoreTypePassFail,
-} from "../../constants.mjs";
+import { kScoreTypeBoolean } from "../../constants.mjs";
 import { inputString } from "../../utils/Format.mjs";
 
 /**
@@ -36,22 +31,6 @@ const coerceValue = (value, descriptor) => {
  */
 const isFilteringSupportedForValue = (value) =>
   ["string", "number", "boolean"].includes(typeof value);
-
-/**
- * @param {import("../../samples/SamplesDescriptor.mjs").ScoreDescriptor} descriptor
- * @returns {boolean}
- */
-const isFilteringSupportedForScore = (descriptor) => {
-  if (!descriptor) {
-    return false;
-  }
-  return [
-    kScoreTypePassFail,
-    kScoreTypeCategorical,
-    kScoreTypeNumeric,
-    kScoreTypeBoolean,
-  ].includes(descriptor.scoreType);
-};
 
 /**
  * Returns the names of scores that are not allowed to be used as short names in
@@ -119,10 +98,12 @@ const scoreVariables = (evalDescriptor, sampleScores) => {
 
 /**
  * @typedef {Object} ScoreFilterItem
- * @property {string} canonicalName - The canonical name of the score.
+ * @property {string | undefined} shortName - The short name of the score, if doesn't conflict with other short names.
+ * @property {string | undefined} qualifiedName - The `scorer.score` name for children of complex scorers.
+ * @property {string} canonicalName - The canonical name: either `shortName` or `qualifiedName` (at least one must exist).
  * @property {string} tooltip - The informational tooltip for the score.
- * @property {boolean} isFilterable - Whether the score can be used in a filter expression.
- * @property {string[]} suggestions - Suggested expressions for the score.
+ * @property {string[]} categories - Category values for categorical scores.
+ * @property {string} scoreType - The type of the score (e.g., 'numeric', 'categorical', 'boolean').
  */
 
 /**
@@ -142,22 +123,27 @@ export const scoreFilterItems = (evalDescriptor) => {
     typeof value === "string" ? `"${value}"` : String(value);
 
   /**
-   * @param {string} canonicalName
+   * @param {string | undefined} shortName
+   * @param {string | undefined} qualifiedName
    * @param {import("../../Types.mjs").ScoreLabel} scoreLabel
    */
-  const addScore = (canonicalName, scoreLabel) => {
+  const addScore = (shortName, qualifiedName, scoreLabel) => {
+    const canonicalName = shortName || qualifiedName;
     const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
-    if (!descriptor || !isFilteringSupportedForScore(descriptor)) {
+    const scoreType = descriptor?.scoreType;
+    if (!descriptor) {
       items.push({
+        shortName,
+        qualifiedName,
         canonicalName,
         tooltip: undefined,
-        isFilterable: false,
-        suggestions: [],
+        categories: [],
+        scoreType,
       });
       return;
     }
     var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
-    var suggestions = [];
+    var categories = [];
     if (descriptor.min !== undefined || descriptor.max !== undefined) {
       const rounded = (num) => {
         // Additional round-trip to remove trailing zeros.
@@ -167,22 +153,24 @@ export const scoreFilterItems = (evalDescriptor) => {
     }
     if (descriptor.categories) {
       tooltip += `\ncategories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
-      suggestions = [
-        canonicalName,
-        ...descriptor.categories.map(
-          (cat) => `${canonicalName} == ${valueToString(cat.val)}`,
-        ),
-      ];
+      categories = descriptor.categories.map((cat) => valueToString(cat.val));
     }
-    items.push({ canonicalName, tooltip, isFilterable: true, suggestions });
+    items.push({
+      shortName,
+      qualifiedName,
+      canonicalName,
+      tooltip,
+      categories,
+      scoreType,
+    });
   };
 
   for (const { name, scorer } of evalDescriptor.scores) {
-    const canonicalName =
-      name !== scorer && bannedShortNames.has(name)
-        ? `${scorer}.${name}`
-        : name;
-    addScore(canonicalName, { name, scorer });
+    const hasShortName = name === scorer || !bannedShortNames.has(name);
+    const hasQualifiedName = name !== scorer;
+    const shortName = hasShortName ? name : undefined;
+    const qualifiedName = hasQualifiedName ? `${scorer}.${name}` : undefined;
+    addScore(shortName, qualifiedName, { name, scorer });
   }
   return items;
 };
