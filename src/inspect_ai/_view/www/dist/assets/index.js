@@ -15618,18 +15618,18 @@ var require_assets = __commonJS({
         return positions;
       }, [rowHeights, data.length]);
       const measureRows = () => {
-        let heightsUpdated = false;
-        const newHeights = new Map(rowHeights);
+        let updates = [];
         rowRefs.current.forEach((element, index) => {
           if (element) {
             const measuredHeight = element.offsetHeight;
-            if (measuredHeight && measuredHeight !== newHeights.get(index)) {
-              newHeights.set(index, measuredHeight);
-              heightsUpdated = true;
+            if (measuredHeight && measuredHeight !== rowHeights.get(index)) {
+              updates.push([index, measuredHeight]);
             }
           }
         });
-        if (heightsUpdated) {
+        if (updates.length > 0) {
+          const newHeights = new Map(rowHeights);
+          updates.forEach(([index, height2]) => newHeights.set(index, height2));
           setRowHeights(newHeights);
           updateTotalHeight(newHeights);
         }

@@ -56,20 +56,19 @@ export function VirtualList({
 
   // Measure rendered rows and update heights if needed
   const measureRows = () => {
-    let heightsUpdated = false;
-    const newHeights = new Map(rowHeights);
-
+    let updates = [];
     rowRefs.current.forEach((element, index) => {
       if (element) {
         const measuredHeight = element.offsetHeight;
-        if (measuredHeight && measuredHeight !== newHeights.get(index)) {
-          newHeights.set(index, measuredHeight);
-          heightsUpdated = true;
+        if (measuredHeight && measuredHeight !== rowHeights.get(index)) {
+          updates.push([index, measuredHeight]);
         }
       }
     });
-
-    if (heightsUpdated) {
+    
+    if (updates.length > 0) {
+      const newHeights = new Map(rowHeights);
+      updates.forEach(([index, height]) => newHeights.set(index, height));
       setRowHeights(newHeights);
       updateTotalHeight(newHeights);
     }
