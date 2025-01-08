@@ -11,7 +11,7 @@ import { throttle } from "../utils/sync.mjs";
  * @param {Object} props - The component props
  * @param {T[]} props.data - Array of items to be rendered in the list
  * @param {(item: T, index: number) => preact.VNode} props.renderRow - Function to render each row
- * @param {number} [props.overscanCount=10] - Number of extra rows to render above and below the visible area
+ * @param {number} [props.overscanCount=15] - Number of extra rows to render above and below the visible area
  * @param {number} [props.estimatedRowHeight=50] - Estimated height of each row before measurement
  * @param {boolean} [props.sync] - If true, forces a re-render on scroll
  * @param {import("preact").RefObject<HTMLElement>} [props.scrollRef] - Optional ref to use as scroll container
@@ -45,12 +45,12 @@ export function VirtualList({
   const rowPositions = useMemo(() => {
     let currentPosition = 0;
     const positions = new Map();
-    
+
     for (let i = 0; i < data.length; i++) {
       positions.set(i, currentPosition);
       currentPosition += getRowHeight(i);
     }
-    
+
     return positions;
   }, [rowHeights, data.length]);
 
@@ -65,7 +65,7 @@ export function VirtualList({
         }
       }
     });
-    
+
     if (updates.length > 0) {
       const newHeights = new Map(rowHeights);
       updates.forEach(([index, height]) => newHeights.set(index, height));
@@ -124,26 +124,26 @@ export function VirtualList({
   });
 
   const findRowAtOffset = (targetOffset) => {
+    if (targetOffset <= 0) return 0;
+    if (targetOffset >= totalHeight) return data.length - 1;
+
     let low = 0;
     let high = data.length - 1;
+    let lastValid = 0;
 
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
       const rowStart = rowPositions.get(mid) || 0;
-      const rowEnd = rowStart + getRowHeight(mid);
 
-      if (targetOffset >= rowStart && targetOffset < rowEnd) {
-        return mid;
-      }
-
-      if (targetOffset < rowStart) {
-        high = mid - 1;
-      } else {
+      if (rowStart <= targetOffset) {
+        lastValid = mid;
         low = mid + 1;
+      } else {
+        high = mid - 1;
       }
     }
 
-    return 0;
+    return lastValid;
   };
 
   const firstVisibleIdx = findRowAtOffset(offset);
@@ -152,7 +152,7 @@ export function VirtualList({
   // Calculate range of rows to render including overscan
   const start = Math.max(0, firstVisibleIdx - overscanCount);
   const end = Math.min(data.length, lastVisibleIdx + overscanCount);
-  
+
   // Memoize the rendered rows to prevent unnecessary re-renders
   const renderedRows = useMemo(() => {
     const selection = data.slice(start, end);
