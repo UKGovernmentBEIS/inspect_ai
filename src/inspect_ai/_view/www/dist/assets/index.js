@@ -24794,10 +24794,12 @@ ${events}
       if (!contents) {
         return "";
       }
-      const sourceCode = JSON.stringify(contents, void 0, 2);
       const codeRef = A();
+      const sourceCode = T(() => {
+        return JSON.stringify(contents, void 0, 2);
+      }, [contents]);
       y(() => {
-        if (codeRef.current && sourceCode.length < 1e4) {
+        if (codeRef.current) {
           Prism$1.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents]);
@@ -24813,13 +24815,13 @@ ${events}
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode-javascript" 
+        class="language-json" 
         style=${{
         fontSize: FontSize.small,
         whiteSpace: "pre-wrap",
         wordWrap: "anywhere"
       }}>
-    ${sourceCode}
+        ${sourceCode}
       </code>
       </pre>
   </div>`;
