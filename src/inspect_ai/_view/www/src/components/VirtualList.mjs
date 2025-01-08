@@ -42,17 +42,17 @@ export function VirtualList({
   };
 
   // Calculate row positions based on current heights
-  const calculateRowPositions = () => {
+  const rowPositions = useMemo(() => {
     let currentPosition = 0;
     const positions = new Map();
-
+    
     for (let i = 0; i < data.length; i++) {
       positions.set(i, currentPosition);
       currentPosition += getRowHeight(i);
     }
-
+    
     return positions;
-  };
+  }, [rowHeights, data.length]);
 
   // Measure rendered rows and update heights if needed
   const measureRows = () => {
@@ -101,7 +101,7 @@ export function VirtualList({
     if (sync) {
       setOffset((prev) => prev);
     }
-  }, 25);
+  }, 100);
 
   // Setup scroll and resize listeners
   useEffect(() => {
@@ -123,9 +123,6 @@ export function VirtualList({
   useEffect(() => {
     measureRows();
   });
-
-  // Calculate visible range
-  const rowPositions = calculateRowPositions();
 
   const findRowAtOffset = (targetOffset) => {
     let low = 0;
