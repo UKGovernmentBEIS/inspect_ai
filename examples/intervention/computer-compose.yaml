@@ -1,0 +1,7 @@
+services:
+  default:
+    # Temporary internal image until the official one is available
+    image: inspect-computer-tool
+    init: true
+    ports:
+      - "5900:5900"

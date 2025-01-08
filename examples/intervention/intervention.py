@@ -1,4 +1,5 @@
 from textwrap import dedent
+from typing import Literal
 
 from rich.prompt import Prompt
 
@@ -12,23 +13,36 @@ from inspect_ai.solver import (
     system_message,
     use_tools,
 )
-from inspect_ai.tool import bash, python
+from inspect_ai.tool import bash, computer, python
 from inspect_ai.util import input_screen
 
 
 @task
-def intervention():
-    return Task(
-        solver=[
-            system_prompt(),
-            user_prompt(),
-            use_tools([bash(), python()]),
-            agent_loop(),
-        ],
-        sandbox="docker",
+def intervention(mode: Literal["basic", "computer"] = "basic") -> Task:
+    return (
+        Task(
+            solver=[
+                system_prompt(),
+                user_prompt(),
+                use_tools([bash(), python()]),
+                agent_loop(),
+            ],
+            sandbox="docker",
+        )
+        if mode == "basic"
+        else Task(
+            solver=[
+                system_prompt(),
+                user_prompt(),
+                use_tools([computer()]),
+                agent_loop(),
+            ],
+            sandbox=("docker", "computer-compose.yaml"),
+        )
     )
 
 
+# TODO: Customize the prompt based on the mode above??
 @solver
 def system_prompt():
     SYSTEM_PROMPT = dedent("""
