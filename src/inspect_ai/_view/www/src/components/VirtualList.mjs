@@ -30,7 +30,9 @@ export function VirtualList({
   const [height, setHeight] = useState(0);
   const [offset, setOffset] = useState(0);
   const [rowHeights, setRowHeights] = useState(new Map());
-  const [totalHeight, setTotalHeight] = useState(0);
+  const [totalHeight, setTotalHeight] = useState(
+    data.length * estimatedRowHeight,
+  );
 
   const baseRef = useRef(null);
   const containerRef = useRef(null);
@@ -142,7 +144,6 @@ export function VirtualList({
         high = mid - 1;
       }
     }
-
     return lastValid;
   };
 

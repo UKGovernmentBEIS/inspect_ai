@@ -15567,7 +15567,9 @@ var require_assets = __commonJS({
       const [height, setHeight] = h(0);
       const [offset2, setOffset] = h(0);
       const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
-      const [totalHeight, setTotalHeight] = h(0);
+      const [totalHeight, setTotalHeight] = h(
+        data.length * estimatedRowHeight
+      );
       const baseRef = A(null);
       const containerRef = A(null);
       const rowRefs = A(/* @__PURE__ */ new Map());
@@ -24761,12 +24763,8 @@ ${events}
       const sourceCode = JSON.stringify(contents, void 0, 2);
       const codeRef = A();
       y(() => {
-        if (codeRef.current) {
-          codeRef.current.innerHTML = Prism$1.highlight(
-            sourceCode,
-            Prism$1.languages.javascript,
-            "javacript"
-          );
+        if (codeRef.current && sourceCode.length < 1e4) {
+          Prism$1.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents]);
       return m$1`<div>
@@ -24781,12 +24779,13 @@ ${events}
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode-js" 
+        class="sourceCode-javascript" 
         style=${{
         fontSize: FontSize.small,
         whiteSpace: "pre-wrap",
         wordWrap: "anywhere"
       }}>
+    ${sourceCode}
       </code>
       </pre>
   </div>`;
