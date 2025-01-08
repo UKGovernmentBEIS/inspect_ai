@@ -372,7 +372,7 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
         )
     else:
         response = parse_web_browser_output(result.stdout)
-        if "error" in response and response.get("error").strip() != "":
+        if "error" in response and response.get("error", "").strip() != "":
             raise ToolError(str(response.get("error")) or "(unknown error)")
         elif "web_at" in response:
             web_at = (
