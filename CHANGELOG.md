@@ -8,6 +8,7 @@
 - Inspect View: don't display the 'input' column heading if there isn't an input
 - Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
 - Open AI: Use new `max_completion_tokens` option for o1 full.
+- Web Browser: raise error when both `error` and `web_at` fields are present in response.
 - Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.
 - Store: initialise `Store` from existing dictionary.
 - Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
