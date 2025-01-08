@@ -14,7 +14,8 @@
 - Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
 - Tool parameters with a default of `None` are now supported.
 - More fine graned HTML escaping for sample transcripts displalyed in terminal.
-- Fix an issue that would result in an error when a state or storage value used a tilda or slash in the key name.
+- Bugfix: prevent errors when a state or storage value uses a tilda or slash in the key name.
+- Bugfix: Include input in sample summary when the sample input contains a simple string.
 
 ## v0.3.56 (01 January 2025)
 
