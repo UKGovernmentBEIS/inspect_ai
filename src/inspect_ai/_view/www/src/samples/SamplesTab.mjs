@@ -84,7 +84,7 @@ export const SamplesTab = ({
       setTimeout(() => {
         if (sampleListRef.current) {
           // @ts-ignore
-          sampleListRef.current.base.focus();
+          sampleListRef.current.focus();
         }
       }, 0);
     }
