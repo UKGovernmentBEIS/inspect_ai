@@ -4,15 +4,15 @@
 default_language_version:
   python: python3.11
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.8.6
-  hooks:
-    # Run the linter.
-    - id: ruff
-      args: [ --fix ]
-    # Run the formatter.
-    - id: ruff-format
--   repo: https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: check-added-large-files
