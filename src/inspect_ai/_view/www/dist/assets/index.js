@@ -51889,8 +51889,8 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         type: "text",
         boost: 10
       });
-      const makeCanonicalNameCompletion = (item) => ({
-        label: item.canonicalName,
+      const makeCanonicalNameCompletion = (item, autoSpaceIf = () => false) => ({
+        label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
         type: "variable",
         info: item.tooltip,
         boost: 20
@@ -51908,7 +51908,9 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
         makeSampleFunctionCompletion
       );
-      const variableCompletionItems = filterItems.map(makeCanonicalNameCompletion);
+      const variableCompletionItems = filterItems.map(
+        (item) => makeCanonicalNameCompletion(item)
+      );
       const defaultCompletionItems = [
         ...keywordCompletionItems,
         ...mathFunctionCompletionItems,
@@ -51950,7 +51952,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
           boost: -idx
         })) : priorityCompletions;
         const priorityCompletionsAdjusted = autoSpaceAfter ? priorityCompletionsOrdered.map(
-          (c2) => !c2.apply ? { ...c2, label: c2.label + " " } : c2
+          (c2) => !c2.apply && !c2.label.endsWith(" ") ? { ...c2, label: c2.label + " " } : c2
         ) : priorityCompletionsOrdered;
         if (includeDefault) {
           const miscSection = {
@@ -51977,10 +51979,15 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       };
       const defaultCompletions = () => makeCompletions([]);
       const noCompletions = () => context.explicit ? defaultCompletions() : null;
-      const newExpressionCompletions = () => makeCompletions(
-        [...variableCompletionItems, ...sampleFunctionCompletionItems],
-        { autoSpaceAfter: true }
-      );
+      const newExpressionCompletions = () => makeCompletions([
+        ...filterItems.map(
+          (item) => makeCanonicalNameCompletion(
+            item,
+            (item2) => item2.scoreType != kScoreTypeBoolean
+          )
+        ),
+        ...sampleFunctionCompletionItems
+      ]);
       const variableCompletions = () => makeCompletions(variableCompletionItems);
       const memberAccessCompletions = (items) => makeCompletions(items.map(makeMemberAccessCompletion), {
         includeDefault: false

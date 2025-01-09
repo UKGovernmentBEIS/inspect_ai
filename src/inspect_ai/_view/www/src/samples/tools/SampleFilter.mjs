@@ -243,9 +243,13 @@ function getCompletions(context, filterItems) {
     type: "text",
     boost: 10,
   });
-  /** @type {(item: import("./filters.mjs").ScoreFilterItem) => import("@codemirror/autocomplete").Completion} */
-  const makeCanonicalNameCompletion = (item) => ({
-    label: item.canonicalName,
+  /**
+   * @param {import("./filters.mjs").ScoreFilterItem} item
+   * @param {(item: import("./filters.mjs").ScoreFilterItem) => boolean} autoSpaceIf
+   * @returns {import("@codemirror/autocomplete").Completion}
+   */
+  const makeCanonicalNameCompletion = (item, autoSpaceIf = () => false) => ({
+    label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
     type: "variable",
     info: item.tooltip,
     boost: 20,
@@ -265,7 +269,9 @@ function getCompletions(context, filterItems) {
   const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
     makeSampleFunctionCompletion,
   );
-  const variableCompletionItems = filterItems.map(makeCanonicalNameCompletion);
+  const variableCompletionItems = filterItems.map((item) =>
+    makeCanonicalNameCompletion(item),
+  );
 
   const defaultCompletionItems = [
     ...keywordCompletionItems,
@@ -341,7 +347,9 @@ function getCompletions(context, filterItems) {
       : priorityCompletions;
     const priorityCompletionsAdjusted = autoSpaceAfter
       ? priorityCompletionsOrdered.map((c) =>
-          !c.apply ? { ...c, label: c.label + " " } : c,
+          !c.apply && !c.label.endsWith(" ")
+            ? { ...c, label: c.label + " " }
+            : c,
         )
       : priorityCompletionsOrdered;
     if (includeDefault) {
@@ -375,10 +383,15 @@ function getCompletions(context, filterItems) {
   const defaultCompletions = () => makeCompletions([]);
   const noCompletions = () => (context.explicit ? defaultCompletions() : null);
   const newExpressionCompletions = () =>
-    makeCompletions(
-      [...variableCompletionItems, ...sampleFunctionCompletionItems],
-      { autoSpaceAfter: true },
-    );
+    makeCompletions([
+      ...filterItems.map((item) =>
+        makeCanonicalNameCompletion(
+          item,
+          (item) => item.scoreType != kScoreTypeBoolean,
+        ),
+      ),
+      ...sampleFunctionCompletionItems,
+    ]);
   const variableCompletions = () => makeCompletions(variableCompletionItems);
   /** @param {import("./filters.mjs").ScoreFilterItem[]} items */
   const memberAccessCompletions = (items) =>
