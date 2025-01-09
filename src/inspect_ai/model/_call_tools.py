@@ -28,7 +28,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
-from inspect_ai.model._trace import trace_tool_mesage
+from inspect_ai.model._conversation import conversation_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
@@ -178,8 +178,8 @@ async def call_tools(
             tool_message, result_event = await task
             tool_messages.append(tool_message)
 
-            # trace if we are tracing
-            trace_tool_mesage(tool_message)
+            # print conversation if display is conversation
+            conversation_tool_mesage(tool_message)
 
             # update the event with the results
             event.set_result(

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+
 ## v0.3.57 (09 January 2025)
 
 - [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.

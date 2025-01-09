@@ -5,7 +5,7 @@ from rich.text import Text
 
 from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
-from inspect_ai.util._trace import trace_enabled
+from inspect_ai.util._display import display_type
 
 HUMAN_APPROVED = "Human operator approved tool call."
 HUMAN_REJECTED = "Human operator rejected the tool call."
@@ -18,7 +18,7 @@ def render_tool_approval(message: str, view: ToolCallView) -> list[RenderableTyp
     text_highlighter = ReprHighlighter()
 
     # ignore content if trace enabled
-    message = message.strip() if not trace_enabled() else ""
+    message = message.strip() if display_type() != "conversation" else ""
 
     def add_view_content(view_content: ToolCallContent) -> None:
         if view_content.title:

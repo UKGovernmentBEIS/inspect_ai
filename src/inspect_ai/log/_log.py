@@ -48,9 +48,6 @@ class EvalConfig(BaseModel):
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
 
-    trace: bool | None = Field(default=None)
-    """Trace message interactions with evaluated model to terminal."""
-
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 
