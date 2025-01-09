@@ -11,9 +11,10 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { tags } from "@lezer/highlight";
 import { EditorView, minimalSetup } from "codemirror";
 import { html } from "htm/preact";
-import { useEffect, useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { createPortal } from "preact/compat";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import { scoreFilterItems } from "./filters.mjs";
+import { filterSamples, scoreFilterItems } from "./filters.mjs";
 import {
   kScoreTypeBoolean,
   kScoreTypeCategorical,
@@ -21,6 +22,8 @@ import {
   kScoreTypeOther,
   kScoreTypePassFail,
 } from "../../constants.mjs";
+import { keymap } from "@codemirror/view";
+import { debounce } from "../../utils/sync.mjs";
 
 /**
  * @typedef {Object} Token
@@ -28,6 +31,12 @@ import {
  * @property {string} text
  * @property {number} from
  * @property {number} to
+ */
+
+/**
+ * @typedef {Object} FilteringResult
+ * @property {number} numSamples - The number of samples that match the filter.
+ * @property {import("./filters.mjs").FilterError | undefined} error - The error in the filter expression, if any.
  */
 
 const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
@@ -494,13 +503,19 @@ const editorTheme = EditorView.theme({
   },
 });
 
-const autocompleteOnFocus = EditorView.domEventHandlers({
-  focus(event, view) {
-    if (view.state.doc.toString() === "") {
-      setTimeout(() => startCompletion(view), 0);
-    }
-  },
-});
+/**
+ * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
+ * @param {string} filterValue
+ * @returns {FilteringResult}
+ */
+const getFilteringResult = (evalDescriptor, filterValue) => {
+  const { result, error } = filterSamples(
+    evalDescriptor,
+    evalDescriptor.samples,
+    filterValue,
+  );
+  return { numSamples: result.length, error };
+};
 
 /**
  * Renders the Sample Filter Control
@@ -508,34 +523,86 @@ const autocompleteOnFocus = EditorView.domEventHandlers({
  * @param {Object} props - The parameters for the component.
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} props.evalDescriptor
  * @param {(filter: import("../../Types.mjs").ScoreFilter) => void} props.filterChanged - Filter changed function
- * @param {import("../../Types.mjs").ScoreFilter} props.filter - Capabilities of the application host
- * @param {import("./filters.mjs").FilterError | undefined} props.filterError - The error in the filter expression, if any.
+ * @param {import("../../Types.mjs").ScoreFilter} props.filter - Filter that is currently applied.
  * @returns {import("preact").JSX.Element | string} The TranscriptView component.
  */
-export const SampleFilter = ({
-  evalDescriptor,
-  filter,
-  filterError,
-  filterChanged,
-}) => {
+export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
   const editorRef = useRef(/** @type {HTMLElement|null} */ (null));
   const editorViewRef = useRef(
     /** @type {import("codemirror").EditorView|null} */ (null),
   );
   const lastFilterRef = useRef(/** @type {string|null} */ (null));
+  const pendingFilterRef = useRef(/** @type {string|null} */ (null));
   const linterCompartment = useRef(new Compartment());
   const autocompletionCompartment = useRef(new Compartment());
+  const updateListenerCompartment = useRef(new Compartment());
+  const keymapCompartment = useRef(new Compartment());
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const filterItems = useMemo(
     () => scoreFilterItems(evalDescriptor),
     [evalDescriptor],
   );
+  const [filteringResult, setFilteringResult] = useState(
+    /** @type {FilteringResult | null} */ (null),
+  );
+  const [debouncedFilteringResult, setDebouncedFilteringResult] = useState(
+    /** @type {FilteringResult | null} */ (null),
+  );
+  const debouncedSetFilteringResult = useMemo(
+    () => debounce(setDebouncedFilteringResult, 700),
+    [],
+  );
+
+  /** @param {string} filterValue */
+  const updateFilteringResult = (evalDescriptor, filterValue) => {
+    const result = getFilteringResult(evalDescriptor, filterValue);
+    setFilteringResult(result);
+    debouncedSetFilteringResult(result);
+  };
+
+  /** @param {import("codemirror").EditorView} view */
+  const handleEnter = (view) => {
+    const newFilter = view.state.doc.toString();
+    const newFilteringResult = getFilteringResult(evalDescriptor, newFilter);
+    if (newFilteringResult?.error) return true;
+    lastFilterRef.current = newFilter;
+    filterChanged({ value: newFilter });
+    setHasPendingChanges(false);
+    return true;
+  };
+
+  const handleFocus = (event, view) => {
+    if (view.state.doc.toString() === "") {
+      setTimeout(() => startCompletion(view), 0);
+    }
+  };
 
   const makeAutocompletion = () =>
     autocompletion({
       override: [(context) => getCompletions(context, filterItems)],
-      // activateOnCompletion: () => true,
     });
-  const makeLinter = () => linter((view) => getLints(view, filterError));
+  const makeLinter = () =>
+    // no need to use debouncedFilteringResult: codemirror debounces the linter itself
+    linter((view) => getLints(view, filteringResult?.error));
+  const makeUpdateListener = () =>
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        const newValue = update.state.doc.toString();
+        pendingFilterRef.current = newValue;
+        setHasPendingChanges(
+          newValue.trim() !== (lastFilterRef.current || "").trim(),
+        );
+        updateFilteringResult(evalDescriptor, newValue);
+      }
+    });
+  const makeKeymap = () =>
+    keymap.of([
+      {
+        key: "Enter",
+        run: handleEnter,
+        preventDefault: true,
+      },
+    ]);
 
   // Initialize editor when component mounts
   useEffect(() => {
@@ -545,20 +612,17 @@ export const SampleFilter = ({
       state: EditorState.create({
         doc: filter.value || "",
         extensions: [
+          keymapCompartment.current.of(makeKeymap()),
           minimalSetup,
           bracketMatching(),
           editorTheme,
           EditorState.transactionFilter.of(ensureOneLine),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              const newFilter = update.state.doc.toString();
-              lastFilterRef.current = newFilter;
-              filterChanged({ value: newFilter });
-            }
+          updateListenerCompartment.current.of(makeUpdateListener()),
+          EditorView.domEventHandlers({
+            focus: handleFocus,
           }),
           language,
           syntaxHighlighting(highlightStyle),
-          autocompleteOnFocus,
           autocompletionCompartment.current.of(makeAutocompletion()),
           linterCompartment.current.of(makeLinter()),
         ],
@@ -572,6 +636,9 @@ export const SampleFilter = ({
   useEffect(() => {
     if (editorViewRef.current && filter.value !== lastFilterRef.current) {
       lastFilterRef.current = filter.value;
+      pendingFilterRef.current = filter.value;
+      setHasPendingChanges(false);
+      updateFilteringResult(evalDescriptor, filter.value);
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
@@ -584,7 +651,18 @@ export const SampleFilter = ({
         selection: { anchor: editorViewRef.current.state.doc.length },
       });
     }
-  }, [filter.value]);
+  }, [evalDescriptor, filter.value]);
+
+  useEffect(() => {
+    if (editorViewRef.current) {
+      editorViewRef.current.dispatch({
+        effects: [
+          updateListenerCompartment.current.reconfigure(makeUpdateListener()),
+          keymapCompartment.current.reconfigure(makeKeymap()),
+        ],
+      });
+    }
+  }, [evalDescriptor]);
 
   useEffect(() => {
     if (editorViewRef.current) {
@@ -601,8 +679,24 @@ export const SampleFilter = ({
         effects: linterCompartment.current.reconfigure(makeLinter()),
       });
     }
-  }, [filterError]);
+  }, [filteringResult?.error]);
 
+  /** @type {{cssClass: string, message: string} | undefined} */
+  const alertWidget = hasPendingChanges
+    ? filteringResult?.error
+      ? debouncedFilteringResult?.error
+        ? {
+            cssClass: "alert-danger",
+            message: debouncedFilteringResult?.error.message,
+          }
+        : undefined
+      : {
+          cssClass: "alert-success",
+          message: `Press Enter to show ${filteringResult?.numSamples} matching samples`,
+        }
+    : undefined;
+
+  const EDITOR_WIDTH = 300;
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -617,7 +711,31 @@ export const SampleFilter = ({
         }}
         >Filter:</span
       >
-      <div ref=${editorRef} style=${{ width: "300px" }}></div>
+      <div style=${{ position: "relative", width: `${EDITOR_WIDTH}px` }}>
+        ${alertWidget !== undefined &&
+        createPortal(
+          html`<div
+            class="alert ${alertWidget.cssClass} py-1 px-2"
+            style=${{
+              position: "absolute",
+              top: editorRef.current?.getBoundingClientRect().top + "px",
+              left: editorRef.current?.getBoundingClientRect().left + "px",
+              transform: `translateY(-100%)`,
+              whiteSpace: "pre-wrap",
+              width: `${EDITOR_WIDTH}px`,
+              textAlign: "center",
+              fontSize: FontSize.smaller,
+              boxShadow: "0 0 5px rgba(0,0,0,0.1)",
+              borderRadius: "4px",
+              zIndex: 2000,
+            }}
+          >
+            ${alertWidget.message}
+          </div>`,
+          document.body,
+        )}
+        <div ref=${editorRef}></div>
+      </div>
       <span
         class="bi bi-question-circle"
         style=${{

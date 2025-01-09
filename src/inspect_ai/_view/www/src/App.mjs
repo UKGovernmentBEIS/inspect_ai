@@ -38,7 +38,7 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import { filterExpression } from "./samples/tools/filters.mjs";
+import { filterSamples } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -164,7 +164,6 @@ export function App({
   const [score, setScore] = useState(initialState?.score);
 
   // Re-filter the samples
-  const [filterError, setFilterError] = useState(initialState?.filterError);
   const [filteredSamples, setFilteredSamples] = useState(
     initialState?.filteredSamples || [],
   );
@@ -309,27 +308,19 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
-    var newFilterError = undefined;
-    const filtered = samples.filter((sample) => {
+    const { result: prefiltered } = filterSamples(
+      evalDescriptor,
+      samples,
+      filter?.value,
+    );
+    const filtered = prefiltered.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
           return false;
         }
       }
-
-      // Apply the filter
-      if (filter.value) {
-        const { matches, error } = filterExpression(
-          evalDescriptor,
-          sample,
-          filter.value,
-        );
-        newFilterError ||= error;
-        return matches;
-      } else {
-        return true;
-      }
+      return true;
     });
 
     // Sort the samples
@@ -345,7 +336,6 @@ export function App({
       }
     }
 
-    setFilterError(newFilterError);
     setFilteredSamples(sorted);
     setGroupBy(grouping);
     setGroupByOrder(order);
@@ -950,7 +940,6 @@ export function App({
               epoch=${epoch}
               setEpoch=${setEpoch}
               filter=${filter}
-              filterError=${filterError}
               setFilter=${setFilter}
               score=${score}
               setScore=${setScore}

@@ -66,7 +66,6 @@ import { debounce } from "../utils/sync.mjs";
  * @param {(showing: boolean) => void} props.setShowingSampleDialog - Call to show the sample dialog
  * @param {(epoch: string) => void} props.setEpoch - set the current epoch
  * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
- * @param {string | undefined} props.filterError - whether there is an error in the filter expression
  * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
  * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
@@ -114,7 +113,6 @@ export const WorkSpace = ({
   epoch,
   setEpoch,
   filter,
-  filterError,
   setFilter,
   score,
   setScore,
@@ -193,7 +191,6 @@ export const WorkSpace = ({
               epochs=${epochs}
               setEpoch=${setEpoch}
               filter=${filter}
-              filterError=${filterError}
               filterChanged=${setFilter}
               sort=${sort}
               setSort=${setSort}

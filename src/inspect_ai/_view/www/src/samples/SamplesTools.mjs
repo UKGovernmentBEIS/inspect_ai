@@ -10,7 +10,6 @@ export const SampleTools = (props) => {
     epoch,
     setEpoch,
     filter,
-    filterError,
     filterChanged,
     sort,
     setSort,
@@ -28,7 +27,6 @@ export const SampleTools = (props) => {
     html`<${SampleFilter}
       evalDescriptor=${sampleDescriptor.evalDescriptor}
       filter=${filter}
-      filterError=${filterError}
       filterChanged=${filterChanged}
     />`,
   );

@@ -181,10 +181,10 @@ export const scoreFilterItems = (evalDescriptor) => {
  *
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
  * @param {import("../../api/Types.mjs").SampleSummary} sample
- * @param {string} value
+ * @param {string} filterValue
  * @returns {{matches: boolean, error: FilterError | undefined}}
  */
-export const filterExpression = (evalDescriptor, sample, value) => {
+export const filterExpression = (evalDescriptor, sample, filterValue) => {
   try {
     /** @type {(regex: string) => boolean} */
     const inputContains = (regex) => {
@@ -204,7 +204,7 @@ export const filterExpression = (evalDescriptor, sample, value) => {
       input_contains: inputContains,
       target_contains: targetContains,
     };
-    const expression = compileExpression(value, { extraFunctions });
+    const expression = compileExpression(filterValue, { extraFunctions });
     const vars = scoreVariables(evalDescriptor, sample.scores);
     const result = expression(vars);
     if (typeof result === "boolean") {
@@ -221,7 +221,7 @@ export const filterExpression = (evalDescriptor, sample, value) => {
       const propertyName = error["propertyName"];
       if (propertyName) {
         const regex = new RegExp(`\\b${propertyName}\\b`);
-        const match = regex.exec(value);
+        const match = regex.exec(filterValue);
         if (match) {
           return {
             matches: false,
@@ -235,6 +235,23 @@ export const filterExpression = (evalDescriptor, sample, value) => {
         }
       }
     }
+    if (
+      error.message.startsWith("Parse error") ||
+      error.message.startsWith("Lexical error")
+    ) {
+      // Filterex uses formatting like this:
+      //   foo and
+      //   ----^
+      const from = error.message.match(/^(-*)\^$/m)?.[1]?.length;
+      return {
+        matches: false,
+        error: {
+          from: from,
+          message: "Syntax error",
+          severity: "error",
+        },
+      };
+    }
 
     return {
       matches: false,
@@ -244,4 +261,28 @@ export const filterExpression = (evalDescriptor, sample, value) => {
       },
     };
   }
+};
+
+/**
+ * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
+ * @param {import("../../api/Types.mjs").SampleSummary[]} samples
+ * @param {string} filterValue
+ * @returns {{result: import("../../api/Types.mjs").SampleSummary[], error: FilterError | undefined}}
+ */
+export const filterSamples = (evalDescriptor, samples, filterValue) => {
+  var error = undefined;
+  const result = samples.filter((sample) => {
+    if (filterValue) {
+      const { matches, error: sampleError } = filterExpression(
+        evalDescriptor,
+        sample,
+        filterValue,
+      );
+      error ||= sampleError;
+      return matches;
+    } else {
+      return true;
+    }
+  });
+  return { result, error };
 };
