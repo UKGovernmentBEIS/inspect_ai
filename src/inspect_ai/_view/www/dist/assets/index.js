@@ -51547,13 +51547,21 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       ["input_contains", "Checks if input contains a regular expression"],
       ["target_contains", "Checks if target contains a regular expression"]
     ];
-    function joinLines(tr) {
-      if (tr.newDoc.toString().includes("\n")) {
-        const newContent = tr.newDoc.toString().replace(/\n/g, " ").trim();
-        return {
-          changes: { from: 0, to: tr.startState.doc.length, insert: newContent },
-          selection: { anchor: newContent.length }
-        };
+    function ensureOneLine(tr) {
+      const newDoc = tr.newDoc.toString();
+      if (newDoc.includes("\n")) {
+        if (tr.isUserEvent("input.paste")) {
+          const newDocAdjusted = newDoc.replace(/\n/g, " ").trim();
+          return {
+            changes: {
+              from: 0,
+              to: tr.startState.doc.length,
+              insert: newDocAdjusted
+            }
+          };
+        } else {
+          return {};
+        }
       }
       return tr;
     }
@@ -51882,7 +51890,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
               minimalSetup,
               bracketMatching(),
               editorTheme,
-              EditorState.transactionFilter.of(joinLines),
+              EditorState.transactionFilter.of(ensureOneLine),
               EditorView.updateListener.of((update) => {
                 if (update.docChanged) {
                   const newFilter = update.state.doc.toString();

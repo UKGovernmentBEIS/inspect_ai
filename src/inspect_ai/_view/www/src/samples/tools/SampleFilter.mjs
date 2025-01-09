@@ -55,13 +55,21 @@ const SAMPLE_FUNCTIONS = [
  * @param {import("@codemirror/state").Transaction} tr - The transaction to join lines in.
  * @returns {import("@codemirror/state").TransactionSpec} The transaction with joined lines, if any.
  */
-function joinLines(tr) {
-  if (tr.newDoc.toString().includes("\n")) {
-    const newContent = tr.newDoc.toString().replace(/\n/g, " ").trim();
-    return {
-      changes: { from: 0, to: tr.startState.doc.length, insert: newContent },
-      selection: { anchor: newContent.length },
-    };
+function ensureOneLine(tr) {
+  const newDoc = tr.newDoc.toString();
+  if (newDoc.includes("\n")) {
+    if (tr.isUserEvent("input.paste")) {
+      const newDocAdjusted = newDoc.replace(/\n/g, " ").trim();
+      return {
+        changes: {
+          from: 0,
+          to: tr.startState.doc.length,
+          insert: newDocAdjusted,
+        },
+      };
+    } else {
+      return {};
+    }
   }
   return tr;
 }
@@ -540,7 +548,7 @@ export const SampleFilter = ({
           minimalSetup,
           bracketMatching(),
           editorTheme,
-          EditorState.transactionFilter.of(joinLines),
+          EditorState.transactionFilter.of(ensureOneLine),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const newFilter = update.state.doc.toString();
