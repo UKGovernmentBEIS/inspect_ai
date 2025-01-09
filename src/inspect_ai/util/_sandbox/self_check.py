@@ -75,9 +75,9 @@ async def test_read_and_write_file_text(sandbox_env: SandboxEnvironment) -> None
     written_file_string = await sandbox_env.read_file(
         "test_read_and_write_file_text.file", text=True
     )
-    assert (
-        "great #content\nincluding newlines" == written_file_string
-    ), f"unexpected content: [{written_file_string}]"
+    assert "great #content\nincluding newlines" == written_file_string, (
+        f"unexpected content: [{written_file_string}]"
+    )
     await _cleanup_file(sandbox_env, "test_read_and_write_file_text.file")
 
 
@@ -219,9 +219,9 @@ async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
     exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; echo bar"])
     expected = "foo\nbar\n"
     # in the assertion message, we show the actual bytes to help debug newline issues
-    assert (
-        exec_result.stdout == expected
-    ), f"Unexpected output:expected {expected.encode('UTF-8')!r}; got {exec_result.stdout.encode('UTF-8')!r}"
+    assert exec_result.stdout == expected, (
+        f"Unexpected output:expected {expected.encode('UTF-8')!r}; got {exec_result.stdout.encode('UTF-8')!r}"
+    )
 
 
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
@@ -248,13 +248,13 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
 
         # Test exec as different users
         root_result = await sandbox_env.exec(["whoami"], user="root")
-        assert (
-            root_result.stdout.strip() == "root"
-        ), f"Expected 'root', got '{root_result.stdout.strip()}'"
+        assert root_result.stdout.strip() == "root", (
+            f"Expected 'root', got '{root_result.stdout.strip()}'"
+        )
         myuser_result = await sandbox_env.exec(["whoami"], user=username)
-        assert (
-            myuser_result.stdout.strip() == username
-        ), f"Expected '{username}', got '{myuser_result.stdout.strip()}'"
+        assert myuser_result.stdout.strip() == username, (
+            f"Expected '{username}', got '{myuser_result.stdout.strip()}'"
+        )
     finally:
         # Clean up
         await sandbox_env.exec(["userdel", "-r", username], user="root")
@@ -266,9 +266,9 @@ async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None
     expected_error = (
         "unable to find user nonexistent: no matching entries in passwd file"
     )
-    assert (
-        expected_error in result.stdout
-    ), f"Error string '{expected_error}' not found in error output: '{result.stdout}'"
+    assert expected_error in result.stdout, (
+        f"Error string '{expected_error}' not found in error output: '{result.stdout}'"
+    )
 
 
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
@@ -291,9 +291,9 @@ async def test_cwd_relative(sandbox_env: SandboxEnvironment) -> None:
     file_path = cwd_subdirectory + "/" + file_name
     await sandbox_env.write_file(file_path, "ls me plz")
     current_dir_contents = (await sandbox_env.exec(["ls"], cwd=cwd_subdirectory)).stdout
-    assert (
-        file_name in current_dir_contents
-    ), f"{file_name} not found in {current_dir_contents}"
+    assert file_name in current_dir_contents, (
+        f"{file_name} not found in {current_dir_contents}"
+    )
     await _cleanup_file(sandbox_env, file_path)
 
 

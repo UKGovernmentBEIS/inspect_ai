@@ -33,9 +33,7 @@ async def compose_up(project: ComposeProject) -> None:
         timeout=300,
     )
     if not result.success:
-        msg = (
-            f"Failed to start docker services for {project.config}: " f"{result.stderr}"
-        )
+        msg = f"Failed to start docker services for {project.config}: {result.stderr}"
         raise RuntimeError(msg)
 
 
