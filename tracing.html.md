@@ -89,16 +89,6 @@ heavy load).
 
 ## Tracing API
 
-> [!NOTE]
->
-> The tracing API described below is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 In addition to the standard set of actions which are trace logged, you
 can do your own custom trace logging using the `trace_action()` and
 `trace_message()` APIs. Trace logging is a great way to make sure that

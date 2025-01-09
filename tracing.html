@@ -434,42 +434,31 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="tracing-api" class="level2">
 <h2 class="anchored" data-anchor-id="tracing-api">Tracing API</h2>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>The tracing API described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
-</div>
 <p>In addition to the standard set of actions which are trace logged, you can do your own custom trace logging using the <code>trace_action()</code> and <code>trace_message()</code> APIs. Trace logging is a great way to make sure that logging context is <em>always captured</em> (since the last 10 trace logs are always available) without cluttering up the console or eval transcripts.</p>
 <section id="trace_action" class="level3">
 <h3 class="anchored" data-anchor-id="trace_action">trace_action()</h3>
 <p>Use the <code>trace_action()</code> context manager to collect data on the resolution (e.g.&nbsp;succeeded, cancelled, failed, timed out, etc.) and duration of actions. For example, let’s say you are interacting with a remote content database:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> trace_action</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logging <span class="im">import</span> getLogger</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> getLogger(<span class="va">__name__</span>)</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>server <span class="op">=</span> <span class="st">"https://contentdb.example.com"</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> <span class="st">"&lt;content-db-query&gt;"</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> trace_action(logger, <span class="st">"ContentDB"</span>, <span class="ss">f"</span><span class="sc">{</span>server<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span>):</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># perform content database query</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> trace_action</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logging <span class="im">import</span> getLogger</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> getLogger(<span class="va">__name__</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>server <span class="op">=</span> <span class="st">"https://contentdb.example.com"</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> <span class="st">"&lt;content-db-query&gt;"</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> trace_action(logger, <span class="st">"ContentDB"</span>, <span class="ss">f"</span><span class="sc">{</span>server<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span>):</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># perform content database query</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Your custom trace actions will be reported alongside the standard traced actions in <code>inspect trace anomalies</code>, <code>inspect trace dump</code>, etc.</p>
 </section>
 <section id="trace_message" class="level3">
 <h3 class="anchored" data-anchor-id="trace_message">trace_message()</h3>
 <p>Use the <code>trace_message()</code> function to trace events that don’t fall into enter/exit pattern supported by <code>trace_action()</code>. For example, let’s say you want to track every invocation of a custom tool:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> trace_message</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logging <span class="im">import</span> getLogger</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> getLogger(<span class="va">__name__</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>trace_message(logger, <span class="st">"MyTool"</span>, <span class="st">"message related to tool"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> trace_message</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> logging <span class="im">import</span> getLogger</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>logger <span class="op">=</span> getLogger(<span class="va">__name__</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>trace_message(logger, <span class="st">"MyTool"</span>, <span class="st">"message related to tool"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

@@ -3613,7 +3613,7 @@ grade is extracted using the default `grade_pattern` regular expression.
 The grading is by default done with the model currently being evaluated.
 There are a few ways you can customise the default behaviour:
 
-1.  Provide alternate `instructions`—the default instructions ass the
+1.  Provide alternate `instructions`—the default instructions ask the
     model to use chain of thought reasoning and provide grades in the
     format `GRADE: C` or `GRADE: I`. Note that if you provide
     instructions that ask the model to format grades in a different way,
@@ -8578,16 +8578,6 @@ store](agents-api.qmd#sample-store), which also supports
 
 ## Log Samples
 
-> [!NOTE]
->
-> Typed access to log sample store and metadata are supported only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `store_as()` and `metadata_as()` typed accessors are also available
 when reading samples from the eval log. Continuing from the examples
 above, you access typed interfaces as follows from an `EvalLog`:
@@ -8963,16 +8953,6 @@ or S3 can also return retryable errors or timeout when they are under
 heavy load).
 
 ## Tracing API
-
-> [!NOTE]
->
-> The tracing API described below is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 In addition to the standard set of actions which are trace logged, you
 can do your own custom trace logging using the `trace_action()` and

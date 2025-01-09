@@ -132,16 +132,6 @@ store](agents-api.qmd#sample-store), which also supports
 
 ## Log Samples
 
-> [!NOTE]
->
-> Typed access to log sample store and metadata are supported only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `store_as()` and `metadata_as()` typed accessors are also available
 when reading samples from the eval log. Continuing from the examples
 above, you access typed interfaces as follows from an `EvalLog`:

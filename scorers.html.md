@@ -150,7 +150,7 @@ grade is extracted using the default `grade_pattern` regular expression.
 The grading is by default done with the model currently being evaluated.
 There are a few ways you can customise the default behaviour:
 
-1.  Provide alternate `instructions`—the default instructions ass the
+1.  Provide alternate `instructions`—the default instructions ask the
     model to use chain of thought reasoning and provide grades in the
     format `GRADE: C` or `GRADE: I`. Note that if you provide
     instructions that ask the model to format grades in a different way,
