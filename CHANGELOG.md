@@ -2,11 +2,26 @@
 
 ## Unreleased
 
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+
+## v0.3.57 (09 January 2025)
+
+- [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
+- Inspect View: don't display the 'input' column heading if there isn't an input
+- Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
+- Open AI: Use new `max_completion_tokens` option for o1 full.
+- Web Browser: raise error when both `error` and `web_at` fields are present in response.
+- Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.
+- Docker: Prevent issue with container/project names that have a trailing underscore. 
+- Store: initialise `Store` from existing dictionary.
+- Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
 - Tool parameters with a default of `None` are now supported.
-- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+- More fine graned HTML escaping for sample transcripts displalyed in terminal.
+- Bugfix: prevent errors when a state or storage value uses a tilda or slash in the key name.
+- Bugfix: Include input in sample summary when the sample input contains a simple string.
 
 ## v0.3.56 (01 January 2025)
 

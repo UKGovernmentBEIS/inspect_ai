@@ -1,36 +1,45 @@
-import { ExtensionContext, Uri } from "vscode";
+import { ExtensionContext, MarkdownString, ThemeIcon, Uri } from "vscode";
 import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { log } from "../../../core/log";
 import { LogListingMRU } from "./log-listing-mru";
 import { normalizeWindowsUri } from "../../../core/uri";
 
 export type LogNode =
-  | { type: "dir", parent?: LogNode } & LogDirectory
-  | { type: "file", parent?: LogNode } & LogFile;
+  | ({
+    type: "dir";
+    iconPath?: string | ThemeIcon;
+    tooltip?: MarkdownString;
+    parent?: LogNode;
+  } & LogDirectory)
+  | ({
+    type: "file";
+    iconPath?: string | ThemeIcon;
+    tooltip?: MarkdownString;
+    parent?: LogNode;
+  } & LogFile);
 
 export interface LogDirectory {
-  name: string
-  children: LogNode[]
+  name: string;
+  children: LogNode[];
 }
 
 export interface LogFile {
-  name: string
-  size: number
-  mtime: number
-  task: string
-  task_id: string
-  suffix: string | null
+  name: string;
+  size: number;
+  mtime: number;
+  task: string;
+  task_id: string;
+  suffix: string | null;
 }
 
-
 export class LogListing {
-
   private readonly mru_: LogListingMRU;
 
   constructor(
     private readonly context: ExtensionContext,
     private readonly logDir_: Uri,
-    private readonly viewServer_: InspectViewServer) {
+    private readonly viewServer_: InspectViewServer
+  ) {
     this.mru_ = new LogListingMRU(context);
   }
 
@@ -39,7 +48,6 @@ export class LogListing {
   }
 
   public async ls(parent?: LogDirectory): Promise<LogNode[]> {
-
     // fetch the nodes if we don't have them yet
     if (this.nodes_ === undefined) {
       // do the listing
@@ -64,7 +72,6 @@ export class LogListing {
       }
     }
 
-
     return [];
   }
 
@@ -73,11 +80,12 @@ export class LogListing {
   }
 
   public nodeForUri(uri: Uri): LogNode | undefined {
-
     // recursively look for a node that matches the uri
     const findNodeWithUri = (node: LogNode): LogNode | undefined => {
       if (node.type === "file") {
-        return this.uriForNode(node).toString() === uri.toString() ? node : undefined;
+        return this.uriForNode(node).toString() === uri.toString()
+          ? node
+          : undefined;
       } else if (node.type === "dir") {
         for (const child of node.children) {
           const uri = findNodeWithUri(child);
@@ -106,25 +114,37 @@ export class LogListing {
     try {
       const logsJSON = await this.viewServer_.evalLogs(this.logDir_);
       if (logsJSON) {
-        const logs = JSON.parse(logsJSON) as { log_dir: string; files: LogFile[] };
-        const log_dir = normalizeWindowsUri(logs.log_dir.endsWith("/") ? logs.log_dir : `${logs.log_dir}/`);
+        const logs = JSON.parse(logsJSON) as {
+          log_dir: string;
+          files: LogFile[];
+        };
+        const log_dir = normalizeWindowsUri(
+          logs.log_dir.endsWith("/") ? logs.log_dir : `${logs.log_dir}/`
+        );
         for (const file of logs.files) {
           file.name = normalizeWindowsUri(file.name).replace(`${log_dir}`, "");
         }
         const tree = buildLogTree(logs.files);
         return tree;
       } else {
-        log.error(`No response retreiving logs from ${this.logDir_.toString(false)}`);
+        log.error(
+          `No response retreiving logs from ${this.logDir_.toString(false)}`
+        );
         return [];
       }
     } catch (error) {
-      log.error(`Unexpected error retreiving logs from ${this.logDir_.toString(false)}`);
+      log.error(
+        `Unexpected error retreiving logs from ${this.logDir_.toString(false)}`
+      );
       log.error(error instanceof Error ? error : String(error));
       return [];
     }
   }
 
-  private findParentNode(nodes: LogNode[], parentName: string): LogDirectory | undefined {
+  private findParentNode(
+    nodes: LogNode[],
+    parentName: string
+  ): LogDirectory | undefined {
     for (const node of nodes) {
       if (node.type === "dir") {
         if (node.name === parentName) {
@@ -141,13 +161,9 @@ export class LogListing {
   }
 
   private nodes_: LogNode[] | undefined;
-
 }
 
-
-
 function buildLogTree(logs: LogFile[]): LogNode[] {
-
   const root: LogNode[] = [];
   const dirCache: Map<string, LogNode> = new Map();
 
@@ -157,7 +173,7 @@ function buildLogTree(logs: LogFile[]): LogNode[] {
       type: "dir",
       name,
       children: [],
-      parent
+      parent,
     };
   }
 
@@ -166,7 +182,7 @@ function buildLogTree(logs: LogFile[]): LogNode[] {
     return {
       ...file,
       type: "file",
-      parent
+      parent,
     };
   }
 
@@ -183,10 +199,10 @@ function buildLogTree(logs: LogFile[]): LogNode[] {
 
   // Process each log file
   for (const log of logs) {
-    const parts = log.name.split('/');
+    const parts = log.name.split("/");
     parts.pop()!; // remove the filename
     let currentParent: LogNode | undefined;
-    let currentPath = '';
+    let currentPath = "";
 
     // Create/get all necessary parent directories
     for (const part of parts) {
@@ -195,10 +211,10 @@ function buildLogTree(logs: LogFile[]): LogNode[] {
       currentParent = ensureDirectory(currentPath, parentDir);
 
       if (parentDir?.type === "dir") {
-        if (!parentDir.children.some(child => child.name === currentPath)) {
+        if (!parentDir.children.some((child) => child.name === currentPath)) {
           parentDir.children.push(currentParent);
         }
-      } else if (!root.some(node => node.name === currentPath)) {
+      } else if (!root.some((node) => node.name === currentPath)) {
         root.push(currentParent);
       }
     }
@@ -215,8 +231,6 @@ function buildLogTree(logs: LogFile[]): LogNode[] {
   return sortLogTree(root);
 }
 
-
-
 function sortLogTree(nodes: LogNode[]): LogNode[] {
   // sort all of the children
   for (const node of nodes) {
@@ -228,7 +242,12 @@ function sortLogTree(nodes: LogNode[]): LogNode[] {
   // sort this level
   return nodes.sort((a, b) => {
     if (a.type === "dir" && b.type === "dir") {
-      return a.name.split("/").pop()?.localeCompare(b.name.split("/").pop() || "") || 0;
+      return (
+        a.name
+          .split("/")
+          .pop()
+          ?.localeCompare(b.name.split("/").pop() || "") || 0
+      );
     } else if (a.type === "file" && b.type === "file") {
       return b.mtime - a.mtime;
     } else if (a.type === "dir") {
@@ -237,5 +256,4 @@ function sortLogTree(nodes: LogNode[]): LogNode[] {
       return 1;
     }
   });
-
 }

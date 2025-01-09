@@ -1,3 +1,5 @@
+from inspect_ai._util.trace import trace_action, trace_message
+
 from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_type
@@ -53,4 +55,6 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
+    "trace_action",
+    "trace_message",
 ]

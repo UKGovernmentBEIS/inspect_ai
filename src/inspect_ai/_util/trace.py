@@ -33,6 +33,22 @@ def inspect_trace_file() -> Path:
 def trace_action(
     logger: Logger, action: str, message: str, *args: Any, **kwargs: Any
 ) -> Generator[None, None, None]:
+    """Trace a long running or poentially unreliable action.
+
+    Trace actions for which you want to collect data on the resolution
+    (e.g. succeeded, cancelled, failed, timed out, etc.) and duration of.
+
+    Traces are written to the `TRACE` log level (which is just below
+    `HTTP` and `INFO`). List and read trace logs with `inspect trace list`
+    and related commands (see `inspect trace --help` for details).
+
+    Args:
+       logger (Logger): Logger to use for tracing (e.g. from `getLogger(__name__)`)
+       action (str): Name of action to trace (e.g. 'Model', 'Subprocess', etc.)
+       message (str): Message describing action (can be a format string w/ args or kwargs)
+       *args (Any): Positional arguments for `message` format string.
+       **kwargs (Any): Named args for `message` format string.
+    """
     trace_id = uuid()
     start_monotonic = time.monotonic()
     start_wall = time.time()
@@ -117,6 +133,19 @@ def trace_action(
 def trace_message(
     logger: Logger, category: str, message: str, *args: Any, **kwargs: Any
 ) -> None:
+    """Log a message using the TRACE log level.
+
+    The `TRACE` log level is just below `HTTP` and `INFO`). List and
+    read trace logs with `inspect trace list` and related commands
+    (see `inspect trace --help` for details).
+
+    Args:
+       logger (Logger): Logger to use for tracing (e.g. from `getLogger(__name__)`)
+       category (str): Category of trace message.
+       message (str): Trace message (can be a format string w/ args or kwargs)
+       *args (Any): Positional arguments for `message` format string.
+       **kwargs (Any): Named args for `message` format string.
+    """
     logger.log(TRACE, f"[{category}] {message}", *args, **kwargs)
 
 
