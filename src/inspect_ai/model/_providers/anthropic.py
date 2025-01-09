@@ -1,8 +1,14 @@
 import functools
 import os
+import sys
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, NotRequired, Tuple, TypedDict, cast
+from typing import Any, Literal, Tuple, TypedDict, cast
+
+if sys.version_info >= (3, 11):
+    from typing import NotRequired
+else:
+    from typing_extensions import NotRequired
 
 from anthropic import (
     APIConnectionError,
@@ -35,20 +41,11 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-)
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
