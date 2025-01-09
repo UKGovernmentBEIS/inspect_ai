@@ -23,7 +23,6 @@ import {
   kScoreTypePassFail,
 } from "../../constants.mjs";
 import { keymap } from "@codemirror/view";
-import { debounce } from "../../utils/sync.mjs";
 
 /**
  * @typedef {Object} Token
@@ -554,32 +553,24 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
     () => scoreFilterItems(evalDescriptor),
     [evalDescriptor],
   );
-  const [filteringResult, setFilteringResult] = useState(
+  const [filteringResultInstant, setFilteringResultInstant] = useState(
     /** @type {FilteringResult | null} */ (null),
   );
-  const [debouncedFilteringResult, setDebouncedFilteringResult] = useState(
+  const [filteringResultExplicit, setFilteringResultExplicit] = useState(
     /** @type {FilteringResult | null} */ (null),
   );
-  const debouncedSetFilteringResult = useMemo(
-    () => debounce(setDebouncedFilteringResult, 700),
-    [],
-  );
-
-  /** @param {string} filterValue */
-  const updateFilteringResult = (evalDescriptor, filterValue) => {
-    const result = getFilteringResult(evalDescriptor, filterValue);
-    setFilteringResult(result);
-    debouncedSetFilteringResult(result);
-  };
 
   /** @param {import("codemirror").EditorView} view */
   const handleEnter = (view) => {
     const newFilter = view.state.doc.toString();
     const newFilteringResult = getFilteringResult(evalDescriptor, newFilter);
-    if (newFilteringResult?.error) return true;
-    lastFilterRef.current = newFilter;
-    filterChanged({ value: newFilter });
-    setHasPendingChanges(false);
+    if (newFilteringResult?.error) {
+      setFilteringResultExplicit(newFilteringResult);
+    } else {
+      lastFilterRef.current = newFilter;
+      filterChanged({ value: newFilter });
+      setHasPendingChanges(false);
+    }
     return true;
   };
 
@@ -595,8 +586,8 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
       activateOnCompletion: (c) => c.label.endsWith(" "), // see autoSpaceAfter
     });
   const makeLinter = () =>
-    // no need to use debouncedFilteringResult: codemirror debounces the linter itself
-    linter((view) => getLints(view, filteringResult?.error));
+    // CodeMirror debounces the linter, so even instant error updates are not annoying
+    linter((view) => getLints(view, filteringResultInstant?.error));
   const makeUpdateListener = () =>
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
@@ -605,7 +596,8 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
         setHasPendingChanges(
           newValue.trim() !== (lastFilterRef.current || "").trim(),
         );
-        updateFilteringResult(evalDescriptor, newValue);
+        setFilteringResultInstant(getFilteringResult(evalDescriptor, newValue));
+        setFilteringResultExplicit(null);
       }
     });
   const makeKeymap = () =>
@@ -651,7 +643,10 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
       lastFilterRef.current = filter.value;
       pendingFilterRef.current = filter.value;
       setHasPendingChanges(false);
-      updateFilteringResult(evalDescriptor, filter.value);
+      setFilteringResultInstant(
+        getFilteringResult(evalDescriptor, filter.value),
+      );
+      setFilteringResultExplicit(null);
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
@@ -692,21 +687,21 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
         effects: linterCompartment.current.reconfigure(makeLinter()),
       });
     }
-  }, [filteringResult?.error]);
+  }, [filteringResultInstant?.error]);
 
   /** @type {{cssClass: string, message: string} | undefined} */
   const alertWidget = hasPendingChanges
-    ? filteringResult?.error
-      ? debouncedFilteringResult?.error
-        ? {
-            cssClass: "alert-danger",
-            message: debouncedFilteringResult?.error.message,
-          }
-        : undefined
-      : {
-          cssClass: "alert-success",
-          message: `Press Enter to show ${filteringResult?.numSamples} matching samples`,
+    ? filteringResultExplicit?.error
+      ? {
+          cssClass: "alert-danger",
+          message: filteringResultExplicit?.error.message,
         }
+      : filteringResultInstant?.error
+        ? undefined
+        : {
+            cssClass: "alert-success",
+            message: `Press Enter to show ${filteringResultInstant?.numSamples} matching samples`,
+          }
     : undefined;
 
   const EDITOR_WIDTH = 300;

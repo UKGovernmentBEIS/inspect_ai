@@ -52105,30 +52105,24 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         () => scoreFilterItems(evalDescriptor),
         [evalDescriptor]
       );
-      const [filteringResult, setFilteringResult] = h(
+      const [filteringResultInstant, setFilteringResultInstant] = h(
         /** @type {FilteringResult | null} */
         null
       );
-      const [debouncedFilteringResult, setDebouncedFilteringResult] = h(
+      const [filteringResultExplicit, setFilteringResultExplicit] = h(
         /** @type {FilteringResult | null} */
         null
       );
-      const debouncedSetFilteringResult = T(
-        () => debounce$1(setDebouncedFilteringResult, 700),
-        []
-      );
-      const updateFilteringResult = (evalDescriptor2, filterValue) => {
-        const result = getFilteringResult(evalDescriptor2, filterValue);
-        setFilteringResult(result);
-        debouncedSetFilteringResult(result);
-      };
       const handleEnter = (view) => {
         const newFilter = view.state.doc.toString();
         const newFilteringResult = getFilteringResult(evalDescriptor, newFilter);
-        if (newFilteringResult == null ? void 0 : newFilteringResult.error) return true;
-        lastFilterRef.current = newFilter;
-        filterChanged({ value: newFilter });
-        setHasPendingChanges(false);
+        if (newFilteringResult == null ? void 0 : newFilteringResult.error) {
+          setFilteringResultExplicit(newFilteringResult);
+        } else {
+          lastFilterRef.current = newFilter;
+          filterChanged({ value: newFilter });
+          setHasPendingChanges(false);
+        }
         return true;
       };
       const handleFocus = (event, view) => {
@@ -52142,8 +52136,8 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         // see autoSpaceAfter
       });
       const makeLinter = () => (
-        // no need to use debouncedFilteringResult: codemirror debounces the linter itself
-        linter((view) => getLints(view, filteringResult == null ? void 0 : filteringResult.error))
+        // CodeMirror debounces the linter, so even instant error updates are not annoying
+        linter((view) => getLints(view, filteringResultInstant == null ? void 0 : filteringResultInstant.error))
       );
       const makeUpdateListener = () => EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -52152,7 +52146,8 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
           setHasPendingChanges(
             newValue.trim() !== (lastFilterRef.current || "").trim()
           );
-          updateFilteringResult(evalDescriptor, newValue);
+          setFilteringResultInstant(getFilteringResult(evalDescriptor, newValue));
+          setFilteringResultExplicit(null);
         }
       });
       const makeKeymap = () => keymap.of([
@@ -52196,7 +52191,10 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
           lastFilterRef.current = filter.value;
           pendingFilterRef.current = filter.value;
           setHasPendingChanges(false);
-          updateFilteringResult(evalDescriptor, filter.value);
+          setFilteringResultInstant(
+            getFilteringResult(evalDescriptor, filter.value)
+          );
+          setFilteringResultExplicit(null);
           editorViewRef.current.dispatch({
             changes: {
               from: 0,
@@ -52233,13 +52231,13 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
             effects: linterCompartment.current.reconfigure(makeLinter())
           });
         }
-      }, [filteringResult == null ? void 0 : filteringResult.error]);
-      const alertWidget = hasPendingChanges ? (filteringResult == null ? void 0 : filteringResult.error) ? (debouncedFilteringResult == null ? void 0 : debouncedFilteringResult.error) ? {
+      }, [filteringResultInstant == null ? void 0 : filteringResultInstant.error]);
+      const alertWidget = hasPendingChanges ? (filteringResultExplicit == null ? void 0 : filteringResultExplicit.error) ? {
         cssClass: "alert-danger",
-        message: debouncedFilteringResult == null ? void 0 : debouncedFilteringResult.error.message
-      } : void 0 : {
+        message: filteringResultExplicit == null ? void 0 : filteringResultExplicit.error.message
+      } : (filteringResultInstant == null ? void 0 : filteringResultInstant.error) ? void 0 : {
         cssClass: "alert-success",
-        message: `Press Enter to show ${filteringResult == null ? void 0 : filteringResult.numSamples} matching samples`
+        message: `Press Enter to show ${filteringResultInstant == null ? void 0 : filteringResultInstant.numSamples} matching samples`
       } : void 0;
       const EDITOR_WIDTH = 300;
       return m$1`
