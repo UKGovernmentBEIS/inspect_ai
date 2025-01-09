@@ -51940,11 +51940,18 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         }
         return void 0;
       };
-      const makeCompletions = (priorityCompletions, { enforceOrder = false, includeDefault = true } = {}) => {
-        const priorityCompletionsAdjusted = enforceOrder ? priorityCompletions.map((c2, idx) => ({
+      const makeCompletions = (priorityCompletions, {
+        enforceOrder = false,
+        autoSpaceAfter = false,
+        includeDefault = true
+      } = {}) => {
+        const priorityCompletionsOrdered = enforceOrder ? priorityCompletions.map((c2, idx) => ({
           ...c2,
           boost: -idx
         })) : priorityCompletions;
+        const priorityCompletionsAdjusted = autoSpaceAfter ? priorityCompletionsOrdered.map(
+          (c2) => !c2.apply ? { ...c2, label: c2.label + " " } : c2
+        ) : priorityCompletionsOrdered;
         if (includeDefault) {
           const miscSection = {
             name: "misc",
@@ -51970,27 +51977,29 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       };
       const defaultCompletions = () => makeCompletions([]);
       const noCompletions = () => context.explicit ? defaultCompletions() : null;
-      const newExpressionCompletions = () => makeCompletions([
-        ...variableCompletionItems,
-        ...sampleFunctionCompletionItems
-      ]);
+      const newExpressionCompletions = () => makeCompletions(
+        [...variableCompletionItems, ...sampleFunctionCompletionItems],
+        { autoSpaceAfter: true }
+      );
       const variableCompletions = () => makeCompletions(variableCompletionItems);
       const memberAccessCompletions = (items) => makeCompletions(items.map(makeMemberAccessCompletion), {
         includeDefault: false
       });
       const logicalOpCompletions = () => makeCompletions(["and", "or"].map(makeKeywordCompletion), {
-        enforceOrder: true
+        enforceOrder: true,
+        autoSpaceAfter: true
       });
       const descreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
-        enforceOrder: true
+        enforceOrder: true,
+        autoSpaceAfter: true
       });
       const continuousRelationCompletions = () => makeCompletions(
         ["<", "<=", ">", ">=", "==", "!="].map(makeKeywordCompletion),
-        { enforceOrder: true }
+        { enforceOrder: true, autoSpaceAfter: true }
       );
       const customRelationCompletions = () => makeCompletions(
         ["<", "<=", ">", ">=", "==", "!=", "~="].map(makeKeywordCompletion),
-        { enforceOrder: true }
+        { enforceOrder: true, autoSpaceAfter: true }
       );
       const rhsCompletions = (options) => makeCompletions(options.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
@@ -52128,7 +52137,9 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         }
       };
       const makeAutocompletion = () => autocompletion({
-        override: [(context) => getCompletions(context, filterItems)]
+        override: [(context) => getCompletions(context, filterItems)],
+        activateOnCompletion: (c2) => c2.label.endsWith(" ")
+        // see autoSpaceAfter
       });
       const makeLinter = () => (
         // no need to use debouncedFilteringResult: codemirror debounces the linter itself

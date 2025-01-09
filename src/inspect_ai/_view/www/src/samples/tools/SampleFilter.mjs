@@ -321,20 +321,30 @@ function getCompletions(context, filterItems) {
   /**
    * @param {import("@codemirror/autocomplete").Completion[]} priorityCompletions
    * @param {Object} props
-   * @param {boolean} [props.enforceOrder] - If true, the priorityCompletions will be enforced in the order they are provided.
-   * @param {boolean} [props.includeDefault] - If true, the default completions will be included after the priority completions.
+   * @param {boolean} [props.enforceOrder] - If true, the priorityCompletions are shown in the order they are provided.
+   * @param {boolean} [props.autoSpaceAfter] - If true, space is inserted after priorityCompletions. Use when fairly certain that the expression continues.
+   * @param {boolean} [props.includeDefault] - If true, the default completions are included after the priority completions.
    * @returns {import("@codemirror/autocomplete").CompletionResult}
    */
   const makeCompletions = (
     priorityCompletions,
-    { enforceOrder = false, includeDefault = true } = {},
+    {
+      enforceOrder = false,
+      autoSpaceAfter = false,
+      includeDefault = true,
+    } = {},
   ) => {
-    const priorityCompletionsAdjusted = enforceOrder
+    const priorityCompletionsOrdered = enforceOrder
       ? priorityCompletions.map((c, idx) => ({
           ...c,
           boost: -idx,
         }))
       : priorityCompletions;
+    const priorityCompletionsAdjusted = autoSpaceAfter
+      ? priorityCompletionsOrdered.map((c) =>
+          !c.apply ? { ...c, label: c.label + " " } : c,
+        )
+      : priorityCompletionsOrdered;
     if (includeDefault) {
       /** @type {import("@codemirror/autocomplete").CompletionSection} */
       const miscSection = {
@@ -366,10 +376,10 @@ function getCompletions(context, filterItems) {
   const defaultCompletions = () => makeCompletions([]);
   const noCompletions = () => (context.explicit ? defaultCompletions() : null);
   const newExpressionCompletions = () =>
-    makeCompletions([
-      ...variableCompletionItems,
-      ...sampleFunctionCompletionItems,
-    ]);
+    makeCompletions(
+      [...variableCompletionItems, ...sampleFunctionCompletionItems],
+      { autoSpaceAfter: true },
+    );
   const variableCompletions = () => makeCompletions(variableCompletionItems);
   /** @param {import("./filters.mjs").ScoreFilterItem[]} items */
   const memberAccessCompletions = (items) =>
@@ -379,20 +389,22 @@ function getCompletions(context, filterItems) {
   const logicalOpCompletions = () =>
     makeCompletions(["and", "or"].map(makeKeywordCompletion), {
       enforceOrder: true,
+      autoSpaceAfter: true,
     });
   const descreteRelationCompletions = () =>
     makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
       enforceOrder: true,
+      autoSpaceAfter: true,
     });
   const continuousRelationCompletions = () =>
     makeCompletions(
       ["<", "<=", ">", ">=", "==", "!="].map(makeKeywordCompletion),
-      { enforceOrder: true },
+      { enforceOrder: true, autoSpaceAfter: true },
     );
   const customRelationCompletions = () =>
     makeCompletions(
       ["<", "<=", ">", ">=", "==", "!=", "~="].map(makeKeywordCompletion),
-      { enforceOrder: true },
+      { enforceOrder: true, autoSpaceAfter: true },
     );
   /** @param {string[]} options */
   const rhsCompletions = (options) =>
@@ -580,6 +592,7 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
   const makeAutocompletion = () =>
     autocompletion({
       override: [(context) => getCompletions(context, filterItems)],
+      activateOnCompletion: (c) => c.label.endsWith(" "), // see autoSpaceAfter
     });
   const makeLinter = () =>
     // no need to use debouncedFilteringResult: codemirror debounces the linter itself
