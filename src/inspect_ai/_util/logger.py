@@ -1,5 +1,6 @@
 import atexit
 import os
+import re
 from logging import (
     DEBUG,
     INFO,
@@ -182,7 +183,7 @@ def notify_logger_record(record: LogRecord, write: bool) -> None:
     if write:
         transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
     global _rate_limit_count
-    if (record.levelno <= INFO and "429" in record.getMessage()) or (
+    if (record.levelno <= INFO and re.search(r"\b429\b", record.getMessage())) or (
         record.levelno == DEBUG
         # See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#validating-retry-attempts
         # for boto retry logic / log messages (this is tracking standard or adapative retries)
