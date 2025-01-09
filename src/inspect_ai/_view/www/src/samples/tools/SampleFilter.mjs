@@ -525,6 +525,9 @@ const editorTheme = EditorView.theme({
     borderColor: "#86b7fe",
     boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)",
   },
+  ".cm-scroller": {
+    overflow: "hidden",
+  },
 });
 
 /**

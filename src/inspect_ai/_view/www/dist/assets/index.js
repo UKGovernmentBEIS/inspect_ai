@@ -52075,6 +52075,9 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         outline: "none",
         borderColor: "#86b7fe",
         boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)"
+      },
+      ".cm-scroller": {
+        overflow: "hidden"
       }
     });
     const getFilteringResult = (evalDescriptor, filterValue) => {
