@@ -28,9 +28,38 @@ def test_store_model_basic():
 
         return solve
 
-    assert (
-        eval(Task(solver=model_basic()), model="mockllm/model")[0].status == "success"
-    )
+    log = eval(Task(solver=model_basic()), model="mockllm/model")[0]
+    assert log.status == "success"
+
+
+def test_store_model_log():
+    @solver
+    def model_log():
+        async def solve(state, generate):
+            model = MyModel()
+            model.x = 1
+            model.y = "a"
+            return state
+
+        return solve
+
+    log = eval(Task(solver=model_log()), model="mockllm/model")[0]
+    assert log.samples
+
+    # reconstruct the store from the sample
+    store = Store(log.samples[0].store)
+    assert store.get("MyModel:x") == 1
+    assert store.get("MyModel:y") == "a"
+
+    # reconstruct the store model from the sample
+    my_model = MyModel(store=store)
+    assert my_model.x == 1
+    assert my_model.y == "a"
+
+    # access the store model via store_as
+    my_model = log.samples[0].store_as(MyModel)
+    assert my_model.x == 1
+    assert my_model.y == "a"
 
 
 def test_store_model_assignment():
