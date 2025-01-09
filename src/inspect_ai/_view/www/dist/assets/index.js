@@ -15791,15 +15791,15 @@ var require_assets = __commonJS({
       }, ref) => {
         const [height, setHeight] = h(0);
         const [offset2, setOffset] = h(0);
-        const [rowHeights, setRowHeights] = h(/* @__PURE__ */ new Map());
-        const [totalHeight, setTotalHeight] = h(
-          data.length * estimatedRowHeight
-        );
+        const [listMetrics, setListMetrics] = h({
+          rowHeights: /* @__PURE__ */ new Map(),
+          totalHeight: data.length * estimatedRowHeight
+        });
         const baseRef = A$1(null);
         const containerRef = A$1(null);
         const rowRefs = A$1(/* @__PURE__ */ new Map());
         const getRowHeight = (index) => {
-          return rowHeights.get(index) || estimatedRowHeight;
+          return listMetrics.rowHeights.get(index) || estimatedRowHeight;
         };
         const rowPositions = T$1(() => {
           let currentPosition = 0;
@@ -15809,7 +15809,7 @@ var require_assets = __commonJS({
             currentPosition += getRowHeight(i2);
           }
           return positions;
-        }, [rowHeights, data.length]);
+        }, [listMetrics.rowHeights, data.length]);
         F$1(
           ref,
           () => ({
@@ -15836,7 +15836,7 @@ var require_assets = __commonJS({
               }
               newScrollTop = Math.max(
                 0,
-                Math.min(newScrollTop, totalHeight - viewportHeight)
+                Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight)
               );
               scrollElement.scrollTop = newScrollTop;
             }
@@ -15848,24 +15848,24 @@ var require_assets = __commonJS({
           rowRefs.current.forEach((element, index) => {
             if (element) {
               const measuredHeight = element.offsetHeight;
-              if (measuredHeight && measuredHeight !== rowHeights.get(index)) {
+              if (measuredHeight && measuredHeight !== listMetrics.rowHeights.get(index)) {
                 updates.push([index, measuredHeight]);
               }
             }
           });
-          if (updates.length > 0) {
-            const newHeights = new Map(rowHeights);
-            updates.forEach(([index, height2]) => newHeights.set(index, height2));
-            setRowHeights(newHeights);
-            updateTotalHeight(newHeights);
-          }
-        };
-        const updateTotalHeight = (heights = rowHeights) => {
-          let total = 0;
+          if (updates.length === 0) return;
+          const newHeights = new Map(listMetrics.rowHeights);
+          updates.forEach(([index, height2]) => {
+            newHeights.set(index, height2);
+          });
+          let newTotalHeight = 0;
           for (let i2 = 0; i2 < data.length; i2++) {
-            total += heights.get(i2) || estimatedRowHeight;
+            newTotalHeight += newHeights.get(i2) || estimatedRowHeight;
           }
-          setTotalHeight(total);
+          setListMetrics({
+            rowHeights: newHeights,
+            totalHeight: newTotalHeight
+          });
         };
         const resize = () => {
           const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
@@ -15899,7 +15899,7 @@ var require_assets = __commonJS({
         });
         const findRowAtOffset = (targetOffset) => {
           if (targetOffset <= 0) return 0;
-          if (targetOffset >= totalHeight) return data.length - 1;
+          if (targetOffset >= listMetrics.totalHeight) return data.length - 1;
           let low = 0;
           let high = data.length - 1;
           let lastValid = 0;
@@ -15957,7 +15957,7 @@ var require_assets = __commonJS({
         const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
         return m$1`
       <div ref=${baseRef} ...${props} ...${scrollProps}>
-        <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
+        <div style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}>
           <div
             style=${{ ...style_content, top: `${top2}px` }}
             ref=${containerRef}
@@ -17612,7 +17612,13 @@ ${entry.value}</pre
         return [val];
       }
     };
-    const SampleInitEventView = ({ id, event, style: style2, eventState, setEventState }) => {
+    const SampleInitEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
       const stateObj = event.state;
       const sections = [];
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
@@ -24414,7 +24420,14 @@ ${events}
         ])
       );
     }
-    const StateEventView = ({ id, event, eventState, setEventState, isStore, style: style2 }) => {
+    const StateEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      isStore,
+      style: style2
+    }) => {
       const summary = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
       const tabs = [
@@ -24594,14 +24607,24 @@ ${events}
     function initializeObject(current) {
       return current ?? {};
     }
-    const StepEventView = ({ event, eventState, setEventState, children: children2, style: style2, scrollRef }) => {
+    const StepEventView = ({
+      event,
+      eventState,
+      setEventState,
+      children: children2,
+      style: style2,
+      scrollRef
+    }) => {
       const descriptor = stepDescriptor(event);
       const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
       const [transcriptState, setTranscriptState] = h({});
-      const onTranscriptState = q$1((state) => {
-        setTranscriptState({ ...state });
-      }, [transcriptState, setTranscriptState]);
+      const onTranscriptState = q$1(
+        (state) => {
+          setTranscriptState({ ...state });
+        },
+        [transcriptState, setTranscriptState]
+      );
       return m$1`<${EventPanel}
     id=${`step-${event.name}`}
     classes="transcript-step"
@@ -24720,7 +24743,14 @@ ${events}
         }
       }
     };
-    const SubtaskEventView = ({ id, event, eventState, setEventState, style: style2, depth }) => {
+    const SubtaskEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2,
+      depth
+    }) => {
       const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
@@ -24985,7 +25015,13 @@ ${events}
       })}
   </div>`;
     };
-    const ModelEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
+    const ModelEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
       var _a2, _b2;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
@@ -25222,7 +25258,13 @@ ${events}
     </pre>
   </div>`;
     };
-    const InfoEventView = ({ id, event, style: style2, eventState, setEventState }) => {
+    const InfoEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
       const panels = [];
       if (typeof event.data === "string") {
         panels.push(
@@ -25255,7 +25297,13 @@ ${events}
     ${panels}
   </${EventPanel}>`;
     };
-    const ScoreEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
+    const ScoreEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return m$1`
   <${EventPanel} 
@@ -25358,7 +25406,14 @@ ${events}
           return ApplicationIcons.approve;
       }
     };
-    const ToolEventView = ({ id, event, eventState, setEventState, style: style2, depth }) => {
+    const ToolEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2,
+      depth
+    }) => {
       var _a2, _b2;
       const { input, functionCall, inputType } = resolveToolInput(
         event.function,
@@ -25407,7 +25462,13 @@ ${events}
           />` : ""}
   </${EventPanel}>`;
     };
-    const ErrorEventView = ({ id, event, style: style2, eventState, setEventState }) => {
+    const ErrorEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
       return m$1`
   <${EventPanel} 
     id=${id} 
@@ -25427,7 +25488,13 @@ ${events}
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
     };
-    const InputEventView = ({ id, event, style: style2, eventState, setEventState }) => {
+    const InputEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
       return m$1`
   <${EventPanel} 
     id=${id} 
@@ -25447,7 +25514,13 @@ ${events}
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style2 }}/>
   </${EventPanel}>`;
     };
-    const SampleLimitEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
+    const SampleLimitEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
       const resolve_title = (type) => {
         switch (type) {
           case "context":
@@ -25510,21 +25583,34 @@ ${events}
     }
     const TranscriptView = ({ id, events, depth = 0 }) => {
       const [transcriptState, setTranscriptState] = h({});
-      const onTranscriptState = q$1((state) => {
-        setTranscriptState(state);
-      }, [transcriptState, setTranscriptState]);
+      const onTranscriptState = q$1(
+        (state) => {
+          setTranscriptState(state);
+        },
+        [transcriptState, setTranscriptState]
+      );
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
-      return m$1` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} transcriptState=${transcriptState} setTranscriptState=${onTranscriptState} /> `;
+      return m$1`
+    <${TranscriptComponent}
+      id=${id}
+      eventNodes=${eventNodes}
+      transcriptState=${transcriptState}
+      setTranscriptState=${onTranscriptState}
+    />
+  `;
     };
     const TranscriptVirtualList = (props) => {
       let { id, scrollRef, events, depth, style: style2 } = props;
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
       const [transcriptState, setTranscriptState] = h({});
-      const onTranscriptState = q$1((state) => {
-        setTranscriptState(state);
-      }, [transcriptState, setTranscriptState]);
+      const onTranscriptState = q$1(
+        (state) => {
+          setTranscriptState(state);
+        },
+        [transcriptState, setTranscriptState]
+      );
       return m$1`<${TranscriptVirtualListComponent}
     id=${id}
     eventNodes=${eventNodes}
@@ -25554,9 +25640,12 @@ ${events}
           paddingTop = ".5em";
         }
         const eventId = `${id}-event${index}`;
-        const setEventState = q$1((state) => {
-          setTranscriptState({ ...transcriptState, [eventId]: state });
-        }, [setTranscriptState, transcriptState]);
+        const setEventState = q$1(
+          (state) => {
+            setTranscriptState({ ...transcriptState, [eventId]: state });
+          },
+          [setTranscriptState, transcriptState]
+        );
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
       <${RenderedEventNode}
         id=${eventId}
@@ -25579,7 +25668,13 @@ ${events}
     style=${{ width: "100%", marginTop: "1em" }}
   />`;
     };
-    const TranscriptComponent = ({ id, transcriptState, setTranscriptState, eventNodes, style: style2 }) => {
+    const TranscriptComponent = ({
+      id,
+      transcriptState,
+      setTranscriptState,
+      eventNodes,
+      style: style2
+    }) => {
       const rows = eventNodes.map((eventNode, index) => {
         const toggleStyle = {};
         if (eventNode.depth % 2 == 0) {
@@ -25597,9 +25692,12 @@ ${events}
           paddingBottom = "0";
         }
         const eventId = `${id}-event${index}`;
-        const setEventState = q$1((state) => {
-          setTranscriptState({ ...transcriptState, [eventId]: state });
-        }, [setTranscriptState, transcriptState]);
+        const setEventState = q$1(
+          (state) => {
+            setTranscriptState({ ...transcriptState, [eventId]: state });
+          },
+          [setTranscriptState, transcriptState]
+        );
         const row = m$1`
       <div style=${{ paddingBottom }}>
         <${RenderedEventNode}
@@ -25629,7 +25727,14 @@ ${events}
     ${rows}
   </div>`;
     };
-    const RenderedEventNode = ({ id, node, style: style2, scrollRef, eventState, setEventState }) => {
+    const RenderedEventNode = ({
+      id,
+      node,
+      style: style2,
+      scrollRef,
+      eventState,
+      setEventState
+    }) => {
       switch (node.event.event) {
         case "sample_init":
           return m$1`<${SampleInitEventView}

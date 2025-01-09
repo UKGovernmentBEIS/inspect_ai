@@ -34,10 +34,11 @@ export const VirtualList = forwardRef(
   ) => {
     const [height, setHeight] = useState(0);
     const [offset, setOffset] = useState(0);
-    const [rowHeights, setRowHeights] = useState(new Map());
-    const [totalHeight, setTotalHeight] = useState(
-      data.length * estimatedRowHeight,
-    );
+
+    const [listMetrics, setListMetrics] = useState({
+      rowHeights: new Map(),
+      totalHeight: data.length * estimatedRowHeight,
+    });
 
     const baseRef = useRef(null);
     const containerRef = useRef(null);
@@ -45,7 +46,7 @@ export const VirtualList = forwardRef(
 
     // Function to get row height (measured or estimated)
     const getRowHeight = (index) => {
-      return rowHeights.get(index) || estimatedRowHeight;
+      return listMetrics.rowHeights.get(index) || estimatedRowHeight;
     };
 
     // Calculate row positions based on current heights
@@ -59,7 +60,7 @@ export const VirtualList = forwardRef(
       }
 
       return positions;
-    }, [rowHeights, data.length]);
+    }, [listMetrics.rowHeights, data.length]);
 
     // Expose scrollToIndex method via ref
     useImperativeHandle(
@@ -101,7 +102,7 @@ export const VirtualList = forwardRef(
           // Clamp scroll position to valid range
           newScrollTop = Math.max(
             0,
-            Math.min(newScrollTop, totalHeight - viewportHeight),
+            Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight),
           );
           scrollElement.scrollTop = newScrollTop;
         },
@@ -111,31 +112,42 @@ export const VirtualList = forwardRef(
 
     // Measure rendered rows and update heights if needed
     const measureRows = () => {
+      // Keep track of updated heights
       let updates = [];
+
       rowRefs.current.forEach((element, index) => {
         if (element) {
           const measuredHeight = element.offsetHeight;
-          if (measuredHeight && measuredHeight !== rowHeights.get(index)) {
+          // If the measured height is different, schedule an update
+          if (
+            measuredHeight &&
+            measuredHeight !== listMetrics.rowHeights.get(index)
+          ) {
             updates.push([index, measuredHeight]);
           }
         }
       });
 
-      if (updates.length > 0) {
-        const newHeights = new Map(rowHeights);
-        updates.forEach(([index, height]) => newHeights.set(index, height));
-        setRowHeights(newHeights);
-        updateTotalHeight(newHeights);
-      }
-    };
+      // If no rows changed, do nothing
+      if (updates.length === 0) return;
 
-    // Update total height based on current row heights
-    const updateTotalHeight = (heights = rowHeights) => {
-      let total = 0;
+      // Create a new Map of rowHeights so we don't mutate state directly
+      const newHeights = new Map(listMetrics.rowHeights);
+      updates.forEach(([index, height]) => {
+        newHeights.set(index, height);
+      });
+
+      // Recompute total height only once
+      let newTotalHeight = 0;
       for (let i = 0; i < data.length; i++) {
-        total += heights.get(i) || estimatedRowHeight;
+        newTotalHeight += newHeights.get(i) || estimatedRowHeight;
       }
-      setTotalHeight(total);
+
+      // Now update our single state object in one go:
+      setListMetrics({
+        rowHeights: newHeights,
+        totalHeight: newTotalHeight,
+      });
     };
 
     // Handle container resize
@@ -180,7 +192,7 @@ export const VirtualList = forwardRef(
 
     const findRowAtOffset = (targetOffset) => {
       if (targetOffset <= 0) return 0;
-      if (targetOffset >= totalHeight) return data.length - 1;
+      if (targetOffset >= listMetrics.totalHeight) return data.length - 1;
 
       let low = 0;
       let high = data.length - 1;
@@ -252,7 +264,9 @@ export const VirtualList = forwardRef(
 
     return html`
       <div ref=${baseRef} ...${props} ...${scrollProps}>
-        <div style=${{ ...style_inner, height: `${totalHeight}px` }}>
+        <div
+          style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}
+        >
           <div
             style=${{ ...style_content, top: `${top}px` }}
             ref=${containerRef}
