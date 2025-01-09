@@ -1,5 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
+import { useCallback, useState } from "preact/hooks";
 import { SampleInitEventView } from "./SampleInitEventView.mjs";
 import { StateEventView } from "./state/StateEventView.mjs";
 import { StepEventView } from "./StepEventView.mjs";
@@ -28,10 +29,25 @@ import { VirtualList } from "../../components/VirtualList.mjs";
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptView = ({ id, events, depth = 0 }) => {
+  const [transcriptState, setTranscriptState] = useState({});
+  const onTranscriptState = useCallback(
+    (state) => {
+      setTranscriptState(state);
+    },
+    [transcriptState, setTranscriptState],
+  );
+
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
-  return html` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
+  return html`
+    <${TranscriptComponent}
+      id=${id}
+      eventNodes=${eventNodes}
+      transcriptState=${transcriptState}
+      setTranscriptState=${onTranscriptState}
+    />
+  `;
 };
 
 /**
@@ -52,11 +68,21 @@ export const TranscriptVirtualList = (props) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
 
+  const [transcriptState, setTranscriptState] = useState({});
+  const onTranscriptState = useCallback(
+    (state) => {
+      setTranscriptState(state);
+    },
+    [transcriptState, setTranscriptState],
+  );
+
   return html`<${TranscriptVirtualListComponent}
     id=${id}
     eventNodes=${eventNodes}
     style=${style}
     scrollRef=${scrollRef}
+    transcriptState=${transcriptState}
+    setTranscriptState=${onTranscriptState}
   />`;
 };
 
@@ -68,6 +94,8 @@ export const TranscriptVirtualList = (props) => {
  * @param {EventNode[]} props.eventNodes - The transcript events nodes to display.
  * @param {Object} props.style - The transcript style to display.
  * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
+ * @param {import("./Types.mjs").TranscriptState} props.transcriptState - The state for this transcript
+ * @param {(state: import("./Types.mjs").TranscriptState) => void} props.setTranscriptState - Set the transcript state for this transcript
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptVirtualListComponent = ({
@@ -75,6 +103,8 @@ export const TranscriptVirtualListComponent = ({
   eventNodes,
   style,
   scrollRef,
+  transcriptState,
+  setTranscriptState,
 }) => {
   const renderRow = (item, index) => {
     const toggleStyle = {};
@@ -88,16 +118,25 @@ export const TranscriptVirtualListComponent = ({
     if (index === 0) {
       paddingTop = ".5em";
     }
+    const eventId = `${id}-event${index}`;
+    const setEventState = useCallback(
+      (state) => {
+        setTranscriptState({ ...transcriptState, [eventId]: state });
+      },
+      [setTranscriptState, transcriptState],
+    );
 
     return html`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
       <${RenderedEventNode}
-        id=${`${id}-event${index}`}
+        id=${eventId}
         node=${item}
         style=${{
           ...toggleStyle,
           ...style,
         }}
         scrollRef=${scrollRef}
+        eventState=${transcriptState[eventId] || {}}
+        setEventState=${setEventState}
       />
     </div>`;
   };
@@ -118,9 +157,17 @@ export const TranscriptVirtualListComponent = ({
  * @param {string} props.id - The identifier for this view
  * @param {EventNode[]} props.eventNodes - The transcript events nodes to display.
  * @param {Object} props.style - The transcript style to display.
+ * @param {import("./Types.mjs").TranscriptState} props.transcriptState - The state for this transcript
+ * @param {(state: import("./Types.mjs").TranscriptState) => void} props.setTranscriptState - Set the transcript state for this transcript
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptComponent = ({ id, eventNodes, style }) => {
+export const TranscriptComponent = ({
+  id,
+  transcriptState,
+  setTranscriptState,
+  eventNodes,
+  style,
+}) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
@@ -139,15 +186,25 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
       paddingBottom = "0";
     }
 
+    const eventId = `${id}-event${index}`;
+    const setEventState = useCallback(
+      (state) => {
+        setTranscriptState({ ...transcriptState, [eventId]: state });
+      },
+      [setTranscriptState, transcriptState],
+    );
+
     const row = html`
       <div style=${{ paddingBottom }}>
         <${RenderedEventNode}
-          id=${`${id}-event${index}`}
+          id=${eventId}
           node=${eventNode}
           style=${{
             ...toggleStyle,
             ...style,
           }}
+          eventState=${transcriptState[eventId] || {}}
+          setEventState=${setEventState}
         />
       </div>
     `;
@@ -176,14 +233,25 @@ export const TranscriptComponent = ({ id, eventNodes, style }) => {
  * @param { EventNode } props.node - This event.
  * @param { Object } props.style - The style for this node.
  * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
+export const RenderedEventNode = ({
+  id,
+  node,
+  style,
+  scrollRef,
+  eventState,
+  setEventState,
+}) => {
   switch (node.event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -191,6 +259,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -198,6 +268,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${InfoEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -205,6 +277,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${LoggerEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -212,6 +286,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${ModelEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -219,6 +295,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${ScoreEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -226,6 +304,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -233,6 +313,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${StepEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         children=${node.children}
         style=${style}
         scrollRef=${scrollRef}
@@ -242,6 +324,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
         isStore=${true}
       />`;
@@ -250,6 +334,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${SubtaskEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
         depth=${node.depth}
       />`;
@@ -258,6 +344,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${ToolEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
         depth=${node.depth}
       />`;
@@ -266,6 +354,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${InputEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -273,6 +363,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${ErrorEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 
@@ -280,6 +372,8 @@ export const RenderedEventNode = ({ id, node, style, scrollRef }) => {
       return html`<${ApprovalEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style}
       />`;
 

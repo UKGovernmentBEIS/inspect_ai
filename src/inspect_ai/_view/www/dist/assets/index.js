@@ -17398,23 +17398,21 @@ ${entry.value}</pre
       icon,
       titleColor,
       collapse,
+      collapsed,
+      onCollapsed,
       style: style2,
       titleStyle,
-      children: children2
+      children: children2,
+      onSelectedNav,
+      selectedNav
     }) => {
       const hasCollapse = collapse !== void 0;
-      const [collapsed, setCollapsed] = h(!!collapse);
-      const [selectedNav, setSelectedNav] = h("");
-      const filteredArrChildren = T$1(() => {
-        const arrChildren = Array.isArray(children2) ? children2 : [children2];
-        return arrChildren.filter((child) => !!child);
-      }, [children2]);
-      y(() => {
-        setSelectedNav(pillId(0));
-      }, [filteredArrChildren]);
+      const isCollapsed = collapsed === void 0 ? collapse : collapsed;
       const pillId = (index) => {
         return `${id}-nav-pill-${index}`;
       };
+      const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
+      const defaultPillId = pillId(0);
       const gridColumns2 = [];
       if (hasCollapse) {
         gridColumns2.push("minmax(0, max-content)");
@@ -17441,9 +17439,9 @@ ${entry.value}</pre
         >
           ${hasCollapse ? m$1`<i
                 onclick=${() => {
-        setCollapsed(!collapsed);
+        onCollapsed(!isCollapsed);
       }}
-                class=${collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
+                class=${isCollapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down}
               />` : ""}
           ${icon ? m$1`<i
                 class=${icon || ApplicationIcons.metadata}
@@ -17453,7 +17451,7 @@ ${entry.value}</pre
         ...titleStyle
       }}
                 onclick=${() => {
-        setCollapsed(!collapsed);
+        onCollapsed(!isCollapsed);
       }}
               />` : ""}
           <div
@@ -17464,14 +17462,14 @@ ${entry.value}</pre
         ...titleStyle
       }}
             onclick=${() => {
-        setCollapsed(!collapsed);
+        onCollapsed(!isCollapsed);
       }}
           >
             ${title}
           </div>
           <div
             onclick=${() => {
-        setCollapsed(!collapsed);
+        onCollapsed(!isCollapsed);
       }}
           ></div>
           <div
@@ -17481,7 +17479,7 @@ ${entry.value}</pre
         marginRight: "0.2em"
       }}
             onclick=${() => {
-        setCollapsed(!collapsed);
+        onCollapsed(!isCollapsed);
       }}
           >
             ${collapsed ? text2 : ""}
@@ -17493,7 +17491,7 @@ ${entry.value}</pre
         flexDirection: "columns"
       }}
           >
-            ${(!hasCollapse || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? m$1` <${EventNavs}
+            ${(!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? m$1` <${EventNavs}
                   navs=${filteredArrChildren.map((child, index) => {
         var _a2;
         const defaultTitle = `Tab ${index}`;
@@ -17504,8 +17502,8 @@ ${entry.value}</pre
           target: pillId(index)
         };
       })}
-                  selectedNav=${selectedNav}
-                  setSelectedNav=${setSelectedNav}
+                  selectedNav=${selectedNav || defaultPillId}
+                  setSelectedNav=${onSelectedNav}
                 />` : ""}
           </div>
         </div>` : "";
@@ -17524,14 +17522,15 @@ ${entry.value}</pre
       class="tab-content"
       style=${{
         padding: "0",
-        display: !hasCollapse || !collapsed ? "inherit" : "none"
+        display: !hasCollapse || !isCollapsed ? "inherit" : "none"
       }}
     >
       ${filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
         const id2 = pillId(index);
+        const isSelected = selectedNav ? id2 === selectedNav : id2 === defaultPillId;
         return m$1`<div
           id=${id2}
-          class="tab-pane show ${id2 === selectedNav ? "active" : ""}"
+          class="tab-pane show ${isSelected ? "active" : ""}"
         >
           ${child}
         </div>`;
@@ -17613,7 +17612,7 @@ ${entry.value}</pre
         return [val];
       }
     };
-    const SampleInitEventView = ({ id, event, style: style2 }) => {
+    const SampleInitEventView = ({ id, event, style: style2, eventState, setEventState }) => {
       const stateObj = event.state;
       const sections = [];
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
@@ -17631,7 +17630,21 @@ ${entry.value}</pre
   `);
       }
       return m$1`
-  <${EventPanel} id=${id} style=${style2} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
+  <${EventPanel} 
+    id=${id} 
+    style=${style2} 
+    title="Sample" 
+    icon=${ApplicationIcons.sample} 
+    subTitle=${formatDateTime(new Date(event.timestamp))}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>
@@ -24401,7 +24414,7 @@ ${events}
         ])
       );
     }
-    const StateEventView = ({ id, event, isStore, style: style2 }) => {
+    const StateEventView = ({ id, event, eventState, setEventState, isStore, style: style2 }) => {
       const summary = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
       const tabs = [
@@ -24426,7 +24439,22 @@ ${events}
       }
       const title = event.event === "state" ? "State Updated" : "Store Updated";
       return m$1`
-  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} text=${tabs.length === 1 ? summary : void 0} collapse=${changePreview === void 0 ? true : void 0} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="${title}" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    text=${tabs.length === 1 ? summary : void 0} 
+    collapse=${changePreview === void 0 ? true : void 0} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}                  
+  >
     ${tabs}
   </${EventPanel}>`;
     };
@@ -24566,10 +24594,14 @@ ${events}
     function initializeObject(current) {
       return current ?? {};
     }
-    const StepEventView = ({ event, children: children2, style: style2, scrollRef }) => {
+    const StepEventView = ({ event, eventState, setEventState, children: children2, style: style2, scrollRef }) => {
       const descriptor = stepDescriptor(event);
       const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
+      const [transcriptState, setTranscriptState] = h({});
+      const onTranscriptState = q$1((state) => {
+        setTranscriptState({ ...state });
+      }, [transcriptState, setTranscriptState]);
       return m$1`<${EventPanel}
     id=${`step-${event.name}`}
     classes="transcript-step"
@@ -24580,11 +24612,21 @@ ${events}
     titleStyle=${{ ...descriptor.titleStyle }}
     collapse=${false}
     text=${text2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}        
   >
     <${TranscriptVirtualListComponent}
       id=${`step-${event.name}-transcript`}
       eventNodes=${children2}
       scrollRef=${scrollRef}
+      transcriptState=${transcriptState}
+      setTranscriptState=${onTranscriptState}
     />
   </EventPanel>
   `;
@@ -24678,7 +24720,7 @@ ${events}
         }
       }
     };
-    const SubtaskEventView = ({ id, event, style: style2, depth }) => {
+    const SubtaskEventView = ({ id, event, eventState, setEventState, style: style2, depth }) => {
       const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
@@ -24704,7 +24746,21 @@ ${events}
         `;
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return m$1`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" subTitle=${formatDateTime(new Date(event.timestamp))} style=${style2} collapse=${false}>
+    <${EventPanel} 
+      id=${id} 
+      title="${type}: ${event.name}" 
+      subTitle=${formatDateTime(new Date(event.timestamp))} 
+      style=${style2} 
+      collapse=${false}
+      selectedNav=${eventState.selectedNav || ""}
+      onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+      collapsed=${eventState.collapsed}
+      onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}              
+    >
       ${body}
     </${EventPanel}>`;
     };
@@ -24929,7 +24985,7 @@ ${events}
       })}
   </div>`;
     };
-    const ModelEventView = ({ id, event, style: style2 }) => {
+    const ModelEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
       var _a2, _b2;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
@@ -24961,7 +25017,21 @@ ${events}
         }
       }
       return m$1`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="Model Call: ${event.model} ${subtitle}"
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.model} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
@@ -25152,7 +25222,7 @@ ${events}
     </pre>
   </div>`;
     };
-    const InfoEventView = ({ id, event, style: style2 }) => {
+    const InfoEventView = ({ id, event, style: style2, eventState, setEventState }) => {
       const panels = [];
       if (typeof event.data === "string") {
         panels.push(
@@ -25167,14 +25237,42 @@ ${events}
         );
       }
       return m$1`
-  <${EventPanel} id=${id} title="Info" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.info} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="Info" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.info} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
     ${panels}
   </${EventPanel}>`;
     };
-    const ScoreEventView = ({ id, event, style: style2 }) => {
+    const ScoreEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return m$1`
-  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="Score" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.scorer} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}    
+  >
   
     <div
       name="Explanation"
@@ -25260,7 +25358,7 @@ ${events}
           return ApplicationIcons.approve;
       }
     };
-    const ToolEventView = ({ id, event, style: style2, depth }) => {
+    const ToolEventView = ({ id, event, eventState, setEventState, style: style2, depth }) => {
       var _a2, _b2;
       const { input, functionCall, inputType } = resolveToolInput(
         event.function,
@@ -25271,7 +25369,21 @@ ${events}
       });
       const title = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return m$1`
-  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style2}>  
+  <${EventPanel} 
+    id=${id} 
+    title="${title}" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.solvers.use_tools} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}              
+  >  
   <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
@@ -25295,19 +25407,47 @@ ${events}
           />` : ""}
   </${EventPanel}>`;
     };
-    const ErrorEventView = ({ id, event, style: style2 }) => {
+    const ErrorEventView = ({ id, event, style: style2, eventState, setEventState }) => {
       return m$1`
-  <${EventPanel} id=${id} title="Error" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.error} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="Error" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.error} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
     <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
     };
-    const InputEventView = ({ id, event, style: style2 }) => {
+    const InputEventView = ({ id, event, style: style2, eventState, setEventState }) => {
       return m$1`
-  <${EventPanel} id=${id} title="Input" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.input} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title="Input" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.input} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+    >
     <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style2 }}/>
   </${EventPanel}>`;
     };
-    const SampleLimitEventView = ({ id, event, style: style2 }) => {
+    const SampleLimitEventView = ({ id, event, eventState, setEventState, style: style2 }) => {
       const resolve_title = (type) => {
         switch (type) {
           case "context":
@@ -25339,7 +25479,20 @@ ${events}
       const title = resolve_title(event.type);
       const icon = resolve_icon(event.type);
       return m$1`
-  <${EventPanel} id=${id} title=${title} icon=${icon} style=${style2}>
+  <${EventPanel} 
+    id=${id} 
+    title=${title} 
+    icon=${icon} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
     ${event.message}
   </${EventPanel}>`;
     };
@@ -25356,26 +25509,38 @@ ${events}
       }
     }
     const TranscriptView = ({ id, events, depth = 0 }) => {
+      const [transcriptState, setTranscriptState] = h({});
+      const onTranscriptState = q$1((state) => {
+        setTranscriptState(state);
+      }, [transcriptState, setTranscriptState]);
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
-      return m$1` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
+      return m$1` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} transcriptState=${transcriptState} setTranscriptState=${onTranscriptState} /> `;
     };
     const TranscriptVirtualList = (props) => {
       let { id, scrollRef, events, depth, style: style2 } = props;
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
+      const [transcriptState, setTranscriptState] = h({});
+      const onTranscriptState = q$1((state) => {
+        setTranscriptState(state);
+      }, [transcriptState, setTranscriptState]);
       return m$1`<${TranscriptVirtualListComponent}
     id=${id}
     eventNodes=${eventNodes}
     style=${style2}
     scrollRef=${scrollRef}
+    transcriptState=${transcriptState}
+    setTranscriptState=${onTranscriptState}
   />`;
     };
     const TranscriptVirtualListComponent = ({
       id,
       eventNodes,
       style: style2,
-      scrollRef
+      scrollRef,
+      transcriptState,
+      setTranscriptState
     }) => {
       const renderRow = (item, index) => {
         const toggleStyle = {};
@@ -25388,15 +25553,21 @@ ${events}
         if (index === 0) {
           paddingTop = ".5em";
         }
+        const eventId = `${id}-event${index}`;
+        const setEventState = q$1((state) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        }, [setTranscriptState, transcriptState]);
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
       <${RenderedEventNode}
-        id=${`${id}-event${index}`}
+        id=${eventId}
         node=${item}
         style=${{
           ...toggleStyle,
           ...style2
         }}
         scrollRef=${scrollRef}
+        eventState=${transcriptState[eventId] || {}}
+        setEventState=${setEventState}
       />
     </div>`;
       };
@@ -25408,7 +25579,7 @@ ${events}
     style=${{ width: "100%", marginTop: "1em" }}
   />`;
     };
-    const TranscriptComponent = ({ id, eventNodes, style: style2 }) => {
+    const TranscriptComponent = ({ id, transcriptState, setTranscriptState, eventNodes, style: style2 }) => {
       const rows = eventNodes.map((eventNode, index) => {
         const toggleStyle = {};
         if (eventNode.depth % 2 == 0) {
@@ -25425,15 +25596,21 @@ ${events}
         if (index === eventNodes.length - 1) {
           paddingBottom = "0";
         }
+        const eventId = `${id}-event${index}`;
+        const setEventState = q$1((state) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        }, [setTranscriptState, transcriptState]);
         const row = m$1`
       <div style=${{ paddingBottom }}>
         <${RenderedEventNode}
-          id=${`${id}-event${index}`}
+          id=${eventId}
           node=${eventNode}
           style=${{
           ...toggleStyle,
           ...style2
         }}
+          eventState=${transcriptState[eventId] || {}}
+          setEventState=${setEventState}
         />
       </div>
     `;
@@ -25452,54 +25629,70 @@ ${events}
     ${rows}
   </div>`;
     };
-    const RenderedEventNode = ({ id, node, style: style2, scrollRef }) => {
+    const RenderedEventNode = ({ id, node, style: style2, scrollRef, eventState, setEventState }) => {
       switch (node.event.event) {
         case "sample_init":
           return m$1`<${SampleInitEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "sample_limit":
           return m$1`<${SampleLimitEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "info":
           return m$1`<${InfoEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "logger":
           return m$1`<${LoggerEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "model":
           return m$1`<${ModelEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "score":
           return m$1`<${ScoreEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "state":
           return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "step":
           return m$1`<${StepEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         children=${node.children}
         style=${style2}
         scrollRef=${scrollRef}
@@ -25508,6 +25701,8 @@ ${events}
           return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
         isStore=${true}
       />`;
@@ -25515,6 +25710,8 @@ ${events}
           return m$1`<${SubtaskEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
         depth=${node.depth}
       />`;
@@ -25522,6 +25719,8 @@ ${events}
           return m$1`<${ToolEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
         depth=${node.depth}
       />`;
@@ -25529,18 +25728,24 @@ ${events}
           return m$1`<${InputEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "error":
           return m$1`<${ErrorEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         case "approval":
           return m$1`<${ApprovalEventView}
         id=${id}
         event=${node.event}
+        eventState=${eventState}
+        setEventState=${setEventState}
         style=${style2}
       />`;
         default:
