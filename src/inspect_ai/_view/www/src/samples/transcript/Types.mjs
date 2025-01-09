@@ -32,3 +32,13 @@ export class EventNode {
     this.depth = depth;
   }
 }
+
+/**
+ * @typedef {Record<string, TranscriptEventState>} TranscriptState
+ */
+
+/**
+ * @typedef {Object} TranscriptEventState
+ * @property {string} [selectedNav] - The selected nav for this event
+ * @property {boolean} [collapsed] - The collapse state for this event
+ */
