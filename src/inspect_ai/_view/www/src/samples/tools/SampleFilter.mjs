@@ -12,7 +12,6 @@ import { tags } from "@lezer/highlight";
 import { EditorView, minimalSetup } from "codemirror";
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { createPortal } from "preact/compat";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import { filterSamples, scoreFilterItems } from "./filters.mjs";
 import {
@@ -22,7 +21,6 @@ import {
   kScoreTypeOther,
   kScoreTypePassFail,
 } from "../../constants.mjs";
-import { keymap } from "@codemirror/view";
 
 /**
  * @typedef {Object} Token
@@ -525,6 +523,14 @@ const editorTheme = EditorView.theme({
     borderColor: "#86b7fe",
     boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)",
   },
+  ".filter-applied > &.cm-focused": {
+    borderColor: "#1bc431",
+    boxShadow: "0 0 0 0.25rem rgba(40, 166, 59, 0.25)",
+  },
+  ".filter-pending > &.cm-focused": {
+    borderColor: "#808080",
+    boxShadow: "0 0 0 0.25rem rgba(48, 48, 48, 0.25)",
+  },
   ".cm-scroller": {
     overflow: "hidden",
   },
@@ -558,37 +564,18 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
   const editorViewRef = useRef(
     /** @type {import("codemirror").EditorView|null} */ (null),
   );
-  const lastFilterRef = useRef(/** @type {string|null} */ (null));
-  const pendingFilterRef = useRef(/** @type {string|null} */ (null));
   const linterCompartment = useRef(new Compartment());
   const autocompletionCompartment = useRef(new Compartment());
   const updateListenerCompartment = useRef(new Compartment());
-  const keymapCompartment = useRef(new Compartment());
-  const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const filterItems = useMemo(
     () => scoreFilterItems(evalDescriptor),
     [evalDescriptor],
   );
+  // Result of applying the filter expression in the editor, which might be
+  // different from the active filter.
   const [filteringResultInstant, setFilteringResultInstant] = useState(
     /** @type {FilteringResult | null} */ (null),
   );
-  const [filteringResultExplicit, setFilteringResultExplicit] = useState(
-    /** @type {FilteringResult | null} */ (null),
-  );
-
-  /** @param {import("codemirror").EditorView} view */
-  const handleEnter = (view) => {
-    const newFilter = view.state.doc.toString();
-    const newFilteringResult = getFilteringResult(evalDescriptor, newFilter);
-    if (newFilteringResult?.error) {
-      setFilteringResultExplicit(newFilteringResult);
-    } else {
-      lastFilterRef.current = newFilter;
-      filterChanged({ value: newFilter });
-      setHasPendingChanges(false);
-    }
-    return true;
-  };
 
   const handleFocus = (event, view) => {
     if (view.state.doc.toString() === "") {
@@ -608,22 +595,13 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         const newValue = update.state.doc.toString();
-        pendingFilterRef.current = newValue;
-        setHasPendingChanges(
-          newValue.trim() !== (lastFilterRef.current || "").trim(),
-        );
-        setFilteringResultInstant(getFilteringResult(evalDescriptor, newValue));
-        setFilteringResultExplicit(null);
+        const filteringResult = getFilteringResult(evalDescriptor, newValue);
+        if (!filteringResult.error) {
+          filterChanged({ value: newValue });
+        }
+        setFilteringResultInstant(filteringResult);
       }
     });
-  const makeKeymap = () =>
-    keymap.of([
-      {
-        key: "Enter",
-        run: handleEnter,
-        preventDefault: true,
-      },
-    ]);
 
   // Initialize editor when component mounts
   useEffect(() => {
@@ -633,7 +611,6 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
       state: EditorState.create({
         doc: filter.value || "",
         extensions: [
-          keymapCompartment.current.of(makeKeymap()),
           minimalSetup,
           bracketMatching(),
           editorTheme,
@@ -655,14 +632,13 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
   }, []);
 
   useEffect(() => {
-    if (editorViewRef.current && filter.value !== lastFilterRef.current) {
-      lastFilterRef.current = filter.value;
-      pendingFilterRef.current = filter.value;
-      setHasPendingChanges(false);
+    if (
+      editorViewRef.current &&
+      filter.value !== editorViewRef.current.state.doc.toString()
+    ) {
       setFilteringResultInstant(
         getFilteringResult(evalDescriptor, filter.value),
       );
-      setFilteringResultExplicit(null);
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
@@ -680,10 +656,8 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
   useEffect(() => {
     if (editorViewRef.current) {
       editorViewRef.current.dispatch({
-        effects: [
+        effects:
           updateListenerCompartment.current.reconfigure(makeUpdateListener()),
-          keymapCompartment.current.reconfigure(makeKeymap()),
-        ],
       });
     }
   }, [evalDescriptor]);
@@ -705,22 +679,11 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
     }
   }, [filteringResultInstant?.error]);
 
-  /** @type {{cssClass: string, message: string} | undefined} */
-  const alertWidget = hasPendingChanges
-    ? filteringResultExplicit?.error
-      ? {
-          cssClass: "alert-danger",
-          message: filteringResultExplicit?.error.message,
-        }
-      : filteringResultInstant?.error
-        ? undefined
-        : {
-            cssClass: "alert-success",
-            message: `Press Enter to show ${filteringResultInstant?.numSamples} matching samples`,
-          }
-    : undefined;
-
-  const EDITOR_WIDTH = 300;
+  const filterClasses = filteringResultInstant?.error
+    ? ["filter-pending"]
+    : filter.value
+      ? ["filter-applied"]
+      : [];
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -735,31 +698,11 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
         }}
         >Filter:</span
       >
-      <div style=${{ position: "relative", width: `${EDITOR_WIDTH}px` }}>
-        ${alertWidget !== undefined &&
-        createPortal(
-          html`<div
-            class="alert ${alertWidget.cssClass} py-1 px-2"
-            style=${{
-              position: "absolute",
-              top: editorRef.current?.getBoundingClientRect().top + "px",
-              left: editorRef.current?.getBoundingClientRect().left + "px",
-              transform: `translateY(-100%)`,
-              whiteSpace: "pre-wrap",
-              width: `${EDITOR_WIDTH}px`,
-              textAlign: "center",
-              fontSize: FontSize.smaller,
-              boxShadow: "0 0 5px rgba(0,0,0,0.1)",
-              borderRadius: "4px",
-              zIndex: 2000,
-            }}
-          >
-            ${alertWidget.message}
-          </div>`,
-          document.body,
-        )}
-        <div ref=${editorRef}></div>
-      </div>
+      <div
+        ref=${editorRef}
+        style=${{ width: "300px" }}
+        class=${filterClasses}
+      ></div>
       <span
         class="bi bi-question-circle"
         style=${{
