@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `task_with()` function for creating task variants.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
 
 ## v0.3.57 (09 January 2025)
