@@ -126,10 +126,17 @@ export const formatTime = (seconds) => {
     return `${seconds} sec`;
   } else if (seconds < 60 * 60) {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+  } else if (seconds < 60 * 60 * 24) {
+    const hours = Math.floor(seconds / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
   } else {
-    return `${Math.floor(seconds / (60 * 60 * 24))} days ${Math.floor(
-      seconds / 60,
-    )} min ${seconds % 60} sec`;
+    const days = Math.floor(seconds / (60 * 60 * 24));
+    const hours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
   }
 };
 

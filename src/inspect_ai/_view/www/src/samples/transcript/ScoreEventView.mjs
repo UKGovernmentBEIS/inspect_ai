@@ -14,9 +14,17 @@ import { formatDateTime } from "../../utils/Format.mjs";
  * @param { string  } props.id - The id of this event.
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("../../types/log").ScoreEvent} props.event - The event object to display.
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ScoreEventView = ({ id, event, style }) => {
+export const ScoreEventView = ({
+  id,
+  event,
+  eventState,
+  setEventState,
+  style,
+}) => {
   const resolvedTarget = event.target
     ? Array.isArray(event.target)
       ? event.target.join("\n")
@@ -24,7 +32,21 @@ export const ScoreEventView = ({ id, event, style }) => {
     : undefined;
 
   return html`
-  <${EventPanel} id=${id} title="Score" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.scorer} style=${style}>
+  <${EventPanel} 
+    id=${id} 
+    title="Score" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.scorer} 
+    style=${style}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}    
+  >
   
     <div
       name="Explanation"

@@ -15,9 +15,17 @@ import { formatDateTime } from "../../utils/Format.mjs";
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").SampleInitEvent} props.event - The event object to display.
  * @param {Object} props.style - The style for this view
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SampleInitEventView = ({ id, event, style }) => {
+export const SampleInitEventView = ({
+  id,
+  event,
+  style,
+  eventState,
+  setEventState,
+}) => {
   /**
    * @type {Record<string, unknown>}
    */
@@ -43,7 +51,21 @@ export const SampleInitEventView = ({ id, event, style }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} style=${style} title="Sample" icon=${ApplicationIcons.sample} subTitle=${formatDateTime(new Date(event.timestamp))}>
+  <${EventPanel} 
+    id=${id} 
+    style=${style} 
+    title="Sample" 
+    icon=${ApplicationIcons.sample} 
+    subTitle=${formatDateTime(new Date(event.timestamp))}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}
+  >
     <div name="Sample" style=${{ margin: "1em 0em" }}>
       <${ChatView} messages=${stateObj["messages"]}/>
       <div>

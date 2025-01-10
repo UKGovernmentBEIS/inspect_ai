@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 
-import { ChatView } from "../components/ChatView.mjs";
+import { ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
@@ -47,6 +47,7 @@ import {
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable element whic contains this display
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const InlineSampleDisplay = ({
@@ -57,6 +58,7 @@ export const InlineSampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
+  scrollRef,
 }) => {
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
     <${ProgressBar}
@@ -77,6 +79,7 @@ export const InlineSampleDisplay = ({
             sampleDescriptor=${sampleDescriptor}
             selectedTab=${selectedTab}
             setSelectedTab=${setSelectedTab}
+            scrollRef=${scrollRef}
           />`}
     </div>
   </div>`;
@@ -91,6 +94,7 @@ export const InlineSampleDisplay = ({
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - the sample descriptor
  * @param {string} props.selectedTab - The selected tab
  * @param {(tab: string) => void} props.setSelectedTab - function to set the selected tab
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const SampleDisplay = ({
@@ -99,6 +103,7 @@ export const SampleDisplay = ({
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
+  scrollRef,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
@@ -120,13 +125,14 @@ export const SampleDisplay = ({
     html`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${
       selectedTab === kSampleMessagesTabId
-    }>
-      <${ChatView} 
+    } scrollable=${false} style=${{ width: "100%" }}>
+      <${ChatViewVirtualList} 
         key=${`${baseId}-chat-${id}`} 
         id=${`${baseId}-chat-${id}`} 
         messages=${sample.messages} 
-        style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
+        style=${{ marginLeft: ".8em", marginTop: "1em" }}
         indented=${true}
+        scrollRef=${scrollRef}
       />
     </${TabPanel}>`,
   ];
@@ -136,7 +142,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === kSampleTranscriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events} scrollRef=${scrollRef}/>
       </${TabPanel}>`);
   }
 
@@ -201,16 +207,18 @@ export const SampleDisplay = ({
     );
   }
 
-  tabs.push(html`<${TabPanel} 
-          id=${kSampleJsonTabId} 
-          classes="sample-tab"
-          title="JSON" 
-          onSelected=${onSelectedTab} 
-          selected=${selectedTab === kSampleJsonTabId}>
-         <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
-          <${JSONPanel} data=${sample} simple=${true}/>
-        </div>
-      </${TabPanel}>`);
+  if (sample.messages.length < 100) {
+    tabs.push(html`<${TabPanel} 
+        id=${kSampleJsonTabId} 
+        classes="sample-tab"
+        title="JSON" 
+        onSelected=${onSelectedTab} 
+        selected=${selectedTab === kSampleJsonTabId}>
+      <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 
+        <${JSONPanel} data=${sample} simple=${true}/>
+      </div>
+    </${TabPanel}>`);
+  }
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;

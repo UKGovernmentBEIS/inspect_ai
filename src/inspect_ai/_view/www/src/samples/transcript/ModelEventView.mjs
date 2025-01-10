@@ -6,7 +6,7 @@ import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
 
 import { html } from "htm/preact";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
@@ -26,11 +26,19 @@ import {
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ModelEvent} props.event - The event object to display.
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @param { Object } props.style - The style of this event.
  * @param {string} props.baseId - The baseId of the event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ModelEventView = ({ id, event, style }) => {
+export const ModelEventView = ({
+  id,
+  event,
+  eventState,
+  setEventState,
+  style,
+}) => {
   const totalUsage = event.output.usage?.total_tokens;
   const callTime = event.output.time;
 
@@ -72,7 +80,21 @@ export const ModelEventView = ({ id, event, style }) => {
   }
 
   return html`
-  <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}"  subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.model} style=${style}>
+  <${EventPanel} 
+    id=${id} 
+    title="Model Call: ${event.model} ${subtitle}"
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.model} 
+    style=${style}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}
+  >
   
     <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
@@ -137,17 +159,15 @@ export const APICodeCell = ({ id, contents }) => {
     return "";
   }
 
-  const sourceCode = JSON.stringify(contents, undefined, 2);
   const codeRef = useRef();
+  const sourceCode = useMemo(() => {
+    return JSON.stringify(contents, undefined, 2);
+  }, [contents]);
 
   useEffect(() => {
     if (codeRef.current) {
       // @ts-ignore
-      codeRef.current.innerHTML = Prism.highlight(
-        sourceCode,
-        Prism.languages.javascript,
-        "javacript",
-      );
+      Prism.highlightElement(codeRef.current);
     }
   }, [codeRef.current, contents]);
 
@@ -163,12 +183,13 @@ export const APICodeCell = ({ id, contents }) => {
       <code 
         id=${id} 
         ref=${codeRef}
-        class="sourceCode-js" 
+        class="language-json" 
         style=${{
       fontSize: FontSize.small,
       whiteSpace: "pre-wrap",
       wordWrap: "anywhere",
     }}>
+        ${sourceCode}
       </code>
       </pre>
   </div>`;

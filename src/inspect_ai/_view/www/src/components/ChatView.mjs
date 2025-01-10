@@ -7,6 +7,54 @@ import { MessageContent } from "./MessageContent.mjs";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
+import { VirtualList } from "./VirtualList.mjs";
+
+/**
+ * Renders the ChatViewVirtualList component.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The ID for the chat view.
+ * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
+ * @param {Object} [props.style] - Inline styles for the chat view.
+ * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @param {boolean} [props.numbered] - Whether the chatview is numbered
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
+ * @returns {import("preact").JSX.Element} The component.
+ */
+export const ChatViewVirtualList = ({
+  id,
+  messages,
+  toolCallStyle,
+  style,
+  indented,
+  numbered = true,
+  scrollRef,
+}) => {
+  const collapsedMessages = resolveMessages(messages);
+
+  const renderRow = (item, index) => {
+    const number =
+      collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+    return html`<${ChatMessageRow}
+      id=${id}
+      number=${number}
+      resolvedMessage=${item}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
+  };
+
+  const result = html`<${VirtualList}
+    data=${collapsedMessages}
+    tabIndex="0"
+    renderRow=${renderRow}
+    scrollRef=${scrollRef}
+    style=${{ width: "100%", marginTop: "1em", ...style }}
+  />`;
+
+  return result;
+};
 
 /**
  * Renders the ChatView component.
@@ -28,6 +76,90 @@ export const ChatView = ({
   indented,
   numbered = true,
 }) => {
+  const collapsedMessages = resolveMessages(messages);
+  const result = html` <div style=${style}>
+    ${collapsedMessages.map((msg, index) => {
+      const number =
+        collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+      return html`<${ChatMessageRow}
+        id=${id}
+        number=${number}
+        resolvedMessage=${msg}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />`;
+    })}
+  </div>`;
+  return result;
+};
+
+/**
+ * Renders the ChatMessage component.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {string} props.id - The ID for the chat view.
+ * @param {number} [props.number] - The message number
+ * @param {ResolvedMessage} props.resolvedMessage - The array of chat messages.
+ * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
+ * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @returns {import("preact").JSX.Element} The component.
+ */
+export const ChatMessageRow = ({
+  id,
+  number,
+  resolvedMessage,
+  toolCallStyle,
+  indented,
+}) => {
+  if (number) {
+    return html` <div
+      style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0.4em",
+      }}
+    >
+      <div
+        style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.secondary,
+          marginTop: "0.1em",
+        }}
+      >
+        ${number}
+      </div>
+      <${ChatMessage}
+        id=${`${id}-chat-messages`}
+        message=${resolvedMessage.message}
+        toolMessages=${resolvedMessage.toolMessages}
+        indented=${indented}
+        toolCallStyle=${toolCallStyle}
+      />
+    </div>`;
+  } else {
+    return html`<${ChatMessage}
+      id=${`${id}-chat-messages`}
+      message=${resolvedMessage.message}
+      toolMessages=${resolvedMessage.toolMessages}
+      indented=${indented}
+      toolCallStyle=${toolCallStyle}
+    />`;
+  }
+};
+
+/**
+ * @typedef {Object} ResolvedMessage
+ * @property {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} message - The main chat message.
+ * @property {import("../types/log").ChatMessageTool[]} [toolMessages] - Optional array of tool-related messages.
+ */
+
+/**
+ * Renders the ChatView component.
+ *
+ * @param {import("../types/log").Messages} messages - The array of chat messages.
+ * @returns {ResolvedMessage[]} The component.
+ */
+export const resolveMessages = (messages) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
 
@@ -88,49 +220,7 @@ export const ChatView = ({
   if (systemMessage && systemMessage.content.length > 0) {
     collapsedMessages.unshift({ message: systemMessage });
   }
-
-  const result = html`
-    <div style=${style}>
-      ${collapsedMessages.map((msg, index) => {
-        if (collapsedMessages.length > 1 && numbered) {
-          return html` <div
-            style=${{
-              display: "grid",
-              gridTemplateColumns: "max-content auto",
-              columnGap: "0.4em",
-            }}
-          >
-            <div
-              style=${{
-                fontSize: FontSize.smaller,
-                ...TextStyle.secondary,
-                marginTop: "0.1em",
-              }}
-            >
-              ${index + 1}
-            </div>
-            <${ChatMessage}
-              id=${`${id}-chat-messages`}
-              message=${msg.message}
-              toolMessages=${msg.toolMessages}
-              indented=${indented}
-              toolCallStyle=${toolCallStyle}
-            />
-          </div>`;
-        } else {
-          return html` <${ChatMessage}
-            id=${`${id}-chat-messages`}
-            message=${msg.message}
-            toolMessages=${msg.toolMessages}
-            indented=${indented}
-            toolCallStyle=${toolCallStyle}
-          />`;
-        }
-      })}
-    </div>
-  `;
-
-  return result;
+  return collapsedMessages;
 };
 
 /**
