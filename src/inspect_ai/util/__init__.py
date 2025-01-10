@@ -1,3 +1,5 @@
+from inspect_ai._util.trace import trace_action, trace_message
+
 from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_type
@@ -24,7 +26,6 @@ from ._subprocess import (
 )
 from ._subtask import Subtask, subtask
 from ._throttle import throttle
-from ._trace import trace_enabled, trace_panel
 
 __all__ = [
     "ExecResult",
@@ -54,6 +55,6 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
-    "trace_enabled",
-    "trace_panel",
+    "trace_action",
+    "trace_message",
 ]

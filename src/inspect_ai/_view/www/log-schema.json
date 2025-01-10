@@ -657,18 +657,6 @@
           "default": null,
           "title": "Epochs Reducer"
         },
-        "trace": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Trace"
-        },
         "approval": {
           "anyOf": [
             {
@@ -847,7 +835,6 @@
         "sample_id",
         "epochs",
         "epochs_reducer",
-        "trace",
         "approval",
         "fail_on_error",
         "message_limit",

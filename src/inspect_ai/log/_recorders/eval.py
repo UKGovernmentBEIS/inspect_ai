@@ -261,6 +261,8 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
                         )
                 message.content = filtered_content
                 input.append(message)
+            else:
+                input.append(message)
 
         return input
     else:

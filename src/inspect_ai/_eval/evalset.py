@@ -33,7 +33,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util import DisplayType, SandboxEnvironmentType
 
 from .eval import eval, eval_init
 from .loader import ResolvedTask, resolve_task_args
@@ -59,6 +59,7 @@ def eval_set(
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
     trace: bool | None = None,
+    display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
@@ -116,6 +117,7 @@ def eval_set(
            evaluating task(s). ptional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
         trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        display (DisplayType | None): Task display type (defaults to 'full').
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -180,6 +182,7 @@ def eval_set(
             solver=solver,
             tags=tags,
             trace=trace,
+            display=display,
             approval=approval,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
