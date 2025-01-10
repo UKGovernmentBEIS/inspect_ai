@@ -16,7 +16,7 @@ from inspect_ai.solver import generate
 def audio():
     return Task(
         dataset=json_dataset(
-            os.path.join("tests", "util", "test_audio", "audio.jsonl")
+            os.path.join("tests", "util", "test_media", "audio.jsonl")
         ),
         solver=[generate()],
         scorer=includes(),
