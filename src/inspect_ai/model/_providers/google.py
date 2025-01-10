@@ -1,12 +1,15 @@
+import asyncio
 import functools
 import json
 from copy import copy
+from io import BytesIO
 from typing import Any, cast
 
 import proto  # type: ignore
 from google.ai.generativelanguage import (
     Blob,
     Candidate,
+    File,
     FunctionCall,
     FunctionCallingConfig,
     FunctionDeclaration,
@@ -28,6 +31,8 @@ from google.generativeai import (  # type: ignore
     GenerationConfig,
     GenerativeModel,
     configure,
+    get_file,
+    upload_file,
 )
 from google.generativeai.types import (  # type: ignore
     AsyncGenerateContentResponse,
@@ -370,27 +375,38 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
     return struct
 
 
-async def content_part(content: Content | str) -> PartDict:
+async def content_part(content: Content | str) -> PartType:
     if isinstance(content, str):
         return PartDict(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
         return PartDict(text=content.text or NO_CONTENT)
     else:
-        return PartDict(inline_data=await chat_content_to_blob(content))
+        return await chat_content_to_part(content)
 
 
-async def chat_content_to_blob(
+async def chat_content_to_part(
     content: ContentImage | ContentAudio | ContentVideo,
-) -> Blob:
+) -> PartType:
     if isinstance(content, ContentImage):
         file = content.image
     elif isinstance(content, ContentAudio):
         file = content.audio
     elif isinstance(content, ContentVideo):
         file = content.video
-
     content_bytes, mime_type = await file_as_data(file)
-    return Blob(mime_type=mime_type, data=content_bytes)
+
+    if isinstance(content, ContentVideo):
+        # upload video and wait for it to be processed
+        video_file = upload_file(BytesIO(content_bytes), mime_type=mime_type)
+        while video_file.state.name == "PROCESSING":
+            await asyncio.sleep(3)
+            video_file = get_file(video_file.name)
+        if video_file.state.name == "FAILED":
+            raise ValueError(f"Google video upload failed: {video_file.error}")
+
+        return cast(File, video_file)
+    else:
+        return Blob(mime_type=mime_type, data=content_bytes)
 
 
 def prepend_system_messages(

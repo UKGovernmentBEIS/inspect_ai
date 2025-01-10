@@ -1,0 +1,1 @@
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "Can you please describe the attached video?"}, { "type": "video", "video": "video.mp4", "format": "mp4" }]} ], "target": "rabbit" }
