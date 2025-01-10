@@ -1,6 +1,6 @@
 import csv
-from io import TextIOWrapper
 import os
+from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
