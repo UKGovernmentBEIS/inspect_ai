@@ -1,5 +1,7 @@
 # Sentinel class used until PEP 0661 is accepted
-from typing import Literal, override
+from typing import Literal
+
+from typing_extensions import override
 
 
 class NotGiven:
