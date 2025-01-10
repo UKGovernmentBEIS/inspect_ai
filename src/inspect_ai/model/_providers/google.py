@@ -388,25 +388,10 @@ async def chat_content_to_part(
     content: ContentImage | ContentAudio | ContentVideo,
 ) -> PartType:
     if isinstance(content, ContentImage):
-        file = content.image
-    elif isinstance(content, ContentAudio):
-        file = content.audio
-    elif isinstance(content, ContentVideo):
-        file = content.video
-    content_bytes, mime_type = await file_as_data(file)
-
-    if isinstance(content, ContentVideo):
-        # upload video and wait for it to be processed
-        video_file = upload_file(BytesIO(content_bytes), mime_type=mime_type)
-        while video_file.state.name == "PROCESSING":
-            await asyncio.sleep(3)
-            video_file = get_file(video_file.name)
-        if video_file.state.name == "FAILED":
-            raise ValueError(f"Google video upload failed: {video_file.error}")
-
-        return cast(File, video_file)
-    else:
+        content_bytes, mime_type = await file_as_data(content.image)
         return Blob(mime_type=mime_type, data=content_bytes)
+    else:
+        return await file_for_content(content)
 
 
 def prepend_system_messages(
@@ -660,3 +645,22 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
         return HarmBlockThreshold.BLOCK_NONE
     else:
         raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
+
+
+async def file_for_content(content: ContentAudio | ContentVideo) -> File:
+    if isinstance(content, ContentAudio):
+        file = content.audio
+    else:
+        file = content.video
+
+    content_bytes, mime_type = await file_as_data(file)
+
+    upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
+    while upload.state.name == "PROCESSING":
+        await asyncio.sleep(1)
+        upload = get_file(upload.name)
+
+    if upload.state.name == "FAILED":
+        raise ValueError(f"Google file upload failed: {upload.error}")
+
+    return cast(File, upload)
