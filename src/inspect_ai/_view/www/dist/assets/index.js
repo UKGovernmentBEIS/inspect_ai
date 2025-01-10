@@ -15957,7 +15957,9 @@ var require_assets = __commonJS({
         const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
         return m$1`
       <div ref=${baseRef} ...${props} ...${scrollProps}>
-        <div style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}>
+        <div
+          style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}
+        >
           <div
             style=${{ ...style_content, top: `${top2}px` }}
             ref=${containerRef}
@@ -55376,7 +55378,7 @@ Supported expressions:
     const vscode = getVscodeApi();
     let initialState = void 0;
     if (vscode) {
-      initialState = vscode.getState();
+      initialState = filterState(vscode.getState());
     }
     D$1(m$1`<${App}
     api=${api}
@@ -55384,10 +55386,64 @@ Supported expressions:
     saveInitialState=${throttle$1((state) => {
       const vscode2 = getVscodeApi();
       if (vscode2) {
-        vscode2.setState(state);
+        vscode2.setState(filterState(state));
       }
     }, 1e3)}
   />`, document.getElementById("app"));
+    function filterState(state) {
+      if (!state) {
+        return state;
+      }
+      const filters = [filterLargeSample, filterLargeSelectedLog];
+      return filters.reduce((filteredState, filter) => filter(filteredState), state);
+    }
+    function filterLargeSample(state) {
+      if (!state || !state.selectedSample) {
+        return state;
+      }
+      const estimatedTotalSize = estimateSize(state.selectedSample.messages);
+      if (estimatedTotalSize > 4e5) {
+        const {
+          selectedSample,
+          ...filteredState
+        } = state;
+        return filteredState;
+      } else {
+        return state;
+      }
+    }
+    function filterLargeSelectedLog(state) {
+      var _a2;
+      if (!state || !((_a2 = state.selectedLog) == null ? void 0 : _a2.contents)) {
+        return state;
+      }
+      const estimatedSize = estimateSize(state.selectedLog.contents.sampleSummaries);
+      if (estimatedSize > 4e5) {
+        const {
+          selectedLog,
+          ...filteredState
+        } = state;
+        return filteredState;
+      } else {
+        return state;
+      }
+    }
+    function estimateSize(list2, frequency = 0.2) {
+      if (!list2 || list2.len === 0) {
+        return 0;
+      }
+      const sampleSize = Math.ceil(list2.length * frequency);
+      const messageIndices = /* @__PURE__ */ new Set();
+      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
+        const randomIndex = Math.floor(Math.random() * list2.length);
+        messageIndices.add(randomIndex);
+      }
+      const totalSize = Array.from(messageIndices).reduce((size, index) => {
+        return size + JSON.stringify(list2[index]).length;
+      }, 0);
+      const estimatedTotalSize = totalSize / sampleSize * list2.length;
+      return estimatedTotalSize;
+    }
   }
 });
 export default require_assets();
