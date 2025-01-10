@@ -228,7 +228,7 @@ def task_with(
         task.config = config
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
-    if not isinstance(sandbox, NotGiven):
+    if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
