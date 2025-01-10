@@ -32,7 +32,6 @@ export type Limit = number | [unknown, unknown] | null;
 export type SampleId = string | number | (string | number)[] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
-export type Trace = boolean | null;
 export type Name1 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
@@ -396,7 +395,7 @@ export type Answer1 = string | null;
 export type Explanation2 = string | null;
 export type Metadata8 = {} | null;
 export type SampleId1 = string | number | null;
-export type Samples2 = SampleScore[];
+export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 
 export interface EvalLog {
@@ -448,7 +447,6 @@ export interface EvalConfig {
   sample_id: SampleId;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
-  trace: Trace;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   message_limit: MessageLimit;
@@ -1034,13 +1032,7 @@ export interface EvalSampleReductions {
   reducer: Reducer1;
   samples: Samples2;
 }
-/**
- * Score for a Sample
- *
- * Args:
- *    sample_id: (str | int | None) Unique id of a sample
- */
-export interface SampleScore {
+export interface EvalSampleScore {
   value: Value2;
   answer: Answer1;
   explanation: Explanation2;

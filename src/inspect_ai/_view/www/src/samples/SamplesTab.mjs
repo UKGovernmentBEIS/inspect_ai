@@ -55,7 +55,9 @@ export const SamplesTab = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
 }) => {
+  /** @type {[ListItem[], function(ListItem[]): void]} */
   const [items, setItems] = useState([]);
+  /** @type {[ListItem[], function(ListItem[]): void]} */
   const [sampleItems, setSampleItems] = useState([]);
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
@@ -287,7 +289,7 @@ const groupBySample = (samples, sampleDescriptor, order) => {
       }
     }
   });
-  const groupCount = samples.length / sampleDescriptor.epochs;
+  const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
   return (sample, index, previousSample) => {
@@ -328,7 +330,7 @@ const groupBySample = (samples, sampleDescriptor, order) => {
  * @returns {(sample: import("../api/Types.mjs").SampleSummary, index: number, previousSample: import("../api/Types.mjs").SampleSummary) => ListItem[]} The list
  */
 const groupByEpoch = (samples, sampleDescriptor, order) => {
-  const groupCount = sampleDescriptor.epochs;
+  const groupCount = sampleDescriptor.evalDescriptor.epochs;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
 

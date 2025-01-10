@@ -8,10 +8,10 @@ import shutil
 import time
 import traceback
 from contextlib import contextmanager
-from logging import Logger
-from logging.handlers import RotatingFileHandler
+from dataclasses import dataclass
+from logging import FileHandler, Logger
 from pathlib import Path
-from typing import Any, Generator, Literal, TextIO
+from typing import Any, Callable, Generator, Literal, TextIO
 
 import jsonlines
 from pydantic import BaseModel, Field, JsonValue
@@ -25,14 +25,33 @@ def inspect_trace_dir() -> Path:
     return inspect_data_dir("traces")
 
 
+def inspect_trace_file() -> Path:
+    return inspect_trace_dir() / f"trace-{os.getpid()}.log"
+
+
 @contextmanager
 def trace_action(
     logger: Logger, action: str, message: str, *args: Any, **kwargs: Any
 ) -> Generator[None, None, None]:
+    """Trace a long running or poentially unreliable action.
+
+    Trace actions for which you want to collect data on the resolution
+    (e.g. succeeded, cancelled, failed, timed out, etc.) and duration of.
+
+    Traces are written to the `TRACE` log level (which is just below
+    `HTTP` and `INFO`). List and read trace logs with `inspect trace list`
+    and related commands (see `inspect trace --help` for details).
+
+    Args:
+       logger (Logger): Logger to use for tracing (e.g. from `getLogger(__name__)`)
+       action (str): Name of action to trace (e.g. 'Model', 'Subprocess', etc.)
+       message (str): Message describing action (can be a format string w/ args or kwargs)
+       *args (Any): Positional arguments for `message` format string.
+       **kwargs (Any): Named args for `message` format string.
+    """
     trace_id = uuid()
     start_monotonic = time.monotonic()
     start_wall = time.time()
-    pid = os.getpid()
     detail = message % args if args else message % kwargs if kwargs else message
 
     def trace_message(event: str) -> str:
@@ -47,7 +66,6 @@ def trace_action(
             "event": "enter",
             "trace_id": str(trace_id),
             "start_time": start_wall,
-            "pid": pid,
         },
     )
 
@@ -63,7 +81,6 @@ def trace_action(
                 "event": "exit",
                 "trace_id": str(trace_id),
                 "duration": duration,
-                "pid": pid,
             },
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
@@ -77,7 +94,6 @@ def trace_action(
                 "event": "cancel",
                 "trace_id": str(trace_id),
                 "duration": duration,
-                "pid": pid,
             },
         )
         raise
@@ -92,7 +108,6 @@ def trace_action(
                 "event": "timeout",
                 "trace_id": str(trace_id),
                 "duration": duration,
-                "pid": pid,
             },
         )
         raise
@@ -110,7 +125,6 @@ def trace_action(
                 "error": getattr(ex, "message", str(ex)) or repr(ex),
                 "error_type": type(ex).__name__,
                 "stacktrace": traceback.format_exc(),
-                "pid": pid,
             },
         )
         raise
@@ -119,6 +133,19 @@ def trace_action(
 def trace_message(
     logger: Logger, category: str, message: str, *args: Any, **kwargs: Any
 ) -> None:
+    """Log a message using the TRACE log level.
+
+    The `TRACE` log level is just below `HTTP` and `INFO`). List and
+    read trace logs with `inspect trace list` and related commands
+    (see `inspect trace --help` for details).
+
+    Args:
+       logger (Logger): Logger to use for tracing (e.g. from `getLogger(__name__)`)
+       category (str): Category of trace message.
+       message (str): Trace message (can be a format string w/ args or kwargs)
+       *args (Any): Positional arguments for `message` format string.
+       **kwargs (Any): Named args for `message` format string.
+    """
     logger.log(TRACE, f"[{category}] {message}", *args, **kwargs)
 
 
@@ -153,7 +180,6 @@ class TraceFormatter(logging.Formatter):
                 "error",
                 "error_type",
                 "stacktrace",
-                "pid",
             ]:
                 if hasattr(record, key):
                     output[key] = getattr(record, key)
@@ -215,7 +241,22 @@ class ActionTraceRecord(TraceRecord):
     error: str | None = Field(default=None)
     error_type: str | None = Field(default=None)
     stacktrace: str | None = Field(default=None)
-    pid: int | None = Field(default=None)
+
+
+@dataclass
+class TraceFile:
+    file: Path
+    mtime: float
+
+
+def list_trace_files() -> list[TraceFile]:
+    trace_files: list[TraceFile] = [
+        TraceFile(file=f, mtime=f.lstat().st_mtime)
+        for f in inspect_trace_dir().iterdir()
+        if f.is_file()
+    ]
+    trace_files.sort(key=lambda f: f.mtime, reverse=True)
+    return trace_files
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
@@ -237,39 +278,30 @@ def read_trace_file(file: Path) -> list[TraceRecord]:
             return read_file(f)
 
 
-class TraceFileHandler(RotatingFileHandler):
-    def __init__(
-        self,
-        filename: str,
-        mode: str = "a",
-        maxBytes: int = 0,
-        backupCount: int = 0,
-        encoding: str | None = None,
-        delay: bool = False,
-    ) -> None:
-        super().__init__(filename, mode, maxBytes, backupCount, encoding, delay)
+def rotate_trace_files() -> None:
+    # if multiple inspect processes start up at once they
+    # will all be attempting to rotate at the same time,
+    # which can lead to FileNotFoundError -- ignore these
+    # errors if they occur
+    try:
+        rotate_files = list_trace_files()[10:]
+        for file in rotate_files:
+            file.file.unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
 
-    def rotation_filename(self, default_name: str) -> str:
-        """
-        Returns the name of the rotated file.
 
-        Args:
-            default_name: The default name that would be used for rotation
+def compress_trace_log(log_handler: FileHandler) -> Callable[[], None]:
+    def compress() -> None:
+        # ensure log is closed
+        log_handler.close()
 
-        Returns:
-            The modified filename with .gz extension
-        """
-        return default_name + ".gz"
+        # compress
+        trace_file = Path(log_handler.baseFilename)
+        if trace_file.exists():
+            with open(trace_file, "rb") as f_in:
+                with gzip.open(trace_file.with_suffix(".log.gz"), "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            trace_file.unlink()
 
-    def rotate(self, source: str, dest: str) -> None:
-        """
-        Compresses the source file and moves it to destination.
-
-        Args:
-            source: The source file to be compressed
-            dest: The destination path for the compressed file
-        """
-        with open(source, "rb") as f_in:
-            with gzip.open(dest, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        os.remove(source)
+    return compress

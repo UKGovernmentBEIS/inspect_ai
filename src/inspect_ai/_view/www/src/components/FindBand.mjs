@@ -4,7 +4,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 
 export const FindBand = ({ hideBand }) => {
-  const searchBoxRef = useRef();
+  const searchBoxRef = useRef(/** @type {HTMLInputElement|null} */ (null));
   useEffect(() => {
     searchBoxRef.current.focus();
   }, []);
@@ -31,13 +31,14 @@ export const FindBand = ({ hideBand }) => {
     };
 
     // capture what is focused
-    const focusedElement = document.activeElement;
+    const focusedElement = /** @type {HTMLElement} */ (document.activeElement);
+    // @ts-expect-error: `Window.find` is non-standard
     const result = window.find(term, false, !!back, false, false, true, false);
     const noResultEl = window.document.getElementById(
       "inspect-find-no-results",
     );
     if (result) {
-      noResultEl.style.opacity = 0;
+      noResultEl.style.opacity = "0";
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {
         // See if the parent is an expandable panel and expand it
@@ -58,7 +59,7 @@ export const FindBand = ({ hideBand }) => {
         }, 100);
       }
     } else {
-      noResultEl.style.opacity = 1;
+      noResultEl.style.opacity = "1";
     }
 
     // Return focus to the previously focused element

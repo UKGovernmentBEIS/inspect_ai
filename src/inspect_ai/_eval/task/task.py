@@ -9,6 +9,7 @@ from typing_extensions import TypedDict, Unpack
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import is_registry_object, registry_info
+from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
@@ -51,6 +52,9 @@ class Task:
         config (GenerateConfig): Model generation config.
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -78,6 +82,7 @@ class Task:
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
         sandbox: SandboxEnvironmentType | None = None,
+        approval: str | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         message_limit: int | None = None,
@@ -119,6 +124,7 @@ class Task:
         self.metrics = metrics
         self.config = config
         self.sandbox = resolve_sandbox_environment(sandbox)
+        self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -157,6 +163,7 @@ def task_with(
     metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
+    approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
@@ -181,6 +188,9 @@ def task_with(
         config (GenerateConfig): Model generation config.
         sandbox (SandboxEnvironmentType | None): Sandbox environment type
           (or optionally a str or tuple with a shorthand spec)
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
            reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error (bool | float | None): `True` to fail on first sample error
@@ -218,6 +228,8 @@ def task_with(
         task.config = config
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
+    if not isinstance(sandbox, NotGiven):
+        task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None
@@ -295,6 +307,16 @@ classes, and task instances (a single task or list of tasks
 can be specified). None is a request to read a task out
 of the current working directory.
 """
+
+
+def resolve_approval(
+    approval: str | list[ApprovalPolicy] | None,
+) -> list[ApprovalPolicy] | None:
+    return (
+        approval_policies_from_config(approval)
+        if isinstance(approval, str)
+        else approval
+    )
 
 
 def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:

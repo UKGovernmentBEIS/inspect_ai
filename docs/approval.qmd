@@ -12,15 +12,17 @@ Inspect's approval mode enables you to create fine-grained policies for approvin
 
 Custom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).
 
+Approvers can be specified at either the eval level or at the task level. The examples below will demonstrate eval-level approvers, see the [Task Approvers](#task-approvers) section for details on task-level approvers.
+
 ## Human Approver
 
 The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to `eval()`:
 
 ``` bash
-inspect eval browser.py --approval human --trace
+inspect eval browser.py --approval human
 ```
 
-Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode) so that we can see all messages exchanged with the model for context. This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -42,7 +44,7 @@ Navigational web browser tool calls (e.g. `web_browser_go`) are approved automat
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 
 ``` bash
-inspect eval browser.py --approval approval.yaml --trace
+inspect eval browser.py --approval approval.yaml
 ```
 
 ## Approvers in Code
@@ -60,6 +62,33 @@ approval = [
 
 eval("browser.py", approval=approval, trace=True)
 ```
+
+## Task Approvers {#task-approvers}
+
+You can specify approval policies at the task level using the `approval` parameter when creating a `Task`. For example:
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python
+from inspect_ai.approval import human_approver
+
+@task
+def linux_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash(), python()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+        approval=human_approver()
+    )
+```
+
+Note that as with all of the other `Task` options, an `approval` policy defined at the eval-level will override a task-level approval policy.
 
 ## Custom Approvers
 

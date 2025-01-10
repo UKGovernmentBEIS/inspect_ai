@@ -31,7 +31,7 @@ export const LargeModal = (props) => {
 
   // Support restoring the scroll position
   // but only do this for the first time that the children are set
-  const scrollRef = useRef();
+  const scrollRef = useRef(/** @type {HTMLElement|null} */ (null));
   useEffect(() => {
     if (scrollRef.current) {
       setTimeout(() => {

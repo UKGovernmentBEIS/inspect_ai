@@ -65,7 +65,19 @@ export const ToolCallView = ({
 }) => {
   // don't collapse if output includes an image
   function isContentImage(value) {
-    return value && typeof value === "object" && value.type === "image";
+    if (value && typeof value === "object") {
+      if (value.type === "image") {
+        return true;
+      } else if (value.type === "tool") {
+        if (
+          Array.isArray(value.content) &&
+          value.content.some(isContentImage)
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   const collapse = Array.isArray(output)
     ? output.every((item) => !isContentImage(item))
@@ -152,10 +164,13 @@ export const ToolInput = ({ type, contents, view, style }) => {
   }
 
   if (view) {
-    const toolInputRef = useRef(/** @type {HTMLElement|null} */ (null));
+    const toolInputRef = useRef(
+      /** @type {import("preact").Component & { base: Element }} */ (null),
+    );
     useEffect(() => {
       // Sniff around for code in the view that could be text highlighted
       if (toolInputRef.current) {
+        // @ts-expect-error: TS doesn't know that `HTMLCollection` is iterable.
         for (const child of toolInputRef.current.base.children) {
           if (child.tagName === "PRE") {
             const childChild = child.firstElementChild;
@@ -241,7 +256,7 @@ export const ToolOutput = ({ output, style }) => {
             html`<img
               src="${out.image}"
               style=${{
-                maxWidth: "100%",
+                maxWidth: "800px",
                 border: "solid var(--bs-border-color) 1px",
                 ...style,
               }}

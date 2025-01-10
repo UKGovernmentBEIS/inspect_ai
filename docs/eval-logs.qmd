@@ -246,11 +246,8 @@ Note you will most typically *not* want to resolve attachments. The two cases th
 
 {{< include _sample-preservation.md >}}
 
-::: {.callout-note appearance="simple"}
-### Eval Sets
-
 We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
-:::
+
 
 ## Amazon S3 {#sec-amazon-s3}
 

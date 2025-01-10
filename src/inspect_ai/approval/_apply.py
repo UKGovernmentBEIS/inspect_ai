@@ -75,4 +75,8 @@ def init_tool_approval(approval: list[ApprovalPolicy] | None) -> None:
         _tool_approver.set(None)
 
 
+def have_tool_approval() -> bool:
+    return _tool_approver.get(None) is not None
+
+
 _tool_approver: ContextVar[Approver | None] = ContextVar("tool_approver", default=None)

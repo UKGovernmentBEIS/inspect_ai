@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-from typing import Callable, cast
+from typing import Callable
 
 import click
 from pydantic_core import to_json
@@ -13,8 +13,12 @@ from rich.console import Console, RenderableType
 from rich.table import Column, Table
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.logger import TRACE_FILE_NAME
-from inspect_ai._util.trace import ActionTraceRecord, inspect_trace_dir, read_trace_file
+from inspect_ai._util.trace import (
+    ActionTraceRecord,
+    inspect_trace_dir,
+    list_trace_files,
+    read_trace_file,
+)
 
 
 @click.group("trace")
@@ -36,32 +40,31 @@ def trace_command() -> None:
 )
 def list_command(json: bool) -> None:
     """List all trace files."""
-    trace_dir = inspect_trace_dir()
-    trace_files: list[dict[str, float | str]] = [
-        {"mtime": f.lstat().st_mtime, "file": f.absolute().as_posix()}
-        for f in trace_dir.iterdir()
-        if f.is_file()
-    ]
-    trace_files.sort(key=lambda f: cast(float, f["mtime"]), reverse=True)
+    trace_files = list_trace_files()
     if json:
-        print(dumps(trace_files, indent=2))
+        print(
+            dumps(
+                [dict(file=str(file.file), mtime=file.mtime) for file in trace_files],
+                indent=2,
+            )
+        )
     else:
         table = Table(box=None, show_header=True, pad_edge=False)
         table.add_column("Time")
         table.add_column("Trace File")
         for file in trace_files:
-            mtime = datetime.fromtimestamp(cast(float, file["mtime"])).astimezone()
+            mtime = datetime.fromtimestamp(file.mtime).astimezone()
             table.add_row(
-                mtime.strftime("%d-%b %H:%M:%S %Z"), shlex.quote(str(file["file"]))
+                mtime.strftime("%d-%b %H:%M:%S %Z"), shlex.quote(str(file.file))
             )
         r_print(table)
 
 
 @trace_command.command("dump")
-@click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
-def read_command(trace_file: str) -> None:
+@click.argument("trace-file", type=str, required=False)
+def dump_command(trace_file: str | None) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
-    trace_file_path = resolve_trace_file_path(trace_file)
+    trace_file_path = _resolve_trace_file_path(trace_file)
 
     traces = read_trace_file(trace_file_path)
     print(
@@ -70,16 +73,16 @@ def read_command(trace_file: str) -> None:
 
 
 @trace_command.command("anomalies")
-@click.argument("trace-file", type=str, required=False, default=TRACE_FILE_NAME)
+@click.argument("trace-file", type=str, required=False)
 @click.option(
     "--all",
     is_flag=True,
     default=False,
     help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
 )
-def anomolies_command(trace_file: str, all: bool) -> None:
+def anomolies_command(trace_file: str | None, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    trace_file_path = resolve_trace_file_path(trace_file)
+    trace_file_path = _resolve_trace_file_path(trace_file)
     traces = read_trace_file(trace_file_path)
 
     # Track started actions
@@ -226,7 +229,17 @@ def _print_bucket(
         print_fn(table)
 
 
-def resolve_trace_file_path(trace_file: str) -> Path:
+def _resolve_trace_file(trace_file: str | None) -> str:
+    if trace_file is None:
+        trace_files = list_trace_files()
+        if len(trace_files) == 0:
+            raise PrerequisiteError("No trace files currently availalble.")
+        trace_file = str(trace_files[0].file)
+    return trace_file
+
+
+def _resolve_trace_file_path(trace_file: str | None) -> Path:
+    trace_file = _resolve_trace_file(trace_file)
     trace_file_path = Path(trace_file)
     if not trace_file_path.is_absolute():
         trace_file_path = inspect_trace_dir() / trace_file_path

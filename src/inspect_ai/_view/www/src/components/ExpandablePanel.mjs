@@ -14,8 +14,8 @@ export const ExpandablePanel = ({
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
-  const contentsRef = useRef();
-  const observerRef = useRef();
+  const contentsRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const observerRef = useRef(/** @type {IntersectionObserver|null} */ (null));
 
   // Ensure that when content changes, we reset the collapse state.
   useEffect(() => {
