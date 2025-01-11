@@ -24,7 +24,13 @@ from typing import (
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -120,10 +126,14 @@ async def call_tools(
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
             truncated: tuple[int, int] | None = None
-            if isinstance(result, ContentText | ContentImage):
+            if isinstance(
+                result, ContentText | ContentImage | ContentAudio | ContentVideo
+            ):
                 content: str | list[Content] = [result]
             elif isinstance(result, list) and (
-                isinstance(result[0], ContentText | ContentImage)
+                isinstance(
+                    result[0], ContentText | ContentImage | ContentAudio | ContentVideo
+                )
             ):
                 content = result
             else:

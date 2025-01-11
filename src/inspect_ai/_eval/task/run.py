@@ -79,10 +79,10 @@ from ..task import Task
 from .error import SampleErrorHandler
 from .generate import task_generate
 from .images import (
-    sample_without_base64_images,
-    samples_with_base64_images,
-    state_without_base64_images,
-    states_with_base64_images,
+    sample_without_base64_content,
+    samples_with_base64_content,
+    state_without_base64_content,
+    states_with_base64_content,
 )
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
@@ -689,12 +689,12 @@ async def task_run_sample(
         if logger is not None:
             # if we are logging images then be sure to base64 images injected by solvers
             if log_images:
-                state = (await states_with_base64_images([state]))[0]
+                state = (await states_with_base64_content([state]))[0]
 
             # otherwise ensure there are no base64 images in sample or messages
             else:
-                sample = sample_without_base64_images(sample)
-                state = state_without_base64_images(state)
+                sample = sample_without_base64_content(sample)
+                state = state_without_base64_content(state)
 
             # log the sample
             await log_sample(
@@ -784,7 +784,7 @@ async def resolve_dataset(
 
     # if we are logging images then resolve sample images here
     if log_images:
-        samples = await samples_with_base64_images(samples)
+        samples = await samples_with_base64_content(samples)
 
     # prime the eval tasks (deep copy so they share no state w/ sample)
     sample_epochs: list[int] = []
