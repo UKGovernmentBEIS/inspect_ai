@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import hashlib
 import json
 from copy import copy
 from io import BytesIO
@@ -58,6 +59,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.shelf import inspect_shelf
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
@@ -648,19 +650,53 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
 
 
 async def file_for_content(content: ContentAudio | ContentVideo) -> File:
+    # get the file bytes and compute sha256 hash
     if isinstance(content, ContentAudio):
         file = content.audio
     else:
         file = content.video
-
     content_bytes, mime_type = await file_as_data(file)
+    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
 
-    upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
-    while upload.state.name == "PROCESSING":
-        await asyncio.sleep(1)
-        upload = get_file(upload.name)
+    # cache uploads for re-use
+    with inspect_shelf("google_files") as shelf:
+        # can we serve from existing uploads?
+        uploaded_file = shelf.get(content_sha256, None)
+        if uploaded_file:
+            try:
+                # TODO: verify STATE == 'ACTIVE' and experiation_time?
+                # TODO: trim the shelf
+                upload = cast(File, get_file(uploaded_file))
 
-    if upload.state.name == "FAILED":
-        raise ValueError(f"Google file upload failed: {upload.error}")
+                # genai.File({
+                # 'name': 'files/k90kp7uag43i',
+                # 'display_name': '',
+                # 'mime_type': 'video/mp4',
+                # 'sha256_hash': 'M2U5MThiMmUzZTQyMWE0MDRhODVlM2JiNDVlYTRiOThkZTVjZjMxNGEzNmZjOWUwODU4NWM2NDJjODgxODZmZA==',
+                # 'size_bytes': '139307',
+                # 'state': 'ACTIVE',
+                # 'uri': 'https://generativelanguage.googleapis.com/v1beta/files/k90kp7uag43i',
+                # 'video_metadata': {'video_duration': '5s'},
+                # 'create_time': '2025-01-10T22:44:48.999935Z',
+                # 'expiration_time': '2025-01-12T22:44:48.990804719Z',
+                # 'update_time': '2025-01-10T22:44:50.852227Z'})
+                return upload
+            except Exception as ex:
+                print(ex)
+                del shelf[content_sha256]
+                # TODO: what is the exact exception type?
+                pass
 
-    return cast(File, upload)
+        # do the upload (and record it)
+        upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
+        while upload.state.name == "PROCESSING":
+            await asyncio.sleep(1)
+            upload = get_file(upload.name)
+
+        if upload.state.name == "FAILED":
+            raise ValueError(f"Google file upload failed: {upload.error}")
+
+        # record it
+        shelf[content_sha256] = upload.name
+
+        return upload
