@@ -109,8 +109,8 @@ input = [
 
 You can provide audio files in one of two formats:
 
--   WAV files
--   MP3 files
+-   MP3
+-   WAV
 
 As demonstrated above, you should specify the format explicitly when including audio input.
 
@@ -146,6 +146,16 @@ input = [
     ])
 ]
 ```
+
+### Formats
+
+You can provide video files in one of three formats:
+
+-   MP4
+-   MPEG
+-   MOV
+
+As demonstrated above, you should specify the format explicitly when including video input.
 
 ## Uploads
 

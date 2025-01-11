@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
