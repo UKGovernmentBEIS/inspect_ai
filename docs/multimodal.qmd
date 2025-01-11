@@ -32,7 +32,7 @@ The following models currently support image inputs:
 -   Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
 -   Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
 -   Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
--   Grok: Grok Vision models (e.g. `grok-vision-beta`)
+-   Grok: Vision models (e.g. `grok-vision-beta`)
 
 For Bedrock, AzureAI, and Groq, please consult model provider documentation for details on which models support image inputs.
 
