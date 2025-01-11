@@ -43,20 +43,20 @@ def check_video(model):
 
 
 @skip_if_no_google
-def test_google_audio():
+def test_media_google_audio():
     check_audio("google/gemini-1.5-flash")
 
 
 @skip_if_no_google
-def test_google_video():
+def test_media_google_video():
     check_video("google/gemini-1.5-flash")
 
 
 @skip_if_no_vertex
-def test_vertex_audio():
+def test_media_vertex_audio():
     check_audio("vertex/gemini-1.5-flash")
 
 
 @skip_if_no_openai
-def test_openai_audio():
+def test_media_openai_audio():
     check_audio("openai/gpt-4o-audio-preview")
