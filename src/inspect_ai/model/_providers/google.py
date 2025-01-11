@@ -4,6 +4,7 @@ import hashlib
 import json
 from copy import copy
 from io import BytesIO
+from logging import getLogger
 from typing import Any, cast
 
 import proto  # type: ignore
@@ -60,6 +61,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
@@ -82,6 +84,8 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import model_base_url
+
+logger = getLogger(__name__)
 
 SAFETY_SETTINGS = "safety_settings"
 
@@ -650,6 +654,10 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
 
 
 async def file_for_content(content: ContentAudio | ContentVideo) -> File:
+    # helper to write trace messages
+    def trace(message: str) -> None:
+        trace_message(logger, "Google Files", message)
+
     # get the file bytes and compute sha256 hash
     if isinstance(content, ContentAudio):
         file = content.audio
@@ -666,21 +674,29 @@ async def file_for_content(content: ContentAudio | ContentVideo) -> File:
         if uploaded_file:
             try:
                 upload = cast(File, get_file(uploaded_file))
-                if upload.state == "ACTIVE":
+                if upload.state.name == "ACTIVE":
+                    trace(f"Using uploaded file: {uploaded_file}")
                     return upload
+                else:
+                    trace(
+                        f"Not using uploaded file '{uploaded_file} (state was {upload.state})"
+                    )
             except Exception as ex:
+                trace(f"Error attempting to access uploaded file: {ex}")
                 files_db.delete(content_sha256)
 
         # do the upload (and record it)
         upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
         while upload.state.name == "PROCESSING":
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)
             upload = get_file(upload.name)
 
         if upload.state.name == "FAILED":
+            trace(f"Failed to upload file '{upload.name}: {upload.error}")
             raise ValueError(f"Google file upload failed: {upload.error}")
 
-        # record it
+        # trace and record it
+        trace(f"Uploaded file: {upload.name}")
         files_db.put(content_sha256, upload.name)
 
         # return the file
