@@ -8,6 +8,7 @@
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+- HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
 
 ## v0.3.57 (09 January 2025)
 
