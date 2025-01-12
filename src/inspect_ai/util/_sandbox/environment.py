@@ -6,6 +6,8 @@ from typing import Any, Awaitable, Callable, Literal, NamedTuple, Union, overloa
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
+
 from .._subprocess import ExecResult
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
@@ -129,6 +131,29 @@ class SandboxEnvironment(abc.ABC):
           id (str | None): Optional ID to limit scope of cleanup.
         """
         pass
+
+    async def setup(self, cmd: list[str]) -> ExecResult[str]:
+        """Execute the setup script for a sample.
+
+        Setup scripts have a default timeout of 5 minutes. Callers should
+        therefore always catch `TimeoutError` when invoking setup().
+
+        Args:
+          cmd (str | list[str]): Command or command and arguments to execute.
+
+        Returns:
+          Execution result (status code, stderr/stdout, etc.)
+
+        Raises:
+          TimeoutError: If the specified `timeout` expires.
+          UnicodeDecodeError: If an error occurs while
+            decoding the command output.
+          PermissionError: If the user does not have
+            permission to execute the command.
+          OutputLimitExceededError: If an output stream
+            exceeds the 10 MiB limit.
+        """
+        return await self.exec(cmd, timeout=SANDBOX_SETUP_TIMEOUT)
 
     @abc.abstractmethod
     async def exec(

@@ -166,6 +166,7 @@ async def compose_exec(
     *,
     project: ComposeProject,
     timeout: int | None,
+    timeout_retry: bool = True,
     input: str | bytes | None = None,
     output_limit: int | None = None,
 ) -> ExecResult[str]:
@@ -173,6 +174,7 @@ async def compose_exec(
         ["exec"] + command,
         project=project,
         timeout=timeout,
+        timeout_retry=timeout_retry,
         input=input,
         forward_env=False,
         output_limit=output_limit,
@@ -258,6 +260,7 @@ async def compose_command(
     *,
     project: ComposeProject,
     timeout: int | None,
+    timeout_retry: bool = True,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
@@ -325,7 +328,7 @@ async def compose_command(
                 return await run_command(command_timeout)
             except TimeoutError:
                 retries += 1
-                if retries <= MAX_RETRIES:
+                if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
                         f"Retrying docker compose command: {shlex.join(compose_command)}"
                     )
