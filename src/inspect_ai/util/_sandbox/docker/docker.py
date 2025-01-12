@@ -138,11 +138,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # start the services
             await compose_up(project)
 
-            # note that the project is running
-            project_startup(project)
-
             # check to ensure that the services are running
             await compose_check_running(list(services.keys()), project=project)
+
+            # note that the project is running
+            project_startup(project)
 
             # create sandbox environments
             default_service: str | None = None
