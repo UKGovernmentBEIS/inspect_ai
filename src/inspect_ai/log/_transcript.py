@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
@@ -11,7 +12,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, Field, JsonValue, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
@@ -175,6 +176,21 @@ class ToolEvent(BaseEvent):
         self.error = error
         self.events = events
         self.pending = None
+
+    # mechanism for operator to cancel the tool call
+    def cancel(self) -> None:
+        assert self.task
+        self.cancelled = True
+        self.task.cancel()
+
+    cancelled: bool | None = Field(exclude=True, default=None)
+    """Was this tool call cancelled?"""
+
+    task: asyncio.Task[Any] | None = Field(exclude=True, default=None)
+    """Handle to task (used for cancellation)"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Required so that we can include 'task' in the model."""
 
 
 class ApprovalEvent(BaseEvent):
