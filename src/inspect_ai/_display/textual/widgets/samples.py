@@ -354,7 +354,8 @@ class SampleToolbar(Horizontal):
         min-width: 18;
     }}
     SampleToolbar #{TIMEOUT_TOOL_CALL} {{
-        color: $error-darken-3;
+        color: $secondary-darken-3;
+        min-width: 16;
     }}
     SampleToolbar #{CANCEL_SCORE_OUTPUT} {{
         color: $primary-darken-3;
