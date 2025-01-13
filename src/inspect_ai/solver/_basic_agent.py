@@ -175,11 +175,11 @@ def basic_agent(
                 )
                 state.messages.append(state.output.message)
 
-                # check for stop reasons that indicate we should terminate
+                # check for context window overflow
                 if state.output.stop_reason == "model_length":
                     from inspect_ai.log._transcript import transcript
 
-                    transcript().info("Agent exceeded model context length.")
+                    transcript().info("Agent terminated: model context window exceeded")
                     break
 
                 # resolve tools calls (if any)
