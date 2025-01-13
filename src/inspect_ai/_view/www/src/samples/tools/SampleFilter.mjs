@@ -523,10 +523,6 @@ const editorTheme = EditorView.theme({
     borderColor: "#86b7fe",
     boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)",
   },
-  ".filter-applied > &.cm-focused": {
-    borderColor: "#1bc431",
-    boxShadow: "0 0 0 0.25rem rgba(40, 166, 59, 0.25)",
-  },
   ".filter-pending > &.cm-focused": {
     borderColor: "#808080",
     boxShadow: "0 0 0 0.25rem rgba(48, 48, 48, 0.25)",
@@ -679,11 +675,6 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
     }
   }, [filteringResultInstant?.error]);
 
-  const filterClasses = filteringResultInstant?.error
-    ? ["filter-pending"]
-    : filter.value
-      ? ["filter-applied"]
-      : [];
   return html`
     <div style=${{ display: "flex" }}>
       <span
@@ -701,7 +692,7 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
       <div
         ref=${editorRef}
         style=${{ width: "300px" }}
-        class=${filterClasses}
+        class=${filteringResultInstant?.error ? ["filter-pending"] : []}
       ></div>
       <span
         class="bi bi-question-circle"

@@ -51887,10 +51887,6 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         borderColor: "#86b7fe",
         boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)"
       },
-      ".filter-applied > &.cm-focused": {
-        borderColor: "#1bc431",
-        boxShadow: "0 0 0 0.25rem rgba(40, 166, 59, 0.25)"
-      },
       ".filter-pending > &.cm-focused": {
         borderColor: "#808080",
         boxShadow: "0 0 0 0.25rem rgba(48, 48, 48, 0.25)"
@@ -52018,7 +52014,6 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
           });
         }
       }, [filteringResultInstant == null ? void 0 : filteringResultInstant.error]);
-      const filterClasses = (filteringResultInstant == null ? void 0 : filteringResultInstant.error) ? ["filter-pending"] : filter.value ? ["filter-applied"] : [];
       return m$1`
     <div style=${{ display: "flex" }}>
       <span
@@ -52036,7 +52031,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       <div
         ref=${editorRef}
         style=${{ width: "300px" }}
-        class=${filterClasses}
+        class=${(filteringResultInstant == null ? void 0 : filteringResultInstant.error) ? ["filter-pending"] : []}
       ></div>
       <span
         class="bi bi-question-circle"
@@ -52801,10 +52796,18 @@ Supported expressions:
   </${LabeledValue}>
 `
       });
+      const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
+      values.push({
+        size: "minmax(12%, auto)",
+        value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
+    <${ScorerSummary}
+      evalDescriptor=${evalDescriptor} />
+  </${LabeledValue}>`
+      });
       if (hasConfig) {
         values.push({
           size: "minmax(12%, auto)",
-          value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "center" }}>
+          value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`
         });
@@ -52816,17 +52819,9 @@ Supported expressions:
       values.push({
         size: "minmax(12%, auto)",
         value: m$1`
-      <${LabeledValue} label="Duration" style=${{ justifySelf: "center" }}>
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
         ${totalDuration}
       </${LabeledValue}>`
-      });
-      const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
-      values.push({
-        size: "minmax(12%, auto)",
-        value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: "right" }}>
-    <${ScorerSummary}
-      evalDescriptor=${evalDescriptor} />
-  </${LabeledValue}>`
       });
       return m$1`
     <${ExpandablePanel} style=${{ margin: "0", ...style2 }} collapse=${true} lines=${4}>

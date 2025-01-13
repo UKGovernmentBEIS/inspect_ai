@@ -59,10 +59,19 @@ export const SecondaryBar = ({
 `,
   });
 
+  const label = evalResults?.scores.length > 1 ? "Scorers" : "Scorer";
+  values.push({
+    size: "minmax(12%, auto)",
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
+    <${ScorerSummary}
+      evalDescriptor=${evalDescriptor} />
+  </${LabeledValue}>`,
+  });
+
   if (hasConfig) {
     values.push({
       size: "minmax(12%, auto)",
-      value: html`<${LabeledValue} label="Config" style=${{ justifySelf: "center" }}>
+      value: html`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
       <${ParamSummary} params=${hyperparameters}/>
     </${LabeledValue}>`,
     });
@@ -75,18 +84,9 @@ export const SecondaryBar = ({
   values.push({
     size: "minmax(12%, auto)",
     value: html`
-      <${LabeledValue} label="Duration" style=${{ justifySelf: "center" }}>
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
         ${totalDuration}
       </${LabeledValue}>`,
-  });
-
-  const label = evalResults?.scores.length > 1 ? "Scorers" : "Scorer";
-  values.push({
-    size: "minmax(12%, auto)",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: "right" }}>
-    <${ScorerSummary}
-      evalDescriptor=${evalDescriptor} />
-  </${LabeledValue}>`,
   });
 
   return html`
