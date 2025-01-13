@@ -38,38 +38,35 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
 
     cmd = ["python3", "-m", "computer_tool.computer_tool", "--action"] + cmdTail
 
-    try:
-        raw_exec_result = await sandbox().exec(cmd, timeout=timeout)
+    raw_exec_result = await sandbox().exec(cmd, timeout=timeout)
 
-        if not raw_exec_result.success:
-            raise Exception(
-                f"Failure executing command: ${cmd} {raw_exec_result.stderr}"
-            )
-
-        result = ToolExecResult(**json.loads(raw_exec_result.stdout))
-
-        if result.error:
-            raise ToolError(result.error)
-
-        image = (
-            ContentImage(image=f"data:image/png;base64,{result.base64_image}")
-            if result.base64_image
-            else None
+    if not raw_exec_result.success:
+        raise RuntimeError(
+            f"Failure executing command: ${cmd} {raw_exec_result.stderr}"
         )
-        text = result.output if result.output and len(result.output) > 0 else None
 
-        if text is not None and image is not None:
-            return [ContentText(text=text), image]
+    result = ToolExecResult(**json.loads(raw_exec_result.stdout))
 
-        if text is not None:
-            return text
+    if result.error:
+        raise ToolError(result.error)
 
-        if image is not None:
-            return [image]
+    image = (
+        ContentImage(image=f"data:image/png;base64,{result.base64_image}")
+        if result.base64_image
+        else None
+    )
+    text = result.output if result.output and len(result.output) > 0 else None
 
-        return "OK"
-    except ToolError:
-        raise
+    if text is not None and image is not None:
+        return [ContentText(text=text), image]
+
+    if text is not None:
+        return text
+
+    if image is not None:
+        return [image]
+
+    return "OK"
 
 
 async def cursor_position(timeout: int | None = None) -> ToolResult:
