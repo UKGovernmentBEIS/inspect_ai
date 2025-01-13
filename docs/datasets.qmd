@@ -66,6 +66,10 @@ Files are copied into the default sandbox environment unless their name contains
 "victim:/shared/flag.txt": "flag.txt"
 ```
 
+### Setup
+
+The `setup` field contains either a path to a bash setup script (resolved relative to the dataset path) or the contents of a script to execute. Setup scripts are executed with a 5 minute timeout. If you have setup scripts that may take longer than this you should move some of your setup code into the container build setup (e.g. Dockerfile).
+
 ## Field Mapping
 
 If your dataset contains inputs and targets that don't use `input` and `target` as field names, you can map them into a `Dataset` using a `FieldSpec`. This same mechanism also enables you to collect arbitrary additional fields into the `Sample` `metadata` bucket. For example:

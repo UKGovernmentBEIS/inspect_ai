@@ -225,6 +225,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -251,6 +252,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
+            timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
