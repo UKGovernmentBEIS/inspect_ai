@@ -43,6 +43,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._conversation import conversation_assistant_error, conversation_assistant_message
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -50,7 +51,6 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
-from ._trace import trace_assistant_message, trace_error
 
 logger = logging.getLogger(__name__)
 
@@ -493,10 +493,10 @@ class Model:
         ) -> None:
             # trace
             if isinstance(result, ModelOutput):
-                trace_assistant_message(input, result.choices[0].message)
+                conversation_assistant_message(input, result.choices[0].message)
                 event.output = result
             else:
-                trace_error(result)
+                conversation_assistant_error(result)
                 event.error = repr(result)
 
             event.call = updated_call

@@ -4,17 +4,11 @@
 
 This is a demonstrate of Inspect's [Approval Mode](https://inspect.ai-safety-institute.org.uk/approval.html) whereby tool calls are approved by a combination of approvers and approval policies.
 
-To run this demonstration, specify the approval configuration file and the `--trace` option to see model interactions printed to the terminal:
+To run this demonstration, specify the approval configuration file as follows:
 
 ``` bash
 cd examples/approval
-inspect eval approval.py --approval approval.yaml --trace
-```
-
-You can also run the approval script directly and it will run the task in the appropriate approval and trace modes:
-
-``` bash
-python3 examples/approval/approval.py
+inspect eval approval.py --approval approval.yaml
 ```
 
 ## Task Setup
@@ -49,7 +43,7 @@ def approval_demo() -> Task:
 We'll evaluate this task using the approval policy defined in `approval.yaml`:
 
 ```bash
-inspect eval approval.py --approval approval.yaml --trace
+inspect eval approval.py --approval approval.yaml
 ```
 
 Here is the approval configuration:

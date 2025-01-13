@@ -372,7 +372,9 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
         )
     else:
         response = parse_web_browser_output(result.stdout)
-        if "web_at" in response:
+        if "error" in response and response.get("error", "").strip() != "":
+            raise ToolError(str(response.get("error")) or "(unknown error)")
+        elif "web_at" in response:
             web_at = (
                 str(response.get("web_at")) or "(no web accessiblity tree available)"
             )
@@ -384,8 +386,6 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
             web_at = "\n".join(web_at_lines)
             store_as(WebBrowserStore).web_at = web_at
             return web_at
-        elif "error" in response:
-            raise ToolError(str(response.get("error")) or "(unknown error)")
         else:
             raise RuntimeError(
                 f"web_browser output must contain either 'error' or 'web_at' field: {result.stdout}"

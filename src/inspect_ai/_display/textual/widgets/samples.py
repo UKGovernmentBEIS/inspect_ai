@@ -25,6 +25,7 @@ from textual.widgets.option_list import Option, Separator
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
+from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
 from .transcript import TranscriptView
@@ -332,16 +333,29 @@ class SandboxesView(Vertical):
 
 
 class SampleToolbar(Horizontal):
+    STATUS_GROUP = "status_group"
+    TIMEOUT_TOOL_CALL = "timeout_tool_call"
     CANCEL_SCORE_OUTPUT = "cancel_score_output"
     CANCEL_RAISE_ERROR = "cancel_raise_error"
     PENDING_STATUS = "pending_status"
     PENDING_CAPTION = "pending_caption"
 
     DEFAULT_CSS = f"""
+    SampleToolbar {{
+        grid-size: 5 1;
+        grid-columns: auto auto 1fr auto auto;
+    }}
+    SampleToolbar #{STATUS_GROUP} {{
+        min-width: 20;
+    }}
     SampleToolbar Button {{
         margin-bottom: 1;
         margin-right: 2;
-        min-width: 20;
+        min-width: 18;
+    }}
+    SampleToolbar #{TIMEOUT_TOOL_CALL} {{
+        color: $secondary-darken-3;
+        min-width: 16;
     }}
     SampleToolbar #{CANCEL_SCORE_OUTPUT} {{
         color: $primary-darken-3;
@@ -356,9 +370,16 @@ class SampleToolbar(Horizontal):
         self.sample: ActiveSample | None = None
 
     def compose(self) -> ComposeResult:
-        with VerticalGroup(id=self.PENDING_STATUS):
-            yield Static("Executing...", id=self.PENDING_CAPTION)
-            yield HorizontalGroup(EventLoadingIndicator(), Clock())
+        with HorizontalGroup(id=self.STATUS_GROUP):
+            with VerticalGroup(id=self.PENDING_STATUS):
+                yield Static("Executing...", id=self.PENDING_CAPTION)
+                yield HorizontalGroup(EventLoadingIndicator(), Clock())
+        yield Button(
+            Text("Timeout Tool"),
+            id=self.TIMEOUT_TOOL_CALL,
+            tooltip="Cancel the tool call and report a timeout to the model.",
+        )
+        yield Horizontal()
         yield Button(
             Text("Cancel (Score)"),
             id=self.CANCEL_SCORE_OUTPUT,
@@ -372,12 +393,21 @@ class SampleToolbar(Horizontal):
 
     def on_mount(self) -> None:
         self.query_one("#" + self.PENDING_STATUS).visible = False
+        self.query_one("#" + self.TIMEOUT_TOOL_CALL).display = False
         self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
         self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
-            if event.button.id == self.CANCEL_SCORE_OUTPUT:
+            if event.button.id == self.TIMEOUT_TOOL_CALL:
+                last_event = (
+                    self.sample.transcript.events[-1]
+                    if self.sample.transcript.events
+                    else None
+                )
+                if isinstance(last_event, ToolEvent):
+                    last_event.cancel()
+            elif event.button.id == self.CANCEL_SCORE_OUTPUT:
                 self.sample.interrupt("score")
             elif event.button.id == self.CANCEL_RAISE_ERROR:
                 self.sample.interrupt("error")
@@ -389,6 +419,7 @@ class SampleToolbar(Horizontal):
         self.sample = sample
 
         pending_status = self.query_one("#" + self.PENDING_STATUS)
+        timeout_tool = self.query_one("#" + self.TIMEOUT_TOOL_CALL)
         clock = self.query_one(Clock)
         cancel_score_output = cast(
             Button, self.query_one("#" + self.CANCEL_SCORE_OUTPUT)
@@ -419,14 +450,19 @@ class SampleToolbar(Horizontal):
                 pending_caption.update(
                     Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
                 )
+
+                timeout_tool.display = isinstance(last_event, ToolEvent)
+
                 clock.start(last_event.timestamp.timestamp())
             else:
                 pending_status.visible = False
+                timeout_tool.display = False
                 clock.stop()
 
         else:
             self.display = False
             pending_status.visible = False
+            timeout_tool.display = False
             clock.stop()
 
 

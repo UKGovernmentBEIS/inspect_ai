@@ -15547,10 +15547,44 @@ var require_assets = __commonJS({
           }
         }
       },
+      audio: {
+        render: (content) => {
+          return m$1` <audio controls>
+        <source
+          src=${content.audio}
+          type=${mimeTypeForFormat(content.format)}
+        />
+      </audio>`;
+        }
+      },
+      video: {
+        render: (content) => {
+          return m$1` <video width="500" height="375" controls>
+        <source
+          src=${content.video}
+          type=${mimeTypeForFormat(content.format)}
+        />
+      </video>`;
+        }
+      },
       tool: {
         render: (content) => {
           return m$1`<${ToolOutput} output=${content.content} />`;
         }
+      }
+    };
+    const mimeTypeForFormat = (format2) => {
+      switch (format2) {
+        case "mov":
+          return "video/quicktime";
+        case "wav":
+          return "audio/wav";
+        case "mp3":
+          return "audio/mpeg";
+        case "mp4":
+          return "video/mp4";
+        case "mpeg":
+          return "video/mpeg";
       }
     };
     const ChatView = ({
@@ -25837,7 +25871,7 @@ ${events}
         [selectedIndex]
       );
       const listStyle = { ...style2, flex: "1", overflowY: "auto", outline: "none" };
-      const { limit, answer, target } = gridColumns(sampleDescriptor);
+      const { input, limit, answer, target } = gridColumns(sampleDescriptor);
       const headerRow = m$1`<div
     style=${{
         display: "grid",
@@ -25851,7 +25885,7 @@ ${events}
       }}
   >
     <div>Id</div>
-    <div>Input</div>
+    <div>${input !== "0" ? "Input" : ""}</div>
     <div>${target !== "0" ? "Target" : ""}</div>
     <div>${answer !== "0" ? "Answer" : ""}</div>
     <div>${limit !== "0" ? "Limit" : ""}</div>

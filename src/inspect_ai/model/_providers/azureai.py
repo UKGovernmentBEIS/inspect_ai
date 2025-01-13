@@ -31,8 +31,8 @@ from azure.core.exceptions import AzureError, HttpResponseError
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
@@ -312,12 +312,14 @@ async def chat_request_message(
 async def chat_content_item(content: Content) -> ContentItem:
     if isinstance(content, ContentText):
         return TextContentItem(text=content.text)
-    else:
+    elif isinstance(content, ContentImage):
         return ImageContentItem(
             image_url=ImageUrl(
-                url=await image_as_data_uri(content.image), detail=content.detail
+                url=await file_as_data_uri(content.image), detail=content.detail
             )
         )
+    else:
+        raise RuntimeError("Azure AI models do not support audio or video inputs.")
 
 
 def chat_tool_call(tool_call: ToolCall) -> ChatCompletionsToolCall:

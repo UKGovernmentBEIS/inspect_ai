@@ -25,7 +25,7 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall, ToolInfo
 
 from .._model_call import ModelCall
-from .._model_output import ModelUsage
+from .._model_output import ModelUsage, StopReason
 from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -47,12 +47,6 @@ async def generate_o1(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
-
-    # map max_tokens => max_completion_tokens
-    max_tokens = params.get("max_tokens", None)
-    if max_tokens:
-        params["max_completion_tokens"] = max_tokens
-        del params["max_tokens"]
 
     # call model
     request = dict(
@@ -89,9 +83,14 @@ async def generate_o1(
 
 
 def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:
-    if ex.code == "invalid_prompt":
+    if ex.code == "context_length_exceeded":
+        stop_reason: StopReason | None = "model_length"
+    elif ex.code == "invalid_prompt":
+        stop_reason = "content_filter"
+
+    if stop_reason:
         return ModelOutput.from_content(
-            model=model, content=str(ex), stop_reason="content_filter"
+            model=model, content=str(ex), stop_reason=stop_reason
         )
     else:
         return ex
