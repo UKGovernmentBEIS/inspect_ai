@@ -54,6 +54,8 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
     If ``epochs=1`` such that each ``ReducedScore`` has only one child, clustered standard errors
     reduce to heteroskedasticity-robust (White) standard errors.
 
+    See also Miller, 'Adding Error Bars to Evals': https://arxiv.org/abs/2411.00640
+
     Args:
         to_float (ValueToFloat): Function for mapping
             Value to float for computing metrics. The default
