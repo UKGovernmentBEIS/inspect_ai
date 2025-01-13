@@ -243,10 +243,14 @@ function getCompletions(context, filterItems) {
   });
   /**
    * @param {import("./filters.mjs").ScoreFilterItem} item
-   * @param {(item: import("./filters.mjs").ScoreFilterItem) => boolean} autoSpaceIf
+   * @param {Object} [props]
+   * @param {(item: import("./filters.mjs").ScoreFilterItem) => boolean} [props.autoSpaceIf] - Similar to `autoSpaceAfter`, but conditional.
    * @returns {import("@codemirror/autocomplete").Completion}
    */
-  const makeCanonicalNameCompletion = (item, autoSpaceIf = () => false) => ({
+  const makeCanonicalNameCompletion = (
+    item,
+    { autoSpaceIf = () => false } = {},
+  ) => ({
     label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
     type: "variable",
     info: item.tooltip,
@@ -278,7 +282,8 @@ function getCompletions(context, filterItems) {
     ...variableCompletionItems,
   ];
 
-  const input = context.state.doc.toString().slice(0, context.pos);
+  const doc = context.state.doc;
+  const input = doc.toString().slice(0, context.pos);
   const tokens = tokenize(input);
   const lastToken = tokens[tokens.length - 1];
   const isCompletionInsideToken =
@@ -299,6 +304,7 @@ function getCompletions(context, filterItems) {
 
   const currentToken = prevToken(0);
   const completionStart = currentToken ? currentToken.from : context.pos;
+  const completingAtEnd = context.pos == doc.length;
 
   /**
    * @param {number} endIndex
@@ -324,19 +330,24 @@ function getCompletions(context, filterItems) {
   /**
    * @param {import("@codemirror/autocomplete").Completion[]} priorityCompletions
    * @param {Object} props
+   * @param {boolean} [props.autocompleteInTheMiddle] - If true, completion would be shown automatically even when editing in the middle of the expression.
    * @param {boolean} [props.enforceOrder] - If true, the priorityCompletions are shown in the order they are provided.
-   * @param {boolean} [props.autoSpaceAfter] - If true, space is inserted after priorityCompletions. Use when fairly certain that the expression continues.
+   * @param {boolean} [props.autoSpaceAfter] - If true, space is inserted after priorityCompletions. When a user accepts a completion with a space, another completion is suggested immediately (see `activateOnCompletion`). Use when fairly certain that the expression continues.
    * @param {boolean} [props.includeDefault] - If true, the default completions are included after the priority completions.
    * @returns {import("@codemirror/autocomplete").CompletionResult}
    */
   const makeCompletions = (
     priorityCompletions,
     {
+      autocompleteInTheMiddle = false,
       enforceOrder = false,
       autoSpaceAfter = false,
       includeDefault = true,
     } = {},
   ) => {
+    if (!autocompleteInTheMiddle && !completingAtEnd && !context.explicit) {
+      return null;
+    }
     const priorityCompletionsOrdered = enforceOrder
       ? priorityCompletions.map((c, idx) => ({
           ...c,
@@ -383,10 +394,10 @@ function getCompletions(context, filterItems) {
   const newExpressionCompletions = () =>
     makeCompletions([
       ...filterItems.map((item) =>
-        makeCanonicalNameCompletion(
-          item,
-          (item) => item.scoreType != kScoreTypeBoolean,
-        ),
+        makeCanonicalNameCompletion(item, {
+          autoSpaceIf: (item) =>
+            completingAtEnd && item.scoreType != kScoreTypeBoolean,
+        }),
       ),
       ...sampleFunctionCompletionItems,
     ]);
@@ -394,27 +405,28 @@ function getCompletions(context, filterItems) {
   /** @param {import("./filters.mjs").ScoreFilterItem[]} items */
   const memberAccessCompletions = (items) =>
     makeCompletions(items.map(makeMemberAccessCompletion), {
+      autocompleteInTheMiddle: true,
       includeDefault: false,
     });
   const logicalOpCompletions = () =>
     makeCompletions(["and", "or"].map(makeKeywordCompletion), {
       enforceOrder: true,
-      autoSpaceAfter: true,
+      autoSpaceAfter: completingAtEnd,
     });
   const descreteRelationCompletions = () =>
     makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
       enforceOrder: true,
-      autoSpaceAfter: true,
+      autoSpaceAfter: completingAtEnd,
     });
   const continuousRelationCompletions = () =>
     makeCompletions(
       ["<", "<=", ">", ">=", "==", "!="].map(makeKeywordCompletion),
-      { enforceOrder: true, autoSpaceAfter: true },
+      { enforceOrder: true, autoSpaceAfter: completingAtEnd },
     );
   const customRelationCompletions = () =>
     makeCompletions(
       ["<", "<=", ">", ">=", "==", "!=", "~="].map(makeKeywordCompletion),
-      { enforceOrder: true, autoSpaceAfter: true },
+      { enforceOrder: true, autoSpaceAfter: completingAtEnd },
     );
   /** @param {string[]} options */
   const rhsCompletions = (options) =>

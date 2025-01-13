@@ -51700,7 +51700,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         type: "text",
         boost: 10
       });
-      const makeCanonicalNameCompletion = (item, autoSpaceIf = () => false) => ({
+      const makeCanonicalNameCompletion = (item, { autoSpaceIf = () => false } = {}) => ({
         label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
         type: "variable",
         info: item.tooltip,
@@ -51728,7 +51728,8 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         ...sampleFunctionCompletionItems,
         ...variableCompletionItems
       ];
-      const input = context.state.doc.toString().slice(0, context.pos);
+      const doc2 = context.state.doc;
+      const input = doc2.toString().slice(0, context.pos);
       const tokens = tokenize(input);
       const lastToken = tokens[tokens.length - 1];
       const isCompletionInsideToken = lastToken && context.pos == lastToken.to && !autocompleteImmediatelyAfter(lastToken);
@@ -51736,6 +51737,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       const prevToken = (index) => tokens[currentTokenIndex - index];
       const currentToken = prevToken(0);
       const completionStart = currentToken ? currentToken.from : context.pos;
+      const completingAtEnd = context.pos == doc2.length;
       const findFilterItem = (endIndex) => {
         var _a3, _b3, _c2;
         if (((_a3 = prevToken(endIndex)) == null ? void 0 : _a3.type) == "variable") {
@@ -51754,10 +51756,14 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         return void 0;
       };
       const makeCompletions = (priorityCompletions, {
+        autocompleteInTheMiddle = false,
         enforceOrder = false,
         autoSpaceAfter = false,
         includeDefault = true
       } = {}) => {
+        if (!autocompleteInTheMiddle && !completingAtEnd && !context.explicit) {
+          return null;
+        }
         const priorityCompletionsOrdered = enforceOrder ? priorityCompletions.map((c2, idx) => ({
           ...c2,
           boost: -idx
@@ -51792,32 +51798,32 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       const noCompletions = () => context.explicit ? defaultCompletions() : null;
       const newExpressionCompletions = () => makeCompletions([
         ...filterItems.map(
-          (item) => makeCanonicalNameCompletion(
-            item,
-            (item2) => item2.scoreType != kScoreTypeBoolean
-          )
+          (item) => makeCanonicalNameCompletion(item, {
+            autoSpaceIf: (item2) => completingAtEnd && item2.scoreType != kScoreTypeBoolean
+          })
         ),
         ...sampleFunctionCompletionItems
       ]);
       const variableCompletions = () => makeCompletions(variableCompletionItems);
       const memberAccessCompletions = (items) => makeCompletions(items.map(makeMemberAccessCompletion), {
+        autocompleteInTheMiddle: true,
         includeDefault: false
       });
       const logicalOpCompletions = () => makeCompletions(["and", "or"].map(makeKeywordCompletion), {
         enforceOrder: true,
-        autoSpaceAfter: true
+        autoSpaceAfter: completingAtEnd
       });
       const descreteRelationCompletions = () => makeCompletions(["==", "!=", "in", "not in"].map(makeKeywordCompletion), {
         enforceOrder: true,
-        autoSpaceAfter: true
+        autoSpaceAfter: completingAtEnd
       });
       const continuousRelationCompletions = () => makeCompletions(
         ["<", "<=", ">", ">=", "==", "!="].map(makeKeywordCompletion),
-        { enforceOrder: true, autoSpaceAfter: true }
+        { enforceOrder: true, autoSpaceAfter: completingAtEnd }
       );
       const customRelationCompletions = () => makeCompletions(
         ["<", "<=", ">", ">=", "==", "!=", "~="].map(makeKeywordCompletion),
-        { enforceOrder: true, autoSpaceAfter: true }
+        { enforceOrder: true, autoSpaceAfter: completingAtEnd }
       );
       const rhsCompletions = (options) => makeCompletions(options.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
