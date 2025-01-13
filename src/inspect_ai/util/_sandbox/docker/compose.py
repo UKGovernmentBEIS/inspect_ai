@@ -32,9 +32,6 @@ async def compose_up(project: ComposeProject) -> None:
         # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
         timeout=300,
     )
-    if not result.success:
-        msg = f"Failed to start docker services for {project.config}: {result.stderr}"
-        raise RuntimeError(msg)
 
 
 async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
@@ -91,14 +88,21 @@ async def compose_cp(
         raise RuntimeError(msg)
 
 
-async def compose_check_running(services: list[str], project: ComposeProject) -> None:
+async def compose_check_running(
+    services: list[str], project: ComposeProject
+) -> list[str]:
     # Check to ensure that the status of containers is healthy
     running_services = await compose_ps(project=project, status="running")
-    if len(running_services) > 0:
-        if len(running_services) != len(services):
+    exited_services = await compose_ps(project=project, status="exited")
+    successful_services = running_services + [
+        service for service in exited_services if service["ExitCode"] == 0
+    ]
+
+    if len(successful_services) > 0:
+        if len(successful_services) != len(services):
             unhealthy_services = services
-            for running_service in running_services:
-                unhealthy_services.remove(running_service["Service"])
+            for successful_service in successful_services:
+                unhealthy_services.remove(successful_service["Service"])
 
             msg = (
                 "One or more docker containers failed to start from "
@@ -107,6 +111,8 @@ async def compose_check_running(services: list[str], project: ComposeProject) ->
             raise RuntimeError(msg)
     else:
         raise RuntimeError("No services started")
+
+    return [service["Service"] for service in running_services]
 
 
 async def compose_ps(
