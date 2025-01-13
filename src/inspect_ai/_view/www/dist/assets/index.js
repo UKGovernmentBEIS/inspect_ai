@@ -52082,601 +52082,122 @@ Supported expressions:
   • Set operations: in, not in; e.g. “x in (2, 3, 5)”
   • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
 `.trim();
-    const scoreLabelKey = (scoreLabel) => {
-      if (!scoreLabel) {
-        return "No score key";
-      }
-      return `${scoreLabel.scorer}.${scoreLabel.name}`;
-    };
-    const parseScoreLabelKey = (key2) => {
-      if (key2 == "No score key") {
-        return void 0;
-      }
-      const [scorer, name2] = key2.split(".");
-      return { scorer, name: name2 };
-    };
-    const createEvalDescriptor = (scores, samples, epochs) => {
-      if (!samples) {
-        return void 0;
-      }
-      const scoreValue = (sample, scoreLabel) => {
-        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
-          return void 0;
-        }
-        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
-          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
-        } else if (sample.scores[scoreLabel.name]) {
-          return sample.scores[scoreLabel.name].value;
-        } else {
-          return void 0;
-        }
-      };
-      const scoreAnswer = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.answer) {
-            return sampleScore.answer;
-          }
-        } else {
-          return void 0;
-        }
-      };
-      const scoreExplanation = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.explanation) {
-            return sampleScore.explanation;
-          }
-        }
-        return void 0;
-      };
-      const scoreMetadata = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.metadata) {
-            return sampleScore.metadata;
-          }
-        }
-        return void 0;
-      };
-      const scoreDescriptorMap = /* @__PURE__ */ new Map();
-      for (const scoreLabel of scores) {
-        const uniqScoreValues = [
-          ...new Set(
-            samples.filter((sample) => !!sample.scores).filter((sample) => {
-              if (!scoreLabel) {
-                return true;
-              }
-              if (scoreLabel.scorer !== scoreLabel.name) {
-                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
-                  scoreLabel.name
-                );
-              } else {
-                return Object.keys(sample.scores).includes(scoreLabel.name);
-              }
-            }).map((sample) => {
-              return scoreValue(sample, scoreLabel);
-            }).filter((value) => {
-              return value !== null;
-            })
-          )
-        ];
-        const uniqScoreTypes = [
-          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-        ];
-        for (const categorizer of scoreCategorizers) {
-          const scoreDescriptor2 = categorizer.describe(
-            uniqScoreValues,
-            uniqScoreTypes
-          );
-          if (scoreDescriptor2) {
-            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
-            break;
-          }
-        }
-      }
-      const scoreDescriptor = (scoreLabel) => {
-        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
-      };
-      const scoreRendered = (sample, scoreLabel) => {
-        const descriptor = scoreDescriptor(scoreLabel);
-        const score3 = scoreValue(sample, scoreLabel);
-        if (score3 === null || score3 === "undefined") {
-          return "null";
-        } else if (descriptor && descriptor.render) {
-          return descriptor.render(score3);
-        } else {
-          return score3;
-        }
-      };
-      const scorerDescriptor = (sample, scoreLabel) => {
-        return {
-          metadata: () => {
-            return scoreMetadata(sample, scoreLabel.scorer);
-          },
-          explanation: () => {
-            return scoreExplanation(sample, scoreLabel.scorer);
-          },
-          answer: () => {
-            return scoreAnswer(sample, scoreLabel.scorer);
-          },
-          scores: () => {
-            if (!sample || !sample.scores) {
-              return [];
-            }
-            const myScoreDescriptor = scoreDescriptor(scoreLabel);
-            if (!myScoreDescriptor) {
-              return [];
-            }
-            const scoreNames = scores.map((score3) => {
-              return score3.name;
-            });
-            const sampleScorer = sample.scores[scoreLabel.scorer];
-            const scoreVal = sampleScorer.value;
-            if (typeof scoreVal === "object") {
-              const names = Object.keys(scoreVal);
-              if (names.find((name2) => {
-                return scoreNames.includes(name2);
-              })) {
-                const scores2 = names.map((name2) => {
-                  return {
-                    name: name2,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal[name2]);
-                    }
-                  };
-                });
-                return scores2;
-              } else {
-                return [
-                  {
-                    name: scoreLabel.scorer,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  }
-                ];
-              }
-            } else {
-              return [
-                {
-                  name: scoreLabel.scorer,
-                  rendered: () => {
-                    return myScoreDescriptor.render(scoreVal);
-                  }
-                }
-              ];
-            }
-          }
-        };
-      };
-      const score2 = (sample, scoreLabel) => {
-        return {
-          value: scoreValue(sample, scoreLabel),
-          render: () => {
-            return scoreRendered(sample, scoreLabel);
-          }
-        };
-      };
-      return {
-        epochs,
-        samples,
-        scores,
-        scorerDescriptor,
-        scoreDescriptor,
-        score: score2,
-        scoreAnswer
-      };
-    };
-    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
-      if (!evalDescriptor) {
-        return void 0;
-      }
-      const sizes = evalDescriptor.samples.reduce(
-        (previous, current) => {
-          var _a2;
-          const text2 = inputString(current.input).join(" ");
-          const scoreValue = evalDescriptor.score(current, selectedScore).value;
-          const scoreText = scoreValue ? String(scoreValue) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
-          previous[1] = Math.min(
-            Math.max(previous[1], arrayToString(current.target).length),
-            300
-          );
-          previous[2] = Math.min(
-            Math.max(
-              previous[2],
-              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-            ),
-            300
-          );
-          previous[3] = Math.min(
-            Math.max(previous[3], current.limit ? current.limit.length : 0),
-            50
-          );
-          previous[4] = Math.min(
-            Math.max(previous[4], String(current.id).length),
-            10
-          );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
-          return previous;
-        },
-        [0, 0, 0, 0, 0, 0]
-      );
-      const maxSizes = {
-        input: Math.min(sizes[0], 300),
-        target: Math.min(sizes[1], 300),
-        answer: Math.min(sizes[2], 300),
-        limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[4], 30)
-      };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
-      const messageShape = {
-        raw: {
-          input: sizes[0],
-          target: sizes[1],
-          answer: sizes[2],
-          limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
-        },
-        normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
-          limit: maxSizes.limit / base2,
-          id: maxSizes.id / base2,
-          score: maxSizes.score / base2
-        }
-      };
-      return {
-        evalDescriptor,
-        messageShape,
-        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
-        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
-      };
-    };
-    const scoreCategorizers = [
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length === 1 && types2[0] === "boolean") {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values) => {
-          if (values.length === 2 && values.every((val) => {
-            return val === 1 || val === 0;
-          })) {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
-            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-          })) {
-            return passFailScoreCategorizer(values);
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (values.length < 10 && types2.length === 1 && types2[0] === "string") {
-            return {
-              scoreType: kScoreTypeCategorical,
-              categories: values,
-              compare: (a2, b2) => {
-                return String(a2).localeCompare(String(b2));
-              },
-              render: (score2) => {
-                return score2;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length !== 0 && types2[0] === "number") {
-            const onlyNumeric = values.filter((val) => {
-              return typeof val === "number";
-            });
-            return {
-              scoreType: kScoreTypeNumeric,
-              min: Math.min(...onlyNumeric),
-              max: Math.max(...onlyNumeric),
-              compare: (a2, b2) => {
-                if (typeof a2 === "number" && typeof b2 === "number") {
-                  return a2 - b2;
-                } else {
-                  console.warn(
-                    "Comparing non-numerics using a nuermic score descriptor"
-                  );
-                  return 0;
-                }
-              },
-              render: (score2) => {
-                return formatDecimalNoTrailingZeroes(Number(score2));
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length !== 0 && types2[0] === "object") {
-            const buckets = values.map((val) => {
-              return JSON.stringify(val);
-            });
-            const vals = new Set(buckets);
-            let categories = void 0;
-            if (vals.size < 10) {
-              categories = Array.from(vals).map((val) => {
-                return {
-                  val,
-                  text: val
-                };
-              });
-            }
-            return {
-              scoreType: kScoreTypeObject,
-              categories,
-              compare: () => {
-                return 0;
-              },
-              render: (score2) => {
-                if (score2 === null || score2 === void 0) {
-                  return "[null]";
-                }
-                const scores = [];
-                const keys = Object.keys(score2);
-                keys.forEach((key2, index) => {
-                  const value = score2[key2];
-                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-                  const style2 = {
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    marginLeft: "0.5rem"
-                  };
-                  if (index + 1 < keys.length) {
-                    style2["paddingBottom"] = "1em";
-                  }
-                  scores.push(m$1`
-                <div style=${style2}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-                });
-                return scores;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        // @ts-ignore
-        describe: () => {
-          return {
-            scoreType: kScoreTypeOther,
-            compare: () => {
-              return 0;
-            },
-            render: (score2) => {
-              return m$1`<${RenderedContent}
-            id="other-score-value"
-            entry=${{ value: score2 }}
-          />`;
-            }
-          };
-        }
-      }
-    ];
-    const filledCircleStyle = {
-      fontSize: FontSize.small,
-      fontFamily: "Consola Regular",
-      width: "20px",
-      height: "20px",
-      display: "inline-flex",
-      justifyContent: "center",
-      alignItems: "center",
-      borderRadius: "50%",
-      paddingTop: "1px"
-    };
-    const booleanScoreCategorizer = () => {
-      return {
-        scoreType: "boolean",
-        compare: (a2, b2) => {
-          return Number(a2.value) - Number(b2.value);
-        },
-        render: (score2) => {
-          const scoreColorStyle = score2 ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-          return m$1`<span
-        style=${{
-            ...scoreColorStyle,
-            ...filledCircleStyle
-          }}
-        >${score2}</span
-      >`;
-        }
-      };
-    };
-    const passFailScoreCategorizer = (values) => {
-      const categories = [];
-      if (values.includes("C")) {
-        categories.push({
-          val: "C",
-          text: "Correct"
-        });
-      }
-      if (values.includes("P")) {
-        categories.push({
-          val: "P",
-          text: "Partial"
-        });
-      }
-      if (values.includes("I")) {
-        categories.push({
-          val: "I",
-          text: "Incorrect"
-        });
-      }
-      if (values.includes("N")) {
-        categories.push({
-          val: "N",
-          text: "Refusal"
-        });
-      }
-      const order2 = ["C", "P", "I", "N"];
-      return {
-        scoreType: kScoreTypePassFail,
-        categories,
-        render: (score2) => {
-          if (score2 === "C") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.green,
-              ...filledCircleStyle
-            }}
-          >C</span
-        >`;
-          } else if (score2 === "I") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >I</span
-        >`;
-          } else if (score2 === "P") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.orange,
-              ...filledCircleStyle
-            }}
-          >P</span
-        >`;
-          } else if (score2 === "N") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >N</span
-        >`;
-          } else {
-            return score2;
-          }
-        },
-        compare: (a2, b2) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
-          return sort;
-        }
-      };
-    };
     const SelectScorer = ({ scores, score: score2, setScore }) => {
-      return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="select-scorer-label"
-        style=${{
-        alignSelf: "center",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        marginRight: "0.3em",
-        marginLeft: "0.2em"
-      }}
-        >Scorer:</span
-      >
-      <${ScoreSelector}
-        scores=${scores}
-        selectedScore=${score2}
-        setScore=${setScore}
-      />
-    </div>
-  `;
-    };
-    const ScoreSelector = ({ scores, selectedScore, setScore }) => {
-      const scorers = new Set(scores.map((score2) => score2.scorer));
-      const needHeadersAndIndent = scorers.size > 1;
-      const items = [];
-      let currentScorer = void 0;
-      for (const score2 of scores) {
-        const scoreKey = scoreLabelKey(score2);
-        if (score2.name == score2.scorer) {
-          items.push({ display: score2.name, value: scoreKey });
-        } else {
-          if (needHeadersAndIndent && currentScorer != score2.scorer) {
-            items.push({
-              display: score2.scorer,
-              value: `target:${scoreKey}`
-            });
-          }
-          items.push({
-            display: (needHeadersAndIndent ? "- " : "") + score2.name,
-            value: scoreKey
-          });
+      const scorers = scores.reduce((accum, scorer) => {
+        if (!accum.find((sc) => {
+          return scorer.scorer === sc.scorer;
+        })) {
+          accum.push(scorer);
         }
-        currentScorer = score2.scorer;
+        return accum;
+      }, []);
+      if (scorers.length === 1) {
+        return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+          alignSelf: "center",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+          >Score:</span
+        >
+        <${ScoreSelector}
+          scores=${scores}
+          selectedIndex=${scoreIndex(score2, scores)}
+          selectedIndexChanged=${(index) => {
+          setScore(scores[index]);
+        }}
+        />
+      </div>
+    `;
+      } else {
+        const scorerScores = scores.filter((sc) => {
+          return sc.scorer === score2.scorer;
+        });
+        const selectors = [
+          m$1`<${ScorerSelector}
+        scorers=${scorers}
+        selectedIndex=${scorerIndex(score2, scorers)}
+        selectedIndexChanged=${(index) => {
+            setScore(scorers[index]);
+          }}
+      />`
+        ];
+        if (scorerScores.length > 1) {
+          selectors.push(
+            m$1`<${ScoreSelector}
+          style=${{ marginLeft: "1em" }}
+          scores=${scorerScores}
+          selectedIndex=${scoreIndex(score2, scorerScores)}
+          selectedIndexChanged=${(index) => {
+              setScore(scorerScores[index]);
+            }}
+        />`
+          );
+        }
+        return m$1`
+      <div style=${{ display: "flex" }}>
+        <span
+          class="select-scorer-label"
+          style=${{
+          alignSelf: "center",
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary,
+          marginRight: "0.3em",
+          marginLeft: "0.2em"
+        }}
+          >Scorer:</span
+        >
+        ${selectors}
+      </div>
+    `;
       }
+    };
+    const ScoreSelector = ({
+      scores,
+      selectedIndex,
+      selectedIndexChanged,
+      style: style2
+    }) => {
       return m$1`<select
     class="form-select form-select-sm"
     aria-label=".select-scorer-label"
-    style=${{ fontSize: FontSize.smaller }}
-    value=${scoreLabelKey(selectedScore)}
+    style=${{ fontSize: FontSize.smaller, ...style2 }}
+    value=${scores[selectedIndex].name}
     onChange=${(e2) => {
-        let value = e2.target.value.replace(/^target:/, "");
-        setScore(parseScoreLabelKey(value));
+        selectedIndexChanged(e2.target.selectedIndex);
       }}
   >
-    ${items.map(({ display, value }) => {
-        return m$1`<option value="${value}">${display}</option>`;
+    ${scores.map((score2) => {
+        return m$1`<option value="${score2.name}">${score2.name}</option>`;
       })}
   </select>`;
     };
+    const ScorerSelector = ({ scorers, selectedIndex, selectedIndexChanged }) => {
+      return m$1`<select
+    class="form-select form-select-sm"
+    aria-label=".epoch-filter-label"
+    style=${{ fontSize: FontSize.smaller }}
+    value=${scorers[selectedIndex].scorer}
+    onChange=${(e2) => {
+        selectedIndexChanged(e2.target.selectedIndex);
+      }}
+  >
+    ${scorers.map((scorer) => {
+        return m$1`<option value="${scorer.scorer}">${scorer.scorer}</option>`;
+      })}
+  </select>`;
+    };
+    const scoreIndex = (score2, scores) => scores.findIndex((sc) => {
+      return sc.name === score2.name && sc.scorer === score2.scorer;
+    });
+    const scorerIndex = (score2, scores) => scores.findIndex((sc) => {
+      return sc.scorer === score2.scorer;
+    });
     const SampleTools = (props) => {
       const {
         epoch,
@@ -53812,6 +53333,533 @@ Supported expressions:
       <i class=${ApplicationIcons.close}></i>
     </button>
   </div>`;
+    };
+    const scoreLabelKey = (scoreLabel) => {
+      if (!scoreLabel) {
+        return "No score key";
+      }
+      return `${scoreLabel.scorer}.${scoreLabel.name}`;
+    };
+    const createEvalDescriptor = (scores, samples, epochs) => {
+      if (!samples) {
+        return void 0;
+      }
+      const scoreValue = (sample, scoreLabel) => {
+        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
+          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+        } else if (sample.scores[scoreLabel.name]) {
+          return sample.scores[scoreLabel.name].value;
+        } else {
+          return void 0;
+        }
+      };
+      const scoreAnswer = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.answer) {
+            return sampleScore.answer;
+          }
+        } else {
+          return void 0;
+        }
+      };
+      const scoreExplanation = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.explanation) {
+            return sampleScore.explanation;
+          }
+        }
+        return void 0;
+      };
+      const scoreMetadata = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.metadata) {
+            return sampleScore.metadata;
+          }
+        }
+        return void 0;
+      };
+      const scoreDescriptorMap = /* @__PURE__ */ new Map();
+      for (const scoreLabel of scores) {
+        const uniqScoreValues = [
+          ...new Set(
+            samples.filter((sample) => !!sample.scores).filter((sample) => {
+              if (!scoreLabel) {
+                return true;
+              }
+              if (scoreLabel.scorer !== scoreLabel.name) {
+                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name
+                );
+              } else {
+                return Object.keys(sample.scores).includes(scoreLabel.name);
+              }
+            }).map((sample) => {
+              return scoreValue(sample, scoreLabel);
+            }).filter((value) => {
+              return value !== null;
+            })
+          )
+        ];
+        const uniqScoreTypes = [
+          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+        ];
+        for (const categorizer of scoreCategorizers) {
+          const scoreDescriptor2 = categorizer.describe(
+            uniqScoreValues,
+            uniqScoreTypes
+          );
+          if (scoreDescriptor2) {
+            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
+            break;
+          }
+        }
+      }
+      const scoreDescriptor = (scoreLabel) => {
+        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
+      };
+      const scoreRendered = (sample, scoreLabel) => {
+        const descriptor = scoreDescriptor(scoreLabel);
+        const score3 = scoreValue(sample, scoreLabel);
+        if (score3 === null || score3 === "undefined") {
+          return "null";
+        } else if (descriptor && descriptor.render) {
+          return descriptor.render(score3);
+        } else {
+          return score3;
+        }
+      };
+      const scorerDescriptor = (sample, scoreLabel) => {
+        return {
+          metadata: () => {
+            return scoreMetadata(sample, scoreLabel.scorer);
+          },
+          explanation: () => {
+            return scoreExplanation(sample, scoreLabel.scorer);
+          },
+          answer: () => {
+            return scoreAnswer(sample, scoreLabel.scorer);
+          },
+          scores: () => {
+            if (!sample || !sample.scores) {
+              return [];
+            }
+            const myScoreDescriptor = scoreDescriptor(scoreLabel);
+            if (!myScoreDescriptor) {
+              return [];
+            }
+            const scoreNames = scores.map((score3) => {
+              return score3.name;
+            });
+            const sampleScorer = sample.scores[scoreLabel.scorer];
+            const scoreVal = sampleScorer.value;
+            if (typeof scoreVal === "object") {
+              const names = Object.keys(scoreVal);
+              if (names.find((name2) => {
+                return scoreNames.includes(name2);
+              })) {
+                const scores2 = names.map((name2) => {
+                  return {
+                    name: name2,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal[name2]);
+                    }
+                  };
+                });
+                return scores2;
+              } else {
+                return [
+                  {
+                    name: scoreLabel.scorer,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  }
+                ];
+              }
+            } else {
+              return [
+                {
+                  name: scoreLabel.scorer,
+                  rendered: () => {
+                    return myScoreDescriptor.render(scoreVal);
+                  }
+                }
+              ];
+            }
+          }
+        };
+      };
+      const score2 = (sample, scoreLabel) => {
+        return {
+          value: scoreValue(sample, scoreLabel),
+          render: () => {
+            return scoreRendered(sample, scoreLabel);
+          }
+        };
+      };
+      return {
+        epochs,
+        samples,
+        scores,
+        scorerDescriptor,
+        scoreDescriptor,
+        score: score2,
+        scoreAnswer
+      };
+    };
+    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+      if (!evalDescriptor) {
+        return void 0;
+      }
+      const sizes = evalDescriptor.samples.reduce(
+        (previous, current) => {
+          var _a2;
+          const text2 = inputString(current.input).join(" ");
+          const scoreValue = evalDescriptor.score(current, selectedScore).value;
+          const scoreText = scoreValue ? String(scoreValue) : "";
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[1] = Math.min(
+            Math.max(previous[1], arrayToString(current.target).length),
+            300
+          );
+          previous[2] = Math.min(
+            Math.max(
+              previous[2],
+              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+            ),
+            300
+          );
+          previous[3] = Math.min(
+            Math.max(previous[3], current.limit ? current.limit.length : 0),
+            50
+          );
+          previous[4] = Math.min(
+            Math.max(previous[4], String(current.id).length),
+            10
+          );
+          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          return previous;
+        },
+        [0, 0, 0, 0, 0, 0]
+      );
+      const maxSizes = {
+        input: Math.min(sizes[0], 300),
+        target: Math.min(sizes[1], 300),
+        answer: Math.min(sizes[2], 300),
+        limit: Math.min(sizes[3], 50),
+        id: Math.min(sizes[4], 10),
+        score: Math.min(sizes[4], 30)
+      };
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const messageShape = {
+        raw: {
+          input: sizes[0],
+          target: sizes[1],
+          answer: sizes[2],
+          limit: sizes[3],
+          id: sizes[4],
+          score: sizes[5]
+        },
+        normalized: {
+          input: maxSizes.input / base2,
+          target: maxSizes.target / base2,
+          answer: maxSizes.answer / base2,
+          limit: maxSizes.limit / base2,
+          id: maxSizes.id / base2,
+          score: maxSizes.score / base2
+        }
+      };
+      return {
+        evalDescriptor,
+        messageShape,
+        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
+        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
+      };
+    };
+    const scoreCategorizers = [
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length === 1 && types2[0] === "boolean") {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values) => {
+          if (values.length === 2 && values.every((val) => {
+            return val === 1 || val === 0;
+          })) {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
+            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+          })) {
+            return passFailScoreCategorizer(values);
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (values.length < 10 && types2.length === 1 && types2[0] === "string") {
+            return {
+              scoreType: kScoreTypeCategorical,
+              categories: values,
+              compare: (a2, b2) => {
+                return String(a2).localeCompare(String(b2));
+              },
+              render: (score2) => {
+                return score2;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length !== 0 && types2[0] === "number") {
+            const onlyNumeric = values.filter((val) => {
+              return typeof val === "number";
+            });
+            return {
+              scoreType: kScoreTypeNumeric,
+              min: Math.min(...onlyNumeric),
+              max: Math.max(...onlyNumeric),
+              compare: (a2, b2) => {
+                if (typeof a2 === "number" && typeof b2 === "number") {
+                  return a2 - b2;
+                } else {
+                  console.warn(
+                    "Comparing non-numerics using a nuermic score descriptor"
+                  );
+                  return 0;
+                }
+              },
+              render: (score2) => {
+                return formatDecimalNoTrailingZeroes(Number(score2));
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length !== 0 && types2[0] === "object") {
+            const buckets = values.map((val) => {
+              return JSON.stringify(val);
+            });
+            const vals = new Set(buckets);
+            let categories = void 0;
+            if (vals.size < 10) {
+              categories = Array.from(vals).map((val) => {
+                return {
+                  val,
+                  text: val
+                };
+              });
+            }
+            return {
+              scoreType: kScoreTypeObject,
+              categories,
+              compare: () => {
+                return 0;
+              },
+              render: (score2) => {
+                if (score2 === null || score2 === void 0) {
+                  return "[null]";
+                }
+                const scores = [];
+                const keys = Object.keys(score2);
+                keys.forEach((key2, index) => {
+                  const value = score2[key2];
+                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+                  const style2 = {
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    marginLeft: "0.5rem"
+                  };
+                  if (index + 1 < keys.length) {
+                    style2["paddingBottom"] = "1em";
+                  }
+                  scores.push(m$1`
+                <div style=${style2}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+                });
+                return scores;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        // @ts-ignore
+        describe: () => {
+          return {
+            scoreType: kScoreTypeOther,
+            compare: () => {
+              return 0;
+            },
+            render: (score2) => {
+              return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score2 }}
+          />`;
+            }
+          };
+        }
+      }
+    ];
+    const filledCircleStyle = {
+      fontSize: FontSize.small,
+      fontFamily: "Consola Regular",
+      width: "20px",
+      height: "20px",
+      display: "inline-flex",
+      justifyContent: "center",
+      alignItems: "center",
+      borderRadius: "50%",
+      paddingTop: "1px"
+    };
+    const booleanScoreCategorizer = () => {
+      return {
+        scoreType: "boolean",
+        compare: (a2, b2) => {
+          return Number(a2.value) - Number(b2.value);
+        },
+        render: (score2) => {
+          const scoreColorStyle = score2 ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+          return m$1`<span
+        style=${{
+            ...scoreColorStyle,
+            ...filledCircleStyle
+          }}
+        >${score2}</span
+      >`;
+        }
+      };
+    };
+    const passFailScoreCategorizer = (values) => {
+      const categories = [];
+      if (values.includes("C")) {
+        categories.push({
+          val: "C",
+          text: "Correct"
+        });
+      }
+      if (values.includes("P")) {
+        categories.push({
+          val: "P",
+          text: "Partial"
+        });
+      }
+      if (values.includes("I")) {
+        categories.push({
+          val: "I",
+          text: "Incorrect"
+        });
+      }
+      if (values.includes("N")) {
+        categories.push({
+          val: "N",
+          text: "Refusal"
+        });
+      }
+      const order2 = ["C", "P", "I", "N"];
+      return {
+        scoreType: kScoreTypePassFail,
+        categories,
+        render: (score2) => {
+          if (score2 === "C") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.green,
+              ...filledCircleStyle
+            }}
+          >C</span
+        >`;
+          } else if (score2 === "I") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >I</span
+        >`;
+          } else if (score2 === "P") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.orange,
+              ...filledCircleStyle
+            }}
+          >P</span
+        >`;
+          } else if (score2 === "N") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >N</span
+        >`;
+          } else {
+            return score2;
+          }
+        },
+        compare: (a2, b2) => {
+          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+          return sort;
+        }
+      };
     };
     const resolveAttachments = (value, attachments) => {
       const kContentProtocol = "tc://";
