@@ -177,7 +177,6 @@ export const scoreFilterItems = (evalDescriptor) => {
 
 /**
  * TODO: Add case-insensitive string comparison.
- * TODO: Pass EvalSample instead of SampleSummary and allow full-text message search.
  *
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
  * @param {import("../../api/Types.mjs").SampleSummary} sample
