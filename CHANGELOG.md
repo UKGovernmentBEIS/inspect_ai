@@ -6,6 +6,7 @@
 - Task display: Added Timeout Tool button for manually timing out a tool call.
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
 - Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
+- Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
