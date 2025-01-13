@@ -178,19 +178,30 @@ class ToolEvent(BaseEvent):
         self.pending = None
 
     # mechanism for operator to cancel the tool call
-    def cancel(self) -> None:
-        assert self.task
-        self.cancelled = True
-        self.task.cancel()
 
-    cancelled: bool | None = Field(exclude=True, default=None)
+    def set_task(self, task: asyncio.Task[Any]) -> None:
+        """Set the tool task (for possible cancellation)"""
+        self._task = task
+
+    def cancel(self) -> None:
+        """Cancel the tool task."""
+        if self._task:
+            self._cancelled = True
+            self._task.cancel()
+
+    @property
+    def cancelled(self) -> bool:
+        """Was the task cancelled?"""
+        return self._cancelled is True
+
+    _cancelled: bool | None = None
     """Was this tool call cancelled?"""
 
-    task: asyncio.Task[Any] | None = Field(exclude=True, default=None)
+    _task: asyncio.Task[Any] | None = None
     """Handle to task (used for cancellation)"""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    """Required so that we can include 'task' in the model."""
+    """Required so that we can include '_task' as a member."""
 
 
 class ApprovalEvent(BaseEvent):
