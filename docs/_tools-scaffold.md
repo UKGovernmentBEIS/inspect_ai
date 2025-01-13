@@ -56,7 +56,7 @@ If you have written a scaffold loop that continues calling the model even after 
 
 ```python
 # check for stop reasons that indicate we should terminate
-if state.output.stop_reason in ["model_length", "bad_request", "unknown"]:
+if state.output.stop_reason == "model_length":
     transcript().info(
         f"Agent terminated (reason: {state.output.stop_reason})"
     )
@@ -72,7 +72,6 @@ Here are the possible values for `StopReason` :
 | `model_length` | The model's context length was exceeded. |
 | `tool_calls` | The model called a tool |
 | `content_filter` | Content was omitted due to a content filter. |
-| `bad_request`  | Client request was invalid so couldn't generate a response. |
 | `unknown` | Unknown (e.g. unexpected runtime error) |
 
 : {tbl-colwidths=\[35,65\]}

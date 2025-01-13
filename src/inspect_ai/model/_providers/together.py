@@ -103,7 +103,7 @@ class TogetherAIAPI(OpenAIAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput:
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         if ex.status_code == 400:
             response = ex.response.json()
             if "error" in response and "message" in response.get("error"):
@@ -111,12 +111,11 @@ class TogetherAIAPI(OpenAIAPI):
             else:
                 content = str(response)
             if "max_new_tokens" in ex.message:
-                stop_reason: StopReason = "model_length"
+                return ModelOutput.from_content(
+                    model=self.model_name, content=content, stop_reason="model_length"
+                )
             else:
-                stop_reason = "bad_request"
-            return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason=stop_reason
-            )
+                return ex
         else:
             raise ex
 

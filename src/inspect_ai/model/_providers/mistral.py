@@ -123,7 +123,7 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # build request
         request: dict[str, Any] = dict(
             model=self.model_name,
@@ -182,16 +182,15 @@ class MistralAPI(ModelAPI):
     def connection_key(self) -> str:
         return str(self.api_key)
 
-    def handle_bad_request(self, ex: SDKError) -> ModelOutput:
+    def handle_bad_request(self, ex: SDKError) -> ModelOutput | Exception:
         body = json.loads(ex.body)
         content = body.get("message", ex.body)
         if "maximum context length" in ex.body:
-            stop_reason: StopReason = "model_length"
+            return ModelOutput.from_content(
+                model=self.model_name, content=content, stop_reason="model_length"
+            )
         else:
-            stop_reason = "bad_request"
-        return ModelOutput.from_content(
-            model=self.model_name, content=content, stop_reason=stop_reason
-        )
+            return ex
 
 
 def mistral_model_call(

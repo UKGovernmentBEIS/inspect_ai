@@ -165,7 +165,7 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
         if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
@@ -303,7 +303,7 @@ class OpenAIAPI(ModelAPI):
         return params
 
     # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
+    def handle_bad_request(self, e: BadRequestError) -> ModelOutput | Exception:
         if e.status_code == 400:
             # extract message
             if isinstance(e.body, dict) and "message" in e.body.keys():
@@ -313,15 +313,16 @@ class OpenAIAPI(ModelAPI):
 
             # narrow stop_reason
             if e.code == "context_length_exceeded":
-                stop_reason: StopReason = "model_length"
+                stop_reason: StopReason | None = "model_length"
             elif e.code == "invalid_prompt":
                 stop_reason = "content_filter"
-            else:
-                stop_reason = "bad_request"
 
-            return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason=stop_reason
-            )
+            if stop_reason:
+                return ModelOutput.from_content(
+                    model=self.model_name, content=content, stop_reason=stop_reason
+                )
+            else:
+                return e
         else:
             raise e
 

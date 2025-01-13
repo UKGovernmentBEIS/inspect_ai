@@ -25,7 +25,7 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall, ToolInfo
 
 from .._model_call import ModelCall
-from .._model_output import ModelUsage, StopReason
+from .._model_output import ModelUsage
 from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -44,7 +44,7 @@ async def generate_o1(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     **params: Any,
-) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
@@ -88,15 +88,13 @@ async def generate_o1(
     ), model_call()
 
 
-def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
+def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:
     if ex.code == "invalid_prompt":
-        stop_reason: StopReason = "content_filter"
+        return ModelOutput.from_content(
+            model=model, content=str(ex), stop_reason="content_filter"
+        )
     else:
-        stop_reason = "bad_request"
-
-    return ModelOutput.from_content(
-        model=model, content=str(ex), stop_reason=stop_reason
-    )
+        return ex
 
 
 def chat_messages(

@@ -130,7 +130,7 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
             handler: ChatAPIHandler | None = Llama31Handler()
@@ -255,7 +255,7 @@ class AzureAIAPI(ModelAPI):
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
-    def handle_azure_error(self, ex: AzureError) -> ModelOutput:
+    def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):
             response = str(ex.message)
             if "maximum context length" in response.lower():
@@ -264,12 +264,8 @@ class AzureAIAPI(ModelAPI):
                     content=response,
                     stop_reason="model_length",
                 )
-            elif ex.status_code == 400 and ex.error:
-                return ModelOutput.from_content(
-                    model=self.model_name,
-                    content=f"Your request triggered an error: {ex.error}",
-                    stop_reason="bad_request",
-                )
+            elif ex.status_code == 400:
+                return ex
 
         raise ex
 

@@ -46,3 +46,8 @@ def trace_assistant_message(
 
         # print the assistant message
         trace_panel(title="Assistant", content=content)
+
+
+def trace_error(error: Exception) -> None:
+    if trace_enabled():
+        trace_panel(title="Error", content=repr(error))

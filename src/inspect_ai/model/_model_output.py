@@ -31,7 +31,6 @@ StopReason = Literal[
     "model_length",
     "tool_calls",
     "content_filter",
-    "bad_request",
     "unknown",
 ]
 """Reason that the model stopped or failed to generate."""

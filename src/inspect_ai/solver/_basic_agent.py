@@ -176,16 +176,10 @@ def basic_agent(
                 state.messages.append(state.output.message)
 
                 # check for stop reasons that indicate we should terminate
-                if state.output.stop_reason in [
-                    "model_length",
-                    "bad_request",
-                    "unknown",
-                ]:
+                if state.output.stop_reason == "model_length":
                     from inspect_ai.log._transcript import transcript
 
-                    transcript().info(
-                        f"Agent terminated (reason: {state.output.stop_reason})"
-                    )
+                    transcript().info("Agent exceeded model context length.")
                     break
 
                 # resolve tools calls (if any)

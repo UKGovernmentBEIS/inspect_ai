@@ -50,7 +50,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
-from ._trace import trace_assistant_message
+from ._trace import trace_assistant_message, trace_error
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -389,6 +389,11 @@ class Model:
                 output = result
                 call = None
 
+            # raise error
+            if isinstance(output, Exception):
+                complete(output, call)
+                raise output
+
             # update output with time elapsed
             output.time = time_elapsed
 
@@ -464,7 +469,7 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> Callable[[ModelOutput, ModelCall | None], None]:
+    ) -> Callable[[ModelOutput | Exception, ModelCall | None], None]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
         # create event and add it to the transcript
@@ -484,13 +489,16 @@ class Model:
 
         # callable that can be used to update the interaction w/ output
         def complete(
-            updated_output: ModelOutput, updated_call: ModelCall | None
+            result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
             # trace
-            trace_assistant_message(input, updated_output.choices[0].message)
+            if isinstance(result, ModelOutput):
+                trace_assistant_message(input, result.choices[0].message)
+                event.output = result
+            else:
+                trace_error(result)
+                event.error = repr(result)
 
-            # update event
-            event.output = updated_output
             event.call = updated_call
             event.pending = None
 

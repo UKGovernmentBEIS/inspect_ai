@@ -27,7 +27,7 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
@@ -365,15 +365,13 @@ class BedrockAPI(ModelAPI):
                 if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"]
                     if "Too many input tokens" in response:
-                        stop_reason: StopReason = "model_length"
+                        return ModelOutput.from_content(
+                            model=self.model_name,
+                            content=response,
+                            stop_reason="model_length",
+                        )
                     else:
-                        stop_reason = "bad_request"
-
-                    return ModelOutput.from_content(
-                        model=self.model_name,
-                        content=response,
-                        stop_reason=stop_reason,
-                    )
+                        raise ex
                 else:
                     raise ex
 

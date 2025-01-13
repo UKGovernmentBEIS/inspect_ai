@@ -124,7 +124,7 @@ class AnthropicAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -177,11 +177,7 @@ class AnthropicAPI(ModelAPI):
             return output, model_call()
 
         except BadRequestError as ex:
-            error_output = self.handle_bad_request(ex)
-            if error_output is not None:
-                return error_output, model_call()
-            else:
-                raise ex
+            return self.handle_bad_request(ex), model_call()
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))
@@ -234,7 +230,7 @@ class AnthropicAPI(ModelAPI):
         return True
 
     # convert some common BadRequestError states into 'refusal' model output
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
@@ -256,9 +252,6 @@ class AnthropicAPI(ModelAPI):
         elif "content filtering" in error:
             content = "Sorry, but I am unable to help with that request."
             stop_reason = "content_filter"
-        else:
-            content = str(error)
-            stop_reason = "bad_request"
 
         if content and stop_reason:
             return ModelOutput.from_content(
@@ -268,7 +261,7 @@ class AnthropicAPI(ModelAPI):
                 error=error,
             )
         else:
-            return None
+            return ex
 
 
 async def resolve_chat_input(
