@@ -15002,10 +15002,6 @@ from {
   overflow: unset;
 }
 
-.custom-dropdown-item:hover {
-  background-color: var(--bs-secondary-bg);
-}
-
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
