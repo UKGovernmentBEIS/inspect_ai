@@ -88,11 +88,15 @@ async def compose_cp(
         raise RuntimeError(msg)
 
 
-async def compose_check_running(services: list[str], project: ComposeProject) -> None:
+async def compose_check_running(
+    services: list[str], project: ComposeProject
+) -> list[str]:
     # Check to ensure that the status of containers is healthy
     running_services = await compose_ps(project=project, status="running")
     exited_services = await compose_ps(project=project, status="exited")
-    successful_services = running_services + [service for service in exited_services if service['ExitCode'] == 0]
+    successful_services = running_services + [
+        service for service in exited_services if service["ExitCode"] == 0
+    ]
 
     if len(successful_services) > 0:
         if len(successful_services) != len(services):
@@ -107,6 +111,8 @@ async def compose_check_running(services: list[str], project: ComposeProject) ->
             raise RuntimeError(msg)
     else:
         raise RuntimeError("No services started")
+
+    return [service["Service"] for service in running_services]
 
 
 async def compose_ps(
