@@ -7,7 +7,6 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
 from inspect_ai.util._subprocess import ExecResult
 
 from ..environment import (
@@ -218,17 +217,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         self._working_dir = working_dir
 
     @override
-    async def setup(self, cmd: list[str]) -> ExecResult[str]:
-        # do not retry setup commands (in case they are not idempotent)
-        return await compose_exec(
-            ["--workdir", self._working_dir, self._service] + cmd,
-            project=self._project,
-            timeout=SANDBOX_SETUP_TIMEOUT,
-            timeout_retry=False,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-        )
-
-    @override
     async def exec(
         self,
         cmd: list[str],
@@ -237,6 +225,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -263,6 +252,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
+            timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
