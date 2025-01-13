@@ -51595,10 +51595,9 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       return tr;
     }
     const highlightStyle = HighlightStyle.define([
-      { tag: tags.string, color: "#a11" },
-      { tag: tags.number, color: "#164" },
-      { tag: tags.keyword, color: "#708" },
-      { tag: tags.function(tags.variableName), color: "#00c" }
+      { tag: tags.string, class: "token string" },
+      { tag: tags.number, class: "token number" },
+      { tag: tags.keyword, class: "token keyword" }
     ]);
     function countSpaces(word) {
       return word.split(" ").length - 1;
@@ -51883,19 +51882,40 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
     const editorTheme = EditorView.theme({
       "&": {
         fontSize: "inherit",
-        color: "var(--bs-body-color)",
-        backgroundColor: "var(--bs-body-bg)",
-        border: "1px solid var(--bs-border-color)",
+        color: "var(--inspect-input-foreground)",
+        backgroundColor: "var(--inspect-input-background)",
+        border: "1px solid var(--inspect-input-border)",
         borderRadius: "var(--bs-border-radius)"
+      },
+      ".cm-cursor.cm-cursor-primary": {
+        borderLeftColor: "var(--bs-body-color)"
+      },
+      ".cm-selectionBackground": {
+        backgroundColor: "var(--inspect-inactive-selection-background)"
+      },
+      "&.cm-focused > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground": {
+        backgroundColor: "var(--inspect-active-selection-background)"
       },
       "&.cm-focused": {
         outline: "none",
-        borderColor: "#86b7fe",
-        boxShadow: "0 0 0 0.25rem rgba(13, 110, 253, 0.25)"
+        borderColor: "var(--inspect-focus-border-color)",
+        boxShadow: "var(--inspect-focus-border-shadow)"
       },
       ".filter-pending > &.cm-focused": {
-        borderColor: "#808080",
-        boxShadow: "0 0 0 0.25rem rgba(48, 48, 48, 0.25)"
+        borderColor: "var(--inspect-focus-border-gray-color)",
+        boxShadow: "var(--inspect-focus-border-gray-shadow)"
+      },
+      ".cm-tooltip": {
+        backgroundColor: "var(--bs-light)",
+        border: "1px solid var(--bs-border-color)",
+        color: "var(--bs-body-color)"
+      },
+      ".cm-tooltip.cm-tooltip-autocomplete > ul > li": {
+        color: "var(--bs-body-color)"
+      },
+      ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": {
+        backgroundColor: "var(--inspect-active-selection-background)",
+        color: "var(--bs-body-color)"
       },
       ".cm-scroller": {
         overflow: "hidden"
