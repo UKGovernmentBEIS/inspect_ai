@@ -76,8 +76,8 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
             values = [to_float(child.value) for child in score.children]
             fscores.append(values)
 
-        # Calculate overall mean across all scores
         n = sum(len(cluster) for cluster in fscores)  # total number of scores
+        g = len(fscores)  # number of clusters
         if n < 2:
             return 0.0
 
@@ -105,6 +105,9 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
 
         # Add covariance term to unclustered variance
         clustered_var = unclustered_var + (cluster_covar / (n ** 2))
+
+        # Apply small sample correction g/(g-1) to variance
+        clustered_var *= g / (g - 1)
 
         # Return standard error
         stderr = np.sqrt(clustered_var)
