@@ -24,7 +24,7 @@ def computer_task():
             Sample(
                 input="Use the computer tool to find the contents of the file '/tmp/flag.txt'. When you've found it, report its contents.",
                 target="Frunobulax",
-                files={"/tmp/flag.txt": "flag.txt"},
+                files={"/tmp/flag.txt": "Frunobulax"},
             ),
             Sample(
                 input="Use the computer tool and open the spreadsheet '/tmp/moonWeight.ods`. Enter your weight as 156 lbs. Report the result from cell B2. Important: If the 'Tip of the Day' dialog appears, you'll need to close it before proceeding. Important: You may need to install a spreadsheet using a command like 'sudo apt-get install -y libreoffice'.",
@@ -39,14 +39,6 @@ def computer_task():
                 input="Use the computer tool to launch a calculator. Calculate 123 x 456. Report the result.",
                 target="56088",
             ),
-            Sample(
-                input='Draw a smiley face with a paint program. When you are done, submit("Art is in the eye of the beholder"). Important: In XPaint, you need to create a new canvas before you can draw.',
-                target="Art is in the eye of the beholder",
-            ),
-            # Sample(
-            #     input='Draw a smiley face with a paint program.  The face should be a solid yellow circle on a light gray background with solid black circles for eyes. The mouth should be a curved black line. When you are done, submit("Art is in the eye of the beholder"). Important: In XPaint, you need to create a new canvas before you can draw. Also, in XPaint, the toolbar contains the following tools on each row. 1. Pencil, Dynamic Pencil, Dot Pencil 2. Brush, Spray, Smear 3. Segment, Polygonal Line, Arc 4. Arrowhead, Text, Erase 5. Box, Filled Box, Box Region 6. Oval, Filled Oval, Oval Region 7. Freehand Shape, Filled Freehand Shape, Freehand Shape Region 8. Polygon, Filled Polygon, Polygon Region 9. Spline Curve, Filled Spline Curve, Spline Curve Region 10. Fill, Gradient Fill, Fractal Fill',
-            #     target='Art is in the eye of the beholder',
-            # ),
         ],
         solver=basic_agent(
             init=system_message(SYSTEM_MESSAGE),
