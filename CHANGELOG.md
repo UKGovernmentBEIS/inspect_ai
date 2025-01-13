@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
+- Task display: Added Timeout Tool button for manually timing out a tool call.
+- Sandboxes: Setup and initialisation errors are now handled at the sample level.
+- Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
+- Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
+- Docker: Services which exit with status 0 during setup no longer cause an error.
+- `task_with()` function for creating task variants.
+- Added `--filter` argument to trace CLI commands for filtering on trace log message content.
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+- HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
+
+## v0.3.57 (09 January 2025)
+
 - [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.

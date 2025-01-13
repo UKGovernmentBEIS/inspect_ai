@@ -101,9 +101,9 @@ async def subprocess(
     input = input.encode() if isinstance(input, str) else input
 
     # function to run command (we may or may not run it w/ concurrency)
-    async def run_command() -> (
-        AsyncGenerator[Union[Process, ExecResult[str], ExecResult[bytes]], None]
-    ):
+    async def run_command() -> AsyncGenerator[
+        Union[Process, ExecResult[str], ExecResult[bytes]], None
+    ]:
         if isinstance(args, str):
             proc = await asyncio.create_subprocess_shell(
                 args,

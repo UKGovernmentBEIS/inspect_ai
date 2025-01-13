@@ -3,7 +3,7 @@ from typing import Literal
 
 from rich.prompt import Prompt
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.model import ChatMessageUser
 from inspect_ai.solver import (
     Generate,
@@ -122,7 +122,3 @@ def ask_for_next_action() -> str:
             default="",
             console=console,
         )
-
-
-if __name__ == "__main__":
-    eval(intervention(), approval="human", trace=True)

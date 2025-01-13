@@ -239,12 +239,17 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         # apply chat template
-        chat = self.tokenizer.apply_chat_template(
-            hf_messages,
-            add_generation_prompt=True,
-            tokenize=False,
-            tools=tools_list if len(tools_list) > 0 else None,
-        )
+        if self.tokenizer.chat_template is not None:
+            chat = self.tokenizer.apply_chat_template(
+                hf_messages,
+                add_generation_prompt=True,
+                tokenize=False,
+                tools=tools_list if len(tools_list) > 0 else None,
+            )
+        else:
+            chat = ""
+            for message in hf_messages:
+                chat += f"{message.role}: {message.content}\n"
         # return
         return cast(str, chat)
 

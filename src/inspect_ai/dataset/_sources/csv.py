@@ -1,4 +1,5 @@
 import csv
+import os
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
@@ -75,7 +76,7 @@ def csv_dataset(
         dataset = MemoryDataset(
             samples=data_to_samples(valid_data, data_to_sample, auto_id),
             name=name,
-            location=csv_file,
+            location=os.path.abspath(csv_file),
         )
 
         # resolve relative file paths

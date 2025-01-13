@@ -32,7 +32,6 @@ export type Limit = number | [unknown, unknown] | null;
 export type SampleId = string | number | (string | number)[] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
-export type Trace = boolean | null;
 export type Name1 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
@@ -113,35 +112,49 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
-export type Content = string | (ContentText | ContentImage)[];
+export type Content =
+  | string
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Type1 = "text";
 export type Text = string;
 export type Type2 = "image";
 export type Image = string;
 export type Detail = "auto" | "low" | "high";
+export type Type3 = "audio";
+export type Audio = string;
+export type Format = "wav" | "mp3";
+export type Type4 = "video";
+export type Video = string;
+export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
-export type Content1 = string | (ContentText | ContentImage)[];
+export type Content1 =
+  | string
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string | null;
-export type Content2 = string | (ContentText | ContentImage)[];
+export type Content2 =
+  | string
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source2 = ("input" | "generate") | null;
 export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id1 = string;
 export type Function = string;
-export type Type3 = "function";
+export type Type5 = "function";
 export type ParseError = string | null;
 export type Title = string | null;
-export type Format = "text" | "markdown";
+export type Format2 = "text" | "markdown";
 export type Content3 = string;
-export type Content4 = string | (ContentText | ContentImage)[];
+export type Content4 =
+  | string
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type4 =
+export type Type6 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -219,7 +232,7 @@ export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type5 = "message" | "time" | "token" | "operator";
+export type Type7 = "message" | "time" | "token" | "operator";
 export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
@@ -245,8 +258,8 @@ export type Input2 = (
 )[];
 export type Name5 = string;
 export type Description = string;
-export type Type6 = "object";
-export type Type7 =
+export type Type8 = "object";
+export type Type9 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
   | null;
 export type Description1 = string | null;
@@ -266,7 +279,7 @@ export type Cache = ("read" | "write") | null;
 export type Timestamp5 = string;
 export type Pending5 = boolean | null;
 export type Event5 = "tool";
-export type Type8 = "function";
+export type Type10 = "function";
 export type Id3 = string;
 export type Function2 = string;
 export type Result =
@@ -275,7 +288,9 @@ export type Result =
   | boolean
   | ContentText
   | ContentImage
-  | (ContentText | ContentImage)[];
+  | ContentAudio
+  | ContentVideo
+  | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp6 = string;
 export type Pending6 = boolean | null;
@@ -325,13 +340,13 @@ export type Timestamp12 = string;
 export type Pending12 = boolean | null;
 export type Event12 = "step";
 export type Action = "begin" | "end";
-export type Type9 = string | null;
+export type Type11 = string | null;
 export type Name8 = string;
 export type Timestamp13 = string;
 export type Pending13 = boolean | null;
 export type Event13 = "subtask";
 export type Name9 = string;
-export type Type10 = string | null;
+export type Type12 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -380,7 +395,7 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Type11 = "context" | "time" | "message" | "token" | "operator";
+export type Type13 = "context" | "time" | "message" | "token" | "operator";
 export type Limit2 = number;
 export type Reductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;
@@ -449,7 +464,6 @@ export interface EvalConfig {
   sample_id: SampleId;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
-  trace: Trace;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   message_limit: MessageLimit;
@@ -616,6 +630,16 @@ export interface ContentImage {
   image: Image;
   detail: Detail;
 }
+export interface ContentAudio {
+  type: Type3;
+  audio: Audio;
+  format: Format;
+}
+export interface ContentVideo {
+  type: Type4;
+  video: Video;
+  format: Format1;
+}
 export interface ChatMessageUser {
   content: Content1;
   source: Source1;
@@ -632,7 +656,7 @@ export interface ToolCall {
   id: Id1;
   function: Function;
   arguments: Arguments;
-  type: Type3;
+  type: Type5;
   parse_error: ParseError;
   view: ToolCallContent | null;
 }
@@ -642,7 +666,7 @@ export interface Arguments {}
  */
 export interface ToolCallContent {
   title: Title;
-  format: Format;
+  format: Format2;
   content: Content3;
 }
 export interface ChatMessageTool {
@@ -654,7 +678,7 @@ export interface ChatMessageTool {
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type4;
+  type: Type6;
   message: Message1;
 }
 export interface ModelOutput {
@@ -737,7 +761,7 @@ export interface SampleLimitEvent {
   timestamp: Timestamp1;
   pending: Pending1;
   event: Event1;
-  type: Type5;
+  type: Type7;
   message: Message2;
   limit: Limit1;
 }
@@ -824,7 +848,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type6;
+  type: Type8;
   properties: Properties;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -836,7 +860,7 @@ export interface Properties {
  * Description of tool parameter in JSON Schema format.
  */
 export interface ToolParam {
-  type: Type7;
+  type: Type9;
   description: Description1;
   default: Default;
   enum: Enum;
@@ -900,7 +924,7 @@ export interface ToolEvent {
   timestamp: Timestamp5;
   pending: Pending5;
   event: Event5;
-  type: Type8;
+  type: Type10;
   id: Id3;
   function: Function2;
   arguments: Arguments1;
@@ -1002,7 +1026,7 @@ export interface StepEvent {
   pending: Pending12;
   event: Event12;
   action: Action;
-  type: Type9;
+  type: Type11;
   name: Name8;
 }
 /**
@@ -1013,7 +1037,7 @@ export interface SubtaskEvent {
   pending: Pending13;
   event: Event13;
   name: Name9;
-  type: Type10;
+  type: Type12;
   input: Input4;
   result: Result1;
   events: Events2;
@@ -1029,7 +1053,7 @@ export interface Attachments {
   [k: string]: string;
 }
 export interface EvalSampleLimit {
-  type: Type11;
+  type: Type13;
   limit: Limit2;
 }
 export interface EvalSampleReductions {

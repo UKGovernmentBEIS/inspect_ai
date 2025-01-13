@@ -138,28 +138,31 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # start the services
             await compose_up(project)
 
+            # check to ensure that the services are running
+            running_services = await compose_check_running(
+                list(services.keys()), project=project
+            )
+
             # note that the project is running
             project_startup(project)
 
-            # check to ensure that the services are running
-            await compose_check_running(list(services.keys()), project=project)
-
-            # create sandbox environments
+            # create sandbox environments for all running services
             default_service: str | None = None
             environments: dict[str, SandboxEnvironment] = {}
             for service, service_info in services.items():
-                # update the project w/ the working directory
-                working_dir = await container_working_dir(service, project)
+                if service in running_services:
+                    # update the project w/ the working directory
+                    working_dir = await container_working_dir(service, project)
 
-                # create the docker sandbox environemnt
-                docker_env = DockerSandboxEnvironment(service, project, working_dir)
+                    # create the docker sandbox environemnt
+                    docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-                # save reference to default service if requested
-                if service_info.get("x-default", False):
-                    default_service = service
+                    # save reference to default service if requested
+                    if service_info.get("x-default", False):
+                        default_service = service
 
-                # record service => environment
-                environments[service] = docker_env
+                    # record service => environment
+                    environments[service] = docker_env
 
             # confirm that we have a 'default' environemnt
             if environments.get("default", None) is None and default_service is None:
@@ -225,6 +228,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -251,6 +255,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
+            timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
