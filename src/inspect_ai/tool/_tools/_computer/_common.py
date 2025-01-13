@@ -1,5 +1,4 @@
 import json
-import logging
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -22,10 +21,6 @@ Action = Literal[
     "cursor_position",
 ]
 
-log = logging.getLogger(__name__)
-# log = MockLogger()
-log.setLevel(logging.DEBUG)
-
 
 class ToolExecResult(BaseModel):
     output: str | None = Field(default=None)
@@ -42,7 +37,6 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
     assert sample_id
 
     cmd = ["python3", "-m", "computer_tool.computer_tool", "--action"] + cmdTail
-    log.info(f"(sample={sample_id}) Executing command: {cmd}")
 
     try:
         raw_exec_result = await sandbox().exec(cmd, timeout=timeout)
@@ -55,9 +49,6 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
         result = ToolExecResult(**json.loads(raw_exec_result.stdout))
 
         if result.error:
-            log.warning(
-                f"(sample={sample_id}) Tool returned an error. Raising ToolError('{result.error}'"
-            )
             raise ToolError(result.error)
 
         image = (
@@ -68,28 +59,17 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
         text = result.output if result.output and len(result.output) > 0 else None
 
         if text is not None and image is not None:
-            log.info(
-                f"(sample={sample_id}) ToolResult([ContentText('{text}'), ContentImage])"
-            )
             return [ContentText(text=text), image]
 
         if text is not None:
-            log.info(f"(sample={sample_id}) ToolResult('{text}')")
             return text
 
         if image is not None:
-            log.info(f"(sample={sample_id}) ToolResult([ContentImage])")
             return [image]
 
-        log.warning(
-            "(sample={sample_id}) Tool returned neither output nor image - returning ToolResult('OK')"
-        )
         return "OK"
     except ToolError:
         raise
-    except Exception as e:
-        log.error(f"(sample={sample_id}) Sandbox.exec threw for {cmd}...re-raising {e}")
-        raise e
 
 
 async def cursor_position(timeout: int | None = None) -> ToolResult:

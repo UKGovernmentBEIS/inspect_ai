@@ -1,3 +1,9 @@
+"""
+This module provides the same functionality as the computer tool but via a list of per-action tools . e.g. computer_mouse_move(100, 100).
+
+The split version is not publicly exported, but is retained until we decide if it performs better than the monolithic computer tool.
+"""
+
 from typing import Awaitable, Callable
 
 from inspect_ai.tool import Tool, ToolResult, tool

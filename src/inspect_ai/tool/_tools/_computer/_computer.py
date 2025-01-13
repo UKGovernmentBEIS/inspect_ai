@@ -10,7 +10,7 @@ ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
 
 @tool()
-def computer(timeout: int | None = None) -> Tool:
+def computer(timeout: int | None = 180) -> Tool:
     """
     Computer interaction tool.
 
