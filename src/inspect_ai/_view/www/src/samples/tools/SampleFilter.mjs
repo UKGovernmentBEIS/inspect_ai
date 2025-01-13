@@ -585,8 +585,12 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
     /** @type {FilteringResult | null} */ (null),
   );
 
+  /**
+   * @param {FocusEvent} event
+   * @param {import("codemirror").EditorView} view
+   */
   const handleFocus = (event, view) => {
-    if (view.state.doc.toString() === "") {
+    if (event.isTrusted && view.state.doc.toString() === "") {
       setTimeout(() => startCompletion(view), 0);
     }
   };
@@ -653,10 +657,6 @@ export const SampleFilter = ({ evalDescriptor, filter, filterChanged }) => {
           to: editorViewRef.current.state.doc.length,
           insert: filter.value || "",
         },
-      });
-      editorViewRef.current.focus();
-      editorViewRef.current.dispatch({
-        selection: { anchor: editorViewRef.current.state.doc.length },
       });
     }
   }, [evalDescriptor, filter.value]);

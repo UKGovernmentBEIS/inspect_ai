@@ -51930,7 +51930,7 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
         null
       );
       const handleFocus = (event, view) => {
-        if (view.state.doc.toString() === "") {
+        if (event.isTrusted && view.state.doc.toString() === "") {
           setTimeout(() => startCompletion(view), 0);
         }
       };
@@ -51992,10 +51992,6 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
               to: editorViewRef.current.state.doc.length,
               insert: filter.value || ""
             }
-          });
-          editorViewRef.current.focus();
-          editorViewRef.current.dispatch({
-            selection: { anchor: editorViewRef.current.state.doc.length }
           });
         }
       }, [evalDescriptor, filter.value]);
