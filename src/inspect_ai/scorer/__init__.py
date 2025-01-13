@@ -55,6 +55,7 @@ __all__ = [
     "bootstrap_stderr",
     "std",
     "stderr",
+    "clustered_stderr",
     "mean",
     "Metric",
     "metric",
