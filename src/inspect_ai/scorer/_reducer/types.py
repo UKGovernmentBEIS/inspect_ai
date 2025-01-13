@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from .._metric import Score, ReducedScore
+from .._metric import ReducedScore, Score
 
 
 @runtime_checkable

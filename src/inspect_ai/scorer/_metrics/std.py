@@ -5,7 +5,6 @@ import numpy as np
 
 from .._metric import (
     Metric,
-    Score,
     ReducedScore,
     ValueToFloat,
     metric,
@@ -50,7 +49,9 @@ def bootstrap_std(
 
 @metric
 def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
-    """Clustered standard error of the mean, where each ``ReducedScore``'s children form a cluster.
+    """Clustered standard error of the mean.
+
+    Where each ``ReducedScore``'s children form a cluster.
     If ``epochs=1`` such that each ``ReducedScore`` has only one child, clustered standard errors
     reduce to heteroskedasticity-robust (White) standard errors.
 
@@ -89,9 +90,8 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
 
         # Calculate unclustered variance term
         unclustered_var = sum(
-            sum((x - overall_mean) ** 2 for x in cluster)
-            for cluster in fscores
-        ) / (n ** 2)
+            sum((x - overall_mean) ** 2 for x in cluster) for cluster in fscores
+        ) / (n**2)
 
         # Calculate between-observation covariance terms within clusters
         cluster_covar = 0.0
@@ -108,7 +108,7 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
                 )
 
         # Add covariance term to unclustered variance
-        clustered_var = unclustered_var + (cluster_covar / (n ** 2))
+        clustered_var = unclustered_var + (cluster_covar / (n**2))
 
         # Apply small sample correction g/(g-1) to variance
         clustered_var *= g / (g - 1)

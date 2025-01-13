@@ -1,8 +1,7 @@
 import pytest
 
-from inspect_ai.scorer._metric import Score, ReducedScore
+from inspect_ai.scorer._metric import ReducedScore, Score
 from inspect_ai.scorer._metrics.std import stderr
-
 
 """
 Comparisons to ``statsmodels`` are done using the following code:
@@ -27,16 +26,17 @@ def cluster_se(data: pd.DataFrame) -> float:
 
 
 def test_stderr_single_cluster():
-    """
-    Backward compatibility: previous implementation of stderr returned 0 for a single reduced score.
-    """
+    """Backward compatibility: previous implementation of stderr returned 0 for a single reduced score."""
     scores = [
-        ReducedScore(value=2.5, children=[
-            Score(value=1.0),
-            Score(value=2.0),
-            Score(value=3.0),
-            Score(value=4.0)
-        ])
+        ReducedScore(
+            value=2.5,
+            children=[
+                Score(value=1.0),
+                Score(value=2.0),
+                Score(value=3.0),
+                Score(value=4.0),
+            ],
+        )
     ]
 
     metric = stderr()
@@ -47,8 +47,8 @@ def test_stderr_single_cluster():
 
 
 def test_stderr_singleton_clusters():
-    """
-    Test clustered SE with three clusters of size 1 each.
+    """Test clustered SE with three clusters of size 1 each.
+
     This should reduce to the heteroskedasticity-robust standard error.
 
     Statsmodels verification:
@@ -63,7 +63,7 @@ def test_stderr_singleton_clusters():
     scores = [
         ReducedScore(value=1.0, children=[Score(value=1.0)]),
         ReducedScore(value=2.0, children=[Score(value=2.0)]),
-        ReducedScore(value=3.0, children=[Score(value=3.0)])
+        ReducedScore(value=3.0, children=[Score(value=3.0)]),
     ]
 
     metric = stderr()
@@ -77,11 +77,13 @@ def test_stderr_empty_cluster():
     """Test stderr raises error with empty clusters"""
     scores = [
         ReducedScore(value=1.0, children=[]),
-        ReducedScore(value=2.0, children=[Score(value=2.0)])
+        ReducedScore(value=2.0, children=[Score(value=2.0)]),
     ]
 
     metric = stderr()
-    with pytest.raises(ValueError, match="Clustered standard error requires non-empty clusters"):
+    with pytest.raises(
+        ValueError, match="Clustered standard error requires non-empty clusters"
+    ):
         metric(scores)
 
 
@@ -101,7 +103,9 @@ def test_stderr_identical_within_varied_between():
     scores = [
         ReducedScore(value=1.0, children=[Score(value=1.0), Score(value=1.0)]),
         ReducedScore(value=2.0, children=[Score(value=2.0), Score(value=2.0)]),
-        ReducedScore(value=3.0, children=[Score(value=3.0), Score(value=3.0), Score(value=3.0)])
+        ReducedScore(
+            value=3.0, children=[Score(value=3.0), Score(value=3.0), Score(value=3.0)]
+        ),
     ]
 
     metric = stderr()
@@ -112,8 +116,8 @@ def test_stderr_identical_within_varied_between():
 
 
 def test_stderr_1():
-    """
-    Statsmodels verification:
+    """Statsmodels verification.
+
     ```python
     data = pd.DataFrame({
         "y": [1, 1, 0, 0, 1, 0],
@@ -125,7 +129,7 @@ def test_stderr_1():
     scores = [
         ReducedScore(value=1.0, children=[Score(value=1.0), Score(value=1.0)]),
         ReducedScore(value=0.0, children=[Score(value=0.0), Score(value=0.0)]),
-        ReducedScore(value=0.5, children=[Score(value=1.0), Score(value=0.0)])
+        ReducedScore(value=0.5, children=[Score(value=1.0), Score(value=0.0)]),
     ]
 
     metric = stderr()
@@ -137,8 +141,8 @@ def test_stderr_1():
 
 
 def test_stderr_2():
-    """
-    Statsmodels verification:
+    """Statsmodels verification.
+
     ```python
     data = pd.DataFrame({
         "y": [9.0, 4.0, 11.0, 6.0, 13.0, 8.0],
@@ -150,7 +154,7 @@ def test_stderr_2():
     scores = [
         ReducedScore(value=6.5, children=[Score(value=9.0), Score(value=4.0)]),
         ReducedScore(value=8.5, children=[Score(value=11.0), Score(value=6.0)]),
-        ReducedScore(value=10.5, children=[Score(value=13.0), Score(value=8.0)])
+        ReducedScore(value=10.5, children=[Score(value=13.0), Score(value=8.0)]),
     ]
 
     metric = stderr()

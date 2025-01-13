@@ -115,6 +115,7 @@ class ReducedScore(Score):
     children: list[Score] = Field(default_factory=list)
     """List of child (unreduced) scores"""
 
+
 class SampleScore(BaseModel):
     """Score for a Sample
 

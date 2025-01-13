@@ -4,7 +4,13 @@ from typing import Callable, cast
 
 import numpy as np
 
-from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float, ReducedScore
+from inspect_ai.scorer._metric import (
+    ReducedScore,
+    Score,
+    Value,
+    ValueToFloat,
+    value_to_float,
+)
 
 from .registry import REDUCER_NAME, score_reducer
 from .types import ScoreReducer

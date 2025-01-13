@@ -28,8 +28,8 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
-from ._transcript import Event
 from ..scorer._metric import ReducedScore
+from ._transcript import Event
 
 logger = getLogger(__name__)
 
