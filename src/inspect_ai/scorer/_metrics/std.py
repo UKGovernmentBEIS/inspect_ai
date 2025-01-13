@@ -77,8 +77,10 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
             fscores.append(values)
 
         n = sum(len(cluster) for cluster in fscores)  # total number of scores
-        g = len(fscores)  # number of clusters
-        if n < 2:
+        g = len(scores)  # number of clusters
+
+        # Ensure that we won't divide by zero if there is only one cluster
+        if (g - 1) == 0:
             return 0.0
 
         overall_mean = sum(sum(cluster) for cluster in fscores) / n
