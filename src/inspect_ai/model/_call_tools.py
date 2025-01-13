@@ -183,8 +183,8 @@ async def call_tools(
                 arguments=call.arguments,
                 view=call.view,
                 pending=True,
-                task=task,
             )
+            event.set_task(task)
             transcript()._event(event)
 
             # execute the tool call. if the operator cancelled the
