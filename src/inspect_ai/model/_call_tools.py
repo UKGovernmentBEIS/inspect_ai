@@ -173,6 +173,9 @@ async def call_tools(
         # call tools
         tool_messages: list[ChatMessageTool] = []
         for call in message.tool_calls:
+            # create the task
+            task = asyncio.create_task(call_tool_task(call))
+
             # create pending tool event and add it to the transcript
             event = ToolEvent(
                 id=call.id,
@@ -180,12 +183,41 @@ async def call_tools(
                 arguments=call.arguments,
                 view=call.view,
                 pending=True,
+                task=task,
             )
             transcript()._event(event)
 
-            # execute the tool call
-            task = asyncio.create_task(call_tool_task(call))
-            tool_message, result_event = await task
+            # execute the tool call. if the operator cancelled the
+            # tool call then synthesize the appropriate message/event
+            try:
+                tool_message, result_event = await task
+            except asyncio.CancelledError:
+                if event.cancelled:
+                    tool_message = ChatMessageTool(
+                        content="",
+                        function=call.function,
+                        tool_call_id=call.id,
+                        error=ToolCallError(
+                            "timeout", "Command timed out before completing."
+                        ),
+                    )
+                    result_event = ToolEvent(
+                        id=call.id,
+                        function=call.function,
+                        arguments=call.arguments,
+                        result=tool_message.content,
+                        truncated=None,
+                        view=call.view,
+                        error=tool_message.error,
+                        events=[],
+                    )
+                    transcript().info(
+                        f"Tool call '{call.function}' was cancelled by operator."
+                    )
+                else:
+                    raise
+
+            # update return messages
             tool_messages.append(tool_message)
 
             # print conversation if display is conversation
