@@ -20,6 +20,7 @@ from inspect_ai.scorer import (
     score_reducer,
     value_to_float,
 )
+from inspect_ai.scorer._metric import ReducedScore
 from inspect_ai.scorer._reducer import create_reducers
 
 avg_reducer = mean_score()
@@ -218,9 +219,9 @@ def test_complex_metadata_reduce():
 
 @score_reducer(name="add_em_up")
 def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def sum(scores: list[Score]) -> Score:
+    def sum(scores: list[Score]) -> ReducedScore:
         value = reduce(lambda x, y: x + value_to_float(y.value), scores, 0.0)
-        return Score(value=value)
+        return ReducedScore(value=value, children=scores)
 
     return sum
 
