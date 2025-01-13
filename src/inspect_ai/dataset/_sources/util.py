@@ -44,6 +44,10 @@ def resolve_sample_files(dataset: Dataset) -> None:
             for path in sample.files.keys():
                 sample.files[path] = resolve_file(sample.files[path])
 
+        # check for setup script
+        if sample.setup is not None:
+            sample.setup = resolve_file(sample.setup)
+
         # check for image paths
         if not isinstance(sample.input, str):
             sample.input = messages_with_resolved_content(sample.input, resolve_file)
