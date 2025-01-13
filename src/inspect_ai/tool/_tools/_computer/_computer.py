@@ -62,72 +62,66 @@ def computer(timeout: int | None = 180) -> Tool:
         Returns:
           The output of the command. Many commands will include a screenshot reflecting the result of the command in their output.
         """
-        try:
-            if action in ("mouse_move", "left_click_drag"):
-                if coordinate is None:
-                    raise ToolParsingError(f"coordinate is required for {action}")
-                if text is not None:
-                    raise ToolParsingError(f"text is not accepted for {action}")
-                if not isinstance(coordinate, list) or len(coordinate) != 2:
-                    raise ToolParsingError(f"{coordinate} must be a tuple of length 2")
-                if not all(isinstance(i, int) and i >= 0 for i in coordinate):
-                    raise ToolParsingError(
-                        f"{coordinate} must be a tuple of non-negative ints"
-                    )
+        if action in ("mouse_move", "left_click_drag"):
+            if coordinate is None:
+                raise ToolParsingError(f"coordinate is required for {action}")
+            if text is not None:
+                raise ToolParsingError(f"text is not accepted for {action}")
+            if not isinstance(coordinate, list) or len(coordinate) != 2:
+                raise ToolParsingError(f"{coordinate} must be a tuple of length 2")
+            if not all(isinstance(i, int) and i >= 0 for i in coordinate):
+                raise ToolParsingError(
+                    f"{coordinate} must be a tuple of non-negative ints"
+                )
 
-                if action == "mouse_move":
-                    return await common.mouse_move(
-                        coordinate[0], coordinate[1], timeout=timeout
-                    )
-                elif action == "left_click_drag":
-                    return await common.left_click_drag(
-                        coordinate[0], coordinate[1], timeout=timeout
-                    )
+            if action == "mouse_move":
+                return await common.mouse_move(
+                    coordinate[0], coordinate[1], timeout=timeout
+                )
+            elif action == "left_click_drag":
+                return await common.left_click_drag(
+                    coordinate[0], coordinate[1], timeout=timeout
+                )
 
-            if action in ("key", "type"):
-                if text is None:
-                    raise ToolParsingError(f"text is required for {action}")
-                if coordinate is not None:
-                    raise ToolParsingError(f"coordinate is not accepted for {action}")
-                if not isinstance(text, str):
-                    raise ToolParsingError(output=f"{text} must be a string")
+        if action in ("key", "type"):
+            if text is None:
+                raise ToolParsingError(f"text is required for {action}")
+            if coordinate is not None:
+                raise ToolParsingError(f"coordinate is not accepted for {action}")
+            if not isinstance(text, str):
+                raise ToolParsingError(output=f"{text} must be a string")
 
-                if action == "key":
-                    return await common.press_key(text, timeout=timeout)
-                elif action == "type":
-                    return await common.type(text, timeout=timeout)
+            if action == "key":
+                return await common.press_key(text, timeout=timeout)
+            elif action == "type":
+                return await common.type(text, timeout=timeout)
 
-            if action in (
-                "left_click",
-                "right_click",
-                "double_click",
-                "middle_click",
-                "screenshot",
-                "cursor_position",
-            ):
-                if text is not None:
-                    raise ToolParsingError(f"text is not accepted for {action}")
-                if coordinate is not None:
-                    raise ToolParsingError(f"coordinate is not accepted for {action}")
+        if action in (
+            "left_click",
+            "right_click",
+            "double_click",
+            "middle_click",
+            "screenshot",
+            "cursor_position",
+        ):
+            if text is not None:
+                raise ToolParsingError(f"text is not accepted for {action}")
+            if coordinate is not None:
+                raise ToolParsingError(f"coordinate is not accepted for {action}")
 
-                if action == "screenshot":
-                    return await common.screenshot(timeout=timeout)
-                elif action == "cursor_position":
-                    return await common.cursor_position(timeout=timeout)
-                elif action == "left_click":
-                    return await common.left_click(timeout=timeout)
-                elif action == "right_click":
-                    return await common.right_click(timeout=timeout)
-                elif action == "middle_click":
-                    return await common.middle_click(timeout=timeout)
-                elif action == "double_click":
-                    return await common.double_click(timeout=timeout)
+            if action == "screenshot":
+                return await common.screenshot(timeout=timeout)
+            elif action == "cursor_position":
+                return await common.cursor_position(timeout=timeout)
+            elif action == "left_click":
+                return await common.left_click(timeout=timeout)
+            elif action == "right_click":
+                return await common.right_click(timeout=timeout)
+            elif action == "middle_click":
+                return await common.middle_click(timeout=timeout)
+            elif action == "double_click":
+                return await common.double_click(timeout=timeout)
 
-            raise ToolParsingError(f"Invalid action: {action}")
-
-        except ToolError:
-            raise
-        except Exception as e:
-            raise ToolError(str(e))
+        raise ToolParsingError(f"Invalid action: {action}")
 
     return execute

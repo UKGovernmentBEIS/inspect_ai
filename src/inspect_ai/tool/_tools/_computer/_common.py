@@ -1,12 +1,15 @@
 import json
+from textwrap import dedent
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import ContentImage
 from inspect_ai.tool import ToolError, ToolResult
-from inspect_ai.util import sandbox
+from inspect_ai.util._sandbox.context import sandbox_with
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 Action = Literal[
     "key",
@@ -38,7 +41,7 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
 
     cmd = ["python3", "-m", "computer_tool.computer_tool", "--action"] + cmdTail
 
-    raw_exec_result = await sandbox().exec(cmd, timeout=timeout)
+    raw_exec_result = await (await computer_sandbox()).exec(cmd, timeout=timeout)
 
     if not raw_exec_result.success:
         raise RuntimeError(
@@ -111,3 +114,21 @@ async def press_key(key: str, timeout: int | None = None) -> ToolResult:
 
 async def type(text: str, timeout: int | None = None) -> ToolResult:
     return await _send_cmd(["type", "--text", text], timeout=timeout)
+
+
+async def computer_sandbox() -> SandboxEnvironment:
+    sb = await sandbox_with("/opt/computer_tool/computer_tool.py")
+    if sb:
+        return sb
+    else:
+        raise PrerequisiteError(
+            dedent("""
+                The computer tool service was not found in any of the sandboxes for this sample. Please add the computer tool service to your configuration. For example, the following Docker compose file uses the (currently internal) inspect-computer-tool image as its default sandbox:
+
+                services:
+                  default:
+                    # Temporary internal image until the official one is available
+                    image: "inspect-computer-tool"
+                    init: true
+                """).strip()
+        )
