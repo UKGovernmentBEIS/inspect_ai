@@ -17,7 +17,7 @@ from inspect_ai.scorer import (
     scorer,
     std,
 )
-from inspect_ai.scorer._metric import metric_create
+from inspect_ai.scorer._metric import metric_create, ReducedScore
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -28,7 +28,7 @@ from inspect_ai.solver._task_state import TaskState
 
 @metric
 def accuracy1(correct: str = "C") -> Metric:
-    def metric(scores: list[Score]) -> int | float:
+    def metric(scores: list[ReducedScore]) -> int | float:
         return 1
 
     return metric
@@ -36,7 +36,7 @@ def accuracy1(correct: str = "C") -> Metric:
 
 @metric(name="accuracy2")
 def acc_fn(correct: str = "C") -> Metric:
-    def metric(scores: list[Score]) -> int | float:
+    def metric(scores: list[ReducedScore]) -> int | float:
         return 1
 
     return metric
@@ -47,7 +47,7 @@ class Accuracy3(Metric):
     def __init__(self, correct: str = "C") -> None:
         self.correct = correct
 
-    def __call__(self, scores: list[Score]) -> int | float:
+    def __call__(self, scores: list[ReducedScore]) -> int | float:
         return 1
 
 
@@ -56,13 +56,13 @@ class AccuracyNamedCls(Metric):
     def __init__(self, correct: str = "C") -> None:
         self.correct = correct
 
-    def __call__(self, scores: list[Score]) -> int | float:
+    def __call__(self, scores: list[ReducedScore]) -> int | float:
         return 1
 
 
 @metric
 def list_metric() -> Metric:
-    def metric(scores: list[Score]) -> Value:
+    def metric(scores: list[ReducedScore]) -> Value:
         return [1, 2, 3]
 
     return metric
@@ -70,7 +70,7 @@ def list_metric() -> Metric:
 
 @metric
 def dict_metric() -> Metric:
-    def metric(scores: list[Score]) -> Value:
+    def metric(scores: list[ReducedScore]) -> Value:
         return {"one": 1, "two": 2, "three": 3}
 
     return metric
@@ -167,7 +167,7 @@ def test_alternative_metrics() -> None:
 
 @metric
 def complex_metric() -> Metric:
-    def metric(scores: list[Score]) -> int | float:
+    def metric(scores: list[ReducedScore]) -> int | float:
         total = 0.0
         for complex_score in scores:
             if isinstance(complex_score.value, dict):
@@ -251,7 +251,7 @@ def metric_create_assert(name: str, **kwargs: Any) -> None:
 
 @metric
 def nested_dict_metric(correct: str = "C") -> Metric:
-    def metric(scores: list[Score]) -> Value:
+    def metric(scores: list[ReducedScore]) -> Value:
         return {"key1": 1.0, "key2": 2.0}
 
     return metric
@@ -291,7 +291,7 @@ def test_nested_dict_metrics() -> None:
 
 @metric
 def nested_list_metric(correct: str = "C") -> Metric:
-    def metric(scores: list[Score]) -> Value:
+    def metric(scores: list[ReducedScore]) -> Value:
         return [1.0, 2.0]
 
     return metric

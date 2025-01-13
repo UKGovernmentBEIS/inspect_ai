@@ -18,7 +18,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
-from inspect_ai.scorer._metric import SampleScore 
+from inspect_ai.scorer._metric import SampleScore, ReducedScore
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
@@ -74,7 +74,7 @@ def eval_results(
                 sample_reductions.append(reduced_samples)
 
                 # Compute metrics for this scorer
-                simple_scores = cast(list[Score], reduced_scores)
+                simple_scores = cast(list[ReducedScore], reduced_scores)
                 targets = metrics if metrics is not None else scorer_metrics(scorer)
                 if isinstance(targets, list):
                     ## split the metrics into the simple metrics and any dictionary
@@ -158,7 +158,7 @@ def scorer_for_metrics(
     scorer_name: str,
     scorer: Scorer,
     metadata: dict[str, Any],
-    scores: list[Score],
+    scores: list[ReducedScore],
     metrics: list[Metric],
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
@@ -230,7 +230,7 @@ def scorers_from_metric_dict(
     scorer_name: str,
     scorer: Scorer,
     metadata: dict[str, Any],
-    scores: list[Score],
+    scores: list[ReducedScore],
     metrics: dict[str, list[Metric]],
     reducer_name: str | None = None,
 ) -> list[EvalScore]:
@@ -243,7 +243,7 @@ def scorers_from_metric_dict(
 
     for metric_key, metric_list in resolved_metrics.items():
         # filter scores to a list of scalars with the value of the metric name
-        metric_scores: list[Score] = []
+        metric_scores: list[ReducedScore] = []
         for score in scores:
             if isinstance(score.value, dict):
                 if metric_key in score.value:

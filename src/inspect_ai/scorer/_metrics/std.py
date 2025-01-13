@@ -35,7 +35,7 @@ def bootstrap_std(
        bootstrap_std metric
     """
 
-    def metric(scores: list[Score]) -> float:
+    def metric(scores: list[ReducedScore]) -> float:
         values = [to_float(score.value) for score in scores]
         std = np.std(
             [
@@ -135,7 +135,7 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
         std metric
     """
 
-    def metric(scores: list[Score]) -> float:
+    def metric(scores: list[ReducedScore]) -> float:
         values = [to_float(score.value) for score in scores]
         n = len(values)
 
