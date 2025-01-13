@@ -6,6 +6,7 @@ import numpy as np
 from .._metric import (
     Metric,
     Score,
+    ReducedScore,
     ValueToFloat,
     metric,
     value_to_float,
@@ -49,7 +50,9 @@ def bootstrap_std(
 
 @metric
 def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
-    """Standard error of the mean using Central Limit Theorem.
+    """Clustered standard error of the mean, where each ``ReducedScore``'s children form a cluster.
+    If ``epochs=1`` such that each ``ReducedScore`` has only one child, clustered standard errors
+    reduce to heteroskedasticity-robust (White) standard errors.
 
     Args:
         to_float (ValueToFloat): Function for mapping
@@ -64,22 +67,48 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
         stderr metric
     """
 
-    def metric(scores: list[Score]) -> float:
-        values = [to_float(score.value) for score in scores]
-        n = len(values)
+    def metric(scores: list[ReducedScore]) -> float:
+        # Extract child scores
+        fscores: list[list[float]] = []
+        for score in scores:
+            if not score.children:
+                raise ValueError("Clustered standard error requires non-empty clusters")
+            values = [to_float(child.value) for child in score.children]
+            fscores.append(values)
 
-        # standard deviation is calculated by dividing by n-ddof so ensure
-        # that we won't divide by zero
-        if (n - 1) < 1:
-            return 0
+        # Calculate overall mean across all scores
+        n = sum(len(cluster) for cluster in fscores)  # total number of scores
+        if n < 2:
+            return 0.0
 
-        # Calculate the sample standard deviation
-        sample_std = np.std(values, ddof=1)
+        overall_mean = sum(sum(cluster) for cluster in fscores) / n
 
-        # Calculate the standard error of the mean
-        standard_error = sample_std / np.sqrt(n)
+        # Calculate unclustered variance term
+        unclustered_var = sum(
+            sum((x - overall_mean) ** 2 for x in cluster)
+            for cluster in fscores
+        ) / (n ** 2)
 
-        return cast(float, standard_error)
+        # Calculate between-observation covariance terms within clusters
+        cluster_covar = 0.0
+        for cluster in fscores:
+            # Sum of (x_i - mean)(x_j - mean) for all i != j in cluster
+            cluster_size = len(cluster)
+            if cluster_size > 1:
+                cluster_dev = [x - overall_mean for x in cluster]
+                cluster_covar += sum(
+                    cluster_dev[i] * cluster_dev[j]
+                    for i in range(cluster_size)
+                    for j in range(cluster_size)
+                    if i != j
+                )
+
+        # Add covariance term to unclustered variance
+        clustered_var = unclustered_var + (cluster_covar / (n ** 2))
+
+        # Return standard error
+        stderr = np.sqrt(clustered_var)
+        return cast(float, stderr)
 
     return metric
 

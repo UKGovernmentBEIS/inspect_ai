@@ -29,6 +29,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
+from ..scorer._metric import ReducedScore
 
 logger = getLogger(__name__)
 
@@ -322,7 +323,7 @@ class EvalScore(BaseModel):
     """Additional scorer metadata."""
 
 
-class EvalSampleScore(Score):
+class EvalSampleScore(ReducedScore):
     sample_id: str | int | None = Field(default=None)
 
 
