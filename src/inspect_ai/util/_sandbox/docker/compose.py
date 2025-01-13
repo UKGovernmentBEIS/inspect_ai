@@ -25,8 +25,12 @@ COMPOSE_WAIT = "120"
 
 
 async def compose_up(project: ComposeProject) -> None:
-    # Start the environment
-    result = await compose_command(
+    # Start the environment. Note that we don't check the result because docker will
+    # return a non-zero exit code for services that exit (even successfully) when
+    # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
+    # In practice, we will catch any errors when calling compose_check_running()
+    # immediately after we call compose_up().
+    await compose_command(
         ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
         project=project,
         # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
