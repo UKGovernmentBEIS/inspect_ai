@@ -6,7 +6,7 @@ title: Tools
 
 Many models now have the ability to interact with client-side Python functions in order to expand their capabilities. This enables you to equip models with your own set of custom tools so they can perform a wider variety of tasks.
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes several built-in tools ([bash](#sec-bash-and-python), [python](#sec-bash-and-python), and [web_search](#sec-web-search)).
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them (currently OpenAI, Claude 3, Google Gemini, and Mistral). Inspect also includes several built-in tools ([bash](#sec-bash-and-python), [python](#sec-bash-and-python), [computer](#sec-computer), [web browser](#sec-web-browser), and [web_search](#sec-web-search)).
 
 ::: callout-note
 ### Tools and Agents
@@ -21,6 +21,8 @@ Inspect has several built-in tools, including:
 -   [Bash and Python](#sec-bash-and-python) for executing arbitrary shell and Python code.
 
 -   [Web Browser](#sec-web-browser), which provides the model with a headless Chromium web browser that supports navigation, history, and mouse/keyboard interactions.
+
+-   [Computer](#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.
 
 -   [Web Search](#sec-web-search), which uses the Google Search API to execute and summarise web searches.
 
@@ -371,16 +373,16 @@ Note that unlike some other tool functions like `bash()`, the `web_browser()` fu
 
 If you review the transcripts of a sample with access to the web browser tool, you'll notice that there are several distinct tools made available for control of the web browser. These tools include:
 
-| Tool | Description |
+| Tool                                        | Description                                                                           |
 |------------------------------------|------------------------------------|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_go(url)`                       | Navigate the web browser to a URL.                                                    |
+| `web_browser_click(element_id)`             | Click an element on the page currently displayed by the web browser.                  |
+| `web_browser_type(element_id)`              | Type text into an input on a web browser page.                                        |
 | `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
+| `web_browser_scroll(direction)`             | Scroll the web browser up or down by one page.                                        |
+| `web_browser_forward()`                     | Navigate the web browser forward in the browser history.                              |
+| `web_browser_back()`                        | Navigate the web browser back in the browser history.                                 |
+| `web_browser_refresh()`                     | Refresh the current page of the web browser.                                          |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -419,6 +421,99 @@ CMD ["python3", "/app/web_browser/web_server.py"]
 ```
 
 Note that all of the Python files in the [\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
+
+## Computer {#sec-computer}
+
+::: {.callout-note appearance="simple"}
+The computer tool described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures.
+
+The computer tool is based on the Anthropic [Computer Use](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) reference implementation. and works with any model that supports image input. The tool's schema is based entirely on the standard Anthropoic [computer tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and when using Claude 3.5 the native Claude computer tool is utilised.
+
+### Configuration
+
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `inspect-computer-tool` image in your Docker compose file. For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: inspect-computer-tool
+```
+
+Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
+
+### Task Setup
+
+A task configured to use the computer tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import computer
+
+@task
+def computer_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([computer()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Two of the Inspect examples demonstrate basic computer use:
+
+-   [computer](https://github.com/epatey/inspect_ai/blob/computer/examples/computer/computer.py) — Three simple computing tasks as a minimal demonstration of computer use.
+
+    ``` bash
+    inspect eval examples/computer
+    ```
+
+-   [intervention](https://github.com/epatey/inspect_ai/blob/computer/examples/intervention/intervention.py) — Computer task driven interactively by a human operator.
+
+    ``` bash
+    inspect eval examples/intervention -T mode=computer --display conversation
+    ```
+
+### VNC Client {#vnc-client}
+
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the container to watch computer use in real-time. This requires some additional port-mapping in the Docker compose file. If you are running a single sample, use this configuration:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: inspect-computer-tool
+    ports: 
+      - 5900:5900
+```
+
+If you are running multiple samples, you can setup dynamic allocation of ports (beginning at 5900) with the following:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: inspect-computer-tool
+    ports: 
+      - 5900
+```
+
+With ports configured, you can now connect to your running session using a VNC Client (for example, [Real VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/)). There are a couple of things to keep in mind when making this connection:
+
+1.  The VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
+
+2.  To avoid interfering with the model's use of the computer, you should set your VNC client to a "view only" mode. For example, for Real VNC Viewer:
+
+    ![](images/vnc-view-only.png){width="549"}
 
 ## Web Search {#sec-web-search}
 
@@ -465,3 +560,4 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
