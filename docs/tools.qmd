@@ -446,6 +446,15 @@ services:
     image: inspect-computer-tool
 ```
 
+You can configure the container to not have Internet access as follows:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: inspect-computer-tool
+    network_mode: none
+```
+
 Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
 
 ### Task Setup
@@ -514,6 +523,46 @@ With ports configured, you can now connect to your running session using a VNC C
 2.  To avoid interfering with the model's use of the computer, you should set your VNC client to a "view only" mode. For example, for Real VNC Viewer:
 
     ![](images/vnc-view-only.png){width="549"}
+
+### Approval
+
+If the container you are using is connected to the Internet, you may want to configure human approval for a subset of computer tool actions. Here are the possible actions (specified using the `action` parameter to the `computer` tool):
+
+- `key`: Press a key or key-combination on the keyboard.
+- `type`: Type a string of text on the keyboard.
+- `cursor_position`: Get the current (x, y) pixel coordinate of the cursor on the screen.
+- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.
+- Example: execute(action="mouse_move", coordinate=(100, 200))
+- `left_click`: Click the left mouse button.
+- `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.
+- `right_click`: Click the right mouse button.
+- `middle_click`: Click the middle mouse button.
+- `double_click`: Double-click the left mouse button.
+- `screenshot`: Take a screenshot.
+
+
+Here is an approval policy that requires approval for key combos (e.g. `Enter` or a shortcut) and mouse clicks:
+
+```{.yaml filename="approval.yaml"}
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
+```
+
+Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+
+You can apply this policy using the `--approval` commmand line option:
+
+```bash
+inspect eval computer.py --approval approval.yaml
+```
 
 ## Web Search {#sec-web-search}
 
