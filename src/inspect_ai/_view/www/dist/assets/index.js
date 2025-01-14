@@ -29500,6 +29500,10 @@ self.onmessage = function (e) {
     class SampleSizeLimitedExceededError extends Error {
       constructor(id, epoch, maxBytes) {
         super(`Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`);
+        __publicField(this, "id");
+        __publicField(this, "epoch");
+        __publicField(this, "maxBytes");
+        __publicField(this, "displayStack");
         this.name = "SampleSizeLimitedExceededError";
         this.id = id;
         this.epoch = epoch;
