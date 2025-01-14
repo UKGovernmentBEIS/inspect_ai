@@ -54601,19 +54601,23 @@ Supported expressions:
       const kAttachmentProtocol = "attachment://";
       if (Array.isArray(value)) {
         return value.map((v2) => resolveAttachments(v2, attachments));
-      } else if (value && typeof value === "object") {
+      }
+      if (value && typeof value === "object") {
         const resolvedObject = {};
         for (const key2 of Object.keys(value)) {
           resolvedObject[key2] = resolveAttachments(value[key2], attachments);
         }
         return resolvedObject;
-      } else if (typeof value === "string") {
-        if (value.startsWith(kContentProtocol)) {
-          value = value.replace(kContentProtocol, kAttachmentProtocol);
+      }
+      if (typeof value === "string") {
+        let resolvedValue = value;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
         }
-        if (value.startsWith(kAttachmentProtocol)) {
-          return attachments[value.replace(kAttachmentProtocol, "")];
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
         }
+        return resolvedValue;
       }
       return value;
     };
