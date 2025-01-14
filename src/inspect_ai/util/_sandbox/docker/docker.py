@@ -435,26 +435,13 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # return container connection
         if container:
-            ports_result = await subprocess(
-                [
-                    "docker",
-                    "inspect",
-                    container,
-                    "--format",
-                    "{{json .NetworkSettings.Ports}}",
-                ]
-            )
-
-            if not ports_result.success:
-                raise RuntimeError(ports_result.stderr)
-
             return SandboxConnection(
                 command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
-                port_mappings=parse_docker_inspect_ports(ports_result.stdout),
+                ports=await get_ports_info(container),
             )
         # error (not currently running)
         else:
@@ -483,6 +470,29 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
+
+
+async def get_ports_info(container: str) -> list[PortMapping] | None:
+    try:
+        result = await subprocess(
+            [
+                "docker",
+                "inspect",
+                container,
+                "--format",
+                "{{json .NetworkSettings.Ports}}",
+            ],
+            timeout=60,
+        )
+
+        if not result.success:
+            raise RuntimeError(result.stderr)
+
+        return parse_docker_inspect_ports(result.stdout)
+
+    # It's currently a policy decision to let docker timeouts to be silent.
+    except TimeoutError:
+        return None
 
 
 def parse_docker_inspect_ports(json_str: str) -> list[PortMapping] | None:

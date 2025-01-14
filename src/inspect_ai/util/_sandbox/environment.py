@@ -48,7 +48,7 @@ class SandboxConnection(BaseModel):
     vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
 
-    port_mappings: list[PortMapping] | None = Field(default=None)
+    ports: list[PortMapping] | None = Field(default=None)
     """Optional list of port mappings into container"""
 
 

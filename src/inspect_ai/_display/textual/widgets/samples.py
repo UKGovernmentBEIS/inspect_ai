@@ -227,7 +227,6 @@ class SampleInfo(Horizontal):
             new_sandbox_count = len(sample.sandboxes)
             # bail if we've already processed this sample
             if self._sample == sample and self._sandbox_count == new_sandbox_count:
-                print("bailing since sample didn't change")
                 return
 
             # set sample
@@ -289,6 +288,9 @@ class SandboxesView(Vertical):
         background: transparent;
         height: auto;
     }
+    #sandboxes-list {
+        height: auto;
+    }
     SandboxesView Static {
         background: transparent;
     }
@@ -305,7 +307,6 @@ class SandboxesView(Vertical):
         yield Vertical(id="sandboxes-list")
 
     async def sync_sample(self, sample: ActiveSample) -> None:
-        print(f"in SandboxesView with {sample.task} and {len(sample.sandboxes)}")
         if len(sample.sandboxes) > 0:
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
@@ -318,15 +319,15 @@ class SandboxesView(Vertical):
                     item
                     for sandbox in sample.sandboxes.values()
                     for item in [Static(sandbox.command)]
-                    + create_port_mapping_statics(sandbox.port_mappings)
+                    + create_port_mapping_statics(sandbox.ports)
+                    + [
+                        Static(
+                            "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
+                            classes="clipboard-message",
+                            markup=True,
+                        ),
+                    ]
                 ]
-            )
-            sandboxes_list.mount(
-                Static(
-                    "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
-                    classes="clipboard-message",
-                    markup=True,
-                )
             )
         else:
             self.display = False
