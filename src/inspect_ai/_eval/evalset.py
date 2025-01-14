@@ -504,9 +504,6 @@ def latest_completed_task_eval_logs(
     # take the most recent completed log for each id
     latest_completed_logs: list[Log] = []
     for id, id_logs in logs_by_id.items():
-        # filter on completed
-        id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
-
         # continue if there are no target logs
         if len(id_logs) == 0:
             continue
@@ -520,11 +517,13 @@ def latest_completed_task_eval_logs(
         latest_completed_logs.append(id_logs[0])
 
         # remove the rest if requested
+        # (don't remove 'started' in case its needed for post-mortum debugging)
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    fs.rm(id_log[0].name)
+                    if id_log.header.status != "started":
+                        fs.rm(id_log.info.name)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
