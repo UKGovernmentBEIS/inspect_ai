@@ -16,7 +16,7 @@ from ._metric import (
 )
 from ._metrics.accuracy import accuracy
 from ._metrics.mean import mean
-from ._metrics.std import bootstrap_std, std, stderr
+from ._metrics.std import bootstrap_stderr, std, stderr
 from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
@@ -50,7 +50,7 @@ __all__ = [
     "Target",
     "scorer",
     "accuracy",
-    "bootstrap_std",
+    "bootstrap_stderr",
     "std",
     "stderr",
     "mean",
