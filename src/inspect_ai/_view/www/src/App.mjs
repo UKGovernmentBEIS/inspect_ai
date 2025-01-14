@@ -38,7 +38,7 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import { filterFnForType } from "./samples/tools/filters.mjs";
+import { filterSamples } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -308,21 +308,19 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
-    const filtered = samples.filter((sample) => {
+    const { result: prefiltered } = filterSamples(
+      evalDescriptor,
+      samples,
+      filter?.value,
+    );
+    const filtered = prefiltered.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
           return false;
         }
       }
-
-      // Apply the filter
-      const filterFn = filterFnForType(filter);
-      if (filterFn && filter.value) {
-        return filterFn(samplesDescriptor, sample, filter.value);
-      } else {
-        return true;
-      }
+      return true;
     });
 
     // Sort the samples

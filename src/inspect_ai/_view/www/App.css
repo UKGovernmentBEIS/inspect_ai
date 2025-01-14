@@ -9,6 +9,12 @@
   --inspect-input-border: var(--bs-light-border-subtle);
   --inspect-diff-add-color: #dafbe1;
   --inspect-diff-remove-color: #ffebe9;
+  --inspect-inactive-selection-background: var(--vscode-editor-inactiveSelectionBackground, #d9d9d9);
+  --inspect-active-selection-background: var(--vscode-editor-selectionBackground, #d7d4f0);
+  --inspect-focus-border-color: #86b7fe;
+  --inspect-focus-border-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+  --inspect-focus-border-gray-color: #808080;
+  --inspect-focus-border-gray-shadow: 0 0 0 0.25rem rgba(48, 48, 48, 0.25);
 }
 
 body:not([class^="vscode-"]) button {
@@ -650,6 +656,30 @@ table.table.table-sm td {
   height: auto !important;
 }
 
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  line-height: 1.25;
+  background: var(--bs-light);
+  color: var(--bs-body-color);
+  opacity: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 2px 10px 0 rgba(0, 0, 0, 0.25);
+  white-space: pre-wrap;
+  width: max-content;
+  max-width: 400px;
+  z-index: 1000;
+}
+[data-tooltip][data-tooltip-position="bottom-left"]:hover::after {
+  right: 0%;
+  top: 100%;
+}
+
 /* ANSI Coloring */
 .ansi-display {
   font-family: monospace;
@@ -725,7 +755,7 @@ pre[class*="language-"].tool-output {
   background: none !important;
   border: none !important;
   box-shadow: none !important;
-  border-radius: var(--bs-border-radius) !important;  
+  border-radius: var(--bs-border-radius) !important;
 }
 
 /* lightbox styles */

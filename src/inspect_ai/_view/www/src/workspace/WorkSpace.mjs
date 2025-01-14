@@ -368,6 +368,7 @@ export const WorkSpace = ({
     evalResults=${evalResults}
     evalStats=${evalStats}
     samples=${samples}
+    evalDescriptor=${samplesDescriptor.evalDescriptor}
     status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
@@ -386,6 +387,7 @@ const WorkspaceDisplay = ({
   evalResults,
   evalStats,
   samples,
+  evalDescriptor,
   status,
   showToggle,
   selectedTab,
@@ -456,20 +458,19 @@ const WorkspaceDisplay = ({
     }, [tabs]);
 
     return html`
-    
-    
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
       evalStats=${evalStats}
       samples=${samples}
+      evalDescriptor=${evalDescriptor}
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
+
       offcanvas=${offcanvas}
-    />    
+    />
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",
