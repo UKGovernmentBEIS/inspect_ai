@@ -33,7 +33,11 @@ from anthropic.types import (
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
+from inspect_ai._util.constants import (
+    BASE_64_DATA_REMOVED,
+    DEFAULT_MAX_RETRIES,
+    NO_CONTENT,
+)
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import file_as_data_uri
@@ -457,11 +461,6 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
         return {"type": "auto"}
     else:
         return {"type": "auto"}
-
-
-# text we insert when there is no content passed
-# (as this will result in an Anthropic API error)
-NO_CONTENT = "(no content)"
 
 
 async def message_param(message: ChatMessage) -> MessageParam:
