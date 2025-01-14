@@ -5,27 +5,17 @@ from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import (
-    Horizontal,
-    HorizontalGroup,
-    Vertical,
-    VerticalGroup,
-)
+from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import (
-    Button,
-    Collapsible,
-    LoadingIndicator,
-    OptionList,
-    Static,
-)
+from textual.widgets import Button, Collapsible, LoadingIndicator, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
+from inspect_ai.util._sandbox.environment import PortMapping
 
 from .clock import Clock
 from .transcript import TranscriptView
@@ -218,6 +208,7 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
+        self._sandbox_count: int | None = None
 
     def compose(self) -> ComposeResult:
         with Collapsible(title=""):
@@ -233,12 +224,15 @@ class SampleInfo(Horizontal):
             limits = self.query_one(SampleLimits)
             await limits.sync_sample(sample)
 
+            new_sandbox_count = len(sample.sandboxes)
             # bail if we've already processed this sample
-            if self._sample == sample:
+            if self._sample == sample and self._sandbox_count == new_sandbox_count:
+                print("bailing since sample didn't change")
                 return
 
             # set sample
             self._sample = sample
+            self._sandbox_count = new_sandbox_count
 
             # update UI
             self.display = True
@@ -311,6 +305,7 @@ class SandboxesView(Vertical):
         yield Vertical(id="sandboxes-list")
 
     async def sync_sample(self, sample: ActiveSample) -> None:
+        print(f"in SandboxesView with {sample.task} and {len(sample.sandboxes)}")
         if len(sample.sandboxes) > 0:
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
@@ -319,7 +314,12 @@ class SandboxesView(Vertical):
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
             await sandboxes_list.mount_all(
-                [Static(sandbox.command) for sandbox in sample.sandboxes.values()]
+                [
+                    item
+                    for sandbox in sample.sandboxes.values()
+                    for item in [Static(sandbox.command)]
+                    + create_port_mapping_statics(sandbox.port_mappings)
+                ]
             )
             sandboxes_list.mount(
                 Static(
@@ -330,6 +330,20 @@ class SandboxesView(Vertical):
             )
         else:
             self.display = False
+
+
+def create_port_mapping_statics(
+    port_mappings: list[PortMapping] | None,
+) -> list[Static]:
+    if port_mappings is None:
+        return []
+    return [
+        Static(
+            f"{host_mapping.host_ip}:{host_mapping.host_port} => {mapping.container_port}"
+        )
+        for mapping in port_mappings
+        for host_mapping in mapping.mappings
+    ]
 
 
 class SampleToolbar(Horizontal):

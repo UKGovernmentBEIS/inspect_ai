@@ -14,3 +14,4 @@ services:
     # the specific container by using `docker inspect <container_id_or_name>`
     ports:
       - "5900"
+      - "8080"

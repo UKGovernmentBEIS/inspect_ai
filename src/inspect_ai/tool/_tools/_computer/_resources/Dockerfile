@@ -69,6 +69,7 @@ COPY computer_tool/ /opt/computer_tool
 ENV PYTHONPATH=/opt
 
 EXPOSE 5900
+EXPOSE 8080
 
 ARG DISPLAY_NUM=1
 ARG HEIGHT=768
