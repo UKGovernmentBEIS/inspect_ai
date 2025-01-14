@@ -1,7 +1,8 @@
 from logging import getLogger
-from typing import cast
+from typing import Optional, cast
 
 import numpy as np
+from numpy._typing import NDArray
 
 from .._metric import (
     Metric,
@@ -101,8 +102,10 @@ def stderr(
 
 
 def hierarchical_bootstrap(
-    scores: list[list[float]], num_samples: int = 1000, random_state: int = None
-) -> np.ndarray:
+    scores: list[list[float]],
+    num_samples: int = 1000,
+    random_state: Optional[int] = None,
+) -> NDArray[np.float64]:
     """Efficient implementation of hierarchical bootstrap using vectorized operations.
 
     See tests for a more readable counterpart using loops, ``readable_hierarchical_bootstrap``.
@@ -142,7 +145,7 @@ def hierarchical_bootstrap(
     # Then average over clusters
     bootstrap_means = np.mean(cluster_means, axis=1)  # Shape: (num_samples,)
 
-    return bootstrap_means
+    return cast(NDArray[np.float64], bootstrap_means)
 
 
 @metric
