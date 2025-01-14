@@ -252,7 +252,7 @@ const SeparatorRow = ({ id, title, height }) => {
  * @param {Object} props - The parameters for the component.
  * @param {string} props.id - The unique identifier for the sample.
  * @param {number} props.index - The index of the sample.
- * @param {import("../api/Types.mjs").SampleSummary} props.sample - The sample.
+ * @param {import("../api/Types.ts").SampleSummary} props.sample - The sample.
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
  * @param {number} props.height - The height of the sample row.
  * @param {boolean} props.selected - Whether the sample is selected.

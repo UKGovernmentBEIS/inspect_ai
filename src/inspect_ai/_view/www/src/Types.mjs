@@ -7,7 +7,7 @@
 /**
  * @typedef {Object} CurrentLog
  * @property {string} name
- * @property {import("./api/Types.mjs").EvalSummary} contents
+ * @property {import("./api/Types.ts").EvalSummary} contents
  */
 
 /**

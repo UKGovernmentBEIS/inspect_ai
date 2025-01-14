@@ -13,8 +13,8 @@ import { scoreFilterItems } from "../samples/tools/filters.mjs";
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
- * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
  * @param {import("../samples/SamplesDescriptor.mjs").EvalDescriptor} [props.evalDescriptor] - The EvalDescriptor
+ * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
  * @param {string} [props.status] - the status
  * @param {Map<string, string>} [props.style] - is this off canvas
  *

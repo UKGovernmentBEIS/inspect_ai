@@ -1,6 +1,4 @@
-// @ts-check
-
-export const asyncJsonParse = async (text) => {
+export const asyncJsonParse = async (text: string): Promise<any> => {
   const encoder = new TextEncoder();
   const encodedText = encoder.encode(text);
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
