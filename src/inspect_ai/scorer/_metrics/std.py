@@ -47,12 +47,18 @@ def bootstrap_stderr(
     return metric
 
 
+class InhomogenousClustersError(ValueError):
+    pass
+
+
 @metric
 def stderr(
     num_samples: int = 1000, to_float: ValueToFloat = value_to_float()
 ) -> Metric:
-    """Standard error of the mean using hierarchical bootstrap. This takes into account variation
-    both accross ``ReducedScore``s (questions) and within each ``ReducedScore`` (accross epochs).
+    """Standard error of the mean using hierarchical bootstrap.
+
+    This takes into account variation both accross ``ReducedScore``s (questions)
+    and within each ``ReducedScore`` (accross epochs).
 
     The former corresponds to imprecision in our estimate due to the finite number of benchmark
     questions (which we can think of as drawn from a hypothetical super-population). The latter
@@ -81,7 +87,13 @@ def stderr(
             values = [to_float(child.value) for child in score.children]
             fscores.append(values)
 
-        bootstrap_means = hierarchical_bootstrap(fscores, num_samples=num_samples)
+        try:
+            bootstrap_means = hierarchical_bootstrap(fscores, num_samples=num_samples)
+        except InhomogenousClustersError:
+            # Sometimes Inspect wants to score an eval while it's still running, so this function
+            # will be called with clusters of different sizes. Handling this case is left for
+            # future work. For now just make sure we don't raise.
+            return float("nan")
         stderr = np.std(bootstrap_means)
         return cast(float, stderr)
 
@@ -91,8 +103,8 @@ def stderr(
 def hierarchical_bootstrap(
     scores: list[list[float]], num_samples: int = 1000, random_state: int = None
 ) -> np.ndarray:
-    """
-    Efficient implementation of hierarchical bootstrap using vectorized operations.
+    """Efficient implementation of hierarchical bootstrap using vectorized operations.
+
     See tests for a more readable counterpart using loops, ``readable_hierarchical_bootstrap``.
 
     Implements hierarchical bootstrap with two levels: resample clusters, then resample members
@@ -101,7 +113,10 @@ def hierarchical_bootstrap(
     """
     rng = np.random.default_rng(random_state)
 
-    scores_array = np.array(scores)  # Shape: (n_clusters, n_members)
+    try:
+        scores_array = np.array(scores)  # Shape: (n_clusters, n_members)
+    except ValueError:
+        raise InhomogenousClustersError()
     n_clusters, n_members = scores_array.shape
 
     # Generate all random indices at once
