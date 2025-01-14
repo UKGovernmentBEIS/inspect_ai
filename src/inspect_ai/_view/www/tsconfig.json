@@ -1,10 +1,28 @@
 {
-    "compilerOptions": {
-      "checkJs": true,
-      "target": "es5", // or a different target that suits your needs
-      "downlevelIteration": true,
-      "lib": ["es2019", "dom"], // Add "es2017" or later
-      "esModuleInterop": true
-    },
-    "exclude": ["**/*.mjs"]
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react", // Default to React for TypeScript files
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowJs": true, // Allow JavaScript files
+    "checkJs": true, // Type check JavaScript files
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "react": ["./node_modules/preact/compat/"],
+      "react-dom": ["./node_modules/preact/compat/"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
 }
