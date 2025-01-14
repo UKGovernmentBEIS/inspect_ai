@@ -434,7 +434,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
         # return container connection
-
         if container:
             ports_result = await subprocess(
                 [
