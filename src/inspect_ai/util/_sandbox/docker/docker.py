@@ -8,7 +8,7 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai.util._subprocess import ExecResult
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
     HostMapping,
@@ -434,13 +434,28 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         )
 
         # return container connection
+
         if container:
+            ports_result = await subprocess(
+                [
+                    "docker",
+                    "inspect",
+                    container,
+                    "--format",
+                    "{{json .NetworkSettings.Ports}}",
+                ]
+            )
+
+            if not ports_result.success:
+                raise RuntimeError(ports_result.stderr)
+
             return SandboxConnection(
                 command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
+                port_mappings=parse_docker_inspect_ports(ports_result.stdout),
             )
         # error (not currently running)
         else:
