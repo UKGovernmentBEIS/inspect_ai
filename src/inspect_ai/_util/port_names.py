@@ -7,10 +7,10 @@ def get_service_by_port(port: int, protocol: Literal["tcp", "udp"]) -> str | Non
 
     Args:
         port (int): The port number to look up
-        protocol (str): Either 'tcp' or 'udp' (defaults to 'tcp')
+        protocol (str): Either 'tcp' or 'udp'
 
     Returns:
-        str: Description of the likely service, or 'Unknown' if not found
+        str: Description of the likely service, or None if not found
     """
     # Common port mappings based on IANA assignments and common usage
     port_mappings = {
