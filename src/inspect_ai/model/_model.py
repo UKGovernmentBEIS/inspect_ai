@@ -392,7 +392,13 @@ class Model:
             # raise error
             if isinstance(output, Exception):
                 complete(output, call)
-                raise output
+
+                # Wrap the error in a runtime error which will show the
+                # request which caused the error
+                error = repr(output)
+                request = json.dumps(call.request, indent=2) if call is not None else ""
+                error_message = f"{error}\n\nRequest:\n{request}"
+                raise RuntimeError(error_message)
 
             # update output with time elapsed
             output.time = time_elapsed
