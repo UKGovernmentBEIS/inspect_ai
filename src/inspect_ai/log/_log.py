@@ -352,7 +352,7 @@ class EvalResults(BaseModel):
         """Scorer used to compute results (deprecated)."""
         warn_once(
             logger,
-            "The 'scorer' field is deprecated. Use 'scorers' instead.",
+            "The 'scorer' field is deprecated. Use 'scores' instead.",
         )
         return self.scores[0] if self.scores else None
 
@@ -361,7 +361,7 @@ class EvalResults(BaseModel):
         """Metrics computed (deprecated)."""
         warn_once(
             logger,
-            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead.",
+            "The 'metrics' field is deprecated. Access metrics through 'scores' instead.",
         )
         return self.scores[0].metrics if self.scores else {}
 
