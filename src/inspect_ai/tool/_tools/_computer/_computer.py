@@ -1,6 +1,6 @@
 from typing import Awaitable, Callable
 
-from inspect_ai.tool import Tool, ToolError, ToolResult, tool
+from inspect_ai.tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool import ToolParsingError
 
 from . import _common as common
