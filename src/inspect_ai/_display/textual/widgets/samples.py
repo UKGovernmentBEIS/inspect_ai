@@ -11,11 +11,11 @@ from textual.widget import Widget
 from textual.widgets import Button, Collapsible, LoadingIndicator, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
+from inspect_ai._display.textual.widgets.port_mappings import PortMappingsView
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
-from inspect_ai.util._sandbox.environment import PortMapping
 
 from .clock import Clock
 from .transcript import TranscriptView
@@ -319,7 +319,7 @@ class SandboxesView(Vertical):
                     item
                     for sandbox in sample.sandboxes.values()
                     for item in [Static(sandbox.command)]
-                    + create_port_mapping_statics(sandbox.ports)
+                    + [PortMappingsView(sandbox.ports)]
                     + [
                         Static(
                             "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
@@ -331,20 +331,6 @@ class SandboxesView(Vertical):
             )
         else:
             self.display = False
-
-
-def create_port_mapping_statics(
-    port_mappings: list[PortMapping] | None,
-) -> list[Static]:
-    if port_mappings is None:
-        return []
-    return [
-        Static(
-            f"{host_mapping.host_ip}:{host_mapping.host_port} => {mapping.container_port}"
-        )
-        for mapping in port_mappings
-        for host_mapping in mapping.mappings
-    ]
 
 
 class SampleToolbar(Horizontal):
