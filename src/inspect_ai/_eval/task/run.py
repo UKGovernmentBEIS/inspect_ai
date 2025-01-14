@@ -4,6 +4,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
@@ -534,11 +535,6 @@ async def task_run_sample(
         else contextlib.nullcontext()
     )
 
-    # use timeout if provided
-    timeout_cm = (
-        timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
-    )
-
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> EvalError:
         err = sample_error(ex)
@@ -568,8 +564,18 @@ async def task_run_sample(
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
 
+                    # initialise timeout context manager
+                    timeout_cm = (
+                        timeout(time_limit)
+                        if time_limit is not None
+                        else contextlib.nullcontext()
+                    )
+
                     # run sample w/ optional timeout
                     async with timeout_cm:
+                        # mark started
+                        active.started = datetime.now().timestamp()
+
                         # sample init event (remove file bodies as they have content or absolute paths)
                         event_sample = sample.model_copy(
                             update=dict(files={k: "" for k in sample.files.keys()})
