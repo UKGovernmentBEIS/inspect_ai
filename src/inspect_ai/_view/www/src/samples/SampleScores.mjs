@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 /**
  * @param {Object} props
- * @param {import("../api/Types.mjs").SampleSummary} props.sample
+ * @param {import("../api/Types.ts").SampleSummary} props.sample
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor
  * @param {string} props.scorer
  * @returns {import("preact").JSX.Element}

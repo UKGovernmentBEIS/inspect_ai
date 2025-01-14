@@ -1,6 +1,7 @@
-//@ts-check
-import { asyncJsonParse } from "../utils/Json.mjs";
-import { download_file } from "./api-shared.mjs";
+import { Capabilities } from "../Types.mjs";
+import { asyncJsonParse } from "../utils/json-worker";
+import { download_file } from "./api-shared";
+import { LogContents, LogViewAPI } from "./Types";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
@@ -18,25 +19,29 @@ async function eval_logs() {
   return logs.parsed;
 }
 
-async function eval_log(file, headerOnly) {
+async function eval_log(
+  file: string,
+  headerOnly?: number,
+  _capabilities?: Capabilities,
+): Promise<LogContents> {
   return await api(
     "GET",
     `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
   );
 }
 
-async function eval_log_size(file) {
+async function eval_log_size(file: string): Promise<number> {
   return (await api("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
 }
 
-async function eval_log_bytes(file, start, end) {
+async function eval_log_bytes(file: string, start: number, end: number) {
   return await api_bytes(
     "GET",
     `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`,
   );
 }
 
-async function eval_log_headers(files) {
+async function eval_log_headers(files: string[]) {
   const params = new URLSearchParams();
   for (const file of files) {
     params.append("file", file);
@@ -44,9 +49,13 @@ async function eval_log_headers(files) {
   return (await api("GET", `/api/log-headers?${params.toString()}`)).parsed;
 }
 
-async function api(method, path, body) {
+async function api(
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: string,
+) {
   // build headers
-  const headers = {
+  const headers: HeadersInit = {
     Accept: "application/json",
     Pragma: "no-cache",
     Expires: "0",
@@ -73,9 +82,12 @@ async function api(method, path, body) {
   }
 }
 
-async function api_bytes(method, path) {
+async function api_bytes(
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+) {
   // build headers
-  const headers = {
+  const headers: HeadersInit = {
     Accept: "application/octet-stream",
     Pragma: "no-cache",
     Expires: "0",
@@ -100,8 +112,7 @@ async function open_log_file() {
   // No op
 }
 
-/** @type {import("./Types.mjs").LogViewAPI} */
-export default {
+const browserApi: LogViewAPI = {
   client_events,
   eval_logs,
   eval_log,
@@ -111,3 +122,4 @@ export default {
   download_file,
   open_log_file,
 };
+export default browserApi;

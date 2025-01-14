@@ -1,0 +1,325 @@
+//@ts-check
+import { asyncJsonParse } from "../utils/json-worker";
+import { download_file } from "./api-shared";
+import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
+import {
+  Capabilities,
+  LogContents,
+  LogFiles,
+  LogFilesFetchResponse,
+  LogViewAPI,
+} from "./Types";
+import { EvalLog } from "../types/log";
+
+interface LogInfo {
+  log_dir?: string;
+  log_file?: string;
+}
+
+/**
+ * This provides an API implementation that will serve a single
+ * file using an http parameter, designed to be deployed
+ * to a webserver without inspect or the ability to enumerate log
+ * files
+ */
+export default function simpleHttpApi(
+  log_dir?: string,
+  log_file?: string,
+): LogViewAPI {
+  const resolved_log_dir = log_dir?.replace(" ", "+");
+  const resolved_log_path = log_file ? log_file.replace(" ", "+") : undefined;
+  return simpleHttpAPI({
+    log_file: resolved_log_path,
+    log_dir: resolved_log_dir,
+  });
+}
+
+/**
+ * Fetches a file from the specified URL and parses its content.
+ */
+function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
+  const log_file = logInfo.log_file;
+  const log_dir = logInfo.log_dir;
+
+  // Use a cache for the single file case
+  // since we just use the log file that we already read
+  const cache = log_file_cache(log_file);
+
+  async function open_log_file() {
+    // No op
+  }
+  return {
+    client_events: async () => {
+      // There are no client events in the case of serving via
+      // http
+      return Promise.resolve([]);
+    },
+    eval_logs: async (): Promise<LogFiles> => {
+      // First check based upon the log dir
+      if (log_dir) {
+        const headers = await fetchLogHeaders(log_dir);
+        if (headers) {
+          const logRecord = headers.parsed;
+          const logs = Object.keys(logRecord).map((key) => {
+            return {
+              name: joinURI(log_dir, key),
+              task: logRecord[key].eval.task,
+              task_id: logRecord[key].eval.task_id,
+            };
+          });
+          return Promise.resolve({
+            files: logs,
+            log_dir,
+          });
+        }
+      }
+
+      // Now try using the log_file
+      if (log_file) {
+        // Check the cache
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          if (response) {
+            cache.set(response.parsed);
+            evalLog = response.parsed;
+          }
+        }
+
+        if (!evalLog) {
+          throw new Error(`Unable to load log ${log_file} - unknown error.`);
+        }
+
+        // Since no log directory manifest was found, just use
+        // the log file to generate a single file manifest
+        const result = {
+          name: log_file,
+          task: evalLog.eval.task,
+          task_id: evalLog.eval.task_id,
+        };
+
+        return {
+          files: [result],
+          log_dir,
+        };
+      }
+
+      // No log.json could be found, and there isn't a log file,
+      throw new Error(
+        `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,
+      );
+    },
+    eval_log: async (
+      log_file: string,
+      _headerOnly?: number,
+      _capabilities?: Capabilities,
+    ) => {
+      const response = await fetchLogFile(log_file);
+      if (response) {
+        cache.set(response.parsed);
+        return response;
+      } else {
+        throw new Error(`"Unable to load eval log ${log_file}`);
+      }
+    },
+    eval_log_size: async (log_file: string) => {
+      return await fetchSize(log_file);
+    },
+    eval_log_bytes: async (log_file: string, start: number, end: number) => {
+      return await fetchRange(log_file, start, end);
+    },
+    eval_log_headers: async (files: string[]) => {
+      if (log_dir) {
+        const headers = await fetchLogHeaders(log_dir);
+        if (headers) {
+          const keys = Object.keys(headers.parsed);
+          const result: EvalLog[] = [];
+          files.forEach((file) => {
+            const fileKey = keys.find((key) => {
+              return file.endsWith(key);
+            });
+            if (fileKey) {
+              result.push(headers.parsed[fileKey]);
+            }
+          });
+          return result;
+        }
+      }
+
+      if (log_file) {
+        // Check the cache
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          if (response) {
+            cache.set(response.parsed);
+            evalLog = response.parsed;
+            return [evalLog];
+          }
+        }
+      }
+      // No log.json could be found, and there isn't a log file,
+      throw new Error(
+        `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,
+      );
+    },
+    download_file,
+    open_log_file,
+  };
+}
+
+/**
+ * Fetches a file from the specified URL and parses its content.
+ */
+async function fetchFile<T>(
+  url: string,
+  parse: (text: string) => Promise<T>,
+  handleError?: (response: Response) => boolean,
+): Promise<T | undefined> {
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  if (response.ok) {
+    const text = await response.text();
+    return await parse(text);
+  } else if (response.status !== 200) {
+    if (handleError && handleError(response)) {
+      return undefined;
+    }
+    const message = (await response.text()) || response.statusText;
+    const error = new Error(`${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+
+/**
+ * Fetches a log file and parses its content, updating the log structure if necessary.
+ */
+const fetchLogFile = async (file: string): Promise<LogContents | undefined> => {
+  return fetchFile<LogContents>(file, async (text): Promise<LogContents> => {
+    const log = (await asyncJsonParse(text)) as EvalLog;
+    if (log.version === 1) {
+      if (log.results) {
+        const untypedLog = log as any;
+        log.results.scores = [];
+        untypedLog.results.scorer.scorer = untypedLog.results.scorer.name;
+        log.results.scores.push(untypedLog.results.scorer);
+        delete untypedLog.results.scorer;
+        log.results.scores[0].metrics = untypedLog.results.metrics;
+        delete untypedLog.results.metrics;
+
+        // migrate samples
+        const scorerName = log.results.scores[0].name;
+        log.samples?.forEach((sample) => {
+          const untypedSample = sample as any;
+          sample.scores = { [scorerName]: untypedSample.score };
+          delete untypedSample.score;
+        });
+      }
+    }
+    return {
+      raw: text,
+      parsed: log,
+    };
+  });
+};
+
+/**
+ * Fetches a log file and parses its content, updating the log structure if necessary.
+ */
+const fetchLogHeaders = async (
+  log_dir: string,
+): Promise<LogFilesFetchResponse | undefined> => {
+  const logs = await fetchFile<LogFilesFetchResponse>(
+    log_dir + "/logs.json",
+    async (text) => {
+      const parsed = await asyncJsonParse(text);
+      return {
+        raw: text,
+        parsed,
+      };
+    },
+    (response) => {
+      if (response.status === 404) {
+        // Couldn't find a header file
+        return true;
+      } else {
+        return false;
+      }
+    },
+  );
+  return logs;
+};
+
+/**
+ * Joins multiple URI segments into a single URI string.
+ *
+ * This function removes any leading or trailing slashes from each segment
+ * and then joins them with a single slash (`/`).
+ */
+function joinURI(...segments: string[]): string {
+  return segments
+    .map((segment) => segment.replace(/(^\/+|\/+$)/g, "")) // Remove leading/trailing slashes from each segment
+    .join("/");
+}
+
+/**
+ * Creates a cache mechanism for a log file. If no log file is provided,
+ * a no-op cache is returned. Otherwise, it allows caching of a single log file.
+ */
+const log_file_cache = (log_file?: string) => {
+  // Use a no-op cache for non-single file
+  // cases
+  if (!log_file) {
+    return {
+      set: () => {},
+      get: () => {
+        return undefined;
+      },
+    };
+  }
+
+  // For a single file request, cache the log file request
+  let cache_file: EvalLog | undefined;
+  return {
+    set: (eval_log: EvalLog) => {
+      cache_file = eval_log;
+    },
+    get: () => {
+      return cache_file;
+    },
+  };
+};
+
+/**
+ * Encodes the path segments of a URL or relative path to ensure special characters
+ * (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
+ *
+ * This function will encode file names and path portions of both absolute URLs and
+ * relative paths. It ensures that components of a full URL, such as the protocol and
+ * query parameters, remain intact, while only encoding the path.
+ */
+function encodePathParts(url: string): string {
+  if (!url) return url; // Handle empty strings
+
+  try {
+    // Parse a full Uri
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+    return fullUrl.toString();
+  } catch {
+    // This is a relative path that isn't parseable as Uri
+    return url
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+  }
+}
