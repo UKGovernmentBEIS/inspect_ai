@@ -37,7 +37,7 @@ import {
   createSamplesDescriptor,
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
-import { resolveAttachments } from "./utils/attachments.mjs";
+import { resolveAttachments } from "./utils/attachments";
 import { filterSamples } from "./samples/tools/filters.mjs";
 
 import {
