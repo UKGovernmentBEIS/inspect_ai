@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from shortuuid import uuid
 from typing_extensions import Unpack
@@ -9,7 +9,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
-from inspect_ai._util.constants import DEFAULT_DISPLAY, DEFAULT_LOG_FORMAT
+from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.logger import warn_once
@@ -834,7 +834,7 @@ def init_eval_display(
         display = "conversation"
 
     # apply default and init
-    display = display or cast(DisplayType, DEFAULT_DISPLAY)
+    display = display or display_type()
     init_display_type(display)
 
     # adapt task/samples as required if we are in conversation mode
