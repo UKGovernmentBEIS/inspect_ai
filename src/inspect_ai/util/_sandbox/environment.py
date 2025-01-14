@@ -28,6 +28,17 @@ SampleCleanup = Callable[
 ]
 
 
+class HostMapping(BaseModel):
+    host_ip: str
+    host_port: int
+
+
+class PortMapping(BaseModel):
+    container_port: int
+    protocol: Literal["tcp", "udp"]
+    mappings: list[HostMapping]
+
+
 class SandboxConnection(BaseModel):
     """Information required to connect to sandbox."""
 
@@ -36,6 +47,9 @@ class SandboxConnection(BaseModel):
 
     vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
+
+    port_mappings: list[PortMapping] | None = Field(default=None)
+    """Optional list of port mappings into container"""
 
 
 class SandboxEnvironment(abc.ABC):
