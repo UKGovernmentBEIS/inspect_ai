@@ -5,7 +5,7 @@ import { isNumeric } from "../../utils/Type.mjs";
  * Gets a filter function for the specified type
  *
  * @param {import("../../Types.mjs").ScoreFilter} filter - The parameters for the component.
- * @returns {(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.mjs").SampleSummary, value: string) => boolean | undefined} the function
+ * @returns {(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean | undefined} the function
  */
 export const filterFnForType = (filter) => {
   if (filter.type) {
@@ -16,7 +16,7 @@ export const filterFnForType = (filter) => {
 };
 
 /**
- * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.mjs").SampleSummary, value: string) => boolean}
+ * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean}
  */
 const filterCategory = (descriptor, sample, value) => {
   const score = descriptor.selectedScore(sample);
@@ -30,7 +30,7 @@ const filterCategory = (descriptor, sample, value) => {
 };
 
 /**
- * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.mjs").SampleSummary, value: string) => boolean}
+ * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean}
  */
 const filterText = (descriptor, sample, value) => {
   const score = descriptor.selectedScore(sample);

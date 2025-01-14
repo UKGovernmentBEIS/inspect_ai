@@ -1,7 +1,4 @@
-//@ts-check
-
-import { asyncJsonParse } from "../utils/Json.mjs";
-// @ts-ignore
+import { asyncJsonParse } from "../utils/json-worker";
 import JSON5 from "json5";
 
 import {
@@ -11,8 +8,9 @@ import {
   kMethodEvalLogSize,
   kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
-} from "./jsonrpc.mjs";
-import { getVscodeApi } from "../utils/vscode.mjs";
+} from "./jsonrpc";
+import { getVscodeApi } from "../utils/vscode";
+import { Capabilities, LogContents, LogViewAPI } from "./Types";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
@@ -38,8 +36,12 @@ async function eval_logs() {
   }
 }
 
-async function eval_log(file, headerOnly, capabilities) {
-  const response = await vscodeClient(kMethodEvalLog, [file, headerOnly]);
+async function eval_log(
+  log_file: string,
+  headerOnly?: number,
+  capabilities?: Capabilities,
+): Promise<LogContents> {
+  const response = await vscodeClient(kMethodEvalLog, [log_file, headerOnly]);
   if (response) {
     let json;
     if (capabilities?.webWorkers) {
@@ -52,19 +54,19 @@ async function eval_log(file, headerOnly, capabilities) {
       raw: response,
     };
   } else {
-    return undefined;
+    throw new Error(`Unable to load eval log ${log_file}.`);
   }
 }
 
-async function eval_log_size(file) {
-  return await vscodeClient(kMethodEvalLogSize, [file]);
+async function eval_log_size(log_file: string) {
+  return await vscodeClient(kMethodEvalLogSize, [log_file]);
 }
 
-async function eval_log_bytes(file, start, end) {
-  return await vscodeClient(kMethodEvalLogBytes, [file, start, end]);
+async function eval_log_bytes(log_file: string, start: number, end: number) {
+  return await vscodeClient(kMethodEvalLogBytes, [log_file, start, end]);
 }
 
-async function eval_log_headers(files) {
+async function eval_log_headers(files: string[]) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
     return JSON5.parse(response);
@@ -77,17 +79,16 @@ async function download_file() {
   throw Error("Downloading files is not supported in VS Code");
 }
 
-async function open_log_file(url, log_dir) {
+async function open_log_file(log_file: string, log_dir: string) {
   const msg = {
     type: "displayLogFile",
-    url: url,
+    url: log_file,
     log_dir: log_dir,
   };
-  getVscodeApi().postMessage(msg);
+  getVscodeApi()?.postMessage(msg);
 }
 
-/** @type {import("./Types.mjs").LogViewAPI} */
-export default {
+const api: LogViewAPI = {
   client_events,
   eval_logs,
   eval_log,
@@ -97,3 +98,5 @@ export default {
   download_file,
   open_log_file,
 };
+
+export default api;

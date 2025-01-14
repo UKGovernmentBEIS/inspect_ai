@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import api from "../api/index.mjs";
+import api from "../api/index";
 import { FontSize } from "../appearance/Fonts.mjs";
 
 export const DownloadButton = ({ label, fileName, fileContents }) => {

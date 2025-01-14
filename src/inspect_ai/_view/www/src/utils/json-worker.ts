@@ -1,6 +1,4 @@
-// @ts-check
-
-export const asyncJsonParse = async (text) => {
+export const asyncJsonParse = async (text: string): Promise<any> => {
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
   const blobURL = URL.createObjectURL(blob);
   const worker = new Worker(blobURL);
