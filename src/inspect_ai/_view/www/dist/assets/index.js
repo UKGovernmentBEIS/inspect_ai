@@ -16527,7 +16527,7 @@ ${entry.value}</pre
     };
     const MessageBand = ({ message, hidden, setHidden, type }) => {
       const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
-      const color = "var(--bs-" + (type === "info" ? "secondary" : type) + "-text-emphasis)";
+      const color = type === "info" ? void 0 : "var(--bs-" + type + "-text-emphasis)";
       return m$1`
     <div
       style=${{
@@ -16550,7 +16550,7 @@ ${entry.value}</pre
         fontSize: FontSize["title-secondary"],
         margin: "0",
         padding: "0",
-        color: "var(--bs-" + type + "-text-emphasis)",
+        color,
         height: FontSize["title-secondary"],
         lineHeight: FontSize["title-secondary"]
       }}
