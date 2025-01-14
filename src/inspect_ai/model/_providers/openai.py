@@ -316,8 +316,9 @@ class OpenAIAPI(ModelAPI):
                 content = e.message
 
             # narrow stop_reason
+            stop_reason: StopReason | None = None
             if e.code == "context_length_exceeded":
-                stop_reason: StopReason | None = "model_length"
+                stop_reason = "model_length"
             elif e.code == "invalid_prompt":
                 stop_reason = "content_filter"
 
