@@ -45,7 +45,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import active_sample
+from inspect_ai.log._samples import active_sample, set_active_sample_token_limit
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -72,6 +72,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -630,6 +631,19 @@ async def task_run_sample(
                     else:
                         raise
 
+                except SampleLimitExceededError as ex:
+                    # sample limit event
+                    transcript()._event(
+                        SampleLimitEvent(
+                            type=ex.type,
+                            limit=ex.limit,
+                            message=f"Sample completed: {ex.message}",
+                        )
+                    )
+
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+
                 except BaseException as ex:
                     error = handle_error(ex)
 
@@ -647,6 +661,9 @@ async def task_run_sample(
                     else:
                         assert time_limit
                         timeout_cm = timeout(time_limit / 2)
+
+                # turn off sample limits
+                set_active_sample_token_limit(None)
 
                 # scoring
                 try:

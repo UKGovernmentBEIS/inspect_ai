@@ -189,9 +189,7 @@ class TaskState:
         """
 
         self._message_limit = message_limit
-        self._message_limit_exceeded = False
         self._token_limit = token_limit
-        self._token_limit_exceeded = False
         self._completed = completed
 
         """Store for shared data"""
@@ -300,40 +298,7 @@ class TaskState:
     @property
     def completed(self) -> bool:
         """Is the task completed."""
-        # update messages
-        from inspect_ai.log._samples import set_active_sample_total_messages
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-
-        set_active_sample_total_messages(len(self.messages))
-
-        if self._completed:
-            return True
-        elif self.message_limit and len(self.messages) >= self.message_limit:
-            # log if this is the first time we hit this
-            if not self._message_limit_exceeded:
-                self._message_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="message",
-                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
-                        limit=self.message_limit,
-                    )
-                )
-            return True
-        elif self.token_limit and self.token_usage >= self.token_limit:
-            # log if this is the first time we hit this
-            if not self._token_limit_exceeded:
-                self._token_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="token",
-                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
-                        limit=self.token_limit,
-                    )
-                )
-            return True
-        else:
-            return False
+        return self._completed
 
     @completed.setter
     def completed(self, completed: bool) -> None:
