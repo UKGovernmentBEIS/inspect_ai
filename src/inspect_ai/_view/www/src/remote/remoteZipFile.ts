@@ -1,72 +1,60 @@
-//@ts-check
-import { decompress } from "fflate";
+import { AsyncInflateOptions, decompress } from "fflate";
 
-/**
- * @typedef {Object} ZipFileEntry
- * @property {number} versionNeeded - The minimum version needed to extract the ZIP entry.
- * @property {number} bitFlag - The general purpose bit flag of the ZIP entry.
- * @property {number} compressionMethod - The compression method used for the ZIP entry.
- * @property {number} crc32 - The CRC-32 checksum of the uncompressed data.
- * @property {number} compressedSize - The size of the compressed data in bytes.
- * @property {number} uncompressedSize - The size of the uncompressed data in bytes.
- * @property {number} filenameLength - The length of the filename in bytes.
- * @property {number} extraFieldLength - The length of the extra field in bytes.
- * @property {Uint8Array} data - The compressed data for the ZIP entry.
- */
+export interface ZipFileEntry {
+  versionNeeded: number;
+  bitFlag: number;
+  compressionMethod: number;
+  crc32: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  filenameLength: number;
+  extraFieldLength: number;
+  data: Uint8Array;
+}
 
-/**
- * @typedef {Object} CentralDirectoryEntry
- * @property {string} filename - The name of the file in the ZIP archive.
- * @property {number} compressionMethod - The compression method used for the file.
- * @property {number} compressedSize - The size of the compressed file in bytes.
- * @property {number} uncompressedSize - The size of the uncompressed file in bytes.
- * @property {number} fileOffset - The offset of the file's data in the ZIP archive.
- */
+export interface CentralDirectoryEntry {
+  filename: string;
+  compressionMethod: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  fileOffset: number;
+}
 
 /**
  * Represents an error thrown when a file exceeds the maximum allowed size.
- *
- * @class
- * @extends {Error}
  */
 export class FileSizeLimitError extends Error {
-  /**
-   * Creates a new FileSizeLimitError.
-   *
-   * @param {string} file - The name of the file that caused the error.
-   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
-   */
-  constructor(file, maxBytes) {
+  public readonly file: string;
+  public readonly maxBytes: number;
+
+  constructor(file: string, maxBytes: number) {
     super(
       `File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`,
     );
     this.name = "FileSizeLimitError";
     this.file = file;
     this.maxBytes = maxBytes;
+
+    Object.setPrototypeOf(this, FileSizeLimitError.prototype);
   }
 }
 
 /**
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory,
  * and provides a method to read files within the ZIP.
- *
- * @param {string} url - The URL of the remote ZIP file.
- * @param {(url: string) => Promise<number>} [fetchContentLength] - Optional function to compute the content length of the remote file.
- * @param {(url: string, start: number, end: number) => Promise<Uint8Array>} [fetchBytes] - Optional function to fetch a range of bytes from the remote file.
- * @returns {Promise<{
- *   centralDirectory: Map<string, CentralDirectoryEntry>,
- *   readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>
- * }>} A promise that resolves with an object containing:
- *   - `centralDirectory`: A map where keys are filenames and values are their corresponding central directory entries.
- *   - `readFile`: A function to read a specific file from the ZIP archive by name.
- *                  Takes the filename and an optional maximum byte length to read.
- * @throws {Error} If the file is not found or if an unsupported compression method is encountered.
  */
 export const openRemoteZipFile = async (
-  url,
-  fetchContentLength = fetchSize,
-  fetchBytes = fetchRange,
-) => {
+  url: string,
+  fetchContentLength: (url: string) => Promise<number> = fetchSize,
+  fetchBytes: (
+    url: string,
+    start: number,
+    end: number,
+  ) => Promise<Uint8Array> = fetchRange,
+): Promise<{
+  centralDirectory: Map<string, CentralDirectoryEntry>;
+  readFile: (file: string, maxBytes?: number) => Promise<Uint8Array>;
+}> => {
   const contentLength = await fetchContentLength(url);
 
   // Read the end of central directory record
@@ -89,7 +77,7 @@ export const openRemoteZipFile = async (
   const centralDirectory = parseCentralDirectory(centralDirBuffer);
   return {
     centralDirectory: centralDirectory,
-    readFile: async (file, maxBytes) => {
+    readFile: async (file, maxBytes): Promise<Uint8Array> => {
       const entry = centralDirectory.get(file);
       if (!entry) {
         throw new Error(`File not found: ${file}`);
@@ -142,7 +130,7 @@ export const openRemoteZipFile = async (
   };
 };
 
-export const fetchSize = async (url) => {
+export const fetchSize = async (url: string): Promise<number> => {
   const response = await fetch(`${url}`, { method: "HEAD" });
   const contentLength = Number(response.headers.get("Content-Length"));
   return contentLength;
@@ -150,14 +138,12 @@ export const fetchSize = async (url) => {
 
 /**
  * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.
- *
- * @param {string} url - The URL of the remote resource to fetch.
- * @param {number} start - The starting byte position of the range to fetch.
- * @param {number} end - The ending byte position of the range to fetch.
- * @returns {Promise<Uint8Array>} A promise that resolves to a `Uint8Array` containing the fetched byte range.
- * @throws {Error} If there is an issue with the network request.
  */
-export const fetchRange = async (url, start, end) => {
+export const fetchRange = async (
+  url: string,
+  start: number,
+  end: number,
+): Promise<Uint8Array> => {
   const response = await fetch(`${url}`, {
     headers: { Range: `bytes=${start}-${end}` },
   });
@@ -167,13 +153,11 @@ export const fetchRange = async (url, start, end) => {
 
 /**
  * Asynchronously decompresses the provided data using the specified options.
- *
- * @param {Uint8Array} data - The compressed data to be decompressed.
- * @param {Object} opts - Options to configure the decompression process.
- * @returns {Promise<Uint8Array>} A promise that resolves with the decompressed data.
- * @throws {Error} If an error occurs during decompression, the promise is rejected with the error.
  */
-const decompressAsync = async (data, opts) => {
+const decompressAsync = async (
+  data: Uint8Array,
+  opts: AsyncInflateOptions,
+): Promise<Uint8Array> => {
   return new Promise((resolve, reject) => {
     decompress(data, opts, (err, result) => {
       if (err) {
@@ -187,13 +171,11 @@ const decompressAsync = async (data, opts) => {
 
 /**
  * Extracts and parses the header and data of a compressed ZIP entry from raw binary data.
- *
- * @param {string} file - The name of the file stream to be parsed
- * @param {Uint8Array} rawData - The raw binary data containing the ZIP entry.
- * @returns {Promise<ZipFileEntry>} A promise that resolves to an object containing the ZIP entry's header information and compressed data.
- * @throws {Error} If the ZIP entry signature is invalid.
  */
-const parseZipFileEntry = async (file, rawData) => {
+const parseZipFileEntry = async (
+  file: string,
+  rawData: Uint8Array,
+): Promise<ZipFileEntry> => {
   // Parse ZIP entry header
   const view = new DataView(rawData.buffer);
   let offset = 0;
@@ -239,12 +221,10 @@ const parseZipFileEntry = async (file, rawData) => {
 
 /**
  * Parses the central directory of a ZIP file from the provided buffer and returns a map of entries.
- *
- * @param {Uint8Array} buffer - The raw binary data containing the central directory of the ZIP archive.
- * @returns {Map<string, CentralDirectoryEntry>} A map where the key is the filename and the value is the corresponding central directory entry.
- * @throws {Error} If the buffer does not contain a valid central directory signature.
  */
-const parseCentralDirectory = (buffer) => {
+const parseCentralDirectory = (
+  buffer: Uint8Array,
+): Map<string, CentralDirectoryEntry> => {
   let offset = 0;
   const view = new DataView(buffer.buffer);
 
