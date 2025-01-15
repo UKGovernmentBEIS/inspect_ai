@@ -1,7 +1,7 @@
 //@ts-check
-import { openRemoteLogFile, RemoteLogFile } from "../log/remoteLogFile";
+import { openRemoteLogFile, RemoteLogFile } from "../remote/remoteLogFile";
+import { FileSizeLimitError } from "../remote/remoteZipFile.mjs";
 import { EvalLog, EvalSample } from "../types/log";
-import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
 import { ClientAPI, EvalSummary, LogContents, LogViewAPI } from "./Types";
 
 const isEvalFile = (file: string) => {
