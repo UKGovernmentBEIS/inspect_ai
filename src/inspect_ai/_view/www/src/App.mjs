@@ -24,15 +24,15 @@ import { ProgressBar } from "./components/ProgressBar.mjs";
 import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand.mjs";
-import { kDefaultSort } from "./constants.mjs";
+import { kDefaultSort } from "./constants";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "./samples/SamplesDescriptor.mjs";
+import { filterSamples } from "./samples/tools/filters";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
-import { resolveAttachments } from "./utils/attachments";
-import { filterSamples } from "./samples/tools/filters.mjs";
 import { Sidebar } from "./sidebar/Sidebar.mjs";
+import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 
@@ -41,7 +41,7 @@ import {
   kInfoWorkspaceTabId,
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
-} from "./constants.mjs";
+} from "./constants";
 
 /**
  * Renders the Main Application

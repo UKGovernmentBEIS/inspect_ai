@@ -8,7 +8,7 @@ import {
   kScoreTypeObject,
   kScoreTypeOther,
   kScoreTypePassFail,
-} from "../constants.mjs";
+} from "../constants";
 import {
   arrayToString,
   formatDecimalNoTrailingZeroes,

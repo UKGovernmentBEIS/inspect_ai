@@ -1,23 +1,22 @@
 import { compileExpression } from "filtrex";
-import { kScoreTypeBoolean } from "../../constants.mjs";
+import { SampleSummary } from "../../api/Types";
+import { kScoreTypeBoolean } from "../../constants";
+import { ScoreLabel } from "../../Types.mjs";
+import { Scores1 } from "../../types/log";
 import { inputString } from "../../utils/format";
+import { EvalDescriptor, ScoreDescriptor } from "../SamplesDescriptor.mjs";
 
-/**
- * @typedef {Object} FilterError
- * @property {number=} from - The start of the error.
- * @property {number=} to - The end of the error.
- * @property {string} message - The error message.
- * @property {"warning" | "error"} severity - The severity of the error.
- */
+export interface FilterError {
+  from: number;
+  to: number;
+  message: string;
+  severity: "warning" | "error";
+}
 
 /**
  * Coerces a value to the type expected by the score.
- *
- * @param {any} value
- * @param {import("../../samples/SamplesDescriptor.mjs").ScoreDescriptor} descriptor
- * @returns {any}
  */
-const coerceValue = (value, descriptor) => {
+const coerceValue = (value: unknown, descriptor: ScoreDescriptor): unknown => {
   if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
     return Boolean(value);
   } else {
@@ -25,24 +24,18 @@ const coerceValue = (value, descriptor) => {
   }
 };
 
-/**
- * @param {any} value
- * @returns {boolean}
- */
-const isFilteringSupportedForValue = (value) =>
+// Whether a particular value is filter-able
+const isFilteringSupportedForValue = (value: unknown): boolean =>
   ["string", "number", "boolean"].includes(typeof value);
 
 /**
  * Returns the names of scores that are not allowed to be used as short names in
  * filter expressions because they are not unique. This should be applied only to
  * the nested scores, not to the top-level scorer names.
- *
- * @param {import("../../Types.mjs").ScoreLabel[]} scores
- * @returns {Set<string>}
  */
-const bannedShortScoreNames = (scores) => {
-  const used = new Set();
-  const banned = new Set();
+const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
+  const used: Set<string> = new Set();
+  const banned: Set<string> = new Set();
   for (const { scorer, name } of scores) {
     banned.add(scorer);
     if (used.has(name)) {
@@ -64,15 +57,18 @@ const bannedShortScoreNames = (scores) => {
  * @param {import("../../types/log").Scores1} sampleScores
  * @returns {Object<string, any>}
  */
-const scoreVariables = (evalDescriptor, sampleScores) => {
+const scoreVariables = (
+  evalDescriptor: EvalDescriptor,
+  sampleScores: Scores1,
+) => {
   const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-  const variables = {};
+  const variables: Record<string, unknown> = {};
 
-  /**
-   * @param {import("../../Types.mjs").ScoreLabel} scoreLabel
-   * @param {any} value
-   */
-  const addScore = (variableName, scoreLabel, value) => {
+  const addScore = (
+    variableName: string,
+    scoreLabel: ScoreLabel,
+    value: unknown,
+  ) => {
     const coercedValue = coerceValue(
       value,
       evalDescriptor.scoreDescriptor(scoreLabel),
@@ -82,7 +78,7 @@ const scoreVariables = (evalDescriptor, sampleScores) => {
     }
   };
 
-  for (const [scorer, score] of Object.entries(sampleScores)) {
+  for (const [scorer, score] of Object.entries(sampleScores || {})) {
     addScore(scorer, { scorer, name: scorer }, score.value);
     if (typeof score.value === "object") {
       for (const [name, value] of Object.entries(score.value)) {
@@ -96,30 +92,27 @@ const scoreVariables = (evalDescriptor, sampleScores) => {
   return variables;
 };
 
-/**
- * @typedef {Object} ScoreFilterItem
- * @property {string | undefined} shortName - The short name of the score, if doesn't conflict with other short names.
- * @property {string | undefined} qualifiedName - The `scorer.score` name for children of complex scorers.
- * @property {string} canonicalName - The canonical name: either `shortName` or `qualifiedName` (at least one must exist).
- * @property {string} tooltip - The informational tooltip for the score.
- * @property {string[]} categories - Category values for categorical scores.
- * @property {string} scoreType - The type of the score (e.g., 'numeric', 'categorical', 'boolean').
- */
+interface ScoreFilterItem {
+  shortName?: string;
+  qualifiedName?: string;
+  canonicalName: string;
+  tooltip?: string;
+  categories: string[];
+  scoreType: string;
+}
 
 /**
  * Generates a dictionary of variables that can be used in the filter expression.
  * High-level scorer metrics can be accessed by name directly.
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
- *
- * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
- * @returns {ScoreFilterItem[]}
  */
-export const scoreFilterItems = (evalDescriptor) => {
-  /** @type {ScoreFilterItem[]} */
-  const items = [];
+export const scoreFilterItems = (
+  evalDescriptor: EvalDescriptor,
+): ScoreFilterItem[] => {
+  const items: ScoreFilterItem[] = [];
   const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-  const valueToString = (value) =>
+  const valueToString = (value: unknown) =>
     typeof value === "string" ? `"${value}"` : String(value);
 
   /**
@@ -127,8 +120,15 @@ export const scoreFilterItems = (evalDescriptor) => {
    * @param {string | undefined} qualifiedName
    * @param {import("../../Types.mjs").ScoreLabel} scoreLabel
    */
-  const addScore = (shortName, qualifiedName, scoreLabel) => {
+  const addScore = (
+    scoreLabel: ScoreLabel,
+    shortName?: string,
+    qualifiedName?: string,
+  ) => {
     const canonicalName = shortName || qualifiedName;
+    if (!canonicalName) {
+      throw new Error("Unable to create a canonical name for a score");
+    }
     const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
     const scoreType = descriptor?.scoreType;
     if (!descriptor) {
@@ -143,17 +143,20 @@ export const scoreFilterItems = (evalDescriptor) => {
       return;
     }
     var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
-    var categories = [];
+    var categories: string[] = [];
     if (descriptor.min !== undefined || descriptor.max !== undefined) {
-      const rounded = (num) => {
+      const rounded = (num: number) => {
         // Additional round-trip to remove trailing zeros.
         return parseFloat(num.toPrecision(3)).toString();
       };
-      tooltip += `\nrange: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
+      tooltip += `\nrange: ${rounded(descriptor.min || 0)} to ${rounded(descriptor.max || 0)}`;
     }
     if (descriptor.categories) {
-      tooltip += `\ncategories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
-      categories = descriptor.categories.map((cat) => valueToString(cat.val));
+      categories = descriptor.categories.map((cat) => {
+        const val = (cat as Record<string, unknown>).val;
+        return valueToString(val);
+      });
+      tooltip += `\ncategories: ${categories.join(" ")}`;
     }
     items.push({
       shortName,
@@ -170,29 +173,24 @@ export const scoreFilterItems = (evalDescriptor) => {
     const hasQualifiedName = name !== scorer;
     const shortName = hasShortName ? name : undefined;
     const qualifiedName = hasQualifiedName ? `${scorer}.${name}` : undefined;
-    addScore(shortName, qualifiedName, { name, scorer });
+    addScore({ name, scorer }, shortName, qualifiedName);
   }
   return items;
 };
 
-/**
- * TODO: Add case-insensitive string comparison.
- *
- * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
- * @param {import("../../api/Types.mjs").SampleSummary} sample
- * @param {string} filterValue
- * @returns {{matches: boolean, error: FilterError | undefined}}
- */
-export const filterExpression = (evalDescriptor, sample, filterValue) => {
+// TODO: Add case-insensitive string comparison.
+export const filterExpression = (
+  evalDescriptor: EvalDescriptor,
+  sample: SampleSummary,
+  filterValue: string,
+) => {
   try {
-    /** @type {(regex: string) => boolean} */
-    const inputContains = (regex) => {
+    const inputContains = (regex: string): boolean => {
       return inputString(sample.input).some((msg) =>
         msg.match(new RegExp(regex, "i")),
       );
     };
-    /** @type {(regex: string) => boolean} */
-    const targetContains = (regex) => {
+    const targetContains = (regex: string): boolean => {
       let targets = Array.isArray(sample.target)
         ? sample.target
         : [sample.target];
@@ -217,7 +215,8 @@ export const filterExpression = (evalDescriptor, sample, filterValue) => {
     }
   } catch (error) {
     if (error instanceof ReferenceError) {
-      const propertyName = error["propertyName"];
+      const errorObj = error as any as Record<string, unknown>;
+      const propertyName: string = (errorObj["propertyName"] as string) || "";
       if (propertyName) {
         const regex = new RegExp(`\\b${propertyName}\\b`);
         const match = regex.exec(filterValue);
@@ -234,14 +233,16 @@ export const filterExpression = (evalDescriptor, sample, filterValue) => {
         }
       }
     }
+
+    const message = error instanceof Error ? error.message : "";
     if (
-      error.message.startsWith("Parse error") ||
-      error.message.startsWith("Lexical error")
+      message.startsWith("Parse error") ||
+      message.startsWith("Lexical error")
     ) {
       // Filterex uses formatting like this:
       //   foo and
       //   ----^
-      const from = error.message.match(/^(-*)\^$/m)?.[1]?.length;
+      const from = message.match(/^(-*)\^$/m)?.[1]?.length;
       return {
         matches: false,
         error: {
@@ -255,7 +256,7 @@ export const filterExpression = (evalDescriptor, sample, filterValue) => {
     return {
       matches: false,
       error: {
-        message: error.message,
+        message: message,
         severity: "error",
       },
     };
@@ -266,9 +267,13 @@ export const filterExpression = (evalDescriptor, sample, filterValue) => {
  * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
  * @param {import("../../api/Types.mjs").SampleSummary[]} samples
  * @param {string} filterValue
- * @returns {{result: import("../../api/Types.mjs").SampleSummary[], error: FilterError | undefined}}
+ * @returns {}
  */
-export const filterSamples = (evalDescriptor, samples, filterValue) => {
+export const filterSamples = (
+  evalDescriptor: EvalDescriptor,
+  samples: SampleSummary[],
+  filterValue: string,
+): { result: SampleSummary[]; error: FilterError | undefined } => {
   var error = undefined;
   const result = samples.filter((sample) => {
     if (filterValue) {
