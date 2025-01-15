@@ -1,24 +1,24 @@
 // @ts-check
 /// <reference path="../../types/prism.d.ts" />
 import Prism from "prismjs";
-import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
+import "prismjs/components/prism-python";
 
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
-import { ChatView } from "../../components/ChatView.mjs";
-import { EventPanel } from "./EventPanel.mjs";
-import { EventSection } from "./EventSection.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { ChatView } from "../../components/ChatView.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
 import {
   formatDateTime,
   formatNumber,
   formatPrettyDecimal,
-} from "../../utils/Format.mjs";
+} from "../../utils/format";
+import { EventPanel } from "./EventPanel.mjs";
+import { EventSection } from "./EventSection.mjs";
 
 /**
  * Renders the StateEventView component.

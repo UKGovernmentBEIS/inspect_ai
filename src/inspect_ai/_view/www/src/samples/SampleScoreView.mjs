@@ -1,10 +1,10 @@
 import { html } from "htm/preact";
-import { arrayToString, inputString } from "../utils/Format.mjs";
-import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
-import { SampleScores } from "./SampleScores.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { MetaDataGrid } from "../components/MetaDataGrid.mjs";
-import { Card, CardHeader, CardBody } from "../components/Card.mjs";
+import { arrayToString, inputString } from "../utils/format";
+import { SampleScores } from "./SampleScores.mjs";
 
 const labelStyle = {
   paddingRight: "2em",

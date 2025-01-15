@@ -1,12 +1,12 @@
 import { html } from "htm/preact";
 
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
 
+import { formatNumber } from "../../utils/format";
 import { ANSIDisplay } from "../AnsiDisplay.mjs";
 import { MetaDataView } from "../MetaDataView.mjs";
 import { ChatMessageRenderer } from "./ChatMessageRenderer.mjs";
-import { formatNumber } from "../../utils/Format.mjs";
 import { Buckets } from "./Types.mjs";
 
 /**

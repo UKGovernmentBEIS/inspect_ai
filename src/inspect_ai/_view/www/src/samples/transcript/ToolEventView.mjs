@@ -1,11 +1,11 @@
 // @ts-check
 import { html } from "htm/preact";
-import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
-import { TranscriptView } from "./TranscriptView.mjs";
+import { formatDateTime } from "../../utils/format";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
+import { EventPanel } from "./EventPanel.mjs";
+import { TranscriptView } from "./TranscriptView.mjs";
 
 /**
  * Renders the ToolEventView component.

@@ -1,10 +1,10 @@
 import { html } from "htm/preact";
 
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { formatPrettyDecimal } from "../utils/format";
 import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { ApplicationStyles } from "./../appearance/Styles.mjs";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { filename } from "./../utils/path";
-import { formatPrettyDecimal } from "../utils/Format.mjs";
 
 import { CopyButton } from "./../components/CopyButton.mjs";
 import { SecondaryBar } from "./SecondaryBar.mjs";

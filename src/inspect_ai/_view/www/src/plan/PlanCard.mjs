@@ -1,12 +1,11 @@
 import { html } from "htm/preact";
 
-import { toTitleCase } from "../utils/Format.mjs";
-import { ghCommitUrl } from "../utils/git";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { Card, CardBody } from "../components/Card.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
-import { CardHeader } from "../components/Card.mjs";
+import { toTitleCase } from "../utils/format";
+import { ghCommitUrl } from "../utils/git";
 
 const kPlanCardBodyId = "task-plan-card-body";
 

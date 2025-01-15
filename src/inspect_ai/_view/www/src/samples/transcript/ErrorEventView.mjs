@@ -1,9 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
-import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
+import { formatDateTime } from "../../utils/format";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the ErrorEventView component.

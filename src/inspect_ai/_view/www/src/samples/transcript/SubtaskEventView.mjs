@@ -1,11 +1,11 @@
 // @ts-check
 import { html } from "htm/preact";
-import { TranscriptView } from "./TranscriptView.mjs";
-import { EventPanel } from "./EventPanel.mjs";
-import { MetaDataView } from "../../components/MetaDataView.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
+import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { MetaDataView } from "../../components/MetaDataView.mjs";
+import { formatDateTime } from "../../utils/format";
+import { EventPanel } from "./EventPanel.mjs";
+import { TranscriptView } from "./TranscriptView.mjs";
 
 /**
  * Renders the StateEventView component.

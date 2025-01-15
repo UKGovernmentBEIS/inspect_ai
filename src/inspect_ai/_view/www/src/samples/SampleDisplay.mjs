@@ -4,13 +4,13 @@ import { ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 
-import { inputString } from "../utils/Format.mjs";
+import { inputString } from "../utils/format";
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
 
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
-import { arrayToString } from "../utils/Format.mjs";
+import { arrayToString } from "../utils/format";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { ANSIDisplay } from "../components/AnsiDisplay.mjs";

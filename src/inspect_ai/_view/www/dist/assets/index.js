@@ -20009,10 +20009,6 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
       return g$1("button", attr, m$1`${iconEl}${name2}`);
     };
-    const ghCommitUrl = (origin, commit) => {
-      const baseUrl = origin.replace(/\.git$/, "");
-      return `${baseUrl}/commit/${commit}`;
-    };
     const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
       return m$1`<div
     class="${classes || ""}"
@@ -20073,6 +20069,10 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       ${children2}
     </div>
   `;
+    };
+    const ghCommitUrl = (origin, commit) => {
+      const baseUrl = origin.replace(/\.git$/, "");
+      return `${baseUrl}/commit/${commit}`;
     };
     const kPlanCardBodyId = "task-plan-card-body";
     const PlanCard = ({ evalSpec, evalPlan, scores }) => {
@@ -20693,26 +20693,6 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
       }
       return "Error";
     };
-    const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
-      const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
-      if (scores.length === 1) {
-        return scores[0].rendered();
-      } else {
-        const rows = scores.map((score2) => {
-          return m$1` <div style=${{ opacity: "0.7" }}>${score2.name}</div>
-        <div>${score2.rendered()}</div>`;
-        });
-        return m$1`<div
-      style=${{
-          display: "grid",
-          gridTemplateColumns: "max-content max-content",
-          columnGap: "1em"
-        }}
-    >
-      ${rows}
-    </div>`;
-      }
-    };
     const MetaDataGrid = ({ id, entries, classes, style: style2, plain }) => {
       const baseId = "metadata-grid";
       const cellKeyStyle = {
@@ -20773,6 +20753,26 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
   >
     ${entryEls}
   </div>`;
+    };
+    const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
+      const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
+      if (scores.length === 1) {
+        return scores[0].rendered();
+      } else {
+        const rows = scores.map((score2) => {
+          return m$1` <div style=${{ opacity: "0.7" }}>${score2.name}</div>
+        <div>${score2.rendered()}</div>`;
+        });
+        return m$1`<div
+      style=${{
+          display: "grid",
+          gridTemplateColumns: "max-content max-content",
+          columnGap: "1em"
+        }}
+    >
+      ${rows}
+    </div>`;
+      }
     };
     const labelStyle = {
       paddingRight: "2em",
@@ -21201,6 +21201,1450 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
 
   </${EventPanel}>`;
     };
+    class Processor {
+      constructor(options) {
+        this.selfOptions = options || {};
+        this.pipes = {};
+      }
+      options(options) {
+        if (options) {
+          this.selfOptions = options;
+        }
+        return this.selfOptions;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pipe(name2, pipeArg) {
+        let pipe = pipeArg;
+        if (typeof name2 === "string") {
+          if (typeof pipe === "undefined") {
+            return this.pipes[name2];
+          } else {
+            this.pipes[name2] = pipe;
+          }
+        }
+        if (name2 && name2.name) {
+          pipe = name2;
+          if (pipe.processor === this) {
+            return pipe;
+          }
+          this.pipes[pipe.name] = pipe;
+        }
+        pipe.processor = this;
+        return pipe;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      process(input, pipe) {
+        let context = input;
+        context.options = this.options();
+        let nextPipe = pipe || input.pipe || "default";
+        let lastPipe;
+        while (nextPipe) {
+          if (typeof context.nextAfterChildren !== "undefined") {
+            context.next = context.nextAfterChildren;
+            context.nextAfterChildren = null;
+          }
+          if (typeof nextPipe === "string") {
+            nextPipe = this.pipe(nextPipe);
+          }
+          nextPipe.process(context);
+          lastPipe = nextPipe;
+          nextPipe = null;
+          if (context) {
+            if (context.next) {
+              context = context.next;
+              nextPipe = context.pipe || lastPipe;
+            }
+          }
+        }
+        return context.hasResult ? context.result : void 0;
+      }
+    }
+    class Pipe {
+      constructor(name2) {
+        this.name = name2;
+        this.filters = [];
+      }
+      process(input) {
+        if (!this.processor) {
+          throw new Error("add this pipe to a processor before using it");
+        }
+        const debug = this.debug;
+        const length = this.filters.length;
+        const context = input;
+        for (let index = 0; index < length; index++) {
+          const filter = this.filters[index];
+          if (debug) {
+            this.log(`filter: ${filter.filterName}`);
+          }
+          filter(context);
+          if (typeof context === "object" && context.exiting) {
+            context.exiting = false;
+            break;
+          }
+        }
+        if (!context.next && this.resultCheck) {
+          this.resultCheck(context);
+        }
+      }
+      log(msg) {
+        console.log(`[jsondiffpatch] ${this.name} pipe, ${msg}`);
+      }
+      append(...args) {
+        this.filters.push(...args);
+        return this;
+      }
+      prepend(...args) {
+        this.filters.unshift(...args);
+        return this;
+      }
+      indexOf(filterName) {
+        if (!filterName) {
+          throw new Error("a filter name is required");
+        }
+        for (let index = 0; index < this.filters.length; index++) {
+          const filter = this.filters[index];
+          if (filter.filterName === filterName) {
+            return index;
+          }
+        }
+        throw new Error(`filter not found: ${filterName}`);
+      }
+      list() {
+        return this.filters.map((f2) => f2.filterName);
+      }
+      after(filterName, ...params) {
+        const index = this.indexOf(filterName);
+        this.filters.splice(index + 1, 0, ...params);
+        return this;
+      }
+      before(filterName, ...params) {
+        const index = this.indexOf(filterName);
+        this.filters.splice(index, 0, ...params);
+        return this;
+      }
+      replace(filterName, ...params) {
+        const index = this.indexOf(filterName);
+        this.filters.splice(index, 1, ...params);
+        return this;
+      }
+      remove(filterName) {
+        const index = this.indexOf(filterName);
+        this.filters.splice(index, 1);
+        return this;
+      }
+      clear() {
+        this.filters.length = 0;
+        return this;
+      }
+      shouldHaveResult(should) {
+        if (should === false) {
+          this.resultCheck = null;
+          return;
+        }
+        if (this.resultCheck) {
+          return;
+        }
+        this.resultCheck = (context) => {
+          if (!context.hasResult) {
+            console.log(context);
+            const error2 = new Error(`${this.name} failed`);
+            error2.noResult = true;
+            throw error2;
+          }
+        };
+        return this;
+      }
+    }
+    class Context {
+      setResult(result) {
+        this.result = result;
+        this.hasResult = true;
+        return this;
+      }
+      exit() {
+        this.exiting = true;
+        return this;
+      }
+      push(child, name2) {
+        child.parent = this;
+        if (typeof name2 !== "undefined") {
+          child.childName = name2;
+        }
+        child.root = this.root || this;
+        child.options = child.options || this.options;
+        if (!this.children) {
+          this.children = [child];
+          this.nextAfterChildren = this.next || null;
+          this.next = child;
+        } else {
+          this.children[this.children.length - 1].next = child;
+          this.children.push(child);
+        }
+        child.next = this;
+        return this;
+      }
+    }
+    function cloneRegExp(re) {
+      const regexMatch = /^\/(.*)\/([gimyu]*)$/.exec(re.toString());
+      return new RegExp(regexMatch[1], regexMatch[2]);
+    }
+    function clone(arg) {
+      if (typeof arg !== "object") {
+        return arg;
+      }
+      if (arg === null) {
+        return null;
+      }
+      if (Array.isArray(arg)) {
+        return arg.map(clone);
+      }
+      if (arg instanceof Date) {
+        return new Date(arg.getTime());
+      }
+      if (arg instanceof RegExp) {
+        return cloneRegExp(arg);
+      }
+      const cloned = {};
+      for (const name2 in arg) {
+        if (Object.prototype.hasOwnProperty.call(arg, name2)) {
+          cloned[name2] = clone(arg[name2]);
+        }
+      }
+      return cloned;
+    }
+    class DiffContext extends Context {
+      constructor(left2, right2) {
+        super();
+        this.left = left2;
+        this.right = right2;
+        this.pipe = "diff";
+      }
+      setResult(result) {
+        if (this.options.cloneDiffValues && typeof result === "object") {
+          const clone$1 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
+          if (typeof result[0] === "object") {
+            result[0] = clone$1(result[0]);
+          }
+          if (typeof result[1] === "object") {
+            result[1] = clone$1(result[1]);
+          }
+        }
+        return super.setResult(result);
+      }
+    }
+    class PatchContext extends Context {
+      constructor(left2, delta) {
+        super();
+        this.left = left2;
+        this.delta = delta;
+        this.pipe = "patch";
+      }
+    }
+    class ReverseContext extends Context {
+      constructor(delta) {
+        super();
+        this.delta = delta;
+        this.pipe = "reverse";
+      }
+    }
+    const diffFilter$3 = function trivialMatchesDiffFilter(context) {
+      if (context.left === context.right) {
+        context.setResult(void 0).exit();
+        return;
+      }
+      if (typeof context.left === "undefined") {
+        if (typeof context.right === "function") {
+          throw new Error("functions are not supported");
+        }
+        context.setResult([context.right]).exit();
+        return;
+      }
+      if (typeof context.right === "undefined") {
+        context.setResult([context.left, 0, 0]).exit();
+        return;
+      }
+      if (typeof context.left === "function" || typeof context.right === "function") {
+        throw new Error("functions are not supported");
+      }
+      context.leftType = context.left === null ? "null" : typeof context.left;
+      context.rightType = context.right === null ? "null" : typeof context.right;
+      if (context.leftType !== context.rightType) {
+        context.setResult([context.left, context.right]).exit();
+        return;
+      }
+      if (context.leftType === "boolean" || context.leftType === "number") {
+        context.setResult([context.left, context.right]).exit();
+        return;
+      }
+      if (context.leftType === "object") {
+        context.leftIsArray = Array.isArray(context.left);
+      }
+      if (context.rightType === "object") {
+        context.rightIsArray = Array.isArray(context.right);
+      }
+      if (context.leftIsArray !== context.rightIsArray) {
+        context.setResult([context.left, context.right]).exit();
+        return;
+      }
+      if (context.left instanceof RegExp) {
+        if (context.right instanceof RegExp) {
+          context.setResult([context.left.toString(), context.right.toString()]).exit();
+        } else {
+          context.setResult([context.left, context.right]).exit();
+        }
+      }
+    };
+    diffFilter$3.filterName = "trivial";
+    const patchFilter$3 = function trivialMatchesPatchFilter(context) {
+      if (typeof context.delta === "undefined") {
+        context.setResult(context.left).exit();
+        return;
+      }
+      context.nested = !Array.isArray(context.delta);
+      if (context.nested) {
+        return;
+      }
+      const nonNestedDelta = context.delta;
+      if (nonNestedDelta.length === 1) {
+        context.setResult(nonNestedDelta[0]).exit();
+        return;
+      }
+      if (nonNestedDelta.length === 2) {
+        if (context.left instanceof RegExp) {
+          const regexArgs = /^\/(.*)\/([gimyu]+)$/.exec(nonNestedDelta[1]);
+          if (regexArgs) {
+            context.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
+            return;
+          }
+        }
+        context.setResult(nonNestedDelta[1]).exit();
+        return;
+      }
+      if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
+        context.setResult(void 0).exit();
+      }
+    };
+    patchFilter$3.filterName = "trivial";
+    const reverseFilter$3 = function trivialReferseFilter(context) {
+      if (typeof context.delta === "undefined") {
+        context.setResult(context.delta).exit();
+        return;
+      }
+      context.nested = !Array.isArray(context.delta);
+      if (context.nested) {
+        return;
+      }
+      const nonNestedDelta = context.delta;
+      if (nonNestedDelta.length === 1) {
+        context.setResult([nonNestedDelta[0], 0, 0]).exit();
+        return;
+      }
+      if (nonNestedDelta.length === 2) {
+        context.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
+        return;
+      }
+      if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
+        context.setResult([nonNestedDelta[0]]).exit();
+      }
+    };
+    reverseFilter$3.filterName = "trivial";
+    const collectChildrenDiffFilter = (context) => {
+      if (!context || !context.children) {
+        return;
+      }
+      const length = context.children.length;
+      let child;
+      let result = context.result;
+      for (let index = 0; index < length; index++) {
+        child = context.children[index];
+        if (typeof child.result === "undefined") {
+          continue;
+        }
+        result = result || {};
+        result[child.childName] = child.result;
+      }
+      if (result && context.leftIsArray) {
+        result._t = "a";
+      }
+      context.setResult(result).exit();
+    };
+    collectChildrenDiffFilter.filterName = "collectChildren";
+    const objectsDiffFilter = (context) => {
+      if (context.leftIsArray || context.leftType !== "object") {
+        return;
+      }
+      const left2 = context.left;
+      const right2 = context.right;
+      let name2;
+      let child;
+      const propertyFilter = context.options.propertyFilter;
+      for (name2 in left2) {
+        if (!Object.prototype.hasOwnProperty.call(left2, name2)) {
+          continue;
+        }
+        if (propertyFilter && !propertyFilter(name2, context)) {
+          continue;
+        }
+        child = new DiffContext(left2[name2], right2[name2]);
+        context.push(child, name2);
+      }
+      for (name2 in right2) {
+        if (!Object.prototype.hasOwnProperty.call(right2, name2)) {
+          continue;
+        }
+        if (propertyFilter && !propertyFilter(name2, context)) {
+          continue;
+        }
+        if (typeof left2[name2] === "undefined") {
+          child = new DiffContext(void 0, right2[name2]);
+          context.push(child, name2);
+        }
+      }
+      if (!context.children || context.children.length === 0) {
+        context.setResult(void 0).exit();
+        return;
+      }
+      context.exit();
+    };
+    objectsDiffFilter.filterName = "objects";
+    const patchFilter$2 = function nestedPatchFilter(context) {
+      if (!context.nested) {
+        return;
+      }
+      const nestedDelta = context.delta;
+      if (nestedDelta._t) {
+        return;
+      }
+      const objectDelta = nestedDelta;
+      let name2;
+      let child;
+      for (name2 in objectDelta) {
+        child = new PatchContext(context.left[name2], objectDelta[name2]);
+        context.push(child, name2);
+      }
+      context.exit();
+    };
+    patchFilter$2.filterName = "objects";
+    const collectChildrenPatchFilter$1 = function collectChildrenPatchFilter2(context) {
+      if (!context || !context.children) {
+        return;
+      }
+      const deltaWithChildren = context.delta;
+      if (deltaWithChildren._t) {
+        return;
+      }
+      const object = context.left;
+      const length = context.children.length;
+      let child;
+      for (let index = 0; index < length; index++) {
+        child = context.children[index];
+        const property = child.childName;
+        if (Object.prototype.hasOwnProperty.call(context.left, property) && child.result === void 0) {
+          delete object[property];
+        } else if (object[property] !== child.result) {
+          object[property] = child.result;
+        }
+      }
+      context.setResult(object).exit();
+    };
+    collectChildrenPatchFilter$1.filterName = "collectChildren";
+    const reverseFilter$2 = function nestedReverseFilter(context) {
+      if (!context.nested) {
+        return;
+      }
+      const nestedDelta = context.delta;
+      if (nestedDelta._t) {
+        return;
+      }
+      const objectDelta = context.delta;
+      let name2;
+      let child;
+      for (name2 in objectDelta) {
+        child = new ReverseContext(objectDelta[name2]);
+        context.push(child, name2);
+      }
+      context.exit();
+    };
+    reverseFilter$2.filterName = "objects";
+    const collectChildrenReverseFilter$1 = (context) => {
+      if (!context || !context.children) {
+        return;
+      }
+      const deltaWithChildren = context.delta;
+      if (deltaWithChildren._t) {
+        return;
+      }
+      const length = context.children.length;
+      let child;
+      const delta = {};
+      for (let index = 0; index < length; index++) {
+        child = context.children[index];
+        const property = child.childName;
+        if (delta[property] !== child.result) {
+          delta[property] = child.result;
+        }
+      }
+      context.setResult(delta).exit();
+    };
+    collectChildrenReverseFilter$1.filterName = "collectChildren";
+    const defaultMatch = function(array1, array2, index1, index2) {
+      return array1[index1] === array2[index2];
+    };
+    const lengthMatrix = function(array1, array2, match, context) {
+      const len1 = array1.length;
+      const len2 = array2.length;
+      let x2, y2;
+      const matrix = new Array(len1 + 1);
+      for (x2 = 0; x2 < len1 + 1; x2++) {
+        matrix[x2] = new Array(len2 + 1);
+        for (y2 = 0; y2 < len2 + 1; y2++) {
+          matrix[x2][y2] = 0;
+        }
+      }
+      matrix.match = match;
+      for (x2 = 1; x2 < len1 + 1; x2++) {
+        for (y2 = 1; y2 < len2 + 1; y2++) {
+          if (match(array1, array2, x2 - 1, y2 - 1, context)) {
+            matrix[x2][y2] = matrix[x2 - 1][y2 - 1] + 1;
+          } else {
+            matrix[x2][y2] = Math.max(matrix[x2 - 1][y2], matrix[x2][y2 - 1]);
+          }
+        }
+      }
+      return matrix;
+    };
+    const backtrack = function(matrix, array1, array2, context) {
+      let index1 = array1.length;
+      let index2 = array2.length;
+      const subsequence = {
+        sequence: [],
+        indices1: [],
+        indices2: []
+      };
+      while (index1 !== 0 && index2 !== 0) {
+        const sameLetter = matrix.match(array1, array2, index1 - 1, index2 - 1, context);
+        if (sameLetter) {
+          subsequence.sequence.unshift(array1[index1 - 1]);
+          subsequence.indices1.unshift(index1 - 1);
+          subsequence.indices2.unshift(index2 - 1);
+          --index1;
+          --index2;
+        } else {
+          const valueAtMatrixAbove = matrix[index1][index2 - 1];
+          const valueAtMatrixLeft = matrix[index1 - 1][index2];
+          if (valueAtMatrixAbove > valueAtMatrixLeft) {
+            --index2;
+          } else {
+            --index1;
+          }
+        }
+      }
+      return subsequence;
+    };
+    const get = function(array1, array2, match, context) {
+      const innerContext = context || {};
+      const matrix = lengthMatrix(array1, array2, match || defaultMatch, innerContext);
+      return backtrack(matrix, array1, array2, innerContext);
+    };
+    const lcs = {
+      get
+    };
+    const ARRAY_MOVE = 3;
+    function arraysHaveMatchByRef(array1, array2, len1, len2) {
+      for (let index1 = 0; index1 < len1; index1++) {
+        const val1 = array1[index1];
+        for (let index2 = 0; index2 < len2; index2++) {
+          const val2 = array2[index2];
+          if (index1 !== index2 && val1 === val2) {
+            return true;
+          }
+        }
+      }
+    }
+    function matchItems(array1, array2, index1, index2, context) {
+      const value1 = array1[index1];
+      const value2 = array2[index2];
+      if (value1 === value2) {
+        return true;
+      }
+      if (typeof value1 !== "object" || typeof value2 !== "object") {
+        return false;
+      }
+      const objectHash = context.objectHash;
+      if (!objectHash) {
+        return context.matchByPosition && index1 === index2;
+      }
+      context.hashCache1 = context.hashCache1 || [];
+      let hash1 = context.hashCache1[index1];
+      if (typeof hash1 === "undefined") {
+        context.hashCache1[index1] = hash1 = objectHash(value1, index1);
+      }
+      if (typeof hash1 === "undefined") {
+        return false;
+      }
+      context.hashCache2 = context.hashCache2 || [];
+      let hash2 = context.hashCache2[index2];
+      if (typeof hash2 === "undefined") {
+        context.hashCache2[index2] = hash2 = objectHash(value2, index2);
+      }
+      if (typeof hash2 === "undefined") {
+        return false;
+      }
+      return hash1 === hash2;
+    }
+    const diffFilter$2 = function arraysDiffFilter(context) {
+      if (!context.leftIsArray) {
+        return;
+      }
+      const matchContext = {
+        objectHash: context.options && context.options.objectHash,
+        matchByPosition: context.options && context.options.matchByPosition
+      };
+      let commonHead = 0;
+      let commonTail = 0;
+      let index;
+      let index1;
+      let index2;
+      const array1 = context.left;
+      const array2 = context.right;
+      const len1 = array1.length;
+      const len2 = array2.length;
+      let child;
+      if (len1 > 0 && len2 > 0 && !matchContext.objectHash && typeof matchContext.matchByPosition !== "boolean") {
+        matchContext.matchByPosition = !arraysHaveMatchByRef(array1, array2, len1, len2);
+      }
+      while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
+        index = commonHead;
+        child = new DiffContext(array1[index], array2[index]);
+        context.push(child, index);
+        commonHead++;
+      }
+      while (commonTail + commonHead < len1 && commonTail + commonHead < len2 && matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)) {
+        index1 = len1 - 1 - commonTail;
+        index2 = len2 - 1 - commonTail;
+        child = new DiffContext(array1[index1], array2[index2]);
+        context.push(child, index2);
+        commonTail++;
+      }
+      let result;
+      if (commonHead + commonTail === len1) {
+        if (len1 === len2) {
+          context.setResult(void 0).exit();
+          return;
+        }
+        result = result || {
+          _t: "a"
+        };
+        for (index = commonHead; index < len2 - commonTail; index++) {
+          result[index] = [array2[index]];
+        }
+        context.setResult(result).exit();
+        return;
+      }
+      if (commonHead + commonTail === len2) {
+        result = result || {
+          _t: "a"
+        };
+        for (index = commonHead; index < len1 - commonTail; index++) {
+          result[`_${index}`] = [array1[index], 0, 0];
+        }
+        context.setResult(result).exit();
+        return;
+      }
+      delete matchContext.hashCache1;
+      delete matchContext.hashCache2;
+      const trimmed1 = array1.slice(commonHead, len1 - commonTail);
+      const trimmed2 = array2.slice(commonHead, len2 - commonTail);
+      const seq = lcs.get(trimmed1, trimmed2, matchItems, matchContext);
+      const removedItems = [];
+      result = result || {
+        _t: "a"
+      };
+      for (index = commonHead; index < len1 - commonTail; index++) {
+        if (seq.indices1.indexOf(index - commonHead) < 0) {
+          result[`_${index}`] = [array1[index], 0, 0];
+          removedItems.push(index);
+        }
+      }
+      let detectMove = true;
+      if (context.options && context.options.arrays && context.options.arrays.detectMove === false) {
+        detectMove = false;
+      }
+      let includeValueOnMove = false;
+      if (context.options && context.options.arrays && context.options.arrays.includeValueOnMove) {
+        includeValueOnMove = true;
+      }
+      const removedItemsLength = removedItems.length;
+      for (index = commonHead; index < len2 - commonTail; index++) {
+        const indexOnArray2 = seq.indices2.indexOf(index - commonHead);
+        if (indexOnArray2 < 0) {
+          let isMove = false;
+          if (detectMove && removedItemsLength > 0) {
+            for (let removeItemIndex1 = 0; removeItemIndex1 < removedItemsLength; removeItemIndex1++) {
+              index1 = removedItems[removeItemIndex1];
+              if (matchItems(trimmed1, trimmed2, index1 - commonHead, index - commonHead, matchContext)) {
+                result[`_${index1}`].splice(1, 2, index, ARRAY_MOVE);
+                if (!includeValueOnMove) {
+                  result[`_${index1}`][0] = "";
+                }
+                index2 = index;
+                child = new DiffContext(array1[index1], array2[index2]);
+                context.push(child, index2);
+                removedItems.splice(removeItemIndex1, 1);
+                isMove = true;
+                break;
+              }
+            }
+          }
+          if (!isMove) {
+            result[index] = [array2[index]];
+          }
+        } else {
+          index1 = seq.indices1[indexOnArray2] + commonHead;
+          index2 = seq.indices2[indexOnArray2] + commonHead;
+          child = new DiffContext(array1[index1], array2[index2]);
+          context.push(child, index2);
+        }
+      }
+      context.setResult(result).exit();
+    };
+    diffFilter$2.filterName = "arrays";
+    const compare$1 = {
+      numerically(a2, b) {
+        return a2 - b;
+      },
+      numericallyBy(name2) {
+        return (a2, b) => a2[name2] - b[name2];
+      }
+    };
+    const patchFilter$1 = function nestedPatchFilter(context) {
+      if (!context.nested) {
+        return;
+      }
+      const nestedDelta = context.delta;
+      if (nestedDelta._t !== "a") {
+        return;
+      }
+      let index;
+      let index1;
+      const delta = nestedDelta;
+      const array = context.left;
+      let toRemove = [];
+      let toInsert = [];
+      const toModify = [];
+      for (index in delta) {
+        if (index !== "_t") {
+          if (index[0] === "_") {
+            const removedOrMovedIndex = index;
+            if (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE) {
+              toRemove.push(parseInt(index.slice(1), 10));
+            } else {
+              throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${delta[removedOrMovedIndex][2]}`);
+            }
+          } else {
+            const numberIndex = index;
+            if (delta[numberIndex].length === 1) {
+              toInsert.push({
+                index: parseInt(numberIndex, 10),
+                value: delta[numberIndex][0]
+              });
+            } else {
+              toModify.push({
+                index: parseInt(numberIndex, 10),
+                delta: delta[numberIndex]
+              });
+            }
+          }
+        }
+      }
+      toRemove = toRemove.sort(compare$1.numerically);
+      for (index = toRemove.length - 1; index >= 0; index--) {
+        index1 = toRemove[index];
+        const indexDiff = delta[`_${index1}`];
+        const removedValue = array.splice(index1, 1)[0];
+        if (indexDiff[2] === ARRAY_MOVE) {
+          toInsert.push({
+            index: indexDiff[1],
+            value: removedValue
+          });
+        }
+      }
+      toInsert = toInsert.sort(compare$1.numericallyBy("index"));
+      const toInsertLength = toInsert.length;
+      for (index = 0; index < toInsertLength; index++) {
+        const insertion = toInsert[index];
+        array.splice(insertion.index, 0, insertion.value);
+      }
+      const toModifyLength = toModify.length;
+      let child;
+      if (toModifyLength > 0) {
+        for (index = 0; index < toModifyLength; index++) {
+          const modification = toModify[index];
+          child = new PatchContext(array[modification.index], modification.delta);
+          context.push(child, modification.index);
+        }
+      }
+      if (!context.children) {
+        context.setResult(array).exit();
+        return;
+      }
+      context.exit();
+    };
+    patchFilter$1.filterName = "arrays";
+    const collectChildrenPatchFilter = function collectChildrenPatchFilter2(context) {
+      if (!context || !context.children) {
+        return;
+      }
+      const deltaWithChildren = context.delta;
+      if (deltaWithChildren._t !== "a") {
+        return;
+      }
+      const array = context.left;
+      const length = context.children.length;
+      let child;
+      for (let index = 0; index < length; index++) {
+        child = context.children[index];
+        const arrayIndex = child.childName;
+        array[arrayIndex] = child.result;
+      }
+      context.setResult(array).exit();
+    };
+    collectChildrenPatchFilter.filterName = "arraysCollectChildren";
+    const reverseFilter$1 = function arraysReverseFilter(context) {
+      if (!context.nested) {
+        const nonNestedDelta = context.delta;
+        if (nonNestedDelta[2] === ARRAY_MOVE) {
+          const arrayMoveDelta = nonNestedDelta;
+          context.newName = `_${arrayMoveDelta[1]}`;
+          context.setResult([
+            arrayMoveDelta[0],
+            parseInt(context.childName.substring(1), 10),
+            ARRAY_MOVE
+          ]).exit();
+        }
+        return;
+      }
+      const nestedDelta = context.delta;
+      if (nestedDelta._t !== "a") {
+        return;
+      }
+      const arrayDelta = nestedDelta;
+      let name2;
+      let child;
+      for (name2 in arrayDelta) {
+        if (name2 === "_t") {
+          continue;
+        }
+        child = new ReverseContext(arrayDelta[name2]);
+        context.push(child, name2);
+      }
+      context.exit();
+    };
+    reverseFilter$1.filterName = "arrays";
+    const reverseArrayDeltaIndex = (delta, index, itemDelta) => {
+      if (typeof index === "string" && index[0] === "_") {
+        return parseInt(index.substring(1), 10);
+      } else if (Array.isArray(itemDelta) && itemDelta[2] === 0) {
+        return `_${index}`;
+      }
+      let reverseIndex = +index;
+      for (const deltaIndex in delta) {
+        const deltaItem = delta[deltaIndex];
+        if (Array.isArray(deltaItem)) {
+          if (deltaItem[2] === ARRAY_MOVE) {
+            const moveFromIndex = parseInt(deltaIndex.substring(1), 10);
+            const moveToIndex = deltaItem[1];
+            if (moveToIndex === +index) {
+              return moveFromIndex;
+            }
+            if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
+              reverseIndex++;
+            } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
+              reverseIndex--;
+            }
+          } else if (deltaItem[2] === 0) {
+            const deleteIndex = parseInt(deltaIndex.substring(1), 10);
+            if (deleteIndex <= reverseIndex) {
+              reverseIndex++;
+            }
+          } else if (deltaItem.length === 1 && parseInt(deltaIndex, 10) <= reverseIndex) {
+            reverseIndex--;
+          }
+        }
+      }
+      return reverseIndex;
+    };
+    const collectChildrenReverseFilter = (context) => {
+      if (!context || !context.children) {
+        return;
+      }
+      const deltaWithChildren = context.delta;
+      if (deltaWithChildren._t !== "a") {
+        return;
+      }
+      const arrayDelta = deltaWithChildren;
+      const length = context.children.length;
+      let child;
+      const delta = {
+        _t: "a"
+      };
+      for (let index = 0; index < length; index++) {
+        child = context.children[index];
+        let name2 = child.newName;
+        if (typeof name2 === "undefined") {
+          name2 = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result);
+        }
+        if (delta[name2] !== child.result) {
+          delta[name2] = child.result;
+        }
+      }
+      context.setResult(delta).exit();
+    };
+    collectChildrenReverseFilter.filterName = "arraysCollectChildren";
+    const diffFilter$1 = function datesDiffFilter(context) {
+      if (context.left instanceof Date) {
+        if (context.right instanceof Date) {
+          if (context.left.getTime() !== context.right.getTime()) {
+            context.setResult([context.left, context.right]);
+          } else {
+            context.setResult(void 0);
+          }
+        } else {
+          context.setResult([context.left, context.right]);
+        }
+        context.exit();
+      } else if (context.right instanceof Date) {
+        context.setResult([context.left, context.right]).exit();
+      }
+    };
+    diffFilter$1.filterName = "dates";
+    const TEXT_DIFF = 2;
+    const DEFAULT_MIN_LENGTH = 60;
+    let cachedDiffPatch = null;
+    function getDiffMatchPatch(options, required) {
+      var _a2;
+      if (!cachedDiffPatch) {
+        let instance;
+        if ((_a2 = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a2 === void 0 ? void 0 : _a2.diffMatchPatch) {
+          instance = new options.textDiff.diffMatchPatch();
+        } else {
+          if (!required) {
+            return null;
+          }
+          const error2 = new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
+          error2.diff_match_patch_not_found = true;
+          throw error2;
+        }
+        cachedDiffPatch = {
+          diff: function(txt1, txt2) {
+            return instance.patch_toText(instance.patch_make(txt1, txt2));
+          },
+          patch: function(txt1, patch) {
+            const results = instance.patch_apply(instance.patch_fromText(patch), txt1);
+            for (let i2 = 0; i2 < results[1].length; i2++) {
+              if (!results[1][i2]) {
+                const error2 = new Error("text patch failed");
+                error2.textPatchFailed = true;
+              }
+            }
+            return results[0];
+          }
+        };
+      }
+      return cachedDiffPatch;
+    }
+    const diffFilter = function textsDiffFilter(context) {
+      if (context.leftType !== "string") {
+        return;
+      }
+      const left2 = context.left;
+      const right2 = context.right;
+      const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
+      if (left2.length < minLength || right2.length < minLength) {
+        context.setResult([left2, right2]).exit();
+        return;
+      }
+      const diffMatchPatch = getDiffMatchPatch(context.options);
+      if (!diffMatchPatch) {
+        context.setResult([left2, right2]).exit();
+        return;
+      }
+      const diff2 = diffMatchPatch.diff;
+      context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
+    };
+    diffFilter.filterName = "texts";
+    const patchFilter = function textsPatchFilter(context) {
+      if (context.nested) {
+        return;
+      }
+      const nonNestedDelta = context.delta;
+      if (nonNestedDelta[2] !== TEXT_DIFF) {
+        return;
+      }
+      const textDiffDelta = nonNestedDelta;
+      const patch = getDiffMatchPatch(context.options, true).patch;
+      context.setResult(patch(context.left, textDiffDelta[0])).exit();
+    };
+    patchFilter.filterName = "texts";
+    const textDeltaReverse = function(delta) {
+      let i2;
+      let l2;
+      let line2;
+      let lineTmp;
+      let header = null;
+      const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
+      let lineHeader;
+      const lines = delta.split("\n");
+      for (i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+        line2 = lines[i2];
+        const lineStart = line2.slice(0, 1);
+        if (lineStart === "@") {
+          header = headerRegex.exec(line2);
+          lineHeader = i2;
+          lines[lineHeader] = "@@ -" + header[3] + "," + header[4] + " +" + header[1] + "," + header[2] + " @@";
+        } else if (lineStart === "+") {
+          lines[i2] = "-" + lines[i2].slice(1);
+          if (lines[i2 - 1].slice(0, 1) === "+") {
+            lineTmp = lines[i2];
+            lines[i2] = lines[i2 - 1];
+            lines[i2 - 1] = lineTmp;
+          }
+        } else if (lineStart === "-") {
+          lines[i2] = "+" + lines[i2].slice(1);
+        }
+      }
+      return lines.join("\n");
+    };
+    const reverseFilter = function textsReverseFilter(context) {
+      if (context.nested) {
+        return;
+      }
+      const nonNestedDelta = context.delta;
+      if (nonNestedDelta[2] !== TEXT_DIFF) {
+        return;
+      }
+      const textDiffDelta = nonNestedDelta;
+      context.setResult([textDeltaReverse(textDiffDelta[0]), 0, TEXT_DIFF]).exit();
+    };
+    reverseFilter.filterName = "texts";
+    class DiffPatcher {
+      constructor(options) {
+        this.processor = new Processor(options);
+        this.processor.pipe(new Pipe("diff").append(collectChildrenDiffFilter, diffFilter$3, diffFilter$1, diffFilter, objectsDiffFilter, diffFilter$2).shouldHaveResult());
+        this.processor.pipe(new Pipe("patch").append(collectChildrenPatchFilter$1, collectChildrenPatchFilter, patchFilter$3, patchFilter, patchFilter$2, patchFilter$1).shouldHaveResult());
+        this.processor.pipe(new Pipe("reverse").append(collectChildrenReverseFilter$1, collectChildrenReverseFilter, reverseFilter$3, reverseFilter, reverseFilter$2, reverseFilter$1).shouldHaveResult());
+      }
+      options(options) {
+        return this.processor.options(options);
+      }
+      diff(left2, right2) {
+        return this.processor.process(new DiffContext(left2, right2));
+      }
+      patch(left2, delta) {
+        return this.processor.process(new PatchContext(left2, delta));
+      }
+      reverse(delta) {
+        return this.processor.process(new ReverseContext(delta));
+      }
+      unpatch(right2, delta) {
+        return this.patch(right2, this.reverse(delta));
+      }
+      clone(value) {
+        return clone(value);
+      }
+    }
+    let defaultInstance$1;
+    function diff(left2, right2) {
+      if (!defaultInstance$1) {
+        defaultInstance$1 = new DiffPatcher();
+      }
+      return defaultInstance$1.diff(left2, right2);
+    }
+    const trimUnderscore = (str2) => {
+      if (str2.substring(0, 1) === "_") {
+        return str2.slice(1);
+      }
+      return str2;
+    };
+    const arrayKeyToSortNumber = (key2) => {
+      if (key2 === "_t") {
+        return -1;
+      } else {
+        if (key2.substring(0, 1) === "_") {
+          return parseInt(key2.slice(1), 10);
+        } else {
+          return parseInt(key2, 10) + 0.1;
+        }
+      }
+    };
+    const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
+    class BaseFormatter {
+      format(delta, left2) {
+        const context = {};
+        this.prepareContext(context);
+        const preparedContext = context;
+        this.recurse(preparedContext, delta, left2);
+        return this.finalize(preparedContext);
+      }
+      prepareContext(context) {
+        context.buffer = [];
+        context.out = function(...args) {
+          this.buffer.push(...args);
+        };
+      }
+      typeFormattterNotFound(context, deltaType) {
+        throw new Error(`cannot format delta type: ${deltaType}`);
+      }
+      /* eslint-disable @typescript-eslint/no-unused-vars */
+      typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom) {
+      }
+      /* eslint-enable @typescript-eslint/no-unused-vars */
+      finalize({ buffer: buffer2 }) {
+        if (Array.isArray(buffer2)) {
+          return buffer2.join("");
+        }
+      }
+      recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
+        const useMoveOriginHere = delta && movedFrom;
+        const leftValue = useMoveOriginHere ? movedFrom.value : left2;
+        if (typeof delta === "undefined" && typeof key2 === "undefined") {
+          return void 0;
+        }
+        const type = this.getDeltaType(delta, movedFrom);
+        const nodeType = type === "node" ? delta._t === "a" ? "array" : "object" : "";
+        if (typeof key2 !== "undefined") {
+          this.nodeBegin(context, key2, leftKey, type, nodeType, isLast);
+        } else {
+          this.rootBegin(context, type, nodeType);
+        }
+        let typeFormattter;
+        try {
+          typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
+          typeFormattter.call(this, context, delta, leftValue, key2, leftKey, movedFrom);
+        } catch (err2) {
+          this.typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom);
+          if (typeof console !== "undefined" && console.error) {
+            console.error(err2.stack);
+          }
+        }
+        if (typeof key2 !== "undefined") {
+          this.nodeEnd(context, key2, leftKey, type, nodeType, isLast);
+        } else {
+          this.rootEnd(context, type, nodeType);
+        }
+      }
+      formatDeltaChildren(context, delta, left2) {
+        this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
+          this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+        });
+      }
+      forEachDeltaKey(delta, left2, fn2) {
+        const keys = Object.keys(delta);
+        const arrayKeys = delta._t === "a";
+        const moveDestinations = {};
+        let name2;
+        if (typeof left2 !== "undefined") {
+          for (name2 in left2) {
+            if (Object.prototype.hasOwnProperty.call(left2, name2)) {
+              if (typeof delta[name2] === "undefined" && (!arrayKeys || typeof delta[`_${name2}`] === "undefined")) {
+                keys.push(name2);
+              }
+            }
+          }
+        }
+        for (name2 in delta) {
+          if (Object.prototype.hasOwnProperty.call(delta, name2)) {
+            const value = delta[name2];
+            if (Array.isArray(value) && value[2] === 3) {
+              const movedDelta = value;
+              moveDestinations[`${movedDelta[1]}`] = {
+                key: name2,
+                value: left2 && left2[parseInt(name2.substring(1), 10)]
+              };
+              if (this.includeMoveDestinations !== false) {
+                if (typeof left2 === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
+                  keys.push(movedDelta[1].toString());
+                }
+              }
+            }
+          }
+        }
+        if (arrayKeys) {
+          keys.sort(arrayKeyComparer);
+        } else {
+          keys.sort();
+        }
+        for (let index = 0, length = keys.length; index < length; index++) {
+          const key2 = keys[index];
+          if (arrayKeys && key2 === "_t") {
+            continue;
+          }
+          const leftKey = arrayKeys ? parseInt(trimUnderscore(key2), 10) : key2;
+          const isLast = index === length - 1;
+          fn2(key2, leftKey, moveDestinations[leftKey], isLast);
+        }
+      }
+      getDeltaType(delta, movedFrom) {
+        if (typeof delta === "undefined") {
+          if (typeof movedFrom !== "undefined") {
+            return "movedestination";
+          }
+          return "unchanged";
+        }
+        if (Array.isArray(delta)) {
+          if (delta.length === 1) {
+            return "added";
+          }
+          if (delta.length === 2) {
+            return "modified";
+          }
+          if (delta.length === 3 && delta[2] === 0) {
+            return "deleted";
+          }
+          if (delta.length === 3 && delta[2] === 2) {
+            return "textdiff";
+          }
+          if (delta.length === 3 && delta[2] === 3) {
+            return "moved";
+          }
+        } else if (typeof delta === "object") {
+          return "node";
+        }
+        return "unknown";
+      }
+      parseTextDiff(value) {
+        const output = [];
+        const lines = value.split("\n@@ ");
+        for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+          const line2 = lines[i2];
+          const lineOutput = {
+            pieces: []
+          };
+          const location = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2).slice(1);
+          lineOutput.location = {
+            line: location[0],
+            chr: location[1]
+          };
+          const pieces = line2.split("\n").slice(1);
+          for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
+            const piece = pieces[pieceIndex];
+            if (!piece.length) {
+              continue;
+            }
+            const pieceOutput = {
+              type: "context"
+            };
+            if (piece.substring(0, 1) === "+") {
+              pieceOutput.type = "added";
+            } else if (piece.substring(0, 1) === "-") {
+              pieceOutput.type = "deleted";
+            }
+            pieceOutput.text = piece.slice(1);
+            lineOutput.pieces.push(pieceOutput);
+          }
+          output.push(lineOutput);
+        }
+        return output;
+      }
+    }
+    class HtmlFormatter extends BaseFormatter {
+      typeFormattterErrorFormatter(context, err2) {
+        context.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
+      }
+      formatValue(context, value) {
+        context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
+      }
+      formatTextDiffString(context, value) {
+        const lines = this.parseTextDiff(value);
+        context.out('<ul class="jsondiffpatch-textdiff">');
+        for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
+          const line2 = lines[i2];
+          context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
+          const pieces = line2.pieces;
+          for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
+            const piece = pieces[pieceIndex];
+            context.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
+          }
+          context.out("</div></li>");
+        }
+        context.out("</ul>");
+      }
+      rootBegin(context, type, nodeType) {
+        const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
+        context.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
+      }
+      rootEnd(context) {
+        context.out(`</div>${context.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
+      }
+      nodeBegin(context, key2, leftKey, type, nodeType) {
+        const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
+        context.out(`<li class="${nodeClass}" data-key="${leftKey}"><div class="jsondiffpatch-property-name">${leftKey}</div>`);
+      }
+      nodeEnd(context) {
+        context.out("</li>");
+      }
+      format_unchanged(context, delta, left2) {
+        if (typeof left2 === "undefined") {
+          return;
+        }
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatValue(context, left2);
+        context.out("</div>");
+      }
+      format_movedestination(context, delta, left2) {
+        if (typeof left2 === "undefined") {
+          return;
+        }
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatValue(context, left2);
+        context.out("</div>");
+      }
+      format_node(context, delta, left2) {
+        const nodeType = delta._t === "a" ? "array" : "object";
+        context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
+        this.formatDeltaChildren(context, delta, left2);
+        context.out("</ul>");
+      }
+      format_added(context, delta) {
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatValue(context, delta[0]);
+        context.out("</div>");
+      }
+      format_modified(context, delta) {
+        context.out('<div class="jsondiffpatch-value jsondiffpatch-left-value">');
+        this.formatValue(context, delta[0]);
+        context.out('</div><div class="jsondiffpatch-value jsondiffpatch-right-value">');
+        this.formatValue(context, delta[1]);
+        context.out("</div>");
+      }
+      format_deleted(context, delta) {
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatValue(context, delta[0]);
+        context.out("</div>");
+      }
+      format_moved(context, delta) {
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatValue(context, delta[0]);
+        context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
+        context.out(
+          /* jshint multistr: true */
+          `<div class="jsondiffpatch-arrow" style="position: relative; left: -34px;">
+          <svg width="30" height="60" style="position: absolute; display: none;">
+          <defs>
+              <marker id="markerArrow" markerWidth="8" markerHeight="8"
+                 refx="2" refy="4"
+                     orient="auto" markerUnits="userSpaceOnUse">
+                  <path d="M1,1 L1,7 L7,4 L1,1" style="fill: #339;" />
+              </marker>
+          </defs>
+          <path d="M30,0 Q-10,25 26,50"
+            style="stroke: #88f; stroke-width: 2px; fill: none; stroke-opacity: 0.5; marker-end: url(#markerArrow);"
+          ></path>
+          </svg>
+      </div>`
+        );
+        context.hasArrows = true;
+      }
+      format_textdiff(context, delta) {
+        context.out('<div class="jsondiffpatch-value">');
+        this.formatTextDiffString(context, delta[0]);
+        context.out("</div>");
+      }
+    }
+    function htmlEscape(text2) {
+      let html = text2;
+      const replacements = [
+        [/&/g, "&amp;"],
+        [/</g, "&lt;"],
+        [/>/g, "&gt;"],
+        [/'/g, "&apos;"],
+        [/"/g, "&quot;"]
+      ];
+      for (let i2 = 0; i2 < replacements.length; i2++) {
+        html = html.replace(replacements[i2][0], replacements[i2][1]);
+      }
+      return html;
+    }
+    const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
+      const node = nodeArg || document;
+      const getElementText = ({ textContent, innerText }) => textContent || innerText;
+      const eachByQuery = (el, query, fn2) => {
+        const elems = el.querySelectorAll(query);
+        for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
+          fn2(elems[i2]);
+        }
+      };
+      const eachChildren = ({ children: children2 }, fn2) => {
+        for (let i2 = 0, l2 = children2.length; i2 < l2; i2++) {
+          fn2(children2[i2], i2);
+        }
+      };
+      eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children: children2, style: style2 }) => {
+        const arrowParent = parentNode;
+        const svg2 = children2[0];
+        const path = svg2.children[1];
+        svg2.style.display = "none";
+        const destination = getElementText(arrowParent.querySelector(".jsondiffpatch-moved-destination"));
+        const container = arrowParent.parentNode;
+        let destinationElem;
+        eachChildren(container, (child) => {
+          if (child.getAttribute("data-key") === destination) {
+            destinationElem = child;
+          }
+        });
+        if (!destinationElem) {
+          return;
+        }
+        try {
+          const distance = destinationElem.offsetTop - arrowParent.offsetTop;
+          svg2.setAttribute("height", `${Math.abs(distance) + 6}`);
+          style2.top = `${-8 + (distance > 0 ? 0 : distance)}px`;
+          const curve = distance > 0 ? `M30,0 Q-10,${Math.round(distance / 2)} 26,${distance - 4}` : `M30,${-distance} Q-10,${Math.round(-distance / 2)} 26,4`;
+          path.setAttribute("d", curve);
+          svg2.style.display = "";
+        } catch (err2) {
+        }
+      });
+    };
+    let defaultInstance;
+    function format(delta, left2) {
+      if (!defaultInstance) {
+        defaultInstance = new HtmlFormatter();
+      }
+      return defaultInstance.format(delta, left2);
+    }
+    const StateDiffView = ({ before, after, style: style2 }) => {
+      const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
+      const html_result = format(state_diff) || "Unable to render differences";
+      return m$1`<div
+    dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
+    style=${{ ...style2 }}
+  ></div>`;
+    };
+    function unescapeNewlines(obj) {
+      if (typeof obj === "string") {
+        return obj.replace(/\\n/g, "\n");
+      } else if (typeof obj === "object") {
+        for (let key2 in obj) {
+          obj[key2] = unescapeNewlines(obj[key2]);
+        }
+      }
+      return obj;
+    }
+    function sanitizeKeys(obj) {
+      if (typeof obj !== "object" || obj === null) {
+        return obj;
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(sanitizeKeys);
+      }
+      return Object.fromEntries(
+        Object.entries(obj).map(([key2, value]) => [
+          key2.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+          sanitizeKeys(value)
+        ])
+      );
+    }
     const sharedConfig = {};
     function setHydrateContext(context) {
       sharedConfig.context = context;
@@ -26489,1450 +27933,6 @@ ${events}
     >
   </div>`;
     };
-    class Processor {
-      constructor(options) {
-        this.selfOptions = options || {};
-        this.pipes = {};
-      }
-      options(options) {
-        if (options) {
-          this.selfOptions = options;
-        }
-        return this.selfOptions;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      pipe(name2, pipeArg) {
-        let pipe = pipeArg;
-        if (typeof name2 === "string") {
-          if (typeof pipe === "undefined") {
-            return this.pipes[name2];
-          } else {
-            this.pipes[name2] = pipe;
-          }
-        }
-        if (name2 && name2.name) {
-          pipe = name2;
-          if (pipe.processor === this) {
-            return pipe;
-          }
-          this.pipes[pipe.name] = pipe;
-        }
-        pipe.processor = this;
-        return pipe;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      process(input, pipe) {
-        let context = input;
-        context.options = this.options();
-        let nextPipe = pipe || input.pipe || "default";
-        let lastPipe;
-        while (nextPipe) {
-          if (typeof context.nextAfterChildren !== "undefined") {
-            context.next = context.nextAfterChildren;
-            context.nextAfterChildren = null;
-          }
-          if (typeof nextPipe === "string") {
-            nextPipe = this.pipe(nextPipe);
-          }
-          nextPipe.process(context);
-          lastPipe = nextPipe;
-          nextPipe = null;
-          if (context) {
-            if (context.next) {
-              context = context.next;
-              nextPipe = context.pipe || lastPipe;
-            }
-          }
-        }
-        return context.hasResult ? context.result : void 0;
-      }
-    }
-    class Pipe {
-      constructor(name2) {
-        this.name = name2;
-        this.filters = [];
-      }
-      process(input) {
-        if (!this.processor) {
-          throw new Error("add this pipe to a processor before using it");
-        }
-        const debug = this.debug;
-        const length = this.filters.length;
-        const context = input;
-        for (let index = 0; index < length; index++) {
-          const filter = this.filters[index];
-          if (debug) {
-            this.log(`filter: ${filter.filterName}`);
-          }
-          filter(context);
-          if (typeof context === "object" && context.exiting) {
-            context.exiting = false;
-            break;
-          }
-        }
-        if (!context.next && this.resultCheck) {
-          this.resultCheck(context);
-        }
-      }
-      log(msg) {
-        console.log(`[jsondiffpatch] ${this.name} pipe, ${msg}`);
-      }
-      append(...args) {
-        this.filters.push(...args);
-        return this;
-      }
-      prepend(...args) {
-        this.filters.unshift(...args);
-        return this;
-      }
-      indexOf(filterName) {
-        if (!filterName) {
-          throw new Error("a filter name is required");
-        }
-        for (let index = 0; index < this.filters.length; index++) {
-          const filter = this.filters[index];
-          if (filter.filterName === filterName) {
-            return index;
-          }
-        }
-        throw new Error(`filter not found: ${filterName}`);
-      }
-      list() {
-        return this.filters.map((f2) => f2.filterName);
-      }
-      after(filterName, ...params) {
-        const index = this.indexOf(filterName);
-        this.filters.splice(index + 1, 0, ...params);
-        return this;
-      }
-      before(filterName, ...params) {
-        const index = this.indexOf(filterName);
-        this.filters.splice(index, 0, ...params);
-        return this;
-      }
-      replace(filterName, ...params) {
-        const index = this.indexOf(filterName);
-        this.filters.splice(index, 1, ...params);
-        return this;
-      }
-      remove(filterName) {
-        const index = this.indexOf(filterName);
-        this.filters.splice(index, 1);
-        return this;
-      }
-      clear() {
-        this.filters.length = 0;
-        return this;
-      }
-      shouldHaveResult(should) {
-        if (should === false) {
-          this.resultCheck = null;
-          return;
-        }
-        if (this.resultCheck) {
-          return;
-        }
-        this.resultCheck = (context) => {
-          if (!context.hasResult) {
-            console.log(context);
-            const error2 = new Error(`${this.name} failed`);
-            error2.noResult = true;
-            throw error2;
-          }
-        };
-        return this;
-      }
-    }
-    class Context {
-      setResult(result) {
-        this.result = result;
-        this.hasResult = true;
-        return this;
-      }
-      exit() {
-        this.exiting = true;
-        return this;
-      }
-      push(child, name2) {
-        child.parent = this;
-        if (typeof name2 !== "undefined") {
-          child.childName = name2;
-        }
-        child.root = this.root || this;
-        child.options = child.options || this.options;
-        if (!this.children) {
-          this.children = [child];
-          this.nextAfterChildren = this.next || null;
-          this.next = child;
-        } else {
-          this.children[this.children.length - 1].next = child;
-          this.children.push(child);
-        }
-        child.next = this;
-        return this;
-      }
-    }
-    function cloneRegExp(re) {
-      const regexMatch = /^\/(.*)\/([gimyu]*)$/.exec(re.toString());
-      return new RegExp(regexMatch[1], regexMatch[2]);
-    }
-    function clone(arg) {
-      if (typeof arg !== "object") {
-        return arg;
-      }
-      if (arg === null) {
-        return null;
-      }
-      if (Array.isArray(arg)) {
-        return arg.map(clone);
-      }
-      if (arg instanceof Date) {
-        return new Date(arg.getTime());
-      }
-      if (arg instanceof RegExp) {
-        return cloneRegExp(arg);
-      }
-      const cloned = {};
-      for (const name2 in arg) {
-        if (Object.prototype.hasOwnProperty.call(arg, name2)) {
-          cloned[name2] = clone(arg[name2]);
-        }
-      }
-      return cloned;
-    }
-    class DiffContext extends Context {
-      constructor(left2, right2) {
-        super();
-        this.left = left2;
-        this.right = right2;
-        this.pipe = "diff";
-      }
-      setResult(result) {
-        if (this.options.cloneDiffValues && typeof result === "object") {
-          const clone$1 = typeof this.options.cloneDiffValues === "function" ? this.options.cloneDiffValues : clone;
-          if (typeof result[0] === "object") {
-            result[0] = clone$1(result[0]);
-          }
-          if (typeof result[1] === "object") {
-            result[1] = clone$1(result[1]);
-          }
-        }
-        return super.setResult(result);
-      }
-    }
-    class PatchContext extends Context {
-      constructor(left2, delta) {
-        super();
-        this.left = left2;
-        this.delta = delta;
-        this.pipe = "patch";
-      }
-    }
-    class ReverseContext extends Context {
-      constructor(delta) {
-        super();
-        this.delta = delta;
-        this.pipe = "reverse";
-      }
-    }
-    const diffFilter$3 = function trivialMatchesDiffFilter(context) {
-      if (context.left === context.right) {
-        context.setResult(void 0).exit();
-        return;
-      }
-      if (typeof context.left === "undefined") {
-        if (typeof context.right === "function") {
-          throw new Error("functions are not supported");
-        }
-        context.setResult([context.right]).exit();
-        return;
-      }
-      if (typeof context.right === "undefined") {
-        context.setResult([context.left, 0, 0]).exit();
-        return;
-      }
-      if (typeof context.left === "function" || typeof context.right === "function") {
-        throw new Error("functions are not supported");
-      }
-      context.leftType = context.left === null ? "null" : typeof context.left;
-      context.rightType = context.right === null ? "null" : typeof context.right;
-      if (context.leftType !== context.rightType) {
-        context.setResult([context.left, context.right]).exit();
-        return;
-      }
-      if (context.leftType === "boolean" || context.leftType === "number") {
-        context.setResult([context.left, context.right]).exit();
-        return;
-      }
-      if (context.leftType === "object") {
-        context.leftIsArray = Array.isArray(context.left);
-      }
-      if (context.rightType === "object") {
-        context.rightIsArray = Array.isArray(context.right);
-      }
-      if (context.leftIsArray !== context.rightIsArray) {
-        context.setResult([context.left, context.right]).exit();
-        return;
-      }
-      if (context.left instanceof RegExp) {
-        if (context.right instanceof RegExp) {
-          context.setResult([context.left.toString(), context.right.toString()]).exit();
-        } else {
-          context.setResult([context.left, context.right]).exit();
-        }
-      }
-    };
-    diffFilter$3.filterName = "trivial";
-    const patchFilter$3 = function trivialMatchesPatchFilter(context) {
-      if (typeof context.delta === "undefined") {
-        context.setResult(context.left).exit();
-        return;
-      }
-      context.nested = !Array.isArray(context.delta);
-      if (context.nested) {
-        return;
-      }
-      const nonNestedDelta = context.delta;
-      if (nonNestedDelta.length === 1) {
-        context.setResult(nonNestedDelta[0]).exit();
-        return;
-      }
-      if (nonNestedDelta.length === 2) {
-        if (context.left instanceof RegExp) {
-          const regexArgs = /^\/(.*)\/([gimyu]+)$/.exec(nonNestedDelta[1]);
-          if (regexArgs) {
-            context.setResult(new RegExp(regexArgs[1], regexArgs[2])).exit();
-            return;
-          }
-        }
-        context.setResult(nonNestedDelta[1]).exit();
-        return;
-      }
-      if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
-        context.setResult(void 0).exit();
-      }
-    };
-    patchFilter$3.filterName = "trivial";
-    const reverseFilter$3 = function trivialReferseFilter(context) {
-      if (typeof context.delta === "undefined") {
-        context.setResult(context.delta).exit();
-        return;
-      }
-      context.nested = !Array.isArray(context.delta);
-      if (context.nested) {
-        return;
-      }
-      const nonNestedDelta = context.delta;
-      if (nonNestedDelta.length === 1) {
-        context.setResult([nonNestedDelta[0], 0, 0]).exit();
-        return;
-      }
-      if (nonNestedDelta.length === 2) {
-        context.setResult([nonNestedDelta[1], nonNestedDelta[0]]).exit();
-        return;
-      }
-      if (nonNestedDelta.length === 3 && nonNestedDelta[2] === 0) {
-        context.setResult([nonNestedDelta[0]]).exit();
-      }
-    };
-    reverseFilter$3.filterName = "trivial";
-    const collectChildrenDiffFilter = (context) => {
-      if (!context || !context.children) {
-        return;
-      }
-      const length = context.children.length;
-      let child;
-      let result = context.result;
-      for (let index = 0; index < length; index++) {
-        child = context.children[index];
-        if (typeof child.result === "undefined") {
-          continue;
-        }
-        result = result || {};
-        result[child.childName] = child.result;
-      }
-      if (result && context.leftIsArray) {
-        result._t = "a";
-      }
-      context.setResult(result).exit();
-    };
-    collectChildrenDiffFilter.filterName = "collectChildren";
-    const objectsDiffFilter = (context) => {
-      if (context.leftIsArray || context.leftType !== "object") {
-        return;
-      }
-      const left2 = context.left;
-      const right2 = context.right;
-      let name2;
-      let child;
-      const propertyFilter = context.options.propertyFilter;
-      for (name2 in left2) {
-        if (!Object.prototype.hasOwnProperty.call(left2, name2)) {
-          continue;
-        }
-        if (propertyFilter && !propertyFilter(name2, context)) {
-          continue;
-        }
-        child = new DiffContext(left2[name2], right2[name2]);
-        context.push(child, name2);
-      }
-      for (name2 in right2) {
-        if (!Object.prototype.hasOwnProperty.call(right2, name2)) {
-          continue;
-        }
-        if (propertyFilter && !propertyFilter(name2, context)) {
-          continue;
-        }
-        if (typeof left2[name2] === "undefined") {
-          child = new DiffContext(void 0, right2[name2]);
-          context.push(child, name2);
-        }
-      }
-      if (!context.children || context.children.length === 0) {
-        context.setResult(void 0).exit();
-        return;
-      }
-      context.exit();
-    };
-    objectsDiffFilter.filterName = "objects";
-    const patchFilter$2 = function nestedPatchFilter(context) {
-      if (!context.nested) {
-        return;
-      }
-      const nestedDelta = context.delta;
-      if (nestedDelta._t) {
-        return;
-      }
-      const objectDelta = nestedDelta;
-      let name2;
-      let child;
-      for (name2 in objectDelta) {
-        child = new PatchContext(context.left[name2], objectDelta[name2]);
-        context.push(child, name2);
-      }
-      context.exit();
-    };
-    patchFilter$2.filterName = "objects";
-    const collectChildrenPatchFilter$1 = function collectChildrenPatchFilter2(context) {
-      if (!context || !context.children) {
-        return;
-      }
-      const deltaWithChildren = context.delta;
-      if (deltaWithChildren._t) {
-        return;
-      }
-      const object = context.left;
-      const length = context.children.length;
-      let child;
-      for (let index = 0; index < length; index++) {
-        child = context.children[index];
-        const property = child.childName;
-        if (Object.prototype.hasOwnProperty.call(context.left, property) && child.result === void 0) {
-          delete object[property];
-        } else if (object[property] !== child.result) {
-          object[property] = child.result;
-        }
-      }
-      context.setResult(object).exit();
-    };
-    collectChildrenPatchFilter$1.filterName = "collectChildren";
-    const reverseFilter$2 = function nestedReverseFilter(context) {
-      if (!context.nested) {
-        return;
-      }
-      const nestedDelta = context.delta;
-      if (nestedDelta._t) {
-        return;
-      }
-      const objectDelta = context.delta;
-      let name2;
-      let child;
-      for (name2 in objectDelta) {
-        child = new ReverseContext(objectDelta[name2]);
-        context.push(child, name2);
-      }
-      context.exit();
-    };
-    reverseFilter$2.filterName = "objects";
-    const collectChildrenReverseFilter$1 = (context) => {
-      if (!context || !context.children) {
-        return;
-      }
-      const deltaWithChildren = context.delta;
-      if (deltaWithChildren._t) {
-        return;
-      }
-      const length = context.children.length;
-      let child;
-      const delta = {};
-      for (let index = 0; index < length; index++) {
-        child = context.children[index];
-        const property = child.childName;
-        if (delta[property] !== child.result) {
-          delta[property] = child.result;
-        }
-      }
-      context.setResult(delta).exit();
-    };
-    collectChildrenReverseFilter$1.filterName = "collectChildren";
-    const defaultMatch = function(array1, array2, index1, index2) {
-      return array1[index1] === array2[index2];
-    };
-    const lengthMatrix = function(array1, array2, match, context) {
-      const len1 = array1.length;
-      const len2 = array2.length;
-      let x2, y2;
-      const matrix = new Array(len1 + 1);
-      for (x2 = 0; x2 < len1 + 1; x2++) {
-        matrix[x2] = new Array(len2 + 1);
-        for (y2 = 0; y2 < len2 + 1; y2++) {
-          matrix[x2][y2] = 0;
-        }
-      }
-      matrix.match = match;
-      for (x2 = 1; x2 < len1 + 1; x2++) {
-        for (y2 = 1; y2 < len2 + 1; y2++) {
-          if (match(array1, array2, x2 - 1, y2 - 1, context)) {
-            matrix[x2][y2] = matrix[x2 - 1][y2 - 1] + 1;
-          } else {
-            matrix[x2][y2] = Math.max(matrix[x2 - 1][y2], matrix[x2][y2 - 1]);
-          }
-        }
-      }
-      return matrix;
-    };
-    const backtrack = function(matrix, array1, array2, context) {
-      let index1 = array1.length;
-      let index2 = array2.length;
-      const subsequence = {
-        sequence: [],
-        indices1: [],
-        indices2: []
-      };
-      while (index1 !== 0 && index2 !== 0) {
-        const sameLetter = matrix.match(array1, array2, index1 - 1, index2 - 1, context);
-        if (sameLetter) {
-          subsequence.sequence.unshift(array1[index1 - 1]);
-          subsequence.indices1.unshift(index1 - 1);
-          subsequence.indices2.unshift(index2 - 1);
-          --index1;
-          --index2;
-        } else {
-          const valueAtMatrixAbove = matrix[index1][index2 - 1];
-          const valueAtMatrixLeft = matrix[index1 - 1][index2];
-          if (valueAtMatrixAbove > valueAtMatrixLeft) {
-            --index2;
-          } else {
-            --index1;
-          }
-        }
-      }
-      return subsequence;
-    };
-    const get = function(array1, array2, match, context) {
-      const innerContext = context || {};
-      const matrix = lengthMatrix(array1, array2, match || defaultMatch, innerContext);
-      return backtrack(matrix, array1, array2, innerContext);
-    };
-    const lcs = {
-      get
-    };
-    const ARRAY_MOVE = 3;
-    function arraysHaveMatchByRef(array1, array2, len1, len2) {
-      for (let index1 = 0; index1 < len1; index1++) {
-        const val1 = array1[index1];
-        for (let index2 = 0; index2 < len2; index2++) {
-          const val2 = array2[index2];
-          if (index1 !== index2 && val1 === val2) {
-            return true;
-          }
-        }
-      }
-    }
-    function matchItems(array1, array2, index1, index2, context) {
-      const value1 = array1[index1];
-      const value2 = array2[index2];
-      if (value1 === value2) {
-        return true;
-      }
-      if (typeof value1 !== "object" || typeof value2 !== "object") {
-        return false;
-      }
-      const objectHash = context.objectHash;
-      if (!objectHash) {
-        return context.matchByPosition && index1 === index2;
-      }
-      context.hashCache1 = context.hashCache1 || [];
-      let hash1 = context.hashCache1[index1];
-      if (typeof hash1 === "undefined") {
-        context.hashCache1[index1] = hash1 = objectHash(value1, index1);
-      }
-      if (typeof hash1 === "undefined") {
-        return false;
-      }
-      context.hashCache2 = context.hashCache2 || [];
-      let hash2 = context.hashCache2[index2];
-      if (typeof hash2 === "undefined") {
-        context.hashCache2[index2] = hash2 = objectHash(value2, index2);
-      }
-      if (typeof hash2 === "undefined") {
-        return false;
-      }
-      return hash1 === hash2;
-    }
-    const diffFilter$2 = function arraysDiffFilter(context) {
-      if (!context.leftIsArray) {
-        return;
-      }
-      const matchContext = {
-        objectHash: context.options && context.options.objectHash,
-        matchByPosition: context.options && context.options.matchByPosition
-      };
-      let commonHead = 0;
-      let commonTail = 0;
-      let index;
-      let index1;
-      let index2;
-      const array1 = context.left;
-      const array2 = context.right;
-      const len1 = array1.length;
-      const len2 = array2.length;
-      let child;
-      if (len1 > 0 && len2 > 0 && !matchContext.objectHash && typeof matchContext.matchByPosition !== "boolean") {
-        matchContext.matchByPosition = !arraysHaveMatchByRef(array1, array2, len1, len2);
-      }
-      while (commonHead < len1 && commonHead < len2 && matchItems(array1, array2, commonHead, commonHead, matchContext)) {
-        index = commonHead;
-        child = new DiffContext(array1[index], array2[index]);
-        context.push(child, index);
-        commonHead++;
-      }
-      while (commonTail + commonHead < len1 && commonTail + commonHead < len2 && matchItems(array1, array2, len1 - 1 - commonTail, len2 - 1 - commonTail, matchContext)) {
-        index1 = len1 - 1 - commonTail;
-        index2 = len2 - 1 - commonTail;
-        child = new DiffContext(array1[index1], array2[index2]);
-        context.push(child, index2);
-        commonTail++;
-      }
-      let result;
-      if (commonHead + commonTail === len1) {
-        if (len1 === len2) {
-          context.setResult(void 0).exit();
-          return;
-        }
-        result = result || {
-          _t: "a"
-        };
-        for (index = commonHead; index < len2 - commonTail; index++) {
-          result[index] = [array2[index]];
-        }
-        context.setResult(result).exit();
-        return;
-      }
-      if (commonHead + commonTail === len2) {
-        result = result || {
-          _t: "a"
-        };
-        for (index = commonHead; index < len1 - commonTail; index++) {
-          result[`_${index}`] = [array1[index], 0, 0];
-        }
-        context.setResult(result).exit();
-        return;
-      }
-      delete matchContext.hashCache1;
-      delete matchContext.hashCache2;
-      const trimmed1 = array1.slice(commonHead, len1 - commonTail);
-      const trimmed2 = array2.slice(commonHead, len2 - commonTail);
-      const seq = lcs.get(trimmed1, trimmed2, matchItems, matchContext);
-      const removedItems = [];
-      result = result || {
-        _t: "a"
-      };
-      for (index = commonHead; index < len1 - commonTail; index++) {
-        if (seq.indices1.indexOf(index - commonHead) < 0) {
-          result[`_${index}`] = [array1[index], 0, 0];
-          removedItems.push(index);
-        }
-      }
-      let detectMove = true;
-      if (context.options && context.options.arrays && context.options.arrays.detectMove === false) {
-        detectMove = false;
-      }
-      let includeValueOnMove = false;
-      if (context.options && context.options.arrays && context.options.arrays.includeValueOnMove) {
-        includeValueOnMove = true;
-      }
-      const removedItemsLength = removedItems.length;
-      for (index = commonHead; index < len2 - commonTail; index++) {
-        const indexOnArray2 = seq.indices2.indexOf(index - commonHead);
-        if (indexOnArray2 < 0) {
-          let isMove = false;
-          if (detectMove && removedItemsLength > 0) {
-            for (let removeItemIndex1 = 0; removeItemIndex1 < removedItemsLength; removeItemIndex1++) {
-              index1 = removedItems[removeItemIndex1];
-              if (matchItems(trimmed1, trimmed2, index1 - commonHead, index - commonHead, matchContext)) {
-                result[`_${index1}`].splice(1, 2, index, ARRAY_MOVE);
-                if (!includeValueOnMove) {
-                  result[`_${index1}`][0] = "";
-                }
-                index2 = index;
-                child = new DiffContext(array1[index1], array2[index2]);
-                context.push(child, index2);
-                removedItems.splice(removeItemIndex1, 1);
-                isMove = true;
-                break;
-              }
-            }
-          }
-          if (!isMove) {
-            result[index] = [array2[index]];
-          }
-        } else {
-          index1 = seq.indices1[indexOnArray2] + commonHead;
-          index2 = seq.indices2[indexOnArray2] + commonHead;
-          child = new DiffContext(array1[index1], array2[index2]);
-          context.push(child, index2);
-        }
-      }
-      context.setResult(result).exit();
-    };
-    diffFilter$2.filterName = "arrays";
-    const compare$1 = {
-      numerically(a2, b) {
-        return a2 - b;
-      },
-      numericallyBy(name2) {
-        return (a2, b) => a2[name2] - b[name2];
-      }
-    };
-    const patchFilter$1 = function nestedPatchFilter(context) {
-      if (!context.nested) {
-        return;
-      }
-      const nestedDelta = context.delta;
-      if (nestedDelta._t !== "a") {
-        return;
-      }
-      let index;
-      let index1;
-      const delta = nestedDelta;
-      const array = context.left;
-      let toRemove = [];
-      let toInsert = [];
-      const toModify = [];
-      for (index in delta) {
-        if (index !== "_t") {
-          if (index[0] === "_") {
-            const removedOrMovedIndex = index;
-            if (delta[removedOrMovedIndex][2] === 0 || delta[removedOrMovedIndex][2] === ARRAY_MOVE) {
-              toRemove.push(parseInt(index.slice(1), 10));
-            } else {
-              throw new Error(`only removal or move can be applied at original array indices, invalid diff type: ${delta[removedOrMovedIndex][2]}`);
-            }
-          } else {
-            const numberIndex = index;
-            if (delta[numberIndex].length === 1) {
-              toInsert.push({
-                index: parseInt(numberIndex, 10),
-                value: delta[numberIndex][0]
-              });
-            } else {
-              toModify.push({
-                index: parseInt(numberIndex, 10),
-                delta: delta[numberIndex]
-              });
-            }
-          }
-        }
-      }
-      toRemove = toRemove.sort(compare$1.numerically);
-      for (index = toRemove.length - 1; index >= 0; index--) {
-        index1 = toRemove[index];
-        const indexDiff = delta[`_${index1}`];
-        const removedValue = array.splice(index1, 1)[0];
-        if (indexDiff[2] === ARRAY_MOVE) {
-          toInsert.push({
-            index: indexDiff[1],
-            value: removedValue
-          });
-        }
-      }
-      toInsert = toInsert.sort(compare$1.numericallyBy("index"));
-      const toInsertLength = toInsert.length;
-      for (index = 0; index < toInsertLength; index++) {
-        const insertion = toInsert[index];
-        array.splice(insertion.index, 0, insertion.value);
-      }
-      const toModifyLength = toModify.length;
-      let child;
-      if (toModifyLength > 0) {
-        for (index = 0; index < toModifyLength; index++) {
-          const modification = toModify[index];
-          child = new PatchContext(array[modification.index], modification.delta);
-          context.push(child, modification.index);
-        }
-      }
-      if (!context.children) {
-        context.setResult(array).exit();
-        return;
-      }
-      context.exit();
-    };
-    patchFilter$1.filterName = "arrays";
-    const collectChildrenPatchFilter = function collectChildrenPatchFilter2(context) {
-      if (!context || !context.children) {
-        return;
-      }
-      const deltaWithChildren = context.delta;
-      if (deltaWithChildren._t !== "a") {
-        return;
-      }
-      const array = context.left;
-      const length = context.children.length;
-      let child;
-      for (let index = 0; index < length; index++) {
-        child = context.children[index];
-        const arrayIndex = child.childName;
-        array[arrayIndex] = child.result;
-      }
-      context.setResult(array).exit();
-    };
-    collectChildrenPatchFilter.filterName = "arraysCollectChildren";
-    const reverseFilter$1 = function arraysReverseFilter(context) {
-      if (!context.nested) {
-        const nonNestedDelta = context.delta;
-        if (nonNestedDelta[2] === ARRAY_MOVE) {
-          const arrayMoveDelta = nonNestedDelta;
-          context.newName = `_${arrayMoveDelta[1]}`;
-          context.setResult([
-            arrayMoveDelta[0],
-            parseInt(context.childName.substring(1), 10),
-            ARRAY_MOVE
-          ]).exit();
-        }
-        return;
-      }
-      const nestedDelta = context.delta;
-      if (nestedDelta._t !== "a") {
-        return;
-      }
-      const arrayDelta = nestedDelta;
-      let name2;
-      let child;
-      for (name2 in arrayDelta) {
-        if (name2 === "_t") {
-          continue;
-        }
-        child = new ReverseContext(arrayDelta[name2]);
-        context.push(child, name2);
-      }
-      context.exit();
-    };
-    reverseFilter$1.filterName = "arrays";
-    const reverseArrayDeltaIndex = (delta, index, itemDelta) => {
-      if (typeof index === "string" && index[0] === "_") {
-        return parseInt(index.substring(1), 10);
-      } else if (Array.isArray(itemDelta) && itemDelta[2] === 0) {
-        return `_${index}`;
-      }
-      let reverseIndex = +index;
-      for (const deltaIndex in delta) {
-        const deltaItem = delta[deltaIndex];
-        if (Array.isArray(deltaItem)) {
-          if (deltaItem[2] === ARRAY_MOVE) {
-            const moveFromIndex = parseInt(deltaIndex.substring(1), 10);
-            const moveToIndex = deltaItem[1];
-            if (moveToIndex === +index) {
-              return moveFromIndex;
-            }
-            if (moveFromIndex <= reverseIndex && moveToIndex > reverseIndex) {
-              reverseIndex++;
-            } else if (moveFromIndex >= reverseIndex && moveToIndex < reverseIndex) {
-              reverseIndex--;
-            }
-          } else if (deltaItem[2] === 0) {
-            const deleteIndex = parseInt(deltaIndex.substring(1), 10);
-            if (deleteIndex <= reverseIndex) {
-              reverseIndex++;
-            }
-          } else if (deltaItem.length === 1 && parseInt(deltaIndex, 10) <= reverseIndex) {
-            reverseIndex--;
-          }
-        }
-      }
-      return reverseIndex;
-    };
-    const collectChildrenReverseFilter = (context) => {
-      if (!context || !context.children) {
-        return;
-      }
-      const deltaWithChildren = context.delta;
-      if (deltaWithChildren._t !== "a") {
-        return;
-      }
-      const arrayDelta = deltaWithChildren;
-      const length = context.children.length;
-      let child;
-      const delta = {
-        _t: "a"
-      };
-      for (let index = 0; index < length; index++) {
-        child = context.children[index];
-        let name2 = child.newName;
-        if (typeof name2 === "undefined") {
-          name2 = reverseArrayDeltaIndex(arrayDelta, child.childName, child.result);
-        }
-        if (delta[name2] !== child.result) {
-          delta[name2] = child.result;
-        }
-      }
-      context.setResult(delta).exit();
-    };
-    collectChildrenReverseFilter.filterName = "arraysCollectChildren";
-    const diffFilter$1 = function datesDiffFilter(context) {
-      if (context.left instanceof Date) {
-        if (context.right instanceof Date) {
-          if (context.left.getTime() !== context.right.getTime()) {
-            context.setResult([context.left, context.right]);
-          } else {
-            context.setResult(void 0);
-          }
-        } else {
-          context.setResult([context.left, context.right]);
-        }
-        context.exit();
-      } else if (context.right instanceof Date) {
-        context.setResult([context.left, context.right]).exit();
-      }
-    };
-    diffFilter$1.filterName = "dates";
-    const TEXT_DIFF = 2;
-    const DEFAULT_MIN_LENGTH = 60;
-    let cachedDiffPatch = null;
-    function getDiffMatchPatch(options, required) {
-      var _a2;
-      if (!cachedDiffPatch) {
-        let instance;
-        if ((_a2 = options === null || options === void 0 ? void 0 : options.textDiff) === null || _a2 === void 0 ? void 0 : _a2.diffMatchPatch) {
-          instance = new options.textDiff.diffMatchPatch();
-        } else {
-          if (!required) {
-            return null;
-          }
-          const error2 = new Error("The diff-match-patch library was not provided. Pass the library in through the options or use the `jsondiffpatch/with-text-diffs` entry-point.");
-          error2.diff_match_patch_not_found = true;
-          throw error2;
-        }
-        cachedDiffPatch = {
-          diff: function(txt1, txt2) {
-            return instance.patch_toText(instance.patch_make(txt1, txt2));
-          },
-          patch: function(txt1, patch) {
-            const results = instance.patch_apply(instance.patch_fromText(patch), txt1);
-            for (let i2 = 0; i2 < results[1].length; i2++) {
-              if (!results[1][i2]) {
-                const error2 = new Error("text patch failed");
-                error2.textPatchFailed = true;
-              }
-            }
-            return results[0];
-          }
-        };
-      }
-      return cachedDiffPatch;
-    }
-    const diffFilter = function textsDiffFilter(context) {
-      if (context.leftType !== "string") {
-        return;
-      }
-      const left2 = context.left;
-      const right2 = context.right;
-      const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
-      if (left2.length < minLength || right2.length < minLength) {
-        context.setResult([left2, right2]).exit();
-        return;
-      }
-      const diffMatchPatch = getDiffMatchPatch(context.options);
-      if (!diffMatchPatch) {
-        context.setResult([left2, right2]).exit();
-        return;
-      }
-      const diff2 = diffMatchPatch.diff;
-      context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
-    };
-    diffFilter.filterName = "texts";
-    const patchFilter = function textsPatchFilter(context) {
-      if (context.nested) {
-        return;
-      }
-      const nonNestedDelta = context.delta;
-      if (nonNestedDelta[2] !== TEXT_DIFF) {
-        return;
-      }
-      const textDiffDelta = nonNestedDelta;
-      const patch = getDiffMatchPatch(context.options, true).patch;
-      context.setResult(patch(context.left, textDiffDelta[0])).exit();
-    };
-    patchFilter.filterName = "texts";
-    const textDeltaReverse = function(delta) {
-      let i2;
-      let l2;
-      let line2;
-      let lineTmp;
-      let header = null;
-      const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
-      let lineHeader;
-      const lines = delta.split("\n");
-      for (i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-        line2 = lines[i2];
-        const lineStart = line2.slice(0, 1);
-        if (lineStart === "@") {
-          header = headerRegex.exec(line2);
-          lineHeader = i2;
-          lines[lineHeader] = "@@ -" + header[3] + "," + header[4] + " +" + header[1] + "," + header[2] + " @@";
-        } else if (lineStart === "+") {
-          lines[i2] = "-" + lines[i2].slice(1);
-          if (lines[i2 - 1].slice(0, 1) === "+") {
-            lineTmp = lines[i2];
-            lines[i2] = lines[i2 - 1];
-            lines[i2 - 1] = lineTmp;
-          }
-        } else if (lineStart === "-") {
-          lines[i2] = "+" + lines[i2].slice(1);
-        }
-      }
-      return lines.join("\n");
-    };
-    const reverseFilter = function textsReverseFilter(context) {
-      if (context.nested) {
-        return;
-      }
-      const nonNestedDelta = context.delta;
-      if (nonNestedDelta[2] !== TEXT_DIFF) {
-        return;
-      }
-      const textDiffDelta = nonNestedDelta;
-      context.setResult([textDeltaReverse(textDiffDelta[0]), 0, TEXT_DIFF]).exit();
-    };
-    reverseFilter.filterName = "texts";
-    class DiffPatcher {
-      constructor(options) {
-        this.processor = new Processor(options);
-        this.processor.pipe(new Pipe("diff").append(collectChildrenDiffFilter, diffFilter$3, diffFilter$1, diffFilter, objectsDiffFilter, diffFilter$2).shouldHaveResult());
-        this.processor.pipe(new Pipe("patch").append(collectChildrenPatchFilter$1, collectChildrenPatchFilter, patchFilter$3, patchFilter, patchFilter$2, patchFilter$1).shouldHaveResult());
-        this.processor.pipe(new Pipe("reverse").append(collectChildrenReverseFilter$1, collectChildrenReverseFilter, reverseFilter$3, reverseFilter, reverseFilter$2, reverseFilter$1).shouldHaveResult());
-      }
-      options(options) {
-        return this.processor.options(options);
-      }
-      diff(left2, right2) {
-        return this.processor.process(new DiffContext(left2, right2));
-      }
-      patch(left2, delta) {
-        return this.processor.process(new PatchContext(left2, delta));
-      }
-      reverse(delta) {
-        return this.processor.process(new ReverseContext(delta));
-      }
-      unpatch(right2, delta) {
-        return this.patch(right2, this.reverse(delta));
-      }
-      clone(value) {
-        return clone(value);
-      }
-    }
-    let defaultInstance$1;
-    function diff(left2, right2) {
-      if (!defaultInstance$1) {
-        defaultInstance$1 = new DiffPatcher();
-      }
-      return defaultInstance$1.diff(left2, right2);
-    }
-    const trimUnderscore = (str2) => {
-      if (str2.substring(0, 1) === "_") {
-        return str2.slice(1);
-      }
-      return str2;
-    };
-    const arrayKeyToSortNumber = (key2) => {
-      if (key2 === "_t") {
-        return -1;
-      } else {
-        if (key2.substring(0, 1) === "_") {
-          return parseInt(key2.slice(1), 10);
-        } else {
-          return parseInt(key2, 10) + 0.1;
-        }
-      }
-    };
-    const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
-    class BaseFormatter {
-      format(delta, left2) {
-        const context = {};
-        this.prepareContext(context);
-        const preparedContext = context;
-        this.recurse(preparedContext, delta, left2);
-        return this.finalize(preparedContext);
-      }
-      prepareContext(context) {
-        context.buffer = [];
-        context.out = function(...args) {
-          this.buffer.push(...args);
-        };
-      }
-      typeFormattterNotFound(context, deltaType) {
-        throw new Error(`cannot format delta type: ${deltaType}`);
-      }
-      /* eslint-disable @typescript-eslint/no-unused-vars */
-      typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom) {
-      }
-      /* eslint-enable @typescript-eslint/no-unused-vars */
-      finalize({ buffer: buffer2 }) {
-        if (Array.isArray(buffer2)) {
-          return buffer2.join("");
-        }
-      }
-      recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
-        const useMoveOriginHere = delta && movedFrom;
-        const leftValue = useMoveOriginHere ? movedFrom.value : left2;
-        if (typeof delta === "undefined" && typeof key2 === "undefined") {
-          return void 0;
-        }
-        const type = this.getDeltaType(delta, movedFrom);
-        const nodeType = type === "node" ? delta._t === "a" ? "array" : "object" : "";
-        if (typeof key2 !== "undefined") {
-          this.nodeBegin(context, key2, leftKey, type, nodeType, isLast);
-        } else {
-          this.rootBegin(context, type, nodeType);
-        }
-        let typeFormattter;
-        try {
-          typeFormattter = type !== "unknown" ? this[`format_${type}`] : this.typeFormattterNotFound(context, type);
-          typeFormattter.call(this, context, delta, leftValue, key2, leftKey, movedFrom);
-        } catch (err2) {
-          this.typeFormattterErrorFormatter(context, err2, delta, leftValue, key2, leftKey, movedFrom);
-          if (typeof console !== "undefined" && console.error) {
-            console.error(err2.stack);
-          }
-        }
-        if (typeof key2 !== "undefined") {
-          this.nodeEnd(context, key2, leftKey, type, nodeType, isLast);
-        } else {
-          this.rootEnd(context, type, nodeType);
-        }
-      }
-      formatDeltaChildren(context, delta, left2) {
-        this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
-          this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
-        });
-      }
-      forEachDeltaKey(delta, left2, fn2) {
-        const keys = Object.keys(delta);
-        const arrayKeys = delta._t === "a";
-        const moveDestinations = {};
-        let name2;
-        if (typeof left2 !== "undefined") {
-          for (name2 in left2) {
-            if (Object.prototype.hasOwnProperty.call(left2, name2)) {
-              if (typeof delta[name2] === "undefined" && (!arrayKeys || typeof delta[`_${name2}`] === "undefined")) {
-                keys.push(name2);
-              }
-            }
-          }
-        }
-        for (name2 in delta) {
-          if (Object.prototype.hasOwnProperty.call(delta, name2)) {
-            const value = delta[name2];
-            if (Array.isArray(value) && value[2] === 3) {
-              const movedDelta = value;
-              moveDestinations[`${movedDelta[1]}`] = {
-                key: name2,
-                value: left2 && left2[parseInt(name2.substring(1), 10)]
-              };
-              if (this.includeMoveDestinations !== false) {
-                if (typeof left2 === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
-                  keys.push(movedDelta[1].toString());
-                }
-              }
-            }
-          }
-        }
-        if (arrayKeys) {
-          keys.sort(arrayKeyComparer);
-        } else {
-          keys.sort();
-        }
-        for (let index = 0, length = keys.length; index < length; index++) {
-          const key2 = keys[index];
-          if (arrayKeys && key2 === "_t") {
-            continue;
-          }
-          const leftKey = arrayKeys ? parseInt(trimUnderscore(key2), 10) : key2;
-          const isLast = index === length - 1;
-          fn2(key2, leftKey, moveDestinations[leftKey], isLast);
-        }
-      }
-      getDeltaType(delta, movedFrom) {
-        if (typeof delta === "undefined") {
-          if (typeof movedFrom !== "undefined") {
-            return "movedestination";
-          }
-          return "unchanged";
-        }
-        if (Array.isArray(delta)) {
-          if (delta.length === 1) {
-            return "added";
-          }
-          if (delta.length === 2) {
-            return "modified";
-          }
-          if (delta.length === 3 && delta[2] === 0) {
-            return "deleted";
-          }
-          if (delta.length === 3 && delta[2] === 2) {
-            return "textdiff";
-          }
-          if (delta.length === 3 && delta[2] === 3) {
-            return "moved";
-          }
-        } else if (typeof delta === "object") {
-          return "node";
-        }
-        return "unknown";
-      }
-      parseTextDiff(value) {
-        const output = [];
-        const lines = value.split("\n@@ ");
-        for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-          const line2 = lines[i2];
-          const lineOutput = {
-            pieces: []
-          };
-          const location = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2).slice(1);
-          lineOutput.location = {
-            line: location[0],
-            chr: location[1]
-          };
-          const pieces = line2.split("\n").slice(1);
-          for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
-            const piece = pieces[pieceIndex];
-            if (!piece.length) {
-              continue;
-            }
-            const pieceOutput = {
-              type: "context"
-            };
-            if (piece.substring(0, 1) === "+") {
-              pieceOutput.type = "added";
-            } else if (piece.substring(0, 1) === "-") {
-              pieceOutput.type = "deleted";
-            }
-            pieceOutput.text = piece.slice(1);
-            lineOutput.pieces.push(pieceOutput);
-          }
-          output.push(lineOutput);
-        }
-        return output;
-      }
-    }
-    class HtmlFormatter extends BaseFormatter {
-      typeFormattterErrorFormatter(context, err2) {
-        context.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
-      }
-      formatValue(context, value) {
-        context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
-      }
-      formatTextDiffString(context, value) {
-        const lines = this.parseTextDiff(value);
-        context.out('<ul class="jsondiffpatch-textdiff">');
-        for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
-          const line2 = lines[i2];
-          context.out(`<li><div class="jsondiffpatch-textdiff-location"><span class="jsondiffpatch-textdiff-line-number">${line2.location.line}</span><span class="jsondiffpatch-textdiff-char">${line2.location.chr}</span></div><div class="jsondiffpatch-textdiff-line">`);
-          const pieces = line2.pieces;
-          for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
-            const piece = pieces[pieceIndex];
-            context.out(`<span class="jsondiffpatch-textdiff-${piece.type}">${htmlEscape(decodeURI(piece.text))}</span>`);
-          }
-          context.out("</div></li>");
-        }
-        context.out("</ul>");
-      }
-      rootBegin(context, type, nodeType) {
-        const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-        context.out(`<div class="jsondiffpatch-delta ${nodeClass}">`);
-      }
-      rootEnd(context) {
-        context.out(`</div>${context.hasArrows ? `<script type="text/javascript">setTimeout(${adjustArrows.toString()},10);<\/script>` : ""}`);
-      }
-      nodeBegin(context, key2, leftKey, type, nodeType) {
-        const nodeClass = `jsondiffpatch-${type}${nodeType ? ` jsondiffpatch-child-node-type-${nodeType}` : ""}`;
-        context.out(`<li class="${nodeClass}" data-key="${leftKey}"><div class="jsondiffpatch-property-name">${leftKey}</div>`);
-      }
-      nodeEnd(context) {
-        context.out("</li>");
-      }
-      format_unchanged(context, delta, left2) {
-        if (typeof left2 === "undefined") {
-          return;
-        }
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left2);
-        context.out("</div>");
-      }
-      format_movedestination(context, delta, left2) {
-        if (typeof left2 === "undefined") {
-          return;
-        }
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left2);
-        context.out("</div>");
-      }
-      format_node(context, delta, left2) {
-        const nodeType = delta._t === "a" ? "array" : "object";
-        context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-        this.formatDeltaChildren(context, delta, left2);
-        context.out("</ul>");
-      }
-      format_added(context, delta) {
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, delta[0]);
-        context.out("</div>");
-      }
-      format_modified(context, delta) {
-        context.out('<div class="jsondiffpatch-value jsondiffpatch-left-value">');
-        this.formatValue(context, delta[0]);
-        context.out('</div><div class="jsondiffpatch-value jsondiffpatch-right-value">');
-        this.formatValue(context, delta[1]);
-        context.out("</div>");
-      }
-      format_deleted(context, delta) {
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, delta[0]);
-        context.out("</div>");
-      }
-      format_moved(context, delta) {
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, delta[0]);
-        context.out(`</div><div class="jsondiffpatch-moved-destination">${delta[1]}</div>`);
-        context.out(
-          /* jshint multistr: true */
-          `<div class="jsondiffpatch-arrow" style="position: relative; left: -34px;">
-          <svg width="30" height="60" style="position: absolute; display: none;">
-          <defs>
-              <marker id="markerArrow" markerWidth="8" markerHeight="8"
-                 refx="2" refy="4"
-                     orient="auto" markerUnits="userSpaceOnUse">
-                  <path d="M1,1 L1,7 L7,4 L1,1" style="fill: #339;" />
-              </marker>
-          </defs>
-          <path d="M30,0 Q-10,25 26,50"
-            style="stroke: #88f; stroke-width: 2px; fill: none; stroke-opacity: 0.5; marker-end: url(#markerArrow);"
-          ></path>
-          </svg>
-      </div>`
-        );
-        context.hasArrows = true;
-      }
-      format_textdiff(context, delta) {
-        context.out('<div class="jsondiffpatch-value">');
-        this.formatTextDiffString(context, delta[0]);
-        context.out("</div>");
-      }
-    }
-    function htmlEscape(text2) {
-      let html = text2;
-      const replacements = [
-        [/&/g, "&amp;"],
-        [/</g, "&lt;"],
-        [/>/g, "&gt;"],
-        [/'/g, "&apos;"],
-        [/"/g, "&quot;"]
-      ];
-      for (let i2 = 0; i2 < replacements.length; i2++) {
-        html = html.replace(replacements[i2][0], replacements[i2][1]);
-      }
-      return html;
-    }
-    const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
-      const node = nodeArg || document;
-      const getElementText = ({ textContent, innerText }) => textContent || innerText;
-      const eachByQuery = (el, query, fn2) => {
-        const elems = el.querySelectorAll(query);
-        for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
-          fn2(elems[i2]);
-        }
-      };
-      const eachChildren = ({ children: children2 }, fn2) => {
-        for (let i2 = 0, l2 = children2.length; i2 < l2; i2++) {
-          fn2(children2[i2], i2);
-        }
-      };
-      eachByQuery(node, ".jsondiffpatch-arrow", ({ parentNode, children: children2, style: style2 }) => {
-        const arrowParent = parentNode;
-        const svg2 = children2[0];
-        const path = svg2.children[1];
-        svg2.style.display = "none";
-        const destination = getElementText(arrowParent.querySelector(".jsondiffpatch-moved-destination"));
-        const container = arrowParent.parentNode;
-        let destinationElem;
-        eachChildren(container, (child) => {
-          if (child.getAttribute("data-key") === destination) {
-            destinationElem = child;
-          }
-        });
-        if (!destinationElem) {
-          return;
-        }
-        try {
-          const distance = destinationElem.offsetTop - arrowParent.offsetTop;
-          svg2.setAttribute("height", `${Math.abs(distance) + 6}`);
-          style2.top = `${-8 + (distance > 0 ? 0 : distance)}px`;
-          const curve = distance > 0 ? `M30,0 Q-10,${Math.round(distance / 2)} 26,${distance - 4}` : `M30,${-distance} Q-10,${Math.round(-distance / 2)} 26,4`;
-          path.setAttribute("d", curve);
-          svg2.style.display = "";
-        } catch (err2) {
-        }
-      });
-    };
-    let defaultInstance;
-    function format(delta, left2) {
-      if (!defaultInstance) {
-        defaultInstance = new HtmlFormatter();
-      }
-      return defaultInstance.format(delta, left2);
-    }
-    const StateDiffView = ({ before, after, style: style2 }) => {
-      const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
-      const html_result = format(state_diff) || "Unable to render differences";
-      return m$1`<div
-    dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
-    style=${{ ...style2 }}
-  ></div>`;
-    };
-    function unescapeNewlines(obj) {
-      if (typeof obj === "string") {
-        return obj.replace(/\\n/g, "\n");
-      } else if (typeof obj === "object") {
-        for (let key2 in obj) {
-          obj[key2] = unescapeNewlines(obj[key2]);
-        }
-      }
-      return obj;
-    }
-    function sanitizeKeys(obj) {
-      if (typeof obj !== "object" || obj === null) {
-        return obj;
-      }
-      if (Array.isArray(obj)) {
-        return obj.map(sanitizeKeys);
-      }
-      return Object.fromEntries(
-        Object.entries(obj).map(([key2, value]) => [
-          key2.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-          sanitizeKeys(value)
-        ])
-      );
-    }
     const StateEventView = ({
       id,
       event,

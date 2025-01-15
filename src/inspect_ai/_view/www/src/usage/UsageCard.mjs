@@ -1,11 +1,11 @@
 //@ts-check
 import { html } from "htm/preact";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatDuration, formatNumber } from "../utils/Format.mjs";
-import { Card, CardHeader, CardBody } from "../components/Card.mjs";
+import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
+import { formatDuration, formatNumber } from "../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable.mjs";
 
 const kUsageCardBodyId = "usage-card-body";

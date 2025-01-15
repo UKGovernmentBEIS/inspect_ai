@@ -1,6 +1,6 @@
 import { compileExpression } from "filtrex";
 import { kScoreTypeBoolean } from "../../constants.mjs";
-import { inputString } from "../../utils/Format.mjs";
+import { inputString } from "../../utils/format";
 
 /**
  * @typedef {Object} FilterError
