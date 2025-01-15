@@ -114,7 +114,7 @@ class EvalConfig(BaseModel):
 
 
 class EvalSampleLimit(BaseModel):
-    type: Literal["context", "time", "message", "token", "operator"]
+    type: Literal["context", "time", "message", "token", "operator", "custom"]
     """The type of limit"""
 
     limit: int

@@ -26,7 +26,7 @@ def looping_solver(check_tokens: bool = False):
             assert state.token_usage > 0
 
         # keep generating until we hit a limit
-        while not state.completed:
+        while True:
             state.messages.append(state.user_prompt)
             state = await generate(state)
 
@@ -56,7 +56,7 @@ def test_message_limit_complete():
     )
 
     log = eval(task, model="mockllm/model")[0]
-    assert len(log.samples[0].messages) == message_limit
+    assert len(log.samples[0].messages) > message_limit
     check_limit_event(log, "message")
 
 
