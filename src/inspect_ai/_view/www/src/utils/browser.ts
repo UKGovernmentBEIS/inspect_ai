@@ -1,4 +1,3 @@
-// @ts-check
 /**
  * Clears the current text selection in the document.
  */
