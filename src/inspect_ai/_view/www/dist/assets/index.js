@@ -20630,6 +20630,69 @@ categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
+    const SampleError = ({ message, align, style: style2 }) => {
+      align = align || "center";
+      return m$1`<div
+    style=${{
+        color: "var(--bs-danger)",
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        alignContent: align,
+        justifyItems: "center",
+        ...style2
+      }}
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
+        fontSize: FontSize.small,
+        lineHeight: FontSize.small,
+        height: FontSize.small
+      }}
+    />
+    <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
+      ${errorType(message)}
+    </div>
+  </div>`;
+    };
+    const FlatSampleError = ({ message, style: style2 }) => {
+      return m$1`<div
+    style=${{
+        color: "var(--bs-danger)",
+        display: "grid",
+        gridTemplateColumns: "max-content max-content",
+        columnGap: "0.2em",
+        ...style2
+      }}
+  >
+    <i
+      class=${ApplicationIcons.error}
+      style=${{
+        fontSize: FontSize.base,
+        lineHeight: FontSize.base,
+        height: FontSize.base
+      }}
+    />
+    <div
+      style=${{
+        fontSize: FontSize.base,
+        lineHeight: FontSize.base,
+        height: FontSize.base
+      }}
+    >
+      ${errorType(message)}
+    </div>
+  </div>`;
+    };
+    const errorType = (message) => {
+      if (!message) {
+        return "Error";
+      }
+      if (message.includes("(")) {
+        return message.split("(")[0];
+      }
+      return "Error";
+    };
     const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
       const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
       if (scores.length === 1) {
@@ -29366,69 +29429,6 @@ ${events}
     events=${evalEvents}
     scrollRef=${scrollRef}
   />`;
-    };
-    const SampleError = ({ message, align, style: style2 }) => {
-      align = align || "center";
-      return m$1`<div
-    style=${{
-        color: "var(--bs-danger)",
-        display: "grid",
-        gridTemplateColumns: "1fr",
-        alignContent: align,
-        justifyItems: "center",
-        ...style2
-      }}
-  >
-    <i
-      class=${ApplicationIcons.error}
-      style=${{
-        fontSize: FontSize.small,
-        lineHeight: FontSize.small,
-        height: FontSize.small
-      }}
-    />
-    <div style=${{ maxWidth: "300px", ...ApplicationStyles.lineClamp(2) }}>
-      ${errorType(message)}
-    </div>
-  </div>`;
-    };
-    const FlatSampleError = ({ message, style: style2 }) => {
-      return m$1`<div
-    style=${{
-        color: "var(--bs-danger)",
-        display: "grid",
-        gridTemplateColumns: "max-content max-content",
-        columnGap: "0.2em",
-        ...style2
-      }}
-  >
-    <i
-      class=${ApplicationIcons.error}
-      style=${{
-        fontSize: FontSize.base,
-        lineHeight: FontSize.base,
-        height: FontSize.base
-      }}
-    />
-    <div
-      style=${{
-        fontSize: FontSize.base,
-        lineHeight: FontSize.base,
-        height: FontSize.base
-      }}
-    >
-      ${errorType(message)}
-    </div>
-  </div>`;
-    };
-    const errorType = (message) => {
-      if (!message) {
-        return "Error";
-      }
-      if (message.includes("(")) {
-        return message.split("(")[0];
-      }
-      return "Error";
     };
     const printHtml = (html, css) => {
       const printWindow = window.open("", "", "height=600,width=800");
