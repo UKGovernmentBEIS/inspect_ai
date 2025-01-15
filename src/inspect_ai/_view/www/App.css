@@ -87,7 +87,7 @@ html.vscode {
 
 html.vscode .sample-input {
   line-height: 1.3em;
-  -webkit-line-clamp: 4 !important
+  -webkit-line-clamp: 4 !important;
 }
 
 body[class^="vscode-"] .modal-backdrop {
@@ -276,7 +276,7 @@ body {
 }
 
 @media (max-width: 575px) {
-  .tab-tools  select {
+  .tab-tools select {
     width: 50px;
   }
 }
@@ -724,7 +724,7 @@ table.table.table-sm td {
 }
 
 @keyframes moveLeftToRight {
-from {
+  from {
     margin-left: 0;
   }
   to {
@@ -759,7 +759,6 @@ pre[class*="language-"].tool-output {
 }
 
 /* lightbox styles */
-
 
 .lightbox-overlay .close-button,
 .lightbox-overlay .nav-button {
@@ -868,38 +867,38 @@ ul.jsondiffpatch-delta {
   vertical-align: top;
 }
 .jsondiffpatch-property-name:after {
-  content: ': ';
+  content: ": ";
 }
 .jsondiffpatch-child-node-type-array > .jsondiffpatch-property-name:after {
-  content: ': [';
+  content: ": [";
 }
 .jsondiffpatch-child-node-type-array:after {
-  content: '],';
+  content: "],";
 }
 div.jsondiffpatch-child-node-type-array:before {
-  content: '[';
+  content: "[";
 }
 div.jsondiffpatch-child-node-type-array:after {
-  content: ']';
+  content: "]";
 }
 .jsondiffpatch-child-node-type-object > .jsondiffpatch-property-name:after {
-  content: ': {';
+  content: ": {";
 }
 .jsondiffpatch-child-node-type-object:after {
-  content: '},';
+  content: "},";
 }
 div.jsondiffpatch-child-node-type-object:before {
-  content: '{';
+  content: "{";
 }
 div.jsondiffpatch-child-node-type-object:after {
-  content: '}';
+  content: "}";
 }
 .jsondiffpatch-value pre:after {
-  content: ',';
+  content: ",";
 }
 li:last-child > .jsondiffpatch-value pre:after,
 .jsondiffpatch-modified > .jsondiffpatch-left-value pre:after {
-  content: '';
+  content: "";
 }
 .jsondiffpatch-modified .jsondiffpatch-value {
   display: inline-block;
@@ -916,7 +915,7 @@ li:last-child > .jsondiffpatch-value pre:after,
   color: #888;
 }
 .jsondiffpatch-moved .jsondiffpatch-moved-destination:before {
-  content: ' => ';
+  content: " => ";
 }
 ul.jsondiffpatch-textdiff {
   padding: 0;
@@ -930,7 +929,7 @@ ul.jsondiffpatch-textdiff {
   display: inline-block;
 }
 .jsondiffpatch-textdiff-line-number:after {
-  content: ',';
+  content: ",";
 }
 .jsondiffpatch-error {
   background: red;

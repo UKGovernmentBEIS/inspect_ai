@@ -1,6 +1,5 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import preact from "@preact/preset-vite";
+import { defineConfig } from "vite";
 import prism from "vite-plugin-prismjs";
 
 export default defineConfig({
@@ -23,11 +22,9 @@ export default defineConfig({
     sourcemap: true,
   },
   plugins: [
-    // Configure both Preact and React plugins
-    preact(),
-    react({
-      // Only apply React plugin to .tsx files
-      include: /\.(tsx|ts)$/,
+    preact({
+      // Include all files
+      include: /\.[jt]sx?$/,
     }),
     prism({
       languages: ["javascript", "css", "clike", "bash", "python", "python"],
@@ -35,12 +32,10 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    // Add aliases to handle both React and Preact
     alias: {
-      // This allows existing Preact code to keep working
-      'react': 'preact/compat',
-      'react-dom': 'preact/compat',
-      'react-dom/test-utils': 'preact/test-utils'
-    }
-  }
+      react: "preact/compat",
+      "react-dom": "preact/compat",
+      "react/jsx-runtime": "preact/jsx-runtime",
+    },
+  },
 });
