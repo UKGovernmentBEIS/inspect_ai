@@ -7602,96 +7602,6 @@ var require_assets = __commonJS({
     function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
-    function sleep$1(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-    function throttle$1(func, wait, options = {}) {
-      let context;
-      let args;
-      let result;
-      let timeout = null;
-      let previous = 0;
-      const later = function() {
-        previous = options.leading === false ? 0 : Date.now();
-        timeout = null;
-        result = func.apply(context, args === null ? [] : args);
-        if (!timeout) {
-          context = null;
-          args = null;
-        }
-      };
-      return function(...callArgs) {
-        const now = Date.now();
-        if (!previous && options.leading === false) {
-          previous = now;
-        }
-        const remaining = wait - (now - previous);
-        context = this;
-        args = callArgs;
-        if (remaining <= 0 || remaining > wait) {
-          if (timeout) {
-            clearTimeout(timeout);
-            timeout = null;
-          }
-          previous = now;
-          result = func.apply(context, args);
-          if (!timeout) {
-            context = null;
-            args = null;
-          }
-        } else if (!timeout && options.trailing !== false) {
-          timeout = setTimeout(later, remaining);
-        }
-        return result;
-      };
-    }
-    function debounce$1(func, wait, options = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options.leading) {
-            result = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result;
-      };
-    }
-    const clearDocumentSelection = () => {
-      const sel = window.getSelection();
-      if (sel) {
-        if (sel.removeAllRanges) {
-          sel.removeAllRanges();
-        } else if (sel.empty) {
-          sel.empty();
-        }
-      }
-    };
     const ApplicationIcons = {
       approve: "bi bi-shield",
       approvals: {
@@ -7896,6 +7806,16 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
+    const clearDocumentSelection = () => {
+      const sel = window.getSelection();
+      if (sel) {
+        if (sel.removeAllRanges) {
+          sel.removeAllRanges();
+        } else if (sel.empty) {
+          sel.empty();
+        }
+      }
+    };
     const ProgressBar = ({ style: style2, containerStyle, animating }) => {
       const emptyStyle = {
         display: "flex",
@@ -7939,6 +7859,301 @@ var require_assets = __commonJS({
       </div>
     </div>
   `;
+    };
+    function sleep$1(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    function throttle$1(func, wait, options = {}) {
+      let context;
+      let args;
+      let result;
+      let timeout = null;
+      let previous = 0;
+      const later = function() {
+        previous = options.leading === false ? 0 : Date.now();
+        timeout = null;
+        result = func.apply(context, args === null ? [] : args);
+        if (!timeout) {
+          context = null;
+          args = null;
+        }
+      };
+      return function(...callArgs) {
+        const now = Date.now();
+        if (!previous && options.leading === false) {
+          previous = now;
+        }
+        const remaining = wait - (now - previous);
+        context = this;
+        args = callArgs;
+        if (remaining <= 0 || remaining > wait) {
+          if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+          }
+          previous = now;
+          result = func.apply(context, args);
+          if (!timeout) {
+            context = null;
+            args = null;
+          }
+        } else if (!timeout && options.trailing !== false) {
+          timeout = setTimeout(later, remaining);
+        }
+        return result;
+      };
+    }
+    function debounce$1(func, wait, options = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options.leading) {
+            result = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result;
+      };
+    }
+    const FindBand = ({ hideBand }) => {
+      const searchBoxRef = A$1(
+        /** @type {HTMLInputElement|null} */
+        null
+      );
+      y(() => {
+        searchBoxRef.current.focus();
+      }, []);
+      const searchTerm = () => {
+        return searchBoxRef.current.value;
+      };
+      const search = (term, back) => {
+        const parentExpandablePanel = (selection) => {
+          let node = selection.anchorNode;
+          let expandablePanelEl = void 0;
+          while (node) {
+            if (node.classList && node.classList.contains("expandable-panel")) {
+              expandablePanelEl = node;
+              break;
+            }
+            node = node.parentElement;
+          }
+          return expandablePanelEl;
+        };
+        const focusedElement = (
+          /** @type {HTMLElement} */
+          document.activeElement
+        );
+        const result = window.find(term, false, !!back, false, false, true, false);
+        const noResultEl = window.document.getElementById(
+          "inspect-find-no-results"
+        );
+        if (result) {
+          noResultEl.style.opacity = "0";
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const parentPanel = parentExpandablePanel(selection);
+            if (parentPanel) {
+              parentPanel.style.display = "block";
+              parentPanel.style["-webkit-line-clamp"] = "";
+              parentPanel.style["-webkit-box-orient"] = "";
+            }
+            const range = selection.getRangeAt(0);
+            setTimeout(() => {
+              const element = range.startContainer.parentElement;
+              element.scrollIntoView({
+                behavior: "smooth",
+                // Optional: adds a smooth scrolling animation
+                block: "center"
+                // Optional: scrolls so the element is centered in the view
+              });
+            }, 100);
+          }
+        } else {
+          noResultEl.style.opacity = "1";
+        }
+        if (focusedElement) {
+          focusedElement.focus();
+        }
+      };
+      return m$1`<div
+    style=${{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        marginRight: "20%",
+        zIndex: "1060",
+        color: "var(--inspect-find-foreground)",
+        backgroundColor: "var(--inspect-find-background)",
+        fontSize: "0.9rem",
+        display: "grid",
+        gridTemplateColumns: "auto auto auto auto auto",
+        columnGap: "0.2em",
+        padding: "0.2rem",
+        borderBottom: "solid 1px var(--bs-light-border-subtle)",
+        borderLeft: "solid 1px var(--bs-light-border-subtle)",
+        borderRight: "solid 1px var(--bs-light-border-subtle)",
+        boxShadow: "var(--bs-box-shadow)"
+      }}
+  >
+    <input
+      type="text"
+      ref=${searchBoxRef}
+      style=${{
+        height: "2em",
+        fontSize: "0.9em",
+        margin: "0.1rem",
+        outline: "none",
+        border: "solid 1px var(--inspect-input-border)",
+        color: "var(--inspect-input-foreground)",
+        background: "var(--inspect-input-background)"
+      }}
+      placeholder="Find"
+      onkeydown=${(e2) => {
+        if (e2.key === "Escape") {
+          hideBand();
+        } else if (e2.key === "Enter") {
+          search(searchTerm());
+        }
+      }}
+    />
+    <span
+      id="inspect-find-no-results"
+      style=${{
+        fontSize: FontSize.base,
+        opacity: 0,
+        marginTop: "auto",
+        marginBottom: "auto",
+        marginRight: "0.5em"
+      }}
+      >No results</span
+    >
+    <button
+      title="Previous match"
+      style=${{ padding: 0, fontSize: FontSize.larger }}
+      class="btn"
+      onclick=${() => {
+        search(searchTerm(), true);
+      }}
+    >
+      <i class=${ApplicationIcons.arrows.up}></i>
+    </button>
+    <button
+      title="Next match"
+      style=${{ padding: 0, fontSize: FontSize.larger }}
+      class="btn"
+      onclick=${() => {
+        search(searchTerm());
+      }}
+    >
+      <i class=${ApplicationIcons.arrows.down}></i>
+    </button>
+    <button
+      title="Close"
+      style=${{
+        padding: 0,
+        fontSize: FontSize["title-secondary"],
+        marginTop: "-0.1rem",
+        marginBottom: "-0.1rem"
+      }}
+      class="btn"
+      onclick=${() => hideBand()}
+    >
+      <i class=${ApplicationIcons.close}></i>
+    </button>
+  </div>`;
+    };
+    const kEvalWorkspaceTabId = "eval-tab";
+    const kJsonWorkspaceTabId = "json-tab";
+    const kInfoWorkspaceTabId = "plan-tab";
+    const kSampleMessagesTabId = `sample-display-messages`;
+    const kSampleTranscriptTabId = `sample-display-transcript`;
+    const kSampleScoringTabId = `sample-display-scoring`;
+    const kSampleMetdataTabId = `sample-display-metadata`;
+    const kSampleErrorTabId = `sample-display-error`;
+    const kSampleJsonTabId = `sample-display-json`;
+    const kScoreTypePassFail = "passfail";
+    const kScoreTypeCategorical = "categorical";
+    const kScoreTypeNumeric = "numeric";
+    const kScoreTypeOther = "other";
+    const kScoreTypeObject = "object";
+    const kScoreTypeBoolean = "boolean";
+    const kSampleAscVal = "sample-asc";
+    const kSampleDescVal = "sample-desc";
+    const kEpochAscVal = "epoch-asc";
+    const kEpochDescVal = "epoch-desc";
+    const kScoreAscVal = "score-asc";
+    const kScoreDescVal = "score-desc";
+    const kDefaultSort = kSampleAscVal;
+    const ApplicationStyles = {
+      moreButton: {
+        maxHeight: "1.8em",
+        fontSize: FontSize.smaller,
+        padding: "0 0.2em 0 0.2em",
+        ...TextStyle.secondary
+      },
+      threeLineClamp: {
+        display: "-webkit-box",
+        "-webkit-line-clamp": "3",
+        "-webkit-box-orient": "vertical",
+        overflow: "hidden"
+      },
+      lineClamp: (len) => {
+        return {
+          display: "-webkit-box",
+          "-webkit-line-clamp": `${len}`,
+          "-webkit-box-orient": "vertical",
+          overflow: "hidden"
+        };
+      },
+      wrapText: () => {
+        return {
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+          overflow: "hidden"
+        };
+      },
+      scoreFills: {
+        green: {
+          backgroundColor: "var(--bs-success)",
+          borderColor: "var(--bs-success)",
+          color: "var(--bs-body-bg)"
+        },
+        red: {
+          backgroundColor: "var(--bs-danger)",
+          borderColor: "var(--bs-danger)",
+          color: "var(--bs-body-bg)"
+        },
+        orange: {
+          backgroundColor: "var(--bs-orange)",
+          borderColor: "var(--bs-orange)",
+          color: "var(--bs-body-bg)"
+        }
+      }
     };
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
@@ -8046,674 +8261,6 @@ var require_assets = __commonJS({
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
-    const ApplicationStyles = {
-      moreButton: {
-        maxHeight: "1.8em",
-        fontSize: FontSize.smaller,
-        padding: "0 0.2em 0 0.2em",
-        ...TextStyle.secondary
-      },
-      threeLineClamp: {
-        display: "-webkit-box",
-        "-webkit-line-clamp": "3",
-        "-webkit-box-orient": "vertical",
-        overflow: "hidden"
-      },
-      lineClamp: (len) => {
-        return {
-          display: "-webkit-box",
-          "-webkit-line-clamp": `${len}`,
-          "-webkit-box-orient": "vertical",
-          overflow: "hidden"
-        };
-      },
-      wrapText: () => {
-        return {
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden"
-        };
-      },
-      scoreFills: {
-        green: {
-          backgroundColor: "var(--bs-success)",
-          borderColor: "var(--bs-success)",
-          color: "var(--bs-body-bg)"
-        },
-        red: {
-          backgroundColor: "var(--bs-danger)",
-          borderColor: "var(--bs-danger)",
-          color: "var(--bs-body-bg)"
-        },
-        orange: {
-          backgroundColor: "var(--bs-orange)",
-          borderColor: "var(--bs-orange)",
-          color: "var(--bs-body-bg)"
-        }
-      }
-    };
-    const Sidebar = ({
-      offcanvas,
-      logs,
-      loading,
-      logHeaders,
-      selectedIndex,
-      onSelectedIndexChanged
-    }) => {
-      const btnOffCanClass = offcanvas ? "" : " d-md-none";
-      const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
-      return m$1`
-    <div
-      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
-      id="sidebarOffCanvas"
-      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
-    >
-      <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        columnGap: "0.2rem",
-        alignItems: "center",
-        paddingLeft: "0.5rem",
-        opacity: "0.7",
-        position: "fixed",
-        width: "var(--sidebar-width)",
-        zIndex: 10,
-        borderBottom: "solid var(--bs-light-border-subtle) 1px",
-        paddingBottom: "0.5rem",
-        paddingTop: "0.5rem",
-        height: "3.6em"
-      }}
-      >
-        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
-        <button
-          id="sidebarToggle"
-          class="btn d-inline${btnOffCanClass}"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebarOffCanvas"
-          aria-controls="sidebarOffCanvas"
-          style=${{
-        padding: ".1rem",
-        alignSelf: "end",
-        width: "40px",
-        flex: "0 0 content"
-      }}
-        >
-          <i class=${ApplicationIcons.close}></i>
-        </button>
-      </div>
-      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
-      </div>
-      <ul
-        class="list-group"
-        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
-      >
-        ${logs.files.map((file, index) => {
-        var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
-        const active = index === selectedIndex ? " active" : "";
-        const logHeader = logHeaders[file.name];
-        const hyperparameters = logHeader ? {
-          ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
-          ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
-        } : void 0;
-        const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-        const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
-        const uniqScorers = /* @__PURE__ */ new Set();
-        (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
-          uniqScorers.add(scorer2.name);
-        });
-        const scorer = Array.from(uniqScorers).join(",");
-        const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-        const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-        const time = completed ? new Date(completed) : void 0;
-        const timeStr = time ? `${time.toDateString()}
-          ${time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        })}` : "";
-        return m$1`
-            <li
-              class="list-group-item list-group-item-action${active}"
-              onclick=${() => onSelectedIndexChanged(index)}
-            >
-              <div
-                style=${{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "space-between"
-        }}
-              >
-                <div style=${{ overflow: "hidden" }}>
-                  <div
-                    style=${{
-          fontSize: FontSize["title-secondary"],
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis"
-        }}
-                  >
-                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
-                  </div>
-                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
-                    ${timeStr}
-                  </small>
-
-                  ${model ? m$1` <div>
-                        <small
-                          class="mb-1"
-                          style=${{ fontSize: FontSize.small }}
-                          >${model}</small
-                        >
-                      </div>` : ""}
-                </div>
-                <${EvalStatus} logHeader=${logHeader} />
-              </div>
-              <div
-                style=${{
-          marginTop: "1em",
-          ...ApplicationStyles.threeLineClamp
-        }}
-              >
-                <small class="mb-1">
-                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-          const val = hyperparameters[key2];
-          if (Array.isArray(val) || typeof val === "object") {
-            return `${key2}: ${JSON.stringify(val)}`;
-          } else {
-            return `${key2}: ${val}`;
-          }
-        }).join(", ") : ""}
-                </small>
-              </div>
-              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
-                    style=${{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "0em",
-          fontSize: FontSize.small
-        }}
-                  >
-                    <span>dataset: ${dataset.name || "(samples)"}</span
-                    ><span>${scorerLabel}: ${scorer}</span>
-                  </div>` : ""}
-            </li>
-          `;
-      })}
-      </ul>
-    </div>
-  `;
-    };
-    const prettyDir = (path) => {
-      try {
-        let url = new URL(path);
-        if (url.protocol === "file:") {
-          return url.pathname;
-        } else {
-          return path;
-        }
-      } catch {
-        return path;
-      }
-    };
-    const EvalStatus = ({ logHeader }) => {
-      var _a2, _b2;
-      switch (logHeader == null ? void 0 : logHeader.status) {
-        case "error":
-          return m$1`<${StatusError} message="Error" />`;
-        case "cancelled":
-          return m$1`<${StatusCancelled} message="Cancelled" />`;
-        case "started":
-          return m$1`<${StatusRunning} message="Running" />`;
-        default:
-          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
-            if (logHeader.results.scores.length === 1) {
-              return m$1`<${SidebarScore}
-            scorer=${logHeader.results.scores[0]}
-          />`;
-            } else {
-              return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
-            }
-          } else {
-            return "";
-          }
-      }
-    };
-    const SidebarScore = ({ scorer }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end"
-      }}
-  >
-    ${Object.keys(scorer.metrics).map((metric) => {
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          marginLeft: "1em",
-          marginBottom: "0.4em",
-          marginTop: "0.5rem"
-        }}
-        >
-          <div
-            style=${{
-          marginBottom: "-0.3em",
-          fontSize: FontSize.small,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${scorer.metrics[metric].name}
-          </div>
-          ${scorer.reducer ? m$1`<div
-                style=${{
-          fontSize: FontSize.small,
-          marginBottom: "-0.2rem"
-        }}
-              >
-                ${scorer.reducer}
-              </div>` : ""}
-          <div style=${{ fontSize: FontSize["title-secondary"] }}>
-            ${formatPrettyDecimal(scorer.metrics[metric].value)}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
-    };
-    const SidebarScores = ({ scores }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end",
-        rowGap: "1em"
-      }}
-  >
-    ${scores.map((score2) => {
-        const name2 = score2.name;
-        const reducer = score2.reducer;
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginLeft: "1em"
-        }}
-        >
-          <div
-            style=${{
-          fontSize: FontSize.base,
-          width: "100%",
-          fontWeight: 300,
-          borderBottom: "solid var(--bs-border-color) 1px",
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${name2}
-          </div>
-          ${reducer ? m$1` <div
-                style=${{
-          fontSize: FontSize.smaller,
-          width: "100%",
-          fontWeight: 300
-        }}
-              >
-                ${reducer}
-              </div>` : ""}
-          <div
-            style=${{
-          fontSize: FontSize.smaller,
-          display: "grid",
-          gridTemplateColumns: "max-content max-content",
-          gridGap: "0 0.3rem"
-        }}
-          >
-            ${Object.keys(score2.metrics).map((key2) => {
-          const metric = score2.metrics[key2];
-          return m$1` <div
-                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-                >
-                  ${metric.name}
-                </div>
-                <div style=${{ fontWeight: "600" }}>
-                  ${formatPrettyDecimal(metric.value)}
-                </div>`;
-        })}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
-    };
-    const StatusCancelled = ({ message }) => {
-      return m$1`<div
-    style=${{
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-  >
-    ${message}
-  </div>`;
-    };
-    const StatusRunning = ({ message }) => {
-      return m$1` <div
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content max-content",
-        columnGap: "0.5em",
-        marginTop: "0.3em",
-        fontSize: FontSize.small,
-        ...TextStyle.secondary,
-        ...TextStyle.label
-      }}
-  >
-    <div>${message}</div>
-  </div>`;
-    };
-    const StatusError = ({ message }) => {
-      return m$1`<div
-    style=${{
-        color: "var(--bs-danger)",
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label
-      }}
-  >
-    ${message}
-  </div>`;
-    };
-    const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
-      if (log_dir) {
-        const displayDir = prettyDir(log_dir);
-        return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span
-        style=${{
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-        >Log Directory</span
-      >
-      <span
-        title=${displayDir}
-        style=${{
-          fontSize: FontSize.base,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis"
-        }}
-        >${offcanvas ? displayDir : ""}</span
-      >
-    </div>`;
-      } else {
-        return m$1`<span
-      style=${{
-          fontSize: FontSize.title
-        }}
-      >${offcanvas ? "Log History" : ""}
-    </span>`;
-      }
-    };
-    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
-      const emptyStyle = {
-        display: "flex",
-        textAlign: "center",
-        flex: "0 0 content",
-        alignItems: "center",
-        justifyContent: "center",
-        height: height ? height : "10rem"
-      };
-      return m$1`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{ width: "100%" }}
-    >
-      <div style=${{ ...emptyStyle, ...style2 }}>
-        <div>${children2 || ""}</div>
-      </div>
-    </div>
-  `;
-    };
-    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
-      if (!id) {
-        throw new Error("Tabsets require an id to function properly");
-      }
-      const tabs = children2;
-      const tabType = type || "tabs";
-      const tabSetStyle = {
-        alignItems: "space-between"
-      };
-      return m$1`<ul
-      ...${{ id }}
-      class="nav nav-${tabType} ${classes ? classes : ""}"
-      role="tablist"
-      aria-orientation="horizontal"
-      style=${{ ...tabSetStyle, ...styles.tabSet }}
-    >
-      <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
-      <${TabTools} tools=${tools} />
-    </ul>
-    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
-    };
-    const TabPanel = ({
-      id,
-      index,
-      selected,
-      style: style2,
-      scrollable,
-      scrollRef,
-      classes,
-      scrollPosition,
-      setScrollPosition,
-      children: children2
-    }) => {
-      const tabContentsId = computeTabContentsId(id, index);
-      const tabContentsRef = scrollRef || A$1(
-        /** @type {HTMLElement|null} */
-        null
-      );
-      y(() => {
-        setTimeout(() => {
-          if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
-            tabContentsRef.current.scrollTop = scrollPosition;
-          }
-        }, 0);
-      });
-      const onScroll = q$1(
-        (e2) => {
-          setScrollPosition(e2.srcElement.scrollTop);
-        },
-        [setScrollPosition]
-      );
-      return m$1`<div
-    id="${tabContentsId}"
-    ref=${tabContentsRef}
-    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
-    style=${{
-        flex: "1",
-        overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
-        ...style2
-      }}
-    onscroll=${onScroll}
-  >
-    ${children2}
-  </div>`;
-    };
-    const Tabs = ({ tabs, type, style: style2 }) => {
-      return tabs.map((tab, index) => {
-        return m$1` <${Tab}
-      type=${type || "tabs"}
-      tab=${tab}
-      index=${index}
-      style=${style2}
-    />`;
-      });
-    };
-    const Tab = ({ type, tab, index, style: style2 }) => {
-      const tabId = tab.props.id || computeTabId("tabset", index);
-      const tabContentsId = computeTabContentsId(tab.props.id, index);
-      const isActive = tab.props.selected;
-      const tabStyle = {
-        color: "var(--bs-body-color)",
-        ...style2,
-        padding: "0.25rem 0.5rem",
-        borderTopLeftRadius: "var(--bs-border-radius)",
-        borderTopRightRadius: "var(--bs-border-radius)",
-        ...TextStyle.label,
-        fontSize: FontSize.small,
-        fontWeight: 500,
-        marginTop: "2px",
-        marginBottom: "-1px"
-      };
-      const pillStyle = {
-        ...style2
-      };
-      return m$1`
-    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
-      <button
-        id="${tabId}"
-        style=${type === "tabs" ? tabStyle : pillStyle}
-        class="nav-link ${isActive ? "active" : ""}"
-        data-bs-toggle="tab"
-        data-bs-target="#${tabContentsId}"
-        type="button"
-        role="tab"
-        aria-controls="${tabContentsId}"
-        aria-selected="${isActive ? true : false}"
-        ...${{
-        onclick: (e2) => {
-          tab.props.onSelected(e2);
-          return false;
-        }
-      }}
-      >
-        ${tab.props.icon ? m$1`<i
-              class="${tab.props.icon}"
-              style=${{ marginRight: "0.5em" }}
-            ></i>` : ""}
-        ${tab.props.title}
-      </button>
-    </li>
-  `;
-    };
-    const TabTools = ({ tools }) => {
-      return m$1`<div
-    class="tab-tools"
-    style=${{
-        flexBasis: "auto",
-        marginLeft: "auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "end",
-        flexWrap: "wrap",
-        rowGap: "0.3rem"
-      }}
-  >
-    ${tools}
-  </div>`;
-    };
-    const TabPanels = ({ id, tabs, style: style2 }) => {
-      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
-    ${tabs.map((tab, index) => {
-        tab.props.index = index;
-        return tab;
-      })}
-  </div>`;
-    };
-    const computeTabId = (id, index) => {
-      return `${id}-${index}`;
-    };
-    const computeTabContentsId = (id, index) => {
-      return `${id}-contents-${index}`;
-    };
-    const ToolButton = ({ name: name2, classes, icon, onclick, ...rest }) => {
-      const attr = {
-        type: "button",
-        class: `btn btn-tools ${classes || ""}`,
-        onclick,
-        ...rest
-      };
-      const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
-      return g$1("button", attr, m$1`${iconEl}${name2}`);
-    };
-    const ghCommitUrl = (origin, commit) => {
-      const baseUrl = origin.replace(/\.git$/, "");
-      return `${baseUrl}/commit/${commit}`;
-    };
-    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "0em",
-        padding: "0.5em 0.5em 0.5em 0.5em",
-        fontSize: FontSize.small,
-        fontWeight: 600,
-        ...TextStyle.label,
-        ...style2
-      }}
-  >
-    ${icon ? m$1`<i
-          class="${icon}"
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></i>` : m$1`<span
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></span>`}
-    ${label ? label : ""} ${children2}
-  </div> `;
-    };
-    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        backgroundColor: "var(--bs-body-bg)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        margin: "0 8px 8px 8px",
-        padding: "0.5em",
-        ...style2
-      }}
-  >
-    ${children2}
-  </div>`;
-    };
-    const Card = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`
-    <div
-      class="${classes || ""}"
-      ...${{ id }}
-      style=${{
-        backgroundColor: "var(--bs-light-bg-subtle)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        marginBottom: "1.5em",
-        ...style2
-      }}
-    >
-      ${children2}
-    </div>
-  `;
-    };
     var e, t$1, r = {
       exports: {}
     };
@@ -9507,6 +9054,83 @@ var require_assets = __commonJS({
       return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
+    };
+    const MetaDataView = ({
+      id,
+      baseClass,
+      classes,
+      style: style2,
+      entries,
+      tableOptions,
+      compact
+    }) => {
+      const baseId = baseClass || "metadataview";
+      const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
+      const cellKeyStyle = compact ? {
+        fontWeight: "400",
+        paddingRight: "0.2em",
+        whiteSpace: "nowrap"
+      } : {
+        fontWeight: "400",
+        paddingRight: "1em",
+        whiteSpace: "nowrap"
+      };
+      const cellValueStyle = {
+        fontWeight: "300",
+        whiteSpace: "pre-wrap",
+        wordWrap: "anywhere",
+        fontSize: FontSize.small
+      };
+      const cellKeyTextStyle = {
+        fontSize: FontSize.small
+      };
+      tableOptions = tableOptions || "sm";
+      const tblClz = (tableOptions || "").split(",").map((option) => {
+        return `table-${option}`;
+      });
+      let coercedEntries;
+      if (entries) {
+        if (Array.isArray(entries)) {
+          coercedEntries = entries;
+        } else {
+          coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
+            return { name: key2, value };
+          });
+        }
+      }
+      const entryEls = (coercedEntries || []).map((entry, index) => {
+        const id2 = `${baseId}-value-${index}`;
+        return m$1`<tr class="${baseId}-row">
+      <td
+        class="${baseId}-key"
+        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </td>
+      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
+        <${RenderedContent} id=${id2} entry=${entry} />
+      </td>
+    </tr>`;
+      });
+      return m$1`<table
+    ...${{ id }}
+    class="${classes || ""} table ${tblClz.join(" ")}"
+    style=${{
+        paddingLeft: "0",
+        marginLeft: "0",
+        marginBottom: "0.2rem",
+        ...style2
+      }}
+  >
+    <thead>
+      <tr>
+        <th colspan="2" style="${{ padding: 0 }}"></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${entryEls}
+    </tbody>
+  </table>`;
     };
     const Buckets = {
       first: 0,
@@ -16154,7 +15778,9 @@ var require_assets = __commonJS({
             </div>` : void 0}
 
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
-      ${message.role === "assistant" && message.reasoning ? m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>Response</div>` : ""}
+      ${message.role === "assistant" && message.reasoning ? m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+              Response
+            </div>` : ""}
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}
@@ -16538,82 +16164,3915 @@ ${entry.value}</pre
         }
       }
     };
-    const MetaDataView = ({
-      id,
-      baseClass,
-      classes,
-      style: style2,
-      entries,
-      tableOptions,
-      compact
-    }) => {
-      const baseId = baseClass || "metadataview";
-      const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
-      const cellKeyStyle = compact ? {
-        fontWeight: "400",
-        paddingRight: "0.2em",
-        whiteSpace: "nowrap"
-      } : {
-        fontWeight: "400",
-        paddingRight: "1em",
-        whiteSpace: "nowrap"
-      };
-      const cellValueStyle = {
-        fontWeight: "300",
-        whiteSpace: "pre-wrap",
-        wordWrap: "anywhere",
-        fontSize: FontSize.small
-      };
-      const cellKeyTextStyle = {
-        fontSize: FontSize.small
-      };
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      let coercedEntries;
-      if (entries) {
-        if (Array.isArray(entries)) {
-          coercedEntries = entries;
+    const isNumeric = (n2) => {
+      return !isNaN(parseFloat(n2)) && isFinite(n2);
+    };
+    const toArray = (val) => {
+      if (Array.isArray(val)) {
+        return val;
+      } else {
+        return [val];
+      }
+    };
+    const scoreLabelKey = (scoreLabel) => {
+      if (!scoreLabel) {
+        return "No score key";
+      }
+      return `${scoreLabel.scorer}.${scoreLabel.name}`;
+    };
+    const createEvalDescriptor = (scores, samples, epochs) => {
+      if (!samples) {
+        return void 0;
+      }
+      const scoreValue = (sample, scoreLabel) => {
+        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
+          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+        } else if (sample.scores[scoreLabel.name]) {
+          return sample.scores[scoreLabel.name].value;
         } else {
-          coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
-            return { name: key2, value };
-          });
+          return void 0;
+        }
+      };
+      const scoreAnswer = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.answer) {
+            return sampleScore.answer;
+          }
+        } else {
+          return void 0;
+        }
+      };
+      const scoreExplanation = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.explanation) {
+            return sampleScore.explanation;
+          }
+        }
+        return void 0;
+      };
+      const scoreMetadata = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.metadata) {
+            return sampleScore.metadata;
+          }
+        }
+        return void 0;
+      };
+      const scoreDescriptorMap = /* @__PURE__ */ new Map();
+      for (const scoreLabel of scores) {
+        const uniqScoreValues = [
+          ...new Set(
+            samples.filter((sample) => !!sample.scores).filter((sample) => {
+              if (!scoreLabel) {
+                return true;
+              }
+              if (scoreLabel.scorer !== scoreLabel.name) {
+                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name
+                );
+              } else {
+                return Object.keys(sample.scores).includes(scoreLabel.name);
+              }
+            }).map((sample) => {
+              return scoreValue(sample, scoreLabel);
+            }).filter((value) => {
+              return value !== null;
+            })
+          )
+        ];
+        const uniqScoreTypes = [
+          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+        ];
+        for (const categorizer of scoreCategorizers) {
+          const scoreDescriptor2 = categorizer.describe(
+            uniqScoreValues,
+            uniqScoreTypes
+          );
+          if (scoreDescriptor2) {
+            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
+            break;
+          }
         }
       }
-      const entryEls = (coercedEntries || []).map((entry, index) => {
-        const id2 = `${baseId}-value-${index}`;
-        return m$1`<tr class="${baseId}-row">
-      <td
-        class="${baseId}-key"
-        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      const scoreDescriptor = (scoreLabel) => {
+        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
+      };
+      const scoreRendered = (sample, scoreLabel) => {
+        const descriptor = scoreDescriptor(scoreLabel);
+        const score3 = scoreValue(sample, scoreLabel);
+        if (score3 === null || score3 === "undefined") {
+          return "null";
+        } else if (descriptor && descriptor.render) {
+          return descriptor.render(score3);
+        } else {
+          return score3;
+        }
+      };
+      const scorerDescriptor = (sample, scoreLabel) => {
+        return {
+          metadata: () => {
+            return scoreMetadata(sample, scoreLabel.scorer);
+          },
+          explanation: () => {
+            return scoreExplanation(sample, scoreLabel.scorer);
+          },
+          answer: () => {
+            return scoreAnswer(sample, scoreLabel.scorer);
+          },
+          scores: () => {
+            if (!sample || !sample.scores) {
+              return [];
+            }
+            const myScoreDescriptor = scoreDescriptor(scoreLabel);
+            if (!myScoreDescriptor) {
+              return [];
+            }
+            const scoreNames = scores.map((score3) => {
+              return score3.name;
+            });
+            const sampleScorer = sample.scores[scoreLabel.scorer];
+            const scoreVal = sampleScorer.value;
+            if (typeof scoreVal === "object") {
+              const names = Object.keys(scoreVal);
+              if (names.find((name2) => {
+                return scoreNames.includes(name2);
+              })) {
+                const scores2 = names.map((name2) => {
+                  return {
+                    name: name2,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal[name2]);
+                    }
+                  };
+                });
+                return scores2;
+              } else {
+                return [
+                  {
+                    name: scoreLabel.scorer,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  }
+                ];
+              }
+            } else {
+              return [
+                {
+                  name: scoreLabel.scorer,
+                  rendered: () => {
+                    return myScoreDescriptor.render(scoreVal);
+                  }
+                }
+              ];
+            }
+          }
+        };
+      };
+      const score2 = (sample, scoreLabel) => {
+        return {
+          value: scoreValue(sample, scoreLabel),
+          render: () => {
+            return scoreRendered(sample, scoreLabel);
+          }
+        };
+      };
+      return {
+        epochs,
+        samples,
+        scores,
+        scorerDescriptor,
+        scoreDescriptor,
+        score: score2,
+        scoreAnswer
+      };
+    };
+    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+      if (!evalDescriptor) {
+        return void 0;
+      }
+      const sizes = evalDescriptor.samples.reduce(
+        (previous, current) => {
+          var _a2;
+          const text2 = inputString(current.input).join(" ");
+          const scoreValue = evalDescriptor.score(current, selectedScore).value;
+          const scoreText = scoreValue ? String(scoreValue) : current.error ? String(current.error) : "";
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[1] = Math.min(
+            Math.max(previous[1], arrayToString(current.target).length),
+            300
+          );
+          previous[2] = Math.min(
+            Math.max(
+              previous[2],
+              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+            ),
+            300
+          );
+          previous[3] = Math.min(
+            Math.max(previous[3], current.limit ? current.limit.length : 0),
+            50
+          );
+          previous[4] = Math.min(
+            Math.max(previous[4], String(current.id).length),
+            10
+          );
+          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          return previous;
+        },
+        [0, 0, 0, 0, 0, 0]
+      );
+      const maxSizes = {
+        input: Math.min(sizes[0], 300),
+        target: Math.min(sizes[1], 300),
+        answer: Math.min(sizes[2], 300),
+        limit: Math.min(sizes[3], 50),
+        id: Math.min(sizes[4], 10),
+        score: Math.min(sizes[4], 30)
+      };
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const messageShape = {
+        raw: {
+          input: sizes[0],
+          target: sizes[1],
+          answer: sizes[2],
+          limit: sizes[3],
+          id: sizes[4],
+          score: sizes[5]
+        },
+        normalized: {
+          input: maxSizes.input / base2,
+          target: maxSizes.target / base2,
+          answer: maxSizes.answer / base2,
+          limit: maxSizes.limit / base2,
+          id: maxSizes.id / base2,
+          score: maxSizes.score / base2
+        }
+      };
+      return {
+        evalDescriptor,
+        messageShape,
+        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
+        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
+      };
+    };
+    const scoreCategorizers = [
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length === 1 && types2[0] === "boolean") {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values) => {
+          if (values.length === 2 && values.every((val) => {
+            return val === 1 || val === 0;
+          })) {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
+            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+          })) {
+            return passFailScoreCategorizer(values);
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (values.length < 10 && types2.length === 1 && types2[0] === "string") {
+            return {
+              scoreType: kScoreTypeCategorical,
+              categories: values,
+              compare: (a2, b) => {
+                return String(a2).localeCompare(String(b));
+              },
+              render: (score2) => {
+                return score2;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length !== 0 && types2[0] === "number") {
+            const onlyNumeric = values.filter((val) => {
+              return typeof val === "number";
+            });
+            return {
+              scoreType: kScoreTypeNumeric,
+              min: Math.min(...onlyNumeric),
+              max: Math.max(...onlyNumeric),
+              compare: (a2, b) => {
+                if (typeof a2 === "number" && typeof b === "number") {
+                  return a2 - b;
+                } else {
+                  console.warn(
+                    "Comparing non-numerics using a nuermic score descriptor"
+                  );
+                  return 0;
+                }
+              },
+              render: (score2) => {
+                return formatDecimalNoTrailingZeroes(Number(score2));
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types2) => {
+          if (types2.length !== 0 && types2[0] === "object") {
+            const buckets = values.map((val) => {
+              return JSON.stringify(val);
+            });
+            const vals = new Set(buckets);
+            let categories = void 0;
+            if (vals.size < 10) {
+              categories = Array.from(vals).map((val) => {
+                return {
+                  val,
+                  text: val
+                };
+              });
+            }
+            return {
+              scoreType: kScoreTypeObject,
+              categories,
+              compare: () => {
+                return 0;
+              },
+              render: (score2) => {
+                if (score2 === null || score2 === void 0) {
+                  return "[null]";
+                }
+                const scores = [];
+                const keys = Object.keys(score2);
+                keys.forEach((key2, index) => {
+                  const value = score2[key2];
+                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+                  const style2 = {
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    marginLeft: "0.5rem"
+                  };
+                  if (index + 1 < keys.length) {
+                    style2["paddingBottom"] = "1em";
+                  }
+                  scores.push(m$1`
+                <div style=${style2}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+                });
+                return scores;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        // @ts-ignore
+        describe: () => {
+          return {
+            scoreType: kScoreTypeOther,
+            compare: () => {
+              return 0;
+            },
+            render: (score2) => {
+              return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score2 }}
+          />`;
+            }
+          };
+        }
+      }
+    ];
+    const filledCircleStyle = {
+      fontSize: FontSize.small,
+      fontFamily: "Consola Regular",
+      width: "20px",
+      height: "20px",
+      display: "inline-flex",
+      justifyContent: "center",
+      alignItems: "center",
+      borderRadius: "50%",
+      paddingTop: "1px"
+    };
+    const booleanScoreCategorizer = () => {
+      return {
+        scoreType: "boolean",
+        compare: (a2, b) => {
+          return Number(a2.value) - Number(b.value);
+        },
+        render: (score2) => {
+          const scoreColorStyle = score2 ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+          return m$1`<span
+        style=${{
+            ...scoreColorStyle,
+            ...filledCircleStyle
+          }}
+        >${score2}</span
+      >`;
+        }
+      };
+    };
+    const passFailScoreCategorizer = (values) => {
+      const categories = [];
+      if (values.includes("C")) {
+        categories.push({
+          val: "C",
+          text: "Correct"
+        });
+      }
+      if (values.includes("P")) {
+        categories.push({
+          val: "P",
+          text: "Partial"
+        });
+      }
+      if (values.includes("I")) {
+        categories.push({
+          val: "I",
+          text: "Incorrect"
+        });
+      }
+      if (values.includes("N")) {
+        categories.push({
+          val: "N",
+          text: "Refusal"
+        });
+      }
+      const order2 = ["C", "P", "I", "N"];
+      return {
+        scoreType: kScoreTypePassFail,
+        categories,
+        render: (score2) => {
+          if (score2 === "C") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.green,
+              ...filledCircleStyle
+            }}
+          >C</span
+        >`;
+          } else if (score2 === "I") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >I</span
+        >`;
+          } else if (score2 === "P") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.orange,
+              ...filledCircleStyle
+            }}
+          >P</span
+        >`;
+          } else if (score2 === "N") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >N</span
+        >`;
+          } else {
+            return score2;
+          }
+        },
+        compare: (a2, b) => {
+          const sort = order2.indexOf(a2.value) - order2.indexOf(b.value);
+          return sort;
+        }
+      };
+    };
+    const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
+      var _a2;
+      const options = [
+        { label: "sample asc", val: kSampleAscVal },
+        { label: "sample desc", val: kSampleDescVal }
+      ];
+      if (epochs) {
+        options.push({
+          label: "epoch asc",
+          val: kEpochAscVal
+        });
+        options.push({
+          label: "epoch desc",
+          val: kEpochDescVal
+        });
+      }
+      if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
+        options.push({
+          label: "score asc",
+          val: kScoreAscVal
+        });
+        options.push({
+          label: "score desc",
+          val: kScoreDescVal
+        });
+      }
+      return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sort-filter-label"
+        style=${{
+        alignSelf: "center",
+        fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary,
+        marginRight: "0.3em",
+        marginLeft: "0.2em"
+      }}
+        >Sort:</span
       >
-        ${entry.name}
-      </td>
-      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry} />
-      </td>
-    </tr>`;
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${sort}
+        onChange=${(e2) => {
+        setSort(e2.target.value);
+      }}
+      >
+        ${options.map((option) => {
+        return m$1`<option value="${option.val}">${option.label}</option>`;
+      })}
+      </select>
+    </div>
+  `;
+    };
+    const byEpoch = (sort) => {
+      return sort === kEpochAscVal || sort === kEpochDescVal;
+    };
+    const bySample = (sort) => {
+      return sort === kSampleAscVal || sort === kSampleDescVal;
+    };
+    const sortId = (a2, b) => {
+      if (isNumeric(a2.id) && isNumeric(b.id)) {
+        return Number(a2.id) - Number(b.id);
+      } else {
+        return String(a2.id).localeCompare(String(b.id));
+      }
+    };
+    const sortSamples = (sort, samples, samplesDescriptor) => {
+      const sortedSamples = samples.sort((a2, b) => {
+        switch (sort) {
+          case kSampleAscVal: {
+            const result = sortId(a2, b);
+            if (result !== 0) {
+              return result;
+            } else {
+              return a2.epoch - b.epoch;
+            }
+          }
+          case kSampleDescVal: {
+            const result = sortId(b, a2);
+            if (result !== 0) {
+              return result;
+            } else {
+              return a2.epoch - b.epoch;
+            }
+          }
+          case kEpochAscVal: {
+            const result = a2.epoch - b.epoch;
+            if (result !== 0) {
+              return result;
+            } else {
+              return sortId(a2, b);
+            }
+          }
+          case kEpochDescVal: {
+            const result = b.epoch - a2.epoch;
+            if (result !== 0) {
+              return result;
+            } else {
+              return sortId(a2, b);
+            }
+          }
+          case kScoreAscVal:
+            return samplesDescriptor.selectedScoreDescriptor.compare(
+              samplesDescriptor.selectedScore(a2).value,
+              samplesDescriptor.selectedScore(b).value
+            );
+          case kScoreDescVal:
+            return samplesDescriptor.selectedScoreDescriptor.compare(
+              samplesDescriptor.selectedScore(b).value,
+              samplesDescriptor.selectedScore(a2).value
+            );
+        }
       });
-      return m$1`<table
-    ...${{ id }}
-    class="${classes || ""} table ${tblClz.join(" ")}"
+      return {
+        sorted: sortedSamples,
+        order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+      };
+    };
+    const resolveAttachments = (value, attachments) => {
+      const kContentProtocol = "tc://";
+      const kAttachmentProtocol = "attachment://";
+      if (Array.isArray(value)) {
+        return value.map((v2) => resolveAttachments(v2, attachments));
+      }
+      if (value && typeof value === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value)) {
+          resolvedObject[key2] = resolveAttachments(value[key2], attachments);
+        }
+        return resolvedObject;
+      }
+      if (typeof value === "string") {
+        let resolvedValue = value;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
+        }
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        }
+        return resolvedValue;
+      }
+      return value;
+    };
+    var _parser = function() {
+      var parser2 = {
+        trace: function trace() {
+        },
+        yy: {},
+        symbols_: {
+          error: 2,
+          expressions: 3,
+          e: 4,
+          EndOfExpression: 5,
+          "-": 6,
+          "+": 7,
+          "*": 8,
+          "/": 9,
+          "^": 10,
+          mod: 11,
+          and: 12,
+          or: 13,
+          not: 14,
+          if: 15,
+          then: 16,
+          else: 17,
+          in: 18,
+          notIn: 19,
+          "(": 20,
+          ")": 21,
+          Arguments: 22,
+          ",": 23,
+          Number: 24,
+          Symbol: 25,
+          String: 26,
+          of: 27,
+          Relation: 28,
+          "%": 29,
+          "?": 30,
+          ":": 31,
+          RelationalOperator: 32,
+          "==": 33,
+          "!=": 34,
+          "~=": 35,
+          "<": 36,
+          "<=": 37,
+          ">=": 38,
+          ">": 39,
+          $accept: 0,
+          $end: 1
+        },
+        terminals_: {
+          2: "error",
+          5: "EndOfExpression",
+          6: "-",
+          7: "+",
+          8: "*",
+          9: "/",
+          10: "^",
+          11: "mod",
+          12: "and",
+          13: "or",
+          14: "not",
+          15: "if",
+          16: "then",
+          17: "else",
+          18: "in",
+          19: "notIn",
+          20: "(",
+          21: ")",
+          23: ",",
+          24: "Number",
+          25: "Symbol",
+          26: "String",
+          27: "of",
+          29: "%",
+          30: "?",
+          31: ":",
+          33: "==",
+          34: "!=",
+          35: "~=",
+          36: "<",
+          37: "<=",
+          38: ">=",
+          39: ">"
+        },
+        productions_: [
+          0,
+          [3, 2],
+          [4, 2],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 2],
+          [4, 6],
+          [4, 3],
+          [4, 3],
+          [4, 3],
+          [4, 5],
+          [4, 1],
+          [4, 1],
+          [4, 1],
+          [4, 3],
+          [4, 3],
+          [4, 4],
+          [4, 1],
+          [4, 3],
+          [4, 5],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [32, 1],
+          [28, 3],
+          [28, 3],
+          [22, 1],
+          [22, 3]
+        ],
+        performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate, $$, _$) {
+          var $0 = $$.length - 1;
+          switch (yystate) {
+            case 1:
+              return $$[$0 - 1];
+            case 2:
+              this.$ = ["(", "ops['-'](", $$[$0], ")", ")"];
+              break;
+            case 3:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 4:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 5:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 6:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 7:
+              this.$ = [
+                "(",
+                "ops['",
+                $$[$0 - 1],
+                "'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 8:
+              this.$ = ["(", "ops.mod(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 9:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") && ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 10:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 2],
+                ") || ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0],
+                ")",
+                ")"
+              ];
+              break;
+            case 11:
+              this.$ = ["(", "! ", "std.coerceBoolean", "(", $$[$0], ")", ")"];
+              break;
+            case 12:
+              this.$ = [
+                "(",
+                "",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                "",
+                ")"
+              ];
+              break;
+            case 13:
+              this.$ = ["(", "std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 14:
+              this.$ = ["(", "!std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
+              break;
+            case 15:
+              this.$ = ["(", "", $$[$0 - 1], "", ")"];
+              break;
+            case 16:
+              this.$ = ["(", "[ ", $$[$0 - 3], ", ", $$[$0 - 1], " ]", ")"];
+              break;
+            case 17:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 18:
+              this.$ = ["prop(", $$[$0], ", data)"];
+              break;
+            case 19:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 20:
+              this.$ = ["prop(", $$[$0 - 2], ", ", $$[$0], ")"];
+              break;
+            case 21:
+              this.$ = ["call(", $$[$0 - 2], ")"];
+              break;
+            case 22:
+              this.$ = ["call(", $$[$0 - 3], ", ", $$[$0 - 1], ")"];
+              break;
+            case 23:
+              this.$ = yy.reduceRelation($$[$0]);
+              break;
+            case 24:
+              this.$ = [
+                "std.warnDeprecated('modulo', ops['mod'](",
+                $$[$0 - 2],
+                ", ",
+                $$[$0],
+                "))"
+              ];
+              break;
+            case 25:
+              this.$ = [
+                "std.warnDeprecated('ternary', ",
+                "std.coerceBoolean",
+                "(",
+                $$[$0 - 4],
+                ") ? ",
+                $$[$0 - 2],
+                " : ",
+                $$[$0],
+                ")"
+              ];
+              break;
+            case 26:
+              this.$ = ["=="];
+              break;
+            case 27:
+              this.$ = ["!="];
+              break;
+            case 28:
+              this.$ = ["~="];
+              break;
+            case 29:
+              this.$ = ["<"];
+              break;
+            case 30:
+              this.$ = ["<="];
+              break;
+            case 31:
+              this.$ = [">="];
+              break;
+            case 32:
+              this.$ = [">"];
+              break;
+            case 33:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], ...$$[$0]];
+              break;
+            case 34:
+              this.$ = [$$[$0 - 2], $$[$0 - 1], $$[$0]];
+              break;
+            case 35:
+              this.$ = ["", $$[$0], ""];
+              break;
+            case 36:
+              this.$ = ["", $$[$0 - 2], ", ", $$[$0], ""];
+              break;
+          }
+        },
+        table: [
+          {
+            3: 1,
+            4: 2,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            1: [3]
+          },
+          {
+            5: [1, 11],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 32,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 33,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 34,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 35,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            22: 36,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 17],
+            6: [2, 17],
+            7: [2, 17],
+            8: [2, 17],
+            9: [2, 17],
+            10: [2, 17],
+            11: [2, 17],
+            12: [2, 17],
+            13: [2, 17],
+            16: [2, 17],
+            17: [2, 17],
+            18: [2, 17],
+            19: [2, 17],
+            21: [2, 17],
+            23: [2, 17],
+            29: [2, 17],
+            30: [2, 17],
+            31: [2, 17],
+            33: [2, 17],
+            34: [2, 17],
+            35: [2, 17],
+            36: [2, 17],
+            37: [2, 17],
+            38: [2, 17],
+            39: [2, 17]
+          },
+          {
+            5: [2, 18],
+            6: [2, 18],
+            7: [2, 18],
+            8: [2, 18],
+            9: [2, 18],
+            10: [2, 18],
+            11: [2, 18],
+            12: [2, 18],
+            13: [2, 18],
+            16: [2, 18],
+            17: [2, 18],
+            18: [2, 18],
+            19: [2, 18],
+            20: [1, 38],
+            21: [2, 18],
+            23: [2, 18],
+            27: [1, 37],
+            29: [2, 18],
+            30: [2, 18],
+            31: [2, 18],
+            33: [2, 18],
+            34: [2, 18],
+            35: [2, 18],
+            36: [2, 18],
+            37: [2, 18],
+            38: [2, 18],
+            39: [2, 18]
+          },
+          {
+            5: [2, 19],
+            6: [2, 19],
+            7: [2, 19],
+            8: [2, 19],
+            9: [2, 19],
+            10: [2, 19],
+            11: [2, 19],
+            12: [2, 19],
+            13: [2, 19],
+            16: [2, 19],
+            17: [2, 19],
+            18: [2, 19],
+            19: [2, 19],
+            21: [2, 19],
+            23: [2, 19],
+            29: [2, 19],
+            30: [2, 19],
+            31: [2, 19],
+            33: [2, 19],
+            34: [2, 19],
+            35: [2, 19],
+            36: [2, 19],
+            37: [2, 19],
+            38: [2, 19],
+            39: [2, 19]
+          },
+          {
+            5: [2, 23],
+            6: [2, 23],
+            7: [2, 23],
+            8: [2, 23],
+            9: [2, 23],
+            10: [2, 23],
+            11: [2, 23],
+            12: [2, 23],
+            13: [2, 23],
+            16: [2, 23],
+            17: [2, 23],
+            18: [2, 23],
+            19: [2, 23],
+            21: [2, 23],
+            23: [2, 23],
+            29: [2, 23],
+            30: [2, 23],
+            31: [2, 23],
+            33: [2, 23],
+            34: [2, 23],
+            35: [2, 23],
+            36: [2, 23],
+            37: [2, 23],
+            38: [2, 23],
+            39: [2, 23]
+          },
+          {
+            1: [2, 1]
+          },
+          {
+            4: 39,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 40,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 41,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 42,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 43,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 44,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 45,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 46,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 47,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 48,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 49,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 50,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 52,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 51
+          },
+          {
+            6: [2, 26],
+            14: [2, 26],
+            15: [2, 26],
+            20: [2, 26],
+            24: [2, 26],
+            25: [2, 26],
+            26: [2, 26]
+          },
+          {
+            6: [2, 27],
+            14: [2, 27],
+            15: [2, 27],
+            20: [2, 27],
+            24: [2, 27],
+            25: [2, 27],
+            26: [2, 27]
+          },
+          {
+            6: [2, 28],
+            14: [2, 28],
+            15: [2, 28],
+            20: [2, 28],
+            24: [2, 28],
+            25: [2, 28],
+            26: [2, 28]
+          },
+          {
+            6: [2, 29],
+            14: [2, 29],
+            15: [2, 29],
+            20: [2, 29],
+            24: [2, 29],
+            25: [2, 29],
+            26: [2, 29]
+          },
+          {
+            6: [2, 30],
+            14: [2, 30],
+            15: [2, 30],
+            20: [2, 30],
+            24: [2, 30],
+            25: [2, 30],
+            26: [2, 30]
+          },
+          {
+            6: [2, 31],
+            14: [2, 31],
+            15: [2, 31],
+            20: [2, 31],
+            24: [2, 31],
+            25: [2, 31],
+            26: [2, 31]
+          },
+          {
+            6: [2, 32],
+            14: [2, 32],
+            15: [2, 32],
+            20: [2, 32],
+            24: [2, 32],
+            25: [2, 32],
+            26: [2, 32]
+          },
+          {
+            5: [2, 2],
+            6: [2, 2],
+            7: [2, 2],
+            8: [2, 2],
+            9: [2, 2],
+            10: [1, 16],
+            11: [2, 2],
+            12: [2, 2],
+            13: [2, 2],
+            16: [2, 2],
+            17: [2, 2],
+            18: [2, 2],
+            19: [2, 2],
+            21: [2, 2],
+            23: [2, 2],
+            29: [2, 2],
+            30: [2, 2],
+            31: [2, 2],
+            32: 24,
+            33: [2, 2],
+            34: [2, 2],
+            35: [2, 2],
+            36: [2, 2],
+            37: [2, 2],
+            38: [2, 2],
+            39: [2, 2]
+          },
+          {
+            5: [2, 11],
+            6: [2, 11],
+            7: [2, 11],
+            8: [2, 11],
+            9: [2, 11],
+            10: [1, 16],
+            11: [2, 11],
+            12: [2, 11],
+            13: [2, 11],
+            16: [2, 11],
+            17: [2, 11],
+            18: [2, 11],
+            19: [2, 11],
+            21: [2, 11],
+            23: [2, 11],
+            29: [2, 11],
+            30: [2, 11],
+            31: [2, 11],
+            32: 24,
+            33: [2, 11],
+            34: [2, 11],
+            35: [2, 11],
+            36: [2, 11],
+            37: [2, 11],
+            38: [2, 11],
+            39: [2, 11]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [1, 53],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 54],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            23: [1, 55]
+          },
+          {
+            4: 56,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            4: 59,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            21: [1, 57],
+            22: 58,
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 3],
+            6: [2, 3],
+            7: [2, 3],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 3],
+            13: [2, 3],
+            16: [2, 3],
+            17: [2, 3],
+            18: [2, 3],
+            19: [2, 3],
+            21: [2, 3],
+            23: [2, 3],
+            29: [1, 22],
+            30: [2, 3],
+            31: [2, 3],
+            32: 24,
+            33: [2, 3],
+            34: [2, 3],
+            35: [2, 3],
+            36: [2, 3],
+            37: [2, 3],
+            38: [2, 3],
+            39: [2, 3]
+          },
+          {
+            5: [2, 4],
+            6: [2, 4],
+            7: [2, 4],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 4],
+            13: [2, 4],
+            16: [2, 4],
+            17: [2, 4],
+            18: [2, 4],
+            19: [2, 4],
+            21: [2, 4],
+            23: [2, 4],
+            29: [1, 22],
+            30: [2, 4],
+            31: [2, 4],
+            32: 24,
+            33: [2, 4],
+            34: [2, 4],
+            35: [2, 4],
+            36: [2, 4],
+            37: [2, 4],
+            38: [2, 4],
+            39: [2, 4]
+          },
+          {
+            5: [2, 5],
+            6: [2, 5],
+            7: [2, 5],
+            8: [2, 5],
+            9: [2, 5],
+            10: [1, 16],
+            11: [2, 5],
+            12: [2, 5],
+            13: [2, 5],
+            16: [2, 5],
+            17: [2, 5],
+            18: [2, 5],
+            19: [2, 5],
+            21: [2, 5],
+            23: [2, 5],
+            29: [2, 5],
+            30: [2, 5],
+            31: [2, 5],
+            32: 24,
+            33: [2, 5],
+            34: [2, 5],
+            35: [2, 5],
+            36: [2, 5],
+            37: [2, 5],
+            38: [2, 5],
+            39: [2, 5]
+          },
+          {
+            5: [2, 6],
+            6: [2, 6],
+            7: [2, 6],
+            8: [2, 6],
+            9: [2, 6],
+            10: [1, 16],
+            11: [2, 6],
+            12: [2, 6],
+            13: [2, 6],
+            16: [2, 6],
+            17: [2, 6],
+            18: [2, 6],
+            19: [2, 6],
+            21: [2, 6],
+            23: [2, 6],
+            29: [2, 6],
+            30: [2, 6],
+            31: [2, 6],
+            32: 24,
+            33: [2, 6],
+            34: [2, 6],
+            35: [2, 6],
+            36: [2, 6],
+            37: [2, 6],
+            38: [2, 6],
+            39: [2, 6]
+          },
+          {
+            5: [2, 7],
+            6: [2, 7],
+            7: [2, 7],
+            8: [2, 7],
+            9: [2, 7],
+            10: [1, 16],
+            11: [2, 7],
+            12: [2, 7],
+            13: [2, 7],
+            16: [2, 7],
+            17: [2, 7],
+            18: [2, 7],
+            19: [2, 7],
+            21: [2, 7],
+            23: [2, 7],
+            29: [2, 7],
+            30: [2, 7],
+            31: [2, 7],
+            32: 24,
+            33: [2, 7],
+            34: [2, 7],
+            35: [2, 7],
+            36: [2, 7],
+            37: [2, 7],
+            38: [2, 7],
+            39: [2, 7]
+          },
+          {
+            5: [2, 8],
+            6: [2, 8],
+            7: [2, 8],
+            8: [2, 8],
+            9: [2, 8],
+            10: [1, 16],
+            11: [2, 8],
+            12: [2, 8],
+            13: [2, 8],
+            16: [2, 8],
+            17: [2, 8],
+            18: [2, 8],
+            19: [2, 8],
+            21: [2, 8],
+            23: [2, 8],
+            29: [2, 8],
+            30: [2, 8],
+            31: [2, 8],
+            32: 24,
+            33: [2, 8],
+            34: [2, 8],
+            35: [2, 8],
+            36: [2, 8],
+            37: [2, 8],
+            38: [2, 8],
+            39: [2, 8]
+          },
+          {
+            5: [2, 9],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 9],
+            13: [2, 9],
+            16: [2, 9],
+            17: [2, 9],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 9],
+            23: [2, 9],
+            29: [1, 22],
+            30: [2, 9],
+            31: [2, 9],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 10],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [2, 10],
+            16: [2, 10],
+            17: [2, 10],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 10],
+            23: [2, 10],
+            29: [1, 22],
+            30: [2, 10],
+            31: [2, 10],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 13],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 13],
+            13: [2, 13],
+            16: [2, 13],
+            17: [2, 13],
+            18: [2, 13],
+            19: [2, 13],
+            21: [2, 13],
+            23: [2, 13],
+            29: [1, 22],
+            30: [2, 13],
+            31: [2, 13],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 14],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 14],
+            13: [2, 14],
+            16: [2, 14],
+            17: [2, 14],
+            18: [2, 14],
+            19: [2, 14],
+            21: [2, 14],
+            23: [2, 14],
+            29: [1, 22],
+            30: [2, 14],
+            31: [2, 14],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 24],
+            6: [2, 24],
+            7: [2, 24],
+            8: [2, 24],
+            9: [2, 24],
+            10: [1, 16],
+            11: [2, 24],
+            12: [2, 24],
+            13: [2, 24],
+            16: [2, 24],
+            17: [2, 24],
+            18: [2, 24],
+            19: [2, 24],
+            21: [2, 24],
+            23: [2, 24],
+            29: [2, 24],
+            30: [2, 24],
+            31: [2, 24],
+            32: 24,
+            33: [2, 24],
+            34: [2, 24],
+            35: [2, 24],
+            36: [2, 24],
+            37: [2, 24],
+            38: [2, 24],
+            39: [2, 24]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            31: [1, 60],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 33],
+            6: [2, 33],
+            7: [2, 33],
+            8: [2, 33],
+            9: [2, 33],
+            10: [2, 33],
+            11: [2, 33],
+            12: [2, 33],
+            13: [2, 33],
+            16: [2, 33],
+            17: [2, 33],
+            18: [2, 33],
+            19: [2, 33],
+            21: [2, 33],
+            23: [2, 33],
+            29: [2, 33],
+            30: [2, 33],
+            31: [2, 33],
+            33: [2, 33],
+            34: [2, 33],
+            35: [2, 33],
+            36: [2, 33],
+            37: [2, 33],
+            38: [2, 33],
+            39: [2, 33]
+          },
+          {
+            5: [2, 34],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [2, 34],
+            13: [2, 34],
+            16: [2, 34],
+            17: [2, 34],
+            18: [2, 34],
+            19: [2, 34],
+            21: [2, 34],
+            23: [2, 34],
+            29: [1, 22],
+            30: [2, 34],
+            31: [2, 34],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 61,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 15],
+            6: [2, 15],
+            7: [2, 15],
+            8: [2, 15],
+            9: [2, 15],
+            10: [2, 15],
+            11: [2, 15],
+            12: [2, 15],
+            13: [2, 15],
+            16: [2, 15],
+            17: [2, 15],
+            18: [2, 15],
+            19: [2, 15],
+            21: [2, 15],
+            23: [2, 15],
+            29: [2, 15],
+            30: [2, 15],
+            31: [2, 15],
+            33: [2, 15],
+            34: [2, 15],
+            35: [2, 15],
+            36: [2, 15],
+            37: [2, 15],
+            38: [2, 15],
+            39: [2, 15]
+          },
+          {
+            4: 62,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 20],
+            6: [2, 20],
+            7: [2, 20],
+            8: [2, 20],
+            9: [2, 20],
+            10: [2, 20],
+            11: [2, 20],
+            12: [2, 20],
+            13: [2, 20],
+            16: [2, 20],
+            17: [2, 20],
+            18: [2, 20],
+            19: [2, 20],
+            21: [2, 20],
+            23: [2, 20],
+            29: [2, 20],
+            30: [2, 20],
+            31: [2, 20],
+            32: 24,
+            33: [2, 20],
+            34: [2, 20],
+            35: [2, 20],
+            36: [2, 20],
+            37: [2, 20],
+            38: [2, 20],
+            39: [2, 20]
+          },
+          {
+            5: [2, 21],
+            6: [2, 21],
+            7: [2, 21],
+            8: [2, 21],
+            9: [2, 21],
+            10: [2, 21],
+            11: [2, 21],
+            12: [2, 21],
+            13: [2, 21],
+            16: [2, 21],
+            17: [2, 21],
+            18: [2, 21],
+            19: [2, 21],
+            21: [2, 21],
+            23: [2, 21],
+            29: [2, 21],
+            30: [2, 21],
+            31: [2, 21],
+            33: [2, 21],
+            34: [2, 21],
+            35: [2, 21],
+            36: [2, 21],
+            37: [2, 21],
+            38: [2, 21],
+            39: [2, 21]
+          },
+          {
+            21: [1, 63],
+            23: [1, 64]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 35],
+            23: [2, 35],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 65,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            17: [1, 66],
+            18: [1, 20],
+            19: [1, 21],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [1, 67],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 22],
+            6: [2, 22],
+            7: [2, 22],
+            8: [2, 22],
+            9: [2, 22],
+            10: [2, 22],
+            11: [2, 22],
+            12: [2, 22],
+            13: [2, 22],
+            16: [2, 22],
+            17: [2, 22],
+            18: [2, 22],
+            19: [2, 22],
+            21: [2, 22],
+            23: [2, 22],
+            29: [2, 22],
+            30: [2, 22],
+            31: [2, 22],
+            33: [2, 22],
+            34: [2, 22],
+            35: [2, 22],
+            36: [2, 22],
+            37: [2, 22],
+            38: [2, 22],
+            39: [2, 22]
+          },
+          {
+            4: 68,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 25],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 25],
+            17: [2, 25],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 25],
+            23: [2, 25],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 25],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            4: 69,
+            6: [1, 3],
+            14: [1, 4],
+            15: [1, 5],
+            20: [1, 6],
+            24: [1, 7],
+            25: [1, 8],
+            26: [1, 9],
+            28: 10
+          },
+          {
+            5: [2, 16],
+            6: [2, 16],
+            7: [2, 16],
+            8: [2, 16],
+            9: [2, 16],
+            10: [2, 16],
+            11: [2, 16],
+            12: [2, 16],
+            13: [2, 16],
+            16: [2, 16],
+            17: [2, 16],
+            18: [2, 16],
+            19: [2, 16],
+            21: [2, 16],
+            23: [2, 16],
+            29: [2, 16],
+            30: [2, 16],
+            31: [2, 16],
+            33: [2, 16],
+            34: [2, 16],
+            35: [2, 16],
+            36: [2, 16],
+            37: [2, 16],
+            38: [2, 16],
+            39: [2, 16]
+          },
+          {
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 36],
+            23: [2, 36],
+            29: [1, 22],
+            30: [1, 23],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          },
+          {
+            5: [2, 12],
+            6: [1, 13],
+            7: [1, 12],
+            8: [1, 14],
+            9: [1, 15],
+            10: [1, 16],
+            11: [1, 17],
+            12: [1, 18],
+            13: [1, 19],
+            16: [2, 12],
+            17: [2, 12],
+            18: [1, 20],
+            19: [1, 21],
+            21: [2, 12],
+            23: [2, 12],
+            29: [1, 22],
+            30: [1, 23],
+            31: [2, 12],
+            32: 24,
+            33: [1, 25],
+            34: [1, 26],
+            35: [1, 27],
+            36: [1, 28],
+            37: [1, 29],
+            38: [1, 30],
+            39: [1, 31]
+          }
+        ],
+        defaultActions: {
+          11: [2, 1]
+        },
+        parseError: function parseError(str2, hash2) {
+          throw new Error(str2);
+        },
+        parse: function parse2(input) {
+          var self2 = this, stack2 = [0], vstack = [null], lstack = [], table2 = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
+          this.lexer.setInput(input);
+          this.lexer.yy = this.yy;
+          this.yy.lexer = this.lexer;
+          this.yy.parser = this;
+          if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
+          var yyloc = this.lexer.yylloc;
+          lstack.push(yyloc);
+          var ranges = this.lexer.options && this.lexer.options.ranges;
+          if (typeof this.yy.parseError === "function")
+            this.parseError = this.yy.parseError;
+          function popStack(n2) {
+            stack2.length = stack2.length - 2 * n2;
+            vstack.length = vstack.length - n2;
+            lstack.length = lstack.length - n2;
+          }
+          function lex2() {
+            var token2;
+            token2 = self2.lexer.lex() || 1;
+            if (typeof token2 !== "number") {
+              token2 = self2.symbols_[token2] || token2;
+            }
+            return token2;
+          }
+          var symbol, preErrorSymbol, state, action, r2, yyval = {}, p2, len, newState, expected;
+          while (true) {
+            state = stack2[stack2.length - 1];
+            if (this.defaultActions[state]) {
+              action = this.defaultActions[state];
+            } else {
+              if (symbol === null || typeof symbol == "undefined") {
+                symbol = lex2();
+              }
+              action = table2[state] && table2[state][symbol];
+            }
+            if (typeof action === "undefined" || !action.length || !action[0]) {
+              var errStr = "";
+              if (!recovering) {
+                expected = [];
+                for (p2 in table2[state])
+                  if (this.terminals_[p2] && p2 > 2) {
+                    expected.push("'" + this.terminals_[p2] + "'");
+                  }
+                if (this.lexer.showPosition) {
+                  errStr = "Parse error on line " + (yylineno + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + expected.join(", ") + ", got '" + (this.terminals_[symbol] || symbol) + "'";
+                } else {
+                  errStr = "Parse error on line " + (yylineno + 1) + ": Unexpected " + (symbol == 1 ? "end of input" : "'" + (this.terminals_[symbol] || symbol) + "'");
+                }
+                this.parseError(errStr, {
+                  text: this.lexer.match,
+                  token: this.terminals_[symbol] || symbol,
+                  line: this.lexer.yylineno,
+                  loc: yyloc,
+                  expected
+                });
+              }
+              if (recovering == 3) {
+                if (symbol == EOF) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                yyleng = this.lexer.yyleng;
+                yytext = this.lexer.yytext;
+                yylineno = this.lexer.yylineno;
+                yyloc = this.lexer.yylloc;
+                symbol = lex2();
+              }
+              while (1) {
+                if (TERROR.toString() in table2[state]) {
+                  break;
+                }
+                if (state === 0) {
+                  throw new Error(errStr || "Parsing halted.");
+                }
+                popStack(1);
+                state = stack2[stack2.length - 1];
+              }
+              preErrorSymbol = symbol == 2 ? null : symbol;
+              symbol = TERROR;
+              state = stack2[stack2.length - 1];
+              action = table2[state] && table2[state][TERROR];
+              recovering = 3;
+            }
+            if (action[0] instanceof Array && action.length > 1) {
+              throw new Error(
+                "Parse Error: multiple actions possible at state: " + state + ", token: " + symbol
+              );
+            }
+            switch (action[0]) {
+              case 1:
+                stack2.push(symbol);
+                vstack.push(this.lexer.yytext);
+                lstack.push(this.lexer.yylloc);
+                stack2.push(action[1]);
+                symbol = null;
+                if (!preErrorSymbol) {
+                  yyleng = this.lexer.yyleng;
+                  yytext = this.lexer.yytext;
+                  yylineno = this.lexer.yylineno;
+                  yyloc = this.lexer.yylloc;
+                  if (recovering > 0) recovering--;
+                } else {
+                  symbol = preErrorSymbol;
+                  preErrorSymbol = null;
+                }
+                break;
+              case 2:
+                len = this.productions_[action[1]][1];
+                yyval.$ = vstack[vstack.length - len];
+                yyval._$ = {
+                  first_line: lstack[lstack.length - (len || 1)].first_line,
+                  last_line: lstack[lstack.length - 1].last_line,
+                  first_column: lstack[lstack.length - (len || 1)].first_column,
+                  last_column: lstack[lstack.length - 1].last_column
+                };
+                if (ranges) {
+                  yyval._$.range = [
+                    lstack[lstack.length - (len || 1)].range[0],
+                    lstack[lstack.length - 1].range[1]
+                  ];
+                }
+                r2 = this.performAction.call(
+                  yyval,
+                  yytext,
+                  yyleng,
+                  yylineno,
+                  this.yy,
+                  action[1],
+                  vstack,
+                  lstack
+                );
+                if (typeof r2 !== "undefined") {
+                  return r2;
+                }
+                if (len) {
+                  stack2 = stack2.slice(0, -1 * len * 2);
+                  vstack = vstack.slice(0, -1 * len);
+                  lstack = lstack.slice(0, -1 * len);
+                }
+                stack2.push(this.productions_[action[1]][0]);
+                vstack.push(yyval.$);
+                lstack.push(yyval._$);
+                newState = table2[stack2[stack2.length - 2]][stack2[stack2.length - 1]];
+                stack2.push(newState);
+                break;
+              case 3:
+                return true;
+            }
+          }
+          return true;
+        }
+      };
+      var lexer = function() {
+        var lexer2 = {
+          EOF: 1,
+          parseError: function parseError(str2, hash2) {
+            if (this.yy.parser) {
+              this.yy.parser.parseError(str2, hash2);
+            } else {
+              throw new Error(str2);
+            }
+          },
+          setInput: function(input) {
+            this._input = input;
+            this._more = this._less = this.done = false;
+            this.yylineno = this.yyleng = 0;
+            this.yytext = this.matched = this.match = "";
+            this.conditionStack = ["INITIAL"];
+            this.yylloc = {
+              first_line: 1,
+              first_column: 0,
+              last_line: 1,
+              last_column: 0
+            };
+            if (this.options.ranges) this.yylloc.range = [0, 0];
+            this.offset = 0;
+            return this;
+          },
+          input: function() {
+            var ch3 = this._input[0];
+            this.yytext += ch3;
+            this.yyleng++;
+            this.offset++;
+            this.match += ch3;
+            this.matched += ch3;
+            var lines = ch3.match(/(?:\r\n?|\n).*/g);
+            if (lines) {
+              this.yylineno++;
+              this.yylloc.last_line++;
+            } else {
+              this.yylloc.last_column++;
+            }
+            if (this.options.ranges) this.yylloc.range[1]++;
+            this._input = this._input.slice(1);
+            return ch3;
+          },
+          unput: function(ch3) {
+            var len = ch3.length;
+            var lines = ch3.split(/(?:\r\n?|\n)/g);
+            this._input = ch3 + this._input;
+            this.yytext = this.yytext.substr(0, this.yytext.length - len - 1);
+            this.offset -= len;
+            var oldLines = this.match.split(/(?:\r\n?|\n)/g);
+            this.match = this.match.substr(0, this.match.length - 1);
+            this.matched = this.matched.substr(0, this.matched.length - 1);
+            if (lines.length - 1) this.yylineno -= lines.length - 1;
+            var r2 = this.yylloc.range;
+            this.yylloc = {
+              first_line: this.yylloc.first_line,
+              last_line: this.yylineno + 1,
+              first_column: this.yylloc.first_column,
+              last_column: lines ? (lines.length === oldLines.length ? this.yylloc.first_column : 0) + oldLines[oldLines.length - lines.length].length - lines[0].length : this.yylloc.first_column - len
+            };
+            if (this.options.ranges) {
+              this.yylloc.range = [r2[0], r2[0] + this.yyleng - len];
+            }
+            return this;
+          },
+          more: function() {
+            this._more = true;
+            return this;
+          },
+          less: function(n2) {
+            this.unput(this.match.slice(n2));
+          },
+          pastInput: function() {
+            var past = this.matched.substr(
+              0,
+              this.matched.length - this.match.length
+            );
+            return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
+          },
+          upcomingInput: function() {
+            var next = this.match;
+            if (next.length < 20) {
+              next += this._input.substr(0, 20 - next.length);
+            }
+            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
+              /\n/g,
+              ""
+            );
+          },
+          showPosition: function() {
+            var pre = this.pastInput();
+            var c2 = new Array(pre.length + 1).join("-");
+            return pre + this.upcomingInput() + "\n" + c2 + "^";
+          },
+          next: function() {
+            if (this.done) {
+              return this.EOF;
+            }
+            if (!this._input) this.done = true;
+            var token2, match, tempMatch, index, lines;
+            if (!this._more) {
+              this.yytext = "";
+              this.match = "";
+            }
+            var rules = this._currentRules();
+            for (var i2 = 0; i2 < rules.length; i2++) {
+              tempMatch = this._input.match(this.rules[rules[i2]]);
+              if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
+                match = tempMatch;
+                index = i2;
+                if (!this.options.flex) break;
+              }
+            }
+            if (match) {
+              lines = match[0].match(/(?:\r\n?|\n).*/g);
+              if (lines) this.yylineno += lines.length;
+              this.yylloc = {
+                first_line: this.yylloc.last_line,
+                last_line: this.yylineno + 1,
+                first_column: this.yylloc.last_column,
+                last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
+              };
+              this.yytext += match[0];
+              this.match += match[0];
+              this.matches = match;
+              this.yyleng = this.yytext.length;
+              if (this.options.ranges) {
+                this.yylloc.range = [this.offset, this.offset += this.yyleng];
+              }
+              this._more = false;
+              this._input = this._input.slice(match[0].length);
+              this.matched += match[0];
+              token2 = this.performAction.call(
+                this,
+                this.yy,
+                this,
+                rules[index],
+                this.conditionStack[this.conditionStack.length - 1]
+              );
+              if (this.done && this._input) this.done = false;
+              if (token2) return token2;
+              else return;
+            }
+            if (this._input === "") {
+              return this.EOF;
+            } else {
+              return this.parseError(
+                "Lexical error on line " + (this.yylineno + 1) + ". Unrecognized text.\n" + this.showPosition(),
+                {
+                  text: "",
+                  token: null,
+                  line: this.yylineno
+                }
+              );
+            }
+          },
+          lex: function lex2() {
+            var r2 = this.next();
+            if (typeof r2 !== "undefined") {
+              return r2;
+            } else {
+              return this.lex();
+            }
+          },
+          begin: function begin(condition) {
+            this.conditionStack.push(condition);
+          },
+          popState: function popState() {
+            return this.conditionStack.pop();
+          },
+          _currentRules: function _currentRules() {
+            return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
+          },
+          topState: function() {
+            return this.conditionStack[this.conditionStack.length - 2];
+          },
+          pushState: function begin(condition) {
+            this.begin(condition);
+          }
+        };
+        lexer2.options = {};
+        lexer2.performAction = function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
+          switch ($avoiding_name_collisions) {
+            case 0:
+              return "*";
+            case 1:
+              return "/";
+            case 2:
+              return "-";
+            case 3:
+              return "+";
+            case 4:
+              return "^";
+            case 5:
+              return "(";
+            case 6:
+              return ")";
+            case 7:
+              return ",";
+            case 8:
+              return "==";
+            case 9:
+              return "!=";
+            case 10:
+              return "~=";
+            case 11:
+              return ">=";
+            case 12:
+              return "<=";
+            case 13:
+              return "<";
+            case 14:
+              return ">";
+            case 15:
+              return "notIn";
+            case 16:
+              return "and";
+            case 17:
+              return "or";
+            case 18:
+              return "not";
+            case 19:
+              return "in";
+            case 20:
+              return "of";
+            case 21:
+              return "if";
+            case 22:
+              return "then";
+            case 23:
+              return "else";
+            case 24:
+              return "mod";
+            case 25:
+              break;
+            case 26:
+              return "Number";
+            case 27:
+              yy_.yytext = JSON.stringify({
+                name: yy_.yytext,
+                type: "unescaped"
+              });
+              return "Symbol";
+            case 28:
+              yy_.yytext = JSON.stringify({
+                name: yy.buildString("'", yy_.yytext),
+                type: "single-quoted"
+              });
+              return "Symbol";
+            case 29:
+              yy_.yytext = JSON.stringify(yy.buildString('"', yy_.yytext));
+              return "String";
+            case 30:
+              return "%";
+            case 31:
+              return "?";
+            case 32:
+              return ":";
+            case 33:
+              return "EndOfExpression";
+          }
+        };
+        lexer2.rules = [
+          /^(?:\*)/,
+          /^(?:\/)/,
+          /^(?:-)/,
+          /^(?:\+)/,
+          /^(?:\^)/,
+          /^(?:\()/,
+          /^(?:\))/,
+          /^(?:\,)/,
+          /^(?:==)/,
+          /^(?:\!=)/,
+          /^(?:\~=)/,
+          /^(?:>=)/,
+          /^(?:<=)/,
+          /^(?:<)/,
+          /^(?:>)/,
+          /^(?:not\s+in[^\w])/,
+          /^(?:and[^\w])/,
+          /^(?:or[^\w])/,
+          /^(?:not[^\w])/,
+          /^(?:in[^\w])/,
+          /^(?:of[^\w])/,
+          /^(?:if[^\w])/,
+          /^(?:then[^\w])/,
+          /^(?:else[^\w])/,
+          /^(?:mod[^\w])/,
+          /^(?:\s+)/,
+          /^(?:[0-9]+(?:\.[0-9]+)?(?![0-9\.]))/,
+          /^(?:[a-zA-Z$_][\.a-zA-Z0-9$_]*)/,
+          /^(?:'(?:\\'|\\\\|[^'\\])*')/,
+          /^(?:"(?:\\"|\\\\|[^"\\])*")/,
+          /^(?:\%)/,
+          /^(?:\?)/,
+          /^(?::)/,
+          /^(?:$)/
+        ];
+        lexer2.conditions = {
+          INITIAL: {
+            rules: [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              28,
+              29,
+              30,
+              31,
+              32,
+              33
+            ],
+            inclusive: true
+          }
+        };
+        return lexer2;
+      }();
+      parser2.lexer = lexer;
+      function Parser2() {
+        this.yy = {};
+      }
+      Parser2.prototype = parser2;
+      parser2.Parser = Parser2;
+      return new Parser2();
+    }();
+    const parser = _parser;
+    _parser.Parser;
+    class UnknownFunctionError extends ReferenceError {
+      constructor(funcName) {
+        super(`Unknown function: ${funcName}()`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_FUNCTION");
+        this.functionName = funcName;
+      }
+    }
+    class UnknownPropertyError extends ReferenceError {
+      constructor(propName) {
+        super(`Property “${propName}” does not exist.`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_PROPERTY");
+        this.propertyName = propName;
+      }
+    }
+    class UnknownOptionError extends TypeError {
+      constructor(key2) {
+        super(`Unknown option: ${key2}`);
+        __publicField(this, "I18N_STRING", "UNKNOWN_OPTION");
+        this.keyName = key2;
+      }
+    }
+    class UnexpectedTypeError extends TypeError {
+      constructor(expected, got) {
+        super(`Expected a ${expected}, but got a ${got} instead.`);
+        __publicField(this, "I18N_STRING", "UNEXPECTED_TYPE");
+        this.expectedType = expected;
+        this.recievedType = got;
+      }
+    }
+    class InternalError extends Error {
+      constructor(message) {
+        super(message);
+        __publicField(this, "I18N_STRING", "INTERNAL");
+      }
+    }
+    function hasOwnProperty(obj, prop) {
+      if (typeof obj === "object" || typeof obj === "function") {
+        return Object.prototype.hasOwnProperty.call(obj, prop);
+      }
+      return false;
+    }
+    function mod(a2, b) {
+      return (a2 % b + b) % b;
+    }
+    function unbox(value) {
+      if (typeof value !== "object") return value;
+      if (value instanceof Number || value instanceof String || value instanceof Boolean)
+        return value.valueOf();
+    }
+    function unwrap$1(value) {
+      if (Array.isArray(value) && value.length === 1) value = value[0];
+      return unbox(value);
+    }
+    function prettyType(value) {
+      value = unwrap$1(value);
+      if (value === void 0) return "undefined";
+      if (value === null) return "null";
+      if (value === true) return "true";
+      if (value === false) return "false";
+      if (typeof value === "number") return "number";
+      if (typeof value === "string") return "text";
+      if (typeof value !== "object" && typeof value !== "function")
+        return "unknown type";
+      if (Array.isArray(value)) return "list";
+      return "object";
+    }
+    function num(value) {
+      value = unwrap$1(value);
+      if (typeof value === "number") return value;
+      throw new UnexpectedTypeError("number", prettyType(value));
+    }
+    function str(value) {
+      value = unwrap$1(value);
+      if (typeof value === "string") return value;
+      throw new UnexpectedTypeError("text", prettyType(value));
+    }
+    function numstr(value) {
+      value = unwrap$1(value);
+      if (typeof value === "string" || typeof value === "number") return value;
+      throw new UnexpectedTypeError("text or number", prettyType(value));
+    }
+    function bool(value) {
+      value = unwrap$1(value);
+      if (typeof value === "boolean") return value;
+      throw new UnexpectedTypeError(
+        "logical value (“true” or “false”)",
+        prettyType(value)
+      );
+    }
+    function arr(value) {
+      if (value === void 0 || value === null) {
+        throw new UnexpectedTypeError("list", prettyType(value));
+      }
+      if (Array.isArray(value)) {
+        return value;
+      } else {
+        return [value];
+      }
+    }
+    function flatten$1(input) {
+      const stack2 = [...input];
+      const res = [];
+      while (stack2.length) {
+        const next = stack2.pop();
+        if (Array.isArray(next)) {
+          stack2.push(...next);
+        } else {
+          res.push(next);
+        }
+      }
+      return res.reverse();
+    }
+    const std = {
+      isfn(fns, funcName) {
+        return hasOwnProperty(fns, funcName) && typeof fns[funcName] === "function";
+      },
+      unknown(funcName) {
+        throw new UnknownFunctionError(funcName);
+      },
+      coerceArray: arr,
+      coerceNumber: num,
+      coerceNumberOrString: numstr,
+      coerceBoolean: bool,
+      isSubset(a2, b) {
+        const A2 = arr(a2);
+        const B2 = arr(b);
+        return A2.every((val) => B2.includes(val));
+      },
+      warnDeprecated: /* @__PURE__ */ function() {
+        const warnMax = 3;
+        let warnedTimes = {
+          ternary: 0,
+          modulo: 0
+        };
+        return (cause, value) => {
+          switch (cause) {
+            case "ternary":
+              if (warnedTimes.ternary++ >= warnMax) break;
+              console.warn(
+                "The use of ? and : as conditional operators has been deprecated in Filtrex v3 in favor of the if..then..else ternary operator. See issue #34 for more information."
+              );
+              break;
+            case "modulo":
+              if (warnedTimes.modulo++ >= warnMax) break;
+              console.warn(
+                "The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information."
+              );
+              break;
+          }
+          return value;
+        };
+      }(),
+      buildString(quote, literal2) {
+        quote = String(quote)[0];
+        literal2 = String(literal2);
+        let built = "";
+        if (literal2[0] !== quote || literal2[literal2.length - 1] !== quote)
+          throw new InternalError(
+            `Unexpected internal error: String literal doesn't begin/end with the right quotation mark.`
+          );
+        for (let i2 = 1; i2 < literal2.length - 1; i2++) {
+          if (literal2[i2] === "\\") {
+            i2++;
+            if (i2 >= literal2.length - 1)
+              throw new InternalError(
+                `Unexpected internal error: Unescaped backslash at the end of string literal.`
+              );
+            if (literal2[i2] === "\\") built += "\\";
+            else if (literal2[i2] === quote) built += quote;
+            else
+              throw new InternalError(
+                `Unexpected internal error: Invalid escaped character in string literal: ${literal2[i2]}`
+              );
+          } else if (literal2[i2] === quote) {
+            throw new InternalError(
+              `Unexpected internal error: String literal contains unescaped quotation mark.`
+            );
+          } else {
+            built += literal2[i2];
+          }
+        }
+        return built;
+      },
+      reduceRelation(arr2) {
+        const declarations = [];
+        const comparisons = [];
+        let previousExpression = flatten$1([arr2[0]]).join("");
+        let j2 = 0;
+        for (let i2 = 1; i2 < arr2.length - 1; i2 += 2) {
+          const expr = flatten$1([arr2[i2 + 1]]).join("");
+          const tempVar = `tmp${j2++}`;
+          comparisons.push(
+            `ops["${arr2[i2]}"](${previousExpression}, ${tempVar} = ${expr})`
+          );
+          previousExpression = tempVar;
+          declarations.push(tempVar);
+        }
+        return `(function(){ var ${declarations.join(", ")}; return ${comparisons.join(" && ")};})()`;
+      }
+    };
+    parser.yy = Object.create(std);
+    function compileExpression(expression, options) {
+      if (arguments.length > 2) throw new TypeError("Too many arguments.");
+      options = typeof options === "object" ? options : {};
+      const knownOptions = [
+        "extraFunctions",
+        "constants",
+        "customProp",
+        "operators"
+      ];
+      let { extraFunctions, constants, customProp, operators } = options;
+      for (const key2 of Object.keys(options))
+        if (!knownOptions.includes(key2)) throw new UnknownOptionError(key2);
+      let functions = {
+        abs: Math.abs,
+        ceil: Math.ceil,
+        floor: Math.floor,
+        log: Math.log,
+        log2: Math.log2,
+        log10: Math.log10,
+        max: Math.max,
+        min: Math.min,
+        round: Math.round,
+        sqrt: Math.sqrt,
+        exists: (v2) => v2 !== void 0 && v2 !== null,
+        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
+      };
+      if (extraFunctions) {
+        for (const name2 of Object.keys(extraFunctions)) {
+          functions[name2] = extraFunctions[name2];
+        }
+      }
+      let defaultOperators = {
+        "+": (a2, b) => numstr(a2) + numstr(b),
+        "-": (a2, b) => b === void 0 ? -num(a2) : num(a2) - num(b),
+        "*": (a2, b) => num(a2) * num(b),
+        "/": (a2, b) => num(a2) / num(b),
+        "^": (a2, b) => Math.pow(num(a2), num(b)),
+        mod: (a2, b) => mod(num(a2), num(b)),
+        "==": (a2, b) => a2 === b,
+        "!=": (a2, b) => a2 !== b,
+        "<": (a2, b) => num(a2) < num(b),
+        "<=": (a2, b) => num(a2) <= num(b),
+        ">=": (a2, b) => num(a2) >= num(b),
+        ">": (a2, b) => num(a2) > num(b),
+        "~=": (a2, b) => RegExp(str(b)).test(str(a2))
+      };
+      if (operators) {
+        for (const name2 of Object.keys(operators)) {
+          defaultOperators[name2] = operators[name2];
+        }
+      }
+      operators = defaultOperators;
+      constants = constants ?? {};
+      let js = flatten$1(parser.parse(expression));
+      js.unshift("return ");
+      js.push(";");
+      function nakedProp(name2, obj, type) {
+        if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
+        throw new UnknownPropertyError(name2);
+      }
+      function safeGetter(obj) {
+        return function get2(name2) {
+          if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
+          throw new UnknownPropertyError(name2);
+        };
+      }
+      if (typeof customProp === "function") {
+        nakedProp = (name2, obj, type) => customProp(name2, safeGetter(obj), obj, type);
+      }
+      function createCall(fns) {
+        return function call(_ref) {
+          let { name: name2 } = _ref;
+          for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+            args[_key - 1] = arguments[_key];
+          }
+          if (hasOwnProperty(fns, name2) && typeof fns[name2] === "function")
+            return fns[name2](...args);
+          throw new UnknownFunctionError(name2);
+        };
+      }
+      function prop(_ref2, obj) {
+        let { name: name2, type } = _ref2;
+        if (type === "unescaped" && hasOwnProperty(constants, name2))
+          return constants[name2];
+        return nakedProp(name2, obj, type);
+      }
+      let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
+      return function(data) {
+        try {
+          return func(createCall(functions), operators, std, prop, data);
+        } catch (e2) {
+          return e2;
+        }
+      };
+    }
+    const coerceValue = (value, descriptor) => {
+      if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
+        return Boolean(value);
+      } else {
+        return value;
+      }
+    };
+    const isFilteringSupportedForValue = (value) => ["string", "number", "boolean"].includes(typeof value);
+    const bannedShortScoreNames = (scores) => {
+      const used = /* @__PURE__ */ new Set();
+      const banned = /* @__PURE__ */ new Set();
+      for (const { scorer, name: name2 } of scores) {
+        banned.add(scorer);
+        if (used.has(name2)) {
+          banned.add(name2);
+        } else {
+          used.add(name2);
+        }
+      }
+      return banned;
+    };
+    const scoreVariables = (evalDescriptor, sampleScores) => {
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const variables = {};
+      const addScore = (variableName, scoreLabel, value) => {
+        const coercedValue = coerceValue(
+          value,
+          evalDescriptor.scoreDescriptor(scoreLabel)
+        );
+        if (isFilteringSupportedForValue(coercedValue)) {
+          variables[variableName] = coercedValue;
+        }
+      };
+      for (const [scorer, score2] of Object.entries(sampleScores)) {
+        addScore(scorer, { scorer, name: scorer }, score2.value);
+        if (typeof score2.value === "object") {
+          for (const [name2, value] of Object.entries(score2.value)) {
+            addScore(`${scorer}.${name2}`, { scorer, name: name2 }, value);
+            if (!bannedShortNames.has(name2)) {
+              addScore(name2, { scorer, name: name2 }, value);
+            }
+          }
+        }
+      }
+      return variables;
+    };
+    const scoreFilterItems = (evalDescriptor) => {
+      const items = [];
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const valueToString = (value) => typeof value === "string" ? `"${value}"` : String(value);
+      const addScore = (shortName, qualifiedName, scoreLabel) => {
+        const canonicalName = shortName || qualifiedName;
+        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+        const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
+        if (!descriptor) {
+          items.push({
+            shortName,
+            qualifiedName,
+            canonicalName,
+            tooltip: void 0,
+            categories: [],
+            scoreType
+          });
+          return;
+        }
+        var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
+        var categories = [];
+        if (descriptor.min !== void 0 || descriptor.max !== void 0) {
+          const rounded = (num2) => {
+            return parseFloat(num2.toPrecision(3)).toString();
+          };
+          tooltip += `
+range: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
+        }
+        if (descriptor.categories) {
+          tooltip += `
+categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
+          categories = descriptor.categories.map((cat) => valueToString(cat.val));
+        }
+        items.push({
+          shortName,
+          qualifiedName,
+          canonicalName,
+          tooltip,
+          categories,
+          scoreType
+        });
+      };
+      for (const { name: name2, scorer } of evalDescriptor.scores) {
+        const hasShortName = name2 === scorer || !bannedShortNames.has(name2);
+        const hasQualifiedName = name2 !== scorer;
+        const shortName = hasShortName ? name2 : void 0;
+        const qualifiedName = hasQualifiedName ? `${scorer}.${name2}` : void 0;
+        addScore(shortName, qualifiedName, { name: name2, scorer });
+      }
+      return items;
+    };
+    const filterExpression = (evalDescriptor, sample, filterValue) => {
+      var _a2, _b2;
+      try {
+        const inputContains = (regex2) => {
+          return inputString(sample.input).some(
+            (msg) => msg.match(new RegExp(regex2, "i"))
+          );
+        };
+        const targetContains = (regex2) => {
+          let targets = Array.isArray(sample.target) ? sample.target : [sample.target];
+          return targets.some((target) => target.match(new RegExp(regex2, "i")));
+        };
+        const extraFunctions = {
+          input_contains: inputContains,
+          target_contains: targetContains
+        };
+        const expression = compileExpression(filterValue, { extraFunctions });
+        const vars = scoreVariables(evalDescriptor, sample.scores);
+        const result = expression(vars);
+        if (typeof result === "boolean") {
+          return { matches: result, error: void 0 };
+        } else if (result instanceof Error) {
+          throw result;
+        } else {
+          throw new TypeError(
+            `Filter expression returned a non-boolean value: ${result}`
+          );
+        }
+      } catch (error2) {
+        if (error2 instanceof ReferenceError) {
+          const propertyName2 = error2["propertyName"];
+          if (propertyName2) {
+            const regex2 = new RegExp(`\\b${propertyName2}\\b`);
+            const match = regex2.exec(filterValue);
+            if (match) {
+              return {
+                matches: false,
+                error: {
+                  from: match.index,
+                  to: match.index + propertyName2.length,
+                  message: error2.message,
+                  severity: "warning"
+                }
+              };
+            }
+          }
+        }
+        if (error2.message.startsWith("Parse error") || error2.message.startsWith("Lexical error")) {
+          const from = (_b2 = (_a2 = error2.message.match(/^(-*)\^$/m)) == null ? void 0 : _a2[1]) == null ? void 0 : _b2.length;
+          return {
+            matches: false,
+            error: {
+              from,
+              message: "Syntax error",
+              severity: "error"
+            }
+          };
+        }
+        return {
+          matches: false,
+          error: {
+            message: error2.message,
+            severity: "error"
+          }
+        };
+      }
+    };
+    const filterSamples = (evalDescriptor, samples, filterValue) => {
+      var error2 = void 0;
+      const result = samples.filter((sample) => {
+        if (filterValue) {
+          const { matches, error: sampleError } = filterExpression(
+            evalDescriptor,
+            sample,
+            filterValue
+          );
+          error2 || (error2 = sampleError);
+          return matches;
+        } else {
+          return true;
+        }
+      });
+      return { result, error: error2 };
+    };
+    const Sidebar = ({
+      offcanvas,
+      logs,
+      loading,
+      logHeaders,
+      selectedIndex,
+      onSelectedIndexChanged
+    }) => {
+      const btnOffCanClass = offcanvas ? "" : " d-md-none";
+      const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
+      return m$1`
+    <div
+      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
+      id="sidebarOffCanvas"
+      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
+    >
+      <div
+        style=${{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        columnGap: "0.2rem",
+        alignItems: "center",
+        paddingLeft: "0.5rem",
+        opacity: "0.7",
+        position: "fixed",
+        width: "var(--sidebar-width)",
+        zIndex: 10,
+        borderBottom: "solid var(--bs-light-border-subtle) 1px",
+        paddingBottom: "0.5rem",
+        paddingTop: "0.5rem",
+        height: "3.6em"
+      }}
+      >
+        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
+        <button
+          id="sidebarToggle"
+          class="btn d-inline${btnOffCanClass}"
+          type="button"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#sidebarOffCanvas"
+          aria-controls="sidebarOffCanvas"
+          style=${{
+        padding: ".1rem",
+        alignSelf: "end",
+        width: "40px",
+        flex: "0 0 content"
+      }}
+        >
+          <i class=${ApplicationIcons.close}></i>
+        </button>
+      </div>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
+      </div>
+      <ul
+        class="list-group"
+        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
+      >
+        ${logs.files.map((file, index) => {
+        var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
+        const active = index === selectedIndex ? " active" : "";
+        const logHeader = logHeaders[file.name];
+        const hyperparameters = logHeader ? {
+          ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
+          ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
+        } : void 0;
+        const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
+        const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
+        const uniqScorers = /* @__PURE__ */ new Set();
+        (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
+          uniqScorers.add(scorer2.name);
+        });
+        const scorer = Array.from(uniqScorers).join(",");
+        const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
+        const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
+        const time = completed ? new Date(completed) : void 0;
+        const timeStr = time ? `${time.toDateString()}
+          ${time.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        })}` : "";
+        return m$1`
+            <li
+              class="list-group-item list-group-item-action${active}"
+              onclick=${() => onSelectedIndexChanged(index)}
+            >
+              <div
+                style=${{
+          display: "flex",
+          flexDirection: "row",
+          justifyContent: "space-between"
+        }}
+              >
+                <div style=${{ overflow: "hidden" }}>
+                  <div
+                    style=${{
+          fontSize: FontSize["title-secondary"],
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis"
+        }}
+                  >
+                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
+                  </div>
+                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
+                    ${timeStr}
+                  </small>
+
+                  ${model ? m$1` <div>
+                        <small
+                          class="mb-1"
+                          style=${{ fontSize: FontSize.small }}
+                          >${model}</small
+                        >
+                      </div>` : ""}
+                </div>
+                <${EvalStatus} logHeader=${logHeader} />
+              </div>
+              <div
+                style=${{
+          marginTop: "1em",
+          ...ApplicationStyles.threeLineClamp
+        }}
+              >
+                <small class="mb-1">
+                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+          const val = hyperparameters[key2];
+          if (Array.isArray(val) || typeof val === "object") {
+            return `${key2}: ${JSON.stringify(val)}`;
+          } else {
+            return `${key2}: ${val}`;
+          }
+        }).join(", ") : ""}
+                </small>
+              </div>
+              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
+                    style=${{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "0em",
+          fontSize: FontSize.small
+        }}
+                  >
+                    <span>dataset: ${dataset.name || "(samples)"}</span
+                    ><span>${scorerLabel}: ${scorer}</span>
+                  </div>` : ""}
+            </li>
+          `;
+      })}
+      </ul>
+    </div>
+  `;
+    };
+    const prettyDir = (path) => {
+      try {
+        let url = new URL(path);
+        if (url.protocol === "file:") {
+          return url.pathname;
+        } else {
+          return path;
+        }
+      } catch {
+        return path;
+      }
+    };
+    const EvalStatus = ({ logHeader }) => {
+      var _a2, _b2;
+      switch (logHeader == null ? void 0 : logHeader.status) {
+        case "error":
+          return m$1`<${StatusError} message="Error" />`;
+        case "cancelled":
+          return m$1`<${StatusCancelled} message="Cancelled" />`;
+        case "started":
+          return m$1`<${StatusRunning} message="Running" />`;
+        default:
+          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
+            if (logHeader.results.scores.length === 1) {
+              return m$1`<${SidebarScore}
+            scorer=${logHeader.results.scores[0]}
+          />`;
+            } else {
+              return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
+            }
+          } else {
+            return "";
+          }
+      }
+    };
+    const SidebarScore = ({ scorer }) => {
+      return m$1`<div
     style=${{
-        paddingLeft: "0",
-        marginLeft: "0",
-        marginBottom: "0.2rem",
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-end"
+      }}
+  >
+    ${Object.keys(scorer.metrics).map((metric) => {
+        return m$1`
+        <div
+          style=${{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          marginLeft: "1em",
+          marginBottom: "0.4em",
+          marginTop: "0.5rem"
+        }}
+        >
+          <div
+            style=${{
+          marginBottom: "-0.3em",
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+          >
+            ${scorer.metrics[metric].name}
+          </div>
+          ${scorer.reducer ? m$1`<div
+                style=${{
+          fontSize: FontSize.small,
+          marginBottom: "-0.2rem"
+        }}
+              >
+                ${scorer.reducer}
+              </div>` : ""}
+          <div style=${{ fontSize: FontSize["title-secondary"] }}>
+            ${formatPrettyDecimal(scorer.metrics[metric].value)}
+          </div>
+        </div>
+      `;
+      })}
+  </div>`;
+    };
+    const SidebarScores = ({ scores }) => {
+      return m$1`<div
+    style=${{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+        rowGap: "1em"
+      }}
+  >
+    ${scores.map((score2) => {
+        const name2 = score2.name;
+        const reducer = score2.reducer;
+        return m$1`
+        <div
+          style=${{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          marginLeft: "1em"
+        }}
+        >
+          <div
+            style=${{
+          fontSize: FontSize.base,
+          width: "100%",
+          fontWeight: 300,
+          borderBottom: "solid var(--bs-border-color) 1px",
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+          >
+            ${name2}
+          </div>
+          ${reducer ? m$1` <div
+                style=${{
+          fontSize: FontSize.smaller,
+          width: "100%",
+          fontWeight: 300
+        }}
+              >
+                ${reducer}
+              </div>` : ""}
+          <div
+            style=${{
+          fontSize: FontSize.smaller,
+          display: "grid",
+          gridTemplateColumns: "max-content max-content",
+          gridGap: "0 0.3rem"
+        }}
+          >
+            ${Object.keys(score2.metrics).map((key2) => {
+          const metric = score2.metrics[key2];
+          return m$1` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
+                <div style=${{ fontWeight: "600" }}>
+                  ${formatPrettyDecimal(metric.value)}
+                </div>`;
+        })}
+          </div>
+        </div>
+      `;
+      })}
+  </div>`;
+    };
+    const StatusCancelled = ({ message }) => {
+      return m$1`<div
+    style=${{
+        marginTop: "0.2em",
+        fontSize: FontSize.small,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+  >
+    ${message}
+  </div>`;
+    };
+    const StatusRunning = ({ message }) => {
+      return m$1` <div
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content max-content",
+        columnGap: "0.5em",
+        marginTop: "0.3em",
+        fontSize: FontSize.small,
+        ...TextStyle.secondary,
+        ...TextStyle.label
+      }}
+  >
+    <div>${message}</div>
+  </div>`;
+    };
+    const StatusError = ({ message }) => {
+      return m$1`<div
+    style=${{
+        color: "var(--bs-danger)",
+        marginTop: "0.2em",
+        fontSize: FontSize.small,
+        ...TextStyle.label
+      }}
+  >
+    ${message}
+  </div>`;
+    };
+    const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
+      if (log_dir) {
+        const displayDir = prettyDir(log_dir);
+        return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
+      <span
+        style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+        >Log Directory</span
+      >
+      <span
+        title=${displayDir}
+        style=${{
+          fontSize: FontSize.base,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis"
+        }}
+        >${offcanvas ? displayDir : ""}</span
+      >
+    </div>`;
+      } else {
+        return m$1`<span
+      style=${{
+          fontSize: FontSize.title
+        }}
+      >${offcanvas ? "Log History" : ""}
+    </span>`;
+      }
+    };
+    let vscodeApi;
+    const getVscodeApi = () => {
+      if (window.acquireVsCodeApi) {
+        if (vscodeApi === void 0) {
+          vscodeApi = window.acquireVsCodeApi();
+        }
+        return vscodeApi;
+      } else {
+        return void 0;
+      }
+    };
+    const isVscode = () => {
+      const bodyEl = document.querySelector("body");
+      return bodyEl !== null && !!bodyEl.getAttributeNames().find((attr) => {
+        return attr.includes("data-vscode-");
+      });
+    };
+    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
+      const emptyStyle = {
+        display: "flex",
+        textAlign: "center",
+        flex: "0 0 content",
+        alignItems: "center",
+        justifyContent: "center",
+        height: height ? height : "10rem"
+      };
+      return m$1`
+    <div
+      ...${{ id }}
+      class="${classes ? classes : ""}"
+      style=${{ width: "100%" }}
+    >
+      <div style=${{ ...emptyStyle, ...style2 }}>
+        <div>${children2 || ""}</div>
+      </div>
+    </div>
+  `;
+    };
+    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
+      if (!id) {
+        throw new Error("Tabsets require an id to function properly");
+      }
+      const tabs = children2;
+      const tabType = type || "tabs";
+      const tabSetStyle = {
+        alignItems: "space-between"
+      };
+      return m$1`<ul
+      ...${{ id }}
+      class="nav nav-${tabType} ${classes ? classes : ""}"
+      role="tablist"
+      aria-orientation="horizontal"
+      style=${{ ...tabSetStyle, ...styles.tabSet }}
+    >
+      <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
+      <${TabTools} tools=${tools} />
+    </ul>
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
+    };
+    const TabPanel = ({
+      id,
+      index,
+      selected,
+      style: style2,
+      scrollable,
+      scrollRef,
+      classes,
+      scrollPosition,
+      setScrollPosition,
+      children: children2
+    }) => {
+      const tabContentsId = computeTabContentsId(id, index);
+      const tabContentsRef = scrollRef || A$1(
+        /** @type {HTMLElement|null} */
+        null
+      );
+      y(() => {
+        setTimeout(() => {
+          if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+            tabContentsRef.current.scrollTop = scrollPosition;
+          }
+        }, 0);
+      });
+      const onScroll = q$1(
+        (e2) => {
+          setScrollPosition(e2.srcElement.scrollTop);
+        },
+        [setScrollPosition]
+      );
+      return m$1`<div
+    id="${tabContentsId}"
+    ref=${tabContentsRef}
+    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
+    style=${{
+        flex: "1",
+        overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
+        ...style2
+      }}
+    onscroll=${onScroll}
+  >
+    ${children2}
+  </div>`;
+    };
+    const Tabs = ({ tabs, type, style: style2 }) => {
+      return tabs.map((tab, index) => {
+        return m$1` <${Tab}
+      type=${type || "tabs"}
+      tab=${tab}
+      index=${index}
+      style=${style2}
+    />`;
+      });
+    };
+    const Tab = ({ type, tab, index, style: style2 }) => {
+      const tabId = tab.props.id || computeTabId("tabset", index);
+      const tabContentsId = computeTabContentsId(tab.props.id, index);
+      const isActive = tab.props.selected;
+      const tabStyle = {
+        color: "var(--bs-body-color)",
+        ...style2,
+        padding: "0.25rem 0.5rem",
+        borderTopLeftRadius: "var(--bs-border-radius)",
+        borderTopRightRadius: "var(--bs-border-radius)",
+        ...TextStyle.label,
+        fontSize: FontSize.small,
+        fontWeight: 500,
+        marginTop: "2px",
+        marginBottom: "-1px"
+      };
+      const pillStyle = {
+        ...style2
+      };
+      return m$1`
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
+      <button
+        id="${tabId}"
+        style=${type === "tabs" ? tabStyle : pillStyle}
+        class="nav-link ${isActive ? "active" : ""}"
+        data-bs-toggle="tab"
+        data-bs-target="#${tabContentsId}"
+        type="button"
+        role="tab"
+        aria-controls="${tabContentsId}"
+        aria-selected="${isActive ? true : false}"
+        ...${{
+        onclick: (e2) => {
+          tab.props.onSelected(e2);
+          return false;
+        }
+      }}
+      >
+        ${tab.props.icon ? m$1`<i
+              class="${tab.props.icon}"
+              style=${{ marginRight: "0.5em" }}
+            ></i>` : ""}
+        ${tab.props.title}
+      </button>
+    </li>
+  `;
+    };
+    const TabTools = ({ tools }) => {
+      return m$1`<div
+    class="tab-tools"
+    style=${{
+        flexBasis: "auto",
+        marginLeft: "auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "end",
+        flexWrap: "wrap",
+        rowGap: "0.3rem"
+      }}
+  >
+    ${tools}
+  </div>`;
+    };
+    const TabPanels = ({ id, tabs, style: style2 }) => {
+      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
+    ${tabs.map((tab, index) => {
+        tab.props.index = index;
+        return tab;
+      })}
+  </div>`;
+    };
+    const computeTabId = (id, index) => {
+      return `${id}-${index}`;
+    };
+    const computeTabContentsId = (id, index) => {
+      return `${id}-contents-${index}`;
+    };
+    const ToolButton = ({ name: name2, classes, icon, onclick, ...rest }) => {
+      const attr = {
+        type: "button",
+        class: `btn btn-tools ${classes || ""}`,
+        onclick,
+        ...rest
+      };
+      const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
+      return g$1("button", attr, m$1`${iconEl}${name2}`);
+    };
+    const ghCommitUrl = (origin, commit) => {
+      const baseUrl = origin.replace(/\.git$/, "");
+      return `${baseUrl}/commit/${commit}`;
+    };
+    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
+      return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0em",
+        padding: "0.5em 0.5em 0.5em 0.5em",
+        fontSize: FontSize.small,
+        fontWeight: 600,
+        ...TextStyle.label,
         ...style2
       }}
   >
-    <thead>
-      <tr>
-        <th colspan="2" style="${{ padding: 0 }}"></th>
-      </tr>
-    </thead>
-    <tbody>
-      ${entryEls}
-    </tbody>
-  </table>`;
+    ${icon ? m$1`<i
+          class="${icon}"
+          style=${{
+        paddingRight: "0.2rem"
+      }}
+        ></i>` : m$1`<span
+          style=${{
+        paddingRight: "0.2rem"
+      }}
+        ></span>`}
+    ${label ? label : ""} ${children2}
+  </div> `;
+    };
+    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
+      return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+        backgroundColor: "var(--bs-body-bg)",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        margin: "0 8px 8px 8px",
+        padding: "0.5em",
+        ...style2
+      }}
+  >
+    ${children2}
+  </div>`;
+    };
+    const Card = ({ id, classes, style: style2, children: children2 }) => {
+      return m$1`
+    <div
+      class="${classes || ""}"
+      ...${{ id }}
+      style=${{
+        backgroundColor: "var(--bs-light-bg-subtle)",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        marginBottom: "1.5em",
+        ...style2
+      }}
+    >
+      ${children2}
+    </div>
+  `;
     };
     const kPlanCardBodyId = "task-plan-card-body";
     const PlanCard = ({ evalSpec, evalPlan, scores }) => {
@@ -17171,23 +20630,6 @@ ${entry.value}</pre
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
-    let vscodeApi;
-    const getVscodeApi = () => {
-      if (window.acquireVsCodeApi) {
-        if (vscodeApi === void 0) {
-          vscodeApi = window.acquireVsCodeApi();
-        }
-        return vscodeApi;
-      } else {
-        return void 0;
-      }
-    };
-    const isVscode = () => {
-      const bodyEl = document.querySelector("body");
-      return bodyEl !== null && !!bodyEl.getAttributeNames().find((attr) => {
-        return attr.includes("data-vscode-");
-      });
-    };
     const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
       const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
       if (scores.length === 1) {
@@ -17625,16 +21067,6 @@ ${entry.value}</pre
     </div>
     ${children2}
   </div>`;
-    };
-    const isNumeric = (n2) => {
-      return !isNaN(parseFloat(n2)) && isFinite(n2);
-    };
-    const toArray = (val) => {
-      if (Array.isArray(val)) {
-        return val;
-      } else {
-        return [val];
-      }
     };
     const SampleInitEventView = ({
       id,
@@ -19593,7 +23025,7 @@ ${val.stack}`;
       let proto;
       return obj != null && typeof obj === "object" && (obj[$PROXY] || !(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype || Array.isArray(obj));
     }
-    function unwrap$1(item, set = /* @__PURE__ */ new Set()) {
+    function unwrap(item, set = /* @__PURE__ */ new Set()) {
       let result, unwrapped, v2, prop;
       if (result = item != null && item[$RAW]) return result;
       if (!isWrappable(item) || set.has(item)) return item;
@@ -19602,7 +23034,7 @@ ${val.stack}`;
         else set.add(item);
         for (let i2 = 0, l2 = item.length; i2 < l2; i2++) {
           v2 = item[i2];
-          if ((unwrapped = unwrap$1(v2, set)) !== v2) item[i2] = unwrapped;
+          if ((unwrapped = unwrap(v2, set)) !== v2) item[i2] = unwrapped;
         }
       } else {
         if (Object.isFrozen(item)) item = Object.assign({}, item);
@@ -19612,7 +23044,7 @@ ${val.stack}`;
           prop = keys[i2];
           if (desc[prop].get) continue;
           v2 = item[prop];
-          if ((unwrapped = unwrap$1(v2, set)) !== v2) item[prop] = unwrapped;
+          if ((unwrapped = unwrap(v2, set)) !== v2) item[prop] = unwrapped;
         }
       }
       return item;
@@ -19704,7 +23136,7 @@ ${val.stack}`;
     }
     function updateArray(current, next) {
       if (typeof next === "function") next = next(current);
-      next = unwrap$1(next);
+      next = unwrap(next);
       if (Array.isArray(next)) {
         if (current === next) return;
         let i2 = 0, len = next.length;
@@ -19753,13 +23185,13 @@ ${val.stack}`;
         if (value === prev) return;
       }
       if (part === void 0 && value == void 0) return;
-      value = unwrap$1(value);
+      value = unwrap(value);
       if (part === void 0 || isWrappable(prev) && isWrappable(value) && !Array.isArray(value)) {
         mergeStoreNode(prev, value);
       } else setProperty(current, part, value);
     }
     function createStore(...[store, options]) {
-      const unwrappedStore = unwrap$1(store || {});
+      const unwrappedStore = unwrap(store || {});
       const isArray = Array.isArray(unwrappedStore);
       const wrappedStore = wrap$1(unwrappedStore);
       function setStore(...args) {
@@ -19844,7 +23276,7 @@ ${val.stack}`;
       const {
         merge,
         key: key2 = "id"
-      } = options, v2 = unwrap$1(value);
+      } = options, v2 = unwrap(value);
       return (state) => {
         if (!isWrappable(state) || !isWrappable(v2)) return v2;
         const res = applyState(v2, {
@@ -26041,28 +29473,6 @@ ${events}
 </div>`;
       return headingHtml;
     };
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
-    const kScoreTypePassFail = "passfail";
-    const kScoreTypeCategorical = "categorical";
-    const kScoreTypeNumeric = "numeric";
-    const kScoreTypeOther = "other";
-    const kScoreTypeObject = "object";
-    const kScoreTypeBoolean = "boolean";
-    const kSampleAscVal = "sample-asc";
-    const kSampleDescVal = "sample-desc";
-    const kEpochAscVal = "epoch-asc";
-    const kEpochDescVal = "epoch-desc";
-    const kScoreAscVal = "score-asc";
-    const kScoreDescVal = "score-desc";
-    const kDefaultSort = kSampleAscVal;
     const InlineSampleDisplay = ({
       id,
       sample,
@@ -29824,127 +33234,6 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
-      var _a2;
-      const options = [
-        { label: "sample asc", val: kSampleAscVal },
-        { label: "sample desc", val: kSampleDescVal }
-      ];
-      if (epochs) {
-        options.push({
-          label: "epoch asc",
-          val: kEpochAscVal
-        });
-        options.push({
-          label: "epoch desc",
-          val: kEpochDescVal
-        });
-      }
-      if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
-        options.push({
-          label: "score asc",
-          val: kScoreAscVal
-        });
-        options.push({
-          label: "score desc",
-          val: kScoreDescVal
-        });
-      }
-      return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-        alignSelf: "center",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        marginRight: "0.3em",
-        marginLeft: "0.2em"
-      }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort}
-        onChange=${(e2) => {
-        setSort(e2.target.value);
-      }}
-      >
-        ${options.map((option) => {
-        return m$1`<option value="${option.val}">${option.label}</option>`;
-      })}
-      </select>
-    </div>
-  `;
-    };
-    const byEpoch = (sort) => {
-      return sort === kEpochAscVal || sort === kEpochDescVal;
-    };
-    const bySample = (sort) => {
-      return sort === kSampleAscVal || sort === kSampleDescVal;
-    };
-    const sortId = (a2, b) => {
-      if (isNumeric(a2.id) && isNumeric(b.id)) {
-        return Number(a2.id) - Number(b.id);
-      } else {
-        return String(a2.id).localeCompare(String(b.id));
-      }
-    };
-    const sortSamples = (sort, samples, samplesDescriptor) => {
-      const sortedSamples = samples.sort((a2, b) => {
-        switch (sort) {
-          case kSampleAscVal: {
-            const result = sortId(a2, b);
-            if (result !== 0) {
-              return result;
-            } else {
-              return a2.epoch - b.epoch;
-            }
-          }
-          case kSampleDescVal: {
-            const result = sortId(b, a2);
-            if (result !== 0) {
-              return result;
-            } else {
-              return a2.epoch - b.epoch;
-            }
-          }
-          case kEpochAscVal: {
-            const result = a2.epoch - b.epoch;
-            if (result !== 0) {
-              return result;
-            } else {
-              return sortId(a2, b);
-            }
-          }
-          case kEpochDescVal: {
-            const result = b.epoch - a2.epoch;
-            if (result !== 0) {
-              return result;
-            } else {
-              return sortId(a2, b);
-            }
-          }
-          case kScoreAscVal:
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(a2).value,
-              samplesDescriptor.selectedScore(b).value
-            );
-          case kScoreDescVal:
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(b).value,
-              samplesDescriptor.selectedScore(a2).value
-            );
-        }
-      });
-      return {
-        sorted: sortedSamples,
-        order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
-      };
-    };
     class Text {
       /**
       Get the line description around the given position.
@@ -31737,7 +35026,7 @@ self.onmessage = function (e) {
         let fields = [];
         let facets = /* @__PURE__ */ Object.create(null);
         let newCompartments = /* @__PURE__ */ new Map();
-        for (let ext of flatten$1(base2, compartments, newCompartments)) {
+        for (let ext of flatten(base2, compartments, newCompartments)) {
           if (ext instanceof StateField)
             fields.push(ext);
           else
@@ -31783,7 +35072,7 @@ self.onmessage = function (e) {
         return new Configuration(base2, newCompartments, dynamic, address, staticValues, facets);
       }
     }
-    function flatten$1(extension, compartments, newCompartments) {
+    function flatten(extension, compartments, newCompartments) {
       let result = [[], [], [], [], []];
       let seen = /* @__PURE__ */ new Map();
       function inner(ext, prec2) {
@@ -49724,2594 +53013,6 @@ self.onmessage = function (e) {
         ...historyKeymap
       ])
     ])();
-    var _parser = function() {
-      var parser2 = {
-        trace: function trace() {
-        },
-        yy: {},
-        symbols_: {
-          error: 2,
-          expressions: 3,
-          e: 4,
-          EndOfExpression: 5,
-          "-": 6,
-          "+": 7,
-          "*": 8,
-          "/": 9,
-          "^": 10,
-          mod: 11,
-          and: 12,
-          or: 13,
-          not: 14,
-          if: 15,
-          then: 16,
-          else: 17,
-          in: 18,
-          notIn: 19,
-          "(": 20,
-          ")": 21,
-          Arguments: 22,
-          ",": 23,
-          Number: 24,
-          Symbol: 25,
-          String: 26,
-          of: 27,
-          Relation: 28,
-          "%": 29,
-          "?": 30,
-          ":": 31,
-          RelationalOperator: 32,
-          "==": 33,
-          "!=": 34,
-          "~=": 35,
-          "<": 36,
-          "<=": 37,
-          ">=": 38,
-          ">": 39,
-          $accept: 0,
-          $end: 1
-        },
-        terminals_: {
-          2: "error",
-          5: "EndOfExpression",
-          6: "-",
-          7: "+",
-          8: "*",
-          9: "/",
-          10: "^",
-          11: "mod",
-          12: "and",
-          13: "or",
-          14: "not",
-          15: "if",
-          16: "then",
-          17: "else",
-          18: "in",
-          19: "notIn",
-          20: "(",
-          21: ")",
-          23: ",",
-          24: "Number",
-          25: "Symbol",
-          26: "String",
-          27: "of",
-          29: "%",
-          30: "?",
-          31: ":",
-          33: "==",
-          34: "!=",
-          35: "~=",
-          36: "<",
-          37: "<=",
-          38: ">=",
-          39: ">"
-        },
-        productions_: [
-          0,
-          [3, 2],
-          [4, 2],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 2],
-          [4, 6],
-          [4, 3],
-          [4, 3],
-          [4, 3],
-          [4, 5],
-          [4, 1],
-          [4, 1],
-          [4, 1],
-          [4, 3],
-          [4, 3],
-          [4, 4],
-          [4, 1],
-          [4, 3],
-          [4, 5],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [32, 1],
-          [28, 3],
-          [28, 3],
-          [22, 1],
-          [22, 3]
-        ],
-        performAction: function anonymous(yytext, yyleng, yylineno, yy, yystate, $$, _$) {
-          var $0 = $$.length - 1;
-          switch (yystate) {
-            case 1:
-              return $$[$0 - 1];
-            case 2:
-              this.$ = ["(", "ops['-'](", $$[$0], ")", ")"];
-              break;
-            case 3:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 4:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 5:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 6:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 7:
-              this.$ = [
-                "(",
-                "ops['",
-                $$[$0 - 1],
-                "'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 8:
-              this.$ = ["(", "ops.mod(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 9:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 2],
-                ") && ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 10:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 2],
-                ") || ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0],
-                ")",
-                ")"
-              ];
-              break;
-            case 11:
-              this.$ = ["(", "! ", "std.coerceBoolean", "(", $$[$0], ")", ")"];
-              break;
-            case 12:
-              this.$ = [
-                "(",
-                "",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 4],
-                ") ? ",
-                $$[$0 - 2],
-                " : ",
-                $$[$0],
-                "",
-                ")"
-              ];
-              break;
-            case 13:
-              this.$ = ["(", "std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 14:
-              this.$ = ["(", "!std.isSubset(", $$[$0 - 2], ", ", $$[$0], ")", ")"];
-              break;
-            case 15:
-              this.$ = ["(", "", $$[$0 - 1], "", ")"];
-              break;
-            case 16:
-              this.$ = ["(", "[ ", $$[$0 - 3], ", ", $$[$0 - 1], " ]", ")"];
-              break;
-            case 17:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 18:
-              this.$ = ["prop(", $$[$0], ", data)"];
-              break;
-            case 19:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 20:
-              this.$ = ["prop(", $$[$0 - 2], ", ", $$[$0], ")"];
-              break;
-            case 21:
-              this.$ = ["call(", $$[$0 - 2], ")"];
-              break;
-            case 22:
-              this.$ = ["call(", $$[$0 - 3], ", ", $$[$0 - 1], ")"];
-              break;
-            case 23:
-              this.$ = yy.reduceRelation($$[$0]);
-              break;
-            case 24:
-              this.$ = [
-                "std.warnDeprecated('modulo', ops['mod'](",
-                $$[$0 - 2],
-                ", ",
-                $$[$0],
-                "))"
-              ];
-              break;
-            case 25:
-              this.$ = [
-                "std.warnDeprecated('ternary', ",
-                "std.coerceBoolean",
-                "(",
-                $$[$0 - 4],
-                ") ? ",
-                $$[$0 - 2],
-                " : ",
-                $$[$0],
-                ")"
-              ];
-              break;
-            case 26:
-              this.$ = ["=="];
-              break;
-            case 27:
-              this.$ = ["!="];
-              break;
-            case 28:
-              this.$ = ["~="];
-              break;
-            case 29:
-              this.$ = ["<"];
-              break;
-            case 30:
-              this.$ = ["<="];
-              break;
-            case 31:
-              this.$ = [">="];
-              break;
-            case 32:
-              this.$ = [">"];
-              break;
-            case 33:
-              this.$ = [$$[$0 - 2], $$[$0 - 1], ...$$[$0]];
-              break;
-            case 34:
-              this.$ = [$$[$0 - 2], $$[$0 - 1], $$[$0]];
-              break;
-            case 35:
-              this.$ = ["", $$[$0], ""];
-              break;
-            case 36:
-              this.$ = ["", $$[$0 - 2], ", ", $$[$0], ""];
-              break;
-          }
-        },
-        table: [
-          {
-            3: 1,
-            4: 2,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            1: [3]
-          },
-          {
-            5: [1, 11],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 32,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 33,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 34,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 35,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            22: 36,
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 17],
-            6: [2, 17],
-            7: [2, 17],
-            8: [2, 17],
-            9: [2, 17],
-            10: [2, 17],
-            11: [2, 17],
-            12: [2, 17],
-            13: [2, 17],
-            16: [2, 17],
-            17: [2, 17],
-            18: [2, 17],
-            19: [2, 17],
-            21: [2, 17],
-            23: [2, 17],
-            29: [2, 17],
-            30: [2, 17],
-            31: [2, 17],
-            33: [2, 17],
-            34: [2, 17],
-            35: [2, 17],
-            36: [2, 17],
-            37: [2, 17],
-            38: [2, 17],
-            39: [2, 17]
-          },
-          {
-            5: [2, 18],
-            6: [2, 18],
-            7: [2, 18],
-            8: [2, 18],
-            9: [2, 18],
-            10: [2, 18],
-            11: [2, 18],
-            12: [2, 18],
-            13: [2, 18],
-            16: [2, 18],
-            17: [2, 18],
-            18: [2, 18],
-            19: [2, 18],
-            20: [1, 38],
-            21: [2, 18],
-            23: [2, 18],
-            27: [1, 37],
-            29: [2, 18],
-            30: [2, 18],
-            31: [2, 18],
-            33: [2, 18],
-            34: [2, 18],
-            35: [2, 18],
-            36: [2, 18],
-            37: [2, 18],
-            38: [2, 18],
-            39: [2, 18]
-          },
-          {
-            5: [2, 19],
-            6: [2, 19],
-            7: [2, 19],
-            8: [2, 19],
-            9: [2, 19],
-            10: [2, 19],
-            11: [2, 19],
-            12: [2, 19],
-            13: [2, 19],
-            16: [2, 19],
-            17: [2, 19],
-            18: [2, 19],
-            19: [2, 19],
-            21: [2, 19],
-            23: [2, 19],
-            29: [2, 19],
-            30: [2, 19],
-            31: [2, 19],
-            33: [2, 19],
-            34: [2, 19],
-            35: [2, 19],
-            36: [2, 19],
-            37: [2, 19],
-            38: [2, 19],
-            39: [2, 19]
-          },
-          {
-            5: [2, 23],
-            6: [2, 23],
-            7: [2, 23],
-            8: [2, 23],
-            9: [2, 23],
-            10: [2, 23],
-            11: [2, 23],
-            12: [2, 23],
-            13: [2, 23],
-            16: [2, 23],
-            17: [2, 23],
-            18: [2, 23],
-            19: [2, 23],
-            21: [2, 23],
-            23: [2, 23],
-            29: [2, 23],
-            30: [2, 23],
-            31: [2, 23],
-            33: [2, 23],
-            34: [2, 23],
-            35: [2, 23],
-            36: [2, 23],
-            37: [2, 23],
-            38: [2, 23],
-            39: [2, 23]
-          },
-          {
-            1: [2, 1]
-          },
-          {
-            4: 39,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 40,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 41,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 42,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 43,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 44,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 45,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 46,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 47,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 48,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 49,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 50,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 52,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 51
-          },
-          {
-            6: [2, 26],
-            14: [2, 26],
-            15: [2, 26],
-            20: [2, 26],
-            24: [2, 26],
-            25: [2, 26],
-            26: [2, 26]
-          },
-          {
-            6: [2, 27],
-            14: [2, 27],
-            15: [2, 27],
-            20: [2, 27],
-            24: [2, 27],
-            25: [2, 27],
-            26: [2, 27]
-          },
-          {
-            6: [2, 28],
-            14: [2, 28],
-            15: [2, 28],
-            20: [2, 28],
-            24: [2, 28],
-            25: [2, 28],
-            26: [2, 28]
-          },
-          {
-            6: [2, 29],
-            14: [2, 29],
-            15: [2, 29],
-            20: [2, 29],
-            24: [2, 29],
-            25: [2, 29],
-            26: [2, 29]
-          },
-          {
-            6: [2, 30],
-            14: [2, 30],
-            15: [2, 30],
-            20: [2, 30],
-            24: [2, 30],
-            25: [2, 30],
-            26: [2, 30]
-          },
-          {
-            6: [2, 31],
-            14: [2, 31],
-            15: [2, 31],
-            20: [2, 31],
-            24: [2, 31],
-            25: [2, 31],
-            26: [2, 31]
-          },
-          {
-            6: [2, 32],
-            14: [2, 32],
-            15: [2, 32],
-            20: [2, 32],
-            24: [2, 32],
-            25: [2, 32],
-            26: [2, 32]
-          },
-          {
-            5: [2, 2],
-            6: [2, 2],
-            7: [2, 2],
-            8: [2, 2],
-            9: [2, 2],
-            10: [1, 16],
-            11: [2, 2],
-            12: [2, 2],
-            13: [2, 2],
-            16: [2, 2],
-            17: [2, 2],
-            18: [2, 2],
-            19: [2, 2],
-            21: [2, 2],
-            23: [2, 2],
-            29: [2, 2],
-            30: [2, 2],
-            31: [2, 2],
-            32: 24,
-            33: [2, 2],
-            34: [2, 2],
-            35: [2, 2],
-            36: [2, 2],
-            37: [2, 2],
-            38: [2, 2],
-            39: [2, 2]
-          },
-          {
-            5: [2, 11],
-            6: [2, 11],
-            7: [2, 11],
-            8: [2, 11],
-            9: [2, 11],
-            10: [1, 16],
-            11: [2, 11],
-            12: [2, 11],
-            13: [2, 11],
-            16: [2, 11],
-            17: [2, 11],
-            18: [2, 11],
-            19: [2, 11],
-            21: [2, 11],
-            23: [2, 11],
-            29: [2, 11],
-            30: [2, 11],
-            31: [2, 11],
-            32: 24,
-            33: [2, 11],
-            34: [2, 11],
-            35: [2, 11],
-            36: [2, 11],
-            37: [2, 11],
-            38: [2, 11],
-            39: [2, 11]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [1, 53],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [1, 54],
-            23: [2, 35],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            23: [1, 55]
-          },
-          {
-            4: 56,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            4: 59,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            21: [1, 57],
-            22: 58,
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 3],
-            6: [2, 3],
-            7: [2, 3],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 3],
-            13: [2, 3],
-            16: [2, 3],
-            17: [2, 3],
-            18: [2, 3],
-            19: [2, 3],
-            21: [2, 3],
-            23: [2, 3],
-            29: [1, 22],
-            30: [2, 3],
-            31: [2, 3],
-            32: 24,
-            33: [2, 3],
-            34: [2, 3],
-            35: [2, 3],
-            36: [2, 3],
-            37: [2, 3],
-            38: [2, 3],
-            39: [2, 3]
-          },
-          {
-            5: [2, 4],
-            6: [2, 4],
-            7: [2, 4],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 4],
-            13: [2, 4],
-            16: [2, 4],
-            17: [2, 4],
-            18: [2, 4],
-            19: [2, 4],
-            21: [2, 4],
-            23: [2, 4],
-            29: [1, 22],
-            30: [2, 4],
-            31: [2, 4],
-            32: 24,
-            33: [2, 4],
-            34: [2, 4],
-            35: [2, 4],
-            36: [2, 4],
-            37: [2, 4],
-            38: [2, 4],
-            39: [2, 4]
-          },
-          {
-            5: [2, 5],
-            6: [2, 5],
-            7: [2, 5],
-            8: [2, 5],
-            9: [2, 5],
-            10: [1, 16],
-            11: [2, 5],
-            12: [2, 5],
-            13: [2, 5],
-            16: [2, 5],
-            17: [2, 5],
-            18: [2, 5],
-            19: [2, 5],
-            21: [2, 5],
-            23: [2, 5],
-            29: [2, 5],
-            30: [2, 5],
-            31: [2, 5],
-            32: 24,
-            33: [2, 5],
-            34: [2, 5],
-            35: [2, 5],
-            36: [2, 5],
-            37: [2, 5],
-            38: [2, 5],
-            39: [2, 5]
-          },
-          {
-            5: [2, 6],
-            6: [2, 6],
-            7: [2, 6],
-            8: [2, 6],
-            9: [2, 6],
-            10: [1, 16],
-            11: [2, 6],
-            12: [2, 6],
-            13: [2, 6],
-            16: [2, 6],
-            17: [2, 6],
-            18: [2, 6],
-            19: [2, 6],
-            21: [2, 6],
-            23: [2, 6],
-            29: [2, 6],
-            30: [2, 6],
-            31: [2, 6],
-            32: 24,
-            33: [2, 6],
-            34: [2, 6],
-            35: [2, 6],
-            36: [2, 6],
-            37: [2, 6],
-            38: [2, 6],
-            39: [2, 6]
-          },
-          {
-            5: [2, 7],
-            6: [2, 7],
-            7: [2, 7],
-            8: [2, 7],
-            9: [2, 7],
-            10: [1, 16],
-            11: [2, 7],
-            12: [2, 7],
-            13: [2, 7],
-            16: [2, 7],
-            17: [2, 7],
-            18: [2, 7],
-            19: [2, 7],
-            21: [2, 7],
-            23: [2, 7],
-            29: [2, 7],
-            30: [2, 7],
-            31: [2, 7],
-            32: 24,
-            33: [2, 7],
-            34: [2, 7],
-            35: [2, 7],
-            36: [2, 7],
-            37: [2, 7],
-            38: [2, 7],
-            39: [2, 7]
-          },
-          {
-            5: [2, 8],
-            6: [2, 8],
-            7: [2, 8],
-            8: [2, 8],
-            9: [2, 8],
-            10: [1, 16],
-            11: [2, 8],
-            12: [2, 8],
-            13: [2, 8],
-            16: [2, 8],
-            17: [2, 8],
-            18: [2, 8],
-            19: [2, 8],
-            21: [2, 8],
-            23: [2, 8],
-            29: [2, 8],
-            30: [2, 8],
-            31: [2, 8],
-            32: 24,
-            33: [2, 8],
-            34: [2, 8],
-            35: [2, 8],
-            36: [2, 8],
-            37: [2, 8],
-            38: [2, 8],
-            39: [2, 8]
-          },
-          {
-            5: [2, 9],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 9],
-            13: [2, 9],
-            16: [2, 9],
-            17: [2, 9],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 9],
-            23: [2, 9],
-            29: [1, 22],
-            30: [2, 9],
-            31: [2, 9],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 10],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [2, 10],
-            16: [2, 10],
-            17: [2, 10],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 10],
-            23: [2, 10],
-            29: [1, 22],
-            30: [2, 10],
-            31: [2, 10],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 13],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 13],
-            13: [2, 13],
-            16: [2, 13],
-            17: [2, 13],
-            18: [2, 13],
-            19: [2, 13],
-            21: [2, 13],
-            23: [2, 13],
-            29: [1, 22],
-            30: [2, 13],
-            31: [2, 13],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 14],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 14],
-            13: [2, 14],
-            16: [2, 14],
-            17: [2, 14],
-            18: [2, 14],
-            19: [2, 14],
-            21: [2, 14],
-            23: [2, 14],
-            29: [1, 22],
-            30: [2, 14],
-            31: [2, 14],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 24],
-            6: [2, 24],
-            7: [2, 24],
-            8: [2, 24],
-            9: [2, 24],
-            10: [1, 16],
-            11: [2, 24],
-            12: [2, 24],
-            13: [2, 24],
-            16: [2, 24],
-            17: [2, 24],
-            18: [2, 24],
-            19: [2, 24],
-            21: [2, 24],
-            23: [2, 24],
-            29: [2, 24],
-            30: [2, 24],
-            31: [2, 24],
-            32: 24,
-            33: [2, 24],
-            34: [2, 24],
-            35: [2, 24],
-            36: [2, 24],
-            37: [2, 24],
-            38: [2, 24],
-            39: [2, 24]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            31: [1, 60],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 33],
-            6: [2, 33],
-            7: [2, 33],
-            8: [2, 33],
-            9: [2, 33],
-            10: [2, 33],
-            11: [2, 33],
-            12: [2, 33],
-            13: [2, 33],
-            16: [2, 33],
-            17: [2, 33],
-            18: [2, 33],
-            19: [2, 33],
-            21: [2, 33],
-            23: [2, 33],
-            29: [2, 33],
-            30: [2, 33],
-            31: [2, 33],
-            33: [2, 33],
-            34: [2, 33],
-            35: [2, 33],
-            36: [2, 33],
-            37: [2, 33],
-            38: [2, 33],
-            39: [2, 33]
-          },
-          {
-            5: [2, 34],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [2, 34],
-            13: [2, 34],
-            16: [2, 34],
-            17: [2, 34],
-            18: [2, 34],
-            19: [2, 34],
-            21: [2, 34],
-            23: [2, 34],
-            29: [1, 22],
-            30: [2, 34],
-            31: [2, 34],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 61,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 15],
-            6: [2, 15],
-            7: [2, 15],
-            8: [2, 15],
-            9: [2, 15],
-            10: [2, 15],
-            11: [2, 15],
-            12: [2, 15],
-            13: [2, 15],
-            16: [2, 15],
-            17: [2, 15],
-            18: [2, 15],
-            19: [2, 15],
-            21: [2, 15],
-            23: [2, 15],
-            29: [2, 15],
-            30: [2, 15],
-            31: [2, 15],
-            33: [2, 15],
-            34: [2, 15],
-            35: [2, 15],
-            36: [2, 15],
-            37: [2, 15],
-            38: [2, 15],
-            39: [2, 15]
-          },
-          {
-            4: 62,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 20],
-            6: [2, 20],
-            7: [2, 20],
-            8: [2, 20],
-            9: [2, 20],
-            10: [2, 20],
-            11: [2, 20],
-            12: [2, 20],
-            13: [2, 20],
-            16: [2, 20],
-            17: [2, 20],
-            18: [2, 20],
-            19: [2, 20],
-            21: [2, 20],
-            23: [2, 20],
-            29: [2, 20],
-            30: [2, 20],
-            31: [2, 20],
-            32: 24,
-            33: [2, 20],
-            34: [2, 20],
-            35: [2, 20],
-            36: [2, 20],
-            37: [2, 20],
-            38: [2, 20],
-            39: [2, 20]
-          },
-          {
-            5: [2, 21],
-            6: [2, 21],
-            7: [2, 21],
-            8: [2, 21],
-            9: [2, 21],
-            10: [2, 21],
-            11: [2, 21],
-            12: [2, 21],
-            13: [2, 21],
-            16: [2, 21],
-            17: [2, 21],
-            18: [2, 21],
-            19: [2, 21],
-            21: [2, 21],
-            23: [2, 21],
-            29: [2, 21],
-            30: [2, 21],
-            31: [2, 21],
-            33: [2, 21],
-            34: [2, 21],
-            35: [2, 21],
-            36: [2, 21],
-            37: [2, 21],
-            38: [2, 21],
-            39: [2, 21]
-          },
-          {
-            21: [1, 63],
-            23: [1, 64]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 35],
-            23: [2, 35],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 65,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            17: [1, 66],
-            18: [1, 20],
-            19: [1, 21],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [1, 67],
-            23: [2, 36],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 22],
-            6: [2, 22],
-            7: [2, 22],
-            8: [2, 22],
-            9: [2, 22],
-            10: [2, 22],
-            11: [2, 22],
-            12: [2, 22],
-            13: [2, 22],
-            16: [2, 22],
-            17: [2, 22],
-            18: [2, 22],
-            19: [2, 22],
-            21: [2, 22],
-            23: [2, 22],
-            29: [2, 22],
-            30: [2, 22],
-            31: [2, 22],
-            33: [2, 22],
-            34: [2, 22],
-            35: [2, 22],
-            36: [2, 22],
-            37: [2, 22],
-            38: [2, 22],
-            39: [2, 22]
-          },
-          {
-            4: 68,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 25],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [2, 25],
-            17: [2, 25],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 25],
-            23: [2, 25],
-            29: [1, 22],
-            30: [1, 23],
-            31: [2, 25],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            4: 69,
-            6: [1, 3],
-            14: [1, 4],
-            15: [1, 5],
-            20: [1, 6],
-            24: [1, 7],
-            25: [1, 8],
-            26: [1, 9],
-            28: 10
-          },
-          {
-            5: [2, 16],
-            6: [2, 16],
-            7: [2, 16],
-            8: [2, 16],
-            9: [2, 16],
-            10: [2, 16],
-            11: [2, 16],
-            12: [2, 16],
-            13: [2, 16],
-            16: [2, 16],
-            17: [2, 16],
-            18: [2, 16],
-            19: [2, 16],
-            21: [2, 16],
-            23: [2, 16],
-            29: [2, 16],
-            30: [2, 16],
-            31: [2, 16],
-            33: [2, 16],
-            34: [2, 16],
-            35: [2, 16],
-            36: [2, 16],
-            37: [2, 16],
-            38: [2, 16],
-            39: [2, 16]
-          },
-          {
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 36],
-            23: [2, 36],
-            29: [1, 22],
-            30: [1, 23],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          },
-          {
-            5: [2, 12],
-            6: [1, 13],
-            7: [1, 12],
-            8: [1, 14],
-            9: [1, 15],
-            10: [1, 16],
-            11: [1, 17],
-            12: [1, 18],
-            13: [1, 19],
-            16: [2, 12],
-            17: [2, 12],
-            18: [1, 20],
-            19: [1, 21],
-            21: [2, 12],
-            23: [2, 12],
-            29: [1, 22],
-            30: [1, 23],
-            31: [2, 12],
-            32: 24,
-            33: [1, 25],
-            34: [1, 26],
-            35: [1, 27],
-            36: [1, 28],
-            37: [1, 29],
-            38: [1, 30],
-            39: [1, 31]
-          }
-        ],
-        defaultActions: {
-          11: [2, 1]
-        },
-        parseError: function parseError(str2, hash2) {
-          throw new Error(str2);
-        },
-        parse: function parse2(input) {
-          var self2 = this, stack2 = [0], vstack = [null], lstack = [], table2 = this.table, yytext = "", yylineno = 0, yyleng = 0, recovering = 0, TERROR = 2, EOF = 1;
-          this.lexer.setInput(input);
-          this.lexer.yy = this.yy;
-          this.yy.lexer = this.lexer;
-          this.yy.parser = this;
-          if (typeof this.lexer.yylloc == "undefined") this.lexer.yylloc = {};
-          var yyloc = this.lexer.yylloc;
-          lstack.push(yyloc);
-          var ranges = this.lexer.options && this.lexer.options.ranges;
-          if (typeof this.yy.parseError === "function")
-            this.parseError = this.yy.parseError;
-          function popStack(n2) {
-            stack2.length = stack2.length - 2 * n2;
-            vstack.length = vstack.length - n2;
-            lstack.length = lstack.length - n2;
-          }
-          function lex2() {
-            var token2;
-            token2 = self2.lexer.lex() || 1;
-            if (typeof token2 !== "number") {
-              token2 = self2.symbols_[token2] || token2;
-            }
-            return token2;
-          }
-          var symbol, preErrorSymbol, state, action, r2, yyval = {}, p2, len, newState, expected;
-          while (true) {
-            state = stack2[stack2.length - 1];
-            if (this.defaultActions[state]) {
-              action = this.defaultActions[state];
-            } else {
-              if (symbol === null || typeof symbol == "undefined") {
-                symbol = lex2();
-              }
-              action = table2[state] && table2[state][symbol];
-            }
-            if (typeof action === "undefined" || !action.length || !action[0]) {
-              var errStr = "";
-              if (!recovering) {
-                expected = [];
-                for (p2 in table2[state])
-                  if (this.terminals_[p2] && p2 > 2) {
-                    expected.push("'" + this.terminals_[p2] + "'");
-                  }
-                if (this.lexer.showPosition) {
-                  errStr = "Parse error on line " + (yylineno + 1) + ":\n" + this.lexer.showPosition() + "\nExpecting " + expected.join(", ") + ", got '" + (this.terminals_[symbol] || symbol) + "'";
-                } else {
-                  errStr = "Parse error on line " + (yylineno + 1) + ": Unexpected " + (symbol == 1 ? "end of input" : "'" + (this.terminals_[symbol] || symbol) + "'");
-                }
-                this.parseError(errStr, {
-                  text: this.lexer.match,
-                  token: this.terminals_[symbol] || symbol,
-                  line: this.lexer.yylineno,
-                  loc: yyloc,
-                  expected
-                });
-              }
-              if (recovering == 3) {
-                if (symbol == EOF) {
-                  throw new Error(errStr || "Parsing halted.");
-                }
-                yyleng = this.lexer.yyleng;
-                yytext = this.lexer.yytext;
-                yylineno = this.lexer.yylineno;
-                yyloc = this.lexer.yylloc;
-                symbol = lex2();
-              }
-              while (1) {
-                if (TERROR.toString() in table2[state]) {
-                  break;
-                }
-                if (state === 0) {
-                  throw new Error(errStr || "Parsing halted.");
-                }
-                popStack(1);
-                state = stack2[stack2.length - 1];
-              }
-              preErrorSymbol = symbol == 2 ? null : symbol;
-              symbol = TERROR;
-              state = stack2[stack2.length - 1];
-              action = table2[state] && table2[state][TERROR];
-              recovering = 3;
-            }
-            if (action[0] instanceof Array && action.length > 1) {
-              throw new Error(
-                "Parse Error: multiple actions possible at state: " + state + ", token: " + symbol
-              );
-            }
-            switch (action[0]) {
-              case 1:
-                stack2.push(symbol);
-                vstack.push(this.lexer.yytext);
-                lstack.push(this.lexer.yylloc);
-                stack2.push(action[1]);
-                symbol = null;
-                if (!preErrorSymbol) {
-                  yyleng = this.lexer.yyleng;
-                  yytext = this.lexer.yytext;
-                  yylineno = this.lexer.yylineno;
-                  yyloc = this.lexer.yylloc;
-                  if (recovering > 0) recovering--;
-                } else {
-                  symbol = preErrorSymbol;
-                  preErrorSymbol = null;
-                }
-                break;
-              case 2:
-                len = this.productions_[action[1]][1];
-                yyval.$ = vstack[vstack.length - len];
-                yyval._$ = {
-                  first_line: lstack[lstack.length - (len || 1)].first_line,
-                  last_line: lstack[lstack.length - 1].last_line,
-                  first_column: lstack[lstack.length - (len || 1)].first_column,
-                  last_column: lstack[lstack.length - 1].last_column
-                };
-                if (ranges) {
-                  yyval._$.range = [
-                    lstack[lstack.length - (len || 1)].range[0],
-                    lstack[lstack.length - 1].range[1]
-                  ];
-                }
-                r2 = this.performAction.call(
-                  yyval,
-                  yytext,
-                  yyleng,
-                  yylineno,
-                  this.yy,
-                  action[1],
-                  vstack,
-                  lstack
-                );
-                if (typeof r2 !== "undefined") {
-                  return r2;
-                }
-                if (len) {
-                  stack2 = stack2.slice(0, -1 * len * 2);
-                  vstack = vstack.slice(0, -1 * len);
-                  lstack = lstack.slice(0, -1 * len);
-                }
-                stack2.push(this.productions_[action[1]][0]);
-                vstack.push(yyval.$);
-                lstack.push(yyval._$);
-                newState = table2[stack2[stack2.length - 2]][stack2[stack2.length - 1]];
-                stack2.push(newState);
-                break;
-              case 3:
-                return true;
-            }
-          }
-          return true;
-        }
-      };
-      var lexer = function() {
-        var lexer2 = {
-          EOF: 1,
-          parseError: function parseError(str2, hash2) {
-            if (this.yy.parser) {
-              this.yy.parser.parseError(str2, hash2);
-            } else {
-              throw new Error(str2);
-            }
-          },
-          setInput: function(input) {
-            this._input = input;
-            this._more = this._less = this.done = false;
-            this.yylineno = this.yyleng = 0;
-            this.yytext = this.matched = this.match = "";
-            this.conditionStack = ["INITIAL"];
-            this.yylloc = {
-              first_line: 1,
-              first_column: 0,
-              last_line: 1,
-              last_column: 0
-            };
-            if (this.options.ranges) this.yylloc.range = [0, 0];
-            this.offset = 0;
-            return this;
-          },
-          input: function() {
-            var ch3 = this._input[0];
-            this.yytext += ch3;
-            this.yyleng++;
-            this.offset++;
-            this.match += ch3;
-            this.matched += ch3;
-            var lines = ch3.match(/(?:\r\n?|\n).*/g);
-            if (lines) {
-              this.yylineno++;
-              this.yylloc.last_line++;
-            } else {
-              this.yylloc.last_column++;
-            }
-            if (this.options.ranges) this.yylloc.range[1]++;
-            this._input = this._input.slice(1);
-            return ch3;
-          },
-          unput: function(ch3) {
-            var len = ch3.length;
-            var lines = ch3.split(/(?:\r\n?|\n)/g);
-            this._input = ch3 + this._input;
-            this.yytext = this.yytext.substr(0, this.yytext.length - len - 1);
-            this.offset -= len;
-            var oldLines = this.match.split(/(?:\r\n?|\n)/g);
-            this.match = this.match.substr(0, this.match.length - 1);
-            this.matched = this.matched.substr(0, this.matched.length - 1);
-            if (lines.length - 1) this.yylineno -= lines.length - 1;
-            var r2 = this.yylloc.range;
-            this.yylloc = {
-              first_line: this.yylloc.first_line,
-              last_line: this.yylineno + 1,
-              first_column: this.yylloc.first_column,
-              last_column: lines ? (lines.length === oldLines.length ? this.yylloc.first_column : 0) + oldLines[oldLines.length - lines.length].length - lines[0].length : this.yylloc.first_column - len
-            };
-            if (this.options.ranges) {
-              this.yylloc.range = [r2[0], r2[0] + this.yyleng - len];
-            }
-            return this;
-          },
-          more: function() {
-            this._more = true;
-            return this;
-          },
-          less: function(n2) {
-            this.unput(this.match.slice(n2));
-          },
-          pastInput: function() {
-            var past = this.matched.substr(
-              0,
-              this.matched.length - this.match.length
-            );
-            return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
-          },
-          upcomingInput: function() {
-            var next = this.match;
-            if (next.length < 20) {
-              next += this._input.substr(0, 20 - next.length);
-            }
-            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
-              /\n/g,
-              ""
-            );
-          },
-          showPosition: function() {
-            var pre = this.pastInput();
-            var c2 = new Array(pre.length + 1).join("-");
-            return pre + this.upcomingInput() + "\n" + c2 + "^";
-          },
-          next: function() {
-            if (this.done) {
-              return this.EOF;
-            }
-            if (!this._input) this.done = true;
-            var token2, match, tempMatch, index, lines;
-            if (!this._more) {
-              this.yytext = "";
-              this.match = "";
-            }
-            var rules = this._currentRules();
-            for (var i2 = 0; i2 < rules.length; i2++) {
-              tempMatch = this._input.match(this.rules[rules[i2]]);
-              if (tempMatch && (!match || tempMatch[0].length > match[0].length)) {
-                match = tempMatch;
-                index = i2;
-                if (!this.options.flex) break;
-              }
-            }
-            if (match) {
-              lines = match[0].match(/(?:\r\n?|\n).*/g);
-              if (lines) this.yylineno += lines.length;
-              this.yylloc = {
-                first_line: this.yylloc.last_line,
-                last_line: this.yylineno + 1,
-                first_column: this.yylloc.last_column,
-                last_column: lines ? lines[lines.length - 1].length - lines[lines.length - 1].match(/\r?\n?/)[0].length : this.yylloc.last_column + match[0].length
-              };
-              this.yytext += match[0];
-              this.match += match[0];
-              this.matches = match;
-              this.yyleng = this.yytext.length;
-              if (this.options.ranges) {
-                this.yylloc.range = [this.offset, this.offset += this.yyleng];
-              }
-              this._more = false;
-              this._input = this._input.slice(match[0].length);
-              this.matched += match[0];
-              token2 = this.performAction.call(
-                this,
-                this.yy,
-                this,
-                rules[index],
-                this.conditionStack[this.conditionStack.length - 1]
-              );
-              if (this.done && this._input) this.done = false;
-              if (token2) return token2;
-              else return;
-            }
-            if (this._input === "") {
-              return this.EOF;
-            } else {
-              return this.parseError(
-                "Lexical error on line " + (this.yylineno + 1) + ". Unrecognized text.\n" + this.showPosition(),
-                {
-                  text: "",
-                  token: null,
-                  line: this.yylineno
-                }
-              );
-            }
-          },
-          lex: function lex2() {
-            var r2 = this.next();
-            if (typeof r2 !== "undefined") {
-              return r2;
-            } else {
-              return this.lex();
-            }
-          },
-          begin: function begin(condition) {
-            this.conditionStack.push(condition);
-          },
-          popState: function popState() {
-            return this.conditionStack.pop();
-          },
-          _currentRules: function _currentRules() {
-            return this.conditions[this.conditionStack[this.conditionStack.length - 1]].rules;
-          },
-          topState: function() {
-            return this.conditionStack[this.conditionStack.length - 2];
-          },
-          pushState: function begin(condition) {
-            this.begin(condition);
-          }
-        };
-        lexer2.options = {};
-        lexer2.performAction = function anonymous(yy, yy_, $avoiding_name_collisions, YY_START) {
-          switch ($avoiding_name_collisions) {
-            case 0:
-              return "*";
-            case 1:
-              return "/";
-            case 2:
-              return "-";
-            case 3:
-              return "+";
-            case 4:
-              return "^";
-            case 5:
-              return "(";
-            case 6:
-              return ")";
-            case 7:
-              return ",";
-            case 8:
-              return "==";
-            case 9:
-              return "!=";
-            case 10:
-              return "~=";
-            case 11:
-              return ">=";
-            case 12:
-              return "<=";
-            case 13:
-              return "<";
-            case 14:
-              return ">";
-            case 15:
-              return "notIn";
-            case 16:
-              return "and";
-            case 17:
-              return "or";
-            case 18:
-              return "not";
-            case 19:
-              return "in";
-            case 20:
-              return "of";
-            case 21:
-              return "if";
-            case 22:
-              return "then";
-            case 23:
-              return "else";
-            case 24:
-              return "mod";
-            case 25:
-              break;
-            case 26:
-              return "Number";
-            case 27:
-              yy_.yytext = JSON.stringify({
-                name: yy_.yytext,
-                type: "unescaped"
-              });
-              return "Symbol";
-            case 28:
-              yy_.yytext = JSON.stringify({
-                name: yy.buildString("'", yy_.yytext),
-                type: "single-quoted"
-              });
-              return "Symbol";
-            case 29:
-              yy_.yytext = JSON.stringify(yy.buildString('"', yy_.yytext));
-              return "String";
-            case 30:
-              return "%";
-            case 31:
-              return "?";
-            case 32:
-              return ":";
-            case 33:
-              return "EndOfExpression";
-          }
-        };
-        lexer2.rules = [
-          /^(?:\*)/,
-          /^(?:\/)/,
-          /^(?:-)/,
-          /^(?:\+)/,
-          /^(?:\^)/,
-          /^(?:\()/,
-          /^(?:\))/,
-          /^(?:\,)/,
-          /^(?:==)/,
-          /^(?:\!=)/,
-          /^(?:\~=)/,
-          /^(?:>=)/,
-          /^(?:<=)/,
-          /^(?:<)/,
-          /^(?:>)/,
-          /^(?:not\s+in[^\w])/,
-          /^(?:and[^\w])/,
-          /^(?:or[^\w])/,
-          /^(?:not[^\w])/,
-          /^(?:in[^\w])/,
-          /^(?:of[^\w])/,
-          /^(?:if[^\w])/,
-          /^(?:then[^\w])/,
-          /^(?:else[^\w])/,
-          /^(?:mod[^\w])/,
-          /^(?:\s+)/,
-          /^(?:[0-9]+(?:\.[0-9]+)?(?![0-9\.]))/,
-          /^(?:[a-zA-Z$_][\.a-zA-Z0-9$_]*)/,
-          /^(?:'(?:\\'|\\\\|[^'\\])*')/,
-          /^(?:"(?:\\"|\\\\|[^"\\])*")/,
-          /^(?:\%)/,
-          /^(?:\?)/,
-          /^(?::)/,
-          /^(?:$)/
-        ];
-        lexer2.conditions = {
-          INITIAL: {
-            rules: [
-              0,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10,
-              11,
-              12,
-              13,
-              14,
-              15,
-              16,
-              17,
-              18,
-              19,
-              20,
-              21,
-              22,
-              23,
-              24,
-              25,
-              26,
-              27,
-              28,
-              29,
-              30,
-              31,
-              32,
-              33
-            ],
-            inclusive: true
-          }
-        };
-        return lexer2;
-      }();
-      parser2.lexer = lexer;
-      function Parser2() {
-        this.yy = {};
-      }
-      Parser2.prototype = parser2;
-      parser2.Parser = Parser2;
-      return new Parser2();
-    }();
-    const parser = _parser;
-    _parser.Parser;
-    class UnknownFunctionError extends ReferenceError {
-      constructor(funcName) {
-        super(`Unknown function: ${funcName}()`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_FUNCTION");
-        this.functionName = funcName;
-      }
-    }
-    class UnknownPropertyError extends ReferenceError {
-      constructor(propName) {
-        super(`Property “${propName}” does not exist.`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_PROPERTY");
-        this.propertyName = propName;
-      }
-    }
-    class UnknownOptionError extends TypeError {
-      constructor(key2) {
-        super(`Unknown option: ${key2}`);
-        __publicField(this, "I18N_STRING", "UNKNOWN_OPTION");
-        this.keyName = key2;
-      }
-    }
-    class UnexpectedTypeError extends TypeError {
-      constructor(expected, got) {
-        super(`Expected a ${expected}, but got a ${got} instead.`);
-        __publicField(this, "I18N_STRING", "UNEXPECTED_TYPE");
-        this.expectedType = expected;
-        this.recievedType = got;
-      }
-    }
-    class InternalError extends Error {
-      constructor(message) {
-        super(message);
-        __publicField(this, "I18N_STRING", "INTERNAL");
-      }
-    }
-    function hasOwnProperty(obj, prop) {
-      if (typeof obj === "object" || typeof obj === "function") {
-        return Object.prototype.hasOwnProperty.call(obj, prop);
-      }
-      return false;
-    }
-    function mod(a2, b) {
-      return (a2 % b + b) % b;
-    }
-    function unbox(value) {
-      if (typeof value !== "object") return value;
-      if (value instanceof Number || value instanceof String || value instanceof Boolean)
-        return value.valueOf();
-    }
-    function unwrap(value) {
-      if (Array.isArray(value) && value.length === 1) value = value[0];
-      return unbox(value);
-    }
-    function prettyType(value) {
-      value = unwrap(value);
-      if (value === void 0) return "undefined";
-      if (value === null) return "null";
-      if (value === true) return "true";
-      if (value === false) return "false";
-      if (typeof value === "number") return "number";
-      if (typeof value === "string") return "text";
-      if (typeof value !== "object" && typeof value !== "function")
-        return "unknown type";
-      if (Array.isArray(value)) return "list";
-      return "object";
-    }
-    function num(value) {
-      value = unwrap(value);
-      if (typeof value === "number") return value;
-      throw new UnexpectedTypeError("number", prettyType(value));
-    }
-    function str(value) {
-      value = unwrap(value);
-      if (typeof value === "string") return value;
-      throw new UnexpectedTypeError("text", prettyType(value));
-    }
-    function numstr(value) {
-      value = unwrap(value);
-      if (typeof value === "string" || typeof value === "number") return value;
-      throw new UnexpectedTypeError("text or number", prettyType(value));
-    }
-    function bool(value) {
-      value = unwrap(value);
-      if (typeof value === "boolean") return value;
-      throw new UnexpectedTypeError(
-        "logical value (“true” or “false”)",
-        prettyType(value)
-      );
-    }
-    function arr(value) {
-      if (value === void 0 || value === null) {
-        throw new UnexpectedTypeError("list", prettyType(value));
-      }
-      if (Array.isArray(value)) {
-        return value;
-      } else {
-        return [value];
-      }
-    }
-    function flatten(input) {
-      const stack2 = [...input];
-      const res = [];
-      while (stack2.length) {
-        const next = stack2.pop();
-        if (Array.isArray(next)) {
-          stack2.push(...next);
-        } else {
-          res.push(next);
-        }
-      }
-      return res.reverse();
-    }
-    const std = {
-      isfn(fns, funcName) {
-        return hasOwnProperty(fns, funcName) && typeof fns[funcName] === "function";
-      },
-      unknown(funcName) {
-        throw new UnknownFunctionError(funcName);
-      },
-      coerceArray: arr,
-      coerceNumber: num,
-      coerceNumberOrString: numstr,
-      coerceBoolean: bool,
-      isSubset(a2, b) {
-        const A2 = arr(a2);
-        const B2 = arr(b);
-        return A2.every((val) => B2.includes(val));
-      },
-      warnDeprecated: /* @__PURE__ */ function() {
-        const warnMax = 3;
-        let warnedTimes = {
-          ternary: 0,
-          modulo: 0
-        };
-        return (cause, value) => {
-          switch (cause) {
-            case "ternary":
-              if (warnedTimes.ternary++ >= warnMax) break;
-              console.warn(
-                "The use of ? and : as conditional operators has been deprecated in Filtrex v3 in favor of the if..then..else ternary operator. See issue #34 for more information."
-              );
-              break;
-            case "modulo":
-              if (warnedTimes.modulo++ >= warnMax) break;
-              console.warn(
-                "The use of '%' as a modulo operator has been deprecated in Filtrex v3 in favor of the 'mod' operator. You can use it like this: '3 mod 2 == 1'. See issue #48 for more information."
-              );
-              break;
-          }
-          return value;
-        };
-      }(),
-      buildString(quote, literal2) {
-        quote = String(quote)[0];
-        literal2 = String(literal2);
-        let built = "";
-        if (literal2[0] !== quote || literal2[literal2.length - 1] !== quote)
-          throw new InternalError(
-            `Unexpected internal error: String literal doesn't begin/end with the right quotation mark.`
-          );
-        for (let i2 = 1; i2 < literal2.length - 1; i2++) {
-          if (literal2[i2] === "\\") {
-            i2++;
-            if (i2 >= literal2.length - 1)
-              throw new InternalError(
-                `Unexpected internal error: Unescaped backslash at the end of string literal.`
-              );
-            if (literal2[i2] === "\\") built += "\\";
-            else if (literal2[i2] === quote) built += quote;
-            else
-              throw new InternalError(
-                `Unexpected internal error: Invalid escaped character in string literal: ${literal2[i2]}`
-              );
-          } else if (literal2[i2] === quote) {
-            throw new InternalError(
-              `Unexpected internal error: String literal contains unescaped quotation mark.`
-            );
-          } else {
-            built += literal2[i2];
-          }
-        }
-        return built;
-      },
-      reduceRelation(arr2) {
-        const declarations = [];
-        const comparisons = [];
-        let previousExpression = flatten([arr2[0]]).join("");
-        let j2 = 0;
-        for (let i2 = 1; i2 < arr2.length - 1; i2 += 2) {
-          const expr = flatten([arr2[i2 + 1]]).join("");
-          const tempVar = `tmp${j2++}`;
-          comparisons.push(
-            `ops["${arr2[i2]}"](${previousExpression}, ${tempVar} = ${expr})`
-          );
-          previousExpression = tempVar;
-          declarations.push(tempVar);
-        }
-        return `(function(){ var ${declarations.join(", ")}; return ${comparisons.join(" && ")};})()`;
-      }
-    };
-    parser.yy = Object.create(std);
-    function compileExpression(expression, options) {
-      if (arguments.length > 2) throw new TypeError("Too many arguments.");
-      options = typeof options === "object" ? options : {};
-      const knownOptions = [
-        "extraFunctions",
-        "constants",
-        "customProp",
-        "operators"
-      ];
-      let { extraFunctions, constants, customProp, operators } = options;
-      for (const key2 of Object.keys(options))
-        if (!knownOptions.includes(key2)) throw new UnknownOptionError(key2);
-      let functions = {
-        abs: Math.abs,
-        ceil: Math.ceil,
-        floor: Math.floor,
-        log: Math.log,
-        log2: Math.log2,
-        log10: Math.log10,
-        max: Math.max,
-        min: Math.min,
-        round: Math.round,
-        sqrt: Math.sqrt,
-        exists: (v2) => v2 !== void 0 && v2 !== null,
-        empty: (v2) => v2 === void 0 || v2 === null || v2 === "" || Array.isArray(v2) && v2.length === 0
-      };
-      if (extraFunctions) {
-        for (const name2 of Object.keys(extraFunctions)) {
-          functions[name2] = extraFunctions[name2];
-        }
-      }
-      let defaultOperators = {
-        "+": (a2, b) => numstr(a2) + numstr(b),
-        "-": (a2, b) => b === void 0 ? -num(a2) : num(a2) - num(b),
-        "*": (a2, b) => num(a2) * num(b),
-        "/": (a2, b) => num(a2) / num(b),
-        "^": (a2, b) => Math.pow(num(a2), num(b)),
-        mod: (a2, b) => mod(num(a2), num(b)),
-        "==": (a2, b) => a2 === b,
-        "!=": (a2, b) => a2 !== b,
-        "<": (a2, b) => num(a2) < num(b),
-        "<=": (a2, b) => num(a2) <= num(b),
-        ">=": (a2, b) => num(a2) >= num(b),
-        ">": (a2, b) => num(a2) > num(b),
-        "~=": (a2, b) => RegExp(str(b)).test(str(a2))
-      };
-      if (operators) {
-        for (const name2 of Object.keys(operators)) {
-          defaultOperators[name2] = operators[name2];
-        }
-      }
-      operators = defaultOperators;
-      constants = constants ?? {};
-      let js = flatten(parser.parse(expression));
-      js.unshift("return ");
-      js.push(";");
-      function nakedProp(name2, obj, type) {
-        if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
-        throw new UnknownPropertyError(name2);
-      }
-      function safeGetter(obj) {
-        return function get2(name2) {
-          if (hasOwnProperty(obj ?? {}, name2)) return obj[name2];
-          throw new UnknownPropertyError(name2);
-        };
-      }
-      if (typeof customProp === "function") {
-        nakedProp = (name2, obj, type) => customProp(name2, safeGetter(obj), obj, type);
-      }
-      function createCall(fns) {
-        return function call(_ref) {
-          let { name: name2 } = _ref;
-          for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-            args[_key - 1] = arguments[_key];
-          }
-          if (hasOwnProperty(fns, name2) && typeof fns[name2] === "function")
-            return fns[name2](...args);
-          throw new UnknownFunctionError(name2);
-        };
-      }
-      function prop(_ref2, obj) {
-        let { name: name2, type } = _ref2;
-        if (type === "unescaped" && hasOwnProperty(constants, name2))
-          return constants[name2];
-        return nakedProp(name2, obj, type);
-      }
-      let func = new Function("call", "ops", "std", "prop", "data", js.join(""));
-      return function(data) {
-        try {
-          return func(createCall(functions), operators, std, prop, data);
-        } catch (e2) {
-          return e2;
-        }
-      };
-    }
-    const coerceValue = (value, descriptor) => {
-      if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
-        return Boolean(value);
-      } else {
-        return value;
-      }
-    };
-    const isFilteringSupportedForValue = (value) => ["string", "number", "boolean"].includes(typeof value);
-    const bannedShortScoreNames = (scores) => {
-      const used = /* @__PURE__ */ new Set();
-      const banned = /* @__PURE__ */ new Set();
-      for (const { scorer, name: name2 } of scores) {
-        banned.add(scorer);
-        if (used.has(name2)) {
-          banned.add(name2);
-        } else {
-          used.add(name2);
-        }
-      }
-      return banned;
-    };
-    const scoreVariables = (evalDescriptor, sampleScores) => {
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-      const variables = {};
-      const addScore = (variableName, scoreLabel, value) => {
-        const coercedValue = coerceValue(
-          value,
-          evalDescriptor.scoreDescriptor(scoreLabel)
-        );
-        if (isFilteringSupportedForValue(coercedValue)) {
-          variables[variableName] = coercedValue;
-        }
-      };
-      for (const [scorer, score2] of Object.entries(sampleScores)) {
-        addScore(scorer, { scorer, name: scorer }, score2.value);
-        if (typeof score2.value === "object") {
-          for (const [name2, value] of Object.entries(score2.value)) {
-            addScore(`${scorer}.${name2}`, { scorer, name: name2 }, value);
-            if (!bannedShortNames.has(name2)) {
-              addScore(name2, { scorer, name: name2 }, value);
-            }
-          }
-        }
-      }
-      return variables;
-    };
-    const scoreFilterItems = (evalDescriptor) => {
-      const items = [];
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-      const valueToString = (value) => typeof value === "string" ? `"${value}"` : String(value);
-      const addScore = (shortName, qualifiedName, scoreLabel) => {
-        const canonicalName = shortName || qualifiedName;
-        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
-        const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
-        if (!descriptor) {
-          items.push({
-            shortName,
-            qualifiedName,
-            canonicalName,
-            tooltip: void 0,
-            categories: [],
-            scoreType
-          });
-          return;
-        }
-        var tooltip = `${canonicalName}: ${descriptor.scoreType}`;
-        var categories = [];
-        if (descriptor.min !== void 0 || descriptor.max !== void 0) {
-          const rounded = (num2) => {
-            return parseFloat(num2.toPrecision(3)).toString();
-          };
-          tooltip += `
-range: ${rounded(descriptor.min)} to ${rounded(descriptor.max)}`;
-        }
-        if (descriptor.categories) {
-          tooltip += `
-categories: ${descriptor.categories.map((cat) => cat.val).join(", ")}`;
-          categories = descriptor.categories.map((cat) => valueToString(cat.val));
-        }
-        items.push({
-          shortName,
-          qualifiedName,
-          canonicalName,
-          tooltip,
-          categories,
-          scoreType
-        });
-      };
-      for (const { name: name2, scorer } of evalDescriptor.scores) {
-        const hasShortName = name2 === scorer || !bannedShortNames.has(name2);
-        const hasQualifiedName = name2 !== scorer;
-        const shortName = hasShortName ? name2 : void 0;
-        const qualifiedName = hasQualifiedName ? `${scorer}.${name2}` : void 0;
-        addScore(shortName, qualifiedName, { name: name2, scorer });
-      }
-      return items;
-    };
-    const filterExpression = (evalDescriptor, sample, filterValue) => {
-      var _a2, _b2;
-      try {
-        const inputContains = (regex2) => {
-          return inputString(sample.input).some(
-            (msg) => msg.match(new RegExp(regex2, "i"))
-          );
-        };
-        const targetContains = (regex2) => {
-          let targets = Array.isArray(sample.target) ? sample.target : [sample.target];
-          return targets.some((target) => target.match(new RegExp(regex2, "i")));
-        };
-        const extraFunctions = {
-          input_contains: inputContains,
-          target_contains: targetContains
-        };
-        const expression = compileExpression(filterValue, { extraFunctions });
-        const vars = scoreVariables(evalDescriptor, sample.scores);
-        const result = expression(vars);
-        if (typeof result === "boolean") {
-          return { matches: result, error: void 0 };
-        } else if (result instanceof Error) {
-          throw result;
-        } else {
-          throw new TypeError(
-            `Filter expression returned a non-boolean value: ${result}`
-          );
-        }
-      } catch (error2) {
-        if (error2 instanceof ReferenceError) {
-          const propertyName2 = error2["propertyName"];
-          if (propertyName2) {
-            const regex2 = new RegExp(`\\b${propertyName2}\\b`);
-            const match = regex2.exec(filterValue);
-            if (match) {
-              return {
-                matches: false,
-                error: {
-                  from: match.index,
-                  to: match.index + propertyName2.length,
-                  message: error2.message,
-                  severity: "warning"
-                }
-              };
-            }
-          }
-        }
-        if (error2.message.startsWith("Parse error") || error2.message.startsWith("Lexical error")) {
-          const from = (_b2 = (_a2 = error2.message.match(/^(-*)\^$/m)) == null ? void 0 : _a2[1]) == null ? void 0 : _b2.length;
-          return {
-            matches: false,
-            error: {
-              from,
-              message: "Syntax error",
-              severity: "error"
-            }
-          };
-        }
-        return {
-          matches: false,
-          error: {
-            message: error2.message,
-            severity: "error"
-          }
-        };
-      }
-    };
-    const filterSamples = (evalDescriptor, samples, filterValue) => {
-      var error2 = void 0;
-      const result = samples.filter((sample) => {
-        if (filterValue) {
-          const { matches, error: sampleError } = filterExpression(
-            evalDescriptor,
-            sample,
-            filterValue
-          );
-          error2 || (error2 = sampleError);
-          return matches;
-        } else {
-          return true;
-        }
-      });
-      return { result, error: error2 };
-    };
     const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
     const MATH_FUNCTIONS = [
       ["min", "Minimum of two or more values"],
@@ -53946,705 +54647,6 @@ Supported expressions:
             </div>
           </div>`;
       }
-    };
-    const FindBand = ({ hideBand }) => {
-      const searchBoxRef = A$1(
-        /** @type {HTMLInputElement|null} */
-        null
-      );
-      y(() => {
-        searchBoxRef.current.focus();
-      }, []);
-      const searchTerm = () => {
-        return searchBoxRef.current.value;
-      };
-      const search = (term, back) => {
-        const parentExpandablePanel = (selection) => {
-          let node = selection.anchorNode;
-          let expandablePanelEl = void 0;
-          while (node) {
-            if (node.classList && node.classList.contains("expandable-panel")) {
-              expandablePanelEl = node;
-              break;
-            }
-            node = node.parentElement;
-          }
-          return expandablePanelEl;
-        };
-        const focusedElement = (
-          /** @type {HTMLElement} */
-          document.activeElement
-        );
-        const result = window.find(term, false, !!back, false, false, true, false);
-        const noResultEl = window.document.getElementById(
-          "inspect-find-no-results"
-        );
-        if (result) {
-          noResultEl.style.opacity = "0";
-          const selection = window.getSelection();
-          if (selection.rangeCount > 0) {
-            const parentPanel = parentExpandablePanel(selection);
-            if (parentPanel) {
-              parentPanel.style.display = "block";
-              parentPanel.style["-webkit-line-clamp"] = "";
-              parentPanel.style["-webkit-box-orient"] = "";
-            }
-            const range = selection.getRangeAt(0);
-            setTimeout(() => {
-              const element = range.startContainer.parentElement;
-              element.scrollIntoView({
-                behavior: "smooth",
-                // Optional: adds a smooth scrolling animation
-                block: "center"
-                // Optional: scrolls so the element is centered in the view
-              });
-            }, 100);
-          }
-        } else {
-          noResultEl.style.opacity = "1";
-        }
-        if (focusedElement) {
-          focusedElement.focus();
-        }
-      };
-      return m$1`<div
-    style=${{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        marginRight: "20%",
-        zIndex: "1060",
-        color: "var(--inspect-find-foreground)",
-        backgroundColor: "var(--inspect-find-background)",
-        fontSize: "0.9rem",
-        display: "grid",
-        gridTemplateColumns: "auto auto auto auto auto",
-        columnGap: "0.2em",
-        padding: "0.2rem",
-        borderBottom: "solid 1px var(--bs-light-border-subtle)",
-        borderLeft: "solid 1px var(--bs-light-border-subtle)",
-        borderRight: "solid 1px var(--bs-light-border-subtle)",
-        boxShadow: "var(--bs-box-shadow)"
-      }}
-  >
-    <input
-      type="text"
-      ref=${searchBoxRef}
-      style=${{
-        height: "2em",
-        fontSize: "0.9em",
-        margin: "0.1rem",
-        outline: "none",
-        border: "solid 1px var(--inspect-input-border)",
-        color: "var(--inspect-input-foreground)",
-        background: "var(--inspect-input-background)"
-      }}
-      placeholder="Find"
-      onkeydown=${(e2) => {
-        if (e2.key === "Escape") {
-          hideBand();
-        } else if (e2.key === "Enter") {
-          search(searchTerm());
-        }
-      }}
-    />
-    <span
-      id="inspect-find-no-results"
-      style=${{
-        fontSize: FontSize.base,
-        opacity: 0,
-        marginTop: "auto",
-        marginBottom: "auto",
-        marginRight: "0.5em"
-      }}
-      >No results</span
-    >
-    <button
-      title="Previous match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm(), true);
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.up}></i>
-    </button>
-    <button
-      title="Next match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm());
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.down}></i>
-    </button>
-    <button
-      title="Close"
-      style=${{
-        padding: 0,
-        fontSize: FontSize["title-secondary"],
-        marginTop: "-0.1rem",
-        marginBottom: "-0.1rem"
-      }}
-      class="btn"
-      onclick=${() => hideBand()}
-    >
-      <i class=${ApplicationIcons.close}></i>
-    </button>
-  </div>`;
-    };
-    const scoreLabelKey = (scoreLabel) => {
-      if (!scoreLabel) {
-        return "No score key";
-      }
-      return `${scoreLabel.scorer}.${scoreLabel.name}`;
-    };
-    const createEvalDescriptor = (scores, samples, epochs) => {
-      if (!samples) {
-        return void 0;
-      }
-      const scoreValue = (sample, scoreLabel) => {
-        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
-          return void 0;
-        }
-        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
-          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
-        } else if (sample.scores[scoreLabel.name]) {
-          return sample.scores[scoreLabel.name].value;
-        } else {
-          return void 0;
-        }
-      };
-      const scoreAnswer = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.answer) {
-            return sampleScore.answer;
-          }
-        } else {
-          return void 0;
-        }
-      };
-      const scoreExplanation = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.explanation) {
-            return sampleScore.explanation;
-          }
-        }
-        return void 0;
-      };
-      const scoreMetadata = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.metadata) {
-            return sampleScore.metadata;
-          }
-        }
-        return void 0;
-      };
-      const scoreDescriptorMap = /* @__PURE__ */ new Map();
-      for (const scoreLabel of scores) {
-        const uniqScoreValues = [
-          ...new Set(
-            samples.filter((sample) => !!sample.scores).filter((sample) => {
-              if (!scoreLabel) {
-                return true;
-              }
-              if (scoreLabel.scorer !== scoreLabel.name) {
-                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
-                  scoreLabel.name
-                );
-              } else {
-                return Object.keys(sample.scores).includes(scoreLabel.name);
-              }
-            }).map((sample) => {
-              return scoreValue(sample, scoreLabel);
-            }).filter((value) => {
-              return value !== null;
-            })
-          )
-        ];
-        const uniqScoreTypes = [
-          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-        ];
-        for (const categorizer of scoreCategorizers) {
-          const scoreDescriptor2 = categorizer.describe(
-            uniqScoreValues,
-            uniqScoreTypes
-          );
-          if (scoreDescriptor2) {
-            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
-            break;
-          }
-        }
-      }
-      const scoreDescriptor = (scoreLabel) => {
-        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
-      };
-      const scoreRendered = (sample, scoreLabel) => {
-        const descriptor = scoreDescriptor(scoreLabel);
-        const score3 = scoreValue(sample, scoreLabel);
-        if (score3 === null || score3 === "undefined") {
-          return "null";
-        } else if (descriptor && descriptor.render) {
-          return descriptor.render(score3);
-        } else {
-          return score3;
-        }
-      };
-      const scorerDescriptor = (sample, scoreLabel) => {
-        return {
-          metadata: () => {
-            return scoreMetadata(sample, scoreLabel.scorer);
-          },
-          explanation: () => {
-            return scoreExplanation(sample, scoreLabel.scorer);
-          },
-          answer: () => {
-            return scoreAnswer(sample, scoreLabel.scorer);
-          },
-          scores: () => {
-            if (!sample || !sample.scores) {
-              return [];
-            }
-            const myScoreDescriptor = scoreDescriptor(scoreLabel);
-            if (!myScoreDescriptor) {
-              return [];
-            }
-            const scoreNames = scores.map((score3) => {
-              return score3.name;
-            });
-            const sampleScorer = sample.scores[scoreLabel.scorer];
-            const scoreVal = sampleScorer.value;
-            if (typeof scoreVal === "object") {
-              const names = Object.keys(scoreVal);
-              if (names.find((name2) => {
-                return scoreNames.includes(name2);
-              })) {
-                const scores2 = names.map((name2) => {
-                  return {
-                    name: name2,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal[name2]);
-                    }
-                  };
-                });
-                return scores2;
-              } else {
-                return [
-                  {
-                    name: scoreLabel.scorer,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  }
-                ];
-              }
-            } else {
-              return [
-                {
-                  name: scoreLabel.scorer,
-                  rendered: () => {
-                    return myScoreDescriptor.render(scoreVal);
-                  }
-                }
-              ];
-            }
-          }
-        };
-      };
-      const score2 = (sample, scoreLabel) => {
-        return {
-          value: scoreValue(sample, scoreLabel),
-          render: () => {
-            return scoreRendered(sample, scoreLabel);
-          }
-        };
-      };
-      return {
-        epochs,
-        samples,
-        scores,
-        scorerDescriptor,
-        scoreDescriptor,
-        score: score2,
-        scoreAnswer
-      };
-    };
-    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
-      if (!evalDescriptor) {
-        return void 0;
-      }
-      const sizes = evalDescriptor.samples.reduce(
-        (previous, current) => {
-          var _a2;
-          const text2 = inputString(current.input).join(" ");
-          const scoreValue = evalDescriptor.score(current, selectedScore).value;
-          const scoreText = scoreValue ? String(scoreValue) : current.error ? String(current.error) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
-          previous[1] = Math.min(
-            Math.max(previous[1], arrayToString(current.target).length),
-            300
-          );
-          previous[2] = Math.min(
-            Math.max(
-              previous[2],
-              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-            ),
-            300
-          );
-          previous[3] = Math.min(
-            Math.max(previous[3], current.limit ? current.limit.length : 0),
-            50
-          );
-          previous[4] = Math.min(
-            Math.max(previous[4], String(current.id).length),
-            10
-          );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
-          return previous;
-        },
-        [0, 0, 0, 0, 0, 0]
-      );
-      const maxSizes = {
-        input: Math.min(sizes[0], 300),
-        target: Math.min(sizes[1], 300),
-        answer: Math.min(sizes[2], 300),
-        limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[4], 30)
-      };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
-      const messageShape = {
-        raw: {
-          input: sizes[0],
-          target: sizes[1],
-          answer: sizes[2],
-          limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
-        },
-        normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
-          limit: maxSizes.limit / base2,
-          id: maxSizes.id / base2,
-          score: maxSizes.score / base2
-        }
-      };
-      return {
-        evalDescriptor,
-        messageShape,
-        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
-        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
-      };
-    };
-    const scoreCategorizers = [
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length === 1 && types2[0] === "boolean") {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values) => {
-          if (values.length === 2 && values.every((val) => {
-            return val === 1 || val === 0;
-          })) {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
-            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-          })) {
-            return passFailScoreCategorizer(values);
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (values.length < 10 && types2.length === 1 && types2[0] === "string") {
-            return {
-              scoreType: kScoreTypeCategorical,
-              categories: values,
-              compare: (a2, b) => {
-                return String(a2).localeCompare(String(b));
-              },
-              render: (score2) => {
-                return score2;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length !== 0 && types2[0] === "number") {
-            const onlyNumeric = values.filter((val) => {
-              return typeof val === "number";
-            });
-            return {
-              scoreType: kScoreTypeNumeric,
-              min: Math.min(...onlyNumeric),
-              max: Math.max(...onlyNumeric),
-              compare: (a2, b) => {
-                if (typeof a2 === "number" && typeof b === "number") {
-                  return a2 - b;
-                } else {
-                  console.warn(
-                    "Comparing non-numerics using a nuermic score descriptor"
-                  );
-                  return 0;
-                }
-              },
-              render: (score2) => {
-                return formatDecimalNoTrailingZeroes(Number(score2));
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types2) => {
-          if (types2.length !== 0 && types2[0] === "object") {
-            const buckets = values.map((val) => {
-              return JSON.stringify(val);
-            });
-            const vals = new Set(buckets);
-            let categories = void 0;
-            if (vals.size < 10) {
-              categories = Array.from(vals).map((val) => {
-                return {
-                  val,
-                  text: val
-                };
-              });
-            }
-            return {
-              scoreType: kScoreTypeObject,
-              categories,
-              compare: () => {
-                return 0;
-              },
-              render: (score2) => {
-                if (score2 === null || score2 === void 0) {
-                  return "[null]";
-                }
-                const scores = [];
-                const keys = Object.keys(score2);
-                keys.forEach((key2, index) => {
-                  const value = score2[key2];
-                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-                  const style2 = {
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    marginLeft: "0.5rem"
-                  };
-                  if (index + 1 < keys.length) {
-                    style2["paddingBottom"] = "1em";
-                  }
-                  scores.push(m$1`
-                <div style=${style2}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-                });
-                return scores;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        // @ts-ignore
-        describe: () => {
-          return {
-            scoreType: kScoreTypeOther,
-            compare: () => {
-              return 0;
-            },
-            render: (score2) => {
-              return m$1`<${RenderedContent}
-            id="other-score-value"
-            entry=${{ value: score2 }}
-          />`;
-            }
-          };
-        }
-      }
-    ];
-    const filledCircleStyle = {
-      fontSize: FontSize.small,
-      fontFamily: "Consola Regular",
-      width: "20px",
-      height: "20px",
-      display: "inline-flex",
-      justifyContent: "center",
-      alignItems: "center",
-      borderRadius: "50%",
-      paddingTop: "1px"
-    };
-    const booleanScoreCategorizer = () => {
-      return {
-        scoreType: "boolean",
-        compare: (a2, b) => {
-          return Number(a2.value) - Number(b.value);
-        },
-        render: (score2) => {
-          const scoreColorStyle = score2 ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-          return m$1`<span
-        style=${{
-            ...scoreColorStyle,
-            ...filledCircleStyle
-          }}
-        >${score2}</span
-      >`;
-        }
-      };
-    };
-    const passFailScoreCategorizer = (values) => {
-      const categories = [];
-      if (values.includes("C")) {
-        categories.push({
-          val: "C",
-          text: "Correct"
-        });
-      }
-      if (values.includes("P")) {
-        categories.push({
-          val: "P",
-          text: "Partial"
-        });
-      }
-      if (values.includes("I")) {
-        categories.push({
-          val: "I",
-          text: "Incorrect"
-        });
-      }
-      if (values.includes("N")) {
-        categories.push({
-          val: "N",
-          text: "Refusal"
-        });
-      }
-      const order2 = ["C", "P", "I", "N"];
-      return {
-        scoreType: kScoreTypePassFail,
-        categories,
-        render: (score2) => {
-          if (score2 === "C") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.green,
-              ...filledCircleStyle
-            }}
-          >C</span
-        >`;
-          } else if (score2 === "I") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >I</span
-        >`;
-          } else if (score2 === "P") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.orange,
-              ...filledCircleStyle
-            }}
-          >P</span
-        >`;
-          } else if (score2 === "N") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >N</span
-        >`;
-          } else {
-            return score2;
-          }
-        },
-        compare: (a2, b) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b.value);
-          return sort;
-        }
-      };
-    };
-    const resolveAttachments = (value, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value)) {
-        return value.map((v2) => resolveAttachments(v2, attachments));
-      }
-      if (value && typeof value === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value)) {
-          resolvedObject[key2] = resolveAttachments(value[key2], attachments);
-        }
-        return resolvedObject;
-      }
-      if (typeof value === "string") {
-        let resolvedValue = value;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
-        }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
-        }
-        return resolvedValue;
-      }
-      return value;
     };
     function App({
       api: api2,
