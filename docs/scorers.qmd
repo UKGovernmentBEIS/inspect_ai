@@ -72,7 +72,7 @@ Task(
 ```
 
 ::: {#stderr-note .callout-note}
-The current development version of Inspect replaces the use of the `bootstrap_std` metric with `stderr` for the built in scorers enumerated above.
+The current development version of Inspect replaces the use of the `bootstrap_stderr` metric with `stderr` for the built in scorers enumerated above.
 
 Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g. quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.
 
@@ -217,7 +217,7 @@ def includes(ignore_case: bool = True):
 1.  The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
 2.  The `score()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this scorer doesn't call a model but others will).
 3.  We make use of the `text` property on the `Target`. This is a convenience property to get a simple text value out of the `Target` (as targets can technically be a list of strings).
-4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()`, `stderr()`, and `bootstrap_std()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
+4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()`, `stderr()`, and `bootstrap_stderr()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
 5.  We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
 
 ### Example: Model Grading
@@ -514,7 +514,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Standard error of the mean.
 
--   `bootstrap_std()`
+-   `bootstrap_stderr()`
 
     Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
