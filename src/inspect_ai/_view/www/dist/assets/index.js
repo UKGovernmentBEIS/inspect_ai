@@ -7587,142 +7587,32 @@ var require_assets = __commonJS({
     function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
-    const arrayToString = (val) => {
-      val = Array.isArray(val) ? val : [val];
-      return val.join(", ");
-    };
-    const inputString = (input) => {
-      if (typeof input === "string") {
-        return [input];
-      } else {
-        return input.map((inp) => {
-          if (typeof inp === "string") {
-            return inp;
-          } else {
-            const content = inp.content;
-            if (typeof content === "string") {
-              return content;
-            } else {
-              const result = content.map((con) => {
-                if (con.type === "text") {
-                  return con.text;
-                } else {
-                  return "";
-                }
-              });
-              return result.join("\n");
-            }
-          }
-        });
-      }
-    };
-    const formatDataset = (name, samples, epochs) => {
-      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
-      return `${name ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
-    };
-    const formatTime$1 = (seconds) => {
-      if (seconds < 60) {
-        return `${seconds} sec`;
-      } else if (seconds < 60 * 60) {
-        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
-      } else {
-        return `${Math.floor(seconds / (60 * 60 * 24))} days ${Math.floor(
-          seconds / 60
-        )} min ${seconds % 60} sec`;
-      }
-    };
-    function formatPrettyDecimal(num) {
-      const numDecimalPlaces = num.toString().includes(".") ? num.toString().split(".")[1].length : 0;
-      if (numDecimalPlaces === 0) {
-        return num.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num.toFixed(3);
-      } else {
-        return num.toString();
-      }
-    }
-    function formatDecimalNoTrailingZeroes(num) {
-      if (typeof num !== "number") {
-        return num;
-      }
-      if (num.toString().includes(".")) {
-        const decimal = num.toString().split(".")[1];
-        const trimmed = decimal.replace(/\.?0+$/, "");
-        return num.toFixed(trimmed.length);
-      } else {
-        return num.toFixed(0);
-      }
-    }
-    function toTitleCase(str) {
-      return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
-    }
-    function formatNoDecimal(num) {
-      if (typeof num !== "number") {
-        return num;
-      }
-      const rounded = Math.round(num);
-      return rounded.toFixed(0);
-    }
-    function formatNumber(num) {
-      return num.toLocaleString(navigator.language, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 5
-      });
-    }
-    function formatDateTime(date) {
-      const options = {
-        year: "2-digit",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      };
-      return new Intl.DateTimeFormat(void 0, options).format(date);
-    }
-    function formatDuration(start2, end2) {
-      const durationMs = end2.getTime() - start2.getTime();
-      const durationSec = durationMs / 1e3;
-      return formatTime$1(durationSec);
-    }
-    const filename = (path) => {
-      const pathparts = path.split("/");
-      const basename = pathparts.slice(-1)[0];
-      const match = basename.match(/(.*)\.\S+$/);
-      if (match) {
-        return match[1];
-      } else {
-        return path;
-      }
-    };
-    const dirname = (path) => {
-      const pathparts = path.split("/");
-      if (pathparts.length > 1) {
-        pathparts.pop();
-      }
-      return pathparts.join("/");
-    };
     function sleep$1(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
-    function throttle$1(func, wait, options) {
-      var context, args, result;
-      var timeout = null;
-      var previous = 0;
-      if (!options) options = {};
-      var later = function() {
+    function throttle$1(func, wait, options = {}) {
+      let context;
+      let args;
+      let result;
+      let timeout = null;
+      let previous = 0;
+      const later = function() {
         previous = options.leading === false ? 0 : Date.now();
         timeout = null;
-        result = func.apply(context, args);
-        if (!timeout) context = args = null;
+        result = func.apply(context, args === null ? [] : args);
+        if (!timeout) {
+          context = null;
+          args = null;
+        }
       };
-      return function() {
-        var now = Date.now();
-        if (!previous && options.leading === false) previous = now;
-        var remaining = wait - (now - previous);
+      return function(...callArgs) {
+        const now = Date.now();
+        if (!previous && options.leading === false) {
+          previous = now;
+        }
+        const remaining = wait - (now - previous);
         context = this;
-        args = arguments;
+        args = callArgs;
         if (remaining <= 0 || remaining > wait) {
           if (timeout) {
             clearTimeout(timeout);
@@ -7730,7 +7620,10 @@ var require_assets = __commonJS({
           }
           previous = now;
           result = func.apply(context, args);
-          if (!timeout) context = args = null;
+          if (!timeout) {
+            context = null;
+            args = null;
+          }
         } else if (!timeout && options.trailing !== false) {
           timeout = setTimeout(later, remaining);
         }
@@ -7738,23 +7631,29 @@ var require_assets = __commonJS({
       };
     }
     function debounce$1(func, wait, options = {}) {
-      let timeout, context, args, result;
+      let timeout = null;
+      let context;
+      let args;
+      let result;
       let lastCallTime = null;
       const later = () => {
-        const last = Date.now() - lastCallTime;
+        const last = Date.now() - (lastCallTime || 0);
         if (last < wait && last >= 0) {
           timeout = setTimeout(later, wait - last);
         } else {
           timeout = null;
           if (!options.leading) {
             result = func.apply(context, args);
-            if (!timeout) context = args = null;
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
           }
         }
       };
-      return function() {
+      return function(...callArgs) {
         context = this;
-        args = arguments;
+        args = callArgs;
         lastCallTime = Date.now();
         const callNow = options.leading && !timeout;
         if (!timeout) {
@@ -7762,7 +7661,8 @@ var require_assets = __commonJS({
         }
         if (callNow) {
           result = func.apply(context, args);
-          context = args = null;
+          context = null;
+          args = null;
         }
         return result;
       };
@@ -8025,6 +7925,105 @@ var require_assets = __commonJS({
     </div>
   `;
     };
+    const arrayToString = (val) => {
+      val = Array.isArray(val) ? val : [val];
+      return val.join(", ");
+    };
+    const inputString = (input) => {
+      if (typeof input === "string") {
+        return [input];
+      } else {
+        return input.map((inp) => {
+          if (typeof inp === "string") {
+            return inp;
+          } else {
+            const content = inp.content;
+            if (typeof content === "string") {
+              return content;
+            } else {
+              const result = content.map((con) => {
+                if (con.type === "text") {
+                  return con.text;
+                } else {
+                  return "";
+                }
+              });
+              return result.join("\n");
+            }
+          }
+        });
+      }
+    };
+    const formatDataset = (name, samples, epochs) => {
+      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
+      return `${name ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
+    };
+    const formatTime$1 = (seconds) => {
+      if (seconds < 60) {
+        return `${seconds} sec`;
+      } else if (seconds < 60 * 60) {
+        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+      } else {
+        return `${Math.floor(seconds / (60 * 60 * 24))} days ${Math.floor(
+          seconds / 60
+        )} min ${seconds % 60} sec`;
+      }
+    };
+    function formatPrettyDecimal(num) {
+      const numDecimalPlaces = num.toString().includes(".") ? num.toString().split(".")[1].length : 0;
+      if (numDecimalPlaces === 0) {
+        return num.toFixed(1);
+      } else if (numDecimalPlaces > 3) {
+        return num.toFixed(3);
+      } else {
+        return num.toString();
+      }
+    }
+    function formatDecimalNoTrailingZeroes(num) {
+      if (typeof num !== "number") {
+        return num;
+      }
+      if (num.toString().includes(".")) {
+        const decimal = num.toString().split(".")[1];
+        const trimmed = decimal.replace(/\.?0+$/, "");
+        return num.toFixed(trimmed.length);
+      } else {
+        return num.toFixed(0);
+      }
+    }
+    function toTitleCase(str) {
+      return str.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
+    }
+    function formatNoDecimal(num) {
+      if (typeof num !== "number") {
+        return num;
+      }
+      const rounded = Math.round(num);
+      return rounded.toFixed(0);
+    }
+    function formatNumber(num) {
+      return num.toLocaleString(navigator.language, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 5
+      });
+    }
+    function formatDateTime(date) {
+      const options = {
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      };
+      return new Intl.DateTimeFormat(void 0, options).format(date);
+    }
+    function formatDuration(start2, end2) {
+      const durationMs = end2.getTime() - start2.getTime();
+      const durationSec = durationMs / 1e3;
+      return formatTime$1(durationSec);
+    }
     const ApplicationStyles = {
       moreButton: {
         maxHeight: "1.8em",
@@ -16729,9 +16728,20 @@ ${entry.value}</pre
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
+    let vscodeApi;
+    const getVscodeApi = () => {
+      if (window.acquireVsCodeApi) {
+        if (vscodeApi === void 0) {
+          vscodeApi = window.acquireVsCodeApi();
+        }
+        return vscodeApi;
+      } else {
+        return void 0;
+      }
+    };
     const isVscode = () => {
       const bodyEl = document.querySelector("body");
-      return !!bodyEl.getAttributeNames().find((attr) => {
+      return bodyEl !== null && !!bodyEl.getAttributeNames().find((attr) => {
         return attr.includes("data-vscode-");
       });
     };
@@ -25185,8 +25195,9 @@ ${events}
     };
     const printHtml = (html, css) => {
       const printWindow = window.open("", "", "height=600,width=800");
-      printWindow.document.write("<html><head><title>Print</title>");
-      printWindow.document.write(`
+      if (printWindow !== null) {
+        printWindow.document.write("<html><head><title>Print</title>");
+        printWindow.document.write(`
           <link rel="stylesheet" crossorigin="" href="./assets/index.css">
           <style>
             @media print {
@@ -25194,20 +25205,29 @@ ${events}
             }
           </style>
         `);
-      printWindow.document.write("</head><body>");
-      printWindow.document.write(html);
-      printWindow.document.write("</body></html>");
-      printWindow.document.close();
-      printWindow.onload = function() {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-      };
+        printWindow.document.write("</head><body>");
+        printWindow.document.write(html);
+        printWindow.document.write("</body></html>");
+        printWindow.document.close();
+        printWindow.onload = function() {
+          printWindow.focus();
+          printWindow.print();
+          printWindow.close();
+        };
+      } else {
+        console.error("Print window failed to open.");
+      }
     };
     const printHeadingHtml = () => {
-      const task = document.getElementById("task-title").innerText;
-      const model = document.getElementById("task-model").innerText;
-      const time = document.getElementById("task-created").innerText;
+      const taskEl = document.getElementById("task-title");
+      const modelEl = document.getElementById("task-model");
+      const timeEl = document.getElementById("task-created");
+      if (!taskEl || !modelEl || !timeEl) {
+        throw new Error("Failed to compute heading HTML. The task, model, or time element can't be found.");
+      }
+      const task = taskEl.innerText;
+      const model = modelEl.innerText;
+      const time = timeEl.innerText;
       const headingHtml = `
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.5em; margin-bottom: 2em; justify-content: space-between; border-bottom: solid 1px silver;">
 <div style="font-weight: 600">${task}</div>
@@ -26381,6 +26401,23 @@ ${events}
           return groupIndex;
         }
       };
+    };
+    const filename = (path) => {
+      const pathparts = path.split("/");
+      const basename = pathparts.slice(-1)[0];
+      const match = basename.match(/(.*)\.\S+$/);
+      if (match) {
+        return match[1];
+      } else {
+        return path;
+      }
+    };
+    const dirname = (path) => {
+      const pathparts = path.split("/");
+      if (pathparts.length > 1) {
+        pathparts.pop();
+      }
+      return pathparts.join("/");
     };
     const asyncJsonParse = async (text2) => {
       const blob = new Blob([kWorkerCode], {
@@ -27680,17 +27717,6 @@ self.onmessage = function (e) {
       }
       return null;
     }
-    let vscodeApi;
-    const getVscodeApi = () => {
-      if (window.acquireVsCodeApi) {
-        if (vscodeApi === void 0) {
-          vscodeApi = window.acquireVsCodeApi();
-        }
-        return vscodeApi;
-      } else {
-        return void 0;
-      }
-    };
     const vscodeClient = webViewJsonRpcClient(getVscodeApi());
     async function client_events() {
       return [];
@@ -28655,20 +28681,18 @@ self.onmessage = function (e) {
       }
     }
     class AsyncQueue {
-      /**
-       * Creates an instance of AsyncQueue.
-       * @param {number} [concurrentLimit=6] - The maximum number of tasks that can run concurrently.
-       */
       constructor(concurrentLimit = 6) {
+        // Max concurrency
+        __publicField(this, "concurrentLimit");
+        // The queue
+        __publicField(this, "queue");
+        // Count of currently running tasks
+        __publicField(this, "runningCount");
         this.concurrentLimit = concurrentLimit;
         this.queue = [];
         this.runningCount = 0;
       }
-      /**
-       * Adds a task to the queue and runs it if the concurrency limit allows.
-       * @param {Function} task - The task to be executed asynchronously. This should be a function that returns a promise.
-       * @returns {Promise<*>} - A promise that resolves with the result of the task or rejects if the task throws an error.
-       */
+      // Adds a task to the queue and runs it if the concurrency limit allows.
       async enqueue(task) {
         return new Promise((resolve, reject) => {
           this.queue.push(async () => {
@@ -28687,10 +28711,7 @@ self.onmessage = function (e) {
           }
         });
       }
-      /**
-       * Runs the next task in the queue if there are available slots for concurrent execution.
-       * @private
-       */
+      // Runs the next task in the queue if there are available slots for concurrent execution.
       runNext() {
         if (this.queue.length > 0 && this.runningCount < this.concurrentLimit) {
           const task = this.queue.shift();

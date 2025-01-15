@@ -1,5 +1,5 @@
 import { kScoreTypeCategorical, kScoreTypeNumeric } from "../../constants.mjs";
-import { isNumeric } from "../../utils/Type.mjs";
+import { isNumeric } from "../../utils/type";
 
 /**
  * Gets a filter function for the specified type

@@ -34,3 +34,16 @@ export const getVscodeApi = (): VSCodeApi | undefined => {
     return undefined;
   }
 };
+
+// Determine the capabilities
+// If this is vscode, check for the version meta
+// so we know it supports downloads
+export const isVscode = () => {
+  const bodyEl = document.querySelector("body");
+  return (
+    bodyEl !== null &&
+    !!bodyEl.getAttributeNames().find((attr) => {
+      return attr.includes("data-vscode-");
+    })
+  );
+};

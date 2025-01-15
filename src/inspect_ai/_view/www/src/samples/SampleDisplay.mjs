@@ -5,7 +5,8 @@ import { MetaDataView } from "../components/MetaDataView.mjs";
 import { TabSet, TabPanel } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
-import { escapeSelector, isVscode } from "../utils/Html.mjs";
+import { escapeSelector } from "../utils/html";
+import { isVscode } from "../utils/vscode";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
@@ -21,7 +22,7 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
-import { printHeadingHtml, printHtml } from "../utils/Print.mjs";
+import { printHeadingHtml, printHtml } from "../utils/print";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { JSONPanel } from "../components/JsonPanel.mjs";
