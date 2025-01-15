@@ -44,7 +44,7 @@ var require_assets = __commonJS({
         fetch(link2.href, fetchOpts);
       }
     })();
-    var n$2, l$1, u$1, i$3, r$2, o$1, e$3, f$1, c$2, s$1, a$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
+    var n$2, l$1, u$2, i$3, r$2, o$1, e$3, f$2, c$2, s$1, a$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
     function w$1(n2, l2) {
       for (var u2 in l2) n2[u2] = l2[u2];
       return n2;
@@ -59,7 +59,7 @@ var require_assets = __commonJS({
       return m$2(l2, e2, i2, r2, null);
     }
     function m$2(n2, t2, i2, r2, o2) {
-      var e2 = { type: n2, props: t2, key: i2, ref: r2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: null == o2 ? ++u$1 : o2, __i: -1, __u: 0 };
+      var e2 = { type: n2, props: t2, key: i2, ref: r2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: null == o2 ? ++u$2 : o2, __i: -1, __u: 0 };
       return null == o2 && null != l$1.vnode && l$1.vnode(e2), e2;
     }
     function k$1(n2) {
@@ -144,7 +144,7 @@ var require_assets = __commonJS({
         if ("string" == typeof t2 && (n2.style.cssText = t2 = ""), t2) for (l2 in t2) u2 && l2 in u2 || A$2(n2.style, l2, "");
         if (u2) for (l2 in u2) t2 && u2[l2] === t2[l2] || A$2(n2.style, l2, u2[l2]);
       }
-      else if ("o" === l2[0] && "n" === l2[1]) r2 = l2 !== (l2 = l2.replace(f$1, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + r2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = c$2, n2.addEventListener(l2, r2 ? a$1 : s$1, r2)) : n2.removeEventListener(l2, r2 ? a$1 : s$1, r2);
+      else if ("o" === l2[0] && "n" === l2[1]) r2 = l2 !== (l2 = l2.replace(f$2, "$1")), l2 = l2.toLowerCase() in n2 || "onFocusOut" === l2 || "onFocusIn" === l2 ? l2.toLowerCase().slice(2) : l2.slice(2), n2.l || (n2.l = {}), n2.l[l2 + r2] = u2, u2 ? t2 ? u2.u = t2.u : (u2.u = c$2, n2.addEventListener(l2, r2 ? a$1 : s$1, r2)) : n2.removeEventListener(l2, r2 ? a$1 : s$1, r2);
       else {
         if ("http://www.w3.org/2000/svg" == i2) l2 = l2.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
         else if ("width" != l2 && "height" != l2 && "href" != l2 && "list" != l2 && "form" != l2 && "tabIndex" != l2 && "download" != l2 && "rowSpan" != l2 && "colSpan" != l2 && "role" != l2 && "popover" != l2 && l2 in n2) try {
@@ -278,14 +278,14 @@ var require_assets = __commonJS({
         n2 = l3;
       }
       throw n2;
-    } }, u$1 = 0, x$1.prototype.setState = function(n2, l2) {
+    } }, u$2 = 0, x$1.prototype.setState = function(n2, l2) {
       var u2;
       u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$1({}, this.state), "function" == typeof n2 && (n2 = n2(w$1({}, u2), this.props)), n2 && w$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M$1(this));
     }, x$1.prototype.forceUpdate = function(n2) {
       this.__v && (this.__e = true, n2 && this.__h.push(n2), M$1(this));
     }, x$1.prototype.render = k$1, i$3 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
       return n2.__v.__b - l2.__v.__b;
-    }, P$2.__r = 0, f$1 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true);
+    }, P$2.__r = 0, f$2 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true);
     var n$1 = function(t2, s2, r2, e2) {
       var u2;
       s2[0] = 0;
@@ -7459,7 +7459,7 @@ var require_assets = __commonJS({
     }
     enableDismissTrigger(Toast);
     defineJQueryPlugin(Toast);
-    var t$2, r$1, u, i$2, o = 0, f = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
+    var t$2, r$1, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
     function d(n2, t2) {
       c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
       var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
@@ -7534,7 +7534,7 @@ var require_assets = __commonJS({
       }, t2);
     }
     function j() {
-      for (var n2; n2 = f.shift(); ) if (n2.__P && n2.__H) try {
+      for (var n2; n2 = f$1.shift(); ) if (n2.__P && n2.__H) try {
         n2.__H.__h.forEach(z$1), n2.__H.__h.forEach(B$1), n2.__H.__h = [];
       } catch (t2) {
         n2.__H.__h = [], c$1.__e(t2, n2.__v);
@@ -7547,15 +7547,15 @@ var require_assets = __commonJS({
     }, c$1.__r = function(n2) {
       a && a(n2), t$2 = 0;
       var i2 = (r$1 = n2.__c).__H;
-      i2 && (u === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
+      i2 && (u$1 === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
         n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
-      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$2 = 0)), u = r$1;
+      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$2 = 0)), u$1 = r$1;
     }, c$1.diffed = function(n2) {
       v && v(n2);
       var t2 = n2.__c;
-      t2 && t2.__H && (t2.__H.__h.length && (1 !== f.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
+      t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
         n3.i && (n3.__H = n3.i), n3.i = void 0;
-      })), u = r$1 = null;
+      })), u$1 = r$1 = null;
     }, c$1.__c = function(n2, t2) {
       t2.some(function(n3) {
         try {
@@ -22710,34 +22710,46 @@ self.onmessage = function (e) {
     </div>`;
       }
     };
-    const CopyButton = ({ value }) => {
-      return m$1`<button
-    class="copy-button"
-    style=${{
-        border: "none",
-        backgroundColor: "inherit",
-        opacity: "0.5",
-        paddingTop: "0px"
-      }}
-    data-clipboard-text=${value}
-    onclick=${(e2) => {
-        let iEl = e2.target;
-        if (iEl.tagName === "BUTTON") {
-          iEl = iEl.firstChild;
+    var f = 0;
+    function u(e2, t2, n2, o2, i2, u2) {
+      t2 || (t2 = {});
+      var a2, c2, l2 = t2;
+      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
+      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
+      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
+      return l$1.vnode && l$1.vnode(p2), p2;
+    }
+    const CopyButton = ({
+      value,
+      onCopySuccess,
+      onCopyError,
+      className: className2 = "",
+      ariaLabel = "Copy to clipboard"
+    }) => {
+      const [isCopied, setIsCopied] = h(false);
+      const handleClick = async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setIsCopied(true);
+          onCopySuccess == null ? void 0 : onCopySuccess();
+          setTimeout(() => {
+            setIsCopied(false);
+          }, 1250);
+        } catch (error2) {
+          onCopyError == null ? void 0 : onCopyError(error2 instanceof Error ? error2 : new Error("Failed to copy"));
         }
-        if (iEl) {
-          if (iEl) {
-            iEl.className = `${ApplicationIcons.confirm} primary`;
-            setTimeout(() => {
-              iEl.className = ApplicationIcons.copy;
-            }, 1250);
-          }
-        }
-        return false;
-      }}
-  >
-    <i class=${ApplicationIcons.copy}></i>
-  </button>`;
+      };
+      return /* @__PURE__ */ u("button", {
+        type: "button",
+        className: ["copy-button", className2].filter(Boolean).join(" "),
+        onClick: handleClick,
+        "aria-label": ariaLabel,
+        disabled: isCopied,
+        children: /* @__PURE__ */ u("i", {
+          className: isCopied ? `${ApplicationIcons.confirm} primary` : ApplicationIcons.copy,
+          "aria-hidden": "true"
+        })
+      });
     };
     const LabeledValue = ({
       label,
