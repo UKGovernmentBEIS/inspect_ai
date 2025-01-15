@@ -11,7 +11,7 @@ import {
 import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
-import { ToolButton } from "../components/ToolButton.mjs";
+import { ToolButton } from "../components/ToolButton";
 import { JsonTab } from "../json/JsonTab.mjs";
 import { Navbar } from "../navbar/Navbar.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";

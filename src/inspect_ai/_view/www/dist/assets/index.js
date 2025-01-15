@@ -44,15 +44,15 @@ var require_assets = __commonJS({
         fetch(link2.href, fetchOpts);
       }
     })();
-    var n$2, l$1, u$2, i$3, r$2, o$1, e$3, f$2, c$2, s$1, a$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
-    function w$1(n2, l2) {
+    var n$2, l$1, u$2, i$3, r$2, o$1, e$3, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
+    function w$2(n2, l2) {
       for (var u2 in l2) n2[u2] = l2[u2];
       return n2;
     }
     function _$1(n2) {
       n2 && n2.parentNode && n2.parentNode.removeChild(n2);
     }
-    function g$1(l2, u2, t2) {
+    function g$2(l2, u2, t2) {
       var i2, r2, o2, e2 = {};
       for (o2 in u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : e2[o2] = u2[o2];
       if (arguments.length > 2 && (e2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (o2 in l2.defaultProps) void 0 === e2[o2] && (e2[o2] = l2.defaultProps[o2]);
@@ -62,16 +62,19 @@ var require_assets = __commonJS({
       var e2 = { type: n2, props: t2, key: i2, ref: r2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: null == o2 ? ++u$2 : o2, __i: -1, __u: 0 };
       return null == o2 && null != l$1.vnode && l$1.vnode(e2), e2;
     }
-    function k$1(n2) {
+    function b() {
+      return { current: null };
+    }
+    function k$2(n2) {
       return n2.children;
     }
-    function x$1(n2, l2) {
+    function x$3(n2, l2) {
       this.props = n2, this.context = l2;
     }
-    function C$2(n2, l2) {
-      if (null == l2) return n2.__ ? C$2(n2.__, n2.__i + 1) : null;
+    function C$3(n2, l2) {
+      if (null == l2) return n2.__ ? C$3(n2.__, n2.__i + 1) : null;
       for (var u2; l2 < n2.__k.length; l2++) if (null != (u2 = n2.__k[l2]) && null != u2.__e) return u2.__e;
-      return "function" == typeof n2.type ? C$2(n2) : null;
+      return "function" == typeof n2.type ? C$3(n2) : null;
     }
     function S(n2) {
       var l2, u2;
@@ -84,45 +87,45 @@ var require_assets = __commonJS({
       }
     }
     function M$1(n2) {
-      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$2.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$2);
+      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$3.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$3);
     }
-    function P$2() {
+    function P$3() {
       var n2, u2, t2, r2, o2, f2, c2, s2;
-      for (i$3.sort(e$3); n2 = i$3.shift(); ) n2.__d && (u2 = i$3.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$1({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$1(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$2(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$2(c2, r2, s2), r2.__e != f2 && S(r2)), i$3.length > u2 && i$3.sort(e$3));
-      P$2.__r = 0;
+      for (i$3.sort(e$3); n2 = i$3.shift(); ) n2.__d && (u2 = i$3.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$2({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$2(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$3(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$2(c2, r2, s2), r2.__e != f2 && S(r2)), i$3.length > u2 && i$3.sort(e$3));
+      P$3.__r = 0;
     }
     function $$1(n2, l2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
       var a2, h2, y2, d2, w2, _2, g2 = t2 && t2.__k || v$1, m2 = l2.length;
-      for (f2 = I$1(u2, l2, g2, f2), a2 = 0; a2 < m2; a2++) null != (y2 = u2.__k[a2]) && (h2 = -1 === y2.__i ? p$1 : g2[y2.__i] || p$1, y2.__i = a2, _2 = j$1(n2, y2, h2, i2, r2, o2, e2, f2, c2, s2), d2 = y2.__e, y2.ref && h2.ref != y2.ref && (h2.ref && V$1(h2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 4 & y2.__u || h2.__k === y2.__k ? f2 = H(y2, f2, n2) : "function" == typeof y2.type && void 0 !== _2 ? f2 = _2 : d2 && (f2 = d2.nextSibling), y2.__u &= -7);
+      for (f2 = I$1(u2, l2, g2, f2), a2 = 0; a2 < m2; a2++) null != (y2 = u2.__k[a2]) && (h2 = -1 === y2.__i ? p$1 : g2[y2.__i] || p$1, y2.__i = a2, _2 = j$2(n2, y2, h2, i2, r2, o2, e2, f2, c2, s2), d2 = y2.__e, y2.ref && h2.ref != y2.ref && (h2.ref && V$1(h2.ref, null, y2), s2.push(y2.ref, y2.__c || d2, y2)), null == w2 && null != d2 && (w2 = d2), 4 & y2.__u || h2.__k === y2.__k ? f2 = H$1(y2, f2, n2) : "function" == typeof y2.type && void 0 !== _2 ? f2 = _2 : d2 && (f2 = d2.nextSibling), y2.__u &= -7);
       return u2.__e = w2, f2;
     }
     function I$1(n2, l2, u2, t2) {
       var i2, r2, o2, e2, f2, c2 = l2.length, s2 = u2.length, a2 = s2, h2 = 0;
-      for (n2.__k = [], i2 = 0; i2 < c2; i2++) null != (r2 = l2[i2]) && "boolean" != typeof r2 && "function" != typeof r2 ? (e2 = i2 + h2, (r2 = n2.__k[i2] = "string" == typeof r2 || "number" == typeof r2 || "bigint" == typeof r2 || r2.constructor == String ? m$2(null, r2, null, null, null) : d$1(r2) ? m$2(k$1, { children: r2 }, null, null, null) : void 0 === r2.constructor && r2.__b > 0 ? m$2(r2.type, r2.props, r2.key, r2.ref ? r2.ref : null, r2.__v) : r2).__ = n2, r2.__b = n2.__b + 1, o2 = null, -1 !== (f2 = r2.__i = T$2(r2, u2, e2, a2)) && (a2--, (o2 = u2[f2]) && (o2.__u |= 2)), null == o2 || null === o2.__v ? (-1 == f2 && h2--, "function" != typeof r2.type && (r2.__u |= 4)) : f2 !== e2 && (f2 == e2 - 1 ? h2-- : f2 == e2 + 1 ? h2++ : (f2 > e2 ? h2-- : h2++, r2.__u |= 4))) : r2 = n2.__k[i2] = null;
-      if (a2) for (i2 = 0; i2 < s2; i2++) null != (o2 = u2[i2]) && 0 == (2 & o2.__u) && (o2.__e == t2 && (t2 = C$2(o2)), q$2(o2, o2));
+      for (n2.__k = [], i2 = 0; i2 < c2; i2++) null != (r2 = l2[i2]) && "boolean" != typeof r2 && "function" != typeof r2 ? (e2 = i2 + h2, (r2 = n2.__k[i2] = "string" == typeof r2 || "number" == typeof r2 || "bigint" == typeof r2 || r2.constructor == String ? m$2(null, r2, null, null, null) : d$1(r2) ? m$2(k$2, { children: r2 }, null, null, null) : void 0 === r2.constructor && r2.__b > 0 ? m$2(r2.type, r2.props, r2.key, r2.ref ? r2.ref : null, r2.__v) : r2).__ = n2, r2.__b = n2.__b + 1, o2 = null, -1 !== (f2 = r2.__i = T$2(r2, u2, e2, a2)) && (a2--, (o2 = u2[f2]) && (o2.__u |= 2)), null == o2 || null === o2.__v ? (-1 == f2 && h2--, "function" != typeof r2.type && (r2.__u |= 4)) : f2 !== e2 && (f2 == e2 - 1 ? h2-- : f2 == e2 + 1 ? h2++ : (f2 > e2 ? h2-- : h2++, r2.__u |= 4))) : r2 = n2.__k[i2] = null;
+      if (a2) for (i2 = 0; i2 < s2; i2++) null != (o2 = u2[i2]) && 0 == (2 & o2.__u) && (o2.__e == t2 && (t2 = C$3(o2)), q$2(o2, o2));
       return t2;
     }
-    function H(n2, l2, u2) {
+    function H$1(n2, l2, u2) {
       var t2, i2;
       if ("function" == typeof n2.type) {
-        for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = H(t2[i2], l2, u2));
+        for (t2 = n2.__k, i2 = 0; t2 && i2 < t2.length; i2++) t2[i2] && (t2[i2].__ = n2, l2 = H$1(t2[i2], l2, u2));
         return l2;
       }
-      n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = C$2(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
+      n2.__e != l2 && (l2 && n2.type && !u2.contains(l2) && (l2 = C$3(n2)), u2.insertBefore(n2.__e, l2 || null), l2 = n2.__e);
       do {
         l2 = l2 && l2.nextSibling;
       } while (null != l2 && 8 === l2.nodeType);
       return l2;
     }
-    function L(n2, l2) {
+    function L$1(n2, l2) {
       return l2 = l2 || [], null == n2 || "boolean" == typeof n2 || (d$1(n2) ? n2.some(function(n3) {
-        L(n3, l2);
+        L$1(n3, l2);
       }) : l2.push(n2)), l2;
     }
     function T$2(n2, l2, u2, t2) {
       var i2 = n2.key, r2 = n2.type, o2 = u2 - 1, e2 = u2 + 1, f2 = l2[u2];
       if (null === f2 || f2 && i2 == f2.key && r2 === f2.type && 0 == (2 & f2.__u)) return u2;
-      if (("function" != typeof r2 || r2 === k$1 || i2) && t2 > (null != f2 && 0 == (2 & f2.__u) ? 1 : 0)) for (; o2 >= 0 || e2 < l2.length; ) {
+      if (("function" != typeof r2 || r2 === k$2 || i2) && t2 > (null != f2 && 0 == (2 & f2.__u) ? 1 : 0)) for (; o2 >= 0 || e2 < l2.length; ) {
         if (o2 >= 0) {
           if ((f2 = l2[o2]) && 0 == (2 & f2.__u) && i2 == f2.key && r2 === f2.type) return o2;
           o2--;
@@ -165,31 +168,31 @@ var require_assets = __commonJS({
         }
       };
     }
-    function j$1(n2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
-      var a2, h2, p2, v2, y2, g2, m2, b, C2, S2, M2, P2, I2, H2, L2, T2, A2, F2 = u2.type;
+    function j$2(n2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
+      var a2, h2, p2, v2, y2, g2, m2, b2, C2, S2, M2, P2, I2, H2, L2, T2, A2, F2 = u2.type;
       if (void 0 !== u2.constructor) return null;
       128 & t2.__u && (c2 = !!(32 & t2.__u), o2 = [f2 = u2.__e = t2.__e]), (a2 = l$1.__b) && a2(u2);
       n: if ("function" == typeof F2) try {
-        if (b = u2.props, C2 = "prototype" in F2 && F2.prototype.render, S2 = (a2 = F2.contextType) && i2[a2.__c], M2 = a2 ? S2 ? S2.props.value : a2.__ : i2, t2.__c ? m2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (C2 ? u2.__c = h2 = new F2(b, M2) : (u2.__c = h2 = new x$1(b, M2), h2.constructor = F2, h2.render = B$2), S2 && S2.sub(h2), h2.props = b, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), C2 && null == h2.__s && (h2.__s = h2.state), C2 && null != F2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = w$1({}, h2.__s)), w$1(h2.__s, F2.getDerivedStateFromProps(b, h2.__s))), v2 = h2.props, y2 = h2.state, h2.__v = u2, p2) C2 && null == F2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), C2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
+        if (b2 = u2.props, C2 = "prototype" in F2 && F2.prototype.render, S2 = (a2 = F2.contextType) && i2[a2.__c], M2 = a2 ? S2 ? S2.props.value : a2.__ : i2, t2.__c ? m2 = (h2 = u2.__c = t2.__c).__ = h2.__E : (C2 ? u2.__c = h2 = new F2(b2, M2) : (u2.__c = h2 = new x$3(b2, M2), h2.constructor = F2, h2.render = B$2), S2 && S2.sub(h2), h2.props = b2, h2.state || (h2.state = {}), h2.context = M2, h2.__n = i2, p2 = h2.__d = true, h2.__h = [], h2._sb = []), C2 && null == h2.__s && (h2.__s = h2.state), C2 && null != F2.getDerivedStateFromProps && (h2.__s == h2.state && (h2.__s = w$2({}, h2.__s)), w$2(h2.__s, F2.getDerivedStateFromProps(b2, h2.__s))), v2 = h2.props, y2 = h2.state, h2.__v = u2, p2) C2 && null == F2.getDerivedStateFromProps && null != h2.componentWillMount && h2.componentWillMount(), C2 && null != h2.componentDidMount && h2.__h.push(h2.componentDidMount);
         else {
-          if (C2 && null == F2.getDerivedStateFromProps && b !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(b, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(b, h2.__s, M2) || u2.__v === t2.__v)) {
-            for (u2.__v !== t2.__v && (h2.props = b, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
+          if (C2 && null == F2.getDerivedStateFromProps && b2 !== v2 && null != h2.componentWillReceiveProps && h2.componentWillReceiveProps(b2, M2), !h2.__e && (null != h2.shouldComponentUpdate && false === h2.shouldComponentUpdate(b2, h2.__s, M2) || u2.__v === t2.__v)) {
+            for (u2.__v !== t2.__v && (h2.props = b2, h2.state = h2.__s, h2.__d = false), u2.__e = t2.__e, u2.__k = t2.__k, u2.__k.some(function(n3) {
               n3 && (n3.__ = u2);
             }), P2 = 0; P2 < h2._sb.length; P2++) h2.__h.push(h2._sb[P2]);
             h2._sb = [], h2.__h.length && e2.push(h2);
             break n;
           }
-          null != h2.componentWillUpdate && h2.componentWillUpdate(b, h2.__s, M2), C2 && null != h2.componentDidUpdate && h2.__h.push(function() {
+          null != h2.componentWillUpdate && h2.componentWillUpdate(b2, h2.__s, M2), C2 && null != h2.componentDidUpdate && h2.__h.push(function() {
             h2.componentDidUpdate(v2, y2, g2);
           });
         }
-        if (h2.context = M2, h2.props = b, h2.__P = n2, h2.__e = false, I2 = l$1.__r, H2 = 0, C2) {
+        if (h2.context = M2, h2.props = b2, h2.__P = n2, h2.__e = false, I2 = l$1.__r, H2 = 0, C2) {
           for (h2.state = h2.__s, h2.__d = false, I2 && I2(u2), a2 = h2.render(h2.props, h2.state, h2.context), L2 = 0; L2 < h2._sb.length; L2++) h2.__h.push(h2._sb[L2]);
           h2._sb = [];
         } else do {
           h2.__d = false, I2 && I2(u2), a2 = h2.render(h2.props, h2.state, h2.context), h2.state = h2.__s;
         } while (h2.__d && ++H2 < 25);
-        h2.state = h2.__s, null != h2.getChildContext && (i2 = w$1(w$1({}, i2), h2.getChildContext())), C2 && !p2 && null != h2.getSnapshotBeforeUpdate && (g2 = h2.getSnapshotBeforeUpdate(v2, y2)), f2 = $$1(n2, d$1(T2 = null != a2 && a2.type === k$1 && null == a2.key ? a2.props.children : a2) ? T2 : [T2], u2, t2, i2, r2, o2, e2, f2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && e2.push(h2), m2 && (h2.__E = h2.__ = null);
+        h2.state = h2.__s, null != h2.getChildContext && (i2 = w$2(w$2({}, i2), h2.getChildContext())), C2 && !p2 && null != h2.getSnapshotBeforeUpdate && (g2 = h2.getSnapshotBeforeUpdate(v2, y2)), f2 = $$1(n2, d$1(T2 = null != a2 && a2.type === k$2 && null == a2.key ? a2.props.children : a2) ? T2 : [T2], u2, t2, i2, r2, o2, e2, f2, c2, s2), h2.base = u2.__e, u2.__u &= -161, h2.__h.length && e2.push(h2), m2 && (h2.__E = h2.__ = null);
       } catch (n3) {
         if (u2.__v = null, c2 || null != o2) if (n3.then) {
           for (u2.__u |= c2 ? 160 : 128; f2 && 8 === f2.nodeType && f2.nextSibling; ) f2 = f2.nextSibling;
@@ -198,7 +201,7 @@ var require_assets = __commonJS({
         else u2.__e = t2.__e, u2.__k = t2.__k;
         l$1.__e(n3, u2, t2);
       }
-      else null == o2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : f2 = u2.__e = N(t2.__e, u2, t2, i2, r2, o2, e2, c2, s2);
+      else null == o2 && u2.__v === t2.__v ? (u2.__k = t2.__k, u2.__e = t2.__e) : f2 = u2.__e = N$1(t2.__e, u2, t2, i2, r2, o2, e2, c2, s2);
       return (a2 = l$1.diffed) && a2(u2), 128 & u2.__u ? void 0 : f2;
     }
     function z$2(n2, u2, t2) {
@@ -213,8 +216,8 @@ var require_assets = __commonJS({
         }
       });
     }
-    function N(u2, t2, i2, r2, o2, e2, f2, c2, s2) {
-      var a2, h2, v2, y2, w2, g2, m2, b = i2.props, k2 = t2.props, x2 = t2.type;
+    function N$1(u2, t2, i2, r2, o2, e2, f2, c2, s2) {
+      var a2, h2, v2, y2, w2, g2, m2, b2 = i2.props, k2 = t2.props, x2 = t2.type;
       if ("svg" === x2 ? o2 = "http://www.w3.org/2000/svg" : "math" === x2 ? o2 = "http://www.w3.org/1998/Math/MathML" : o2 || (o2 = "http://www.w3.org/1999/xhtml"), null != e2) {
         for (a2 = 0; a2 < e2.length; a2++) if ((w2 = e2[a2]) && "setAttribute" in w2 == !!x2 && (x2 ? w2.localName === x2 : 3 === w2.nodeType)) {
           u2 = w2, e2[a2] = null;
@@ -225,19 +228,19 @@ var require_assets = __commonJS({
         if (null === x2) return document.createTextNode(k2);
         u2 = document.createElementNS(o2, x2, k2.is && k2), c2 && (l$1.__m && l$1.__m(t2, e2), c2 = false), e2 = null;
       }
-      if (null === x2) b === k2 || c2 && u2.data === k2 || (u2.data = k2);
+      if (null === x2) b2 === k2 || c2 && u2.data === k2 || (u2.data = k2);
       else {
-        if (e2 = e2 && n$2.call(u2.childNodes), b = i2.props || p$1, !c2 && null != e2) for (b = {}, a2 = 0; a2 < u2.attributes.length; a2++) b[(w2 = u2.attributes[a2]).name] = w2.value;
-        for (a2 in b) if (w2 = b[a2], "children" == a2) ;
+        if (e2 = e2 && n$2.call(u2.childNodes), b2 = i2.props || p$1, !c2 && null != e2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(w2 = u2.attributes[a2]).name] = w2.value;
+        for (a2 in b2) if (w2 = b2[a2], "children" == a2) ;
         else if ("dangerouslySetInnerHTML" == a2) v2 = w2;
         else if (!(a2 in k2)) {
           if ("value" == a2 && "defaultValue" in k2 || "checked" == a2 && "defaultChecked" in k2) continue;
           F$2(u2, a2, null, w2, o2);
         }
-        for (a2 in k2) w2 = k2[a2], "children" == a2 ? y2 = w2 : "dangerouslySetInnerHTML" == a2 ? h2 = w2 : "value" == a2 ? g2 = w2 : "checked" == a2 ? m2 = w2 : c2 && "function" != typeof w2 || b[a2] === w2 || F$2(u2, a2, w2, b[a2], o2);
+        for (a2 in k2) w2 = k2[a2], "children" == a2 ? y2 = w2 : "dangerouslySetInnerHTML" == a2 ? h2 = w2 : "value" == a2 ? g2 = w2 : "checked" == a2 ? m2 = w2 : c2 && "function" != typeof w2 || b2[a2] === w2 || F$2(u2, a2, w2, b2[a2], o2);
         if (h2) c2 || v2 && (h2.__html === v2.__html || h2.__html === u2.innerHTML) || (u2.innerHTML = h2.__html), t2.__k = [];
-        else if (v2 && (u2.innerHTML = ""), $$1(u2, d$1(y2) ? y2 : [y2], t2, i2, r2, "foreignObject" === x2 ? "http://www.w3.org/1999/xhtml" : o2, e2, f2, e2 ? e2[0] : i2.__k && C$2(i2, 0), c2, s2), null != e2) for (a2 = e2.length; a2--; ) _$1(e2[a2]);
-        c2 || (a2 = "value", "progress" === x2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === x2 && !g2 || "option" === x2 && g2 !== b[a2]) && F$2(u2, a2, g2, b[a2], o2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && F$2(u2, a2, m2, b[a2], o2));
+        else if (v2 && (u2.innerHTML = ""), $$1(u2, d$1(y2) ? y2 : [y2], t2, i2, r2, "foreignObject" === x2 ? "http://www.w3.org/1999/xhtml" : o2, e2, f2, e2 ? e2[0] : i2.__k && C$3(i2, 0), c2, s2), null != e2) for (a2 = e2.length; a2--; ) _$1(e2[a2]);
+        c2 || (a2 = "value", "progress" === x2 && null == g2 ? u2.removeAttribute("value") : void 0 !== g2 && (g2 !== u2[a2] || "progress" === x2 && !g2 || "option" === x2 && g2 !== b2[a2]) && F$2(u2, a2, g2, b2[a2], o2), a2 = "checked", void 0 !== m2 && m2 !== u2[a2] && F$2(u2, a2, m2, b2[a2], o2));
       }
       return u2;
     }
@@ -267,9 +270,40 @@ var require_assets = __commonJS({
     function B$2(n2, l2, u2) {
       return this.constructor(n2, u2);
     }
-    function D$1(u2, t2, i2) {
+    function D$2(u2, t2, i2) {
       var r2, o2, e2, f2;
-      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : t2.__k, e2 = [], f2 = [], j$1(t2, u2 = (!r2 && i2 || t2).__k = g$1(k$1, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$2(e2, u2, f2);
+      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : i2 && i2.__k || t2.__k, e2 = [], f2 = [], j$2(t2, u2 = (!r2 && i2 || t2).__k = g$2(k$2, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$2(e2, u2, f2);
+    }
+    function E$1(n2, l2) {
+      D$2(n2, l2, E$1);
+    }
+    function G$1(l2, u2, t2) {
+      var i2, r2, o2, e2, f2 = w$2({}, l2.props);
+      for (o2 in l2.type && l2.type.defaultProps && (e2 = l2.type.defaultProps), u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : f2[o2] = void 0 === u2[o2] && void 0 !== e2 ? e2[o2] : u2[o2];
+      return arguments.length > 2 && (f2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), m$2(l2.type, f2, i2 || l2.key, r2 || l2.ref, null);
+    }
+    function J$1(n2, l2) {
+      var u2 = { __c: l2 = "__cC" + h$1++, __: n2, Consumer: function(n3, l3) {
+        return n3.children(l3);
+      }, Provider: function(n3) {
+        var u3, t2;
+        return this.getChildContext || (u3 = /* @__PURE__ */ new Set(), (t2 = {})[l2] = this, this.getChildContext = function() {
+          return t2;
+        }, this.componentWillUnmount = function() {
+          u3 = null;
+        }, this.shouldComponentUpdate = function(n4) {
+          this.props.value !== n4.value && u3.forEach(function(n5) {
+            n5.__e = true, M$1(n5);
+          });
+        }, this.sub = function(n4) {
+          u3.add(n4);
+          var l3 = n4.componentWillUnmount;
+          n4.componentWillUnmount = function() {
+            u3 && u3.delete(n4), l3 && l3.call(n4);
+          };
+        }), n3.children;
+      } };
+      return u2.Provider.__ = u2.Consumer.contextType = u2;
     }
     n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
       for (var i2, r2, o2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
@@ -278,14 +312,14 @@ var require_assets = __commonJS({
         n2 = l3;
       }
       throw n2;
-    } }, u$2 = 0, x$1.prototype.setState = function(n2, l2) {
+    } }, u$2 = 0, x$3.prototype.setState = function(n2, l2) {
       var u2;
-      u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$1({}, this.state), "function" == typeof n2 && (n2 = n2(w$1({}, u2), this.props)), n2 && w$1(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M$1(this));
-    }, x$1.prototype.forceUpdate = function(n2) {
+      u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$2({}, this.state), "function" == typeof n2 && (n2 = n2(w$2({}, u2), this.props)), n2 && w$2(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M$1(this));
+    }, x$3.prototype.forceUpdate = function(n2) {
       this.__v && (this.__e = true, n2 && this.__h.push(n2), M$1(this));
-    }, x$1.prototype.render = k$1, i$3 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
+    }, x$3.prototype.render = k$2, i$3 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
       return n2.__v.__b - l2.__v.__b;
-    }, P$2.__r = 0, f$2 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true);
+    }, P$3.__r = 0, f$2 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true), h$1 = 0;
     var n$1 = function(t2, s2, r2, e2) {
       var u2;
       s2[0] = 0;
@@ -307,7 +341,7 @@ var require_assets = __commonJS({
         return p2(), h2;
       }(s2)), r2), arguments, [])).length > 1 ? r2 : r2[0];
     }
-    var m$1 = e$2.bind(g$1);
+    var m$1 = e$2.bind(g$2);
     var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
     function getDefaultExportFromCjs(x2) {
       return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -2306,9 +2340,9 @@ var require_assets = __commonJS({
               279: (
                 /***/
                 function(module3) {
-                  function E() {
+                  function E2() {
                   }
-                  E.prototype = {
+                  E2.prototype = {
                     on: function(name2, callback, ctx) {
                       var e2 = this.e || (this.e = {});
                       (e2[name2] || (e2[name2] = [])).push({
@@ -2350,8 +2384,8 @@ var require_assets = __commonJS({
                       return this;
                     }
                   };
-                  module3.exports = E;
-                  module3.exports.TinyEmitter = E;
+                  module3.exports = E2;
+                  module3.exports.TinyEmitter = E2;
                 }
               )
               /******/
@@ -3194,8 +3228,8 @@ var require_assets = __commonJS({
         })[getBasePlacement(placement2)];
         return acc;
       }, {});
-      return Object.keys(overflows).sort(function(a2, b) {
-        return overflows[a2] - overflows[b];
+      return Object.keys(overflows).sort(function(a2, b2) {
+        return overflows[a2] - overflows[b2];
       });
     }
     function getExpandedFallbackPlacements(placement) {
@@ -7466,11 +7500,11 @@ var require_assets = __commonJS({
       return n2 >= u2.__.length && u2.__.push({}), u2.__[n2];
     }
     function h(n2) {
-      return o = 1, p(D, n2);
+      return o = 1, p(D$1, n2);
     }
     function p(n2, u2, i2) {
       var o2 = d(t$2++, 2);
-      if (o2.t = n2, !o2.__c && (o2.__ = [i2 ? i2(u2) : D(void 0, u2), function(n3) {
+      if (o2.t = n2, !o2.__c && (o2.__ = [i2 ? i2(u2) : D$1(void 0, u2), function(n3) {
         var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
         t2 !== r2 && (o2.__N = [r2, o2.__[1]], o2.__c.setState({}));
       }], o2.__c = r$1, !r$1.u)) {
@@ -7504,11 +7538,11 @@ var require_assets = __commonJS({
     }
     function y(n2, u2) {
       var i2 = d(t$2++, 3);
-      !c$1.__s && C$1(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
     }
     function _(n2, u2) {
       var i2 = d(t$2++, 4);
-      !c$1.__s && C$1(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__h.push(i2));
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__h.push(i2));
     }
     function A$1(n2) {
       return o = 5, T$1(function() {
@@ -7526,14 +7560,30 @@ var require_assets = __commonJS({
     }
     function T$1(n2, r2) {
       var u2 = d(t$2++, 7);
-      return C$1(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
+      return C$2(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
     }
     function q$1(n2, t2) {
       return o = 8, T$1(function() {
         return n2;
       }, t2);
     }
-    function j() {
+    function x$2(n2) {
+      var u2 = r$1.context[n2.__c], i2 = d(t$2++, 9);
+      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r$1)), u2.props.value) : n2.__;
+    }
+    function P$2(n2, t2) {
+      c$1.useDebugValue && c$1.useDebugValue(t2 ? t2(n2) : n2);
+    }
+    function g$1() {
+      var n2 = d(t$2++, 11);
+      if (!n2.__) {
+        for (var u2 = r$1.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
+        var i2 = u2.__m || (u2.__m = [0, 0]);
+        n2.__ = "P" + i2[0] + "-" + i2[1]++;
+      }
+      return n2.__;
+    }
+    function j$1() {
       for (var n2; n2 = f$1.shift(); ) if (n2.__P && n2.__H) try {
         n2.__H.__h.forEach(z$1), n2.__H.__h.forEach(B$1), n2.__H.__h = [];
       } catch (t2) {
@@ -7553,7 +7603,7 @@ var require_assets = __commonJS({
     }, c$1.diffed = function(n2) {
       v && v(n2);
       var t2 = n2.__c;
-      t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w)(j)), t2.__H.__.forEach(function(n3) {
+      t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w$1)(j$1)), t2.__H.__.forEach(function(n3) {
         n3.i && (n3.__H = n3.i), n3.i = void 0;
       })), u$1 = r$1 = null;
     }, c$1.__c = function(n2, t2) {
@@ -7579,12 +7629,12 @@ var require_assets = __commonJS({
         }
       }), r2.__H = void 0, t2 && c$1.__e(t2, r2.__v));
     };
-    var k = "function" == typeof requestAnimationFrame;
-    function w(n2) {
+    var k$1 = "function" == typeof requestAnimationFrame;
+    function w$1(n2) {
       var t2, r2 = function() {
-        clearTimeout(u2), k && cancelAnimationFrame(t2), setTimeout(n2);
+        clearTimeout(u2), k$1 && cancelAnimationFrame(t2), setTimeout(n2);
       }, u2 = setTimeout(r2, 100);
-      k && (t2 = requestAnimationFrame(r2));
+      k$1 && (t2 = requestAnimationFrame(r2));
     }
     function z$1(n2) {
       var t2 = r$1, u2 = n2.__c;
@@ -7594,12 +7644,12 @@ var require_assets = __commonJS({
       var t2 = r$1;
       n2.__c = n2.__(), r$1 = t2;
     }
-    function C$1(n2, t2) {
+    function C$2(n2, t2) {
       return !n2 || n2.length !== t2.length || t2.some(function(t3, r2) {
         return t3 !== n2[r2];
       });
     }
-    function D(n2, t2) {
+    function D$1(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
     const kBaseFontSize = 0.9;
@@ -7785,7 +7835,7 @@ var require_assets = __commonJS({
     </div>
   `;
     };
-    class AppErrorBoundary extends x$1 {
+    class AppErrorBoundary extends x$3 {
       constructor(props) {
         super(props);
         this.state = { hasError: false };
@@ -9599,7 +9649,7 @@ var require_assets = __commonJS({
     const regex$1 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
     const P$1 = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
     const regex = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
-    const Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
+    const Z$1 = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
     const ucmicro = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
       __proto__: null,
       Any,
@@ -9607,7 +9657,7 @@ var require_assets = __commonJS({
       Cf: regex$1,
       P: P$1,
       S: regex,
-      Z
+      Z: Z$1
     }, Symbol.toStringTag, { value: "Module" }));
     const htmlDecodeTree = new Uint16Array(
       // prettier-ignore
@@ -13477,7 +13527,7 @@ var require_assets = __commonJS({
       opts = opts || {};
       re.src_Any = Any.source;
       re.src_Cc = Cc.source;
-      re.src_Z = Z.source;
+      re.src_Z = Z$1.source;
       re.src_P = P$1.source;
       re.src_ZPCc = [re.src_Z, re.src_P, re.src_Cc].join("|");
       re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
@@ -15236,10 +15286,49 @@ var require_assets = __commonJS({
       for (var r2 in t2) if ("__source" !== r2 && n2[r2] !== t2[r2]) return true;
       return false;
     }
+    function E(n2, t2) {
+      var e2 = t2(), r2 = h({ t: { __: e2, u: t2 } }), u2 = r2[0].t, o2 = r2[1];
+      return _(function() {
+        u2.__ = e2, u2.u = t2, C$1(u2) && o2({ t: u2 });
+      }, [n2, e2, t2]), y(function() {
+        return C$1(u2) && o2({ t: u2 }), n2(function() {
+          C$1(u2) && o2({ t: u2 });
+        });
+      }, [n2]), e2;
+    }
+    function C$1(n2) {
+      var t2, e2, r2 = n2.u, u2 = n2.__;
+      try {
+        var o2 = r2();
+        return !((t2 = u2) === (e2 = o2) && (0 !== t2 || 1 / t2 == 1 / e2) || t2 != t2 && e2 != e2);
+      } catch (n3) {
+        return true;
+      }
+    }
+    function x$1(n2) {
+      n2();
+    }
+    function R(n2) {
+      return n2;
+    }
+    function w() {
+      return [false, x$1];
+    }
+    var k = _;
     function I(n2, t2) {
       this.props = n2, this.context = t2;
     }
-    (I.prototype = new x$1()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
+    function N(n2, e2) {
+      function r2(n3) {
+        var t2 = this.props.ref, r3 = t2 == n3.ref;
+        return !r3 && t2 && (t2.call ? t2(null) : t2.current = null), e2 ? !e2(this.props, n3) || !r3 : g(this.props, n3);
+      }
+      function u2(e3) {
+        return this.shouldComponentUpdate = r2, g$2(n2, e3);
+      }
+      return u2.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u2.prototype.isReactComponent = true, u2.__f = true, u2;
+    }
+    (I.prototype = new x$3()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
       return g(this.props, n2) || g(this.state, t2);
     };
     var M = l$1.__b;
@@ -15257,7 +15346,15 @@ var require_assets = __commonJS({
       }
       return t2.$$typeof = T, t2.render = t2, t2.prototype.isReactComponent = t2.__f = true, t2.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t2;
     }
-    var O = l$1.__e;
+    var D = function(n2, t2) {
+      return null == n2 ? null : L$1(L$1(n2).map(t2));
+    }, L = { map: D, forEach: D, count: function(n2) {
+      return n2 ? L$1(n2).length : 0;
+    }, only: function(n2) {
+      var t2 = L$1(n2);
+      if (1 !== t2.length) throw "Children.only";
+      return t2[0];
+    }, toArray: L$1 }, O = l$1.__e;
     l$1.__e = function(n2, t2, e2, r2) {
       if (n2.then) {
         for (var u2, o2 = t2; o2 = o2.__; ) if ((u2 = o2.__c) && u2.__c) return null == t2.__e && (t2.__e = e2.__e, t2.__k = e2.__k), u2.__c(n2, t2);
@@ -15287,13 +15384,26 @@ var require_assets = __commonJS({
       var t2 = n2.__.__c;
       return t2 && t2.__a && t2.__a(n2);
     }
+    function j(n2) {
+      var e2, r2, u2;
+      function o2(o3) {
+        if (e2 || (e2 = n2()).then(function(n3) {
+          r2 = n3.default || n3;
+        }, function(n3) {
+          u2 = n3;
+        }), u2) throw u2;
+        if (!r2) throw e2;
+        return g$2(r2, o3);
+      }
+      return o2.displayName = "Lazy", o2.__f = true, o2;
+    }
     function z() {
       this.i = null, this.l = null;
     }
     l$1.unmount = function(n2) {
       var t2 = n2.__c;
       t2 && t2.__R && t2.__R(), t2 && 32 & n2.__u && (n2.type = null), F && F(n2);
-    }, (W.prototype = new x$1()).__c = function(n2, t2) {
+    }, (W.prototype = new x$3()).__c = function(n2, t2) {
       var e2 = t2.__c, r2 = this;
       null == r2.o && (r2.o = []), r2.o.push(e2);
       var u2 = P(r2.__v), o2 = false, i2 = function() {
@@ -15321,8 +15431,8 @@ var require_assets = __commonJS({
         }
         this.__b = null;
       }
-      var i2 = e2.__a && g$1(k$1, null, n2.fallback);
-      return i2 && (i2.__u &= -33), [g$1(k$1, null, e2.__a ? null : n2.children), i2];
+      var i2 = e2.__a && g$2(k$2, null, n2.fallback);
+      return i2 && (i2.__u &= -33), [g$2(k$2, null, e2.__a ? null : n2.children), i2];
     };
     var B = function(n2, t2, e2) {
       if (++e2[1] === e2[0] && n2.l.delete(t2), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e2 = n2.i; e2; ) {
@@ -15331,7 +15441,30 @@ var require_assets = __commonJS({
         n2.i = e2 = e2[2];
       }
     };
-    (z.prototype = new x$1()).__a = function(n2) {
+    function H(n2) {
+      return this.getChildContext = function() {
+        return n2.context;
+      }, n2.children;
+    }
+    function Z(n2) {
+      var e2 = this, r2 = n2.h;
+      e2.componentWillUnmount = function() {
+        D$2(null, e2.v), e2.v = null, e2.h = null;
+      }, e2.h && e2.h !== r2 && e2.componentWillUnmount(), e2.v || (e2.h = r2, e2.v = { nodeType: 1, parentNode: r2, childNodes: [], contains: function() {
+        return true;
+      }, appendChild: function(n3) {
+        this.childNodes.push(n3), e2.h.appendChild(n3);
+      }, insertBefore: function(n3, t2) {
+        this.childNodes.push(n3), e2.h.insertBefore(n3, t2);
+      }, removeChild: function(n3) {
+        this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e2.h.removeChild(n3);
+      } }), D$2(g$2(H, { context: e2.context }, n2.__v), e2.v);
+    }
+    function Y(n2, e2) {
+      var r2 = g$2(Z, { __v: n2, h: e2 });
+      return r2.containerInfo = e2, r2;
+    }
+    (z.prototype = new x$3()).__a = function(n2) {
       var t2 = this, e2 = P(t2.__v), r2 = t2.l.get(n2);
       return r2[0]++, function(u2) {
         var o2 = function() {
@@ -15341,7 +15474,7 @@ var require_assets = __commonJS({
       };
     }, z.prototype.render = function(n2) {
       this.i = null, this.l = /* @__PURE__ */ new Map();
-      var t2 = L(n2.children);
+      var t2 = L$1(n2.children);
       n2.revealOrder && "b" === n2.revealOrder[0] && t2.reverse();
       for (var e2 = t2.length; e2--; ) this.l.set(t2[e2], this.i = [1, 0, this.i]);
       return n2.children;
@@ -15354,8 +15487,14 @@ var require_assets = __commonJS({
     var $ = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103, q = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/, G = /^on(Ani|Tra|Tou|BeforeInp|Compo)/, J = /[A-Z0-9]/g, K = "undefined" != typeof document, Q = function(n2) {
       return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
     };
-    x$1.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
-      Object.defineProperty(x$1.prototype, t2, { configurable: true, get: function() {
+    function X(n2, t2, e2) {
+      return null == t2.__k && (t2.textContent = ""), D$2(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
+    }
+    function nn(n2, t2, e2) {
+      return E$1(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
+    }
+    x$3.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
+      Object.defineProperty(x$3.prototype, t2, { configurable: true, get: function() {
         return this["UNSAFE_" + t2];
       }, set: function(n2) {
         Object.defineProperty(this, t2, { configurable: true, writable: true, value: n2 });
@@ -15373,7 +15512,7 @@ var require_assets = __commonJS({
     l$1.event = function(n2) {
       return tn && (n2 = tn(n2)), n2.persist = en, n2.isPropagationStopped = rn, n2.isDefaultPrevented = un, n2.nativeEvent = n2;
     };
-    var cn = { enumerable: false, configurable: true, get: function() {
+    var on, cn = { enumerable: false, configurable: true, get: function() {
       return this.class;
     } }, fn = l$1.vnode;
     l$1.vnode = function(n2) {
@@ -15386,23 +15525,52 @@ var require_assets = __commonJS({
             "defaultValue" === i2 && "value" in t2 && null == t2.value ? i2 = "value" : "download" === i2 && true === c2 ? c2 = "" : "translate" === f2 && "no" === c2 ? c2 = false : "o" === f2[0] && "n" === f2[1] ? "ondoubleclick" === f2 ? i2 = "ondblclick" : "onchange" !== f2 || "input" !== e2 && "textarea" !== e2 || Q(t2.type) ? "onfocus" === f2 ? i2 = "onfocusin" : "onblur" === f2 ? i2 = "onfocusout" : G.test(i2) && (i2 = f2) : f2 = i2 = "oninput" : o2 && q.test(i2) ? i2 = i2.replace(J, "-$&").toLowerCase() : null === c2 && (c2 = void 0), "oninput" === f2 && u2[i2 = f2] && (i2 = "oninputCapture"), u2[i2] = c2;
           }
         }
-        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L(t2.children).forEach(function(n4) {
+        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L$1(t2.children).forEach(function(n4) {
           n4.props.selected = -1 != u2.value.indexOf(n4.props.value);
-        })), "select" == e2 && null != u2.defaultValue && (u2.value = L(t2.children).forEach(function(n4) {
+        })), "select" == e2 && null != u2.defaultValue && (u2.value = L$1(t2.children).forEach(function(n4) {
           n4.props.selected = u2.multiple ? -1 != u2.defaultValue.indexOf(n4.props.value) : u2.defaultValue == n4.props.value;
         })), t2.class && !t2.className ? (u2.class = t2.class, Object.defineProperty(u2, "className", cn)) : (t2.className && !t2.class || t2.class && t2.className) && (u2.class = u2.className = t2.className), n3.props = u2;
       }(n2), n2.$$typeof = $, fn && fn(n2);
     };
     var ln = l$1.__r;
     l$1.__r = function(n2) {
-      ln && ln(n2), n2.__c;
+      ln && ln(n2), on = n2.__c;
     };
     var an = l$1.diffed;
     l$1.diffed = function(n2) {
       an && an(n2);
       var t2 = n2.props, e2 = n2.__e;
-      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value);
+      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value), on = null;
     };
+    var sn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
+      return on.__n[n2.__c].props.value;
+    }, useCallback: q$1, useContext: x$2, useDebugValue: P$2, useDeferredValue: R, useEffect: y, useId: g$1, useImperativeHandle: F$1, useInsertionEffect: k, useLayoutEffect: _, useMemo: T$1, useReducer: p, useRef: A$1, useState: h, useSyncExternalStore: E, useTransition: w } } };
+    function vn(n2) {
+      return g$2.bind(null, n2);
+    }
+    function dn(n2) {
+      return !!n2 && n2.$$typeof === $;
+    }
+    function pn(n2) {
+      return dn(n2) && n2.type === k$2;
+    }
+    function mn(n2) {
+      return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
+    }
+    function yn(n2) {
+      return dn(n2) ? G$1.apply(null, arguments) : n2;
+    }
+    function _n(n2) {
+      return !!n2.__k && (D$2(null, n2), true);
+    }
+    function bn(n2) {
+      return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
+    }
+    var Sn = function(n2, t2) {
+      return n2(t2);
+    }, gn = function(n2, t2) {
+      return n2(t2);
+    }, En = k$2, Cn = dn, xn = { useState: h, useId: g$1, useReducer: p, useEffect: y, useLayoutEffect: _, useInsertionEffect: k, useTransition: w, useDeferredValue: R, useSyncExternalStore: E, startTransition: x$1, useRef: A$1, useImperativeHandle: F$1, useMemo: T$1, useCallback: q$1, useContext: x$2, useDebugValue: P$2, version: "18.3.1", Children: L, render: X, hydrate: nn, unmountComponentAtNode: _n, createPortal: Y, createElement: g$2, createContext: J$1, createFactory: vn, cloneElement: yn, createRef: b, Fragment: k$2, isValidElement: dn, isElement: Cn, isFragment: pn, isMemo: mn, findDOMNode: bn, Component: x$3, PureComponent: I, memo: N, forwardRef: A, flushSync: gn, unstable_batchedUpdates: Sn, StrictMode: En, Suspense: W, SuspenseList: z, lazy: j, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: sn };
     const VirtualList = A(
       ({
         data,
@@ -15971,8 +16139,8 @@ var require_assets = __commonJS({
       }
       const renderer = Object.keys(contentRenderers).map((key2) => {
         return contentRenderers[key2];
-      }).sort((a2, b) => {
-        return a2.bucket - b.bucket;
+      }).sort((a2, b2) => {
+        return a2.bucket - b2.bucket;
       }).find((renderer2) => {
         return renderer2.canRender(entry);
       });
@@ -16475,8 +16643,8 @@ ${entry.value}</pre
             return {
               scoreType: kScoreTypeCategorical,
               categories: values,
-              compare: (a2, b) => {
-                return String(a2).localeCompare(String(b));
+              compare: (a2, b2) => {
+                return String(a2).localeCompare(String(b2));
               },
               render: (score2) => {
                 return score2;
@@ -16500,9 +16668,9 @@ ${entry.value}</pre
               scoreType: kScoreTypeNumeric,
               min: Math.min(...onlyNumeric),
               max: Math.max(...onlyNumeric),
-              compare: (a2, b) => {
-                if (typeof a2 === "number" && typeof b === "number") {
-                  return a2 - b;
+              compare: (a2, b2) => {
+                if (typeof a2 === "number" && typeof b2 === "number") {
+                  return a2 - b2;
                 } else {
                   console.warn(
                     "Comparing non-numerics using a nuermic score descriptor"
@@ -16614,8 +16782,8 @@ ${entry.value}</pre
     const booleanScoreCategorizer = () => {
       return {
         scoreType: "boolean",
-        compare: (a2, b) => {
-          return Number(a2.value) - Number(b.value);
+        compare: (a2, b2) => {
+          return Number(a2.value) - Number(b2.value);
         },
         render: (score2) => {
           const scoreColorStyle = score2 ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
@@ -16696,8 +16864,8 @@ ${entry.value}</pre
             return score2;
           }
         },
-        compare: (a2, b) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b.value);
+        compare: (a2, b2) => {
+          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
           return sort;
         }
       };
@@ -18854,8 +19022,8 @@ ${entry.value}</pre
       }
       return false;
     }
-    function mod(a2, b) {
-      return (a2 % b + b) % b;
+    function mod(a2, b2) {
+      return (a2 % b2 + b2) % b2;
     }
     function unbox(value) {
       if (typeof value !== "object") return value;
@@ -18936,9 +19104,9 @@ ${entry.value}</pre
       coerceNumber: num,
       coerceNumberOrString: numstr,
       coerceBoolean: bool,
-      isSubset(a2, b) {
+      isSubset(a2, b2) {
         const A2 = arr(a2);
-        const B2 = arr(b);
+        const B2 = arr(b2);
         return A2.every((val) => B2.includes(val));
       },
       warnDeprecated: /* @__PURE__ */ function() {
@@ -19046,19 +19214,19 @@ ${entry.value}</pre
         }
       }
       let defaultOperators = {
-        "+": (a2, b) => numstr(a2) + numstr(b),
-        "-": (a2, b) => b === void 0 ? -num(a2) : num(a2) - num(b),
-        "*": (a2, b) => num(a2) * num(b),
-        "/": (a2, b) => num(a2) / num(b),
-        "^": (a2, b) => Math.pow(num(a2), num(b)),
-        mod: (a2, b) => mod(num(a2), num(b)),
-        "==": (a2, b) => a2 === b,
-        "!=": (a2, b) => a2 !== b,
-        "<": (a2, b) => num(a2) < num(b),
-        "<=": (a2, b) => num(a2) <= num(b),
-        ">=": (a2, b) => num(a2) >= num(b),
-        ">": (a2, b) => num(a2) > num(b),
-        "~=": (a2, b) => RegExp(str(b)).test(str(a2))
+        "+": (a2, b2) => numstr(a2) + numstr(b2),
+        "-": (a2, b2) => b2 === void 0 ? -num(a2) : num(a2) - num(b2),
+        "*": (a2, b2) => num(a2) * num(b2),
+        "/": (a2, b2) => num(a2) / num(b2),
+        "^": (a2, b2) => Math.pow(num(a2), num(b2)),
+        mod: (a2, b2) => mod(num(a2), num(b2)),
+        "==": (a2, b2) => a2 === b2,
+        "!=": (a2, b2) => a2 !== b2,
+        "<": (a2, b2) => num(a2) < num(b2),
+        "<=": (a2, b2) => num(a2) <= num(b2),
+        ">=": (a2, b2) => num(a2) >= num(b2),
+        ">": (a2, b2) => num(a2) > num(b2),
+        "~=": (a2, b2) => RegExp(str(b2)).test(str(a2))
       };
       if (operators) {
         for (const name2 of Object.keys(operators)) {
@@ -19378,56 +19546,56 @@ categories: ${categories.join(" ")}`;
     const bySample = (sort) => {
       return sort === kSampleAscVal || sort === kSampleDescVal;
     };
-    const sortId = (a2, b) => {
-      if (isNumeric(a2.id) && isNumeric(b.id)) {
-        return Number(a2.id) - Number(b.id);
+    const sortId = (a2, b2) => {
+      if (isNumeric(a2.id) && isNumeric(b2.id)) {
+        return Number(a2.id) - Number(b2.id);
       } else {
-        return String(a2.id).localeCompare(String(b.id));
+        return String(a2.id).localeCompare(String(b2.id));
       }
     };
     const sortSamples = (sort, samples, samplesDescriptor) => {
-      const sortedSamples = samples.sort((a2, b) => {
+      const sortedSamples = samples.sort((a2, b2) => {
         switch (sort) {
           case kSampleAscVal: {
-            const result = sortId(a2, b);
+            const result = sortId(a2, b2);
             if (result !== 0) {
               return result;
             } else {
-              return a2.epoch - b.epoch;
+              return a2.epoch - b2.epoch;
             }
           }
           case kSampleDescVal: {
-            const result = sortId(b, a2);
+            const result = sortId(b2, a2);
             if (result !== 0) {
               return result;
             } else {
-              return a2.epoch - b.epoch;
+              return a2.epoch - b2.epoch;
             }
           }
           case kEpochAscVal: {
-            const result = a2.epoch - b.epoch;
+            const result = a2.epoch - b2.epoch;
             if (result !== 0) {
               return result;
             } else {
-              return sortId(a2, b);
+              return sortId(a2, b2);
             }
           }
           case kEpochDescVal: {
-            const result = b.epoch - a2.epoch;
+            const result = b2.epoch - a2.epoch;
             if (result !== 0) {
               return result;
             } else {
-              return sortId(a2, b);
+              return sortId(a2, b2);
             }
           }
           case kScoreAscVal:
             return samplesDescriptor.selectedScoreDescriptor.compare(
               samplesDescriptor.selectedScore(a2).value,
-              samplesDescriptor.selectedScore(b).value
+              samplesDescriptor.selectedScore(b2).value
             );
           case kScoreDescVal:
             return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(b).value,
+              samplesDescriptor.selectedScore(b2).value,
               samplesDescriptor.selectedScore(a2).value
             );
         }
@@ -20026,16 +20194,34 @@ categories: ${categories.join(" ")}`;
     const computeTabContentsId = (id, index) => {
       return `${id}-contents-${index}`;
     };
-    const ToolButton = ({ name: name2, classes, icon, onclick, ...rest }) => {
-      const attr = {
+    var f = 0;
+    function u(e2, t2, n2, o2, i2, u2) {
+      t2 || (t2 = {});
+      var a2, c2, l2 = t2;
+      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
+      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
+      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
+      return l$1.vnode && l$1.vnode(p2), p2;
+    }
+    const ToolButton = xn.forwardRef(({
+      name: name2,
+      classes = "",
+      icon,
+      className: className2,
+      ...rest
+    }, ref) => {
+      const combinedClasses = `btn btn-tools tool-button ${classes} ${className2 || ""}`.trim();
+      return /* @__PURE__ */ u("button", {
+        ref,
         type: "button",
-        class: `btn btn-tools ${classes || ""}`,
-        onclick,
-        ...rest
-      };
-      const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
-      return g$1("button", attr, m$1`${iconEl}${name2}`);
-    };
+        className: combinedClasses,
+        ...rest,
+        children: [icon && /* @__PURE__ */ u("i", {
+          className: `${icon}`
+        }), name2]
+      });
+    });
+    ToolButton.displayName = "ToolButton";
     const filename = (path) => {
       const pathparts = path.split("/");
       const basename = pathparts.slice(-1)[0];
@@ -21198,7 +21384,7 @@ self.onmessage = function (e) {
           }
           product += c2;
         }
-        const quoteChar = quote || Object.keys(quotes).reduce((a2, b) => quotes[a2] < quotes[b] ? a2 : b);
+        const quoteChar = quote || Object.keys(quotes).reduce((a2, b2) => quotes[a2] < quotes[b2] ? a2 : b2);
         product = product.replace(new RegExp(quoteChar, "g"), replacements[quoteChar]);
         return quoteChar + product + quoteChar;
       }
@@ -21530,17 +21716,17 @@ self.onmessage = function (e) {
     ]);
     var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
     var freb = function(eb, start2) {
-      var b = new u16(31);
+      var b2 = new u16(31);
       for (var i2 = 0; i2 < 31; ++i2) {
-        b[i2] = start2 += 1 << eb[i2 - 1];
+        b2[i2] = start2 += 1 << eb[i2 - 1];
       }
-      var r2 = new i32(b[30]);
+      var r2 = new i32(b2[30]);
       for (var i2 = 1; i2 < 30; ++i2) {
-        for (var j2 = b[i2]; j2 < b[i2 + 1]; ++j2) {
-          r2[j2] = j2 - b[i2] << 5 | i2;
+        for (var j2 = b2[i2]; j2 < b2[i2 + 1]; ++j2) {
+          r2[j2] = j2 - b2[i2] << 5 | i2;
         }
       }
-      return { b, r: r2 };
+      return { b: b2, r: r2 };
     };
     var _a$1 = freb(fleb, 2), fl = _a$1.b, revfl = _a$1.r;
     fl[28] = 258, revfl[258] = 28;
@@ -21757,9 +21943,9 @@ self.onmessage = function (e) {
           } else {
             var add2 = sym - 254;
             if (sym > 264) {
-              var i2 = sym - 257, b = fleb[i2];
-              add2 = bits(dat, pos2, (1 << b) - 1) + fl[i2];
-              pos2 += b;
+              var i2 = sym - 257, b2 = fleb[i2];
+              add2 = bits(dat, pos2, (1 << b2) - 1) + fl[i2];
+              pos2 += b2;
             }
             var d2 = dm[bits16(dat, pos2) & dms], dsym = d2 >> 4;
             if (!d2)
@@ -21767,8 +21953,8 @@ self.onmessage = function (e) {
             pos2 += d2 & 15;
             var dt = fd[dsym];
             if (dsym > 3) {
-              var b = fdeb[dsym];
-              dt += bits16(dat, pos2) & (1 << b) - 1, pos2 += b;
+              var b2 = fdeb[dsym];
+              dt += bits16(dat, pos2) & (1 << b2) - 1, pos2 += b2;
             }
             if (pos2 > tbts) {
               if (noSt)
@@ -21796,12 +21982,12 @@ self.onmessage = function (e) {
       return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
     };
     var et = /* @__PURE__ */ new u8(0);
-    var mrg = function(a2, b) {
+    var mrg = function(a2, b2) {
       var o2 = {};
       for (var k2 in a2)
         o2[k2] = a2[k2];
-      for (var k2 in b)
-        o2[k2] = b[k2];
+      for (var k2 in b2)
+        o2[k2] = b2[k2];
       return o2;
     };
     var wcln = function(fn2, fnStr, td2) {
@@ -22541,7 +22727,7 @@ self.onmessage = function (e) {
           header
         })));
         const headers = await Promise.all([...evalLogHeadersPromises, jsonLogHeadersPromise]);
-        const orderedHeaders = headers.flat().sort((a2, b) => a2.index - b.index);
+        const orderedHeaders = headers.flat().sort((a2, b2) => a2.index - b2.index);
         return orderedHeaders.map(({
           header
         }) => header);
@@ -22710,15 +22896,6 @@ self.onmessage = function (e) {
     </div>`;
       }
     };
-    var f = 0;
-    function u(e2, t2, n2, o2, i2, u2) {
-      t2 || (t2 = {});
-      var a2, c2, l2 = t2;
-      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
-      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
-      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
-      return l$1.vnode && l$1.vnode(p2), p2;
-    }
     const CopyButton = ({
       value,
       onCopySuccess,
@@ -25806,11 +25983,11 @@ self.onmessage = function (e) {
     };
     diffFilter$2.filterName = "arrays";
     const compare$1 = {
-      numerically(a2, b) {
-        return a2 - b;
+      numerically(a2, b2) {
+        return a2 - b2;
       },
       numericallyBy(name2) {
-        return (a2, b) => a2[name2] - b[name2];
+        return (a2, b2) => a2[name2] - b2[name2];
       }
     };
     const patchFilter$1 = function nestedPatchFilter(context) {
@@ -26545,7 +26722,7 @@ self.onmessage = function (e) {
     function setHydrateContext(context) {
       sharedConfig.context = context;
     }
-    const equalFn = (a2, b) => a2 === b;
+    const equalFn = (a2, b2) => a2 === b2;
     const $PROXY = Symbol("solid-proxy");
     const $TRACK = Symbol("solid-track");
     const signalOptions = {
@@ -27138,7 +27315,7 @@ self.onmessage = function (e) {
       let strictEqual = false;
       const keyed = props.keyed;
       const condition = createMemo(() => props.when, void 0, {
-        equals: (a2, b) => strictEqual ? a2 === b : !a2 === !b
+        equals: (a2, b2) => strictEqual ? a2 === b2 : !a2 === !b2
       });
       return createMemo(() => {
         const c2 = condition();
@@ -27154,7 +27331,7 @@ self.onmessage = function (e) {
     function Switch(props) {
       let strictEqual = false;
       let keyed = false;
-      const equals = (a2, b) => a2[0] === b[0] && (strictEqual ? a2[1] === b[1] : !a2[1] === !b[1]) && a2[2] === b[2];
+      const equals = (a2, b2) => a2[0] === b2[0] && (strictEqual ? a2[1] === b2[1] : !a2[1] === !b2[1]) && a2[2] === b2[2];
       const conditions = children(() => props.children), evalConditions = createMemo(() => {
         let conds = conditions();
         if (!Array.isArray(conds)) conds = [conds];
@@ -27181,36 +27358,36 @@ self.onmessage = function (e) {
     function Match(props) {
       return props;
     }
-    function reconcileArrays(parentNode, a2, b) {
-      let bLength = b.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = a2[aEnd - 1].nextSibling, map2 = null;
+    function reconcileArrays(parentNode, a2, b2) {
+      let bLength = b2.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = a2[aEnd - 1].nextSibling, map2 = null;
       while (aStart < aEnd || bStart < bEnd) {
-        if (a2[aStart] === b[bStart]) {
+        if (a2[aStart] === b2[bStart]) {
           aStart++;
           bStart++;
           continue;
         }
-        while (a2[aEnd - 1] === b[bEnd - 1]) {
+        while (a2[aEnd - 1] === b2[bEnd - 1]) {
           aEnd--;
           bEnd--;
         }
         if (aEnd === aStart) {
-          const node = bEnd < bLength ? bStart ? b[bStart - 1].nextSibling : b[bEnd - bStart] : after;
-          while (bStart < bEnd) parentNode.insertBefore(b[bStart++], node);
+          const node = bEnd < bLength ? bStart ? b2[bStart - 1].nextSibling : b2[bEnd - bStart] : after;
+          while (bStart < bEnd) parentNode.insertBefore(b2[bStart++], node);
         } else if (bEnd === bStart) {
           while (aStart < aEnd) {
             if (!map2 || !map2.has(a2[aStart])) a2[aStart].remove();
             aStart++;
           }
-        } else if (a2[aStart] === b[bEnd - 1] && b[bStart] === a2[aEnd - 1]) {
+        } else if (a2[aStart] === b2[bEnd - 1] && b2[bStart] === a2[aEnd - 1]) {
           const node = a2[--aEnd].nextSibling;
-          parentNode.insertBefore(b[bStart++], a2[aStart++].nextSibling);
-          parentNode.insertBefore(b[--bEnd], node);
-          a2[aEnd] = b[bEnd];
+          parentNode.insertBefore(b2[bStart++], a2[aStart++].nextSibling);
+          parentNode.insertBefore(b2[--bEnd], node);
+          a2[aEnd] = b2[bEnd];
         } else {
           if (!map2) {
             map2 = /* @__PURE__ */ new Map();
             let i2 = bStart;
-            while (i2 < bEnd) map2.set(b[i2], i2++);
+            while (i2 < bEnd) map2.set(b2[i2], i2++);
           }
           const index = map2.get(a2[aStart]);
           if (index != null) {
@@ -27222,8 +27399,8 @@ self.onmessage = function (e) {
               }
               if (sequence > index - bStart) {
                 const node = a2[aStart];
-                while (bStart < index) parentNode.insertBefore(b[bStart++], node);
-              } else parentNode.replaceChild(b[bStart++], a2[aStart++]);
+                while (bStart < index) parentNode.insertBefore(b2[bStart++], node);
+              } else parentNode.replaceChild(b2[bStart++], a2[aStart++]);
             } else aStart++;
           } else a2[aStart++].remove();
         }
@@ -30380,12 +30557,12 @@ ${events}
       events = events.transform(batcher(logger, minFrameTime)).map(timeLimiter(idleTimeLimit, startAt, limiterOutput)).map(markerWrapper());
       if (markers_ !== void 0) {
         markers_ = new Stream(markers_).map(normalizeMarker);
-        events = events.filter((e2) => e2[1] !== "m").multiplex(markers_, (a2, b) => a2[0] < b[0]).map(markerWrapper());
+        events = events.filter((e2) => e2[1] !== "m").multiplex(markers_, (a2, b2) => a2[0] < b2[0]).map(markerWrapper());
       }
       events = events.toArray();
       if (inputOffset !== void 0) {
         events = events.map((e2) => e2[1] === "i" ? [e2[0] + inputOffset, e2[1], e2[2]] : e2);
-        events.sort((a2, b) => a2[0] - b[0]);
+        events.sort((a2, b2) => a2[0] - b2[0]);
       }
       const duration = events[events.length - 1][0];
       const effectiveStartAt = startAt - limiterOutput.offset;
@@ -30943,8 +31120,8 @@ ${events}
           palette
         };
       }
-      function hexColor(r2, g2, b) {
-        return `#${byteToHex(r2)}${byteToHex(g2)}${byteToHex(b)}`;
+      function hexColor(r2, g2, b2) {
+        return `#${byteToHex(r2)}${byteToHex(g2)}${byteToHex(b2)}`;
       }
       function byteToHex(value) {
         return value.toString(16).padStart(2, "0");
@@ -33651,18 +33828,18 @@ ${events}
       };
     };
     const groupBySample = (samples, sampleDescriptor, order2) => {
-      samples = samples.sort((a2, b) => {
+      samples = samples.sort((a2, b2) => {
         if (typeof a2.id === "string") {
           if (order2 === "asc") {
-            return String(a2.id).localeCompare(String(b.id));
+            return String(a2.id).localeCompare(String(b2.id));
           } else {
-            return String(b.id).localeCompare(String(a2.id));
+            return String(b2.id).localeCompare(String(a2.id));
           }
         } else {
           if (order2 === "asc") {
-            return Number(a2.id) - Number(b.id);
+            return Number(a2.id) - Number(b2.id);
           } else {
-            return Number(b.id) - Number(b.id);
+            return Number(b2.id) - Number(b2.id);
           }
         }
       });
@@ -33858,12 +34035,12 @@ ${events}
         if (other.length != this.length || other.lines != this.lines)
           return false;
         let start2 = this.scanIdentical(other, 1), end2 = this.length - this.scanIdentical(other, -1);
-        let a2 = new RawTextCursor(this), b = new RawTextCursor(other);
+        let a2 = new RawTextCursor(this), b2 = new RawTextCursor(other);
         for (let skip = start2, pos2 = start2; ; ) {
           a2.next(skip);
-          b.next(skip);
+          b2.next(skip);
           skip = 0;
-          if (a2.lineBreak != b.lineBreak || a2.done != b.done || a2.value != b.value)
+          if (a2.lineBreak != b2.lineBreak || a2.done != b2.done || a2.value != b2.value)
             return false;
           pos2 += a2.value.length;
           if (a2.done || pos2 >= end2)
@@ -34866,16 +35043,16 @@ ${events}
     }
     function mapSet(setA, setB, before, mkSet = false) {
       let sections = [], insert2 = mkSet ? [] : null;
-      let a2 = new SectionIter(setA), b = new SectionIter(setB);
+      let a2 = new SectionIter(setA), b2 = new SectionIter(setB);
       for (let inserted = -1; ; ) {
-        if (a2.ins == -1 && b.ins == -1) {
-          let len = Math.min(a2.len, b.len);
+        if (a2.ins == -1 && b2.ins == -1) {
+          let len = Math.min(a2.len, b2.len);
           addSection(sections, len, -1);
           a2.forward(len);
-          b.forward(len);
-        } else if (b.ins >= 0 && (a2.ins < 0 || inserted == a2.i || a2.off == 0 && (b.len < a2.len || b.len == a2.len && !before))) {
-          let len = b.len;
-          addSection(sections, b.ins, -1);
+          b2.forward(len);
+        } else if (b2.ins >= 0 && (a2.ins < 0 || inserted == a2.i || a2.off == 0 && (b2.len < a2.len || b2.len == a2.len && !before))) {
+          let len = b2.len;
+          addSection(sections, b2.ins, -1);
           while (len) {
             let piece = Math.min(a2.len, len);
             if (a2.ins >= 0 && inserted < a2.i && a2.len <= piece) {
@@ -34887,18 +35064,18 @@ ${events}
             a2.forward(piece);
             len -= piece;
           }
-          b.next();
+          b2.next();
         } else if (a2.ins >= 0) {
           let len = 0, left2 = a2.len;
           while (left2) {
-            if (b.ins == -1) {
-              let piece = Math.min(left2, b.len);
+            if (b2.ins == -1) {
+              let piece = Math.min(left2, b2.len);
               len += piece;
               left2 -= piece;
-              b.forward(piece);
-            } else if (b.ins == 0 && b.len < left2) {
-              left2 -= b.len;
-              b.next();
+              b2.forward(piece);
+            } else if (b2.ins == 0 && b2.len < left2) {
+              left2 -= b2.len;
+              b2.next();
             } else {
               break;
             }
@@ -34908,7 +35085,7 @@ ${events}
             addInsert(insert2, sections, a2.text);
           inserted = a2.i;
           a2.forward(a2.len - left2);
-        } else if (a2.done && b.done) {
+        } else if (a2.done && b2.done) {
           return insert2 ? ChangeSet.createSet(sections, insert2) : ChangeDesc.create(sections);
         } else {
           throw new Error("Mismatched change set lengths");
@@ -34918,39 +35095,39 @@ ${events}
     function composeSets(setA, setB, mkSet = false) {
       let sections = [];
       let insert2 = mkSet ? [] : null;
-      let a2 = new SectionIter(setA), b = new SectionIter(setB);
+      let a2 = new SectionIter(setA), b2 = new SectionIter(setB);
       for (let open = false; ; ) {
-        if (a2.done && b.done) {
+        if (a2.done && b2.done) {
           return insert2 ? ChangeSet.createSet(sections, insert2) : ChangeDesc.create(sections);
         } else if (a2.ins == 0) {
           addSection(sections, a2.len, 0, open);
           a2.next();
-        } else if (b.len == 0 && !b.done) {
-          addSection(sections, 0, b.ins, open);
+        } else if (b2.len == 0 && !b2.done) {
+          addSection(sections, 0, b2.ins, open);
           if (insert2)
-            addInsert(insert2, sections, b.text);
-          b.next();
-        } else if (a2.done || b.done) {
+            addInsert(insert2, sections, b2.text);
+          b2.next();
+        } else if (a2.done || b2.done) {
           throw new Error("Mismatched change set lengths");
         } else {
-          let len = Math.min(a2.len2, b.len), sectionLen = sections.length;
+          let len = Math.min(a2.len2, b2.len), sectionLen = sections.length;
           if (a2.ins == -1) {
-            let insB = b.ins == -1 ? -1 : b.off ? 0 : b.ins;
+            let insB = b2.ins == -1 ? -1 : b2.off ? 0 : b2.ins;
             addSection(sections, len, insB, open);
             if (insert2 && insB)
-              addInsert(insert2, sections, b.text);
-          } else if (b.ins == -1) {
+              addInsert(insert2, sections, b2.text);
+          } else if (b2.ins == -1) {
             addSection(sections, a2.off ? 0 : a2.len, len, open);
             if (insert2)
               addInsert(insert2, sections, a2.textBit(len));
           } else {
-            addSection(sections, a2.off ? 0 : a2.len, b.off ? 0 : b.ins, open);
-            if (insert2 && !b.off)
-              addInsert(insert2, sections, b.text);
+            addSection(sections, a2.off ? 0 : a2.len, b2.off ? 0 : b2.ins, open);
+            if (insert2 && !b2.off)
+              addInsert(insert2, sections, b2.text);
           }
-          open = (a2.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen);
+          open = (a2.ins > len || b2.ins >= 0 && b2.len > len) && (open || sections.length > sectionLen);
           a2.forward2(len);
-          b.forward(len);
+          b2.forward(len);
         }
       }
     }
@@ -35221,7 +35398,7 @@ ${events}
       */
       static normalized(ranges, mainIndex = 0) {
         let main2 = ranges[mainIndex];
-        ranges.sort((a2, b) => a2.from - b.from);
+        ranges.sort((a2, b2) => a2.from - b2.from);
         mainIndex = ranges.indexOf(main2);
         for (let i2 = 1; i2 < ranges.length; i2++) {
           let range = ranges[i2], prev = ranges[i2 - 1];
@@ -35262,7 +35439,7 @@ ${events}
       Define a new facet.
       */
       static define(config2 = {}) {
-        return new Facet(config2.combine || ((a2) => a2), config2.compareInput || ((a2, b) => a2 === b), config2.compare || (!config2.combine ? sameArray$1 : (a2, b) => a2 === b), !!config2.static, config2.enables);
+        return new Facet(config2.combine || ((a2) => a2), config2.compareInput || ((a2, b2) => a2 === b2), config2.compare || (!config2.combine ? sameArray$1 : (a2, b2) => a2 === b2), !!config2.static, config2.enables);
       }
       /**
       Returns an extension that adds the given value to this facet.
@@ -35299,8 +35476,8 @@ ${events}
         return this.compute([field], (state) => get2(state.field(field)));
       }
     }
-    function sameArray$1(a2, b) {
-      return a2 == b || a2.length == b.length && a2.every((e2, i2) => e2 === b[i2]);
+    function sameArray$1(a2, b2) {
+      return a2 == b2 || a2.length == b2.length && a2.every((e2, i2) => e2 === b2[i2]);
     }
     class FacetProvider {
       constructor(dependencies, facet, type, value) {
@@ -35358,11 +35535,11 @@ ${events}
         };
       }
     }
-    function compareArray(a2, b, compare2) {
-      if (a2.length != b.length)
+    function compareArray(a2, b2, compare2) {
+      if (a2.length != b2.length)
         return false;
       for (let i2 = 0; i2 < a2.length; i2++)
-        if (!compare2(a2[i2], b[i2]))
+        if (!compare2(a2[i2], b2[i2]))
           return false;
       return true;
     }
@@ -35437,7 +35614,7 @@ ${events}
       Define a state field.
       */
       static define(config2) {
-        let field = new StateField(nextID++, config2.create, config2.update, config2.compare || ((a2, b) => a2 === b), config2);
+        let field = new StateField(nextID++, config2.create, config2.update, config2.compare || ((a2, b2) => a2 === b2), config2);
         if (config2.provide)
           field.provides = config2.provide(field);
         return field;
@@ -35667,7 +35844,7 @@ ${events}
         }
       }
       inner(extension, Prec_.default);
-      return result.reduce((a2, b) => a2.concat(b));
+      return result.reduce((a2, b2) => a2.concat(b2));
     }
     function ensureAddr(state, addr) {
       if (addr & 1)
@@ -35880,16 +36057,16 @@ ${events}
     Transaction.userEvent = /* @__PURE__ */ Annotation.define();
     Transaction.addToHistory = /* @__PURE__ */ Annotation.define();
     Transaction.remote = /* @__PURE__ */ Annotation.define();
-    function joinRanges(a2, b) {
+    function joinRanges(a2, b2) {
       let result = [];
       for (let iA = 0, iB = 0; ; ) {
         let from, to;
-        if (iA < a2.length && (iB == b.length || b[iB] >= a2[iA])) {
+        if (iA < a2.length && (iB == b2.length || b2[iB] >= a2[iA])) {
           from = a2[iA++];
           to = a2[iA++];
-        } else if (iB < b.length) {
-          from = b[iB++];
-          to = b[iB++];
+        } else if (iB < b2.length) {
+          from = b2[iB++];
+          to = b2[iB++];
         } else
           return result;
         if (!result.length || result[result.length - 1] < from)
@@ -35898,24 +36075,24 @@ ${events}
           result[result.length - 1] = to;
       }
     }
-    function mergeTransaction(a2, b, sequential) {
+    function mergeTransaction(a2, b2, sequential) {
       var _a2;
       let mapForA, mapForB, changes;
       if (sequential) {
-        mapForA = b.changes;
-        mapForB = ChangeSet.empty(b.changes.length);
-        changes = a2.changes.compose(b.changes);
+        mapForA = b2.changes;
+        mapForB = ChangeSet.empty(b2.changes.length);
+        changes = a2.changes.compose(b2.changes);
       } else {
-        mapForA = b.changes.map(a2.changes);
-        mapForB = a2.changes.mapDesc(b.changes, true);
+        mapForA = b2.changes.map(a2.changes);
+        mapForB = a2.changes.mapDesc(b2.changes, true);
         changes = a2.changes.compose(mapForA);
       }
       return {
         changes,
-        selection: b.selection ? b.selection.map(mapForB) : (_a2 = a2.selection) === null || _a2 === void 0 ? void 0 : _a2.map(mapForA),
-        effects: StateEffect.mapEffects(a2.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
-        annotations: a2.annotations.length ? a2.annotations.concat(b.annotations) : b.annotations,
-        scrollIntoView: a2.scrollIntoView || b.scrollIntoView
+        selection: b2.selection ? b2.selection.map(mapForB) : (_a2 = a2.selection) === null || _a2 === void 0 ? void 0 : _a2.map(mapForA),
+        effects: StateEffect.mapEffects(a2.effects, mapForA).concat(StateEffect.mapEffects(b2.effects, mapForB)),
+        annotations: a2.annotations.length ? a2.annotations.concat(b2.annotations) : b2.annotations,
+        scrollIntoView: a2.scrollIntoView || b2.scrollIntoView
       };
     }
     function resolveTransactionInner(state, spec, docSize) {
@@ -36352,9 +36529,9 @@ ${events}
     EditorState.lineSeparator = lineSeparator;
     EditorState.readOnly = readOnly;
     EditorState.phrases = /* @__PURE__ */ Facet.define({
-      compare(a2, b) {
-        let kA = Object.keys(a2), kB = Object.keys(b);
-        return kA.length == kB.length && kA.every((k2) => a2[k2] == b[k2]);
+      compare(a2, b2) {
+        let kA = Object.keys(a2), kB = Object.keys(b2);
+        return kA.length == kB.length && kA.every((k2) => a2[k2] == b2[k2]);
       }
     });
     EditorState.languageData = languageData;
@@ -36414,8 +36591,8 @@ ${events}
         return new Range2(from, to, value);
       }
     };
-    function cmpRange(a2, b) {
-      return a2.from - b.from || a2.value.startSide - b.value.startSide;
+    function cmpRange(a2, b2) {
+      return a2.from - b2.from || a2.value.startSide - b2.value.startSide;
     }
     class Chunk {
       constructor(from, to, value, maxPoint) {
@@ -36624,10 +36801,10 @@ ${events}
       */
       static compare(oldSets, newSets, textDiff, comparator, minPointSize = -1) {
         let a2 = oldSets.filter((set) => set.maxPoint > 0 || !set.isEmpty && set.maxPoint >= minPointSize);
-        let b = newSets.filter((set) => set.maxPoint > 0 || !set.isEmpty && set.maxPoint >= minPointSize);
-        let sharedChunks = findSharedChunks(a2, b, textDiff);
+        let b2 = newSets.filter((set) => set.maxPoint > 0 || !set.isEmpty && set.maxPoint >= minPointSize);
+        let sharedChunks = findSharedChunks(a2, b2, textDiff);
         let sideA = new SpanCursor(a2, sharedChunks, minPointSize);
-        let sideB = new SpanCursor(b, sharedChunks, minPointSize);
+        let sideB = new SpanCursor(b2, sharedChunks, minPointSize);
         textDiff.iterGaps((fromA, fromB, length) => compare(sideA, fromA, sideB, fromB, length, comparator));
         if (textDiff.empty && textDiff.length == 0)
           compare(sideA, 0, sideB, 0, 0, comparator);
@@ -36640,13 +36817,13 @@ ${events}
         if (to == null)
           to = 1e9 - 1;
         let a2 = oldSets.filter((set) => !set.isEmpty && newSets.indexOf(set) < 0);
-        let b = newSets.filter((set) => !set.isEmpty && oldSets.indexOf(set) < 0);
-        if (a2.length != b.length)
+        let b2 = newSets.filter((set) => !set.isEmpty && oldSets.indexOf(set) < 0);
+        if (a2.length != b2.length)
           return false;
         if (!a2.length)
           return true;
-        let sharedChunks = findSharedChunks(a2, b);
-        let sideA = new SpanCursor(a2, sharedChunks, 0).goto(from), sideB = new SpanCursor(b, sharedChunks, 0).goto(from);
+        let sharedChunks = findSharedChunks(a2, b2);
+        let sideA = new SpanCursor(a2, sharedChunks, 0).goto(from), sideB = new SpanCursor(b2, sharedChunks, 0).goto(from);
         for (; ; ) {
           if (sideA.to != sideB.to || !sameValues(sideA.active, sideB.active) || sideA.point && (!sideB.point || !sideA.point.eq(sideB.point)))
             return false;
@@ -36820,14 +36997,14 @@ ${events}
         return result;
       }
     }
-    function findSharedChunks(a2, b, textDiff) {
+    function findSharedChunks(a2, b2, textDiff) {
       let inA = /* @__PURE__ */ new Map();
       for (let set of a2)
         for (let i2 = 0; i2 < set.chunk.length; i2++)
           if (set.chunk[i2].maxPoint <= 0)
             inA.set(set.chunk[i2], set.chunkPos[i2]);
       let shared = /* @__PURE__ */ new Set();
-      for (let set of b)
+      for (let set of b2)
         for (let i2 = 0; i2 < set.chunk.length; i2++) {
           let known = inA.get(set.chunk[i2]);
           if (known != null && (textDiff ? textDiff.mapPos(known) : known) == set.chunkPos[i2] && !(textDiff === null || textDiff === void 0 ? void 0 : textDiff.touchesRange(known, known + set.chunk[i2].length)))
@@ -37093,20 +37270,20 @@ ${events}
         return open;
       }
     }
-    function compare(a2, startA, b, startB, length, comparator) {
+    function compare(a2, startA, b2, startB, length, comparator) {
       a2.goto(startA);
-      b.goto(startB);
+      b2.goto(startB);
       let endB = startB + length;
       let pos2 = startB, dPos = startB - startA;
       for (; ; ) {
-        let diff2 = a2.to + dPos - b.to || a2.endSide - b.endSide;
-        let end2 = diff2 < 0 ? a2.to + dPos : b.to, clipEnd = Math.min(end2, endB);
-        if (a2.point || b.point) {
-          if (!(a2.point && b.point && (a2.point == b.point || a2.point.eq(b.point)) && sameValues(a2.activeForPoint(a2.to), b.activeForPoint(b.to))))
-            comparator.comparePoint(pos2, clipEnd, a2.point, b.point);
+        let diff2 = a2.to + dPos - b2.to || a2.endSide - b2.endSide;
+        let end2 = diff2 < 0 ? a2.to + dPos : b2.to, clipEnd = Math.min(end2, endB);
+        if (a2.point || b2.point) {
+          if (!(a2.point && b2.point && (a2.point == b2.point || a2.point.eq(b2.point)) && sameValues(a2.activeForPoint(a2.to), b2.activeForPoint(b2.to))))
+            comparator.comparePoint(pos2, clipEnd, a2.point, b2.point);
         } else {
-          if (clipEnd > pos2 && !sameValues(a2.active, b.active))
-            comparator.compareRange(pos2, clipEnd, a2.active, b.active);
+          if (clipEnd > pos2 && !sameValues(a2.active, b2.active))
+            comparator.compareRange(pos2, clipEnd, a2.active, b2.active);
         }
         if (end2 > endB)
           break;
@@ -37114,14 +37291,14 @@ ${events}
         if (diff2 <= 0)
           a2.next();
         if (diff2 >= 0)
-          b.next();
+          b2.next();
       }
     }
-    function sameValues(a2, b) {
-      if (a2.length != b.length)
+    function sameValues(a2, b2) {
+      if (a2.length != b2.length)
         return false;
       for (let i2 = 0; i2 < a2.length; i2++)
-        if (a2[i2] != b[i2] && !a2[i2].eq(b[i2]))
+        if (a2[i2] != b2[i2] && !a2[i2].eq(b2[i2]))
           return false;
       return true;
     }
@@ -37191,7 +37368,7 @@ ${events}
             let value = spec2[prop];
             if (/&/.test(prop)) {
               render2(
-                prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a2, b) => a2.concat(b)),
+                prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a2, b2) => a2.concat(b2)),
                 value,
                 target
               );
@@ -38480,18 +38657,18 @@ ${events}
       return target;
     }
     const noAttrs$1 = /* @__PURE__ */ Object.create(null);
-    function attrsEq(a2, b, ignore) {
-      if (a2 == b)
+    function attrsEq(a2, b2, ignore) {
+      if (a2 == b2)
         return true;
       if (!a2)
         a2 = noAttrs$1;
-      if (!b)
-        b = noAttrs$1;
-      let keysA = Object.keys(a2), keysB = Object.keys(b);
+      if (!b2)
+        b2 = noAttrs$1;
+      let keysA = Object.keys(a2), keysB = Object.keys(b2);
       if (keysA.length - (ignore && keysA.indexOf(ignore) > -1 ? 1 : 0) != keysB.length - (ignore && keysB.indexOf(ignore) > -1 ? 1 : 0))
         return false;
       for (let key2 of keysA) {
-        if (key2 != ignore && (keysB.indexOf(key2) == -1 || a2[key2] !== b[key2]))
+        if (key2 != ignore && (keysB.indexOf(key2) == -1 || a2[key2] !== b2[key2]))
           return false;
       }
       return true;
@@ -38761,8 +38938,8 @@ ${events}
         end2 = spec.inclusive;
       return { start: start2 !== null && start2 !== void 0 ? start2 : block2, end: end2 !== null && end2 !== void 0 ? end2 : block2 };
     }
-    function widgetsEq(a2, b) {
-      return a2 == b || !!(a2 && b && a2.compare(b));
+    function widgetsEq(a2, b2) {
+      return a2 == b2 || !!(a2 && b2 && a2.compare(b2));
     }
     function addRange(from, to, ranges, margin = 0) {
       let last = ranges.length - 1;
@@ -39289,11 +39466,11 @@ ${events}
         return maybe;
       }
     }
-    function isolatesEq(a2, b) {
-      if (a2.length != b.length)
+    function isolatesEq(a2, b2) {
+      if (a2.length != b2.length)
         return false;
       for (let i2 = 0; i2 < a2.length; i2++) {
-        let iA = a2[i2], iB = b[i2];
+        let iA = a2[i2], iB = b2[i2];
         if (iA.from != iB.from || iA.to != iB.to || iA.direction != iB.direction || !isolatesEq(iA.inner, iB.inner))
           return false;
       }
@@ -40456,9 +40633,9 @@ ${events}
         addRange(from, to, this.changes);
       }
     };
-    function findChangedDeco(a2, b, diff2) {
+    function findChangedDeco(a2, b2, diff2) {
       let comp = new DecorationComparator$1();
-      RangeSet.compare(a2, b, diff2, comp);
+      RangeSet.compare(a2, b2, diff2, comp);
       return comp.changes;
     }
     function inUneditable(node, inside2) {
@@ -40513,8 +40690,8 @@ ${events}
     function getdy(y2, rect) {
       return rect.top > y2 ? rect.top - y2 : Math.max(0, y2 - rect.bottom);
     }
-    function yOverlap(a2, b) {
-      return a2.top < b.bottom - 1 && a2.bottom > b.top + 1;
+    function yOverlap(a2, b2) {
+      return a2.top < b2.bottom - 1 && a2.bottom > b2.top + 1;
     }
     function upTop(rect, top2) {
       return top2 < rect.top ? { top: top2, left: rect.left, right: rect.right, bottom: rect.bottom } : rect;
@@ -41082,15 +41259,15 @@ ${events}
       }
       return startState.update(tr, { userEvent, scrollIntoView: true });
     }
-    function findDiff(a2, b, preferredPos, preferredSide) {
-      let minLen = Math.min(a2.length, b.length);
+    function findDiff(a2, b2, preferredPos, preferredSide) {
+      let minLen = Math.min(a2.length, b2.length);
       let from = 0;
-      while (from < minLen && a2.charCodeAt(from) == b.charCodeAt(from))
+      while (from < minLen && a2.charCodeAt(from) == b2.charCodeAt(from))
         from++;
-      if (from == minLen && a2.length == b.length)
+      if (from == minLen && a2.length == b2.length)
         return null;
-      let toA = a2.length, toB = b.length;
-      while (toA > 0 && toB > 0 && a2.charCodeAt(toA - 1) == b.charCodeAt(toB - 1)) {
+      let toA = a2.length, toB = b2.length;
+      while (toA > 0 && toB > 0 && a2.charCodeAt(toA - 1) == b2.charCodeAt(toB - 1)) {
         toA--;
         toB--;
       }
@@ -41098,7 +41275,7 @@ ${events}
         let adjust = Math.max(0, from - Math.min(toA, toB));
         preferredPos -= toA + adjust - from;
       }
-      if (toA < from && a2.length < b.length) {
+      if (toA < from && a2.length < b2.length) {
         let move = preferredPos <= from && preferredPos >= toA ? from - preferredPos : 0;
         from -= move;
         toB = from + (toB - toA);
@@ -41310,8 +41487,8 @@ ${events}
     function dragScrollSpeed(dist2) {
       return Math.max(0, dist2) * 0.7 + 8;
     }
-    function dist(a2, b) {
-      return Math.max(Math.abs(a2.clientX - b.clientX), Math.abs(a2.clientY - b.clientY));
+    function dist(a2, b2) {
+      return Math.max(Math.abs(a2.clientX - b2.clientX), Math.abs(a2.clientY - b2.clientY));
     }
     class MouseSelection {
       constructor(view, startEvent, style2, mustSelect) {
@@ -42581,9 +42758,9 @@ ${events}
         return builder.finish(from);
       }
     }
-    function heightRelevantDecoChanges(a2, b, diff2) {
+    function heightRelevantDecoChanges(a2, b2, diff2) {
       let comp = new DecorationComparator();
-      RangeSet.compare(a2, b, diff2, comp, 0);
+      RangeSet.compare(a2, b2, diff2, comp, 0);
       return comp.changes;
     }
     class DecorationComparator {
@@ -42592,8 +42769,8 @@ ${events}
       }
       compareRange() {
       }
-      comparePoint(from, to, a2, b) {
-        if (from < to || a2 && a2.heightRelevant || b && b.heightRelevant)
+      comparePoint(from, to, a2, b2) {
+        if (from < to || a2 && a2.heightRelevant || b2 && b2.heightRelevant)
           addRange(from, to, this.changes, 5);
       }
     }
@@ -42643,11 +42820,11 @@ ${events}
         this.size = size;
         this.displaySize = displaySize;
       }
-      static same(a2, b) {
-        if (a2.length != b.length)
+      static same(a2, b2) {
+        if (a2.length != b2.length)
           return false;
         for (let i2 = 0; i2 < a2.length; i2++) {
-          let gA = a2[i2], gB = b[i2];
+          let gA = a2[i2], gB = b2[i2];
           if (gA.from != gB.from || gA.to != gB.to || gA.size != gB.size)
             return false;
         }
@@ -42730,7 +42907,7 @@ ${events}
             viewports.push(new Viewport(from, to));
           }
         }
-        this.viewports = viewports.sort((a2, b) => a2.from - b.from);
+        this.viewports = viewports.sort((a2, b2) => a2.from - b2.from);
         return this.updateScaler();
       }
       updateScaler() {
@@ -43063,7 +43240,7 @@ ${events}
         return changed ? 4 : 0;
       }
       lineBlockAt(pos2) {
-        return pos2 >= this.viewport.from && pos2 <= this.viewport.to && this.viewportLines.find((b) => b.from <= pos2 && b.to >= pos2) || scaleBlock(this.heightMap.lineAt(pos2, QueryType.ByPos, this.heightOracle, 0, 0), this.scaler);
+        return pos2 >= this.viewport.from && pos2 <= this.viewport.to && this.viewportLines.find((b2) => b2.from <= pos2 && b2.to >= pos2) || scaleBlock(this.heightMap.lineAt(pos2, QueryType.ByPos, this.heightOracle, 0, 0), this.scaler);
       }
       lineBlockAtHeight(height) {
         return height >= this.viewportLines[0].top && height <= this.viewportLines[this.viewportLines.length - 1].bottom && this.viewportLines.find((l2) => l2.top <= height && l2.bottom >= height) || scaleBlock(this.heightMap.lineAt(this.scaler.fromDOM(height), QueryType.ByHeight, this.heightOracle, 0, 0), this.scaler);
@@ -43197,7 +43374,7 @@ ${events}
       if (scaler.scale == 1)
         return block2;
       let bTop = scaler.toDOM(block2.top), bBottom = scaler.toDOM(block2.bottom);
-      return new BlockInfo(block2.from, block2.length, bTop, bBottom - bTop, Array.isArray(block2._content) ? block2._content.map((b) => scaleBlock(b, scaler)) : block2._content);
+      return new BlockInfo(block2.from, block2.length, bTop, bBottom - bTop, Array.isArray(block2._content) ? block2._content.map((b2) => scaleBlock(b2, scaler)) : block2._content);
     }
     const theme = /* @__PURE__ */ Facet.define({ combine: (strs) => strs.join(" ") });
     const darkTheme = /* @__PURE__ */ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
@@ -45121,7 +45298,7 @@ ${events}
       let bindings = state.facet(keymap);
       let map2 = Keymaps.get(bindings);
       if (!map2)
-        Keymaps.set(bindings, map2 = buildKeymap(bindings.reduce((a2, b) => a2.concat(b), [])));
+        Keymaps.set(bindings, map2 = buildKeymap(bindings.reduce((a2, b2) => a2.concat(b2), [])));
       return map2;
     }
     let storedPrefix = null;
@@ -45171,24 +45348,24 @@ ${events}
         if (stopPropagation)
           binding.stopPropagation = true;
       };
-      for (let b of bindings) {
-        let scopes = b.scope ? b.scope.split(" ") : ["editor"];
-        if (b.any)
+      for (let b2 of bindings) {
+        let scopes = b2.scope ? b2.scope.split(" ") : ["editor"];
+        if (b2.any)
           for (let scope of scopes) {
             let scopeObj = bound[scope] || (bound[scope] = /* @__PURE__ */ Object.create(null));
             if (!scopeObj._any)
               scopeObj._any = { preventDefault: false, stopPropagation: false, run: [] };
-            let { any } = b;
+            let { any } = b2;
             for (let key2 in scopeObj)
               scopeObj[key2].run.push((view) => any(view, currentKeyEvent));
           }
-        let name2 = b[platform] || b.key;
+        let name2 = b2[platform] || b2.key;
         if (!name2)
           continue;
         for (let scope of scopes) {
-          add2(scope, name2, b.run, b.preventDefault, b.stopPropagation);
-          if (b.shift)
-            add2(scope, "Shift-" + name2, b.shift, b.preventDefault, b.stopPropagation);
+          add2(scope, name2, b2.run, b2.preventDefault, b2.stopPropagation);
+          if (b2.shift)
+            add2(scope, "Shift-" + name2, b2.shift, b2.preventDefault, b2.stopPropagation);
         }
       }
       return bound;
@@ -45404,8 +45581,8 @@ ${events}
         return { top: y2, bottom: y2, horizontal: [] };
       }
     }
-    function sameMarker(a2, b) {
-      return a2.constructor == b.constructor && a2.eq(b);
+    function sameMarker(a2, b2) {
+      return a2.constructor == b2.constructor && a2.eq(b2);
     }
     class LayerView {
       constructor(view, layer2) {
@@ -45496,8 +45673,8 @@ ${events}
           cursorBlinkRate: 1200,
           drawRangeCursor: true
         }, {
-          cursorBlinkRate: (a2, b) => Math.min(a2, b),
-          drawRangeCursor: (a2, b) => a2 || b
+          cursorBlinkRate: (a2, b2) => Math.min(a2, b2),
+          drawRangeCursor: (a2, b2) => a2 || b2
         });
       }
     });
@@ -45548,7 +45725,7 @@ ${events}
     const selectionLayer = /* @__PURE__ */ layer({
       above: false,
       markers(view) {
-        return view.state.selection.ranges.map((r2) => r2.empty ? [] : RectangleMarker.forRange(view, "cm-selectionBackground", r2)).reduce((a2, b) => a2.concat(b));
+        return view.state.selection.ranges.map((r2) => r2.empty ? [] : RectangleMarker.forRange(view, "cm-selectionBackground", r2)).reduce((a2, b2) => a2.concat(b2));
       },
       update(update, dom) {
         return update.docChanged || update.selectionSet || update.viewportChanged || configChanged(update);
@@ -47114,13 +47291,13 @@ ${events}
       @internal
       */
       slice(startI, endI, from) {
-        let b = this.buffer;
+        let b2 = this.buffer;
         let copy = new Uint16Array(endI - startI), len = 0;
         for (let i2 = startI, j2 = 0; i2 < endI; ) {
-          copy[j2++] = b[i2++];
-          copy[j2++] = b[i2++] - from;
-          let to = copy[j2++] = b[i2++] - from;
-          copy[j2++] = b[i2++] - startI;
+          copy[j2++] = b2[i2++];
+          copy[j2++] = b2[i2++] - from;
+          let to = copy[j2++] = b2[i2++] - from;
+          copy[j2++] = b2[i2++] - startI;
           len = Math.max(len, to);
         }
         return new TreeBuffer(copy, len, this.set);
@@ -48312,7 +48489,7 @@ ${events}
         return (tag) => {
           if (tag.modified.indexOf(mod2) > -1)
             return tag;
-          return Modifier.get(tag.base || tag, tag.modified.concat(mod2).sort((a2, b) => a2.id - b.id));
+          return Modifier.get(tag.base || tag, tag.modified.concat(mod2).sort((a2, b2) => a2.id - b2.id));
         };
       }
     }
@@ -48340,8 +48517,8 @@ ${events}
         return tag;
       }
     }
-    function sameArray(a2, b) {
-      return a2.length == b.length && a2.every((x2, i2) => x2 == b[i2]);
+    function sameArray(a2, b2) {
+      return a2.length == b2.length && a2.every((x2, i2) => x2 == b2[i2]);
     }
     function powerSet(array) {
       let sets = [[]];
@@ -48350,7 +48527,7 @@ ${events}
           sets.push(sets[j2].concat(array[i2]));
         }
       }
-      return sets.sort((a2, b) => b.length - a2.length);
+      return sets.sort((a2, b2) => b2.length - a2.length);
     }
     function styleTags(spec) {
       let byName = /* @__PURE__ */ Object.create(null);
@@ -50849,22 +51026,22 @@ ${events}
           addToOptions: [],
           positionInfo: defaultPositionInfo,
           filterStrict: false,
-          compareCompletions: (a2, b) => a2.label.localeCompare(b.label),
+          compareCompletions: (a2, b2) => a2.label.localeCompare(b2.label),
           interactionDelay: 75,
           updateSyncTime: 100
         }, {
-          defaultKeymap: (a2, b) => a2 && b,
-          closeOnBlur: (a2, b) => a2 && b,
-          icons: (a2, b) => a2 && b,
-          tooltipClass: (a2, b) => (c2) => joinClass(a2(c2), b(c2)),
-          optionClass: (a2, b) => (c2) => joinClass(a2(c2), b(c2)),
-          addToOptions: (a2, b) => a2.concat(b),
-          filterStrict: (a2, b) => a2 || b
+          defaultKeymap: (a2, b2) => a2 && b2,
+          closeOnBlur: (a2, b2) => a2 && b2,
+          icons: (a2, b2) => a2 && b2,
+          tooltipClass: (a2, b2) => (c2) => joinClass(a2(c2), b2(c2)),
+          optionClass: (a2, b2) => (c2) => joinClass(a2(c2), b2(c2)),
+          addToOptions: (a2, b2) => a2.concat(b2),
+          filterStrict: (a2, b2) => a2 || b2
         });
       }
     });
-    function joinClass(a2, b) {
-      return a2 ? b ? a2 + " " + b : a2 : b;
+    function joinClass(a2, b2) {
+      return a2 ? b2 ? a2 + " " + b2 : a2 : b2;
     }
     function defaultPositionInfo(view, list2, option, info, space, tooltip) {
       let rtl = view.textDirection == Direction.RTL, left2 = rtl, narrow = false;
@@ -50944,7 +51121,7 @@ ${events}
         },
         position: 80
       });
-      return content2.sort((a2, b) => a2.position - b.position).map((a2) => a2.render);
+      return content2.sort((a2, b2) => a2.position - b2.position).map((a2) => a2.render);
     }
     function rangeAroundSelected(total, selected, max2) {
       if (total <= max2)
@@ -51230,9 +51407,9 @@ ${events}
         }
       if (sections) {
         let sectionOrder = /* @__PURE__ */ Object.create(null), pos2 = 0;
-        let cmp = (a2, b) => {
+        let cmp = (a2, b2) => {
           var _a2, _b2;
-          return ((_a2 = a2.rank) !== null && _a2 !== void 0 ? _a2 : 1e9) - ((_b2 = b.rank) !== null && _b2 !== void 0 ? _b2 : 1e9) || (a2.name < b.name ? -1 : 1);
+          return ((_a2 = a2.rank) !== null && _a2 !== void 0 ? _a2 : 1e9) - ((_b2 = b2.rank) !== null && _b2 !== void 0 ? _b2 : 1e9) || (a2.name < b2.name ? -1 : 1);
         };
         for (let s2 of sections.sort(cmp)) {
           pos2 -= 1e5;
@@ -51246,7 +51423,7 @@ ${events}
       }
       let result = [], prev = null;
       let compare2 = conf.compareCompletions;
-      for (let opt of options.sort((a2, b) => b.score - a2.score || compare2(a2.completion, b.completion))) {
+      for (let opt of options.sort((a2, b2) => b2.score - a2.score || compare2(a2.completion, b2.completion))) {
         let cur2 = opt.completion;
         if (!prev || prev.label != cur2.label || prev.detail != cur2.detail || prev.type != null && cur2.type != null && prev.type != cur2.type || prev.apply != cur2.apply || prev.boost != cur2.boost)
           result.push(opt);
@@ -51284,7 +51461,7 @@ ${events}
             }
         }
         return new CompletionDialog(options, makeAttrs(id, selected), {
-          pos: active.reduce((a2, b) => b.hasResult() ? Math.min(a2, b.from) : a2, 1e8),
+          pos: active.reduce((a2, b2) => b2.hasResult() ? Math.min(a2, b2.from) : a2, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
         }, prev ? prev.timestamp : Date.now(), selected, false);
@@ -51346,18 +51523,18 @@ ${events}
         return this.open ? this.open.attrs : this.active.length ? baseAttrs : noAttrs;
       }
     }
-    function sameResults(a2, b) {
-      if (a2 == b)
+    function sameResults(a2, b2) {
+      if (a2 == b2)
         return true;
       for (let iA = 0, iB = 0; ; ) {
         while (iA < a2.length && !a2[iA].hasResult())
           iA++;
-        while (iB < b.length && !b[iB].hasResult())
+        while (iB < b2.length && !b2[iB].hasResult())
           iB++;
-        let endA = iA == a2.length, endB = iB == b.length;
+        let endA = iA == a2.length, endB = iB == b2.length;
         if (endA || endB)
           return endA == endB;
-        if (a2[iA++].result != b[iB++].result)
+        if (a2[iA++].result != b2[iB++].result)
           return false;
       }
     }
@@ -51932,7 +52109,7 @@ ${events}
         let diagnosticFilter = state.facet(lintConfig).markerFilter;
         if (diagnosticFilter)
           markedDiagnostics = diagnosticFilter(markedDiagnostics, state);
-        let sorted = diagnostics.slice().sort((a2, b) => a2.from - b.from || a2.to - b.to);
+        let sorted = diagnostics.slice().sort((a2, b2) => a2.from - b2.from || a2.to - b2.to);
         let deco = new RangeSetBuilder(), active = [], pos2 = 0;
         for (let i2 = 0; ; ) {
           let next = i2 == sorted.length ? null : sorted[i2];
@@ -52104,7 +52281,7 @@ ${events}
           if (sources.length)
             batchResults(sources.map((s2) => Promise.resolve(s2(this.view))), (annotations) => {
               if (this.view.state.doc == state.doc)
-                this.view.dispatch(setDiagnostics(this.view.state, annotations.reduce((a2, b) => a2.concat(b))));
+                this.view.dispatch(setDiagnostics(this.view.state, annotations.reduce((a2, b2) => a2.concat(b2))));
             }, (error2) => {
               logException(this.view.state, error2);
             });
@@ -52151,7 +52328,7 @@ ${events}
           needsRefresh: null,
           hideOn: () => null
         }, {
-          needsRefresh: (a2, b) => !a2 ? b : !b ? a2 : (u2) => a2(u2) || b(u2)
+          needsRefresh: (a2, b2) => !a2 ? b2 : !b2 ? a2 : (u2) => a2(u2) || b2(u2)
         }));
       }
     });
@@ -52681,7 +52858,7 @@ ${events}
         }, {
           minDepth: Math.max,
           newGroupDelay: Math.min,
-          joinToEvent: (a2, b) => (tr, adj) => a2(tr, adj) || b(tr, adj)
+          joinToEvent: (a2, b2) => (tr, adj) => a2(tr, adj) || b2(tr, adj)
         });
       }
     });
@@ -52803,10 +52980,10 @@ ${events}
       newBranch.push(newEvent);
       return newBranch;
     }
-    function isAdjacent(a2, b) {
+    function isAdjacent(a2, b2) {
       let ranges = [], isAdjacent2 = false;
       a2.iterChangedRanges((f2, t2) => ranges.push(f2, t2));
-      b.iterChangedRanges((_f, _t, f2, t2) => {
+      b2.iterChangedRanges((_f, _t, f2, t2) => {
         for (let i2 = 0; i2 < ranges.length; ) {
           let from = ranges[i2++], to = ranges[i2++];
           if (t2 >= from && f2 <= to)
@@ -52815,11 +52992,11 @@ ${events}
       });
       return isAdjacent2;
     }
-    function eqSelectionShape(a2, b) {
-      return a2.ranges.length == b.ranges.length && a2.ranges.filter((r2, i2) => r2.empty != b.ranges[i2].empty).length === 0;
+    function eqSelectionShape(a2, b2) {
+      return a2.ranges.length == b2.ranges.length && a2.ranges.filter((r2, i2) => r2.empty != b2.ranges[i2].empty).length === 0;
     }
-    function conc(a2, b) {
-      return !a2.length ? b : !b.length ? a2 : a2.concat(b);
+    function conc(a2, b2) {
+      return !a2.length ? b2 : !b2.length ? a2 : a2.concat(b2);
     }
     const none = [];
     const MaxSelectionsPerEvent = 200;
@@ -53535,7 +53712,7 @@ ${events}
       { key: "Mod-Delete", mac: "Alt-Delete", run: deleteGroupForward },
       { mac: "Mod-Backspace", run: deleteLineBoundaryBackward },
       { mac: "Mod-Delete", run: deleteLineBoundaryForward }
-    ].concat(/* @__PURE__ */ emacsStyleKeymap.map((b) => ({ mac: b.key, run: b.run, shift: b.shift })));
+    ].concat(/* @__PURE__ */ emacsStyleKeymap.map((b2) => ({ mac: b2.key, run: b2.run, shift: b2.shift })));
     const defaultKeymap = /* @__PURE__ */ [
       { key: "Alt-ArrowLeft", mac: "Ctrl-ArrowLeft", run: cursorSyntaxLeft, shift: selectSyntaxLeft },
       { key: "Alt-ArrowRight", mac: "Ctrl-ArrowRight", run: cursorSyntaxRight, shift: selectSyntaxRight },
@@ -53613,7 +53790,7 @@ ${events}
       const wordsRe = (words) => new RegExp(`^(${words.join("|")})\\b`);
       const keywordsRe = wordsRe(
         // Sort to make sure "not in" is matched before "not".
-        KEYWORDS.sort((a2, b) => countSpaces(b) - countSpaces(a2))
+        KEYWORDS.sort((a2, b2) => countSpaces(b2) - countSpaces(a2))
       );
       const mathFunctionsRe = wordsRe(MATH_FUNCTIONS.map(([label]) => label));
       const sampleFunctionsRe = wordsRe(SAMPLE_FUNCTIONS.map(([label]) => label));
@@ -55396,7 +55573,7 @@ Supported expressions:
     if (vscode) {
       initialState = filterState(vscode.getState());
     }
-    D$1(m$1`<${App}
+    D$2(m$1`<${App}
     api=${api}
     initialState=${initialState}
     saveInitialState=${throttle$1((state) => {

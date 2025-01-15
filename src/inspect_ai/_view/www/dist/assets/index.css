@@ -17671,6 +17671,9 @@ ul.jsondiffpatch-textdiff {
   color: red;
 }
 /* END PrismJS */
+.tool-button i {
+  margin-right: 0.5em;
+}
 .copy-button {
   border: none;
   background-color: inherit;
