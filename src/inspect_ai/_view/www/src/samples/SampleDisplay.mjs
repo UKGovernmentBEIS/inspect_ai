@@ -2,32 +2,30 @@ import { html } from "htm/preact";
 
 import { ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
-import { TabSet, TabPanel } from "../components/TabSet.mjs";
+import { TabPanel, TabSet } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/Format.mjs";
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
 
-import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { arrayToString } from "../utils/Format.mjs";
 
-import { SampleScoreView } from "./SampleScoreView.mjs";
-import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
-import { SampleTranscript } from "./SampleTranscript.mjs";
-import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
-import { FlatSampleError } from "./SampleError.mjs";
-import { ToolButton } from "../components/ToolButton.mjs";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { ToolButton } from "../components/ToolButton.mjs";
+import { FlatSampleError } from "./SampleError.mjs";
+import { SampleScoreView } from "./SampleScoreView.mjs";
+import { SampleTranscript } from "./SampleTranscript.mjs";
 
 import { ProgressBar } from "../components/ProgressBar.mjs";
 
-import { printHeadingHtml, printHtml } from "../utils/print";
-import { ErrorPanel } from "../components/ErrorPanel.mjs";
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
-import { JSONPanel } from "../components/JsonPanel.mjs";
-import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel.mjs";
 import {
   kSampleErrorTabId,
   kSampleJsonTabId,
@@ -36,6 +34,8 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants.mjs";
+import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
+import { printHeadingHtml, printHtml } from "../utils/print";
 
 /**
  * Inline Sample Display
