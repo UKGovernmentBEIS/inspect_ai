@@ -453,12 +453,13 @@ def truncate_tool_output(
     # truncate if required
     truncated = truncate_string_to_bytes(output, active_max_output)
     if truncated:
-        truncated_output = dedent(f"""
+        truncated_output = dedent("""
             The output of your call to {tool_name} was too long to be displayed.
             Here is a truncated version:
             <START_TOOL_OUTPUT>
-            {truncated.output}
-            <END_TOOL_OUTPUT>""")
+            {truncated_output}
+            <END_TOOL_OUTPUT>
+            """).format(tool_name=tool_name, truncated_output=truncated.output)
         return TruncatedToolOutput(
             truncated_output, truncated.original_bytes, active_max_output
         )
