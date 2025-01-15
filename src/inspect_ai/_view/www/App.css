@@ -9,12 +9,27 @@
   --inspect-input-border: var(--bs-light-border-subtle);
   --inspect-diff-add-color: #dafbe1;
   --inspect-diff-remove-color: #ffebe9;
-  --inspect-inactive-selection-background: var(--vscode-editor-inactiveSelectionBackground, #d9d9d9);
-  --inspect-active-selection-background: var(--vscode-editor-selectionBackground, #d7d4f0);
+  --inspect-inactive-selection-background: var(
+    --vscode-editor-inactiveSelectionBackground,
+    #d9d9d9
+  );
+  --inspect-active-selection-background: var(
+    --vscode-editor-selectionBackground,
+    #d7d4f0
+  );
   --inspect-focus-border-color: #86b7fe;
   --inspect-focus-border-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
   --inspect-focus-border-gray-color: #808080;
   --inspect-focus-border-gray-shadow: 0 0 0 0.25rem rgba(48, 48, 48, 0.25);
+
+  /* Inspect Font Sizes */
+  --inspect-font-size-title: 1.5rem;
+  --inspect-font-size-title-secondary: 1.3rem;
+  --inspect-font-size-larger: 1.1rem;
+  --inspect-font-size-large: 1rem;
+  --inspect-font-size-base: 0.9rem;
+  --inspect-font-size-small: 0.8rem;
+  --inspect-font-size-smaller: 0.8rem;
 }
 
 body:not([class^="vscode-"]) button {
