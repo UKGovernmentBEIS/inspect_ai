@@ -18,9 +18,9 @@ import {
 } from "preact/hooks";
 
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
-import { clearDocumentSelection } from "./components/Browser.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
 import { ProgressBar } from "./components/ProgressBar.mjs";
+import { clearDocumentSelection } from "./utils/browser";
 import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand.mjs";

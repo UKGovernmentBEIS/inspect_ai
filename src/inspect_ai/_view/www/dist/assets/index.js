@@ -7857,16 +7857,6 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
-    const clearDocumentSelection = () => {
-      const sel = window.getSelection();
-      if (sel) {
-        if (sel.removeAllRanges) {
-          sel.removeAllRanges();
-        } else if (sel.empty) {
-          sel.empty();
-        }
-      }
-    };
     const ProgressBar = ({ style: style2, containerStyle, animating }) => {
       const emptyStyle = {
         display: "flex",
@@ -7910,6 +7900,16 @@ var require_assets = __commonJS({
       </div>
     </div>
   `;
+    };
+    const clearDocumentSelection = () => {
+      const sel = window.getSelection();
+      if (sel) {
+        if (sel.removeAllRanges) {
+          sel.removeAllRanges();
+        } else if (sel.empty) {
+          sel.empty();
+        }
+      }
     };
     function sleep$1(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
