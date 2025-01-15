@@ -1,14 +1,7 @@
 import { html } from "htm/preact";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
-import {
-  formatPrettyDecimal,
-  formatDecimalNoTrailingZeroes,
-  inputString,
-  arrayToString,
-} from "../utils/Format.mjs";
 import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
-import { isNumeric } from "../utils/type";
 import {
   kScoreTypeCategorical,
   kScoreTypeNumeric,
@@ -16,6 +9,13 @@ import {
   kScoreTypeOther,
   kScoreTypePassFail,
 } from "../constants.mjs";
+import {
+  arrayToString,
+  formatDecimalNoTrailingZeroes,
+  formatPrettyDecimal,
+  inputString,
+} from "../utils/format";
+import { isNumeric } from "../utils/type";
 
 /**
  * Represents a utility summary of the samples that doesn't change with the selected score.

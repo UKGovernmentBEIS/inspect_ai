@@ -1,12 +1,12 @@
 // @ts-check
 import { html } from "htm/preact";
-import { EventPanel } from "./EventPanel.mjs";
-import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
-import { ChatView } from "../../components/ChatView.mjs";
-import { EventSection } from "./EventSection.mjs";
-import { toArray } from "../../utils/type";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
+import { ChatView } from "../../components/ChatView.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
+import { formatDateTime } from "../../utils/format";
+import { toArray } from "../../utils/type";
+import { EventPanel } from "./EventPanel.mjs";
+import { EventSection } from "./EventSection.mjs";
 
 /**
  * Renders the SampleInitEventView component.

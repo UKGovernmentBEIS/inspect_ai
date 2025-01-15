@@ -1,8 +1,8 @@
 import { html } from "htm/preact";
 
-import { LabeledValue } from "../components/LabeledValue.mjs";
-import { formatDataset, formatDuration } from "../utils/Format.mjs";
 import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
+import { LabeledValue } from "../components/LabeledValue.mjs";
+import { formatDataset, formatDuration } from "../utils/format";
 
 /**
  * Renders the Navbar
