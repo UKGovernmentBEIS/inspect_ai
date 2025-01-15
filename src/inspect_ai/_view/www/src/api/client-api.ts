@@ -1,5 +1,5 @@
 import { openRemoteLogFile, RemoteLogFile } from "../remote/remoteLogFile";
-import { FileSizeLimitError } from "../remote/remoteZipFile.mjs";
+import { FileSizeLimitError } from "../remote/remoteZipFile";
 import { EvalLog, EvalSample } from "../types/log";
 import { encodePathParts } from "./api-shared";
 import {

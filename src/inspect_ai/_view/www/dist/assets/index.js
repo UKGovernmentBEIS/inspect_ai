@@ -32473,36 +32473,23 @@ self.onmessage = function (e) {
     } catch (e2) {
     }
     class FileSizeLimitError extends Error {
-      /**
-       * Creates a new FileSizeLimitError.
-       *
-       * @param {string} file - The name of the file that caused the error.
-       * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
-       */
       constructor(file, maxBytes) {
-        super(
-          `File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`
-        );
+        super(`File "${file}" exceeds the maximum size (${maxBytes} bytes) and cannot be loaded.`);
+        __publicField(this, "file");
+        __publicField(this, "maxBytes");
         this.name = "FileSizeLimitError";
         this.file = file;
         this.maxBytes = maxBytes;
+        Object.setPrototypeOf(this, FileSizeLimitError.prototype);
       }
     }
     const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
       const contentLength = await fetchContentLength(url);
-      const eocdrBuffer = await fetchBytes(
-        url,
-        contentLength - 22,
-        contentLength - 1
-      );
+      const eocdrBuffer = await fetchBytes(url, contentLength - 22, contentLength - 1);
       const eocdrView = new DataView(eocdrBuffer.buffer);
       const centralDirOffset = eocdrView.getUint32(16, true);
       const centralDirSize = eocdrView.getUint32(12, true);
-      const centralDirBuffer = await fetchBytes(
-        url,
-        centralDirOffset,
-        centralDirOffset + centralDirSize - 1
-      );
+      const centralDirBuffer = await fetchBytes(url, centralDirOffset, centralDirOffset + centralDirSize - 1);
       const centralDirectory = parseCentralDirectory(centralDirBuffer);
       return {
         centralDirectory,
@@ -32512,22 +32499,14 @@ self.onmessage = function (e) {
             throw new Error(`File not found: ${file}`);
           }
           const headerSize = 30;
-          const headerData = await fetchBytes(
-            url,
-            entry.fileOffset,
-            entry.fileOffset + headerSize - 1
-          );
+          const headerData = await fetchBytes(url, entry.fileOffset, entry.fileOffset + headerSize - 1);
           const filenameLength = headerData[26] + (headerData[27] << 8);
           const extraFieldLength = headerData[28] + (headerData[29] << 8);
           const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
           if (maxBytes && totalSizeToFetch > maxBytes) {
             throw new FileSizeLimitError(file, maxBytes);
           }
-          const fileData = await fetchBytes(
-            url,
-            entry.fileOffset,
-            entry.fileOffset + totalSizeToFetch - 1
-          );
+          const fileData = await fetchBytes(url, entry.fileOffset, entry.fileOffset + totalSizeToFetch - 1);
           const zipFileEntry = await parseZipFileEntry(file, fileData);
           if (zipFileEntry.compressionMethod === 0) {
             return zipFileEntry.data;
@@ -32543,13 +32522,17 @@ self.onmessage = function (e) {
       };
     };
     const fetchSize = async (url) => {
-      const response = await fetch(`${url}`, { method: "HEAD" });
+      const response = await fetch(`${url}`, {
+        method: "HEAD"
+      });
       const contentLength = Number(response.headers.get("Content-Length"));
       return contentLength;
     };
     const fetchRange = async (url, start2, end2) => {
       const response = await fetch(`${url}`, {
-        headers: { Range: `bytes=${start2}-${end2}` }
+        headers: {
+          Range: `bytes=${start2}-${end2}`
+        }
       });
       const arrayBuffer = await response.arrayBuffer();
       return new Uint8Array(arrayBuffer);
@@ -32613,9 +32596,7 @@ self.onmessage = function (e) {
         const filenameLength = view.getUint16(offset2 + 28, true);
         const extraFieldLength = view.getUint16(offset2 + 30, true);
         const fileCommentLength = view.getUint16(offset2 + 32, true);
-        const filename2 = new TextDecoder().decode(
-          buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength)
-        );
+        const filename2 = new TextDecoder().decode(buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength));
         const entry = {
           filename: filename2,
           compressionMethod: view.getUint16(offset2 + 10, true),

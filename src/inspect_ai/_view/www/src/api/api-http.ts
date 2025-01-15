@@ -1,5 +1,5 @@
 //@ts-check
-import { fetchRange, fetchSize } from "../remote/remoteZipFile.mjs";
+import { fetchRange, fetchSize } from "../remote/remoteZipFile";
 import { EvalLog } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file, encodePathParts } from "./api-shared";
