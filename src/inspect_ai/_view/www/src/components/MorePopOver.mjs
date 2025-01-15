@@ -2,8 +2,8 @@ import { Popover } from "bootstrap";
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationStyles } from "../appearance/styles";
 
 export const MorePopOver = ({ title, customClass, children }) => {
   const popoverRef = useRef();

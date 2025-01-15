@@ -5,7 +5,7 @@ import "prismjs/components/prism-json";
 
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize } from "../appearance/fonts";
 
 const kPrismRenderMaxSize = 250000;
 

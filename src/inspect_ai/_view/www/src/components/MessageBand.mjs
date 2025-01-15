@@ -1,8 +1,8 @@
 import { html } from "htm/preact";
 
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize } from "../appearance/fonts";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationIcons } from "../appearance/icons";
 
 export const MessageBand = ({ message, hidden, setHidden, type }) => {
   const bgColor =

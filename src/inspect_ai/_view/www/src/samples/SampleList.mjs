@@ -1,8 +1,8 @@
 import { html } from "htm/preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
+import { ApplicationStyles } from "../appearance/styles";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleError } from "./SampleError.mjs";
 

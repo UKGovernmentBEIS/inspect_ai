@@ -1,35 +1,5 @@
-// @ts-check
-/**
- * @typedef {Record<string, string>} Style
- */
+import { FontSize, TextStyle } from "./fonts";
 
-import { FontSize, TextStyle } from "./Fonts.mjs";
-
-/**
- * Generates line clamp style.
- * @param {number} len - The number of lines to clamp.
- * @returns {Style} The style object for line clamping.
- */
-
-/**
- * Provides centralized repository of score fill styles.
- * @typedef {Object} ScoreFills
- * @property {Style} green
- * @property {Style} red
- * @property {Style} orange
- */
-
-/**
- * Provides centralized repository of shared styles.
- * @typedef {Object} SharedStyles
- * @property {Style} moreButton
- * @property {Style} threeLineClamp
- * @property {(len: number) => Style} lineClamp
- * @property {() => Object} wrapText
- * @property {ScoreFills} scoreFills
- */
-
-/** @type {SharedStyles} */
 export const ApplicationStyles = {
   moreButton: {
     maxHeight: "1.8em",
@@ -43,7 +13,7 @@ export const ApplicationStyles = {
     "-webkit-box-orient": "vertical",
     overflow: "hidden",
   },
-  lineClamp: (len) => {
+  lineClamp: (len: number) => {
     return {
       display: "-webkit-box",
       "-webkit-line-clamp": `${len}`,

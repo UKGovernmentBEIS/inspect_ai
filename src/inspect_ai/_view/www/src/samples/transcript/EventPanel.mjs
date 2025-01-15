@@ -1,8 +1,8 @@
 // @ts-check
 import { html } from "htm/preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 
 /**
  * Renders the StateEventView component.
