@@ -1,10 +1,10 @@
 import { html } from "htm/preact";
 
-import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatPrettyDecimal } from "../utils/Format.mjs";
-import { ProgressBar } from "../components/ProgressBar.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { ProgressBar } from "../components/ProgressBar.mjs";
+import { formatPrettyDecimal } from "../utils/format";
+import { ApplicationIcons } from "./../appearance/Icons.mjs";
 
 export const Sidebar = ({
   offcanvas,

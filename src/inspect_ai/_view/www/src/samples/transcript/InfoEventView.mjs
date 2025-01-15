@@ -1,10 +1,10 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { EventPanel } from "./EventPanel.mjs";
 import { JSONPanel } from "../../components/JsonPanel.mjs";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
+import { formatDateTime } from "../../utils/format";
+import { EventPanel } from "./EventPanel.mjs";
 
 /**
  * Renders the InfoEventView component.

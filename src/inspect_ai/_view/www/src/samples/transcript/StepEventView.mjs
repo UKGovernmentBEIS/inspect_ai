@@ -1,9 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
 import { useCallback, useState } from "preact/hooks";
+import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./EventPanel.mjs";
 import { TranscriptVirtualListComponent } from "./TranscriptView.mjs";
-import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the StepEventView component.

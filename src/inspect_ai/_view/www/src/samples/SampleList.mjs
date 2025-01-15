@@ -1,18 +1,21 @@
 import { html } from "htm/preact";
-import { useCallback, useMemo, useState } from "preact/hooks";
-import { useEffect, useRef } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 
+import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { ApplicationStyles } from "../appearance/Styles.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
-import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleError } from "./SampleError.mjs";
 
-import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
-import { VirtualList } from "../components/VirtualList.mjs";
 import { MessageBand } from "../components/MessageBand.mjs";
-import { inputString } from "../utils/Format.mjs";
+import { VirtualList } from "../components/VirtualList.mjs";
+import { arrayToString, formatNoDecimal, inputString } from "../utils/format";
 
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;

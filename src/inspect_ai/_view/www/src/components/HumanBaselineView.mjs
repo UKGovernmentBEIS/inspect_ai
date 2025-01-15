@@ -1,9 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
 import { useEffect } from "preact/hooks";
-import { formatDateTime, formatTime } from "../utils/Format.mjs";
-import { AsciiCinemaPlayer } from "./AsciiCinemaPlayer.mjs";
 import { TextStyle } from "../appearance/Fonts.mjs";
+import { formatDateTime, formatTime } from "../utils/format";
+import { AsciiCinemaPlayer } from "./AsciiCinemaPlayer.mjs";
 import { LightboxCarousel } from "./LightboxCarousel.mjs";
 
 /**

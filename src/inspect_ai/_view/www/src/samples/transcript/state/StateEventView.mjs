@@ -1,13 +1,13 @@
 // @ts-check
 import { html } from "htm/preact";
 
+import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "../EventPanel.mjs";
+import { StateDiffView } from "./StateDiffView.mjs";
 import {
   RenderableChangeTypes,
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers.mjs";
-import { StateDiffView } from "./StateDiffView.mjs";
-import { formatDateTime } from "../../../utils/Format.mjs";
 
 /**
  * Renders the StateEventView component.
