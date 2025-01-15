@@ -1,9 +1,8 @@
 import ast
 import shlex
-from pathlib import Path
 from typing import Set
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.approval import Approval, Approver, approver
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import TaskState, generate, system_message, use_tools
@@ -220,8 +219,3 @@ def python_allowlist(
         return Approval(decision="approve", explanation="Python code is approved.")
 
     return approve
-
-
-if __name__ == "__main__":
-    approval = (Path(__file__).parent / "approval.yaml").as_posix()
-    eval(approval_demo(), approval=approval)

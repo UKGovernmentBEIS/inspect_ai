@@ -17,7 +17,7 @@ class CommonOptions(TypedDict):
     log_level: str
     log_level_transcript: str
     log_dir: str
-    display: Literal["full", "rich", "plain", "none"]
+    display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
     debug: bool
     debug_port: int
@@ -64,7 +64,9 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--display",
-        type=click.Choice(["full", "rich", "plain", "none"], case_sensitive=False),
+        type=click.Choice(
+            ["full", "conversation", "rich", "plain", "none"], case_sensitive=False
+        ),
         default=DEFAULT_DISPLAY,
         envvar="INSPECT_DISPLAY",
         help="Set the display type (defaults to 'full')",

@@ -1,0 +1,176 @@
+---
+title: Multimodal
+---
+
+## Overview
+
+Many models now support multimodal inputs, including images, audio, and video. This article describes how to how to create evaluations that include these data types.
+
+The following providers currently have support for multimodal inputs:
+
+| Provider  | Images | Audio | Video |
+|-----------|:------:|:-----:|:-----:|
+| OpenAI    |   •    |   •   |       |
+| Anthropic |   •    |       |       |
+| Google    |   •    |   •   |   •   |
+| Vertex    |   •    |   •   |       |
+| Mistral   |   •    |       |       |
+| Grok      |   •    |       |       |
+| Bedrock   |   •    |       |       |
+| AzureAI   |   •    |       |       |
+| Groq      |   •    |       |       |
+
+: {tbl-colwidths=\[40,20,20,20\]}
+
+Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we'll enumerate which models can handle these input types. It's also always a good idea to check the provider documentation for the most up to date compatiblity matrix.
+
+## Images {#provider-notes}
+
+The following models currently support image inputs:
+
+-   OpenAI: GPT-4o series and the full o1 model,
+-   Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
+-   Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
+-   Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
+-   Grok: Vision models (e.g. `grok-vision-beta`)
+
+For Bedrock, AzureAI, and Groq, please consult model provider documentation for details on which models support image inputs.
+
+To include an image in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "image", "image": "picture.png"},
+        { "type": "text", "text": "What is this a picture of?"}
+    ]
+  }
+]
+```
+
+The `"picture.png"` path is resolved relative to the directory containing the dataset file. The image can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentImage(image="picture.png"),
+        ContentText(text="What is this a picture of?")
+    ])
+]
+```
+
+### Detail
+
+Some providers support a `detail` option that control over how the model processes the image and generates its textual understanding. Valid options are `auto` (the default), `low`, and `high`. See the [Open AI documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding) for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the `detail` parameter. For example, here we explicitly specify image detail:
+
+``` python
+ContentImage(image="picture.png", detail="low")
+```
+
+## Audio
+
+The following models currently support audio inputs:
+
+-   Open AI: `gpt-4o-audio-preview`
+-   Google/Vertex: Gemini 1.5 and 2.0 models
+
+To include audio in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "audio", "audio": "sample.mp3", "format": "mp3" },
+        { "type": "text", "text": "What words are spoken in this audio sample?"}
+    ]
+  }
+]
+```
+
+The "sample.mp3" path is resolved relative to the directory containing the dataset file. The audio file can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentAudio(audio="sample.mp3", format="mp3"),
+        ContentText(text="What words are spoken in this audio sample?")
+    ])
+]
+```
+
+### Formats
+
+You can provide audio files in one of two formats:
+
+-   MP3
+-   WAV
+
+As demonstrated above, you should specify the format explicitly when including audio input.
+
+## Video
+
+The following models currently support video inputs:
+
+-   Google: Gemini 1.5 and 2.0 models
+
+To include video in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "video", "video": "video.mp4", "format": "mp4" },
+        { "type": "text", "text": "Can you please describe the attached video?"}
+    ]
+  }
+]
+```
+
+The "video.mp4" path is resolved relative to the directory containing the dataset file. The video file can be specified either as a file path or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentVideo(video="video.mp4", format="mp4"),
+        ContentText(text="Can you please describe the attached video?")
+    ])
+]
+```
+
+### Formats
+
+You can provide video files in one of three formats:
+
+-   MP4
+-   MPEG
+-   MOV
+
+As demonstrated above, you should specify the format explicitly when including video input.
+
+## Uploads
+
+When using audio and video with the Google Gemini API, media is first uploaded using the [File API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio) and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.
+
+The File API lets you store up to 20GB of files per project, with a per-file maximum size of 2GB. Files are stored for 48 hours. They can be accessed in that period with your API key, but cannot be downloaded from the API. The File API is available at no cost in all regions where the Gemini API is available.
+
+## Logging
+
+By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of media files could become unwieldy (i.e. if your `.json` log file grows to 100MB or larger as a result).
+
+You can disable all media logging using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable media logging:
+
+``` bash
+inspect eval images.py --log-format=json --no-log-images
+```
+
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.

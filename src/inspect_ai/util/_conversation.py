@@ -1,5 +1,3 @@
-from contextvars import ContextVar
-
 from rich import print
 from rich.console import RenderableType
 from rich.text import Text
@@ -7,12 +5,7 @@ from rich.text import Text
 from inspect_ai._util.transcript import transcript_panel
 
 
-def trace_enabled() -> bool:
-    """Is trace mode currently enabled."""
-    return _trace.get(None) is True
-
-
-def trace_panel(
+def conversation_panel(
     title: str,
     *,
     subtitle: str | None = None,
@@ -20,8 +13,8 @@ def trace_panel(
 ) -> None:
     """Trace content into a standard trace panel display.
 
-    Typically you would call `trace_enabled()` to confirm that trace mode
-    is enabled before calling `trace_panel()`.
+    Typically you would call `display_type() == "conversation"` to confirm that
+    we are in conversation mode before calling `conversation_panel()`.
 
     Args:
       title (str): Panel title.
@@ -32,10 +25,3 @@ def trace_panel(
         transcript_panel(title, subtitle, content),
         Text(),
     )
-
-
-def init_trace(trace: bool | None) -> None:
-    _trace.set(trace)
-
-
-_trace: ContextVar[bool | None] = ContextVar("_trace_mode")

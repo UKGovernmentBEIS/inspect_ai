@@ -1,6 +1,12 @@
 # ruff: noqa: F401 F403 F405
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._cache import (
@@ -42,8 +48,10 @@ __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
     "CachePolicy",
-    "ContentText",
+    "ContentAudio",
     "ContentImage",
+    "ContentText",
+    "ContentVideo",
     "Content",
     "ChatMessage",
     "ChatMessageSystem",

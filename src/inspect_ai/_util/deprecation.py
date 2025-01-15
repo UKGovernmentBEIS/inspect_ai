@@ -174,7 +174,7 @@ def default_deprecation_msg(
 
         _qual = getattr(obj, "__qualname__", "") or ""
         if _qual.endswith(".__init__") or _qual.endswith(".__new__"):
-            _obj = f' class ({_qual.rsplit(".", 1)[0]})'
+            _obj = f" class ({_qual.rsplit('.', 1)[0]})"
         elif _qual and _obj:
             _obj += f" ({_qual})"
 

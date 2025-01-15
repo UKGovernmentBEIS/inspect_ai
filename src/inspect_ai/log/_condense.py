@@ -6,7 +6,13 @@ from typing import (
 from pydantic import JsonValue
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
@@ -304,3 +310,7 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(update=dict(text=content_fn(content.text)))
     elif isinstance(content, ContentImage):
         return content.model_copy(update=dict(image=content_fn(content.image)))
+    elif isinstance(content, ContentAudio):
+        return content.model_copy(update=dict(audio=content_fn(content.audio)))
+    elif isinstance(content, ContentVideo):
+        return content.model_copy(update=dict(video=content_fn(content.video)))

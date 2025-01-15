@@ -55,6 +55,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         if user is not None:
             warnings.warn(

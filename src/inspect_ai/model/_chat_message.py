@@ -59,10 +59,8 @@ class ChatMessageBase(BaseModel):
         if isinstance(self.content, str):
             self.content = text
         else:
-            all_images = [
-                content for content in self.content if content.type == "image"
-            ]
-            self.content = [ContentText(text=text)] + all_images
+            all_other = [content for content in self.content if content.type != "text"]
+            self.content = [ContentText(text=text)] + all_other
 
 
 class ChatMessageSystem(ChatMessageBase):

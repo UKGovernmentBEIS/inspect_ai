@@ -11,6 +11,7 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
+SANDBOX_SETUP_ERROR_FILE = (Path(__file__).parent / "sandbox_setup_error.sh").as_posix()
 
 with open(SANDBOX_SETUP_FILE, "r") as f:
     sandbox_setup = f.read()
@@ -62,6 +63,25 @@ def test_docker_sandbox_setup():
     assert log.samples
     for sample in log.samples:
         assert sample.scores["includes"].value == CORRECT
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_docker_sandbox_setup_fail_on_error():
+    task = Task(
+        dataset=[Sample(input="Say hello.", setup=SANDBOX_SETUP_ERROR_FILE)],
+        sandbox="docker",
+    )
+
+    # fail_on_error=True (entire eval fails)
+    log = eval(task, model="mockllm/model", fail_on_error=True)[0]
+    assert log.status == "error"
+
+    # fail_on_error=False (sample fails not entire eval)
+    log = eval(task, model="mockllm/model", fail_on_error=False)[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error
 
 
 if __name__ == "__main__":

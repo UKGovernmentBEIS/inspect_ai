@@ -38,9 +38,9 @@ class EnvironmentSpec:
             for i, obs_spec in enumerate(env_obs_spec.values()):
                 self.observation_spec[i + 1] = convert(obs_spec)
 
-        assert isinstance(
-            env.action_spec(), specs.Array
-        ), "Only a single action type is supported."
+        assert isinstance(env.action_spec(), specs.Array), (
+            "Only a single action type is supported."
+        )
         self.action_spec = {1: convert(env.action_spec())}
 
         self.observation_manager = spec_manager.SpecManager(self.observation_spec)
@@ -234,12 +234,12 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             observations.
         """
         with self._lock:
-            assert (
-                cur_world in self._envs
-            ), "Current world does not have an assosiated environment"
-            assert (
-                cur_world in self._joined_worlds
-            ), "Please join world before calling step."
+            assert cur_world in self._envs, (
+                "Current world does not have an assosiated environment"
+            )
+            assert cur_world in self._joined_worlds, (
+                "Please join world before calling step."
+            )
             env = self._envs[cur_world]
             spec = self._specs[cur_world]
 

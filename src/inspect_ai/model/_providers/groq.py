@@ -23,8 +23,8 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -248,18 +248,20 @@ async def as_chat_completion_part(
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
+    elif content.type == "image":
         # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        if not is_http_url(image_url):
+            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
             image_url=dict(url=image_url, detail=detail),
         )
+    else:
+        raise RuntimeError("Groq models do not support audio or video inputs.")
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:

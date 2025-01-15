@@ -120,12 +120,10 @@ def transcript_function(function: str, arguments: dict[str, Any]) -> RenderableT
     return transcript_markdown("```python\n" + call + "\n```\n")
 
 
-DOUBLE_LINE = Box(
-    " ══ \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n"
-)
+DOUBLE_LINE = Box(" ══ \n    \n    \n    \n    \n    \n    \n    \n")
 
-LINE = Box(" ── \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+LINE = Box(" ── \n    \n    \n    \n    \n    \n    \n    \n")
 
-DOTTED = Box(" ·· \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+DOTTED = Box(" ·· \n    \n    \n    \n    \n    \n    \n    \n")
 
-NOBORDER = Box("    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n" "    \n")
+NOBORDER = Box("    \n    \n    \n    \n    \n    \n    \n    \n")

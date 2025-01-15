@@ -7,11 +7,12 @@ from shortuuid import uuid
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_args
-from inspect_ai._display.core.active import display
+from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._apply import init_tool_approval
@@ -34,7 +35,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._trace import init_trace
+from inspect_ai.util._display import DisplayType, display_type, init_display_type
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -55,6 +56,7 @@ def eval(
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
     trace: bool | None = None,
+    display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -100,7 +102,8 @@ def eval(
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
-        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        trace (bool | None): Trace message interactions with evaluated model to terminal.
+        display (DisplayType | None): Task display type (defaults to 'full').
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -150,9 +153,11 @@ def eval(
     platform_init()
 
     # resolve eval trace
-    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples, model)
+    max_tasks, max_samples = init_eval_display(
+        display, trace, max_tasks, max_samples, model
+    )
 
-    return display().run_task_app(
+    return task_display().run_task_app(
         main=eval_async(
             tasks=tasks,
             model=model,
@@ -163,7 +168,6 @@ def eval(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
-            trace=trace,
             approval=approval,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -201,7 +205,6 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
-    trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -247,7 +250,6 @@ async def eval_async(
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
-        trace: (bool | None): Trace message interactions with evaluated model to terminal.
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -329,8 +331,8 @@ async def eval_async(
             log.warning("No inspect tasks were found at the specified paths.")
             return []
 
-        # apply trace mode constraints
-        if trace:
+        # apply conversation display constraints
+        if display_type() == "conversation":
             # single task at a time
             if max_tasks is not None:
                 max_tasks = 1
@@ -371,7 +373,6 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
-            trace=trace,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
             message_limit=message_limit,
@@ -467,6 +468,7 @@ def eval_retry(
     max_sandboxes: int | None = None,
     sandbox_cleanup: bool | None = None,
     trace: bool | None = None,
+    display: DisplayType | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
@@ -501,6 +503,7 @@ def eval_retry(
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         trace (bool | None): Trace message interactions with evaluated model to terminal.
+        display (DisplayType | None): Task display type (defaults to 'full').
         fail_on_error (bool | float | None): `True` to fail on first sample error
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
@@ -529,9 +532,9 @@ def eval_retry(
     platform_init()
 
     # resolve eval trace
-    max_tasks, max_samples = init_eval_trace(trace, max_tasks, max_samples)
+    max_tasks, max_samples = init_eval_display(display, trace, max_tasks, max_samples)
 
-    return display().run_task_app(
+    return task_display().run_task_app(
         main=eval_retry_async(
             tasks=tasks,
             log_level=log_level,
@@ -800,9 +803,8 @@ def eval_init(
 
     # resolve tasks (set active model to resolve uses of the
     # 'default' model in tools, solvers, and scorers)
-    from inspect_ai._display.core.active import display
 
-    with display().suspend_task_app():
+    with task_display().suspend_task_app():
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, generate_config)
@@ -816,17 +818,27 @@ def eval_init(
     return models, approval, resolved_tasks
 
 
-def init_eval_trace(
+def init_eval_display(
+    display: DisplayType | None,
     trace: bool | None,
     max_tasks: int | None,
     max_samples: int | None,
     model: Any = None,
 ) -> tuple[int | None, int | None]:
-    # init trace setting
-    init_trace(trace)
-
-    # adapt task/samples as required
+    # propagate any trace value to display_type
     if trace:
+        warn_once(
+            log,
+            "WARNING: The --trace flag is deprecated (use --display=conversation instead)",
+        )
+        display = "conversation"
+
+    # apply default and init
+    display = display or display_type()
+    init_display_type(display)
+
+    # adapt task/samples as required if we are in conversation mode
+    if display_type() == "conversation":
         # single task at a time
         if max_tasks is not None:
             max_tasks = 1

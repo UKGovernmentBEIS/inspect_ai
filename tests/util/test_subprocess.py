@@ -69,7 +69,7 @@ async def test_subprocess_timeout():
         )
 
     timeout_length = random() * 60
-    subprocess_cmds = ["sleep", f"{2+timeout_length}"]
+    subprocess_cmds = ["sleep", f"{2 + timeout_length}"]
 
     if process_found(" ".join(subprocess_cmds)):
         raise Exception(

@@ -17,6 +17,7 @@ def minimal_task() -> Task:
         solver=[generate()],
         scorer=includes(),
         metadata={"task_idx": 1},
+        name="minimal",
     )
 
 

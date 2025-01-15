@@ -114,9 +114,9 @@ def test_log_format_eval_zip_structure(original_log, temp_dir):
     write_eval_log(eval_log, new_eval_log_path, format="eval")
 
     # Compare the two EVAL files
-    assert compare_zip_contents(
-        eval_log_path, new_eval_log_path
-    ), "EVAL zip file contents changed after round trip"
+    assert compare_zip_contents(eval_log_path, new_eval_log_path), (
+        "EVAL zip file contents changed after round trip"
+    )
 
 
 def test_log_format_eval_zip_json_integrity(original_log, temp_dir):
@@ -152,9 +152,9 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the original and new JSON logs
-    assert (
-        original_log == new_json_log
-    ), "JSON content changed after roundtrip through EVAL format"
+    assert original_log == new_json_log, (
+        "JSON content changed after roundtrip through EVAL format"
+    )
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

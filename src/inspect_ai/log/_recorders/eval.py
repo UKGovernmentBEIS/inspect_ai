@@ -13,7 +13,12 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
@@ -244,12 +249,16 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         input: list[ChatMessage] = []
         for message in inputs:
             if not isinstance(message.content, str):
-                filtered_content: list[ContentText | ContentImage] = []
+                filtered_content: list[
+                    ContentText | ContentImage | ContentAudio | ContentVideo
+                ] = []
                 for content in message.content:
-                    if content.type != "image":
+                    if content.type == "text":
                         filtered_content.append(content)
-                if len(filtered_content) == 0:
-                    filtered_content.append(ContentText(text="(Image)"))
+                    else:
+                        filtered_content.append(
+                            ContentText(text=f"({content.type.capitalize()})")
+                        )
                 message.content = filtered_content
                 input.append(message)
             else:

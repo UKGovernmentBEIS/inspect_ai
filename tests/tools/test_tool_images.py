@@ -7,7 +7,7 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval, task
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
@@ -27,7 +27,7 @@ def camera():
             "..", "..", "tests", "dataset", "test_dataset", "images", "ballons.png"
         )
 
-        return ContentImage(image=await image_as_data_uri(ballons))
+        return ContentImage(image=await file_as_data_uri(ballons))
 
     return execute
 

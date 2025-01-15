@@ -4,6 +4,8 @@ from typing import Any, NoReturn, cast
 
 from shortuuid import uuid
 
+from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
+
 from .environment import (
     SampleCleanup,
     SampleInit,
@@ -193,23 +195,20 @@ async def setup_sandbox_environment(
     setup_file = f"/tmp/{uuid()}"
     await env.write_file(setup_file, setup)
 
-    # chmod, execute, and remove
-    async def exec(cmd: list[str]) -> None:
-        try:
-            result = await env.exec(cmd, timeout=30)
-        except TimeoutError:
-            raise RuntimeError(
-                f"Timed out executing command {' '.join(cmd)} in sandbox"
-            )
-
+    # execute and then remove setup script (don't retry it on timeout
+    # in case it is not idempotent)
+    try:
+        await env.exec(["chmod", "+x", setup_file], timeout=30)
+        result = await env.exec(
+            ["env", setup_file], timeout=SANDBOX_SETUP_TIMEOUT, timeout_retry=False
+        )
         if not result.success:
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-
-    await exec(["chmod", "+x", setup_file])
-    await exec(["env", setup_file])
-    await exec(["rm", setup_file])
+        await env.exec(["rm", setup_file], timeout=30)
+    except TimeoutError:
+        raise RuntimeError("Timed out executing setup command in sandbox")
 
 
 def default_sandbox_environment(
