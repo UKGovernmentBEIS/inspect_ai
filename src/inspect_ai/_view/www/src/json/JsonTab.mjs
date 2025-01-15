@@ -5,7 +5,7 @@ import { filename } from "../utils/path";
 
 import { FontSize } from "../appearance/fonts";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
-import { JSONPanel } from "../components/JsonPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel";
 
 const kJsonMaxSize = 10000000;
 
