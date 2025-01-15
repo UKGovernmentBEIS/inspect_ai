@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { ApplicationIcons } from "../../appearance/icons";
 import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
 import { formatDateTime } from "../../utils/format";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";

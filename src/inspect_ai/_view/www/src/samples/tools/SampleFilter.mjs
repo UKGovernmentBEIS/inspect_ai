@@ -12,7 +12,7 @@ import { tags } from "@lezer/highlight";
 import { EditorView, minimalSetup } from "codemirror";
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../../appearance/fonts";
 import {
   kScoreTypeBoolean,
   kScoreTypeCategorical,

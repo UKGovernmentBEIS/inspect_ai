@@ -1,11 +1,11 @@
 import { html } from "htm/preact";
 import { useCallback, useMemo, useRef } from "preact/hooks";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationIcons } from "../appearance/icons";
 import { LargeModal } from "../components/LargeModal.mjs";
 
-import { SampleDisplay } from "./SampleDisplay.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { SampleDisplay } from "./SampleDisplay.mjs";
 
 /**
  * Inline Sample Display

@@ -1,9 +1,9 @@
 import { html } from "htm/preact";
-import { FontSize } from "../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { FontSize } from "../appearance/fonts";
+import { ApplicationIcons } from "../appearance/icons";
 
-import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 
 export const TaskErrorCard = ({ evalError }) => {
   return html`

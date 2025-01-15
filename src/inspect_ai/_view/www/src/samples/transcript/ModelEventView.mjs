@@ -7,8 +7,8 @@ import "prismjs/components/prism-python";
 
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 import { ChatView } from "../../components/ChatView.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { ModelUsagePanel } from "../../usage/UsageCard.mjs";

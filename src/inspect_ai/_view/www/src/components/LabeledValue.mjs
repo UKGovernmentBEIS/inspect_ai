@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 
 export const LabeledValue = ({
   label,

@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { FontSize, TextStyle } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../components/MetaDataView.mjs";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./EventPanel.mjs";

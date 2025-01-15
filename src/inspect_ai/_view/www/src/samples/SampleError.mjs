@@ -1,9 +1,9 @@
 //@ts-check
 import { html } from "htm/preact";
 
-import { FontSize } from "../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize } from "../appearance/fonts";
+import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationStyles } from "../appearance/styles";
 
 /**
  * Component to display a styled error message.

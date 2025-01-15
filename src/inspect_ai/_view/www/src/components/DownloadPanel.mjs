@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
+import { FontSize } from "../appearance/fonts";
 import { DownloadButton } from "../components/DownloadButton.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
 
 export const DownloadPanel = ({
   message,

@@ -1,20 +1,20 @@
 // @ts-check
 import { html } from "htm/preact";
 import { useCallback, useState } from "preact/hooks";
+import { FontSize } from "../../appearance/fonts";
+import { ApprovalEventView } from "./ApprovalEventView.mjs";
+import { ErrorEventView } from "./ErrorEventView.mjs";
+import { InfoEventView } from "./InfoEventView.mjs";
+import { InputEventView } from "./InputEventView.mjs";
+import { LoggerEventView } from "./LoggerEventView.mjs";
+import { ModelEventView } from "./ModelEventView.mjs";
 import { SampleInitEventView } from "./SampleInitEventView.mjs";
+import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
+import { ScoreEventView } from "./ScoreEventView.mjs";
 import { StateEventView } from "./state/StateEventView.mjs";
 import { StepEventView } from "./StepEventView.mjs";
 import { SubtaskEventView } from "./SubtaskEventView.mjs";
-import { ModelEventView } from "./ModelEventView.mjs";
-import { LoggerEventView } from "./LoggerEventView.mjs";
-import { InfoEventView } from "./InfoEventView.mjs";
-import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
-import { ErrorEventView } from "./ErrorEventView.mjs";
-import { InputEventView } from "./InputEventView.mjs";
-import { ApprovalEventView } from "./ApprovalEventView.mjs";
-import { SampleLimitEventView } from "./SampleLimitEventView.mjs";
-import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 // @ts-ignore
 import { VirtualList } from "../../components/VirtualList.mjs";

@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { MetaDataGrid } from "../components/MetaDataGrid.mjs";
