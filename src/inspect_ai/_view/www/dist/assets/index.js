@@ -7602,129 +7602,6 @@ var require_assets = __commonJS({
     function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
-    const arrayToString = (val) => {
-      val = Array.isArray(val) ? val : [val];
-      return val.join(", ");
-    };
-    const inputString = (input) => {
-      if (typeof input === "string") {
-        return [input];
-      } else {
-        return input.map((inp) => {
-          if (typeof inp === "string") {
-            return inp;
-          } else {
-            const content2 = inp.content;
-            if (typeof content2 === "string") {
-              return content2;
-            } else {
-              const result = content2.map((con) => {
-                if (con.type === "text") {
-                  return con.text;
-                } else {
-                  return "";
-                }
-              });
-              return result.join("\n");
-            }
-          }
-        });
-      }
-    };
-    const formatDataset = (name2, samples, epochs) => {
-      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
-      return `${name2 ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
-    };
-    const formatTime$1 = (seconds) => {
-      if (seconds < 60) {
-        return `${seconds} sec`;
-      } else if (seconds < 60 * 60) {
-        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
-      } else if (seconds < 60 * 60 * 24) {
-        const hours = Math.floor(seconds / (60 * 60));
-        const minutes = Math.floor(seconds % (60 * 60) / 60);
-        const remainingSeconds = seconds % 60;
-        return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
-      } else {
-        const days = Math.floor(seconds / (60 * 60 * 24));
-        const hours = Math.floor(seconds % (60 * 60 * 24) / (60 * 60));
-        const minutes = Math.floor(seconds % (60 * 60) / 60);
-        const remainingSeconds = seconds % 60;
-        return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
-      }
-    };
-    function formatPrettyDecimal(num2) {
-      const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
-      if (numDecimalPlaces === 0) {
-        return num2.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num2.toFixed(3);
-      } else {
-        return num2.toString();
-      }
-    }
-    function formatDecimalNoTrailingZeroes(num2) {
-      if (typeof num2 !== "number") {
-        return num2;
-      }
-      if (num2.toString().includes(".")) {
-        const decimal = num2.toString().split(".")[1];
-        const trimmed = decimal.replace(/\.?0+$/, "");
-        return num2.toFixed(trimmed.length);
-      } else {
-        return num2.toFixed(0);
-      }
-    }
-    function toTitleCase(str2) {
-      return str2.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
-    }
-    function formatNoDecimal(num2) {
-      if (typeof num2 !== "number") {
-        return num2;
-      }
-      const rounded = Math.round(num2);
-      return rounded.toFixed(0);
-    }
-    function formatNumber(num2) {
-      return num2.toLocaleString(navigator.language, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 5
-      });
-    }
-    function formatDateTime(date) {
-      const options = {
-        year: "2-digit",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      };
-      return new Intl.DateTimeFormat(void 0, options).format(date);
-    }
-    function formatDuration(start2, end2) {
-      const durationMs = end2.getTime() - start2.getTime();
-      const durationSec = durationMs / 1e3;
-      return formatTime$1(durationSec);
-    }
-    const filename = (path) => {
-      const pathparts = path.split("/");
-      const basename = pathparts.slice(-1)[0];
-      const match = basename.match(/(.*)\.\S+$/);
-      if (match) {
-        return match[1];
-      } else {
-        return path;
-      }
-    };
-    const dirname = (path) => {
-      const pathparts = path.split("/");
-      if (pathparts.length > 1) {
-        pathparts.pop();
-      }
-      return pathparts.join("/");
-    };
     function sleep$1(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
@@ -8047,6 +7924,112 @@ var require_assets = __commonJS({
     </div>
   `;
     };
+    const arrayToString = (val) => {
+      val = Array.isArray(val) ? val : [val];
+      return val.join(", ");
+    };
+    const inputString = (input) => {
+      if (typeof input === "string") {
+        return [input];
+      } else {
+        return input.map((inp) => {
+          if (typeof inp === "string") {
+            return inp;
+          } else {
+            const content2 = inp.content;
+            if (typeof content2 === "string") {
+              return content2;
+            } else {
+              const result = content2.map((con) => {
+                if (con.type === "text") {
+                  return con.text;
+                } else {
+                  return "";
+                }
+              });
+              return result.join("\n");
+            }
+          }
+        });
+      }
+    };
+    const formatDataset = (name2, samples, epochs) => {
+      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
+      return `${name2 ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
+    };
+    const formatTime$1 = (seconds) => {
+      if (seconds < 60) {
+        return `${seconds} sec`;
+      } else if (seconds < 60 * 60) {
+        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+      } else if (seconds < 60 * 60 * 24) {
+        const hours = Math.floor(seconds / (60 * 60));
+        const minutes = Math.floor(seconds % (60 * 60) / 60);
+        const remainingSeconds = seconds % 60;
+        return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
+      } else {
+        const days = Math.floor(seconds / (60 * 60 * 24));
+        const hours = Math.floor(seconds % (60 * 60 * 24) / (60 * 60));
+        const minutes = Math.floor(seconds % (60 * 60) / 60);
+        const remainingSeconds = seconds % 60;
+        return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
+      }
+    };
+    function formatPrettyDecimal(num2) {
+      const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
+      if (numDecimalPlaces === 0) {
+        return num2.toFixed(1);
+      } else if (numDecimalPlaces > 3) {
+        return num2.toFixed(3);
+      } else {
+        return num2.toString();
+      }
+    }
+    function formatDecimalNoTrailingZeroes(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
+      }
+      if (num2.toString().includes(".")) {
+        const decimal = num2.toString().split(".")[1];
+        const trimmed = decimal.replace(/\.?0+$/, "");
+        return num2.toFixed(trimmed.length);
+      } else {
+        return num2.toFixed(0);
+      }
+    }
+    function toTitleCase(str2) {
+      return str2.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
+    }
+    function formatNoDecimal(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
+      }
+      const rounded = Math.round(num2);
+      return rounded.toFixed(0);
+    }
+    function formatNumber(num2) {
+      return num2.toLocaleString(navigator.language, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 5
+      });
+    }
+    function formatDateTime(date) {
+      const options = {
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      };
+      return new Intl.DateTimeFormat(void 0, options).format(date);
+    }
+    function formatDuration(start2, end2) {
+      const durationMs = end2.getTime() - start2.getTime();
+      const durationSec = durationMs / 1e3;
+      return formatTime$1(durationSec);
+    }
     const ApplicationStyles = {
       moreButton: {
         maxHeight: "1.8em",
@@ -27111,6 +27094,23 @@ ${events}
           return groupIndex;
         }
       };
+    };
+    const filename = (path) => {
+      const pathparts = path.split("/");
+      const basename = pathparts.slice(-1)[0];
+      const match = basename.match(/(.*)\.\S+$/);
+      if (match) {
+        return match[1];
+      } else {
+        return path;
+      }
+    };
+    const dirname = (path) => {
+      const pathparts = path.split("/");
+      if (pathparts.length > 1) {
+        pathparts.pop();
+      }
+      return pathparts.join("/");
     };
     const asyncJsonParse = async (text2) => {
       const encoder = new TextEncoder();
