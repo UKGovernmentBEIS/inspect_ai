@@ -73,6 +73,12 @@ RUN wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | sudo apt-key
 # configure noVNC
 RUN sudo ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
+# configure Firefox to skip all 'first run' UI
+RUN mkdir -p $HOME/.mozilla/firefox-esr/profile.default && \
+    echo 'user_pref("browser.startup.homepage_override.mstone", "ignore");' >> $HOME/.mozilla/firefox-esr/profile.default/user.js && \
+    echo 'user_pref("browser.aboutwelcome.enabled", false);' >> $HOME/.mozilla/firefox-esr/profile.default/user.js && \
+    echo 'user_pref("datareporting.policy.firstRunURL", "");' >> $HOME/.mozilla/firefox-esr/profile.default/user.js 
+
 # only reinstall if requirements.txt changes
 COPY computer_tool/requirements.txt /opt/computer_tool/requirements.txt
 RUN cd /opt/computer_tool && pip3 install --no-cache-dir -r requirements.txt
