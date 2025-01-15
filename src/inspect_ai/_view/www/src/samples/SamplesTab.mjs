@@ -2,10 +2,10 @@
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
+import { EmptyPanel } from "../components/EmptyPanel";
 import { SampleDialog } from "./SampleDialog.mjs";
-import { SampleList } from "./SampleList.mjs";
 import { InlineSampleDisplay } from "./SampleDisplay.mjs";
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { SampleList } from "./SampleList.mjs";
 
 /**
  * Renders Samples Tab
