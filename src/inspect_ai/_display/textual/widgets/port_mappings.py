@@ -1,6 +1,7 @@
 from typing import Literal
 
 from textual.app import ComposeResult
+from textual.containers import HorizontalScroll
 from textual.widget import Widget
 from textual.widgets import Link, Static
 
@@ -8,13 +9,14 @@ from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai.util._sandbox.environment import PortMapping
 
 
-class PortMappingsView(Widget):
+class PortMappingsView(HorizontalScroll):
     DEFAULT_CSS = """
     PortMappingsView {
       layout: grid;
       height: auto;
       grid-size: 4 3;
-      grid-columns: 1fr 1fr 1fr 4fr;
+      grid-columns: auto auto auto auto;
+      grid-gutter: 0 1;
     }
     """
 
@@ -26,9 +28,9 @@ class PortMappingsView(Widget):
         if not self.ports:
             return
         yield Static("service")
-        yield Static("container port")
-        yield Static("host port")
-        yield Static("url")
+        yield Static("sandbox")
+        yield Static("client")
+        yield Static("endpoint")
         mappings_and_services = [
             (mapping, get_service_by_port(mapping.container_port, mapping.protocol))
             for mapping in self.ports

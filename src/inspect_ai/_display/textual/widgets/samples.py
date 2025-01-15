@@ -11,13 +11,13 @@ from textual.widget import Widget
 from textual.widgets import Button, Collapsible, LoadingIndicator, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
-from inspect_ai._display.textual.widgets.port_mappings import PortMappingsView
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
+from .port_mappings import PortMappingsView
 from .transcript import TranscriptView
 
 
