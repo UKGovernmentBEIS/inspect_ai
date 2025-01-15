@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
-import { FontSize } from "../appearance/Fonts.mjs";
-import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize } from "../appearance/fonts";
+import { ApplicationStyles } from "../appearance/styles";
 import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
 import {
   kScoreTypeCategorical,

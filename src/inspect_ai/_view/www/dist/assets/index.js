@@ -7602,6 +7602,39 @@ var require_assets = __commonJS({
     function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
+    const kBaseFontSize = 0.9;
+    const ScaleBaseFont = (scale) => {
+      return `${kBaseFontSize + scale}rem`;
+    };
+    const FontSize = {
+      title: ScaleBaseFont(0.6),
+      "title-secondary": ScaleBaseFont(0.4),
+      larger: ScaleBaseFont(0.2),
+      large: ScaleBaseFont(0.1),
+      base: ScaleBaseFont(0),
+      small: ScaleBaseFont(-0.1),
+      smaller: ScaleBaseFont(-0.1)
+    };
+    const TextStyle = {
+      label: {
+        textTransform: "uppercase"
+      },
+      secondary: {
+        color: "var(--bs-secondary)"
+      },
+      tertiary: {
+        color: "var(--bs-tertiary-color)"
+      }
+    };
+    const loggingIcons = {
+      notset: "bi bi-card-text",
+      debug: "bi bi-bug",
+      http: "bi bi-download",
+      info: "bi bi-info-square",
+      warning: "bi bi-exclamation-triangle",
+      error: "bi bi-x-circle",
+      critical: "bi bi-fire"
+    };
     const ApplicationIcons = {
       approve: "bi bi-shield",
       approvals: {
@@ -7655,15 +7688,7 @@ var require_assets = __commonJS({
         tokens: "bi bi-list",
         time: "bi bi-stopwatch"
       },
-      logging: {
-        notset: "bi bi-card-text",
-        debug: "bi bi-bug",
-        http: "bi bi-download",
-        info: "bi bi-info-square",
-        warning: "bi bi-exclamation-triangle",
-        error: "bi bi-x-circle",
-        critical: "bi bi-fire"
-      },
+      logging: loggingIcons,
       menu: "bi bi-list",
       messages: "bi bi-chat-right-text",
       metadata: "bi bi-table",
@@ -7699,30 +7724,6 @@ var require_assets = __commonJS({
       subtask: "bi bi-subtract",
       transcript: "bi bi-list-columns-reverse",
       usage: "bi bi-stopwatch"
-    };
-    const kBaseFontSize = 0.9;
-    const ScaleBaseFont = (scale) => {
-      return `${kBaseFontSize + scale}rem`;
-    };
-    const FontSize = {
-      title: ScaleBaseFont(0.6),
-      "title-secondary": ScaleBaseFont(0.4),
-      larger: ScaleBaseFont(0.2),
-      large: ScaleBaseFont(0.1),
-      base: ScaleBaseFont(0),
-      small: ScaleBaseFont(-0.1),
-      smaller: ScaleBaseFont(-0.1)
-    };
-    const TextStyle = {
-      label: {
-        textTransform: "uppercase"
-      },
-      secondary: {
-        color: "var(--bs-secondary)"
-      },
-      tertiary: {
-        color: "var(--bs-tertiary-color)"
-      }
     };
     const ErrorPanel = ({ id, classes, title, error: error2 }) => {
       const emptyStyle = {
@@ -9136,6 +9137,119 @@ var require_assets = __commonJS({
       first: 0,
       intermediate: 10,
       final: 1e3
+    };
+    const ExpandablePanel = ({
+      collapse,
+      border,
+      lines = 15,
+      style: style2,
+      children: children2
+    }) => {
+      const [collapsed, setCollapsed] = h(collapse);
+      const [showToggle, setShowToggle] = h(false);
+      const contentsRef = A$1(
+        /** @type {HTMLElement|null} */
+        null
+      );
+      const observerRef = A$1(
+        /** @type {IntersectionObserver|null} */
+        null
+      );
+      y(() => {
+        setCollapsed(collapse);
+      }, [children2, collapse]);
+      const refreshCollapse = q$1(() => {
+        if (collapse && contentsRef.current) {
+          const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
+          setShowToggle(isScrollable);
+        }
+      }, [collapse, setShowToggle, contentsRef]);
+      y(() => {
+        refreshCollapse();
+      }, [children2]);
+      y(() => {
+        observerRef.current = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              refreshCollapse();
+            }
+          });
+        });
+        if (contentsRef.current) {
+          observerRef.current.observe(contentsRef.current);
+        }
+        return () => {
+          if (observerRef.current && contentsRef.current) {
+            observerRef.current.unobserve(contentsRef.current);
+          }
+        };
+      }, [contentsRef, observerRef]);
+      let contentsStyle = { fontSize: FontSize.base };
+      if (collapse && collapsed) {
+        contentsStyle = {
+          ...contentsStyle,
+          maxHeight: `${lines}em`,
+          overflow: "hidden"
+        };
+      }
+      if (border) {
+        contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+      }
+      return m$1`<div
+      class="expandable-panel"
+      ref=${contentsRef}
+      style=${{ ...contentsStyle, ...style2 }}
+    >
+      ${children2}
+    </div>
+    ${showToggle ? m$1`<${MoreToggle}
+          collapsed=${collapsed}
+          setCollapsed=${setCollapsed}
+          border=${!border}
+          style=${style2}
+        />` : ""}`;
+    };
+    const MoreToggle = ({ collapsed, border, setCollapsed, style: style2 }) => {
+      const text2 = collapsed ? "more" : "less";
+      const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
+      const topStyle = {
+        display: "flex",
+        marginBottom: "0.5em",
+        ...style2
+      };
+      if (border) {
+        topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
+        topStyle.marginTop = "0.5em";
+      } else {
+        topStyle.marginTop = "0";
+      }
+      return m$1`
+    <div style=${topStyle}>
+      <div
+        style=${{
+        display: "inline-block",
+        border: "solid var(--bs-light-border-subtle) 1px",
+        borderTop: "none",
+        marginLeft: "auto",
+        marginRight: "1em"
+      }}
+      >
+        <button
+          class="btn"
+          style=${{
+        fontSize: FontSize.smaller,
+        border: "none",
+        padding: "0.1rem .5rem"
+      }}
+          onclick=${() => {
+        setCollapsed(!collapsed);
+      }}
+        >
+          <i class="${icon}" /> ${text2}
+        </button>
+      </div>
+    </div>
+  `;
     };
     const decodeCache = {};
     function getDecodeCache(exclude) {
@@ -14464,69 +14578,6 @@ var require_assets = __commonJS({
     })(murmurhash$1);
     var murmurhashExports = murmurhash$1.exports;
     const murmurhash = /* @__PURE__ */ getDefaultExportFromCjs(murmurhashExports);
-    Prism.languages.python = {
-      "comment": {
-        pattern: /(^|[^\\])#.*/,
-        lookbehind: true,
-        greedy: true
-      },
-      "string-interpolation": {
-        pattern: /(?:f|fr|rf)(?:("""|''')[\s\S]*?\1|("|')(?:\\.|(?!\2)[^\\\r\n])*\2)/i,
-        greedy: true,
-        inside: {
-          "interpolation": {
-            // "{" <expression> <optional "!s", "!r", or "!a"> <optional ":" format specifier> "}"
-            pattern: /((?:^|[^{])(?:\{\{)*)\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}])+\})+\})+\}/,
-            lookbehind: true,
-            inside: {
-              "format-spec": {
-                pattern: /(:)[^:(){}]+(?=\}$)/,
-                lookbehind: true
-              },
-              "conversion-option": {
-                pattern: /![sra](?=[:}]$)/,
-                alias: "punctuation"
-              },
-              rest: null
-            }
-          },
-          "string": /[\s\S]+/
-        }
-      },
-      "triple-quoted-string": {
-        pattern: /(?:[rub]|br|rb)?("""|''')[\s\S]*?\1/i,
-        greedy: true,
-        alias: "string"
-      },
-      "string": {
-        pattern: /(?:[rub]|br|rb)?("|')(?:\\.|(?!\1)[^\\\r\n])*\1/i,
-        greedy: true
-      },
-      "function": {
-        pattern: /((?:^|\s)def[ \t]+)[a-zA-Z_]\w*(?=\s*\()/g,
-        lookbehind: true
-      },
-      "class-name": {
-        pattern: /(\bclass\s+)\w+/i,
-        lookbehind: true
-      },
-      "decorator": {
-        pattern: /(^[\t ]*)@\w+(?:\.\w+)*/m,
-        lookbehind: true,
-        alias: ["annotation", "punctuation"],
-        inside: {
-          "punctuation": /\./
-        }
-      },
-      "keyword": /\b(?:_(?=\s*:)|and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|print|raise|return|try|while|with|yield)\b/,
-      "builtin": /\b(?:__import__|abs|all|any|apply|ascii|basestring|bin|bool|buffer|bytearray|bytes|callable|chr|classmethod|cmp|coerce|compile|complex|delattr|dict|dir|divmod|enumerate|eval|execfile|file|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|intern|isinstance|issubclass|iter|len|list|locals|long|map|max|memoryview|min|next|object|oct|open|ord|pow|property|range|raw_input|reduce|reload|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|unichr|unicode|vars|xrange|zip)\b/,
-      "boolean": /\b(?:False|None|True)\b/,
-      "number": /\b0(?:b(?:_?[01])+|o(?:_?[0-7])+|x(?:_?[a-f0-9])+)\b|(?:\b\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\B\.\d+(?:_\d+)*)(?:e[+-]?\d+(?:_\d+)*)?j?(?!\w)/i,
-      "operator": /[-+%=]=?|!=|:=|\*\*?=?|\/\/?=?|<[<=>]?|>[=>]?|[&|^~]/,
-      "punctuation": /[{}[\];(),.:]/
-    };
-    Prism.languages.python["string-interpolation"].inside["interpolation"].inside.rest = Prism.languages.python;
-    Prism.languages.py = Prism.languages.python;
     (function(Prism2) {
       var envVars = "\\b(?:BASH|BASHOPTS|BASH_ALIASES|BASH_ARGC|BASH_ARGV|BASH_CMDS|BASH_COMPLETION_COMPAT_DIR|BASH_LINENO|BASH_REMATCH|BASH_SOURCE|BASH_VERSINFO|BASH_VERSION|COLORTERM|COLUMNS|COMP_WORDBREAKS|DBUS_SESSION_BUS_ADDRESS|DEFAULTS_PATH|DESKTOP_SESSION|DIRSTACK|DISPLAY|EUID|GDMSESSION|GDM_LANG|GNOME_KEYRING_CONTROL|GNOME_KEYRING_PID|GPG_AGENT_INFO|GROUPS|HISTCONTROL|HISTFILE|HISTFILESIZE|HISTSIZE|HOME|HOSTNAME|HOSTTYPE|IFS|INSTANCE|JOB|LANG|LANGUAGE|LC_ADDRESS|LC_ALL|LC_IDENTIFICATION|LC_MEASUREMENT|LC_MONETARY|LC_NAME|LC_NUMERIC|LC_PAPER|LC_TELEPHONE|LC_TIME|LESSCLOSE|LESSOPEN|LINES|LOGNAME|LS_COLORS|MACHTYPE|MAILCHECK|MANDATORY_PATH|NO_AT_BRIDGE|OLDPWD|OPTERR|OPTIND|ORBIT_SOCKETDIR|OSTYPE|PAPERSIZE|PATH|PIPESTATUS|PPID|PS1|PS2|PS3|PS4|PWD|RANDOM|REPLY|SECONDS|SELINUX_INIT|SESSION|SESSIONTYPE|SESSION_MANAGER|SHELL|SHELLOPTS|SHLVL|SSH_AUTH_SOCK|TERM|UID|UPSTART_EVENTS|UPSTART_INSTANCE|UPSTART_JOB|UPSTART_SESSION|USER|WINDOWID|XAUTHORITY|XDG_CONFIG_DIRS|XDG_CURRENT_DESKTOP|XDG_DATA_DIRS|XDG_GREETER_DATA_DIR|XDG_MENU_PREFIX|XDG_RUNTIME_DIR|XDG_SEAT|XDG_SEAT_PATH|XDG_SESSION_DESKTOP|XDG_SESSION_ID|XDG_SESSION_PATH|XDG_SESSION_TYPE|XDG_VTNR|XMODIFIERS)\\b";
       var commandAfterHeredoc = {
@@ -14778,119 +14829,69 @@ var require_assets = __commonJS({
       }
     };
     Prism.languages.webmanifest = Prism.languages.json;
-    const ExpandablePanel = ({
-      collapse,
-      border,
-      lines = 15,
-      style: style2,
-      children: children2
-    }) => {
-      const [collapsed, setCollapsed] = h(collapse);
-      const [showToggle, setShowToggle] = h(false);
-      const contentsRef = A$1(
-        /** @type {HTMLElement|null} */
-        null
-      );
-      const observerRef = A$1(
-        /** @type {IntersectionObserver|null} */
-        null
-      );
-      y(() => {
-        setCollapsed(collapse);
-      }, [children2, collapse]);
-      const refreshCollapse = q$1(() => {
-        if (collapse && contentsRef.current) {
-          const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-          setShowToggle(isScrollable);
-        }
-      }, [collapse, setShowToggle, contentsRef]);
-      y(() => {
-        refreshCollapse();
-      }, [children2]);
-      y(() => {
-        observerRef.current = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              refreshCollapse();
+    Prism.languages.python = {
+      "comment": {
+        pattern: /(^|[^\\])#.*/,
+        lookbehind: true,
+        greedy: true
+      },
+      "string-interpolation": {
+        pattern: /(?:f|fr|rf)(?:("""|''')[\s\S]*?\1|("|')(?:\\.|(?!\2)[^\\\r\n])*\2)/i,
+        greedy: true,
+        inside: {
+          "interpolation": {
+            // "{" <expression> <optional "!s", "!r", or "!a"> <optional ":" format specifier> "}"
+            pattern: /((?:^|[^{])(?:\{\{)*)\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}]|\{(?!\{)(?:[^{}])+\})+\})+\}/,
+            lookbehind: true,
+            inside: {
+              "format-spec": {
+                pattern: /(:)[^:(){}]+(?=\}$)/,
+                lookbehind: true
+              },
+              "conversion-option": {
+                pattern: /![sra](?=[:}]$)/,
+                alias: "punctuation"
+              },
+              rest: null
             }
-          });
-        });
-        if (contentsRef.current) {
-          observerRef.current.observe(contentsRef.current);
+          },
+          "string": /[\s\S]+/
         }
-        return () => {
-          if (observerRef.current && contentsRef.current) {
-            observerRef.current.unobserve(contentsRef.current);
-          }
-        };
-      }, [contentsRef, observerRef]);
-      let contentsStyle = { fontSize: FontSize.base };
-      if (collapse && collapsed) {
-        contentsStyle = {
-          ...contentsStyle,
-          maxHeight: `${lines}em`,
-          overflow: "hidden"
-        };
-      }
-      if (border) {
-        contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
-      }
-      return m$1`<div
-      class="expandable-panel"
-      ref=${contentsRef}
-      style=${{ ...contentsStyle, ...style2 }}
-    >
-      ${children2}
-    </div>
-    ${showToggle ? m$1`<${MoreToggle}
-          collapsed=${collapsed}
-          setCollapsed=${setCollapsed}
-          border=${!border}
-          style=${style2}
-        />` : ""}`;
+      },
+      "triple-quoted-string": {
+        pattern: /(?:[rub]|br|rb)?("""|''')[\s\S]*?\1/i,
+        greedy: true,
+        alias: "string"
+      },
+      "string": {
+        pattern: /(?:[rub]|br|rb)?("|')(?:\\.|(?!\1)[^\\\r\n])*\1/i,
+        greedy: true
+      },
+      "function": {
+        pattern: /((?:^|\s)def[ \t]+)[a-zA-Z_]\w*(?=\s*\()/g,
+        lookbehind: true
+      },
+      "class-name": {
+        pattern: /(\bclass\s+)\w+/i,
+        lookbehind: true
+      },
+      "decorator": {
+        pattern: /(^[\t ]*)@\w+(?:\.\w+)*/m,
+        lookbehind: true,
+        alias: ["annotation", "punctuation"],
+        inside: {
+          "punctuation": /\./
+        }
+      },
+      "keyword": /\b(?:_(?=\s*:)|and|as|assert|async|await|break|case|class|continue|def|del|elif|else|except|exec|finally|for|from|global|if|import|in|is|lambda|match|nonlocal|not|or|pass|print|raise|return|try|while|with|yield)\b/,
+      "builtin": /\b(?:__import__|abs|all|any|apply|ascii|basestring|bin|bool|buffer|bytearray|bytes|callable|chr|classmethod|cmp|coerce|compile|complex|delattr|dict|dir|divmod|enumerate|eval|execfile|file|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|intern|isinstance|issubclass|iter|len|list|locals|long|map|max|memoryview|min|next|object|oct|open|ord|pow|property|range|raw_input|reduce|reload|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|unichr|unicode|vars|xrange|zip)\b/,
+      "boolean": /\b(?:False|None|True)\b/,
+      "number": /\b0(?:b(?:_?[01])+|o(?:_?[0-7])+|x(?:_?[a-f0-9])+)\b|(?:\b\d+(?:_\d+)*(?:\.(?:\d+(?:_\d+)*)?)?|\B\.\d+(?:_\d+)*)(?:e[+-]?\d+(?:_\d+)*)?j?(?!\w)/i,
+      "operator": /[-+%=]=?|!=|:=|\*\*?=?|\/\/?=?|<[<=>]?|>[=>]?|[&|^~]/,
+      "punctuation": /[{}[\];(),.:]/
     };
-    const MoreToggle = ({ collapsed, border, setCollapsed, style: style2 }) => {
-      const text2 = collapsed ? "more" : "less";
-      const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
-      const topStyle = {
-        display: "flex",
-        marginBottom: "0.5em",
-        ...style2
-      };
-      if (border) {
-        topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
-        topStyle.marginTop = "0.5em";
-      } else {
-        topStyle.marginTop = "0";
-      }
-      return m$1`
-    <div style=${topStyle}>
-      <div
-        style=${{
-        display: "inline-block",
-        border: "solid var(--bs-light-border-subtle) 1px",
-        borderTop: "none",
-        marginLeft: "auto",
-        marginRight: "1em"
-      }}
-      >
-        <button
-          class="btn"
-          style=${{
-        fontSize: FontSize.smaller,
-        border: "none",
-        padding: "0.1rem .5rem"
-      }}
-          onclick=${() => {
-        setCollapsed(!collapsed);
-      }}
-        >
-          <i class="${icon}" /> ${text2}
-        </button>
-      </div>
-    </div>
-  `;
-    };
+    Prism.languages.python["string-interpolation"].inside["interpolation"].inside.rest = Prism.languages.python;
+    Prism.languages.py = Prism.languages.python;
     const resolveToolInput = (fn2, toolArgs) => {
       const toolName = fn2;
       const [inputKey, inputType] = extractInputMetadata(toolName);
@@ -23076,14 +23077,14 @@ self.onmessage = function (e) {
     };
     const CancelledPanel = ({ sampleCount }) => {
       return m$1`<${StatusPanel}
-    icon=${ApplicationIcons.logging.info}
+    icon=${ApplicationIcons.logging["info"]}
     status="Cancelled"
     sampleCount=${sampleCount}
   />`;
     };
     const ErroredPanel = ({ sampleCount }) => {
       return m$1`<${StatusPanel}
-    icon=${ApplicationIcons.logging.error}
+    icon=${ApplicationIcons.logging["error"]}
     status="Task Failed"
     sampleCount=${sampleCount}
   />`;
@@ -24151,6 +24152,77 @@ self.onmessage = function (e) {
     </div>
   `;
     };
+    const EventRow = ({ title, icon, style: style2, children: children2 }) => {
+      const contentEl = title ? m$1`<div
+        style=${{
+        marginLeft: "0.5em",
+        display: "grid",
+        gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
+        columnGap: "0.5em",
+        fontSize: FontSize.small
+      }}
+      >
+        <i class=${icon || ApplicationIcons.metadata} />
+        <div style=${{ ...TextStyle.label }}>${title}</div>
+        <div>${children2}</div>
+      </div>` : "";
+      const card = m$1` <div
+    class="card"
+    style=${{
+        padding: "0.4em",
+        marginBottom: "0",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        ...style2
+      }}
+  >
+    ${contentEl}
+  </div>`;
+      return card;
+    };
+    const ApprovalEventView = ({ id, event, style: style2 }) => {
+      return m$1`
+  <${EventRow}
+      id=${id}
+      title="${decisionLabel(event.decision)}"
+      icon=${decisionIcon(event.decision)}  
+      style=${style2}
+    >
+    ${event.explanation}
+  </${EventRow}>`;
+    };
+    const decisionLabel = (decision) => {
+      switch (decision) {
+        case "approve":
+          return "Approved";
+        case "reject":
+          return "Rejected";
+        case "terminate":
+          return "Terminated";
+        case "escalate":
+          return "Escalated";
+        case "modify":
+          return "Modified";
+        default:
+          return decision;
+      }
+    };
+    const decisionIcon = (decision) => {
+      switch (decision) {
+        case "approve":
+          return ApplicationIcons.approvals.approve;
+        case "reject":
+          return ApplicationIcons.approvals.reject;
+        case "terminate":
+          return ApplicationIcons.approvals.terminate;
+        case "escalate":
+          return ApplicationIcons.approvals.escalate;
+        case "modify":
+          return ApplicationIcons.approvals.modify;
+        default:
+          return ApplicationIcons.approve;
+      }
+    };
     const EventPanel = ({
       id,
       classes,
@@ -24344,6 +24416,301 @@ self.onmessage = function (e) {
     </button>
   </li>`;
     };
+    const ErrorEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title="Error" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.error} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
+  </${EventPanel}>`;
+    };
+    const InfoEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
+      const panels = [];
+      if (typeof event.data === "string") {
+        panels.push(
+          m$1`<${MarkdownDiv}
+        markdown=${event.data}
+        style=${{ margin: "0.5em 0" }}
+      />`
+        );
+      } else {
+        panels.push(
+          m$1`<${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }} />`
+        );
+      }
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title="Info" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.info} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
+    ${panels}
+  </${EventPanel}>`;
+    };
+    const InputEventView = ({
+      id,
+      event,
+      style: style2,
+      eventState,
+      setEventState
+    }) => {
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title="Input" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.input} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+    >
+    <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style2 }}/>
+  </${EventPanel}>`;
+    };
+    const LoggerEventView = ({ id, event, style: style2 }) => {
+      return m$1`
+  <${EventRow} 
+    id=${id}
+    title=${event.message.level} 
+    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
+    style=${style2}
+  >
+  <div
+    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
+  >
+    <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
+    <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
+  </div>
+  </${EventRow}>`;
+    };
+    const ModelTokenTable = ({ model_usage, style: style2 }) => {
+      return m$1`
+  <${TokenTable$1} style=${style2}>
+    <${TokenHeader}/>
+    <tbody>
+    ${Object.keys(model_usage).map((key2) => {
+        return m$1`<${TokenRow} model=${key2} usage=${model_usage[key2]} />`;
+      })}
+    </tbody>
+  </${TokenTable$1}>
+  `;
+    };
+    const TokenTable$1 = ({ style: style2, children: children2 }) => {
+      return m$1`<table
+    class="table table-sm"
+    style=${{
+        width: "100%",
+        fontSize: FontSize.smaller,
+        marginTop: "0.7rem",
+        ...style2
+      }}
+  >
+    ${children2}
+  </table>`;
+    };
+    const thStyle = {
+      padding: 0,
+      fontWeight: 300,
+      fontSize: FontSize.small,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    };
+    const TokenHeader = () => {
+      return m$1`<thead>
+    <tr>
+      <td></td>
+      <td
+        colspan="3"
+        align="center"
+        class="card-subheading"
+        style=${{
+        paddingBottom: "0.7rem",
+        fontSize: FontSize.small,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+      >
+        Tokens
+      </td>
+    </tr>
+    <tr>
+      <th style=${thStyle}>Model</th>
+      <th style=${thStyle}>Usage</th>
+    </tr>
+  </thead>`;
+    };
+    const TokenRow = ({ model, usage }) => {
+      return m$1`<tr>
+    <td>${model}</td>
+    <td>
+      <${ModelUsagePanel} usage=${usage} />
+    </td>
+  </tr>`;
+    };
+    const kUsageCardBodyId = "usage-card-body";
+    const UsageCard = ({ stats }) => {
+      if (!stats) {
+        return "";
+      }
+      const totalDuration = formatDuration(
+        new Date(stats.started_at),
+        new Date(stats.completed_at)
+      );
+      const usageMetadataStyle = {
+        fontSize: FontSize.smaller
+      };
+      return m$1`
+
+    <${Card}>
+      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
+      <${CardBody} id=${kUsageCardBodyId} style=${{
+        paddingTop: "0",
+        paddingBottom: "0",
+        borderTop: "solid var(--bs-border-color) 1px"
+      }}>
+        <div style=${{
+        paddingTop: "0",
+        paddingBottom: "1em",
+        marginLeft: "0",
+        display: "flex"
+      }}>
+
+          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
+          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
+          <${MetaDataView}
+            entries="${{
+        ["Start"]: new Date(stats.started_at).toLocaleString(),
+        ["End"]: new Date(stats.completed_at).toLocaleString(),
+        ["Duration"]: totalDuration
+      }}"
+            tableOptions="borderless,sm"
+            style=${usageMetadataStyle}
+          />
+          </div>
+
+          <div style=${{ flex: "1 1 60%" }}>
+            <${ModelTokenTable} model_usage=${stats.model_usage}/>
+          </div>
+        </div>
+      </${CardBody}>
+    </${Card}>
+  `;
+    };
+    const ModelUsagePanel = ({ usage }) => {
+      if (!usage) {
+        return "";
+      }
+      const rows = [
+        {
+          label: "input",
+          value: usage.input_tokens,
+          secondary: false
+        }
+      ];
+      if (usage.input_tokens_cache_read) {
+        rows.push({
+          label: "cache_read",
+          value: usage.input_tokens_cache_read,
+          secondary: true
+        });
+      }
+      if (usage.input_tokens_cache_write) {
+        rows.push({
+          label: "cache_write",
+          value: usage.input_tokens_cache_write,
+          secondary: true
+        });
+      }
+      rows.push({
+        label: "Output",
+        value: usage.output_tokens,
+        secondary: false,
+        bordered: true
+      });
+      rows.push({
+        label: "---",
+        value: void 0,
+        secondary: false
+      });
+      rows.push({
+        label: "Total",
+        value: usage.total_tokens,
+        secondary: false
+      });
+      return m$1` <div
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "0 auto auto",
+        columnGap: "0.5em",
+        fontSize: FontSize.small
+      }}
+  >
+    ${rows.map((row) => {
+        if (row.label === "---") {
+          return m$1`<div
+          style=${{
+            gridColumn: "-1/1",
+            height: "1px",
+            backgroundColor: "var(--bs-light-border-subtle)"
+          }}
+        ></div>`;
+        } else {
+          return m$1`
+          <div
+            style=${{
+            ...TextStyle.label,
+            ...TextStyle.secondary,
+            gridColumn: row.secondary ? "2" : "1/3"
+          }}
+          >
+            ${row.label}
+          </div>
+          <div style=${{ gridColumn: "3" }}>${formatNumber(row.value)}</div>
+        `;
+        }
+      })}
+  </div>`;
+    };
     const EventSection = ({ title, style: style2, children: children2 }) => {
       return m$1`<div
     style=${{
@@ -24362,6 +24729,169 @@ self.onmessage = function (e) {
       ${title}
     </div>
     ${children2}
+  </div>`;
+    };
+    const ModelEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
+      var _a2, _b2;
+      const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
+      const callTime = event.output.time;
+      const subItems = [];
+      if (totalUsage) {
+        subItems.push(`${formatNumber(totalUsage)} tokens`);
+      }
+      if (callTime) {
+        subItems.push(`${formatPrettyDecimal(callTime)} sec`);
+      }
+      const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
+      const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
+        return choice.message;
+      });
+      const entries = { ...event.config };
+      entries["tool_choice"] = event.tool_choice;
+      delete entries["max_connections"];
+      const tableSectionStyle = {
+        width: "fit-content",
+        alignSelf: "start",
+        justifySelf: "start"
+      };
+      const userMessages = [];
+      for (const msg of event.input.slice().reverse()) {
+        if (msg.role === "user" && !msg.tool_call_id) {
+          userMessages.push(msg);
+        } else {
+          break;
+        }
+      }
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title="Model Call: ${event.model} ${subtitle}"
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.model} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
+  
+    <div name="Summary" style=${{ margin: "0.5em 0" }}>
+    <${ChatView}
+      id="${id}-model-output"
+      messages=${[...userMessages, ...outputMessages || []]}
+      style=${{ paddingTop: "1em" }}
+      numbered=${false}
+      toolCallStyle="compact"
+      />
+    </div>
+
+    <div name="All" style=${{ margin: "0.5em 0" }}>
+
+      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
+      <${EventSection} title="Configuration" style=${tableSectionStyle}>
+        <${MetaDataGrid} entries=${entries} plain=${true}/>
+      </${EventSection}>
+
+      <${EventSection} title="Usage" style=${tableSectionStyle}>
+        <${ModelUsagePanel} usage=${event.output.usage}/>
+      </${EventSection}>
+
+      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
+        <${ToolsConfig} tools=${event.tools}/>
+      </${EventSection}>
+
+      </div>
+
+      <${EventSection} title="Messages">
+        <${ChatView}
+          id="${id}-model-input-full"
+          messages=${[...event.input, ...outputMessages || []]}
+          />      
+      </${EventSection}>
+
+    </div>
+
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
+   
+  </${EventPanel}>`;
+    };
+    const APIView = ({ call, style: style2 }) => {
+      if (!call) {
+        return "";
+      }
+      return m$1`<div style=${style2}>
+
+    <${EventSection} title="Request">
+      <${APICodeCell} contents=${call.request} />
+    </${EventSection}>
+    <${EventSection} title="Response">
+      <${APICodeCell} contents=${call.response} />
+    </${EventSection}>
+
+    </div>`;
+    };
+    const APICodeCell = ({ id, contents }) => {
+      if (!contents) {
+        return "";
+      }
+      const codeRef = A$1();
+      const sourceCode = T$1(() => {
+        return JSON.stringify(contents, void 0, 2);
+      }, [contents]);
+      y(() => {
+        if (codeRef.current) {
+          Prism$1.highlightElement(codeRef.current);
+        }
+      }, [codeRef.current, contents]);
+      return m$1`<div>
+    <pre
+      style=${{
+        background: "var(--bs-light)",
+        width: "100%",
+        padding: "0.5em",
+        borderRadius: "var(--bs-border-radius)"
+      }}
+    >
+      <code 
+        id=${id} 
+        ref=${codeRef}
+        class="language-json" 
+        style=${{
+        fontSize: FontSize.small,
+        whiteSpace: "pre-wrap",
+        wordWrap: "anywhere"
+      }}>
+        ${sourceCode}
+      </code>
+      </pre>
+  </div>`;
+    };
+    const ToolsConfig = ({ tools }) => {
+      const toolEls = tools.map((tool) => {
+        return m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+        ${tool.name}
+      </div>
+      <div>${tool.description}</div>`;
+      });
+      return m$1`<div
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "1em",
+        rowGap: "0.5em"
+      }}
+  >
+    ${toolEls}
   </div>`;
     };
     const SampleInitEventView = ({
@@ -24433,6 +24963,127 @@ self.onmessage = function (e) {
     ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "0.5em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
+    };
+    const SampleLimitEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
+      const resolve_title = (type) => {
+        switch (type) {
+          case "context":
+            return "Context Limit Exceeded";
+          case "time":
+            return "Time Limit Execeeded";
+          case "message":
+            return "Message Limit Exceeded";
+          case "token":
+            return "Token Limit Exceeded";
+          case "operator":
+            return "Operator Canceled";
+        }
+      };
+      const resolve_icon = (type) => {
+        switch (type) {
+          case "context":
+            return ApplicationIcons.limits.context;
+          case "time":
+            return ApplicationIcons.limits.time;
+          case "message":
+            return ApplicationIcons.limits.messages;
+          case "token":
+            return ApplicationIcons.limits.tokens;
+          case "operator":
+            return ApplicationIcons.limits.operator;
+        }
+      };
+      const title = resolve_title(event.type);
+      const icon = resolve_icon(event.type);
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title=${title} 
+    icon=${icon} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}
+  >
+    ${event.message}
+  </${EventPanel}>`;
+    };
+    const ScoreEventView = ({
+      id,
+      event,
+      eventState,
+      setEventState,
+      style: style2
+    }) => {
+      const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
+      return m$1`
+  <${EventPanel} 
+    id=${id} 
+    title="Score" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.scorer} 
+    style=${style2}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+        setEventState({ ...eventState, selectedNav });
+      }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+        setEventState({ ...eventState, collapsed });
+      }}    
+  >
+  
+    <div
+      name="Explanation"
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
+    >
+      ${event.target ? m$1` <div
+                style=${{
+        gridColumn: "1 / -1",
+        borderBottom: "solid 1px var(--bs-light-border-subtle"
+      }}
+              ></div>
+              <div style=${{ ...TextStyle.label }}>Target</div>
+              <div><${MarkdownDiv} markdown=${resolvedTarget} /></div>` : ""}
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Answer</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Explanation</div>
+      <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+      <div style=${{ ...TextStyle.label }}>Score</div>  
+      <div>${renderScore(event.score.value)}</div>
+      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
+    </div>
+    ${event.score.metadata ? m$1`<div name="Metadata">
+            <${MetaDataGrid}
+              entries=${event.score.metadata}
+              compact=${true}
+              style=${{ margin: "0.5em 0" }}
+            />
+          </div>` : void 0}
+  </${EventPanel}>`;
+    };
+    const renderScore = (value) => {
+      if (Array.isArray(value)) {
+        return m$1`<${MetaDataGrid} entries=${value} />`;
+      } else if (typeof value === "object") {
+        return m$1`<${MetaDataGrid} entries=${value} />`;
+      } else {
+        return value;
+      }
     };
     class Processor {
       constructor(options) {
@@ -31573,549 +32224,6 @@ ${events}
         return values;
       }
     };
-    const ModelTokenTable = ({ model_usage, style: style2 }) => {
-      return m$1`
-  <${TokenTable$1} style=${style2}>
-    <${TokenHeader}/>
-    <tbody>
-    ${Object.keys(model_usage).map((key2) => {
-        return m$1`<${TokenRow} model=${key2} usage=${model_usage[key2]} />`;
-      })}
-    </tbody>
-  </${TokenTable$1}>
-  `;
-    };
-    const TokenTable$1 = ({ style: style2, children: children2 }) => {
-      return m$1`<table
-    class="table table-sm"
-    style=${{
-        width: "100%",
-        fontSize: FontSize.smaller,
-        marginTop: "0.7rem",
-        ...style2
-      }}
-  >
-    ${children2}
-  </table>`;
-    };
-    const thStyle = {
-      padding: 0,
-      fontWeight: 300,
-      fontSize: FontSize.small,
-      ...TextStyle.label,
-      ...TextStyle.secondary
-    };
-    const TokenHeader = () => {
-      return m$1`<thead>
-    <tr>
-      <td></td>
-      <td
-        colspan="3"
-        align="center"
-        class="card-subheading"
-        style=${{
-        paddingBottom: "0.7rem",
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-      >
-        Tokens
-      </td>
-    </tr>
-    <tr>
-      <th style=${thStyle}>Model</th>
-      <th style=${thStyle}>Usage</th>
-    </tr>
-  </thead>`;
-    };
-    const TokenRow = ({ model, usage }) => {
-      return m$1`<tr>
-    <td>${model}</td>
-    <td>
-      <${ModelUsagePanel} usage=${usage} />
-    </td>
-  </tr>`;
-    };
-    const kUsageCardBodyId = "usage-card-body";
-    const UsageCard = ({ stats }) => {
-      if (!stats) {
-        return "";
-      }
-      const totalDuration = formatDuration(
-        new Date(stats.started_at),
-        new Date(stats.completed_at)
-      );
-      const usageMetadataStyle = {
-        fontSize: FontSize.smaller
-      };
-      return m$1`
-
-    <${Card}>
-      <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
-      <${CardBody} id=${kUsageCardBodyId} style=${{
-        paddingTop: "0",
-        paddingBottom: "0",
-        borderTop: "solid var(--bs-border-color) 1px"
-      }}>
-        <div style=${{
-        paddingTop: "0",
-        paddingBottom: "1em",
-        marginLeft: "0",
-        display: "flex"
-      }}>
-
-          <div style=${{ flex: "1 1 40%", marginRight: "1em" }}>
-          <div style=${{ marginTop: "1em", fontSize: FontSize.smaller, ...TextStyle.label, ...TextStyle.secondary }}>Duration</div>
-          <${MetaDataView}
-            entries="${{
-        ["Start"]: new Date(stats.started_at).toLocaleString(),
-        ["End"]: new Date(stats.completed_at).toLocaleString(),
-        ["Duration"]: totalDuration
-      }}"
-            tableOptions="borderless,sm"
-            style=${usageMetadataStyle}
-          />
-          </div>
-
-          <div style=${{ flex: "1 1 60%" }}>
-            <${ModelTokenTable} model_usage=${stats.model_usage}/>
-          </div>
-        </div>
-      </${CardBody}>
-    </${Card}>
-  `;
-    };
-    const ModelUsagePanel = ({ usage }) => {
-      if (!usage) {
-        return "";
-      }
-      const rows = [
-        {
-          label: "input",
-          value: usage.input_tokens,
-          secondary: false
-        }
-      ];
-      if (usage.input_tokens_cache_read) {
-        rows.push({
-          label: "cache_read",
-          value: usage.input_tokens_cache_read,
-          secondary: true
-        });
-      }
-      if (usage.input_tokens_cache_write) {
-        rows.push({
-          label: "cache_write",
-          value: usage.input_tokens_cache_write,
-          secondary: true
-        });
-      }
-      rows.push({
-        label: "Output",
-        value: usage.output_tokens,
-        secondary: false,
-        bordered: true
-      });
-      rows.push({
-        label: "---",
-        value: void 0,
-        secondary: false
-      });
-      rows.push({
-        label: "Total",
-        value: usage.total_tokens,
-        secondary: false
-      });
-      return m$1` <div
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "0 auto auto",
-        columnGap: "0.5em",
-        fontSize: FontSize.small
-      }}
-  >
-    ${rows.map((row) => {
-        if (row.label === "---") {
-          return m$1`<div
-          style=${{
-            gridColumn: "-1/1",
-            height: "1px",
-            backgroundColor: "var(--bs-light-border-subtle)"
-          }}
-        ></div>`;
-        } else {
-          return m$1`
-          <div
-            style=${{
-            ...TextStyle.label,
-            ...TextStyle.secondary,
-            gridColumn: row.secondary ? "2" : "1/3"
-          }}
-          >
-            ${row.label}
-          </div>
-          <div style=${{ gridColumn: "3" }}>${formatNumber(row.value)}</div>
-        `;
-        }
-      })}
-  </div>`;
-    };
-    const ModelEventView = ({
-      id,
-      event,
-      eventState,
-      setEventState,
-      style: style2
-    }) => {
-      var _a2, _b2;
-      const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
-      const callTime = event.output.time;
-      const subItems = [];
-      if (totalUsage) {
-        subItems.push(`${formatNumber(totalUsage)} tokens`);
-      }
-      if (callTime) {
-        subItems.push(`${formatPrettyDecimal(callTime)} sec`);
-      }
-      const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
-      const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
-        return choice.message;
-      });
-      const entries = { ...event.config };
-      entries["tool_choice"] = event.tool_choice;
-      delete entries["max_connections"];
-      const tableSectionStyle = {
-        width: "fit-content",
-        alignSelf: "start",
-        justifySelf: "start"
-      };
-      const userMessages = [];
-      for (const msg of event.input.slice().reverse()) {
-        if (msg.role === "user" && !msg.tool_call_id) {
-          userMessages.push(msg);
-        } else {
-          break;
-        }
-      }
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title="Model Call: ${event.model} ${subtitle}"
-    subTitle=${formatDateTime(new Date(event.timestamp))} 
-    icon=${ApplicationIcons.model} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-  >
-  
-    <div name="Summary" style=${{ margin: "0.5em 0" }}>
-    <${ChatView}
-      id="${id}-model-output"
-      messages=${[...userMessages, ...outputMessages || []]}
-      style=${{ paddingTop: "1em" }}
-      numbered=${false}
-      toolCallStyle="compact"
-      />
-    </div>
-
-    <div name="All" style=${{ margin: "0.5em 0" }}>
-
-      <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
-      <${EventSection} title="Configuration" style=${tableSectionStyle}>
-        <${MetaDataGrid} entries=${entries} plain=${true}/>
-      </${EventSection}>
-
-      <${EventSection} title="Usage" style=${tableSectionStyle}>
-        <${ModelUsagePanel} usage=${event.output.usage}/>
-      </${EventSection}>
-
-      <${EventSection} title="Tools" style=${{ gridColumn: "-1/1", ...tableSectionStyle }}>
-        <${ToolsConfig} tools=${event.tools}/>
-      </${EventSection}>
-
-      </div>
-
-      <${EventSection} title="Messages">
-        <${ChatView}
-          id="${id}-model-input-full"
-          messages=${[...event.input, ...outputMessages || []]}
-          />      
-      </${EventSection}>
-
-    </div>
-
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
-   
-  </${EventPanel}>`;
-    };
-    const APIView = ({ call, style: style2 }) => {
-      if (!call) {
-        return "";
-      }
-      return m$1`<div style=${style2}>
-
-    <${EventSection} title="Request">
-      <${APICodeCell} contents=${call.request} />
-    </${EventSection}>
-    <${EventSection} title="Response">
-      <${APICodeCell} contents=${call.response} />
-    </${EventSection}>
-
-    </div>`;
-    };
-    const APICodeCell = ({ id, contents }) => {
-      if (!contents) {
-        return "";
-      }
-      const codeRef = A$1();
-      const sourceCode = T$1(() => {
-        return JSON.stringify(contents, void 0, 2);
-      }, [contents]);
-      y(() => {
-        if (codeRef.current) {
-          Prism$1.highlightElement(codeRef.current);
-        }
-      }, [codeRef.current, contents]);
-      return m$1`<div>
-    <pre
-      style=${{
-        background: "var(--bs-light)",
-        width: "100%",
-        padding: "0.5em",
-        borderRadius: "var(--bs-border-radius)"
-      }}
-    >
-      <code 
-        id=${id} 
-        ref=${codeRef}
-        class="language-json" 
-        style=${{
-        fontSize: FontSize.small,
-        whiteSpace: "pre-wrap",
-        wordWrap: "anywhere"
-      }}>
-        ${sourceCode}
-      </code>
-      </pre>
-  </div>`;
-    };
-    const ToolsConfig = ({ tools }) => {
-      const toolEls = tools.map((tool) => {
-        return m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
-        ${tool.name}
-      </div>
-      <div>${tool.description}</div>`;
-      });
-      return m$1`<div
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "1em",
-        rowGap: "0.5em"
-      }}
-  >
-    ${toolEls}
-  </div>`;
-    };
-    const EventRow = ({ title, icon, style: style2, children: children2 }) => {
-      const contentEl = title ? m$1`<div
-        style=${{
-        marginLeft: "0.5em",
-        display: "grid",
-        gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
-        columnGap: "0.5em",
-        fontSize: FontSize.small
-      }}
-      >
-        <i class=${icon || ApplicationIcons.metadata} />
-        <div style=${{ ...TextStyle.label }}>${title}</div>
-        <div>${children2}</div>
-      </div>` : "";
-      const card = m$1` <div
-    class="card"
-    style=${{
-        padding: "0.4em",
-        marginBottom: "0",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        ...style2
-      }}
-  >
-    ${contentEl}
-  </div>`;
-      return card;
-    };
-    const LoggerEventView = ({ id, event, style: style2 }) => {
-      return m$1`
-  <${EventRow} 
-    id=${id}
-    title=${event.message.level} 
-    icon=${ApplicationIcons.logging[event.message.level.toLowerCase()]}  
-    style=${style2}
-  >
-  <div
-    style=${{ width: "100%", display: "grid", gridTemplateColumns: "1fr max-content", columnGap: "1em", fontSize: FontSize.base }}
-  >
-    <div style=${{ fontSize: FontSize.smaller }}>${event.message.message}</div>
-    <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
-  </div>
-  </${EventRow}>`;
-    };
-    const InfoEventView = ({
-      id,
-      event,
-      style: style2,
-      eventState,
-      setEventState
-    }) => {
-      const panels = [];
-      if (typeof event.data === "string") {
-        panels.push(
-          m$1`<${MarkdownDiv}
-        markdown=${event.data}
-        style=${{ margin: "0.5em 0" }}
-      />`
-        );
-      } else {
-        panels.push(
-          m$1`<${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }} />`
-        );
-      }
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title="Info" 
-    subTitle=${formatDateTime(new Date(event.timestamp))} 
-    icon=${ApplicationIcons.info} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-  >
-    ${panels}
-  </${EventPanel}>`;
-    };
-    const ScoreEventView = ({
-      id,
-      event,
-      eventState,
-      setEventState,
-      style: style2
-    }) => {
-      const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title="Score" 
-    subTitle=${formatDateTime(new Date(event.timestamp))} 
-    icon=${ApplicationIcons.scorer} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}    
-  >
-  
-    <div
-      name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
-    >
-      ${event.target ? m$1` <div
-                style=${{
-        gridColumn: "1 / -1",
-        borderBottom: "solid 1px var(--bs-light-border-subtle"
-      }}
-              ></div>
-              <div style=${{ ...TextStyle.label }}>Target</div>
-              <div><${MarkdownDiv} markdown=${resolvedTarget} /></div>` : ""}
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div style=${{ ...TextStyle.label }}>Explanation</div>
-      <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-      <div style=${{ ...TextStyle.label }}>Score</div>  
-      <div>${renderScore(event.score.value)}</div>
-      <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
-    </div>
-    ${event.score.metadata ? m$1`<div name="Metadata">
-            <${MetaDataGrid}
-              entries=${event.score.metadata}
-              compact=${true}
-              style=${{ margin: "0.5em 0" }}
-            />
-          </div>` : void 0}
-  </${EventPanel}>`;
-    };
-    const renderScore = (value) => {
-      if (Array.isArray(value)) {
-        return m$1`<${MetaDataGrid} entries=${value} />`;
-      } else if (typeof value === "object") {
-        return m$1`<${MetaDataGrid} entries=${value} />`;
-      } else {
-        return value;
-      }
-    };
-    const ApprovalEventView = ({ id, event, style: style2 }) => {
-      return m$1`
-  <${EventRow}
-      id=${id}
-      title="${decisionLabel(event.decision)}"
-      icon=${decisionIcon(event.decision)}  
-      style=${style2}
-    >
-    ${event.explanation}
-  </${EventRow}>`;
-    };
-    const decisionLabel = (decision) => {
-      switch (decision) {
-        case "approve":
-          return "Approved";
-        case "reject":
-          return "Rejected";
-        case "terminate":
-          return "Terminated";
-        case "escalate":
-          return "Escalated";
-        case "modify":
-          return "Modified";
-        default:
-          return decision;
-      }
-    };
-    const decisionIcon = (decision) => {
-      switch (decision) {
-        case "approve":
-          return ApplicationIcons.approvals.approve;
-        case "reject":
-          return ApplicationIcons.approvals.reject;
-        case "terminate":
-          return ApplicationIcons.approvals.terminate;
-        case "escalate":
-          return ApplicationIcons.approvals.escalate;
-        case "modify":
-          return ApplicationIcons.approvals.modify;
-        default:
-          return ApplicationIcons.approve;
-      }
-    };
     const ToolEventView = ({
       id,
       event,
@@ -32170,113 +32278,6 @@ ${events}
             events=${event.events}
             depth=${depth + 1}
           />` : ""}
-  </${EventPanel}>`;
-    };
-    const ErrorEventView = ({
-      id,
-      event,
-      style: style2,
-      eventState,
-      setEventState
-    }) => {
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title="Error" 
-    subTitle=${formatDateTime(new Date(event.timestamp))} 
-    icon=${ApplicationIcons.error} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-  >
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
-  </${EventPanel}>`;
-    };
-    const InputEventView = ({
-      id,
-      event,
-      style: style2,
-      eventState,
-      setEventState
-    }) => {
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title="Input" 
-    subTitle=${formatDateTime(new Date(event.timestamp))} 
-    icon=${ApplicationIcons.input} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-    >
-    <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style2 }}/>
-  </${EventPanel}>`;
-    };
-    const SampleLimitEventView = ({
-      id,
-      event,
-      eventState,
-      setEventState,
-      style: style2
-    }) => {
-      const resolve_title = (type) => {
-        switch (type) {
-          case "context":
-            return "Context Limit Exceeded";
-          case "time":
-            return "Time Limit Execeeded";
-          case "message":
-            return "Message Limit Exceeded";
-          case "token":
-            return "Token Limit Exceeded";
-          case "operator":
-            return "Operator Canceled";
-        }
-      };
-      const resolve_icon = (type) => {
-        switch (type) {
-          case "context":
-            return ApplicationIcons.limits.context;
-          case "time":
-            return ApplicationIcons.limits.time;
-          case "message":
-            return ApplicationIcons.limits.messages;
-          case "token":
-            return ApplicationIcons.limits.tokens;
-          case "operator":
-            return ApplicationIcons.limits.operator;
-        }
-      };
-      const title = resolve_title(event.type);
-      const icon = resolve_icon(event.type);
-      return m$1`
-  <${EventPanel} 
-    id=${id} 
-    title=${title} 
-    icon=${icon} 
-    style=${style2}
-    selectedNav=${eventState.selectedNav || ""}
-    onSelectedNav=${(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-    collapsed=${eventState.collapsed}
-    onCollapsed=${(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-  >
-    ${event.message}
   </${EventPanel}>`;
     };
     class EventNode {

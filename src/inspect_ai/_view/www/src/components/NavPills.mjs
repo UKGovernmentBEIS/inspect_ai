@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 
 export const NavPills = ({ children }) => {
   const [activeItem, setActiveItem] = useState(children[0].props["title"]);

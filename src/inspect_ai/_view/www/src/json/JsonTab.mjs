@@ -3,8 +3,8 @@ import { html } from "htm/preact";
 
 import { filename } from "../utils/path";
 
+import { FontSize } from "../appearance/fonts";
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
 import { JSONPanel } from "../components/JsonPanel.mjs";
 
 const kJsonMaxSize = 10000000;

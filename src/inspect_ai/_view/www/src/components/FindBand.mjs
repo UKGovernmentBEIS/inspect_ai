@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize } from "../appearance/fonts";
+import { ApplicationIcons } from "../appearance/icons";
 
 export const FindBand = ({ hideBand }) => {
   const searchBoxRef = useRef(/** @type {HTMLInputElement|null} */ (null));

@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { ApplicationIcons } from "../../appearance/icons";
 import { JSONPanel } from "../../components/JsonPanel.mjs";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
 import { formatDateTime } from "../../utils/format";

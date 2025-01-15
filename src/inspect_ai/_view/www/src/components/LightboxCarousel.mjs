@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
-import { useState, useCallback, useEffect } from "preact/hooks";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { useCallback, useEffect, useState } from "preact/hooks";
+import { ApplicationIcons } from "../appearance/icons";
 
 /**
  * @typedef {Object} Slide

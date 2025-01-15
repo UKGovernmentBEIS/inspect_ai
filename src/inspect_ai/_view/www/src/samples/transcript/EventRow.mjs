@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 
 /**
  * Renders the EventRow component.

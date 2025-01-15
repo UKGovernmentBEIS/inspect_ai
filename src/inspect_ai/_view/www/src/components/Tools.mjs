@@ -1,19 +1,19 @@
 // @ts-check
 /// <reference path="../types/prism.d.ts" />
-import Prism from "prismjs";
 import murmurhash from "murmurhash";
+import Prism from "prismjs";
 
-import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
+import "prismjs/components/prism-python";
 
-import { useRef, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
+import { useEffect, useRef } from "preact/hooks";
 
-import { MessageContent } from "./MessageContent.mjs";
+import { FontSize } from "../appearance/fonts";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
-import { FontSize } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "./MarkdownDiv.mjs";
+import { MessageContent } from "./MessageContent.mjs";
 
 /**
  * @typedef {Object} ToolCallResult

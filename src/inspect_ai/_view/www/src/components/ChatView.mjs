@@ -1,11 +1,11 @@
 // @ts-check
 import { html } from "htm/preact";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationIcons } from "../appearance/icons";
 
-import { MessageContent } from "./MessageContent.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 import { ExpandablePanel } from "./ExpandablePanel.mjs";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { MessageContent } from "./MessageContent.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 import { VirtualList } from "./VirtualList.mjs";
 import { MarkdownDiv } from "./MarkdownDiv.mjs";

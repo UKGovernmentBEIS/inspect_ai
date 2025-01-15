@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
-import { FontSize } from "../../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { FontSize } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 
 import { formatNumber } from "../../utils/format";
 import { ANSIDisplay } from "../AnsiDisplay.mjs";

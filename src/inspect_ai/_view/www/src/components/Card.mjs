@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
-import { ApplicationIcons } from "../appearance/Icons.mjs";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
+import { ApplicationIcons } from "../appearance/icons";
 
 export const CardHeader = ({ id, icon, label, classes, style, children }) => {
   return html`<div

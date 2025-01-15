@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 import { ModelUsagePanel } from "./UsageCard.mjs";
 
 export const ModelTokenTable = ({ model_usage, style }) => {

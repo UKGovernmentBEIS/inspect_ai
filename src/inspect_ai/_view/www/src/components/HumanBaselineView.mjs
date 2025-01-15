@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { useEffect } from "preact/hooks";
-import { TextStyle } from "../appearance/Fonts.mjs";
+import { TextStyle } from "../appearance/fonts";
 import { formatDateTime, formatTime } from "../utils/format";
 import { AsciiCinemaPlayer } from "./AsciiCinemaPlayer.mjs";
 import { LightboxCarousel } from "./LightboxCarousel.mjs";

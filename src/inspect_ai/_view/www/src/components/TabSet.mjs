@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { useCallback, useEffect, useRef } from "preact/hooks";
+import { FontSize, TextStyle } from "../appearance/fonts";
 
 // styles: { tabSet:{}, tabBody: {}}
 export const TabSet = ({ id, type, classes, tools, styles, children }) => {

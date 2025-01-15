@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
+import { FontSize, TextStyle } from "../../../appearance/fonts";
 import { ChatView } from "../../../components/ChatView.mjs";
-import { FontSize, TextStyle } from "../../../appearance/Fonts.mjs";
 import { HumanBaselineView } from "../../../components/HumanBaselineView.mjs";
 
 /**

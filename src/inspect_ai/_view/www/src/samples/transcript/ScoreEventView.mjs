@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
-import { TextStyle } from "../../appearance/Fonts.mjs";
-import { ApplicationIcons } from "../../appearance/Icons.mjs";
+import { TextStyle } from "../../appearance/fonts";
+import { ApplicationIcons } from "../../appearance/icons";
 import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { formatDateTime } from "../../utils/format";

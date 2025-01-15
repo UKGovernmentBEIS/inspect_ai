@@ -1,9 +1,9 @@
 import { html } from "htm/preact";
 
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
 import { formatPrettyDecimal } from "../utils/format";
-import { ApplicationIcons } from "./../appearance/Icons.mjs";
-import { ApplicationStyles } from "./../appearance/Styles.mjs";
+import { ApplicationIcons } from "./../appearance/icons";
+import { ApplicationStyles } from "./../appearance/styles";
 import { filename } from "./../utils/path";
 
 import { CopyButton } from "./../components/CopyButton.mjs";
@@ -221,7 +221,7 @@ const StatusPanel = ({ icon, status, sampleCount }) => {
 
 const CancelledPanel = ({ sampleCount }) => {
   return html`<${StatusPanel}
-    icon=${ApplicationIcons.logging.info}
+    icon=${ApplicationIcons.logging["info"]}
     status="Cancelled"
     sampleCount=${sampleCount}
   />`;
@@ -229,7 +229,7 @@ const CancelledPanel = ({ sampleCount }) => {
 
 const ErroredPanel = ({ sampleCount }) => {
   return html`<${StatusPanel}
-    icon=${ApplicationIcons.logging.error}
+    icon=${ApplicationIcons.logging["error"]}
     status="Task Failed"
     sampleCount=${sampleCount}
   />`;

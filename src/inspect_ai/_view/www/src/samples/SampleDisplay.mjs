@@ -8,11 +8,11 @@ import { inputString } from "../utils/format";
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
 
-import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { ApplicationStyles } from "../appearance/Styles.mjs";
+import { FontSize, TextStyle } from "../appearance/fonts";
+import { ApplicationStyles } from "../appearance/styles";
 import { arrayToString } from "../utils/format";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";

@@ -8,7 +8,7 @@ import {
   useState,
 } from "preact/hooks";
 
-import { ApplicationIcons } from "../appearance/Icons.mjs";
+import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
@@ -19,7 +19,7 @@ import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 
-import { FontSize } from "../appearance/Fonts.mjs";
+import { FontSize } from "../appearance/fonts";
 import { MessageBand } from "../components/MessageBand.mjs";
 import {
   kEvalWorkspaceTabId,
