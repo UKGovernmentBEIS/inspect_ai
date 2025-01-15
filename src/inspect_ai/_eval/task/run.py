@@ -45,7 +45,11 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import active_sample, set_active_sample_token_limit
+from inspect_ai.log._samples import (
+    active_sample,
+    set_active_sample_message_limit,
+    set_active_sample_token_limit,
+)
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -643,6 +647,7 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = sample_state() or state
+                    state.completed = True
 
                 except BaseException as ex:
                     error = handle_error(ex)
@@ -664,6 +669,7 @@ async def task_run_sample(
 
                 # turn off sample limits
                 set_active_sample_token_limit(None)
+                set_active_sample_message_limit(None)
 
                 # scoring
                 try:
