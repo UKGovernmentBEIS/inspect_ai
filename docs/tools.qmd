@@ -496,33 +496,26 @@ Two of the Inspect examples demonstrate basic computer use:
 
 ### VNC Client {#vnc-client}
 
-You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the container to watch computer use in real-time. This requires some additional port-mapping in the Docker compose file. If you are running a single sample, use this configuration:
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the container to watch computer use in real-time. This requires some additional port-mapping in the Docker compose file. You can define dynamic port ranges for VNC (5900) and a browser based noVNC client (6080) with the following `ports` entries:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
     image: inspect-computer-tool
-    ports: 
-      - 5900:5900
+    ports:
+      - "5900"
+      - "6080"
 ```
 
-If you are running multiple samples, you can setup dynamic allocation of ports (beginning at 5900) with the following:
+To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
-``` {.yaml filename="compose.yaml"}
-services:
-  default:
-    image: inspect-computer-tool
-    ports: 
-      - 5900
-```
+![](images/vnc-port-info.png){width=958}
 
-With ports configured, you can now connect to your running session using a VNC Client (for example, [Real VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/)). There are a couple of things to keep in mind when making this connection:
+Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
-1.  The VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
+The browser based client provides a view-only interface. If you use a native VNC client you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
 
-2.  To avoid interfering with the model's use of the computer, you should set your VNC client to a "view only" mode. For example, for Real VNC Viewer:
-
-    ![](images/vnc-view-only.png){width="549"}
+![](images/vnc-view-only.png){width="549"}
 
 ### Approval
 
