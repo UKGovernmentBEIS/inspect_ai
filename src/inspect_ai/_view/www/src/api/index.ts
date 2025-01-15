@@ -1,7 +1,7 @@
 import browserApi from "./api-browser";
 import vscodeApi from "./api-vscode";
 import simpleHttpApi from "./api-http";
-import { dirname } from "../utils/Path.mjs";
+import { dirname } from "../utils/path";
 import { getVscodeApi } from "../utils/vscode";
 import { clientApi } from "./client-api";
 import { ClientAPI } from "./Types";

@@ -27,7 +27,7 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants.mjs";
-import { debounce } from "../utils/sync.mjs";
+import { debounce } from "../utils/sync";
 
 /**
  * Renders the Main Application

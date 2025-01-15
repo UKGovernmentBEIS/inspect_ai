@@ -1,7 +1,7 @@
 //@ts-check
 import { html } from "htm/preact";
 
-import { filename } from "../utils/Path.mjs";
+import { filename } from "../utils/path";
 
 import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";

@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { ApplicationIcons } from "./../appearance/Icons.mjs";
 import { ApplicationStyles } from "./../appearance/Styles.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { filename } from "./../utils/Path.mjs";
+import { filename } from "./../utils/path";
 import { formatPrettyDecimal } from "../utils/Format.mjs";
 
 import { CopyButton } from "./../components/CopyButton.mjs";

@@ -17,7 +17,7 @@ import {
   useState,
 } from "preact/hooks";
 
-import { debounce, sleep } from "./utils/sync.mjs";
+import { debounce, sleep } from "./utils/sync";
 import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
@@ -26,8 +26,7 @@ import { ProgressBar } from "./components/ProgressBar.mjs";
 import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
-import { isVscode } from "./utils/Html.mjs";
-import { getVscodeApi } from "./utils/vscode";
+import { getVscodeApi, isVscode } from "./utils/vscode";
 import { kDefaultSort } from "./constants.mjs";
 import {
   createEvalDescriptor,

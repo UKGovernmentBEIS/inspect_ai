@@ -1,11 +1,7 @@
-// @ts-check
 /**
  * Extracts the filename without extension from a given path.
- *
- * @param {string} path - The full path of the file.
- * @returns {string} - The filename without its extension, or the original path if no extension is found.
  */
-export const filename = (path) => {
+export const filename = (path: string): string => {
   const pathparts = path.split("/");
   const basename = pathparts.slice(-1)[0];
   const match = basename.match(/(.*)\.\S+$/);
@@ -18,11 +14,8 @@ export const filename = (path) => {
 
 /**
  * Extracts the directory name from a given path.
- *
- * @param {string} path - The full path of the file.
- * @returns {string} - The directory name, or an empty string if no directory is found.
  */
-export const dirname = (path) => {
+export const dirname = (path: string): string => {
   const pathparts = path.split("/");
 
   // If the path ends with a filename (or no slashes), remove the last part (filename)
