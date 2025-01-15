@@ -20005,26 +20005,16 @@ categories: ${categories.join(" ")}`;
         return attr.includes("data-vscode-");
       });
     };
-    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
-      const emptyStyle = {
-        display: "flex",
-        textAlign: "center",
-        flex: "0 0 content",
-        alignItems: "center",
-        justifyContent: "center",
-        height: height ? height : "10rem"
-      };
-      return m$1`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{ width: "100%" }}
-    >
-      <div style=${{ ...emptyStyle, ...style2 }}>
-        <div>${children2 || ""}</div>
-      </div>
-    </div>
-  `;
+    const EmptyPanel = (props) => {
+      return /* @__PURE__ */ u("div", {
+        className: "empty-panel",
+        children: /* @__PURE__ */ u("div", {
+          className: "container",
+          children: /* @__PURE__ */ u("div", {
+            children: props.children
+          })
+        })
+      });
     };
     const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
       if (!id) {

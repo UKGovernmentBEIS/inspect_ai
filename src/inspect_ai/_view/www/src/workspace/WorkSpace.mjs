@@ -9,7 +9,7 @@ import {
 } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/icons";
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton";
 import { JsonTab } from "../json/JsonTab.mjs";
