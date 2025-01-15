@@ -7857,49 +7857,33 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
-    const ProgressBar = ({ style: style2, containerStyle, animating }) => {
-      const emptyStyle = {
-        display: "flex",
-        textAlign: "center",
-        flex: "0 0 content",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "none",
-        padding: "0",
-        zIndex: 1001,
-        width: "100%",
-        height: "0px",
-        overflow: "visible"
-      };
-      const progressContainerStyle = {
-        width: "100%",
-        height: "2px",
-        ...containerStyle,
-        background: "#ffffff00"
-      };
-      const progressBarStyle = {
-        width: "5%",
-        height: "2px",
-        ...style2
-      };
-      return m$1`
-    <div style=${emptyStyle} class="empty-message">
-      <div
-        class="progress"
-        role="progressbar"
-        aria-label="Basic example"
-        aria-valuenow="25"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        style=${progressContainerStyle}
-      >
-        ${animating ? m$1`<div
-              class="progress-bar left-to-right-animate"
-              style=${progressBarStyle}
-            ></div>` : ""}
-      </div>
-    </div>
-  `;
+    var f = 0;
+    function u(e2, t2, n2, o2, i2, u2) {
+      t2 || (t2 = {});
+      var a2, c2, l2 = t2;
+      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
+      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
+      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
+      return l$1.vnode && l$1.vnode(p2), p2;
+    }
+    const ProgressBar = (props) => {
+      return /* @__PURE__ */ u("div", {
+        className: "progress-bar-wrapper",
+        style: props.style,
+        children: /* @__PURE__ */ u("div", {
+          className: "progress-container",
+          role: "progressbar",
+          "aria-label": "Basic example",
+          "aria-valuenow": 25,
+          "aria-valuemin": 0,
+          "aria-valuemax": 100,
+          style: props.containerStyle,
+          children: props.animating && /* @__PURE__ */ u("div", {
+            className: "progress-bar-animated",
+            style: props.style
+          })
+        })
+      });
     };
     const clearDocumentSelection = () => {
       const sel = window.getSelection();
@@ -20194,15 +20178,6 @@ categories: ${categories.join(" ")}`;
     const computeTabContentsId = (id, index) => {
       return `${id}-contents-${index}`;
     };
-    var f = 0;
-    function u(e2, t2, n2, o2, i2, u2) {
-      t2 || (t2 = {});
-      var a2, c2, l2 = t2;
-      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
-      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
-      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
-      return l$1.vnode && l$1.vnode(p2), p2;
-    }
     const ToolButton = xn.forwardRef(({
       name: name2,
       classes = "",

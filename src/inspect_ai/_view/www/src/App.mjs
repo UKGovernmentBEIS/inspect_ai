@@ -19,7 +19,7 @@ import {
 
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
-import { ProgressBar } from "./components/ProgressBar.mjs";
+import { ProgressBar } from "./components/ProgressBar";
 import { clearDocumentSelection } from "./utils/browser";
 import { debounce, sleep } from "./utils/sync";
 

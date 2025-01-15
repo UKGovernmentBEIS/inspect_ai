@@ -17671,6 +17671,38 @@ ul.jsondiffpatch-textdiff {
   color: red;
 }
 /* END PrismJS */
+.progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 0;
+  overflow: visible;
+  z-index: 1001;
+  text-align: center;
+}
+
+.progress-container {
+  width: 100%;
+  height: 2px;
+  background-color: transparent;
+}
+
+.progress-bar-animated {
+  width: 5%;
+  height: 2px;
+  animation: leftToRight 2s linear infinite;
+  background-color: #3b82f6; /* Default blue color, can be overridden via style prop */
+}
+
+@keyframes leftToRight {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(2000%);
+  }
+}
 .tool-button i {
   margin-right: 0.5em;
 }

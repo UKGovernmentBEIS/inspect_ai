@@ -20,7 +20,7 @@ import { FlatSampleError } from "./SampleError.mjs";
 import { SampleScoreView } from "./SampleScoreView.mjs";
 import { SampleTranscript } from "./SampleTranscript.mjs";
 
-import { ProgressBar } from "../components/ProgressBar.mjs";
+import { ProgressBar } from "../components/ProgressBar";
 
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
