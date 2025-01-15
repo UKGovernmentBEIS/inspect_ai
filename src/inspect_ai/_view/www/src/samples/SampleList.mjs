@@ -12,7 +12,7 @@ import { ApplicationStyles } from "../appearance/styles";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleError } from "./SampleError.mjs";
 
-import { EmptyPanel } from "../components/EmptyPanel.mjs";
+import { EmptyPanel } from "../components/EmptyPanel";
 import { MessageBand } from "../components/MessageBand.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { arrayToString, formatNoDecimal, inputString } from "../utils/format";
