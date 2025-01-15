@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/fonts";
 import { MessageBand } from "./MessageBand.mjs";
-import { ProgressBar } from "./ProgressBar.mjs";
+import { ProgressBar } from "./ProgressBar";
 
 export const LargeModal = ({
   id,

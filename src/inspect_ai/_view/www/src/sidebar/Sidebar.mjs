@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationStyles } from "../appearance/styles";
-import { ProgressBar } from "../components/ProgressBar.mjs";
+import { ProgressBar } from "../components/ProgressBar";
 import { formatPrettyDecimal } from "../utils/format";
 import { ApplicationIcons } from "./../appearance/icons";
 
