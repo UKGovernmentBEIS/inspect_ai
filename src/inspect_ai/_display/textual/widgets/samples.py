@@ -17,7 +17,7 @@ from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
-from .port_mappings import PortMappingsView
+from .sandbox import SandboxView
 from .transcript import TranscriptView
 
 
@@ -308,26 +308,27 @@ class SandboxesView(Vertical):
 
     async def sync_sample(self, sample: ActiveSample) -> None:
         if len(sample.sandboxes) > 0:
+            multiple_sandboxes = len(sample.sandboxes) > 1
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
-            sandboxes_caption.update("[bold]sandbox containers:[/bold]")
+            sandboxes_caption.update(
+                f"[bold]sandbox container{'s' if multiple_sandboxes else ''}:[/bold]"
+            )
 
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
+
             await sandboxes_list.mount_all(
-                [
-                    item
-                    for sandbox in sample.sandboxes.values()
-                    for item in [Static(sandbox.command)]
-                    + [PortMappingsView(sandbox.ports)]
-                    + [
-                        Static(
-                            "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
-                            classes="clipboard-message",
-                            markup=True,
-                        ),
-                    ]
-                ]
+                SandboxView(connection, name if multiple_sandboxes else None)
+                for name, connection in sample.sandboxes.items()
+            )
+
+            await sandboxes_list.mount(
+                Static(
+                    "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
+                    classes="clipboard-message",
+                    markup=True,
+                )
             )
         else:
             self.display = False
