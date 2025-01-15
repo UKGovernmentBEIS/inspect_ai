@@ -8,6 +8,7 @@
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
 - Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
 - Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
+- Sandboxes: Add `type` and  optional `container` properties to `SandboxConnection`.
 - Docker: Services which exit with status 0 during setup no longer cause an error.
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
