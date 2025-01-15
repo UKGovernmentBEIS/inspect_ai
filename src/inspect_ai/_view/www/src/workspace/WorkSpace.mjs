@@ -12,22 +12,22 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
+import { JsonTab } from "../json/JsonTab.mjs";
+import { Navbar } from "../navbar/Navbar.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
-import { JsonTab } from "../json/JsonTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
-import { Navbar } from "../navbar/Navbar.mjs";
 
-import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 import { MessageBand } from "../components/MessageBand.mjs";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
-} from "../constants.mjs";
+} from "../constants";
 import { debounce } from "../utils/sync";
+import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 
 /**
  * Renders the Main Application

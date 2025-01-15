@@ -13,14 +13,14 @@ import { EditorView, minimalSetup } from "codemirror";
 import { html } from "htm/preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-import { filterSamples, scoreFilterItems } from "./filters.mjs";
 import {
   kScoreTypeBoolean,
   kScoreTypeCategorical,
   kScoreTypeNumeric,
   kScoreTypeOther,
   kScoreTypePassFail,
-} from "../../constants.mjs";
+} from "../../constants";
+import { filterSamples, scoreFilterItems } from "./filters";
 
 /**
  * @typedef {Object} Token
@@ -33,7 +33,7 @@ import {
 /**
  * @typedef {Object} FilteringResult
  * @property {number} numSamples - The number of samples that match the filter.
- * @property {import("./filters.mjs").FilterError | undefined} error - The error in the filter expression, if any.
+ * @property {import("./filters").FilterError | undefined} error - The error in the filter expression, if any.
  */
 
 const KEYWORDS = ["and", "or", "not", "in", "not in", "mod"];
