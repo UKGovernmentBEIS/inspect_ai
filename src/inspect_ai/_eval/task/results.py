@@ -38,6 +38,11 @@ def eval_results(
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
     reductions = None
 
+    # if we have scores but no scorers, synthesize scorers
+    if len(scores) > 0 and scorers is None:
+        # TODO
+        pass
+
     # record scorer
     if scorers:
         result_scores: list[EvalScore] = []
