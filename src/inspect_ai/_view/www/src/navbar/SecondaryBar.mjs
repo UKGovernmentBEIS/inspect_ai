@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
 import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
-import { LabeledValue } from "../components/LabeledValue.mjs";
+import { LabeledValue } from "../components/LabeledValue";
 import { scoreFilterItems } from "../samples/tools/filters";
 import { formatDataset, formatDuration } from "../utils/format";
 

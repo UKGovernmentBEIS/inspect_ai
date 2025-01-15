@@ -16688,6 +16688,19 @@ body[class^="vscode-"] .app-main-grid {
   grid-template-rows: max-content max-content 1fr;
 }
 
+/* Inspect Text Styles */
+.text-style-label {
+  text-transform: uppercase;
+}
+
+.text-style-secondary {
+  color: var(--bs-secondary);
+}
+
+text-style-tertiary {
+  color: var(--bs-tertiary-color);
+}
+
 body[class^="vscode-"] {
   --bs-border-radius: 0;
   --bs-border-radius-lg: 0;

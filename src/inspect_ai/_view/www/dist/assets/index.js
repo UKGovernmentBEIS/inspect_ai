@@ -24033,33 +24033,24 @@ self.onmessage = function (e) {
         })
       });
     };
-    const LabeledValue = ({
-      label,
-      style: style2,
-      valueStyle,
-      layout = "column",
-      children: children2
-    }) => {
-      const flexDirection = layout === "column" ? "column" : "row";
-      return m$1` <div
-    style=${{
-        display: "flex",
-        flexDirection,
-        ...style2
-      }}
-  >
-    <div
-      style=${{
-        fontSize: FontSize.smaller,
-        marginBottom: "-0.2rem",
-        ...TextStyle.secondary,
-        ...TextStyle.label
-      }}
-    >
-      ${label}
-    </div>
-    <div style=${{ fontSize: FontSize.base, ...valueStyle }}>${children2}</div>
-  </div>`;
+    const LabeledValue = (props) => {
+      const flexDirection = props.layout === "column" ? "column" : "row";
+      return /* @__PURE__ */ u("div", {
+        className: `labeled-value ${flexDirection}`,
+        style: {
+          ...props.style
+        },
+        children: [/* @__PURE__ */ u("div", {
+          className: "labeled-value-label text-style-label text-style-secondary",
+          children: props.label
+        }), /* @__PURE__ */ u("div", {
+          className: "labeled-value-value",
+          style: {
+            ...props.valueStyle
+          },
+          children: props.children
+        })]
+      });
     };
     const SecondaryBar = ({
       evalSpec,
