@@ -23,7 +23,7 @@ from vertexai.generative_models import (  # type: ignore
 )
 from vertexai.generative_models import Content as VertexContent
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -248,9 +248,6 @@ def consective_tool_message_reducer(
     else:
         messages.append(message)
     return messages
-
-
-NO_CONTENT = "(no content)"
 
 
 async def content_dict(

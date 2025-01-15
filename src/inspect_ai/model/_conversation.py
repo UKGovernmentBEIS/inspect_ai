@@ -1,6 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.util._conversation import conversation_panel
@@ -15,13 +16,16 @@ MESSAGE_TITLE = "Message"
 def conversation_tool_mesage(message: ChatMessageTool) -> None:
     if display_type() == "conversation":
         # truncate output to 100 lines
-        output = message.error.message if message.error else message.text.strip()
-        content = lines_display(output, 100)
-
-        conversation_panel(
-            title=f"Tool Output: {message.function}",
-            content=content,
+        output = (
+            message.error.message.strip() if message.error else message.text.strip()
         )
+        if output:
+            content = lines_display(output, 100)
+
+            conversation_panel(
+                title=f"Tool Output: {message.function}",
+                content=content,
+            )
 
 
 def conversation_assistant_message(
@@ -37,12 +41,15 @@ def conversation_assistant_message(
 
         # start with assistant content
         content: list[RenderableType] = (
-            [transcript_markdown(message.text, escape=True)] if message.text else []
+            [transcript_markdown(message.text, escape=True)]
+            if message.text and message.text != NO_CONTENT
+            else []
         )
 
         # print tool calls
         if message.tool_calls:
-            content.append(Text())
+            if content:
+                content.append(Text())
             content.extend(render_tool_calls(message.tool_calls))
 
         # print the assistant message

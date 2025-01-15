@@ -1,0 +1,10 @@
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
