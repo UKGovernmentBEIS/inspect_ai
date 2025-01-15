@@ -1,7 +1,8 @@
 //@ts-check
+import { fetchRange, fetchSize } from "../remote/remoteZipFile.mjs";
+import { EvalLog } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file, encodePathParts } from "./api-shared";
-import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
 import {
   Capabilities,
   LogContents,
@@ -9,7 +10,6 @@ import {
   LogFilesFetchResponse,
   LogViewAPI,
 } from "./Types";
-import { EvalLog } from "../types/log";
 
 interface LogInfo {
   log_dir?: string;

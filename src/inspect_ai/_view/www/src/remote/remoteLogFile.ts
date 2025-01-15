@@ -1,4 +1,3 @@
-//@ts-check
 import {
   EvalHeader,
   EvalSummary,
@@ -8,10 +7,7 @@ import {
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
 import { AsyncQueue } from "../utils/queue";
-import {
-  FileSizeLimitError,
-  openRemoteZipFile,
-} from "../utils/remoteZipFile.mjs";
+import { FileSizeLimitError, openRemoteZipFile } from "./remoteZipFile.mjs";
 
 // don't try to load samples greater than 50mb
 const MAX_BYTES = 50 * 1024 * 1024;

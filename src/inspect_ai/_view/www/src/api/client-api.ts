@@ -1,13 +1,13 @@
-import { openRemoteLogFile, RemoteLogFile } from "../log/remoteLogFile";
+import { openRemoteLogFile, RemoteLogFile } from "../remote/remoteLogFile";
+import { FileSizeLimitError } from "../remote/remoteZipFile.mjs";
 import { EvalLog, EvalSample } from "../types/log";
-import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
 import { encodePathParts } from "./api-shared";
 import {
   ClientAPI,
   EvalSummary,
   LogContents,
-  LogViewAPI,
   LogFiles,
+  LogViewAPI,
 } from "./Types";
 
 const isEvalFile = (file: string) => {
