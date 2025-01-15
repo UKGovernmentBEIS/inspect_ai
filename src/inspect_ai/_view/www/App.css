@@ -9,6 +9,15 @@
   --inspect-input-border: var(--bs-light-border-subtle);
   --inspect-diff-add-color: #dafbe1;
   --inspect-diff-remove-color: #ffebe9;
+
+  /* Inspect Font Sizes */
+  --inspect-font-size-title: 1.5rem;
+  --inspect-font-size-title-secondary: 1.3rem;
+  --inspect-font-size-larger: 1.1rem;
+  --inspect-font-size-large: 1rem;
+  --inspect-font-size-base: 0.9rem;
+  --inspect-font-size-small: 0.8rem;
+  --inspect-font-size-smaller: 0.8rem;
 }
 
 body:not([class^="vscode-"]) button {

@@ -25,7 +25,7 @@ import { ProgressBar } from "../components/ProgressBar";
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { ErrorPanel } from "../components/ErrorPanel.mjs";
-import { JSONPanel } from "../components/JsonPanel.mjs";
+import { JSONPanel } from "../components/JsonPanel";
 import {
   kSampleErrorTabId,
   kSampleJsonTabId,
