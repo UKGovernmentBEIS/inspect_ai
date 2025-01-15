@@ -2,7 +2,7 @@ from logging import getLogger
 
 from .._metric import (
     Metric,
-    Score,
+    ReducedScore,
     ValueToFloat,
     metric,
     value_to_float,
@@ -28,7 +28,7 @@ def accuracy(to_float: ValueToFloat = value_to_float()) -> Metric:
        Accuracy metric
     """
 
-    def metric(scores: list[Score]) -> float:
+    def metric(scores: list[ReducedScore]) -> float:
         total = 0.0
         for item in scores:
             total += to_float(item.value)

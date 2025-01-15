@@ -4,7 +4,13 @@ from typing import Callable, cast
 
 import numpy as np
 
-from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
+from inspect_ai.scorer._metric import (
+    ReducedScore,
+    Score,
+    Value,
+    ValueToFloat,
+    value_to_float,
+)
 
 from .registry import REDUCER_NAME, score_reducer
 from .types import ScoreReducer
@@ -12,7 +18,7 @@ from .types import ScoreReducer
 
 @score_reducer(name="mode")
 def mode_score() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         r"""A utility function for the most common score in a list of scores.
 
         Args:
@@ -36,7 +42,7 @@ def mode_score() -> ScoreReducer:
 
 @score_reducer(name="mean")
 def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         r"""A utility function for taking a mean value over a list of scores.
 
         Args:
@@ -54,7 +60,7 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 
 @score_reducer(name="median")
 def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         r"""A utility function for taking a median value over a list of scores.
 
         Args:
@@ -74,7 +80,7 @@ def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReduce
 def at_least(
     k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         r"""A utility function for scoring a value as correct if there are at least n score values greater than or equal to the value
 
         Args:
@@ -104,7 +110,7 @@ def at_least(
 def pass_at(
     k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         def pass_at_k(values: list[float]) -> float:
             total = len(scores)
             correct = sum(1 for v in values if v == value)
@@ -129,7 +135,7 @@ def pass_at(
 
 @score_reducer(name="max")
 def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[Score]) -> ReducedScore:
         r"""A utility function for taking the maximum value from a list of scores
 
         Args:
@@ -170,7 +176,7 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 def _count_scalar(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
-) -> Score:
+) -> ReducedScore:
     r"""Counts scores and provides Counter to a counter_fn
 
     Args:
@@ -184,7 +190,7 @@ def _count_scalar(
 def _count_dict(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
-) -> Score:
+) -> ReducedScore:
     r"""Counts scores within a dictionary and provides Counter (for each key) to a counter_fn
 
     Args:
@@ -209,7 +215,7 @@ def _count_dict(
 def _count_list(
     scores: list[Score],
     counter_fn: Callable[[Counter[str | int | float | bool]], str | int | float | bool],
-) -> Score:
+) -> ReducedScore:
     r"""Counts scores within a list and provides Counter (for each index) to a counter_fn
 
     Args:
@@ -233,7 +239,7 @@ def _compute_dict_stat(
     scores: list[Score],
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
-) -> Score:
+) -> ReducedScore:
     r"""Applies a statistic function to reduce key by key a dictionary
 
     Args:
@@ -255,7 +261,7 @@ def _compute_list_stat(
     scores: list[Score],
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
-) -> Score:
+) -> ReducedScore:
     r"""Applies a statistic function to reduce index by index a list
 
     Args:
@@ -278,7 +284,7 @@ def _compute_scalar_stat(
     scores: list[Score],
     value_to_float: ValueToFloat,
     statistic: Callable[[list[float]], float],
-) -> Score:
+) -> ReducedScore:
     r"""Applies a statistic function to reduce scalar scores
 
     Args:
@@ -315,14 +321,14 @@ def _check_value_list(scores: list[Score]) -> None:
             raise ValueError("Attempting to reduce a list score for a non-list value")
 
 
-def _reduced_score(value: Value, scores: list[Score]) -> Score:
-    r"""Create a Score based upon a single Value and list of Scores that produced it
+def _reduced_score(value: Value, scores: list[Score]) -> ReducedScore:
+    r"""Create a ReducedScore based upon a single Value and list of Scores that produced it
 
     Args:
         value: the reduced Value
         scores: ths list of scores being reduced
     """
-    return Score(
+    return ReducedScore(
         value=value,
         # retain remaining fields only if equal across all Scores
         answer=scores[0].answer
@@ -332,4 +338,5 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         if len(set(score.explanation for score in scores)) == 1
         else None,
         metadata=scores[0].metadata,
+        children=scores,
     )

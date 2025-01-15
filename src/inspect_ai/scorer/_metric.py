@@ -111,6 +111,11 @@ class Score(BaseModel):
             raise ValueError("This score is not a scalar")
 
 
+class ReducedScore(Score):
+    children: list[Score] = Field(default_factory=list)
+    """List of child (unreduced) scores"""
+
+
 class SampleScore(BaseModel):
     """Score for a Sample
 
@@ -189,13 +194,13 @@ class Metric(Protocol):
     r"""Evaluate scores using a metric.
 
     Args:
-        scores (list[Score]): List of scores.
+        scores (list[ReducedScore]): List of reduced scores.
 
     Returns:
         Metric value
     """
 
-    def __call__(self, scores: list[Score]) -> Value: ...
+    def __call__(self, scores: list[ReducedScore]) -> Value: ...
 
 
 P = ParamSpec("P")
