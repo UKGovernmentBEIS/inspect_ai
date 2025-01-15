@@ -1,9 +1,9 @@
-import "bootstrap/dist/css/bootstrap.css";
-import "bootstrap-icons/font/bootstrap-icons.css";
-import "prismjs/themes/prism.css";
-import "prismjs";
-import "../App.css";
 import "asciinema-player/dist/bundle/asciinema-player.css";
+import "bootstrap-icons/font/bootstrap-icons.css";
+import "bootstrap/dist/css/bootstrap.css";
+import "prismjs";
+import "prismjs/themes/prism.css";
+import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
 // @ts-ignore
@@ -17,24 +17,24 @@ import {
   useState,
 } from "preact/hooks";
 
-import { debounce, sleep } from "./utils/sync";
-import { clearDocumentSelection } from "./components/Browser.mjs";
 import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
+import { clearDocumentSelection } from "./components/Browser.mjs";
 import { ErrorPanel } from "./components/ErrorPanel.mjs";
 import { ProgressBar } from "./components/ProgressBar.mjs";
+import { debounce, sleep } from "./utils/sync";
 
-import { Sidebar } from "./sidebar/Sidebar.mjs";
-import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
-import { getVscodeApi, isVscode } from "./utils/vscode";
 import { kDefaultSort } from "./constants.mjs";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "./samples/SamplesDescriptor.mjs";
-import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
-import { resolveAttachments } from "./utils/attachments";
 import { filterFnForType } from "./samples/tools/filters.mjs";
+import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
+import { Sidebar } from "./sidebar/Sidebar.mjs";
+import { resolveAttachments } from "./utils/attachments";
+import { getVscodeApi, isVscode } from "./utils/vscode";
+import { WorkSpace } from "./workspace/WorkSpace.mjs";
 
 import {
   kEvalWorkspaceTabId,

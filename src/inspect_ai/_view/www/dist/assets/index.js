@@ -7587,96 +7587,6 @@ var require_assets = __commonJS({
     function D(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
-    function sleep$1(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-    function throttle$1(func, wait, options = {}) {
-      let context;
-      let args;
-      let result;
-      let timeout = null;
-      let previous = 0;
-      const later = function() {
-        previous = options.leading === false ? 0 : Date.now();
-        timeout = null;
-        result = func.apply(context, args === null ? [] : args);
-        if (!timeout) {
-          context = null;
-          args = null;
-        }
-      };
-      return function(...callArgs) {
-        const now = Date.now();
-        if (!previous && options.leading === false) {
-          previous = now;
-        }
-        const remaining = wait - (now - previous);
-        context = this;
-        args = callArgs;
-        if (remaining <= 0 || remaining > wait) {
-          if (timeout) {
-            clearTimeout(timeout);
-            timeout = null;
-          }
-          previous = now;
-          result = func.apply(context, args);
-          if (!timeout) {
-            context = null;
-            args = null;
-          }
-        } else if (!timeout && options.trailing !== false) {
-          timeout = setTimeout(later, remaining);
-        }
-        return result;
-      };
-    }
-    function debounce$1(func, wait, options = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options.leading) {
-            result = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result;
-      };
-    }
-    const clearDocumentSelection = () => {
-      const sel = window.getSelection();
-      if (sel) {
-        if (sel.removeAllRanges) {
-          sel.removeAllRanges();
-        } else if (sel.empty) {
-          sel.empty();
-        }
-      }
-    };
     const ApplicationIcons = {
       approve: "bi bi-shield",
       approvals: {
@@ -7881,6 +7791,16 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
+    const clearDocumentSelection = () => {
+      const sel = window.getSelection();
+      if (sel) {
+        if (sel.removeAllRanges) {
+          sel.removeAllRanges();
+        } else if (sel.empty) {
+          sel.empty();
+        }
+      }
+    };
     const ProgressBar = ({ style: style2, containerStyle, animating }) => {
       const emptyStyle = {
         display: "flex",
@@ -7924,6 +7844,300 @@ var require_assets = __commonJS({
       </div>
     </div>
   `;
+    };
+    function sleep$1(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    function throttle$1(func, wait, options = {}) {
+      let context;
+      let args;
+      let result;
+      let timeout = null;
+      let previous = 0;
+      const later = function() {
+        previous = options.leading === false ? 0 : Date.now();
+        timeout = null;
+        result = func.apply(context, args === null ? [] : args);
+        if (!timeout) {
+          context = null;
+          args = null;
+        }
+      };
+      return function(...callArgs) {
+        const now = Date.now();
+        if (!previous && options.leading === false) {
+          previous = now;
+        }
+        const remaining = wait - (now - previous);
+        context = this;
+        args = callArgs;
+        if (remaining <= 0 || remaining > wait) {
+          if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+          }
+          previous = now;
+          result = func.apply(context, args);
+          if (!timeout) {
+            context = null;
+            args = null;
+          }
+        } else if (!timeout && options.trailing !== false) {
+          timeout = setTimeout(later, remaining);
+        }
+        return result;
+      };
+    }
+    function debounce$1(func, wait, options = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options.leading) {
+            result = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result;
+      };
+    }
+    const FindBand = ({ hideBand }) => {
+      const searchBoxRef = A(
+        /** @type {HTMLInputElement|null} */
+        null
+      );
+      y(() => {
+        searchBoxRef.current.focus();
+      }, []);
+      const searchTerm = () => {
+        return searchBoxRef.current.value;
+      };
+      const search = (term, back) => {
+        const parentExpandablePanel = (selection) => {
+          let node = selection.anchorNode;
+          let expandablePanelEl = void 0;
+          while (node) {
+            if (node.classList && node.classList.contains("expandable-panel")) {
+              expandablePanelEl = node;
+              break;
+            }
+            node = node.parentElement;
+          }
+          return expandablePanelEl;
+        };
+        const focusedElement = (
+          /** @type {HTMLElement} */
+          document.activeElement
+        );
+        const result = window.find(term, false, !!back, false, false, true, false);
+        const noResultEl = window.document.getElementById(
+          "inspect-find-no-results"
+        );
+        if (result) {
+          noResultEl.style.opacity = "0";
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const parentPanel = parentExpandablePanel(selection);
+            if (parentPanel) {
+              parentPanel.style.display = "block";
+              parentPanel.style["-webkit-line-clamp"] = "";
+              parentPanel.style["-webkit-box-orient"] = "";
+            }
+            const range = selection.getRangeAt(0);
+            setTimeout(() => {
+              const element = range.startContainer.parentElement;
+              element.scrollIntoView({
+                behavior: "smooth",
+                // Optional: adds a smooth scrolling animation
+                block: "center"
+                // Optional: scrolls so the element is centered in the view
+              });
+            }, 100);
+          }
+        } else {
+          noResultEl.style.opacity = "1";
+        }
+        if (focusedElement) {
+          focusedElement.focus();
+        }
+      };
+      return m$1`<div
+    style=${{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        marginRight: "20%",
+        zIndex: "1060",
+        color: "var(--inspect-find-foreground)",
+        backgroundColor: "var(--inspect-find-background)",
+        fontSize: "0.9rem",
+        display: "grid",
+        gridTemplateColumns: "auto auto auto auto auto",
+        columnGap: "0.2em",
+        padding: "0.2rem",
+        borderBottom: "solid 1px var(--bs-light-border-subtle)",
+        borderLeft: "solid 1px var(--bs-light-border-subtle)",
+        borderRight: "solid 1px var(--bs-light-border-subtle)",
+        boxShadow: "var(--bs-box-shadow)"
+      }}
+  >
+    <input
+      type="text"
+      ref=${searchBoxRef}
+      style=${{
+        height: "2em",
+        fontSize: "0.9em",
+        margin: "0.1rem",
+        outline: "none",
+        border: "solid 1px var(--inspect-input-border)",
+        color: "var(--inspect-input-foreground)",
+        background: "var(--inspect-input-background)"
+      }}
+      placeholder="Find"
+      onkeydown=${(e2) => {
+        if (e2.key === "Escape") {
+          hideBand();
+        } else if (e2.key === "Enter") {
+          search(searchTerm());
+        }
+      }}
+    />
+    <span
+      id="inspect-find-no-results"
+      style=${{
+        fontSize: FontSize.base,
+        opacity: 0,
+        marginTop: "auto",
+        marginBottom: "auto",
+        marginRight: "0.5em"
+      }}
+      >No results</span
+    >
+    <button
+      title="Previous match"
+      style=${{ padding: 0, fontSize: FontSize.larger }}
+      class="btn"
+      onclick=${() => {
+        search(searchTerm(), true);
+      }}
+    >
+      <i class=${ApplicationIcons.arrows.up}></i>
+    </button>
+    <button
+      title="Next match"
+      style=${{ padding: 0, fontSize: FontSize.larger }}
+      class="btn"
+      onclick=${() => {
+        search(searchTerm());
+      }}
+    >
+      <i class=${ApplicationIcons.arrows.down}></i>
+    </button>
+    <button
+      title="Close"
+      style=${{
+        padding: 0,
+        fontSize: FontSize["title-secondary"],
+        marginTop: "-0.1rem",
+        marginBottom: "-0.1rem"
+      }}
+      class="btn"
+      onclick=${() => hideBand()}
+    >
+      <i class=${ApplicationIcons.close}></i>
+    </button>
+  </div>`;
+    };
+    const kEvalWorkspaceTabId = "eval-tab";
+    const kJsonWorkspaceTabId = "json-tab";
+    const kInfoWorkspaceTabId = "plan-tab";
+    const kSampleMessagesTabId = `sample-display-messages`;
+    const kSampleTranscriptTabId = `sample-display-transcript`;
+    const kSampleScoringTabId = `sample-display-scoring`;
+    const kSampleMetdataTabId = `sample-display-metadata`;
+    const kSampleErrorTabId = `sample-display-error`;
+    const kSampleJsonTabId = `sample-display-json`;
+    const kScoreTypePassFail = "passfail";
+    const kScoreTypeCategorical = "categorical";
+    const kScoreTypeNumeric = "numeric";
+    const kScoreTypeOther = "other";
+    const kScoreTypeObject = "object";
+    const kSampleAscVal = "sample-asc";
+    const kSampleDescVal = "sample-desc";
+    const kEpochAscVal = "epoch-asc";
+    const kEpochDescVal = "epoch-desc";
+    const kScoreAscVal = "score-asc";
+    const kScoreDescVal = "score-desc";
+    const kDefaultSort = kSampleAscVal;
+    const ApplicationStyles = {
+      moreButton: {
+        maxHeight: "1.8em",
+        fontSize: FontSize.smaller,
+        padding: "0 0.2em 0 0.2em",
+        ...TextStyle.secondary
+      },
+      threeLineClamp: {
+        display: "-webkit-box",
+        "-webkit-line-clamp": "3",
+        "-webkit-box-orient": "vertical",
+        overflow: "hidden"
+      },
+      lineClamp: (len) => {
+        return {
+          display: "-webkit-box",
+          "-webkit-line-clamp": `${len}`,
+          "-webkit-box-orient": "vertical",
+          overflow: "hidden"
+        };
+      },
+      wrapText: () => {
+        return {
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+          overflow: "hidden"
+        };
+      },
+      scoreFills: {
+        green: {
+          backgroundColor: "var(--bs-success)",
+          borderColor: "var(--bs-success)",
+          color: "var(--bs-body-bg)"
+        },
+        red: {
+          backgroundColor: "var(--bs-danger)",
+          borderColor: "var(--bs-danger)",
+          color: "var(--bs-body-bg)"
+        },
+        orange: {
+          backgroundColor: "var(--bs-orange)",
+          borderColor: "var(--bs-orange)",
+          color: "var(--bs-body-bg)"
+        }
+      }
     };
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
@@ -8024,673 +8238,6 @@ var require_assets = __commonJS({
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
-    const ApplicationStyles = {
-      moreButton: {
-        maxHeight: "1.8em",
-        fontSize: FontSize.smaller,
-        padding: "0 0.2em 0 0.2em",
-        ...TextStyle.secondary
-      },
-      threeLineClamp: {
-        display: "-webkit-box",
-        "-webkit-line-clamp": "3",
-        "-webkit-box-orient": "vertical",
-        overflow: "hidden"
-      },
-      lineClamp: (len) => {
-        return {
-          display: "-webkit-box",
-          "-webkit-line-clamp": `${len}`,
-          "-webkit-box-orient": "vertical",
-          overflow: "hidden"
-        };
-      },
-      wrapText: () => {
-        return {
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden"
-        };
-      },
-      scoreFills: {
-        green: {
-          backgroundColor: "var(--bs-success)",
-          borderColor: "var(--bs-success)",
-          color: "var(--bs-body-bg)"
-        },
-        red: {
-          backgroundColor: "var(--bs-danger)",
-          borderColor: "var(--bs-danger)",
-          color: "var(--bs-body-bg)"
-        },
-        orange: {
-          backgroundColor: "var(--bs-orange)",
-          borderColor: "var(--bs-orange)",
-          color: "var(--bs-body-bg)"
-        }
-      }
-    };
-    const Sidebar = ({
-      offcanvas,
-      logs,
-      loading,
-      logHeaders,
-      selectedIndex,
-      onSelectedIndexChanged
-    }) => {
-      const btnOffCanClass = offcanvas ? "" : " d-md-none";
-      const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
-      return m$1`
-    <div
-      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
-      id="sidebarOffCanvas"
-      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
-    >
-      <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        columnGap: "0.2rem",
-        alignItems: "center",
-        paddingLeft: "0.5rem",
-        opacity: "0.7",
-        position: "fixed",
-        width: "var(--sidebar-width)",
-        zIndex: 10,
-        borderBottom: "solid var(--bs-light-border-subtle) 1px",
-        paddingBottom: "0.5rem",
-        paddingTop: "0.5rem",
-        height: "3.6em"
-      }}
-      >
-        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
-        <button
-          id="sidebarToggle"
-          class="btn d-inline${btnOffCanClass}"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebarOffCanvas"
-          aria-controls="sidebarOffCanvas"
-          style=${{
-        padding: ".1rem",
-        alignSelf: "end",
-        width: "40px",
-        flex: "0 0 content"
-      }}
-        >
-          <i class=${ApplicationIcons.close}></i>
-        </button>
-      </div>
-      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
-      </div>
-      <ul
-        class="list-group"
-        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
-      >
-        ${logs.files.map((file, index) => {
-        var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
-        const active = index === selectedIndex ? " active" : "";
-        const logHeader = logHeaders[file.name];
-        const hyperparameters = logHeader ? {
-          ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
-          ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
-        } : void 0;
-        const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-        const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
-        const uniqScorers = /* @__PURE__ */ new Set();
-        (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
-          uniqScorers.add(scorer2.name);
-        });
-        const scorer = Array.from(uniqScorers).join(",");
-        const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-        const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-        const time = completed ? new Date(completed) : void 0;
-        const timeStr = time ? `${time.toDateString()}
-          ${time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        })}` : "";
-        return m$1`
-            <li
-              class="list-group-item list-group-item-action${active}"
-              onclick=${() => onSelectedIndexChanged(index)}
-            >
-              <div
-                style=${{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "space-between"
-        }}
-              >
-                <div style=${{ overflow: "hidden" }}>
-                  <div
-                    style=${{
-          fontSize: FontSize["title-secondary"],
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis"
-        }}
-                  >
-                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
-                  </div>
-                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
-                    ${timeStr}
-                  </small>
-
-                  ${model ? m$1` <div>
-                        <small
-                          class="mb-1"
-                          style=${{ fontSize: FontSize.small }}
-                          >${model}</small
-                        >
-                      </div>` : ""}
-                </div>
-                <${EvalStatus} logHeader=${logHeader} />
-              </div>
-              <div
-                style=${{
-          marginTop: "1em",
-          ...ApplicationStyles.threeLineClamp
-        }}
-              >
-                <small class="mb-1">
-                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-          const val = hyperparameters[key2];
-          if (Array.isArray(val) || typeof val === "object") {
-            return `${key2}: ${JSON.stringify(val)}`;
-          } else {
-            return `${key2}: ${val}`;
-          }
-        }).join(", ") : ""}
-                </small>
-              </div>
-              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
-                    style=${{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "0em",
-          fontSize: FontSize.small
-        }}
-                  >
-                    <span>dataset: ${dataset.name || "(samples)"}</span
-                    ><span>${scorerLabel}: ${scorer}</span>
-                  </div>` : ""}
-            </li>
-          `;
-      })}
-      </ul>
-    </div>
-  `;
-    };
-    const prettyDir = (path) => {
-      try {
-        let url = new URL(path);
-        if (url.protocol === "file:") {
-          return url.pathname;
-        } else {
-          return path;
-        }
-      } catch {
-        return path;
-      }
-    };
-    const EvalStatus = ({ logHeader }) => {
-      var _a2, _b2;
-      switch (logHeader == null ? void 0 : logHeader.status) {
-        case "error":
-          return m$1`<${StatusError} message="Error" />`;
-        case "cancelled":
-          return m$1`<${StatusCancelled} message="Cancelled" />`;
-        case "started":
-          return m$1`<${StatusRunning} message="Running" />`;
-        default:
-          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
-            if (logHeader.results.scores.length === 1) {
-              return m$1`<${SidebarScore}
-            scorer=${logHeader.results.scores[0]}
-          />`;
-            } else {
-              return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
-            }
-          } else {
-            return "";
-          }
-      }
-    };
-    const SidebarScore = ({ scorer }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end"
-      }}
-  >
-    ${Object.keys(scorer.metrics).map((metric) => {
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          marginLeft: "1em",
-          marginBottom: "0.4em",
-          marginTop: "0.5rem"
-        }}
-        >
-          <div
-            style=${{
-          marginBottom: "-0.3em",
-          fontSize: FontSize.small,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${scorer.metrics[metric].name}
-          </div>
-          ${scorer.reducer ? m$1`<div
-                style=${{
-          fontSize: FontSize.small,
-          marginBottom: "-0.2rem"
-        }}
-              >
-                ${scorer.reducer}
-              </div>` : ""}
-          <div style=${{ fontSize: FontSize["title-secondary"] }}>
-            ${formatPrettyDecimal(scorer.metrics[metric].value)}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
-    };
-    const SidebarScores = ({ scores }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end",
-        rowGap: "1em"
-      }}
-  >
-    ${scores.map((score) => {
-        const name = score.name;
-        const reducer = score.reducer;
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginLeft: "1em"
-        }}
-        >
-          <div
-            style=${{
-          fontSize: FontSize.base,
-          width: "100%",
-          fontWeight: 300,
-          borderBottom: "solid var(--bs-border-color) 1px",
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${name}
-          </div>
-          ${reducer ? m$1` <div
-                style=${{
-          fontSize: FontSize.smaller,
-          width: "100%",
-          fontWeight: 300
-        }}
-              >
-                ${reducer}
-              </div>` : ""}
-          <div
-            style=${{
-          fontSize: FontSize.smaller,
-          display: "grid",
-          gridTemplateColumns: "max-content max-content",
-          gridGap: "0 0.3rem"
-        }}
-          >
-            ${Object.keys(score.metrics).map((key2) => {
-          const metric = score.metrics[key2];
-          return m$1` <div
-                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-                >
-                  ${metric.name}
-                </div>
-                <div style=${{ fontWeight: "600" }}>
-                  ${formatPrettyDecimal(metric.value)}
-                </div>`;
-        })}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
-    };
-    const StatusCancelled = ({ message }) => {
-      return m$1`<div
-    style=${{
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-  >
-    ${message}
-  </div>`;
-    };
-    const StatusRunning = ({ message }) => {
-      return m$1` <div
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content max-content",
-        columnGap: "0.5em",
-        marginTop: "0.3em",
-        fontSize: FontSize.small,
-        ...TextStyle.secondary,
-        ...TextStyle.label
-      }}
-  >
-    <div>${message}</div>
-  </div>`;
-    };
-    const StatusError = ({ message }) => {
-      return m$1`<div
-    style=${{
-        color: "var(--bs-danger)",
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label
-      }}
-  >
-    ${message}
-  </div>`;
-    };
-    const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
-      if (log_dir) {
-        const displayDir = prettyDir(log_dir);
-        return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span
-        style=${{
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-        >Log Directory</span
-      >
-      <span
-        title=${displayDir}
-        style=${{
-          fontSize: FontSize.base,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis"
-        }}
-        >${offcanvas ? displayDir : ""}</span
-      >
-    </div>`;
-      } else {
-        return m$1`<span
-      style=${{
-          fontSize: FontSize.title
-        }}
-      >${offcanvas ? "Log History" : ""}
-    </span>`;
-      }
-    };
-    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
-      const emptyStyle = {
-        display: "flex",
-        textAlign: "center",
-        flex: "0 0 content",
-        alignItems: "center",
-        justifyContent: "center",
-        height: height ? height : "10rem"
-      };
-      return m$1`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{ width: "100%" }}
-    >
-      <div style=${{ ...emptyStyle, ...style2 }}>
-        <div>${children2 || ""}</div>
-      </div>
-    </div>
-  `;
-    };
-    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
-      if (!id) {
-        throw new Error("Tabsets require an id to function properly");
-      }
-      const tabs = children2;
-      const tabType = type || "tabs";
-      const tabSetStyle = {
-        alignItems: "space-between"
-      };
-      return m$1`<ul
-      ...${{ id }}
-      class="nav nav-${tabType} ${classes ? classes : ""}"
-      role="tablist"
-      aria-orientation="horizontal"
-      style=${{ ...tabSetStyle, ...styles.tabSet }}
-    >
-      <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
-      <${TabTools} tools=${tools} />
-    </ul>
-    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
-    };
-    const TabPanel = ({
-      id,
-      index,
-      selected,
-      style: style2,
-      scrollable,
-      classes,
-      scrollPosition,
-      setScrollPosition,
-      children: children2
-    }) => {
-      const tabContentsId = computeTabContentsId(id, index);
-      const tabContentsRef = A(
-        /** @type {HTMLElement|null} */
-        null
-      );
-      y(() => {
-        setTimeout(() => {
-          if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
-            tabContentsRef.current.scrollTop = scrollPosition;
-          }
-        }, 0);
-      });
-      const onScroll = q(
-        (e2) => {
-          setScrollPosition(e2.srcElement.scrollTop);
-        },
-        [setScrollPosition]
-      );
-      return m$1`<div
-    id="${tabContentsId}"
-    ref=${tabContentsRef}
-    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
-    style=${{
-        flex: "1",
-        overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
-        ...style2
-      }}
-    onscroll=${onScroll}
-  >
-    ${children2}
-  </div>`;
-    };
-    const Tabs = ({ tabs, type, style: style2 }) => {
-      return tabs.map((tab, index) => {
-        return m$1` <${Tab}
-      type=${type || "tabs"}
-      tab=${tab}
-      index=${index}
-      style=${style2}
-    />`;
-      });
-    };
-    const Tab = ({ type, tab, index, style: style2 }) => {
-      const tabId = tab.props.id || computeTabId("tabset", index);
-      const tabContentsId = computeTabContentsId(tab.props.id, index);
-      const isActive = tab.props.selected;
-      const tabStyle = {
-        color: "var(--bs-body-color)",
-        ...style2,
-        padding: "0.25rem 0.5rem",
-        borderTopLeftRadius: "var(--bs-border-radius)",
-        borderTopRightRadius: "var(--bs-border-radius)",
-        ...TextStyle.label,
-        fontSize: FontSize.small,
-        fontWeight: 500,
-        marginTop: "2px",
-        marginBottom: "-1px"
-      };
-      const pillStyle = {
-        ...style2
-      };
-      return m$1`
-    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
-      <button
-        id="${tabId}"
-        style=${type === "tabs" ? tabStyle : pillStyle}
-        class="nav-link ${isActive ? "active" : ""}"
-        data-bs-toggle="tab"
-        data-bs-target="#${tabContentsId}"
-        type="button"
-        role="tab"
-        aria-controls="${tabContentsId}"
-        aria-selected="${isActive ? true : false}"
-        ...${{
-        onclick: (e2) => {
-          tab.props.onSelected(e2);
-          return false;
-        }
-      }}
-      >
-        ${tab.props.icon ? m$1`<i
-              class="${tab.props.icon}"
-              style=${{ marginRight: "0.5em" }}
-            ></i>` : ""}
-        ${tab.props.title}
-      </button>
-    </li>
-  `;
-    };
-    const TabTools = ({ tools }) => {
-      return m$1`<div
-    class="tab-tools"
-    style=${{
-        flexBasis: "auto",
-        marginLeft: "auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "end",
-        flexWrap: "wrap",
-        rowGap: "0.3rem"
-      }}
-  >
-    ${tools}
-  </div>`;
-    };
-    const TabPanels = ({ id, tabs, style: style2 }) => {
-      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
-    ${tabs.map((tab, index) => {
-        tab.props.index = index;
-        return tab;
-      })}
-  </div>`;
-    };
-    const computeTabId = (id, index) => {
-      return `${id}-${index}`;
-    };
-    const computeTabContentsId = (id, index) => {
-      return `${id}-contents-${index}`;
-    };
-    const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
-      const attr = {
-        type: "button",
-        class: `btn btn-tools ${classes || ""}`,
-        onclick,
-        ...rest
-      };
-      const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
-      return g("button", attr, m$1`${iconEl}${name}`);
-    };
-    const ghCommitUrl = (origin, commit) => {
-      const baseUrl = origin.replace(/\.git$/, "");
-      return `${baseUrl}/commit/${commit}`;
-    };
-    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "0em",
-        padding: "0.5em 0.5em 0.5em 0.5em",
-        fontSize: FontSize.small,
-        fontWeight: 600,
-        ...TextStyle.label,
-        ...style2
-      }}
-  >
-    ${icon ? m$1`<i
-          class="${icon}"
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></i>` : m$1`<span
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></span>`}
-    ${label ? label : ""} ${children2}
-  </div> `;
-    };
-    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        backgroundColor: "var(--bs-body-bg)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        margin: "0 8px 8px 8px",
-        padding: "0.5em",
-        ...style2
-      }}
-  >
-    ${children2}
-  </div>`;
-    };
-    const Card = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`
-    <div
-      class="${classes || ""}"
-      ...${{ id }}
-      style=${{
-        backgroundColor: "var(--bs-light-bg-subtle)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        marginBottom: "1.5em",
-        ...style2
-      }}
-    >
-      ${children2}
-    </div>
-  `;
-    };
     var e, t, r = {
       exports: {}
     };
@@ -9484,6 +9031,83 @@ var require_assets = __commonJS({
       return m$1`<span style=${computeCSSProperties(outputRun)}
     >${outputRun.text}</span
   >`;
+    };
+    const MetaDataView = ({
+      id,
+      baseClass,
+      classes,
+      style: style2,
+      entries,
+      tableOptions,
+      compact
+    }) => {
+      const baseId = baseClass || "metadataview";
+      const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
+      const cellKeyStyle = compact ? {
+        fontWeight: "400",
+        paddingRight: "0.2em",
+        whiteSpace: "nowrap"
+      } : {
+        fontWeight: "400",
+        paddingRight: "1em",
+        whiteSpace: "nowrap"
+      };
+      const cellValueStyle = {
+        fontWeight: "300",
+        whiteSpace: "pre-wrap",
+        wordWrap: "anywhere",
+        fontSize: FontSize.small
+      };
+      const cellKeyTextStyle = {
+        fontSize: FontSize.small
+      };
+      tableOptions = tableOptions || "sm";
+      const tblClz = (tableOptions || "").split(",").map((option) => {
+        return `table-${option}`;
+      });
+      let coercedEntries;
+      if (entries) {
+        if (Array.isArray(entries)) {
+          coercedEntries = entries;
+        } else {
+          coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
+            return { name: key2, value };
+          });
+        }
+      }
+      const entryEls = (coercedEntries || []).map((entry, index) => {
+        const id2 = `${baseId}-value-${index}`;
+        return m$1`<tr class="${baseId}-row">
+      <td
+        class="${baseId}-key"
+        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      >
+        ${entry.name}
+      </td>
+      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
+        <${RenderedContent} id=${id2} entry=${entry} />
+      </td>
+    </tr>`;
+      });
+      return m$1`<table
+    ...${{ id }}
+    class="${classes || ""} table ${tblClz.join(" ")}"
+    style=${{
+        paddingLeft: "0",
+        marginLeft: "0",
+        marginBottom: "0.2rem",
+        ...style2
+      }}
+  >
+    <thead>
+      <tr>
+        <th colspan="2" style="${{ padding: 0 }}"></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${entryEls}
+    </tbody>
+  </table>`;
     };
     const Buckets = {
       first: 0,
@@ -16095,82 +15719,1415 @@ ${entry.value}</pre
         }
       }
     };
-    const MetaDataView = ({
-      id,
-      baseClass,
-      classes,
-      style: style2,
-      entries,
-      tableOptions,
-      compact
-    }) => {
-      const baseId = baseClass || "metadataview";
-      const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
-      const cellKeyStyle = compact ? {
-        fontWeight: "400",
-        paddingRight: "0.2em",
-        whiteSpace: "nowrap"
-      } : {
-        fontWeight: "400",
-        paddingRight: "1em",
-        whiteSpace: "nowrap"
-      };
-      const cellValueStyle = {
-        fontWeight: "300",
-        whiteSpace: "pre-wrap",
-        wordWrap: "anywhere",
-        fontSize: FontSize.small
-      };
-      const cellKeyTextStyle = {
-        fontSize: FontSize.small
-      };
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      let coercedEntries;
-      if (entries) {
-        if (Array.isArray(entries)) {
-          coercedEntries = entries;
+    const isNumeric = (n2) => {
+      return !isNaN(parseFloat(n2)) && isFinite(n2);
+    };
+    const toArray = (val) => {
+      if (Array.isArray(val)) {
+        return val;
+      } else {
+        return [val];
+      }
+    };
+    const createEvalDescriptor = (scores, samples, epochs) => {
+      if (!samples) {
+        return void 0;
+      }
+      const scoreValue = (sample, scoreLabel) => {
+        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
+          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
+        } else if (sample.scores[scoreLabel.name]) {
+          return sample.scores[scoreLabel.name].value;
         } else {
-          coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
-            return { name: key2, value };
-          });
+          return void 0;
+        }
+      };
+      const scoreAnswer = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.answer) {
+            return sampleScore.answer;
+          }
+        } else {
+          return void 0;
+        }
+      };
+      const scoreExplanation = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.explanation) {
+            return sampleScore.explanation;
+          }
+        }
+        return void 0;
+      };
+      const scoreMetadata = (sample, scorer) => {
+        if (sample) {
+          const sampleScore = sample.scores[scorer];
+          if (sampleScore && sampleScore.metadata) {
+            return sampleScore.metadata;
+          }
+        }
+        return void 0;
+      };
+      const scoreLabelKey = (scoreLabel) => {
+        if (!scoreLabel) {
+          return "No score key";
+        }
+        return `${scoreLabel.scorer}.${scoreLabel.name}`;
+      };
+      const scoreDescriptorMap = /* @__PURE__ */ new Map();
+      for (const scoreLabel of scores) {
+        const uniqScoreValues = [
+          ...new Set(
+            samples.filter((sample) => !!sample.scores).filter((sample) => {
+              if (!scoreLabel) {
+                return true;
+              }
+              if (scoreLabel.scorer !== scoreLabel.name) {
+                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name
+                );
+              } else {
+                return Object.keys(sample.scores).includes(scoreLabel.name);
+              }
+            }).map((sample) => {
+              return scoreValue(sample, scoreLabel);
+            }).filter((value) => {
+              return value !== null;
+            })
+          )
+        ];
+        const uniqScoreTypes = [
+          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
+        ];
+        for (const categorizer of scoreCategorizers) {
+          const scoreDescriptor2 = categorizer.describe(
+            uniqScoreValues,
+            uniqScoreTypes
+          );
+          if (scoreDescriptor2) {
+            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
+            break;
+          }
         }
       }
-      const entryEls = (coercedEntries || []).map((entry, index) => {
-        const id2 = `${baseId}-value-${index}`;
-        return m$1`<tr class="${baseId}-row">
-      <td
-        class="${baseId}-key"
-        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
+      const scoreDescriptor = (scoreLabel) => {
+        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
+      };
+      const scoreRendered = (sample, scoreLabel) => {
+        const descriptor = scoreDescriptor(scoreLabel);
+        const score2 = scoreValue(sample, scoreLabel);
+        if (score2 === null || score2 === "undefined") {
+          return "null";
+        } else if (descriptor && descriptor.render) {
+          return descriptor.render(score2);
+        } else {
+          return score2;
+        }
+      };
+      const scorerDescriptor = (sample, scoreLabel) => {
+        return {
+          metadata: () => {
+            return scoreMetadata(sample, scoreLabel.scorer);
+          },
+          explanation: () => {
+            return scoreExplanation(sample, scoreLabel.scorer);
+          },
+          answer: () => {
+            return scoreAnswer(sample, scoreLabel.scorer);
+          },
+          scores: () => {
+            if (!sample || !sample.scores) {
+              return [];
+            }
+            const myScoreDescriptor = scoreDescriptor(scoreLabel);
+            if (!myScoreDescriptor) {
+              return [];
+            }
+            const scoreNames = scores.map((score2) => {
+              return score2.name;
+            });
+            const sampleScorer = sample.scores[scoreLabel.scorer];
+            const scoreVal = sampleScorer.value;
+            if (typeof scoreVal === "object") {
+              const names = Object.keys(scoreVal);
+              if (names.find((name) => {
+                return scoreNames.includes(name);
+              })) {
+                const scores2 = names.map((name) => {
+                  return {
+                    name,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal[name]);
+                    }
+                  };
+                });
+                return scores2;
+              } else {
+                return [
+                  {
+                    name: scoreLabel.scorer,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  }
+                ];
+              }
+            } else {
+              return [
+                {
+                  name: scoreLabel.scorer,
+                  rendered: () => {
+                    return myScoreDescriptor.render(scoreVal);
+                  }
+                }
+              ];
+            }
+          }
+        };
+      };
+      const score = (sample, scoreLabel) => {
+        return {
+          value: scoreValue(sample, scoreLabel),
+          render: () => {
+            return scoreRendered(sample, scoreLabel);
+          }
+        };
+      };
+      return {
+        epochs,
+        samples,
+        scores,
+        scorerDescriptor,
+        scoreDescriptor,
+        score,
+        scoreAnswer
+      };
+    };
+    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+      if (!evalDescriptor) {
+        return void 0;
+      }
+      const sizes = evalDescriptor.samples.reduce(
+        (previous, current) => {
+          var _a2;
+          const text2 = inputString(current.input).join(" ");
+          const scoreValue = evalDescriptor.score(current, selectedScore).value;
+          const scoreText = scoreValue ? String(scoreValue) : "";
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[1] = Math.min(
+            Math.max(previous[1], arrayToString(current.target).length),
+            300
+          );
+          previous[2] = Math.min(
+            Math.max(
+              previous[2],
+              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+            ),
+            300
+          );
+          previous[3] = Math.min(
+            Math.max(previous[3], current.limit ? current.limit.length : 0),
+            50
+          );
+          previous[4] = Math.min(
+            Math.max(previous[4], String(current.id).length),
+            10
+          );
+          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          return previous;
+        },
+        [0, 0, 0, 0, 0, 0]
+      );
+      const maxSizes = {
+        input: Math.min(sizes[0], 300),
+        target: Math.min(sizes[1], 300),
+        answer: Math.min(sizes[2], 300),
+        limit: Math.min(sizes[3], 50),
+        id: Math.min(sizes[4], 10),
+        score: Math.min(sizes[4], 30)
+      };
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const messageShape = {
+        raw: {
+          input: sizes[0],
+          target: sizes[1],
+          answer: sizes[2],
+          limit: sizes[3],
+          id: sizes[4],
+          score: sizes[5]
+        },
+        normalized: {
+          input: maxSizes.input / base2,
+          target: maxSizes.target / base2,
+          answer: maxSizes.answer / base2,
+          limit: maxSizes.limit / base2,
+          id: maxSizes.id / base2,
+          score: maxSizes.score / base2
+        }
+      };
+      return {
+        evalDescriptor,
+        messageShape,
+        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
+        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
+      };
+    };
+    const scoreCategorizers = [
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types) => {
+          if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values) => {
+          if (values.length === 2 && values.every((val) => {
+            return val === 1 || val === 0;
+          })) {
+            return booleanScoreCategorizer();
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types) => {
+          if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
+            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+          })) {
+            return passFailScoreCategorizer(values);
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types) => {
+          if (values.length < 10 && types.length === 1 && types[0] === "string") {
+            return {
+              scoreType: kScoreTypeCategorical,
+              categories: values,
+              compare: (a2, b2) => {
+                return String(a2).localeCompare(String(b2));
+              },
+              render: (score) => {
+                return score;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types) => {
+          if (types.length !== 0 && types[0] === "number") {
+            const onlyNumeric = values.filter((val) => {
+              return typeof val === "number";
+            });
+            return {
+              scoreType: kScoreTypeNumeric,
+              min: Math.min(...onlyNumeric),
+              max: Math.max(...onlyNumeric),
+              compare: (a2, b2) => {
+                if (typeof a2 === "number" && typeof b2 === "number") {
+                  return a2 - b2;
+                } else {
+                  console.warn(
+                    "Comparing non-numerics using a nuermic score descriptor"
+                  );
+                  return 0;
+                }
+              },
+              render: (score) => {
+                return formatDecimalNoTrailingZeroes(Number(score));
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @param {import("../types/log").Value2[]} values - the currently selected score
+         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        describe: (values, types) => {
+          if (types.length !== 0 && types[0] === "object") {
+            const buckets = values.map((val) => {
+              return JSON.stringify(val);
+            });
+            const vals = new Set(buckets);
+            let categories = void 0;
+            if (vals.size < 10) {
+              categories = Array.from(vals).map((val) => {
+                return {
+                  val,
+                  text: val
+                };
+              });
+            }
+            return {
+              scoreType: kScoreTypeObject,
+              categories,
+              compare: () => {
+                return 0;
+              },
+              render: (score) => {
+                if (score === null || score === void 0) {
+                  return "[null]";
+                }
+                const scores = [];
+                const keys = Object.keys(score);
+                keys.forEach((key2, index) => {
+                  const value = score[key2];
+                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+                  const style2 = {
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    marginLeft: "0.5rem"
+                  };
+                  if (index + 1 < keys.length) {
+                    style2["paddingBottom"] = "1em";
+                  }
+                  scores.push(m$1`
+                <div style=${style2}>
+                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
+                    ${key2}
+                  </div>
+                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
+                    ${formattedValue}
+                  </div>
+                </div>
+              `);
+                });
+                return scores;
+              }
+            };
+          }
+        }
+      },
+      {
+        /**
+         * @returns {ScoreDescriptor} a ScoreDescriptor
+         */
+        // @ts-ignore
+        describe: () => {
+          return {
+            scoreType: kScoreTypeOther,
+            compare: () => {
+              return 0;
+            },
+            render: (score) => {
+              return m$1`<${RenderedContent}
+            id="other-score-value"
+            entry=${{ value: score }}
+          />`;
+            }
+          };
+        }
+      }
+    ];
+    const filledCircleStyle = {
+      fontSize: FontSize.small,
+      fontFamily: "Consola Regular",
+      width: "20px",
+      height: "20px",
+      display: "inline-flex",
+      justifyContent: "center",
+      alignItems: "center",
+      borderRadius: "50%",
+      paddingTop: "1px"
+    };
+    const booleanScoreCategorizer = () => {
+      return {
+        scoreType: "boolean",
+        compare: (a2, b2) => {
+          return Number(a2.value) - Number(b2.value);
+        },
+        render: (score) => {
+          const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
+          return m$1`<span
+        style=${{
+            ...scoreColorStyle,
+            ...filledCircleStyle
+          }}
+        >${score}</span
+      >`;
+        }
+      };
+    };
+    const passFailScoreCategorizer = (values) => {
+      const categories = [];
+      if (values.includes("C")) {
+        categories.push({
+          val: "C",
+          text: "Correct"
+        });
+      }
+      if (values.includes("P")) {
+        categories.push({
+          val: "P",
+          text: "Partial"
+        });
+      }
+      if (values.includes("I")) {
+        categories.push({
+          val: "I",
+          text: "Incorrect"
+        });
+      }
+      if (values.includes("N")) {
+        categories.push({
+          val: "N",
+          text: "Refusal"
+        });
+      }
+      const order2 = ["C", "P", "I", "N"];
+      return {
+        scoreType: kScoreTypePassFail,
+        categories,
+        render: (score) => {
+          if (score === "C") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.green,
+              ...filledCircleStyle
+            }}
+          >C</span
+        >`;
+          } else if (score === "I") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >I</span
+        >`;
+          } else if (score === "P") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.orange,
+              ...filledCircleStyle
+            }}
+          >P</span
+        >`;
+          } else if (score === "N") {
+            return m$1`<span
+          style=${{
+              ...ApplicationStyles.scoreFills.red,
+              ...filledCircleStyle
+            }}
+          >N</span
+        >`;
+          } else {
+            return score;
+          }
+        },
+        compare: (a2, b2) => {
+          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+          return sort;
+        }
+      };
+    };
+    const filterFnForType = (filter) => {
+      if (filter.type) {
+        return filterFnsForType[filter.type];
+      } else {
+        return void 0;
+      }
+    };
+    const filterCategory = (descriptor, sample, value) => {
+      const score = descriptor.selectedScore(sample);
+      if (typeof score.value === "string") {
+        return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+      } else if (typeof score.value === "object") {
+        return JSON.stringify(score.value) == value;
+      } else {
+        return String(score.value) === value;
+      }
+    };
+    const filterText = (descriptor, sample, value) => {
+      const score = descriptor.selectedScore(sample);
+      if (!value) {
+        return true;
+      } else {
+        if (isNumeric(value)) {
+          if (typeof score.value === "number") {
+            return score.value === Number(value);
+          } else {
+            return Number(score.value) === Number(value);
+          }
+        } else {
+          const filters = [
+            {
+              prefix: ">=",
+              fn: (score2, val) => {
+                return score2 >= val;
+              }
+            },
+            {
+              prefix: "<=",
+              fn: (score2, val) => {
+                return score2 <= val;
+              }
+            },
+            {
+              prefix: ">",
+              fn: (score2, val) => {
+                return score2 > val;
+              }
+            },
+            {
+              prefix: "<",
+              fn: (score2, val) => {
+                return score2 < val;
+              }
+            },
+            {
+              prefix: "=",
+              fn: (score2, val) => {
+                return score2 === val;
+              }
+            },
+            {
+              prefix: "!=",
+              fn: (score2, val) => {
+                return score2 !== val;
+              }
+            }
+          ];
+          for (const filter of filters) {
+            if (value == null ? void 0 : value.startsWith(filter.prefix)) {
+              const val = value.slice(filter.prefix.length).trim();
+              if (!val) {
+                return true;
+              }
+              const num = Number(val);
+              return filter.fn(score.value, num);
+            }
+          }
+          if (typeof score.value === "string") {
+            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
+          } else {
+            return String(score.value) === value;
+          }
+        }
+      }
+    };
+    const filterFnsForType = {
+      [kScoreTypeCategorical]: filterCategory,
+      [kScoreTypeNumeric]: filterText
+    };
+    const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
+      var _a2;
+      const options = [
+        { label: "sample asc", val: kSampleAscVal },
+        { label: "sample desc", val: kSampleDescVal }
+      ];
+      if (epochs) {
+        options.push({
+          label: "epoch asc",
+          val: kEpochAscVal
+        });
+        options.push({
+          label: "epoch desc",
+          val: kEpochDescVal
+        });
+      }
+      if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
+        options.push({
+          label: "score asc",
+          val: kScoreAscVal
+        });
+        options.push({
+          label: "score desc",
+          val: kScoreDescVal
+        });
+      }
+      return m$1`
+    <div style=${{ display: "flex" }}>
+      <span
+        class="sort-filter-label"
+        style=${{
+        alignSelf: "center",
+        fontSize: FontSize.smaller,
+        ...TextStyle.label,
+        ...TextStyle.secondary,
+        marginRight: "0.3em",
+        marginLeft: "0.2em"
+      }}
+        >Sort:</span
       >
-        ${entry.name}
-      </td>
-      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry} />
-      </td>
-    </tr>`;
+      <select
+        class="form-select form-select-sm"
+        aria-label=".sort-filter-label"
+        style=${{ fontSize: FontSize.smaller }}
+        value=${sort}
+        onChange=${(e2) => {
+        setSort(e2.target.value);
+      }}
+      >
+        ${options.map((option) => {
+        return m$1`<option value="${option.val}">${option.label}</option>`;
+      })}
+      </select>
+    </div>
+  `;
+    };
+    const byEpoch = (sort) => {
+      return sort === kEpochAscVal || sort === kEpochDescVal;
+    };
+    const bySample = (sort) => {
+      return sort === kSampleAscVal || sort === kSampleDescVal;
+    };
+    const sortId = (a2, b2) => {
+      if (isNumeric(a2.id) && isNumeric(b2.id)) {
+        return Number(a2.id) - Number(b2.id);
+      } else {
+        return String(a2.id).localeCompare(String(b2.id));
+      }
+    };
+    const sortSamples = (sort, samples, samplesDescriptor) => {
+      const sortedSamples = samples.sort((a2, b2) => {
+        switch (sort) {
+          case kSampleAscVal: {
+            const result = sortId(a2, b2);
+            if (result !== 0) {
+              return result;
+            } else {
+              return a2.epoch - b2.epoch;
+            }
+          }
+          case kSampleDescVal: {
+            const result = sortId(b2, a2);
+            if (result !== 0) {
+              return result;
+            } else {
+              return a2.epoch - b2.epoch;
+            }
+          }
+          case kEpochAscVal: {
+            const result = a2.epoch - b2.epoch;
+            if (result !== 0) {
+              return result;
+            } else {
+              return sortId(a2, b2);
+            }
+          }
+          case kEpochDescVal: {
+            const result = b2.epoch - a2.epoch;
+            if (result !== 0) {
+              return result;
+            } else {
+              return sortId(a2, b2);
+            }
+          }
+          case kScoreAscVal:
+            return samplesDescriptor.selectedScoreDescriptor.compare(
+              samplesDescriptor.selectedScore(a2).value,
+              samplesDescriptor.selectedScore(b2).value
+            );
+          case kScoreDescVal:
+            return samplesDescriptor.selectedScoreDescriptor.compare(
+              samplesDescriptor.selectedScore(b2).value,
+              samplesDescriptor.selectedScore(a2).value
+            );
+        }
       });
-      return m$1`<table
-    ...${{ id }}
-    class="${classes || ""} table ${tblClz.join(" ")}"
+      return {
+        sorted: sortedSamples,
+        order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
+      };
+    };
+    const Sidebar = ({
+      offcanvas,
+      logs,
+      loading,
+      logHeaders,
+      selectedIndex,
+      onSelectedIndexChanged
+    }) => {
+      const btnOffCanClass = offcanvas ? "" : " d-md-none";
+      const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
+      return m$1`
+    <div
+      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
+      id="sidebarOffCanvas"
+      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
+    >
+      <div
+        style=${{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        columnGap: "0.2rem",
+        alignItems: "center",
+        paddingLeft: "0.5rem",
+        opacity: "0.7",
+        position: "fixed",
+        width: "var(--sidebar-width)",
+        zIndex: 10,
+        borderBottom: "solid var(--bs-light-border-subtle) 1px",
+        paddingBottom: "0.5rem",
+        paddingTop: "0.5rem",
+        height: "3.6em"
+      }}
+      >
+        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
+        <button
+          id="sidebarToggle"
+          class="btn d-inline${btnOffCanClass}"
+          type="button"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#sidebarOffCanvas"
+          aria-controls="sidebarOffCanvas"
+          style=${{
+        padding: ".1rem",
+        alignSelf: "end",
+        width: "40px",
+        flex: "0 0 content"
+      }}
+        >
+          <i class=${ApplicationIcons.close}></i>
+        </button>
+      </div>
+      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
+        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
+      </div>
+      <ul
+        class="list-group"
+        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
+      >
+        ${logs.files.map((file, index) => {
+        var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
+        const active = index === selectedIndex ? " active" : "";
+        const logHeader = logHeaders[file.name];
+        const hyperparameters = logHeader ? {
+          ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
+          ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
+        } : void 0;
+        const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
+        const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
+        const uniqScorers = /* @__PURE__ */ new Set();
+        (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
+          uniqScorers.add(scorer2.name);
+        });
+        const scorer = Array.from(uniqScorers).join(",");
+        const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
+        const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
+        const time = completed ? new Date(completed) : void 0;
+        const timeStr = time ? `${time.toDateString()}
+          ${time.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        })}` : "";
+        return m$1`
+            <li
+              class="list-group-item list-group-item-action${active}"
+              onclick=${() => onSelectedIndexChanged(index)}
+            >
+              <div
+                style=${{
+          display: "flex",
+          flexDirection: "row",
+          justifyContent: "space-between"
+        }}
+              >
+                <div style=${{ overflow: "hidden" }}>
+                  <div
+                    style=${{
+          fontSize: FontSize["title-secondary"],
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis"
+        }}
+                  >
+                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
+                  </div>
+                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
+                    ${timeStr}
+                  </small>
+
+                  ${model ? m$1` <div>
+                        <small
+                          class="mb-1"
+                          style=${{ fontSize: FontSize.small }}
+                          >${model}</small
+                        >
+                      </div>` : ""}
+                </div>
+                <${EvalStatus} logHeader=${logHeader} />
+              </div>
+              <div
+                style=${{
+          marginTop: "1em",
+          ...ApplicationStyles.threeLineClamp
+        }}
+              >
+                <small class="mb-1">
+                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+          const val = hyperparameters[key2];
+          if (Array.isArray(val) || typeof val === "object") {
+            return `${key2}: ${JSON.stringify(val)}`;
+          } else {
+            return `${key2}: ${val}`;
+          }
+        }).join(", ") : ""}
+                </small>
+              </div>
+              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
+                    style=${{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "0em",
+          fontSize: FontSize.small
+        }}
+                  >
+                    <span>dataset: ${dataset.name || "(samples)"}</span
+                    ><span>${scorerLabel}: ${scorer}</span>
+                  </div>` : ""}
+            </li>
+          `;
+      })}
+      </ul>
+    </div>
+  `;
+    };
+    const prettyDir = (path) => {
+      try {
+        let url = new URL(path);
+        if (url.protocol === "file:") {
+          return url.pathname;
+        } else {
+          return path;
+        }
+      } catch {
+        return path;
+      }
+    };
+    const EvalStatus = ({ logHeader }) => {
+      var _a2, _b2;
+      switch (logHeader == null ? void 0 : logHeader.status) {
+        case "error":
+          return m$1`<${StatusError} message="Error" />`;
+        case "cancelled":
+          return m$1`<${StatusCancelled} message="Cancelled" />`;
+        case "started":
+          return m$1`<${StatusRunning} message="Running" />`;
+        default:
+          if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
+            if (logHeader.results.scores.length === 1) {
+              return m$1`<${SidebarScore}
+            scorer=${logHeader.results.scores[0]}
+          />`;
+            } else {
+              return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
+            }
+          } else {
+            return "";
+          }
+      }
+    };
+    const SidebarScore = ({ scorer }) => {
+      return m$1`<div
     style=${{
-        paddingLeft: "0",
-        marginLeft: "0",
-        marginBottom: "0.2rem",
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-end"
+      }}
+  >
+    ${Object.keys(scorer.metrics).map((metric) => {
+        return m$1`
+        <div
+          style=${{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          marginLeft: "1em",
+          marginBottom: "0.4em",
+          marginTop: "0.5rem"
+        }}
+        >
+          <div
+            style=${{
+          marginBottom: "-0.3em",
+          fontSize: FontSize.small,
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+          >
+            ${scorer.metrics[metric].name}
+          </div>
+          ${scorer.reducer ? m$1`<div
+                style=${{
+          fontSize: FontSize.small,
+          marginBottom: "-0.2rem"
+        }}
+              >
+                ${scorer.reducer}
+              </div>` : ""}
+          <div style=${{ fontSize: FontSize["title-secondary"] }}>
+            ${formatPrettyDecimal(scorer.metrics[metric].value)}
+          </div>
+        </div>
+      `;
+      })}
+  </div>`;
+    };
+    const SidebarScores = ({ scores }) => {
+      return m$1`<div
+    style=${{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+        rowGap: "1em"
+      }}
+  >
+    ${scores.map((score) => {
+        const name = score.name;
+        const reducer = score.reducer;
+        return m$1`
+        <div
+          style=${{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          marginLeft: "1em"
+        }}
+        >
+          <div
+            style=${{
+          fontSize: FontSize.base,
+          width: "100%",
+          fontWeight: 300,
+          borderBottom: "solid var(--bs-border-color) 1px",
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+          >
+            ${name}
+          </div>
+          ${reducer ? m$1` <div
+                style=${{
+          fontSize: FontSize.smaller,
+          width: "100%",
+          fontWeight: 300
+        }}
+              >
+                ${reducer}
+              </div>` : ""}
+          <div
+            style=${{
+          fontSize: FontSize.smaller,
+          display: "grid",
+          gridTemplateColumns: "max-content max-content",
+          gridGap: "0 0.3rem"
+        }}
+          >
+            ${Object.keys(score.metrics).map((key2) => {
+          const metric = score.metrics[key2];
+          return m$1` <div
+                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
+                >
+                  ${metric.name}
+                </div>
+                <div style=${{ fontWeight: "600" }}>
+                  ${formatPrettyDecimal(metric.value)}
+                </div>`;
+        })}
+          </div>
+        </div>
+      `;
+      })}
+  </div>`;
+    };
+    const StatusCancelled = ({ message }) => {
+      return m$1`<div
+    style=${{
+        marginTop: "0.2em",
+        fontSize: FontSize.small,
+        ...TextStyle.label,
+        ...TextStyle.secondary
+      }}
+  >
+    ${message}
+  </div>`;
+    };
+    const StatusRunning = ({ message }) => {
+      return m$1` <div
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content max-content",
+        columnGap: "0.5em",
+        marginTop: "0.3em",
+        fontSize: FontSize.small,
+        ...TextStyle.secondary,
+        ...TextStyle.label
+      }}
+  >
+    <div>${message}</div>
+  </div>`;
+    };
+    const StatusError = ({ message }) => {
+      return m$1`<div
+    style=${{
+        color: "var(--bs-danger)",
+        marginTop: "0.2em",
+        fontSize: FontSize.small,
+        ...TextStyle.label
+      }}
+  >
+    ${message}
+  </div>`;
+    };
+    const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
+      if (log_dir) {
+        const displayDir = prettyDir(log_dir);
+        return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
+      <span
+        style=${{
+          fontSize: FontSize.smaller,
+          ...TextStyle.label,
+          ...TextStyle.secondary
+        }}
+        >Log Directory</span
+      >
+      <span
+        title=${displayDir}
+        style=${{
+          fontSize: FontSize.base,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis"
+        }}
+        >${offcanvas ? displayDir : ""}</span
+      >
+    </div>`;
+      } else {
+        return m$1`<span
+      style=${{
+          fontSize: FontSize.title
+        }}
+      >${offcanvas ? "Log History" : ""}
+    </span>`;
+      }
+    };
+    const resolveAttachments = (value, attachments) => {
+      const kContentProtocol = "tc://";
+      const kAttachmentProtocol = "attachment://";
+      if (Array.isArray(value)) {
+        return value.map((v2) => resolveAttachments(v2, attachments));
+      }
+      if (value && typeof value === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value)) {
+          resolvedObject[key2] = resolveAttachments(value[key2], attachments);
+        }
+        return resolvedObject;
+      }
+      if (typeof value === "string") {
+        let resolvedValue = value;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
+        }
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        }
+        return resolvedValue;
+      }
+      return value;
+    };
+    let vscodeApi;
+    const getVscodeApi = () => {
+      if (window.acquireVsCodeApi) {
+        if (vscodeApi === void 0) {
+          vscodeApi = window.acquireVsCodeApi();
+        }
+        return vscodeApi;
+      } else {
+        return void 0;
+      }
+    };
+    const isVscode = () => {
+      const bodyEl = document.querySelector("body");
+      return bodyEl !== null && !!bodyEl.getAttributeNames().find((attr) => {
+        return attr.includes("data-vscode-");
+      });
+    };
+    const EmptyPanel = ({ id, classes, height, style: style2, children: children2 }) => {
+      const emptyStyle = {
+        display: "flex",
+        textAlign: "center",
+        flex: "0 0 content",
+        alignItems: "center",
+        justifyContent: "center",
+        height: height ? height : "10rem"
+      };
+      return m$1`
+    <div
+      ...${{ id }}
+      class="${classes ? classes : ""}"
+      style=${{ width: "100%" }}
+    >
+      <div style=${{ ...emptyStyle, ...style2 }}>
+        <div>${children2 || ""}</div>
+      </div>
+    </div>
+  `;
+    };
+    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
+      if (!id) {
+        throw new Error("Tabsets require an id to function properly");
+      }
+      const tabs = children2;
+      const tabType = type || "tabs";
+      const tabSetStyle = {
+        alignItems: "space-between"
+      };
+      return m$1`<ul
+      ...${{ id }}
+      class="nav nav-${tabType} ${classes ? classes : ""}"
+      role="tablist"
+      aria-orientation="horizontal"
+      style=${{ ...tabSetStyle, ...styles.tabSet }}
+    >
+      <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
+      <${TabTools} tools=${tools} />
+    </ul>
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
+    };
+    const TabPanel = ({
+      id,
+      index,
+      selected,
+      style: style2,
+      scrollable,
+      classes,
+      scrollPosition,
+      setScrollPosition,
+      children: children2
+    }) => {
+      const tabContentsId = computeTabContentsId(id, index);
+      const tabContentsRef = A(
+        /** @type {HTMLElement|null} */
+        null
+      );
+      y(() => {
+        setTimeout(() => {
+          if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+            tabContentsRef.current.scrollTop = scrollPosition;
+          }
+        }, 0);
+      });
+      const onScroll = q(
+        (e2) => {
+          setScrollPosition(e2.srcElement.scrollTop);
+        },
+        [setScrollPosition]
+      );
+      return m$1`<div
+    id="${tabContentsId}"
+    ref=${tabContentsRef}
+    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
+    style=${{
+        flex: "1",
+        overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
+        ...style2
+      }}
+    onscroll=${onScroll}
+  >
+    ${children2}
+  </div>`;
+    };
+    const Tabs = ({ tabs, type, style: style2 }) => {
+      return tabs.map((tab, index) => {
+        return m$1` <${Tab}
+      type=${type || "tabs"}
+      tab=${tab}
+      index=${index}
+      style=${style2}
+    />`;
+      });
+    };
+    const Tab = ({ type, tab, index, style: style2 }) => {
+      const tabId = tab.props.id || computeTabId("tabset", index);
+      const tabContentsId = computeTabContentsId(tab.props.id, index);
+      const isActive = tab.props.selected;
+      const tabStyle = {
+        color: "var(--bs-body-color)",
+        ...style2,
+        padding: "0.25rem 0.5rem",
+        borderTopLeftRadius: "var(--bs-border-radius)",
+        borderTopRightRadius: "var(--bs-border-radius)",
+        ...TextStyle.label,
+        fontSize: FontSize.small,
+        fontWeight: 500,
+        marginTop: "2px",
+        marginBottom: "-1px"
+      };
+      const pillStyle = {
+        ...style2
+      };
+      return m$1`
+    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
+      <button
+        id="${tabId}"
+        style=${type === "tabs" ? tabStyle : pillStyle}
+        class="nav-link ${isActive ? "active" : ""}"
+        data-bs-toggle="tab"
+        data-bs-target="#${tabContentsId}"
+        type="button"
+        role="tab"
+        aria-controls="${tabContentsId}"
+        aria-selected="${isActive ? true : false}"
+        ...${{
+        onclick: (e2) => {
+          tab.props.onSelected(e2);
+          return false;
+        }
+      }}
+      >
+        ${tab.props.icon ? m$1`<i
+              class="${tab.props.icon}"
+              style=${{ marginRight: "0.5em" }}
+            ></i>` : ""}
+        ${tab.props.title}
+      </button>
+    </li>
+  `;
+    };
+    const TabTools = ({ tools }) => {
+      return m$1`<div
+    class="tab-tools"
+    style=${{
+        flexBasis: "auto",
+        marginLeft: "auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "end",
+        flexWrap: "wrap",
+        rowGap: "0.3rem"
+      }}
+  >
+    ${tools}
+  </div>`;
+    };
+    const TabPanels = ({ id, tabs, style: style2 }) => {
+      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
+    ${tabs.map((tab, index) => {
+        tab.props.index = index;
+        return tab;
+      })}
+  </div>`;
+    };
+    const computeTabId = (id, index) => {
+      return `${id}-${index}`;
+    };
+    const computeTabContentsId = (id, index) => {
+      return `${id}-contents-${index}`;
+    };
+    const ToolButton = ({ name, classes, icon, onclick, ...rest }) => {
+      const attr = {
+        type: "button",
+        class: `btn btn-tools ${classes || ""}`,
+        onclick,
+        ...rest
+      };
+      const iconEl = icon ? m$1`<i class="${icon}" style=${{ marginRight: "0.5em" }}></i>` : "";
+      return g("button", attr, m$1`${iconEl}${name}`);
+    };
+    const ghCommitUrl = (origin, commit) => {
+      const baseUrl = origin.replace(/\.git$/, "");
+      return `${baseUrl}/commit/${commit}`;
+    };
+    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
+      return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content auto",
+        columnGap: "0em",
+        padding: "0.5em 0.5em 0.5em 0.5em",
+        fontSize: FontSize.small,
+        fontWeight: 600,
+        ...TextStyle.label,
         ...style2
       }}
   >
-    <thead>
-      <tr>
-        <th colspan="2" style="${{ padding: 0 }}"></th>
-      </tr>
-    </thead>
-    <tbody>
-      ${entryEls}
-    </tbody>
-  </table>`;
+    ${icon ? m$1`<i
+          class="${icon}"
+          style=${{
+        paddingRight: "0.2rem"
+      }}
+        ></i>` : m$1`<span
+          style=${{
+        paddingRight: "0.2rem"
+      }}
+        ></span>`}
+    ${label ? label : ""} ${children2}
+  </div> `;
+    };
+    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
+      return m$1`<div
+    class="${classes || ""}"
+    ...${{ id }}
+    style=${{
+        backgroundColor: "var(--bs-body-bg)",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        margin: "0 8px 8px 8px",
+        padding: "0.5em",
+        ...style2
+      }}
+  >
+    ${children2}
+  </div>`;
+    };
+    const Card = ({ id, classes, style: style2, children: children2 }) => {
+      return m$1`
+    <div
+      class="${classes || ""}"
+      ...${{ id }}
+      style=${{
+        backgroundColor: "var(--bs-light-bg-subtle)",
+        border: "solid 1px var(--bs-light-border-subtle)",
+        borderRadius: "var(--bs-border-radius)",
+        marginBottom: "1.5em",
+        ...style2
+      }}
+    >
+      ${children2}
+    </div>
+  `;
     };
     const kPlanCardBodyId = "task-plan-card-body";
     const PlanCard = ({ evalSpec, evalPlan, scores }) => {
@@ -16728,23 +17685,6 @@ ${entry.value}</pre
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
-    let vscodeApi;
-    const getVscodeApi = () => {
-      if (window.acquireVsCodeApi) {
-        if (vscodeApi === void 0) {
-          vscodeApi = window.acquireVsCodeApi();
-        }
-        return vscodeApi;
-      } else {
-        return void 0;
-      }
-    };
-    const isVscode = () => {
-      const bodyEl = document.querySelector("body");
-      return bodyEl !== null && !!bodyEl.getAttributeNames().find((attr) => {
-        return attr.includes("data-vscode-");
-      });
-    };
     const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
       const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
       if (scores.length === 1) {
@@ -17184,16 +18124,6 @@ ${entry.value}</pre
     </div>
     ${children2}
   </div>`;
-    };
-    const isNumeric = (n2) => {
-      return !isNaN(parseFloat(n2)) && isFinite(n2);
-    };
-    const toArray = (val) => {
-      if (Array.isArray(val)) {
-        return val;
-      } else {
-        return [val];
-      }
     };
     const SampleInitEventView = ({ id, event, style: style2 }) => {
       const stateObj = event.state;
@@ -25236,27 +26166,6 @@ ${events}
 </div>`;
       return headingHtml;
     };
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
-    const kScoreTypePassFail = "passfail";
-    const kScoreTypeCategorical = "categorical";
-    const kScoreTypeNumeric = "numeric";
-    const kScoreTypeOther = "other";
-    const kScoreTypeObject = "object";
-    const kSampleAscVal = "sample-asc";
-    const kSampleDescVal = "sample-desc";
-    const kEpochAscVal = "epoch-asc";
-    const kEpochDescVal = "epoch-desc";
-    const kScoreAscVal = "score-asc";
-    const kScoreDescVal = "score-desc";
-    const kDefaultSort = kSampleAscVal;
     const InlineSampleDisplay = ({
       id,
       sample,
@@ -29125,127 +30034,6 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
-      var _a2;
-      const options = [
-        { label: "sample asc", val: kSampleAscVal },
-        { label: "sample desc", val: kSampleDescVal }
-      ];
-      if (epochs) {
-        options.push({
-          label: "epoch asc",
-          val: kEpochAscVal
-        });
-        options.push({
-          label: "epoch desc",
-          val: kEpochDescVal
-        });
-      }
-      if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
-        options.push({
-          label: "score asc",
-          val: kScoreAscVal
-        });
-        options.push({
-          label: "score desc",
-          val: kScoreDescVal
-        });
-      }
-      return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-        alignSelf: "center",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        marginRight: "0.3em",
-        marginLeft: "0.2em"
-      }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort}
-        onChange=${(e2) => {
-        setSort(e2.target.value);
-      }}
-      >
-        ${options.map((option) => {
-        return m$1`<option value="${option.val}">${option.label}</option>`;
-      })}
-      </select>
-    </div>
-  `;
-    };
-    const byEpoch = (sort) => {
-      return sort === kEpochAscVal || sort === kEpochDescVal;
-    };
-    const bySample = (sort) => {
-      return sort === kSampleAscVal || sort === kSampleDescVal;
-    };
-    const sortId = (a2, b2) => {
-      if (isNumeric(a2.id) && isNumeric(b2.id)) {
-        return Number(a2.id) - Number(b2.id);
-      } else {
-        return String(a2.id).localeCompare(String(b2.id));
-      }
-    };
-    const sortSamples = (sort, samples, samplesDescriptor) => {
-      const sortedSamples = samples.sort((a2, b2) => {
-        switch (sort) {
-          case kSampleAscVal: {
-            const result = sortId(a2, b2);
-            if (result !== 0) {
-              return result;
-            } else {
-              return a2.epoch - b2.epoch;
-            }
-          }
-          case kSampleDescVal: {
-            const result = sortId(b2, a2);
-            if (result !== 0) {
-              return result;
-            } else {
-              return a2.epoch - b2.epoch;
-            }
-          }
-          case kEpochAscVal: {
-            const result = a2.epoch - b2.epoch;
-            if (result !== 0) {
-              return result;
-            } else {
-              return sortId(a2, b2);
-            }
-          }
-          case kEpochDescVal: {
-            const result = b2.epoch - a2.epoch;
-            if (result !== 0) {
-              return result;
-            } else {
-              return sortId(a2, b2);
-            }
-          }
-          case kScoreAscVal:
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(a2).value,
-              samplesDescriptor.selectedScore(b2).value
-            );
-          case kScoreDescVal:
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              samplesDescriptor.selectedScore(b2).value,
-              samplesDescriptor.selectedScore(a2).value
-            );
-        }
-      });
-      return {
-        sorted: sortedSamples,
-        order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
-      };
-    };
     const SampleFilter = ({ descriptor, filter, filterChanged }) => {
       var _a2;
       const updateCategoryValue = (e2) => {
@@ -30447,794 +31235,6 @@ self.onmessage = function (e) {
             </div>
           </div>`;
       }
-    };
-    const FindBand = ({ hideBand }) => {
-      const searchBoxRef = A(
-        /** @type {HTMLInputElement|null} */
-        null
-      );
-      y(() => {
-        searchBoxRef.current.focus();
-      }, []);
-      const searchTerm = () => {
-        return searchBoxRef.current.value;
-      };
-      const search = (term, back) => {
-        const parentExpandablePanel = (selection) => {
-          let node = selection.anchorNode;
-          let expandablePanelEl = void 0;
-          while (node) {
-            if (node.classList && node.classList.contains("expandable-panel")) {
-              expandablePanelEl = node;
-              break;
-            }
-            node = node.parentElement;
-          }
-          return expandablePanelEl;
-        };
-        const focusedElement = (
-          /** @type {HTMLElement} */
-          document.activeElement
-        );
-        const result = window.find(term, false, !!back, false, false, true, false);
-        const noResultEl = window.document.getElementById(
-          "inspect-find-no-results"
-        );
-        if (result) {
-          noResultEl.style.opacity = "0";
-          const selection = window.getSelection();
-          if (selection.rangeCount > 0) {
-            const parentPanel = parentExpandablePanel(selection);
-            if (parentPanel) {
-              parentPanel.style.display = "block";
-              parentPanel.style["-webkit-line-clamp"] = "";
-              parentPanel.style["-webkit-box-orient"] = "";
-            }
-            const range = selection.getRangeAt(0);
-            setTimeout(() => {
-              const element = range.startContainer.parentElement;
-              element.scrollIntoView({
-                behavior: "smooth",
-                // Optional: adds a smooth scrolling animation
-                block: "center"
-                // Optional: scrolls so the element is centered in the view
-              });
-            }, 100);
-          }
-        } else {
-          noResultEl.style.opacity = "1";
-        }
-        if (focusedElement) {
-          focusedElement.focus();
-        }
-      };
-      return m$1`<div
-    style=${{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        marginRight: "20%",
-        zIndex: "1060",
-        color: "var(--inspect-find-foreground)",
-        backgroundColor: "var(--inspect-find-background)",
-        fontSize: "0.9rem",
-        display: "grid",
-        gridTemplateColumns: "auto auto auto auto auto",
-        columnGap: "0.2em",
-        padding: "0.2rem",
-        borderBottom: "solid 1px var(--bs-light-border-subtle)",
-        borderLeft: "solid 1px var(--bs-light-border-subtle)",
-        borderRight: "solid 1px var(--bs-light-border-subtle)",
-        boxShadow: "var(--bs-box-shadow)"
-      }}
-  >
-    <input
-      type="text"
-      ref=${searchBoxRef}
-      style=${{
-        height: "2em",
-        fontSize: "0.9em",
-        margin: "0.1rem",
-        outline: "none",
-        border: "solid 1px var(--inspect-input-border)",
-        color: "var(--inspect-input-foreground)",
-        background: "var(--inspect-input-background)"
-      }}
-      placeholder="Find"
-      onkeydown=${(e2) => {
-        if (e2.key === "Escape") {
-          hideBand();
-        } else if (e2.key === "Enter") {
-          search(searchTerm());
-        }
-      }}
-    />
-    <span
-      id="inspect-find-no-results"
-      style=${{
-        fontSize: FontSize.base,
-        opacity: 0,
-        marginTop: "auto",
-        marginBottom: "auto",
-        marginRight: "0.5em"
-      }}
-      >No results</span
-    >
-    <button
-      title="Previous match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm(), true);
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.up}></i>
-    </button>
-    <button
-      title="Next match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm());
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.down}></i>
-    </button>
-    <button
-      title="Close"
-      style=${{
-        padding: 0,
-        fontSize: FontSize["title-secondary"],
-        marginTop: "-0.1rem",
-        marginBottom: "-0.1rem"
-      }}
-      class="btn"
-      onclick=${() => hideBand()}
-    >
-      <i class=${ApplicationIcons.close}></i>
-    </button>
-  </div>`;
-    };
-    const createEvalDescriptor = (scores, samples, epochs) => {
-      if (!samples) {
-        return void 0;
-      }
-      const scoreValue = (sample, scoreLabel) => {
-        if (Object.keys(sample.scores).length === 0 || !scoreLabel) {
-          return void 0;
-        }
-        if (scoreLabel.scorer !== scoreLabel.name && sample.scores[scoreLabel.scorer] && sample.scores[scoreLabel.scorer].value) {
-          return sample.scores[scoreLabel.scorer].value[scoreLabel.name];
-        } else if (sample.scores[scoreLabel.name]) {
-          return sample.scores[scoreLabel.name].value;
-        } else {
-          return void 0;
-        }
-      };
-      const scoreAnswer = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.answer) {
-            return sampleScore.answer;
-          }
-        } else {
-          return void 0;
-        }
-      };
-      const scoreExplanation = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.explanation) {
-            return sampleScore.explanation;
-          }
-        }
-        return void 0;
-      };
-      const scoreMetadata = (sample, scorer) => {
-        if (sample) {
-          const sampleScore = sample.scores[scorer];
-          if (sampleScore && sampleScore.metadata) {
-            return sampleScore.metadata;
-          }
-        }
-        return void 0;
-      };
-      const scoreLabelKey = (scoreLabel) => {
-        if (!scoreLabel) {
-          return "No score key";
-        }
-        return `${scoreLabel.scorer}.${scoreLabel.name}`;
-      };
-      const scoreDescriptorMap = /* @__PURE__ */ new Map();
-      for (const scoreLabel of scores) {
-        const uniqScoreValues = [
-          ...new Set(
-            samples.filter((sample) => !!sample.scores).filter((sample) => {
-              if (!scoreLabel) {
-                return true;
-              }
-              if (scoreLabel.scorer !== scoreLabel.name) {
-                return Object.keys(sample.scores).includes(scoreLabel.scorer) && Object.keys(sample.scores[scoreLabel.scorer].value).includes(
-                  scoreLabel.name
-                );
-              } else {
-                return Object.keys(sample.scores).includes(scoreLabel.name);
-              }
-            }).map((sample) => {
-              return scoreValue(sample, scoreLabel);
-            }).filter((value) => {
-              return value !== null;
-            })
-          )
-        ];
-        const uniqScoreTypes = [
-          ...new Set(uniqScoreValues.map((scoreValue2) => typeof scoreValue2))
-        ];
-        for (const categorizer of scoreCategorizers) {
-          const scoreDescriptor2 = categorizer.describe(
-            uniqScoreValues,
-            uniqScoreTypes
-          );
-          if (scoreDescriptor2) {
-            scoreDescriptorMap.set(scoreLabelKey(scoreLabel), scoreDescriptor2);
-            break;
-          }
-        }
-      }
-      const scoreDescriptor = (scoreLabel) => {
-        return scoreDescriptorMap.get(scoreLabelKey(scoreLabel));
-      };
-      const scoreRendered = (sample, scoreLabel) => {
-        const descriptor = scoreDescriptor(scoreLabel);
-        const score2 = scoreValue(sample, scoreLabel);
-        if (score2 === null || score2 === "undefined") {
-          return "null";
-        } else if (descriptor && descriptor.render) {
-          return descriptor.render(score2);
-        } else {
-          return score2;
-        }
-      };
-      const scorerDescriptor = (sample, scoreLabel) => {
-        return {
-          metadata: () => {
-            return scoreMetadata(sample, scoreLabel.scorer);
-          },
-          explanation: () => {
-            return scoreExplanation(sample, scoreLabel.scorer);
-          },
-          answer: () => {
-            return scoreAnswer(sample, scoreLabel.scorer);
-          },
-          scores: () => {
-            if (!sample || !sample.scores) {
-              return [];
-            }
-            const myScoreDescriptor = scoreDescriptor(scoreLabel);
-            if (!myScoreDescriptor) {
-              return [];
-            }
-            const scoreNames = scores.map((score2) => {
-              return score2.name;
-            });
-            const sampleScorer = sample.scores[scoreLabel.scorer];
-            const scoreVal = sampleScorer.value;
-            if (typeof scoreVal === "object") {
-              const names = Object.keys(scoreVal);
-              if (names.find((name) => {
-                return scoreNames.includes(name);
-              })) {
-                const scores2 = names.map((name) => {
-                  return {
-                    name,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal[name]);
-                    }
-                  };
-                });
-                return scores2;
-              } else {
-                return [
-                  {
-                    name: scoreLabel.scorer,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  }
-                ];
-              }
-            } else {
-              return [
-                {
-                  name: scoreLabel.scorer,
-                  rendered: () => {
-                    return myScoreDescriptor.render(scoreVal);
-                  }
-                }
-              ];
-            }
-          }
-        };
-      };
-      const score = (sample, scoreLabel) => {
-        return {
-          value: scoreValue(sample, scoreLabel),
-          render: () => {
-            return scoreRendered(sample, scoreLabel);
-          }
-        };
-      };
-      return {
-        epochs,
-        samples,
-        scores,
-        scorerDescriptor,
-        scoreDescriptor,
-        score,
-        scoreAnswer
-      };
-    };
-    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
-      if (!evalDescriptor) {
-        return void 0;
-      }
-      const sizes = evalDescriptor.samples.reduce(
-        (previous, current) => {
-          var _a2;
-          const text2 = inputString(current.input).join(" ");
-          const scoreValue = evalDescriptor.score(current, selectedScore).value;
-          const scoreText = scoreValue ? String(scoreValue) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
-          previous[1] = Math.min(
-            Math.max(previous[1], arrayToString(current.target).length),
-            300
-          );
-          previous[2] = Math.min(
-            Math.max(
-              previous[2],
-              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-            ),
-            300
-          );
-          previous[3] = Math.min(
-            Math.max(previous[3], current.limit ? current.limit.length : 0),
-            50
-          );
-          previous[4] = Math.min(
-            Math.max(previous[4], String(current.id).length),
-            10
-          );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
-          return previous;
-        },
-        [0, 0, 0, 0, 0, 0]
-      );
-      const maxSizes = {
-        input: Math.min(sizes[0], 300),
-        target: Math.min(sizes[1], 300),
-        answer: Math.min(sizes[2], 300),
-        limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[4], 30)
-      };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
-      const messageShape = {
-        raw: {
-          input: sizes[0],
-          target: sizes[1],
-          answer: sizes[2],
-          limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
-        },
-        normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
-          limit: maxSizes.limit / base2,
-          id: maxSizes.id / base2,
-          score: maxSizes.score / base2
-        }
-      };
-      return {
-        evalDescriptor,
-        messageShape,
-        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-        selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
-        selectedScorerDescriptor: (sample) => evalDescriptor.scorerDescriptor(sample, selectedScore)
-      };
-    };
-    const scoreCategorizers = [
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types) => {
-          if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values) => {
-          if (values.length === 2 && values.every((val) => {
-            return val === 1 || val === 0;
-          })) {
-            return booleanScoreCategorizer();
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types) => {
-          if (types[0] === "string" && types.length === 1 && values.length < 5 && !values.find((val) => {
-            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-          })) {
-            return passFailScoreCategorizer(values);
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types) => {
-          if (values.length < 10 && types.length === 1 && types[0] === "string") {
-            return {
-              scoreType: kScoreTypeCategorical,
-              categories: values,
-              compare: (a2, b2) => {
-                return String(a2).localeCompare(String(b2));
-              },
-              render: (score) => {
-                return score;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types) => {
-          if (types.length !== 0 && types[0] === "number") {
-            const onlyNumeric = values.filter((val) => {
-              return typeof val === "number";
-            });
-            return {
-              scoreType: kScoreTypeNumeric,
-              min: Math.min(...onlyNumeric),
-              max: Math.max(...onlyNumeric),
-              compare: (a2, b2) => {
-                if (typeof a2 === "number" && typeof b2 === "number") {
-                  return a2 - b2;
-                } else {
-                  console.warn(
-                    "Comparing non-numerics using a nuermic score descriptor"
-                  );
-                  return 0;
-                }
-              },
-              render: (score) => {
-                return formatDecimalNoTrailingZeroes(Number(score));
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @param {import("../types/log").Value2[]} values - the currently selected score
-         * @param {("string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function")[]} [types] - the scorer name
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        describe: (values, types) => {
-          if (types.length !== 0 && types[0] === "object") {
-            const buckets = values.map((val) => {
-              return JSON.stringify(val);
-            });
-            const vals = new Set(buckets);
-            let categories = void 0;
-            if (vals.size < 10) {
-              categories = Array.from(vals).map((val) => {
-                return {
-                  val,
-                  text: val
-                };
-              });
-            }
-            return {
-              scoreType: kScoreTypeObject,
-              categories,
-              compare: () => {
-                return 0;
-              },
-              render: (score) => {
-                if (score === null || score === void 0) {
-                  return "[null]";
-                }
-                const scores = [];
-                const keys = Object.keys(score);
-                keys.forEach((key2, index) => {
-                  const value = score[key2];
-                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
-                  const style2 = {
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    marginLeft: "0.5rem"
-                  };
-                  if (index + 1 < keys.length) {
-                    style2["paddingBottom"] = "1em";
-                  }
-                  scores.push(m$1`
-                <div style=${style2}>
-                  <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
-                    ${key2}
-                  </div>
-                  <div style=${{ fontSize: FontSize.title, fontWeight: 600 }}>
-                    ${formattedValue}
-                  </div>
-                </div>
-              `);
-                });
-                return scores;
-              }
-            };
-          }
-        }
-      },
-      {
-        /**
-         * @returns {ScoreDescriptor} a ScoreDescriptor
-         */
-        // @ts-ignore
-        describe: () => {
-          return {
-            scoreType: kScoreTypeOther,
-            compare: () => {
-              return 0;
-            },
-            render: (score) => {
-              return m$1`<${RenderedContent}
-            id="other-score-value"
-            entry=${{ value: score }}
-          />`;
-            }
-          };
-        }
-      }
-    ];
-    const filledCircleStyle = {
-      fontSize: FontSize.small,
-      fontFamily: "Consola Regular",
-      width: "20px",
-      height: "20px",
-      display: "inline-flex",
-      justifyContent: "center",
-      alignItems: "center",
-      borderRadius: "50%",
-      paddingTop: "1px"
-    };
-    const booleanScoreCategorizer = () => {
-      return {
-        scoreType: "boolean",
-        compare: (a2, b2) => {
-          return Number(a2.value) - Number(b2.value);
-        },
-        render: (score) => {
-          const scoreColorStyle = score ? ApplicationStyles.scoreFills.green : ApplicationStyles.scoreFills.red;
-          return m$1`<span
-        style=${{
-            ...scoreColorStyle,
-            ...filledCircleStyle
-          }}
-        >${score}</span
-      >`;
-        }
-      };
-    };
-    const passFailScoreCategorizer = (values) => {
-      const categories = [];
-      if (values.includes("C")) {
-        categories.push({
-          val: "C",
-          text: "Correct"
-        });
-      }
-      if (values.includes("P")) {
-        categories.push({
-          val: "P",
-          text: "Partial"
-        });
-      }
-      if (values.includes("I")) {
-        categories.push({
-          val: "I",
-          text: "Incorrect"
-        });
-      }
-      if (values.includes("N")) {
-        categories.push({
-          val: "N",
-          text: "Refusal"
-        });
-      }
-      const order2 = ["C", "P", "I", "N"];
-      return {
-        scoreType: kScoreTypePassFail,
-        categories,
-        render: (score) => {
-          if (score === "C") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.green,
-              ...filledCircleStyle
-            }}
-          >C</span
-        >`;
-          } else if (score === "I") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >I</span
-        >`;
-          } else if (score === "P") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.orange,
-              ...filledCircleStyle
-            }}
-          >P</span
-        >`;
-          } else if (score === "N") {
-            return m$1`<span
-          style=${{
-              ...ApplicationStyles.scoreFills.red,
-              ...filledCircleStyle
-            }}
-          >N</span
-        >`;
-          } else {
-            return score;
-          }
-        },
-        compare: (a2, b2) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
-          return sort;
-        }
-      };
-    };
-    const resolveAttachments = (value, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value)) {
-        return value.map((v2) => resolveAttachments(v2, attachments));
-      }
-      if (value && typeof value === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value)) {
-          resolvedObject[key2] = resolveAttachments(value[key2], attachments);
-        }
-        return resolvedObject;
-      }
-      if (typeof value === "string") {
-        let resolvedValue = value;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
-        }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
-        }
-        return resolvedValue;
-      }
-      return value;
-    };
-    const filterFnForType = (filter) => {
-      if (filter.type) {
-        return filterFnsForType[filter.type];
-      } else {
-        return void 0;
-      }
-    };
-    const filterCategory = (descriptor, sample, value) => {
-      const score = descriptor.selectedScore(sample);
-      if (typeof score.value === "string") {
-        return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-      } else if (typeof score.value === "object") {
-        return JSON.stringify(score.value) == value;
-      } else {
-        return String(score.value) === value;
-      }
-    };
-    const filterText = (descriptor, sample, value) => {
-      const score = descriptor.selectedScore(sample);
-      if (!value) {
-        return true;
-      } else {
-        if (isNumeric(value)) {
-          if (typeof score.value === "number") {
-            return score.value === Number(value);
-          } else {
-            return Number(score.value) === Number(value);
-          }
-        } else {
-          const filters = [
-            {
-              prefix: ">=",
-              fn: (score2, val) => {
-                return score2 >= val;
-              }
-            },
-            {
-              prefix: "<=",
-              fn: (score2, val) => {
-                return score2 <= val;
-              }
-            },
-            {
-              prefix: ">",
-              fn: (score2, val) => {
-                return score2 > val;
-              }
-            },
-            {
-              prefix: "<",
-              fn: (score2, val) => {
-                return score2 < val;
-              }
-            },
-            {
-              prefix: "=",
-              fn: (score2, val) => {
-                return score2 === val;
-              }
-            },
-            {
-              prefix: "!=",
-              fn: (score2, val) => {
-                return score2 !== val;
-              }
-            }
-          ];
-          for (const filter of filters) {
-            if (value == null ? void 0 : value.startsWith(filter.prefix)) {
-              const val = value.slice(filter.prefix.length).trim();
-              if (!val) {
-                return true;
-              }
-              const num = Number(val);
-              return filter.fn(score.value, num);
-            }
-          }
-          if (typeof score.value === "string") {
-            return score.value.toLowerCase() === (value == null ? void 0 : value.toLowerCase());
-          } else {
-            return String(score.value) === value;
-          }
-        }
-      }
-    };
-    const filterFnsForType = {
-      [kScoreTypeCategorical]: filterCategory,
-      [kScoreTypeNumeric]: filterText
     };
     function App({
       api: api2,
