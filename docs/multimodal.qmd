@@ -36,7 +36,7 @@ The following models currently support image inputs:
 
 For Bedrock, AzureAI, and Groq, please consult model provider documentation for details on which models support image inputs.
 
-To include an image in a [dataset](dataset.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
+To include an image in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:
 
 ``` javascript
 "input": [
@@ -78,7 +78,7 @@ The following models currently support audio inputs:
 -   Open AI: `gpt-4o-audio-preview`
 -   Google/Vertex: Gemini 1.5 and 2.0 models
 
-To include audio in a [dataset](dataset.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
+To include audio in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:
 
 ``` javascript
 "input": [
@@ -120,7 +120,7 @@ The following models currently support video inputs:
 
 -   Google: Gemini 1.5 and 2.0 models
 
-To include video in a [dataset](dataset.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
+To include video in a [dataset](datasets.qmd) you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:
 
 ``` javascript
 "input": [

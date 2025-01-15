@@ -4,6 +4,7 @@
 
 - Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
 - Task display: Added Timeout Tool button for manually timing out a tool call.
+- Task display: Automatically switch to "plain" mode when running in a background thread
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
 - Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
 - Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
@@ -12,6 +13,7 @@
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
 - HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
+- Eval Set: Ensure that logs with status 'started' are retried.
 
 ## v0.3.57 (09 January 2025)
 
