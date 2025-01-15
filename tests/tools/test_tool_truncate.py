@@ -18,8 +18,8 @@ def complete_task():
     return complete_task
 
 
-# @skip_if_no_docker
-# @skip_if_no_openai
+@skip_if_no_docker
+@skip_if_no_openai
 @pytest.mark.slow
 def test_tool_truncate():
     task = Task(
