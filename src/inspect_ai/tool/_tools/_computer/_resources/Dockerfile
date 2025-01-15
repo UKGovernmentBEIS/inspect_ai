@@ -34,6 +34,10 @@ RUN apt-get update && \
     net-tools \
     # A versatile networking tool for debugging, port scanning, and more.
     netcat \
+    # A utility for non-interactive download of files from the web.
+    wget \
+    # Allows the use of HTTPS in APT repositories.
+    apt-transport-https \
     # Adds tools like add-apt-repository for managing PPAs.
     software-properties-common && \
     # Add PPA repository for Firefox
@@ -43,8 +47,6 @@ RUN apt-get update && \
     firefox-esr \
     # A lightweight PDF viewer.
     xpdf \
-    # A simple text editor.
-    gedit \
     # A simple image viewer.
     xpaint \
     # A lightweight taskbar for graphical desktops.
@@ -62,6 +64,11 @@ RUN useradd -m -s /bin/bash -d $HOME $USERNAME
 RUN echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER computeruse
 WORKDIR $HOME
+
+# install VS Code
+RUN wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | sudo apt-key add - && \
+    sudo add-apt-repository "deb https://packages.microsoft.com/repos/vscode stable main" && \
+    sudo apt install -y code
 
 # configure noVNC
 RUN sudo ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
