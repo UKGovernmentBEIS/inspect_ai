@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { useRef, useState, useEffect, useMemo } from "preact/hooks";
 import { forwardRef, useImperativeHandle } from "preact/compat";
-import { throttle } from "../utils/sync.mjs";
+import { throttle } from "../utils/sync";
 
 /**
  * A virtualized list component that efficiently renders large lists by only

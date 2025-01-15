@@ -7,7 +7,7 @@ import {
 } from "../api/Types";
 import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
-import { AsyncQueue } from "../utils/queue.mjs";
+import { AsyncQueue } from "../utils/queue";
 import {
   FileSizeLimitError,
   openRemoteZipFile,

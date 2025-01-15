@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { isNumeric } from "../../utils/Type.mjs";
+import { isNumeric } from "../../utils/type";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import {
   kEpochAscVal,

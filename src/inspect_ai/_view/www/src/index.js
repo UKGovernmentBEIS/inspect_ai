@@ -4,7 +4,7 @@ import { html } from "htm/preact";
 import { App } from "./App.mjs";
 import api from "./api/index";
 import { getVscodeApi } from "./utils/vscode";
-import { throttle } from "./utils/sync.mjs";
+import { throttle } from "./utils/sync";
 
 // Read any state from the page itself
 const vscode = getVscodeApi();

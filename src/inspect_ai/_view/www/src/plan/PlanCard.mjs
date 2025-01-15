@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
 import { toTitleCase } from "../utils/Format.mjs";
-import { ghCommitUrl } from "../utils/Git.mjs";
+import { ghCommitUrl } from "../utils/git";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { Card, CardBody } from "../components/Card.mjs";
