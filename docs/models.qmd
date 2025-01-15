@@ -272,6 +272,17 @@ $ inspect eval eval.py -M "vertex_init_args={'project': 'my-project', location: 
 
 Vertex AI provides the same `safety_settings` outlined in the [Google] provider.
 
+#### Anthropic on Vertex
+
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with a `vertex` suffix (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+
+```bash
+export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
+export ANTHROPIC_VERTEX_REGION=us-east5
+inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+```
+
+
 ### Hugging Face {#sec-hugging-face-transformers}
 
 The Hugging Face provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. You can use any Hugging Face model by specifying it with the `hf/` prefix. For example:
