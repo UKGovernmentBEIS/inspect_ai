@@ -394,7 +394,13 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Type13 = "context" | "time" | "message" | "token" | "operator";
+export type Type13 =
+  | "context"
+  | "time"
+  | "message"
+  | "token"
+  | "operator"
+  | "custom";
 export type Limit2 = number;
 export type Reductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;

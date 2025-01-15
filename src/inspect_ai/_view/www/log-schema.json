@@ -1516,7 +1516,8 @@
             "time",
             "message",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
