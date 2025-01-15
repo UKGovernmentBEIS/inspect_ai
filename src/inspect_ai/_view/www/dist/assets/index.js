@@ -16527,7 +16527,7 @@ ${entry.value}</pre
     };
     const MessageBand = ({ message, hidden, setHidden, type }) => {
       const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
-      const color = "var(--bs-" + (type === "info" ? "secondary" : type) + "-text-emphasis)";
+      const color = type === "info" ? void 0 : "var(--bs-" + type + "-text-emphasis)";
       return m$1`
     <div
       style=${{
@@ -16550,7 +16550,7 @@ ${entry.value}</pre
         fontSize: FontSize["title-secondary"],
         margin: "0",
         padding: "0",
-        color: "var(--bs-" + type + "-text-emphasis)",
+        color,
         height: FontSize["title-secondary"],
         lineHeight: FontSize["title-secondary"]
       }}
@@ -30762,7 +30762,7 @@ self.onmessage = function (e) {
           var _a2;
           const text2 = inputString(current.input).join(" ");
           const scoreValue = evalDescriptor.score(current, selectedScore).value;
-          const scoreText = scoreValue ? String(scoreValue) : "";
+          const scoreText = scoreValue ? String(scoreValue) : current.error ? String(current.error) : "";
           previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
           previous[1] = Math.min(
             Math.max(previous[1], arrayToString(current.target).length),
