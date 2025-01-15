@@ -118,6 +118,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--trace",
         type=bool,
         is_flag=True,
+        hidden=True,
         envvar="INSPECT_EVAL_TRACE",
         help="Trace message interactions with evaluated model to terminal.",
     )
@@ -886,6 +887,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--trace",
     type=bool,
     is_flag=True,
+    hidden=True,
     help="Trace message interactions with evaluated model to terminal.",
     envvar="INSPECT_EVAL_TRACE",
 )

@@ -42,8 +42,7 @@ from inspect_ai._util.constants import (
     DEFAULT_TIMEOUT,
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import (
@@ -351,16 +350,14 @@ def mistral_system_message_content(
 async def mistral_content_chunk(content: Content) -> ContentChunk:
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
-    else:
+    elif isinstance(content, ContentImage):
         # resolve image to url
-        image_url = content.image
-        if not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        image_url = await file_as_data_uri(content.image)
 
         # return chunk
-        return ImageURLChunk(
-            image_url=ImageURL(url=content.image, detail=content.detail)
-        )
+        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+    else:
+        raise RuntimeError("Mistral models do not support audio or video inputs.")
 
 
 def mistral_tool_call(tool_call: ToolCall) -> MistralToolCall:

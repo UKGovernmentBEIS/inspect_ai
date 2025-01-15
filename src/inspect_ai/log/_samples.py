@@ -29,7 +29,7 @@ class ActiveSample:
         sandboxes: dict[str, SandboxConnection],
     ) -> None:
         self.id = uuid()
-        self.started = datetime.now().timestamp()
+        self.started: float | None = None
         self.completed: float | None = None
         self.task = task
         self.model = model
@@ -48,10 +48,15 @@ class ActiveSample:
 
     @property
     def execution_time(self) -> float:
-        completed = (
-            self.completed if self.completed is not None else datetime.now().timestamp()
-        )
-        return completed - self.started
+        if self.started is not None:
+            completed = (
+                self.completed
+                if self.completed is not None
+                else datetime.now().timestamp()
+            )
+            return completed - self.started
+        else:
+            return 0
 
     def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action

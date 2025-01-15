@@ -4,17 +4,12 @@
 
 This is a prototype of an Inspect agent with human intervention. It utilises Inspect's [Interactivity features](https://inspect.ai-safety-institute.org.uk/interactivity.html). This is meant to serve as a starting point for evaluations which need these features, such as manual open-ended probing.
 
-This gives an overview of this task and how to customise it. Note that this task is intended to be run within Inspect's approval mode (so you can confirm tool calls) and trace mode (so you can see the conversation with the model). For example:
+This gives an overview of this task and how to customise it. Note that this task is intended to be run within Inspect's approval mode (so you can confirm tool calls) and conversation display mode (so you can see the conversation with the model). For example:
 
 ``` bash
-inspect eval intervention.py --approval human --trace
+inspect eval exmaples/intervention.py --approval human --display conversation
 ```
 
-You can also run the intervention script directly and it will run the task in the appropriate approval and trace modes:
-
-``` bash
-python3 intervention.py
-```
 
 ## Inspect Code
 

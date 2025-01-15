@@ -1,12 +1,17 @@
+import asyncio
 import functools
+import hashlib
 import json
 from copy import copy
+from io import BytesIO
+from logging import getLogger
 from typing import Any, cast
 
 import proto  # type: ignore
 from google.ai.generativelanguage import (
     Blob,
     Candidate,
+    File,
     FunctionCall,
     FunctionCallingConfig,
     FunctionDeclaration,
@@ -28,6 +33,8 @@ from google.generativeai import (  # type: ignore
     GenerationConfig,
     GenerativeModel,
     configure,
+    get_file,
+    upload_file,
 )
 from google.generativeai.types import (  # type: ignore
     AsyncGenerateContentResponse,
@@ -45,8 +52,16 @@ from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import file_as_data
+from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
@@ -69,6 +84,8 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import model_base_url
+
+logger = getLogger(__name__)
 
 SAFETY_SETTINGS = "safety_settings"
 
@@ -364,19 +381,23 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
     return struct
 
 
-async def content_part(content: Content | str) -> PartDict:
+async def content_part(content: Content | str) -> PartType:
     if isinstance(content, str):
         return PartDict(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
         return PartDict(text=content.text or NO_CONTENT)
     else:
-        return PartDict(inline_data=await chat_content_image_to_blob(content))
+        return await chat_content_to_part(content)
 
 
-async def chat_content_image_to_blob(image: ContentImage) -> Blob:
-    image_url = image.image
-    image_bytes, mime_type = await image_as_data(image_url)
-    return Blob(mime_type=mime_type, data=image_bytes)
+async def chat_content_to_part(
+    content: ContentImage | ContentAudio | ContentVideo,
+) -> PartType:
+    if isinstance(content, ContentImage):
+        content_bytes, mime_type = await file_as_data(content.image)
+        return Blob(mime_type=mime_type, data=content_bytes)
+    else:
+        return await file_for_content(content)
 
 
 def prepend_system_messages(
@@ -630,3 +651,53 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
         return HarmBlockThreshold.BLOCK_NONE
     else:
         raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
+
+
+async def file_for_content(content: ContentAudio | ContentVideo) -> File:
+    # helper to write trace messages
+    def trace(message: str) -> None:
+        trace_message(logger, "Google Files", message)
+
+    # get the file bytes and compute sha256 hash
+    if isinstance(content, ContentAudio):
+        file = content.audio
+    else:
+        file = content.video
+    content_bytes, mime_type = await file_as_data(file)
+    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+
+    # we cache uploads for re-use, open the db where we track that
+    # (track up to 1 million previous uploads)
+    with inspect_kvstore("google_files", 1000000) as files_db:
+        # can we serve from existing uploads?
+        uploaded_file = files_db.get(content_sha256)
+        if uploaded_file:
+            try:
+                upload = cast(File, get_file(uploaded_file))
+                if upload.state.name == "ACTIVE":
+                    trace(f"Using uploaded file: {uploaded_file}")
+                    return upload
+                else:
+                    trace(
+                        f"Not using uploaded file '{uploaded_file} (state was {upload.state})"
+                    )
+            except Exception as ex:
+                trace(f"Error attempting to access uploaded file: {ex}")
+                files_db.delete(content_sha256)
+
+        # do the upload (and record it)
+        upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
+        while upload.state.name == "PROCESSING":
+            await asyncio.sleep(3)
+            upload = get_file(upload.name)
+
+        if upload.state.name == "FAILED":
+            trace(f"Failed to upload file '{upload.name}: {upload.error}")
+            raise ValueError(f"Google file upload failed: {upload.error}")
+
+        # trace and record it
+        trace(f"Uploaded file: {upload.name}")
+        files_db.put(content_sha256, upload.name)
+
+        # return the file
+        return upload

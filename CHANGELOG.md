@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
+- Task display: Added Timeout Tool button for manually timing out a tool call.
+- Task display: Automatically switch to "plain" mode when running in a background thread
+- Sandboxes: Setup and initialisation errors are now handled at the sample level.
+- Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
+- Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
+- Sandboxes: Add `type` and  optional `container` properties to `SandboxConnection`.
+- Docker: Services which exit with status 0 during setup no longer cause an error.
+- `task_with()` function for creating task variants.
+- Added `--filter` argument to trace CLI commands for filtering on trace log message content.
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+- HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
+- Eval Set: Ensure that logs with status 'started' are retried.
+- Rename the built in `bootstrap_std` metric to `bootstrap_stderr` (deprecate `bootstrap_std`)
+- Bugfix: Fix duplication of summaries when eval log file is rewritten.
+
+## v0.3.57 (09 January 2025)
+
+- [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
@@ -10,11 +29,13 @@
 - Open AI: Use new `max_completion_tokens` option for o1 full.
 - Web Browser: raise error when both `error` and `web_at` fields are present in response.
 - Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.
+- Docker: Prevent issue with container/project names that have a trailing underscore. 
 - Store: initialise `Store` from existing dictionary.
 - Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
 - Tool parameters with a default of `None` are now supported.
 - More fine graned HTML escaping for sample transcripts displalyed in terminal.
-- Fix an issue that would result in an error when a state or storage value used a tilda or slash in the key name.
+- Bugfix: prevent errors when a state or storage value uses a tilda or slash in the key name.
+- Bugfix: Include input in sample summary when the sample input contains a simple string.
 
 ## v0.3.56 (01 January 2025)
 

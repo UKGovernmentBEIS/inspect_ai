@@ -84,7 +84,8 @@ def task_project_name(task: str) -> str:
     if len(task) == 0:
         task = "task"
 
-    return f"inspect-{task[:12]}-i{uuid().lower()[:6]}"
+    # _- breaks docker project name constraints so we strip trailing underscores.
+    return f"inspect-{task[:12].rstrip('_')}-i{uuid().lower()[:6]}"
 
 
 inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{6,}$"

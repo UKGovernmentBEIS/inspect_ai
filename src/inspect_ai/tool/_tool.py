@@ -11,7 +11,12 @@ from typing import (
     runtime_checkable,
 )
 
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -31,7 +36,9 @@ ToolResult = (
     | bool
     | ContentText
     | ContentImage
-    | list[ContentText | ContentImage]
+    | ContentAudio
+    | ContentVideo
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo]
 )
 
 
