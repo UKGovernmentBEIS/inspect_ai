@@ -33,15 +33,12 @@ class PortMappingsView(Widget):
             (mapping, get_service_by_port(mapping.container_port, mapping.protocol))
             for mapping in self.ports
         ]
-        print(f"self.ports {len(self.ports)} {len(mappings_and_services)}")
         remaining_widgets = [
             widget
             for mapping_and_service in mappings_and_services
             for widget in widgets_from_port_mapping(mapping_and_service)
         ]
-        print(f"remaining_widgets has {len(remaining_widgets)} entries")
         for widget in remaining_widgets:
-            print(f"yielding {widget}")
             yield widget
 
 
@@ -100,7 +97,7 @@ def get_url(
 ) -> str | None:
     if service is not None:
         if service == "noVNC":
-            return f"https://localhost:{host_port}"
+            return f"http://localhost:{host_port}?view_only=true&autoconnect=true"
 
         if service.startswith("HTTP"):
             return f"https://localhost:{host_port}"

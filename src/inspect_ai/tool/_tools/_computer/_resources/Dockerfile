@@ -22,6 +22,10 @@ RUN apt-get update && \
     mutter \
     # A VNC server for sharing X11 desktops.
     x11vnc \
+    # A web based VNC client
+    novnc \
+    # A WebSocket to TCP proxy/bridge for noVNC
+    websockify \
     # Python reqs
     python3 \
     python3-pip \
@@ -58,6 +62,9 @@ RUN useradd -m -s /bin/bash -d $HOME $USERNAME
 RUN echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER computeruse
 WORKDIR $HOME
+
+# configure noVNC
+RUN sudo ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
 # only reinstall if requirements.txt changes
 COPY computer_tool/requirements.txt /opt/computer_tool/requirements.txt
