@@ -6,7 +6,7 @@ import {
   kScoreTypeNumeric,
   kScoreTypeObject,
   kScoreTypePassFail,
-} from "../../constants.mjs";
+} from "../../constants";
 
 /**
  * Renders the Sample Filter Control

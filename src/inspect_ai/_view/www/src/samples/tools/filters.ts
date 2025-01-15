@@ -1,13 +1,21 @@
-import { kScoreTypeCategorical, kScoreTypeNumeric } from "../../constants.mjs";
+import { SampleSummary } from "../../api/Types";
+import { kScoreTypeCategorical, kScoreTypeNumeric } from "../../constants";
+import { ScoreFilter } from "../../Types.mjs";
 import { isNumeric } from "../../utils/type";
+import { SamplesDescriptor } from "../SamplesDescriptor.mjs";
 
 /**
  * Gets a filter function for the specified type
- *
- * @param {import("../../Types.mjs").ScoreFilter} filter - The parameters for the component.
- * @returns {(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean | undefined} the function
  */
-export const filterFnForType = (filter) => {
+export const filterFnForType = (
+  filter: ScoreFilter,
+):
+  | ((
+      descriptor: SamplesDescriptor,
+      sample: SampleSummary,
+      value: string,
+    ) => boolean)
+  | undefined => {
   if (filter.type) {
     return filterFnsForType[filter.type];
   } else {
@@ -15,10 +23,11 @@ export const filterFnForType = (filter) => {
   }
 };
 
-/**
- * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean}
- */
-const filterCategory = (descriptor, sample, value) => {
+const filterCategory = (
+  descriptor: SamplesDescriptor,
+  sample: SampleSummary,
+  value: string,
+): boolean => {
   const score = descriptor.selectedScore(sample);
   if (typeof score.value === "string") {
     return score.value.toLowerCase() === value?.toLowerCase();
@@ -29,10 +38,11 @@ const filterCategory = (descriptor, sample, value) => {
   }
 };
 
-/**
- * @type{(descriptor: import("../SamplesDescriptor.mjs").SamplesDescriptor, sample: import("../../api/Types.ts").SampleSummary, value: string) => boolean}
- */
-const filterText = (descriptor, sample, value) => {
+const filterText = (
+  descriptor: SamplesDescriptor,
+  sample: SampleSummary,
+  value: string,
+): boolean => {
   const score = descriptor.selectedScore(sample);
   if (!value) {
     return true;
@@ -47,37 +57,37 @@ const filterText = (descriptor, sample, value) => {
       const filters = [
         {
           prefix: ">=",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score >= val;
           },
         },
         {
           prefix: "<=",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score <= val;
           },
         },
         {
           prefix: ">",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score > val;
           },
         },
         {
           prefix: "<",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score < val;
           },
         },
         {
           prefix: "=",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score === val;
           },
         },
         {
           prefix: "!=",
-          fn: (score, val) => {
+          fn: (score: number, val: number) => {
             return score !== val;
           },
         },
@@ -91,7 +101,9 @@ const filterText = (descriptor, sample, value) => {
           }
 
           const num = Number(val);
-          return filter.fn(score.value, num);
+          // TODO: This isn't great since scores can be more complex
+          const scoreNum = Number(score.value);
+          return filter.fn(scoreNum, num);
         }
       }
       if (typeof score.value === "string") {
@@ -105,10 +117,15 @@ const filterText = (descriptor, sample, value) => {
 
 /**
  * A dictionary that maps filter types to their respective filter functions.
- *
- * @type {Record<string, (descriptor, sample, value) => boolean>}
  */
-const filterFnsForType = {
+const filterFnsForType: Record<
+  string,
+  (
+    descriptor: SamplesDescriptor,
+    sample: SampleSummary,
+    value: string,
+  ) => boolean
+> = {
   [kScoreTypeCategorical]: filterCategory,
   [kScoreTypeNumeric]: filterText,
 };

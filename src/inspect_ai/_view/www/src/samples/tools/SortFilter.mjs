@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { isNumeric } from "../../utils/type";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 import {
   kEpochAscVal,
@@ -8,7 +7,8 @@ import {
   kSampleDescVal,
   kScoreAscVal,
   kScoreDescVal,
-} from "../../constants.mjs";
+} from "../../constants";
+import { isNumeric } from "../../utils/type";
 
 export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   const options = [

@@ -33,7 +33,7 @@ import {
   kSampleMetdataTabId,
   kSampleScoringTabId,
   kSampleTranscriptTabId,
-} from "../constants.mjs";
+} from "../constants";
 import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
 import { printHeadingHtml, printHtml } from "../utils/print";
 
