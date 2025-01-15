@@ -1,3 +1,5 @@
+from inspect_ai._util.deprecation import relocated_module_attribute
+
 from ._answer import AnswerPattern, answer
 from ._choice import choice
 from ._classification import exact, f1
@@ -76,3 +78,12 @@ __all__ = [
     "at_least",
     "pass_at",
 ]
+_BOOTSTRAP_RENAME_VERSION = "0.3.58"
+_REMOVED_IN = "0.4"
+
+relocated_module_attribute(
+    "bootstrap_std",
+    "inspect_ai.scorer.bootstrap_stderr",
+    _BOOTSTRAP_RENAME_VERSION,
+    _REMOVED_IN,
+)
