@@ -15,6 +15,7 @@
 - HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
 - Eval Set: Ensure that logs with status 'started' are retried.
 - Rename the built in `bootstrap_std` metric to `bootstrap_stderr` (deprecate `bootstrap_std`)
+- Bugfix: Fix duplication of summaries when eval log file is rewritten.
 
 ## v0.3.57 (09 January 2025)
 
