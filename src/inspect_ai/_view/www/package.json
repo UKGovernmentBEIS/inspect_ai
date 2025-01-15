@@ -19,6 +19,7 @@
   "devDependencies": {
     "@eslint/js": "^9.5.0",
     "@preact/preset-vite": "^2.9.4",
+    "@types/bootstrap": "^5.2.10",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
