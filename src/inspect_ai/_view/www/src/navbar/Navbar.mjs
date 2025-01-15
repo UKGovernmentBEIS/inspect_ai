@@ -6,7 +6,7 @@ import { ApplicationIcons } from "./../appearance/icons";
 import { ApplicationStyles } from "./../appearance/styles";
 import { filename } from "./../utils/path";
 
-import { CopyButton } from "./../components/CopyButton.mjs";
+import { CopyButton } from "./../components/CopyButton";
 import { SecondaryBar } from "./SecondaryBar.mjs";
 
 /**
