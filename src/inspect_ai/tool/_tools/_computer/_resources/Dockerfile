@@ -3,59 +3,75 @@ FROM docker.io/ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBIAN_PRIORITY=high
 
+# Core/system layer
 RUN apt-get update && \
     apt-get -y upgrade && \
     apt-get -y install \
-    # UI Requirements
-    # A virtual framebuffer for running GUI applications without a physical display.
-    xvfb \    
-    # A terminal emulator for X.
-    xterm \
-    # A command-line tool for automating X11 applications (e.g., simulating keyboard/mouse inputs).
-    xdotool \
-    # A command-line tool for taking screenshots.
-    scrot \
-    # A suite for image manipulation.
-    imagemagick \
-    sudo \
-    # A lightweight window manager.
-    mutter \
-    # A VNC server for sharing X11 desktops.
-    x11vnc \
-    # A web based VNC client
-    novnc \
-    # A WebSocket to TCP proxy/bridge for noVNC
-    websockify \
-    # Python reqs
-    python3 \
-    python3-pip \
-    # Network tools
-    # Provides networking tools like ifconfig, netstat, etc.
-    net-tools \
-    # A versatile networking tool for debugging, port scanning, and more.
-    netcat \
-    # A utility for non-interactive download of files from the web.
-    wget \
-    # Allows the use of HTTPS in APT repositories.
-    apt-transport-https \
-    # Adds tools like add-apt-repository for managing PPAs.
-    software-properties-common && \
-    # Add PPA repository for Firefox
-    sudo add-apt-repository ppa:mozillateam/ppa && \
-    # Userland apps
-    sudo apt-get install -y --no-install-recommends \
-    firefox-esr \
-    # A lightweight PDF viewer.
-    xpdf \
-    # A simple image viewer.
-    xpaint \
-    # A lightweight taskbar for graphical desktops.
-    tint2 \
-    # A calculator application.
-    galculator \
-    # A lightweight file manager.
-    pcmanfm && \
+      # A virtual framebuffer for running GUI applications without a physical display.
+      xvfb \    
+      # A terminal emulator for X.
+      xterm \
+      # A command-line tool for automating X11 applications (e.g., simulating keyboard/mouse inputs).
+      xdotool \
+      # A command-line tool for taking screenshots.
+      scrot \
+      # A suite for image manipulation — needed for scaling images.
+      imagemagick \
+      sudo \
+      # A lightweight window manager.
+      mutter \
+      # A VNC server for sharing X11 desktops.
+      x11vnc \
+      # A web based VNC client
+      novnc \
+      # A WebSocket to TCP proxy/bridge for noVNC
+      websockify \
+      # Python reqs
+      python3 \
+      python3-pip \
+      # Network tools
+      # Provides networking tools like ifconfig, netstat, etc.
+      net-tools \
+      # A versatile networking tool for debugging, port scanning, and more.
+      netcat && \
     apt-get clean
+
+# Userland apps
+RUN apt-get install -y --no-install-recommends \
+      # A lightweight PDF viewer.
+      xpdf \
+      # A simple image viewer.
+      xpaint \
+      # A lightweight taskbar for graphical desktops.
+      tint2 \
+      # A calculator application.
+      galculator \
+      # A lightweight file manager.
+      pcmanfm && \
+    apt-get clean
+
+# install Firefox
+RUN apt-get install -y software-properties-common && \
+    add-apt-repository ppa:mozillateam/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends firefox-esr && \
+    apt-get clean
+
+# install VS Code
+RUN apt-get install -y \
+      gpg \
+      wget \
+      apt-transport-https \
+      software-properties-common && \
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg && \
+    install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg && \
+    sh -c 'echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list' && \
+    apt-get update && \
+    apt-get install -y code && \
+    apt-get clean
+
+# configure noVNC
+RUN ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
 # setup user
 ENV USERNAME=computeruse
@@ -64,14 +80,6 @@ RUN useradd -m -s /bin/bash -d $HOME $USERNAME
 RUN echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER computeruse
 WORKDIR $HOME
-
-# install VS Code
-RUN wget -q https://packages.microsoft.com/keys/microsoft.asc -O- | sudo apt-key add - && \
-    sudo add-apt-repository "deb https://packages.microsoft.com/repos/vscode stable main" && \
-    sudo apt install -y code
-
-# configure noVNC
-RUN sudo ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
 # configure Firefox to skip all 'first run' UI
 RUN mkdir -p $HOME/.mozilla/firefox-esr/profile.default && \
