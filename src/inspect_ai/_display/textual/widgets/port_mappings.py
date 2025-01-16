@@ -99,7 +99,7 @@ def get_url(
 ) -> str | None:
     if service is not None:
         if service == "noVNC":
-            return f"http://localhost:{host_port}?view_only=true&autoconnect=true"
+            return f"http://localhost:{host_port}?view_only=true&autoconnect=true&resize=scale"
 
         if service.startswith("HTTP"):
             return f"https://localhost:{host_port}"
