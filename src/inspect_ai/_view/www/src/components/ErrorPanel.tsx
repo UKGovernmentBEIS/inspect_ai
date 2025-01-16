@@ -12,9 +12,9 @@ interface ErrorPanelProps {
   error: DisplayError;
 }
 
-export const ErrorPanel = (props: ErrorPanelProps) => {
-  const message = props.error.message;
-  const stack = props.error.stack;
+export const ErrorPanel: React.FC<ErrorPanelProps> = ({ title, error }) => {
+  const message = error.message;
+  const stack = error.stack;
 
   return (
     <div className={"error-panel centered-flex"}>
@@ -22,12 +22,12 @@ export const ErrorPanel = (props: ErrorPanelProps) => {
         <div>
           <i class={`${ApplicationIcons.error} error-icon`}></i>
         </div>
-        <div>{props.title || ""}</div>
+        <div>{title || ""}</div>
       </div>
       <div className={"error-panel-body"}>
         <div>
           Error: {message || ""}$
-          {stack && props.error.displayStack !== false && (
+          {stack && error.displayStack !== false && (
             <pre className={"error-panel-stack"}>
               <code>at ${stack}</code>
             </pre>

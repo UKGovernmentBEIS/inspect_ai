@@ -1,14 +1,18 @@
 import "./ProgressBar.css";
 
 interface ProgressBarProps {
-  style: Record<string, string>;
-  containerStyle: Record<string, string>;
+  style: React.CSSProperties;
+  containerStyle: React.CSSProperties;
   animating: boolean;
 }
 
-export const ProgressBar = (props: ProgressBarProps) => {
+export const ProgressBar: React.FC<ProgressBarProps> = ({
+  style,
+  containerStyle,
+  animating,
+}) => {
   return (
-    <div className="progress-bar-wrapper" style={props.style}>
+    <div className="progress-bar-wrapper" style={style}>
       <div
         className="progress-container"
         role="progressbar"
@@ -16,11 +20,9 @@ export const ProgressBar = (props: ProgressBarProps) => {
         aria-valuenow={25}
         aria-valuemin={0}
         aria-valuemax={100}
-        style={props.containerStyle}
+        style={containerStyle}
       >
-        {props.animating && (
-          <div className="progress-bar-animated" style={props.style} />
-        )}
+        {animating && <div className="progress-bar-animated" style={style} />}
       </div>
     </div>
   );
