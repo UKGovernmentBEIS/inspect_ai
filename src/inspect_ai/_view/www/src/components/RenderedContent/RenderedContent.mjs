@@ -4,7 +4,7 @@ import { FontSize } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 
 import { formatNumber } from "../../utils/format";
-import { ANSIDisplay } from "../AnsiDisplay.mjs";
+import { ANSIDisplay } from "../AnsiDisplay";
 import { MetaDataView } from "../MetaDataView.mjs";
 import { ChatMessageRenderer } from "./ChatMessageRenderer.mjs";
 import { Buckets } from "./Types.mjs";

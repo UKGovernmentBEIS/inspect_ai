@@ -44,7 +44,7 @@ var require_assets = __commonJS({
         fetch(link2.href, fetchOpts);
       }
     })();
-    var n$2, l$1, u$2, i$3, r$2, o$1, e$3, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
+    var n$1, l$1, u$2, i$3, r$1, o$1, e$2, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
     function w$2(n2, l2) {
       for (var u2 in l2) n2[u2] = l2[u2];
       return n2;
@@ -55,7 +55,7 @@ var require_assets = __commonJS({
     function g$2(l2, u2, t2) {
       var i2, r2, o2, e2 = {};
       for (o2 in u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : e2[o2] = u2[o2];
-      if (arguments.length > 2 && (e2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (o2 in l2.defaultProps) void 0 === e2[o2] && (e2[o2] = l2.defaultProps[o2]);
+      if (arguments.length > 2 && (e2.children = arguments.length > 3 ? n$1.call(arguments, 2) : t2), "function" == typeof l2 && null != l2.defaultProps) for (o2 in l2.defaultProps) void 0 === e2[o2] && (e2[o2] = l2.defaultProps[o2]);
       return m$2(l2, e2, i2, r2, null);
     }
     function m$2(n2, t2, i2, r2, o2) {
@@ -87,11 +87,11 @@ var require_assets = __commonJS({
       }
     }
     function M$1(n2) {
-      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$3.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$3);
+      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$3.__r++ || r$1 !== l$1.debounceRendering) && ((r$1 = l$1.debounceRendering) || o$1)(P$3);
     }
     function P$3() {
       var n2, u2, t2, r2, o2, f2, c2, s2;
-      for (i$3.sort(e$3); n2 = i$3.shift(); ) n2.__d && (u2 = i$3.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$2({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$2(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$3(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$2(c2, r2, s2), r2.__e != f2 && S(r2)), i$3.length > u2 && i$3.sort(e$3));
+      for (i$3.sort(e$2); n2 = i$3.shift(); ) n2.__d && (u2 = i$3.length, r2 = void 0, f2 = (o2 = (t2 = n2).__v).__e, c2 = [], s2 = [], t2.__P && ((r2 = w$2({}, o2)).__v = o2.__v + 1, l$1.vnode && l$1.vnode(r2), j$2(t2.__P, r2, o2, t2.__n, t2.__P.namespaceURI, 32 & o2.__u ? [f2] : null, c2, null == f2 ? C$3(o2) : f2, !!(32 & o2.__u), s2), r2.__v = o2.__v, r2.__.__k[r2.__i] = r2, z$2(c2, r2, s2), r2.__e != f2 && S(r2)), i$3.length > u2 && i$3.sort(e$2));
       P$3.__r = 0;
     }
     function $$1(n2, l2, u2, t2, i2, r2, o2, e2, f2, c2, s2) {
@@ -230,7 +230,7 @@ var require_assets = __commonJS({
       }
       if (null === x2) b2 === k2 || c2 && u2.data === k2 || (u2.data = k2);
       else {
-        if (e2 = e2 && n$2.call(u2.childNodes), b2 = i2.props || p$1, !c2 && null != e2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(w2 = u2.attributes[a2]).name] = w2.value;
+        if (e2 = e2 && n$1.call(u2.childNodes), b2 = i2.props || p$1, !c2 && null != e2) for (b2 = {}, a2 = 0; a2 < u2.attributes.length; a2++) b2[(w2 = u2.attributes[a2]).name] = w2.value;
         for (a2 in b2) if (w2 = b2[a2], "children" == a2) ;
         else if ("dangerouslySetInnerHTML" == a2) v2 = w2;
         else if (!(a2 in k2)) {
@@ -272,7 +272,7 @@ var require_assets = __commonJS({
     }
     function D$2(u2, t2, i2) {
       var r2, o2, e2, f2;
-      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : i2 && i2.__k || t2.__k, e2 = [], f2 = [], j$2(t2, u2 = (!r2 && i2 || t2).__k = g$2(k$2, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$2.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$2(e2, u2, f2);
+      t2 === document && (t2 = document.documentElement), l$1.__ && l$1.__(u2, t2), o2 = (r2 = "function" == typeof i2) ? null : i2 && i2.__k || t2.__k, e2 = [], f2 = [], j$2(t2, u2 = (!r2 && i2 || t2).__k = g$2(k$2, null, [u2]), o2 || p$1, p$1, t2.namespaceURI, !r2 && i2 ? [i2] : o2 ? null : t2.firstChild ? n$1.call(t2.childNodes) : null, e2, !r2 && i2 ? i2 : o2 ? o2.__e : t2.firstChild, r2, f2), z$2(e2, u2, f2);
     }
     function E$1(n2, l2) {
       D$2(n2, l2, E$1);
@@ -280,7 +280,7 @@ var require_assets = __commonJS({
     function G$1(l2, u2, t2) {
       var i2, r2, o2, e2, f2 = w$2({}, l2.props);
       for (o2 in l2.type && l2.type.defaultProps && (e2 = l2.type.defaultProps), u2) "key" == o2 ? i2 = u2[o2] : "ref" == o2 ? r2 = u2[o2] : f2[o2] = void 0 === u2[o2] && void 0 !== e2 ? e2[o2] : u2[o2];
-      return arguments.length > 2 && (f2.children = arguments.length > 3 ? n$2.call(arguments, 2) : t2), m$2(l2.type, f2, i2 || l2.key, r2 || l2.ref, null);
+      return arguments.length > 2 && (f2.children = arguments.length > 3 ? n$1.call(arguments, 2) : t2), m$2(l2.type, f2, i2 || l2.key, r2 || l2.ref, null);
     }
     function J$1(n2, l2) {
       var u2 = { __c: l2 = "__cC" + h$1++, __: n2, Consumer: function(n3, l3) {
@@ -305,7 +305,7 @@ var require_assets = __commonJS({
       } };
       return u2.Provider.__ = u2.Consumer.contextType = u2;
     }
-    n$2 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
+    n$1 = v$1.slice, l$1 = { __e: function(n2, l2, u2, t2) {
       for (var i2, r2, o2; l2 = l2.__; ) if ((i2 = l2.__c) && !i2.__) try {
         if ((r2 = i2.constructor) && null != r2.getDerivedStateFromError && (i2.setState(r2.getDerivedStateFromError(n2)), o2 = i2.__d), null != i2.componentDidCatch && (i2.componentDidCatch(n2, t2 || {}), o2 = i2.__d), o2) return i2.__E = i2;
       } catch (l3) {
@@ -317,21 +317,21 @@ var require_assets = __commonJS({
       u2 = null != this.__s && this.__s !== this.state ? this.__s : this.__s = w$2({}, this.state), "function" == typeof n2 && (n2 = n2(w$2({}, u2), this.props)), n2 && w$2(u2, n2), null != n2 && this.__v && (l2 && this._sb.push(l2), M$1(this));
     }, x$3.prototype.forceUpdate = function(n2) {
       this.__v && (this.__e = true, n2 && this.__h.push(n2), M$1(this));
-    }, x$3.prototype.render = k$2, i$3 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$3 = function(n2, l2) {
+    }, x$3.prototype.render = k$2, i$3 = [], o$1 = "function" == typeof Promise ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout, e$2 = function(n2, l2) {
       return n2.__v.__b - l2.__v.__b;
     }, P$3.__r = 0, f$2 = /(PointerCapture)$|Capture$/i, c$2 = 0, s$1 = O$1(false), a$1 = O$1(true), h$1 = 0;
-    var n$1 = function(t2, s2, r2, e2) {
+    var n = function(t2, s2, r2, e2) {
       var u2;
       s2[0] = 0;
       for (var h2 = 1; h2 < s2.length; h2++) {
         var p2 = s2[h2++], a2 = s2[h2] ? (s2[0] |= p2 ? 1 : 2, r2[s2[h2++]]) : s2[++h2];
-        3 === p2 ? e2[0] = a2 : 4 === p2 ? e2[1] = Object.assign(e2[1] || {}, a2) : 5 === p2 ? (e2[1] = e2[1] || {})[s2[++h2]] = a2 : 6 === p2 ? e2[1][s2[++h2]] += a2 + "" : p2 ? (u2 = t2.apply(a2, n$1(t2, a2, r2, ["", null])), e2.push(u2), a2[0] ? s2[0] |= 2 : (s2[h2 - 2] = 0, s2[h2] = u2)) : e2.push(a2);
+        3 === p2 ? e2[0] = a2 : 4 === p2 ? e2[1] = Object.assign(e2[1] || {}, a2) : 5 === p2 ? (e2[1] = e2[1] || {})[s2[++h2]] = a2 : 6 === p2 ? e2[1][s2[++h2]] += a2 + "" : p2 ? (u2 = t2.apply(a2, n(t2, a2, r2, ["", null])), e2.push(u2), a2[0] ? s2[0] |= 2 : (s2[h2 - 2] = 0, s2[h2] = u2)) : e2.push(a2);
       }
       return e2;
-    }, t$3 = /* @__PURE__ */ new Map();
-    function e$2(s2) {
-      var r2 = t$3.get(this);
-      return r2 || (r2 = /* @__PURE__ */ new Map(), t$3.set(this, r2)), (r2 = n$1(this, r2.get(s2) || (r2.set(s2, r2 = function(n2) {
+    }, t$2 = /* @__PURE__ */ new Map();
+    function e$1(s2) {
+      var r2 = t$2.get(this);
+      return r2 || (r2 = /* @__PURE__ */ new Map(), t$2.set(this, r2)), (r2 = n(this, r2.get(s2) || (r2.set(s2, r2 = function(n2) {
         for (var t2, s3, r3 = 1, e2 = "", u2 = "", h2 = [0], p2 = function(n3) {
           1 === r3 && (n3 || (e2 = e2.replace(/^\s*\n\s*|\s*\n\s*$/g, ""))) ? h2.push(0, n3, e2) : 3 === r3 && (n3 || e2) ? (h2.push(3, n3, e2), r3 = 2) : 2 === r3 && "..." === e2 && n3 ? h2.push(4, n3, 0) : 2 === r3 && e2 && !n3 ? h2.push(5, 0, true, e2) : r3 >= 5 && ((e2 || !n3 && 5 === r3) && (h2.push(r3, 0, e2, s3), r3 = 6), n3 && (h2.push(r3, n3, 0, s3), r3 = 6)), e2 = "";
         }, a2 = 0; a2 < n2.length; a2++) {
@@ -341,7 +341,7 @@ var require_assets = __commonJS({
         return p2(), h2;
       }(s2)), r2), arguments, [])).length > 1 ? r2 : r2[0];
     }
-    var m$1 = e$2.bind(g$2);
+    var m$1 = e$1.bind(g$2);
     var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
     function getDefaultExportFromCjs(x2) {
       return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -2887,7 +2887,7 @@ var require_assets = __commonJS({
       }
       return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
     }
-    function computeStyles(_ref5) {
+    function computeStyles$1(_ref5) {
       var state = _ref5.state, options = _ref5.options;
       var _options$gpuAccelerat = options.gpuAcceleration, gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat, _options$adaptive = options.adaptive, adaptive = _options$adaptive === void 0 ? true : _options$adaptive, _options$roundOffsets = options.roundOffsets, roundOffsets = _options$roundOffsets === void 0 ? true : _options$roundOffsets;
       var commonStyles = {
@@ -2918,11 +2918,11 @@ var require_assets = __commonJS({
         "data-popper-placement": state.placement
       });
     }
-    const computeStyles$1 = {
+    const computeStyles$2 = {
       name: "computeStyles",
       enabled: true,
       phase: "beforeWrite",
-      fn: computeStyles,
+      fn: computeStyles$1,
       data: {}
     };
     var passive = {
@@ -3790,11 +3790,11 @@ var require_assets = __commonJS({
       };
     }
     var createPopper$2 = /* @__PURE__ */ popperGenerator();
-    var defaultModifiers$1 = [eventListeners, popperOffsets$1, computeStyles$1, applyStyles$1];
+    var defaultModifiers$1 = [eventListeners, popperOffsets$1, computeStyles$2, applyStyles$1];
     var createPopper$1 = /* @__PURE__ */ popperGenerator({
       defaultModifiers: defaultModifiers$1
     });
-    var defaultModifiers = [eventListeners, popperOffsets$1, computeStyles$1, applyStyles$1, offset$1, flip$1, preventOverflow$1, arrow$1, hide$1];
+    var defaultModifiers = [eventListeners, popperOffsets$1, computeStyles$2, applyStyles$1, offset$1, flip$1, preventOverflow$1, arrow$1, hide$1];
     var createPopper = /* @__PURE__ */ popperGenerator({
       defaultModifiers
     });
@@ -3812,7 +3812,7 @@ var require_assets = __commonJS({
       beforeWrite,
       bottom,
       clippingParents,
-      computeStyles: computeStyles$1,
+      computeStyles: computeStyles$2,
       createPopper,
       createPopperBase: createPopper$2,
       createPopperLite: createPopper$1,
@@ -7493,21 +7493,21 @@ var require_assets = __commonJS({
     }
     enableDismissTrigger(Toast);
     defineJQueryPlugin(Toast);
-    var t$2, r$1, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e$1 = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
+    var t$1, r, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
     function d(n2, t2) {
-      c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
-      var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
+      c$1.__h && c$1.__h(r, n2, o || t2), o = 0;
+      var u2 = r.__H || (r.__H = { __: [], __h: [] });
       return n2 >= u2.__.length && u2.__.push({}), u2.__[n2];
     }
     function h(n2) {
       return o = 1, p(D$1, n2);
     }
     function p(n2, u2, i2) {
-      var o2 = d(t$2++, 2);
+      var o2 = d(t$1++, 2);
       if (o2.t = n2, !o2.__c && (o2.__ = [i2 ? i2(u2) : D$1(void 0, u2), function(n3) {
         var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
         t2 !== r2 && (o2.__N = [r2, o2.__[1]], o2.__c.setState({}));
-      }], o2.__c = r$1, !r$1.u)) {
+      }], o2.__c = r, !r.u)) {
         var f2 = function(n3, t2, r2) {
           if (!o2.__c.__H) return true;
           var u3 = o2.__c.__H.__.filter(function(n4) {
@@ -7524,25 +7524,25 @@ var require_assets = __commonJS({
             }
           }), c2 && c2.call(this, n3, t2, r2) || i3;
         };
-        r$1.u = true;
-        var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
-        r$1.componentWillUpdate = function(n3, t2, r2) {
+        r.u = true;
+        var c2 = r.shouldComponentUpdate, e2 = r.componentWillUpdate;
+        r.componentWillUpdate = function(n3, t2, r2) {
           if (this.__e) {
             var u3 = c2;
             c2 = void 0, f2(n3, t2, r2), c2 = u3;
           }
           e2 && e2.call(this, n3, t2, r2);
-        }, r$1.shouldComponentUpdate = f2;
+        }, r.shouldComponentUpdate = f2;
       }
       return o2.__N || o2.__;
     }
     function y(n2, u2) {
-      var i2 = d(t$2++, 3);
-      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
+      var i2 = d(t$1++, 3);
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r.__H.__h.push(i2));
     }
     function _(n2, u2) {
-      var i2 = d(t$2++, 4);
-      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__h.push(i2));
+      var i2 = d(t$1++, 4);
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r.__h.push(i2));
     }
     function A$1(n2) {
       return o = 5, T$1(function() {
@@ -7559,7 +7559,7 @@ var require_assets = __commonJS({
       }, null == r2 ? r2 : r2.concat(n2));
     }
     function T$1(n2, r2) {
-      var u2 = d(t$2++, 7);
+      var u2 = d(t$1++, 7);
       return C$2(u2.__H, r2) && (u2.__ = n2(), u2.__H = r2, u2.__h = n2), u2.__;
     }
     function q$1(n2, t2) {
@@ -7568,16 +7568,16 @@ var require_assets = __commonJS({
       }, t2);
     }
     function x$2(n2) {
-      var u2 = r$1.context[n2.__c], i2 = d(t$2++, 9);
-      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r$1)), u2.props.value) : n2.__;
+      var u2 = r.context[n2.__c], i2 = d(t$1++, 9);
+      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r)), u2.props.value) : n2.__;
     }
     function P$2(n2, t2) {
       c$1.useDebugValue && c$1.useDebugValue(t2 ? t2(n2) : n2);
     }
     function g$1() {
-      var n2 = d(t$2++, 11);
+      var n2 = d(t$1++, 11);
       if (!n2.__) {
-        for (var u2 = r$1.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
+        for (var u2 = r.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
         var i2 = u2.__m || (u2.__m = [0, 0]);
         n2.__ = "P" + i2[0] + "-" + i2[1]++;
       }
@@ -7591,21 +7591,21 @@ var require_assets = __commonJS({
       }
     }
     c$1.__b = function(n2) {
-      r$1 = null, e$1 && e$1(n2);
+      r = null, e && e(n2);
     }, c$1.__ = function(n2, t2) {
       n2 && t2.__k && t2.__k.__m && (n2.__m = t2.__k.__m), s && s(n2, t2);
     }, c$1.__r = function(n2) {
-      a && a(n2), t$2 = 0;
-      var i2 = (r$1 = n2.__c).__H;
-      i2 && (u$1 === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
+      a && a(n2), t$1 = 0;
+      var i2 = (r = n2.__c).__H;
+      i2 && (u$1 === r ? (i2.__h = [], r.__h = [], i2.__.forEach(function(n3) {
         n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
-      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$2 = 0)), u$1 = r$1;
+      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$1 = 0)), u$1 = r;
     }, c$1.diffed = function(n2) {
       v && v(n2);
       var t2 = n2.__c;
       t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w$1)(j$1)), t2.__H.__.forEach(function(n3) {
         n3.i && (n3.__H = n3.i), n3.i = void 0;
-      })), u$1 = r$1 = null;
+      })), u$1 = r = null;
     }, c$1.__c = function(n2, t2) {
       t2.some(function(n3) {
         try {
@@ -7637,12 +7637,12 @@ var require_assets = __commonJS({
       k$1 && (t2 = requestAnimationFrame(r2));
     }
     function z$1(n2) {
-      var t2 = r$1, u2 = n2.__c;
-      "function" == typeof u2 && (n2.__c = void 0, u2()), r$1 = t2;
+      var t2 = r, u2 = n2.__c;
+      "function" == typeof u2 && (n2.__c = void 0, u2()), r = t2;
     }
     function B$1(n2) {
-      var t2 = r$1;
-      n2.__c = n2.__(), r$1 = t2;
+      var t2 = r;
+      n2.__c = n2.__(), r = t2;
     }
     function C$2(n2, t2) {
       return !n2 || n2.length !== t2.length || t2.some(function(t3, r2) {
@@ -8296,799 +8296,1434 @@ var require_assets = __commonJS({
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
-    var e, t$1, r = {
-      exports: {}
-    };
-    e = r, t$1 = function(e2, t2) {
-      Object.defineProperty(t2, "__esModule", {
-        value: true
-      }), t2.ANSIOutput = t2.ANSIColor = t2.ANSIFont = t2.ANSIStyle = void 0;
-      let r2 = 0;
-      const n2 = () => ("" + ++r2).padStart(16, "0");
-      var o2, i2, s2, a2, u2, l2, g2;
-      (function(e3) {
-        e3.Bold = "ansiBold", e3.Dim = "ansiDim", e3.Italic = "ansiItalic", e3.Underlined = "ansiUnderlined", e3.SlowBlink = "ansiSlowBlink", e3.RapidBlink = "ansiRapidBlink", e3.Hidden = "ansiHidden", e3.CrossedOut = "ansiCrossedOut", e3.Fraktur = "ansiFraktur", e3.DoubleUnderlined = "ansiDoubleUnderlined", e3.Framed = "ansiFramed", e3.Encircled = "ansiEncircled", e3.Overlined = "ansiOverlined", e3.Superscript = "ansiSuperscript", e3.Subscript = "ansiSubscript";
-      })(o2 || (t2.ANSIStyle = o2 = {})), function(e3) {
-        e3.AlternativeFont1 = "ansiAlternativeFont1", e3.AlternativeFont2 = "ansiAlternativeFont2", e3.AlternativeFont3 = "ansiAlternativeFont3", e3.AlternativeFont4 = "ansiAlternativeFont4", e3.AlternativeFont5 = "ansiAlternativeFont5", e3.AlternativeFont6 = "ansiAlternativeFont6", e3.AlternativeFont7 = "ansiAlternativeFont7", e3.AlternativeFont8 = "ansiAlternativeFont8", e3.AlternativeFont9 = "ansiAlternativeFont9";
-      }(i2 || (t2.ANSIFont = i2 = {})), function(e3) {
-        e3.Black = "ansiBlack", e3.Red = "ansiRed", e3.Green = "ansiGreen", e3.Yellow = "ansiYellow", e3.Blue = "ansiBlue", e3.Magenta = "ansiMagenta", e3.Cyan = "ansiCyan", e3.White = "ansiWhite", e3.BrightBlack = "ansiBrightBlack", e3.BrightRed = "ansiBrightRed", e3.BrightGreen = "ansiBrightGreen", e3.BrightYellow = "ansiBrightYellow", e3.BrightBlue = "ansiBrightBlue", e3.BrightMagenta = "ansiBrightMagenta", e3.BrightCyan = "ansiBrightCyan", e3.BrightWhite = "ansiBrightWhite";
-      }(s2 || (t2.ANSIColor = s2 = {}));
-      class h2 {
-        constructor() {
-          __publicField(this, "_parserState", g2.BufferingOutput);
-          __publicField(this, "_controlSequence", "");
-          __publicField(this, "_sgrState");
-          __publicField(this, "_outputLines", []);
-          __publicField(this, "_outputLine", 0);
-          __publicField(this, "_outputColumn", 0);
-          __publicField(this, "_buffer", "");
-          __publicField(this, "_pendingNewline", false);
+    function commonjsRequire(path) {
+      throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
+    }
+    var ansiOutput = { exports: {} };
+    (function(module2, exports2) {
+      (function(factory) {
+        {
+          var v2 = factory(commonjsRequire, exports2);
+          if (v2 !== void 0) module2.exports = v2;
         }
-        get outputLines() {
-          return this.flushBuffer(), this._outputLines;
-        }
-        static processOutput(e3) {
-          const t3 = new h2();
-          return t3.processOutput(e3), t3.outputLines;
-        }
-        processOutput(e3) {
-          for (let t3 = 0; t3 < e3.length; t3++) {
-            this._pendingNewline && (this.flushBuffer(), this._outputLine++, this._outputColumn = 0, this._pendingNewline = false);
-            const r3 = e3.charAt(t3);
-            this._parserState === g2.BufferingOutput ? "\x1B" === r3 ? (this.flushBuffer(), this._parserState = g2.ControlSequenceStarted) : "" === r3 ? (this.flushBuffer(), this._parserState = g2.ParsingControlSequence) : this.processCharacter(r3) : this._parserState === g2.ControlSequenceStarted ? "[" === r3 ? this._parserState = g2.ParsingControlSequence : (this._parserState = g2.BufferingOutput, this.processCharacter(r3)) : this._parserState === g2.ParsingControlSequence && (this._controlSequence += r3, r3.match(/^[A-Za-z]$/) && this.processControlSequence());
+      })(function(require2, exports3) {
+        Object.defineProperty(exports3, "__esModule", { value: true });
+        exports3.ANSIOutput = exports3.ANSIColor = exports3.ANSIFont = exports3.ANSIStyle = void 0;
+        let counter = 0;
+        const generateId = () => {
+          return `${++counter}`.padStart(16, "0");
+        };
+        var ANSIStyle;
+        (function(ANSIStyle2) {
+          ANSIStyle2["Bold"] = "ansiBold";
+          ANSIStyle2["Dim"] = "ansiDim";
+          ANSIStyle2["Italic"] = "ansiItalic";
+          ANSIStyle2["Underlined"] = "ansiUnderlined";
+          ANSIStyle2["SlowBlink"] = "ansiSlowBlink";
+          ANSIStyle2["RapidBlink"] = "ansiRapidBlink";
+          ANSIStyle2["Hidden"] = "ansiHidden";
+          ANSIStyle2["CrossedOut"] = "ansiCrossedOut";
+          ANSIStyle2["Fraktur"] = "ansiFraktur";
+          ANSIStyle2["DoubleUnderlined"] = "ansiDoubleUnderlined";
+          ANSIStyle2["Framed"] = "ansiFramed";
+          ANSIStyle2["Encircled"] = "ansiEncircled";
+          ANSIStyle2["Overlined"] = "ansiOverlined";
+          ANSIStyle2["Superscript"] = "ansiSuperscript";
+          ANSIStyle2["Subscript"] = "ansiSubscript";
+        })(ANSIStyle || (exports3.ANSIStyle = ANSIStyle = {}));
+        var ANSIFont;
+        (function(ANSIFont2) {
+          ANSIFont2["AlternativeFont1"] = "ansiAlternativeFont1";
+          ANSIFont2["AlternativeFont2"] = "ansiAlternativeFont2";
+          ANSIFont2["AlternativeFont3"] = "ansiAlternativeFont3";
+          ANSIFont2["AlternativeFont4"] = "ansiAlternativeFont4";
+          ANSIFont2["AlternativeFont5"] = "ansiAlternativeFont5";
+          ANSIFont2["AlternativeFont6"] = "ansiAlternativeFont6";
+          ANSIFont2["AlternativeFont7"] = "ansiAlternativeFont7";
+          ANSIFont2["AlternativeFont8"] = "ansiAlternativeFont8";
+          ANSIFont2["AlternativeFont9"] = "ansiAlternativeFont9";
+        })(ANSIFont || (exports3.ANSIFont = ANSIFont = {}));
+        var ANSIColor;
+        (function(ANSIColor2) {
+          ANSIColor2["Black"] = "ansiBlack";
+          ANSIColor2["Red"] = "ansiRed";
+          ANSIColor2["Green"] = "ansiGreen";
+          ANSIColor2["Yellow"] = "ansiYellow";
+          ANSIColor2["Blue"] = "ansiBlue";
+          ANSIColor2["Magenta"] = "ansiMagenta";
+          ANSIColor2["Cyan"] = "ansiCyan";
+          ANSIColor2["White"] = "ansiWhite";
+          ANSIColor2["BrightBlack"] = "ansiBrightBlack";
+          ANSIColor2["BrightRed"] = "ansiBrightRed";
+          ANSIColor2["BrightGreen"] = "ansiBrightGreen";
+          ANSIColor2["BrightYellow"] = "ansiBrightYellow";
+          ANSIColor2["BrightBlue"] = "ansiBrightBlue";
+          ANSIColor2["BrightMagenta"] = "ansiBrightMagenta";
+          ANSIColor2["BrightCyan"] = "ansiBrightCyan";
+          ANSIColor2["BrightWhite"] = "ansiBrightWhite";
+        })(ANSIColor || (exports3.ANSIColor = ANSIColor = {}));
+        class ANSIOutput {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets or sets the parser state.
+             */
+            __publicField(this, "_parserState", ParserState.BufferingOutput);
+            /**
+             * Gets or sets the control sequence that's being parsed.
+             */
+            __publicField(this, "_controlSequence", "");
+            /**
+             * Gets or sets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the current set of output lines.
+             */
+            __publicField(this, "_outputLines", []);
+            /**
+             * Gets or sets the output line.
+             */
+            __publicField(this, "_outputLine", 0);
+            /**
+             * Gets or sets the output column.
+             */
+            __publicField(this, "_outputColumn", 0);
+            /**
+             * Gets or sets the buffer.
+             */
+            __publicField(this, "_buffer", "");
+            /**
+             * Gets or sets a value which indicates whether there is a pending newline.
+             */
+            __publicField(this, "_pendingNewline", false);
           }
-          this.flushBuffer();
-        }
-        flushBuffer() {
-          for (let e3 = this._outputLines.length; e3 < this._outputLine + 1; e3++) this._outputLines.push(new d2());
-          this._buffer && (this._outputLines[this._outputLine].insert(this._buffer, this._outputColumn, this._sgrState), this._outputColumn += this._buffer.length, this._buffer = "");
-        }
-        processCharacter(e3) {
-          switch (e3) {
-            case "\n":
-              this._pendingNewline = true;
-              break;
-            case "\r":
-              this.flushBuffer(), this._outputColumn = 0;
-              break;
-            default:
-              this._buffer += e3;
+          //#endregion Private Properties
+          //#region Public Properties
+          /**
+           * Gets the output lines.
+           */
+          get outputLines() {
+            this.flushBuffer();
+            return this._outputLines;
           }
-        }
-        processControlSequence() {
-          switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
-            case "A":
-              this.processCUU();
-              break;
-            case "B":
-              this.processCUD();
-              break;
-            case "C":
-              this.processCUF();
-              break;
-            case "D":
-              this.processCUB();
-              break;
-            case "H":
-              this.processCUP();
-              break;
-            case "J":
-              this.processED();
-              break;
-            case "K":
-              this.processEL();
-              break;
-            case "m":
-              this.processSGR();
+          //#endregion Public Properties
+          //#region Public Static Methods
+          /**
+           * Processes output and returns the ANSIOutput lines of the output.
+           * @param output The output to process.
+           * @returns The ANSIOutput lines of the output.
+           */
+          static processOutput(output) {
+            const ansiOutput2 = new ANSIOutput();
+            ansiOutput2.processOutput(output);
+            return ansiOutput2.outputLines;
           }
-          this._controlSequence = "", this._parserState = g2.BufferingOutput;
-        }
-        processCUU() {
-          const e3 = this._controlSequence.match(/^([0-9]*)A$/);
-          e3 && (this._outputLine = Math.max(this._outputLine - k2(e3[1], 1, 1), 0));
-        }
-        processCUD() {
-          const e3 = this._controlSequence.match(/^([0-9]*)B$/);
-          e3 && (this._outputLine = this._outputLine + k2(e3[1], 1, 1));
-        }
-        processCUF() {
-          const e3 = this._controlSequence.match(/^([0-9]*)C$/);
-          e3 && (this._outputColumn = this._outputColumn + k2(e3[1], 1, 1));
-        }
-        processCUB() {
-          const e3 = this._controlSequence.match(/^([0-9]*)D$/);
-          e3 && (this._outputColumn = Math.max(this._outputColumn - k2(e3[1], 1, 1), 0));
-        }
-        processCUP() {
-          const e3 = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
-          e3 && (this._outputLine = k2(e3[1], 1, 1) - 1, this._outputColumn = k2(e3[2], 1, 1) - 1);
-        }
-        processED() {
-          const e3 = this._controlSequence.match(/^([0-9]*)J$/);
-          if (e3) switch (p2(e3[1], 0)) {
-            case 0:
-              this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
-              for (let e4 = this._outputLine + 1; e4 < this._outputLines.length; e4++) this._outputLines[e4].clearEntireLine();
-              break;
-            case 1:
-              this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
-              for (let e4 = 0; e4 < this._outputLine; e4++) this._outputLines[e4].clearEntireLine();
-              break;
-            case 2:
-              for (let e4 = 0; e4 < this._outputLines.length; e4++) this._outputLines[e4].clearEntireLine();
+          //#endregion Public Static Methods
+          //#region Public Methods
+          /**
+           * Processes output.
+           * @param output The output to process.
+           */
+          processOutput(output) {
+            for (let i2 = 0; i2 < output.length; i2++) {
+              if (this._pendingNewline) {
+                this.flushBuffer();
+                this._outputLine++;
+                this._outputColumn = 0;
+                this._pendingNewline = false;
+              }
+              const char = output.charAt(i2);
+              if (this._parserState === ParserState.BufferingOutput) {
+                if (char === "\x1B") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ControlSequenceStarted;
+                } else if (char === "") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ControlSequenceStarted) {
+                if (char === "[") {
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this._parserState = ParserState.BufferingOutput;
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ParsingControlSequence) {
+                this._controlSequence += char;
+                if (char.match(/^[A-Za-z]$/)) {
+                  this.processControlSequence();
+                }
+              }
+            }
+            this.flushBuffer();
           }
-        }
-        processEL() {
-          const e3 = this._controlSequence.match(/^([0-9]*)K$/);
-          if (e3) {
-            const t3 = this._outputLines[this._outputLine];
-            switch (p2(e3[1], 0)) {
-              case 0:
-                t3.clearToEndOfLine(this._outputColumn);
-                break;
-              case 1:
-                t3.clearToBeginningOfLine(this._outputColumn);
-                break;
-              case 2:
-                t3.clearEntireLine();
+          //#endregion Public Methods
+          //#region Private Methods
+          /**
+           * Flushes the buffer to the output line.
+           */
+          flushBuffer() {
+            for (let i2 = this._outputLines.length; i2 < this._outputLine + 1; i2++) {
+              this._outputLines.push(new OutputLine());
+            }
+            if (this._buffer) {
+              const outputLine = this._outputLines[this._outputLine];
+              outputLine.insert(this._buffer, this._outputColumn, this._sgrState);
+              this._outputColumn += this._buffer.length;
+              this._buffer = "";
             }
           }
-        }
-        processSGR() {
-          const e3 = this._sgrState ? this._sgrState.copy() : new c2(), t3 = this._controlSequence.slice(0, -1).split(";").map((e4) => "" === e4 ? a2.Reset : parseInt(e4, 10));
-          for (let r3 = 0; r3 < t3.length; r3++) {
-            const n3 = () => {
-              if (r3 + 1 !== t3.length) switch (t3[++r3]) {
-                case u2.Color256: {
-                  if (r3 + 1 === t3.length) return;
-                  const e4 = t3[++r3];
-                  switch (e4) {
-                    case l2.Black:
-                      return s2.Black;
-                    case l2.Red:
-                      return s2.Red;
-                    case l2.Green:
-                      return s2.Green;
-                    case l2.Yellow:
-                      return s2.Yellow;
-                    case l2.Blue:
-                      return s2.Blue;
-                    case l2.Magenta:
-                      return s2.Magenta;
-                    case l2.Cyan:
-                      return s2.Cyan;
-                    case l2.White:
-                      return s2.White;
-                    case l2.BrightBlack:
-                      return s2.BrightBlack;
-                    case l2.BrightRed:
-                      return s2.BrightRed;
-                    case l2.BrightGreen:
-                      return s2.BrightGreen;
-                    case l2.BrightYellow:
-                      return s2.BrightYellow;
-                    case l2.BrightBlue:
-                      return s2.BrightBlue;
-                    case l2.BrightMagenta:
-                      return s2.BrightMagenta;
-                    case l2.BrightCyan:
-                      return s2.BrightCyan;
-                    case l2.BrightWhite:
-                      return s2.BrightWhite;
-                    default:
-                      if (e4 % 1 != 0) return;
-                      if (e4 >= 16 && e4 <= 231) {
-                        let t4 = e4 - 16, r4 = t4 % 6;
-                        t4 = (t4 - r4) / 6;
-                        let n4 = t4 % 6;
-                        t4 = (t4 - n4) / 6;
-                        let o3 = t4;
-                        return r4 = Math.round(255 * r4 / 5), n4 = Math.round(255 * n4 / 5), o3 = Math.round(255 * o3 / 5), "#" + _2(o3) + _2(n4) + _2(r4);
-                      }
-                      if (e4 >= 232 && e4 <= 255) {
-                        const t4 = Math.round((e4 - 232) / 23 * 255), r4 = _2(t4);
-                        return "#" + r4 + r4 + r4;
-                      }
-                      return;
+          /**
+           * Processes a character.
+           * @param char The character.
+           */
+          processCharacter(char) {
+            switch (char) {
+              case "\n":
+                this._pendingNewline = true;
+                break;
+              case "\r":
+                this.flushBuffer();
+                this._outputColumn = 0;
+                break;
+              default:
+                this._buffer += char;
+                break;
+            }
+          }
+          /**
+           * Processes a control sequence.
+           */
+          processControlSequence() {
+            switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
+              case "A":
+                this.processCUU();
+                break;
+              case "B":
+                this.processCUD();
+                break;
+              case "C":
+                this.processCUF();
+                break;
+              case "D":
+                this.processCUB();
+                break;
+              case "H":
+                this.processCUP();
+                break;
+              case "J":
+                this.processED();
+                break;
+              case "K":
+                this.processEL();
+                break;
+              case "m":
+                this.processSGR();
+                break;
+            }
+            this._controlSequence = "";
+            this._parserState = ParserState.BufferingOutput;
+          }
+          /**
+           * Processes a CUU (Cursor Up) control sequence.
+           */
+          processCUU() {
+            const match = this._controlSequence.match(/^([0-9]*)A$/);
+            if (match) {
+              this._outputLine = Math.max(this._outputLine - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUD (Cursor Down) control sequence.
+           */
+          processCUD() {
+            const match = this._controlSequence.match(/^([0-9]*)B$/);
+            if (match) {
+              this._outputLine = this._outputLine + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUF (Cursor Forward) control sequence.
+           */
+          processCUF() {
+            const match = this._controlSequence.match(/^([0-9]*)C$/);
+            if (match) {
+              this._outputColumn = this._outputColumn + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUB (Cursor Backward) control sequence.
+           */
+          processCUB() {
+            const match = this._controlSequence.match(/^([0-9]*)D$/);
+            if (match) {
+              this._outputColumn = Math.max(this._outputColumn - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUP (Cursor Position) control sequence.
+           */
+          processCUP() {
+            const match = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
+            if (match) {
+              this._outputLine = rangeParam(match[1], 1, 1) - 1;
+              this._outputColumn = rangeParam(match[2], 1, 1) - 1;
+            }
+          }
+          /**
+           * Processes an ED (Erase in Display) control sequence.
+           */
+          processED() {
+            const match = this._controlSequence.match(/^([0-9]*)J$/);
+            if (match) {
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
+                  for (let i2 = this._outputLine + 1; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 1:
+                  this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
+                  for (let i2 = 0; i2 < this._outputLine; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 2:
+                  for (let i2 = 0; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an EL (Erase in Line) control sequence.
+           */
+          processEL() {
+            const match = this._controlSequence.match(/^([0-9]*)K$/);
+            if (match) {
+              const outputLine = this._outputLines[this._outputLine];
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  outputLine.clearToEndOfLine(this._outputColumn);
+                  break;
+                case 1:
+                  outputLine.clearToBeginningOfLine(this._outputColumn);
+                  break;
+                case 2:
+                  outputLine.clearEntireLine();
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an SGR (Select Graphic Rendition) control sequence.
+           */
+          processSGR() {
+            const sgrState = this._sgrState ? this._sgrState.copy() : new SGRState();
+            const sgrParams = this._controlSequence.slice(0, -1).split(";").map((sgrParam) => sgrParam === "" ? SGRParam.Reset : parseInt(sgrParam, 10));
+            for (let index = 0; index < sgrParams.length; index++) {
+              const sgrParam = sgrParams[index];
+              const processSetColor = () => {
+                if (index + 1 === sgrParams.length) {
+                  return void 0;
+                }
+                switch (sgrParams[++index]) {
+                  case SGRParamColor.Color256: {
+                    if (index + 1 === sgrParams.length) {
+                      return void 0;
+                    }
+                    const colorIndex = sgrParams[++index];
+                    switch (colorIndex) {
+                      case SGRParamIndexedColor.Black:
+                        return ANSIColor.Black;
+                      case SGRParamIndexedColor.Red:
+                        return ANSIColor.Red;
+                      case SGRParamIndexedColor.Green:
+                        return ANSIColor.Green;
+                      case SGRParamIndexedColor.Yellow:
+                        return ANSIColor.Yellow;
+                      case SGRParamIndexedColor.Blue:
+                        return ANSIColor.Blue;
+                      case SGRParamIndexedColor.Magenta:
+                        return ANSIColor.Magenta;
+                      case SGRParamIndexedColor.Cyan:
+                        return ANSIColor.Cyan;
+                      case SGRParamIndexedColor.White:
+                        return ANSIColor.White;
+                      case SGRParamIndexedColor.BrightBlack:
+                        return ANSIColor.BrightBlack;
+                      case SGRParamIndexedColor.BrightRed:
+                        return ANSIColor.BrightRed;
+                      case SGRParamIndexedColor.BrightGreen:
+                        return ANSIColor.BrightGreen;
+                      case SGRParamIndexedColor.BrightYellow:
+                        return ANSIColor.BrightYellow;
+                      case SGRParamIndexedColor.BrightBlue:
+                        return ANSIColor.BrightBlue;
+                      case SGRParamIndexedColor.BrightMagenta:
+                        return ANSIColor.BrightMagenta;
+                      case SGRParamIndexedColor.BrightCyan:
+                        return ANSIColor.BrightCyan;
+                      case SGRParamIndexedColor.BrightWhite:
+                        return ANSIColor.BrightWhite;
+                      default:
+                        if (colorIndex % 1 !== 0) {
+                          return void 0;
+                        }
+                        if (colorIndex >= 16 && colorIndex <= 231) {
+                          let colorNumber = colorIndex - 16;
+                          let blue = colorNumber % 6;
+                          colorNumber = (colorNumber - blue) / 6;
+                          let green = colorNumber % 6;
+                          colorNumber = (colorNumber - green) / 6;
+                          let red = colorNumber;
+                          blue = Math.round(blue * 255 / 5);
+                          green = Math.round(green * 255 / 5);
+                          red = Math.round(red * 255 / 5);
+                          return "#" + twoDigitHex(red) + twoDigitHex(green) + twoDigitHex(blue);
+                        } else if (colorIndex >= 232 && colorIndex <= 255) {
+                          const rgb = Math.round((colorIndex - 232) / 23 * 255);
+                          const grayscale = twoDigitHex(rgb);
+                          return "#" + grayscale + grayscale + grayscale;
+                        } else {
+                          return void 0;
+                        }
+                    }
+                  }
+                  case SGRParamColor.ColorRGB: {
+                    const rgb = [0, 0, 0];
+                    for (let i2 = 0; i2 < 3 && index + 1 < sgrParams.length; i2++) {
+                      rgb[i2] = sgrParams[++index];
+                    }
+                    return "#" + twoDigitHex(rgb[0]) + twoDigitHex(rgb[1]) + twoDigitHex(rgb[2]);
                   }
                 }
-                case u2.ColorRGB: {
-                  const e4 = [0, 0, 0];
-                  for (let n4 = 0; n4 < 3 && r3 + 1 < t3.length; n4++) e4[n4] = t3[++r3];
-                  return "#" + _2(e4[0]) + _2(e4[1]) + _2(e4[2]);
+                return void 0;
+              };
+              switch (sgrParam) {
+                case SGRParam.Reset:
+                  sgrState.reset();
+                  break;
+                case SGRParam.Bold:
+                  sgrState.setStyle(ANSIStyle.Bold);
+                  break;
+                case SGRParam.Dim:
+                  sgrState.setStyle(ANSIStyle.Dim);
+                  break;
+                case SGRParam.Italic:
+                  sgrState.setStyle(ANSIStyle.Italic);
+                  break;
+                case SGRParam.Underlined:
+                  sgrState.setStyle(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.SlowBlink:
+                  sgrState.setStyle(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.RapidBlink:
+                  sgrState.setStyle(ANSIStyle.RapidBlink, ANSIStyle.SlowBlink);
+                  break;
+                case SGRParam.Reversed:
+                  sgrState.setReversed(true);
+                  break;
+                case SGRParam.Hidden:
+                  sgrState.setStyle(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.CrossedOut:
+                  sgrState.setStyle(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.PrimaryFont:
+                  sgrState.setFont();
+                  break;
+                case SGRParam.AlternativeFont1:
+                  sgrState.setFont(ANSIFont.AlternativeFont1);
+                  break;
+                case SGRParam.AlternativeFont2:
+                  sgrState.setFont(ANSIFont.AlternativeFont2);
+                  break;
+                case SGRParam.AlternativeFont3:
+                  sgrState.setFont(ANSIFont.AlternativeFont3);
+                  break;
+                case SGRParam.AlternativeFont4:
+                  sgrState.setFont(ANSIFont.AlternativeFont4);
+                  break;
+                case SGRParam.AlternativeFont5:
+                  sgrState.setFont(ANSIFont.AlternativeFont5);
+                  break;
+                case SGRParam.AlternativeFont6:
+                  sgrState.setFont(ANSIFont.AlternativeFont6);
+                  break;
+                case SGRParam.AlternativeFont7:
+                  sgrState.setFont(ANSIFont.AlternativeFont7);
+                  break;
+                case SGRParam.AlternativeFont8:
+                  sgrState.setFont(ANSIFont.AlternativeFont8);
+                  break;
+                case SGRParam.AlternativeFont9:
+                  sgrState.setFont(ANSIFont.AlternativeFont9);
+                  break;
+                case SGRParam.Fraktur:
+                  sgrState.setStyle(ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.DoubleUnderlined:
+                  sgrState.setStyle(ANSIStyle.DoubleUnderlined, ANSIStyle.Underlined);
+                  break;
+                case SGRParam.NormalIntensity:
+                  sgrState.deleteStyles(ANSIStyle.Bold, ANSIStyle.Dim);
+                  break;
+                case SGRParam.NotItalicNotFraktur:
+                  sgrState.deleteStyles(ANSIStyle.Italic, ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.NotUnderlined:
+                  sgrState.deleteStyles(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.NotBlinking:
+                  sgrState.deleteStyles(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.ProportionalSpacing:
+                  break;
+                case SGRParam.NotReversed:
+                  sgrState.setReversed(false);
+                  break;
+                case SGRParam.Reveal:
+                  sgrState.deleteStyles(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.NotCrossedOut:
+                  sgrState.deleteStyles(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.ForegroundBlack:
+                  sgrState.setForegroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.ForegroundRed:
+                  sgrState.setForegroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.ForegroundGreen:
+                  sgrState.setForegroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.ForegroundYellow:
+                  sgrState.setForegroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.ForegroundBlue:
+                  sgrState.setForegroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.ForegroundMagenta:
+                  sgrState.setForegroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.ForegroundCyan:
+                  sgrState.setForegroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.ForegroundWhite:
+                  sgrState.setForegroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetForeground: {
+                  const foregroundColor = processSetColor();
+                  if (foregroundColor) {
+                    sgrState.setForegroundColor(foregroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultForeground:
+                  sgrState.setForegroundColor();
+                  break;
+                case SGRParam.BackgroundBlack:
+                  sgrState.setBackgroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.BackgroundRed:
+                  sgrState.setBackgroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.BackgroundGreen:
+                  sgrState.setBackgroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.BackgroundYellow:
+                  sgrState.setBackgroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.BackgroundBlue:
+                  sgrState.setBackgroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.BackgroundMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.BackgroundCyan:
+                  sgrState.setBackgroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.BackgroundWhite:
+                  sgrState.setBackgroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetBackground: {
+                  const backgroundColor = processSetColor();
+                  if (backgroundColor) {
+                    sgrState.setBackgroundColor(backgroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultBackground:
+                  sgrState.setBackgroundColor();
+                  break;
+                case SGRParam.ForegroundBrightBlack:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.ForegroundBrightRed:
+                  sgrState.setForegroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.ForegroundBrightGreen:
+                  sgrState.setForegroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.ForegroundBrightYellow:
+                  sgrState.setForegroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.ForegroundBrightBlue:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.ForegroundBrightMagenta:
+                  sgrState.setForegroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.ForegroundBrightCyan:
+                  sgrState.setForegroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.ForegroundBrightWhite:
+                  sgrState.setForegroundColor(ANSIColor.BrightWhite);
+                  break;
+                case SGRParam.BackgroundBrightBlack:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.BackgroundBrightRed:
+                  sgrState.setBackgroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.BackgroundBrightGreen:
+                  sgrState.setBackgroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.BackgroundBrightYellow:
+                  sgrState.setBackgroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.BackgroundBrightBlue:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.BackgroundBrightMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.BackgroundBrightCyan:
+                  sgrState.setBackgroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.BackgroundBrightWhite:
+                  sgrState.setBackgroundColor(ANSIColor.BrightWhite);
+                  break;
+              }
+            }
+            if (!SGRState.equivalent(sgrState, this._sgrState)) {
+              this._sgrState = sgrState;
+            }
+          }
+        }
+        exports3.ANSIOutput = ANSIOutput;
+        var SGRParam;
+        (function(SGRParam2) {
+          SGRParam2[SGRParam2["Reset"] = 0] = "Reset";
+          SGRParam2[SGRParam2["Bold"] = 1] = "Bold";
+          SGRParam2[SGRParam2["Dim"] = 2] = "Dim";
+          SGRParam2[SGRParam2["Italic"] = 3] = "Italic";
+          SGRParam2[SGRParam2["Underlined"] = 4] = "Underlined";
+          SGRParam2[SGRParam2["SlowBlink"] = 5] = "SlowBlink";
+          SGRParam2[SGRParam2["RapidBlink"] = 6] = "RapidBlink";
+          SGRParam2[SGRParam2["Reversed"] = 7] = "Reversed";
+          SGRParam2[SGRParam2["Hidden"] = 8] = "Hidden";
+          SGRParam2[SGRParam2["CrossedOut"] = 9] = "CrossedOut";
+          SGRParam2[SGRParam2["PrimaryFont"] = 10] = "PrimaryFont";
+          SGRParam2[SGRParam2["AlternativeFont1"] = 11] = "AlternativeFont1";
+          SGRParam2[SGRParam2["AlternativeFont2"] = 12] = "AlternativeFont2";
+          SGRParam2[SGRParam2["AlternativeFont3"] = 13] = "AlternativeFont3";
+          SGRParam2[SGRParam2["AlternativeFont4"] = 14] = "AlternativeFont4";
+          SGRParam2[SGRParam2["AlternativeFont5"] = 15] = "AlternativeFont5";
+          SGRParam2[SGRParam2["AlternativeFont6"] = 16] = "AlternativeFont6";
+          SGRParam2[SGRParam2["AlternativeFont7"] = 17] = "AlternativeFont7";
+          SGRParam2[SGRParam2["AlternativeFont8"] = 18] = "AlternativeFont8";
+          SGRParam2[SGRParam2["AlternativeFont9"] = 19] = "AlternativeFont9";
+          SGRParam2[SGRParam2["Fraktur"] = 20] = "Fraktur";
+          SGRParam2[SGRParam2["DoubleUnderlined"] = 21] = "DoubleUnderlined";
+          SGRParam2[SGRParam2["NormalIntensity"] = 22] = "NormalIntensity";
+          SGRParam2[SGRParam2["NotItalicNotFraktur"] = 23] = "NotItalicNotFraktur";
+          SGRParam2[SGRParam2["NotUnderlined"] = 24] = "NotUnderlined";
+          SGRParam2[SGRParam2["NotBlinking"] = 25] = "NotBlinking";
+          SGRParam2[SGRParam2["ProportionalSpacing"] = 26] = "ProportionalSpacing";
+          SGRParam2[SGRParam2["NotReversed"] = 27] = "NotReversed";
+          SGRParam2[SGRParam2["Reveal"] = 28] = "Reveal";
+          SGRParam2[SGRParam2["NotCrossedOut"] = 29] = "NotCrossedOut";
+          SGRParam2[SGRParam2["ForegroundBlack"] = 30] = "ForegroundBlack";
+          SGRParam2[SGRParam2["ForegroundRed"] = 31] = "ForegroundRed";
+          SGRParam2[SGRParam2["ForegroundGreen"] = 32] = "ForegroundGreen";
+          SGRParam2[SGRParam2["ForegroundYellow"] = 33] = "ForegroundYellow";
+          SGRParam2[SGRParam2["ForegroundBlue"] = 34] = "ForegroundBlue";
+          SGRParam2[SGRParam2["ForegroundMagenta"] = 35] = "ForegroundMagenta";
+          SGRParam2[SGRParam2["ForegroundCyan"] = 36] = "ForegroundCyan";
+          SGRParam2[SGRParam2["ForegroundWhite"] = 37] = "ForegroundWhite";
+          SGRParam2[SGRParam2["SetForeground"] = 38] = "SetForeground";
+          SGRParam2[SGRParam2["DefaultForeground"] = 39] = "DefaultForeground";
+          SGRParam2[SGRParam2["BackgroundBlack"] = 40] = "BackgroundBlack";
+          SGRParam2[SGRParam2["BackgroundRed"] = 41] = "BackgroundRed";
+          SGRParam2[SGRParam2["BackgroundGreen"] = 42] = "BackgroundGreen";
+          SGRParam2[SGRParam2["BackgroundYellow"] = 43] = "BackgroundYellow";
+          SGRParam2[SGRParam2["BackgroundBlue"] = 44] = "BackgroundBlue";
+          SGRParam2[SGRParam2["BackgroundMagenta"] = 45] = "BackgroundMagenta";
+          SGRParam2[SGRParam2["BackgroundCyan"] = 46] = "BackgroundCyan";
+          SGRParam2[SGRParam2["BackgroundWhite"] = 47] = "BackgroundWhite";
+          SGRParam2[SGRParam2["SetBackground"] = 48] = "SetBackground";
+          SGRParam2[SGRParam2["DefaultBackground"] = 49] = "DefaultBackground";
+          SGRParam2[SGRParam2["DisableProportionalSpacing"] = 50] = "DisableProportionalSpacing";
+          SGRParam2[SGRParam2["Framed"] = 51] = "Framed";
+          SGRParam2[SGRParam2["Encircled"] = 52] = "Encircled";
+          SGRParam2[SGRParam2["Overlined"] = 53] = "Overlined";
+          SGRParam2[SGRParam2["NotFramedNotEncircled"] = 54] = "NotFramedNotEncircled";
+          SGRParam2[SGRParam2["NotOverlined"] = 55] = "NotOverlined";
+          SGRParam2[SGRParam2["SetUnderline"] = 58] = "SetUnderline";
+          SGRParam2[SGRParam2["DefaultUnderline"] = 59] = "DefaultUnderline";
+          SGRParam2[SGRParam2["IdeogramUnderlineOrRightSideLine"] = 60] = "IdeogramUnderlineOrRightSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleUnderlineOrDoubleRightSideLine"] = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine";
+          SGRParam2[SGRParam2["IdeogramOverlineOrLeftSideLine"] = 62] = "IdeogramOverlineOrLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleOverlineOrDoubleLeftSideLine"] = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramStressMarking"] = 64] = "IdeogramStressMarking";
+          SGRParam2[SGRParam2["NoIdeogramAttributes"] = 65] = "NoIdeogramAttributes";
+          SGRParam2[SGRParam2["Superscript"] = 73] = "Superscript";
+          SGRParam2[SGRParam2["Subscript"] = 74] = "Subscript";
+          SGRParam2[SGRParam2["NotSuperscriptNotSubscript"] = 75] = "NotSuperscriptNotSubscript";
+          SGRParam2[SGRParam2["ForegroundBrightBlack"] = 90] = "ForegroundBrightBlack";
+          SGRParam2[SGRParam2["ForegroundBrightRed"] = 91] = "ForegroundBrightRed";
+          SGRParam2[SGRParam2["ForegroundBrightGreen"] = 92] = "ForegroundBrightGreen";
+          SGRParam2[SGRParam2["ForegroundBrightYellow"] = 93] = "ForegroundBrightYellow";
+          SGRParam2[SGRParam2["ForegroundBrightBlue"] = 94] = "ForegroundBrightBlue";
+          SGRParam2[SGRParam2["ForegroundBrightMagenta"] = 95] = "ForegroundBrightMagenta";
+          SGRParam2[SGRParam2["ForegroundBrightCyan"] = 96] = "ForegroundBrightCyan";
+          SGRParam2[SGRParam2["ForegroundBrightWhite"] = 97] = "ForegroundBrightWhite";
+          SGRParam2[SGRParam2["BackgroundBrightBlack"] = 100] = "BackgroundBrightBlack";
+          SGRParam2[SGRParam2["BackgroundBrightRed"] = 101] = "BackgroundBrightRed";
+          SGRParam2[SGRParam2["BackgroundBrightGreen"] = 102] = "BackgroundBrightGreen";
+          SGRParam2[SGRParam2["BackgroundBrightYellow"] = 103] = "BackgroundBrightYellow";
+          SGRParam2[SGRParam2["BackgroundBrightBlue"] = 104] = "BackgroundBrightBlue";
+          SGRParam2[SGRParam2["BackgroundBrightMagenta"] = 105] = "BackgroundBrightMagenta";
+          SGRParam2[SGRParam2["BackgroundBrightCyan"] = 106] = "BackgroundBrightCyan";
+          SGRParam2[SGRParam2["BackgroundBrightWhite"] = 107] = "BackgroundBrightWhite";
+        })(SGRParam || (SGRParam = {}));
+        var SGRParamColor;
+        (function(SGRParamColor2) {
+          SGRParamColor2[SGRParamColor2["Color256"] = 5] = "Color256";
+          SGRParamColor2[SGRParamColor2["ColorRGB"] = 2] = "ColorRGB";
+        })(SGRParamColor || (SGRParamColor = {}));
+        var SGRParamIndexedColor;
+        (function(SGRParamIndexedColor2) {
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Black"] = 0] = "Black";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Red"] = 1] = "Red";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Green"] = 2] = "Green";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Yellow"] = 3] = "Yellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Blue"] = 4] = "Blue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Magenta"] = 5] = "Magenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Cyan"] = 6] = "Cyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["White"] = 7] = "White";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlack"] = 8] = "BrightBlack";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightRed"] = 9] = "BrightRed";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightGreen"] = 10] = "BrightGreen";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightYellow"] = 11] = "BrightYellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlue"] = 12] = "BrightBlue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightMagenta"] = 13] = "BrightMagenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightCyan"] = 14] = "BrightCyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightWhite"] = 15] = "BrightWhite";
+        })(SGRParamIndexedColor || (SGRParamIndexedColor = {}));
+        var ParserState;
+        (function(ParserState2) {
+          ParserState2[ParserState2["BufferingOutput"] = 0] = "BufferingOutput";
+          ParserState2[ParserState2["ControlSequenceStarted"] = 1] = "ControlSequenceStarted";
+          ParserState2[ParserState2["ParsingControlSequence"] = 2] = "ParsingControlSequence";
+        })(ParserState || (ParserState = {}));
+        class SGRState {
+          constructor() {
+            //#region Private Properties.
+            /**
+             * Gets or sets the styles.
+             */
+            __publicField(this, "_styles");
+            /**
+             * Gets or sets the foreground color.
+             */
+            __publicField(this, "_foregroundColor");
+            /**
+             * Gets or sets the background color.
+             */
+            __publicField(this, "_backgroundColor");
+            /**
+             * Gets or sets the underlined color.
+             */
+            __publicField(this, "_underlinedColor");
+            /**
+             * Gets or sets a value which indicates whether the foreground and background colors are
+             * reversed.
+             */
+            __publicField(this, "_reversed");
+            /**
+             * Gets or sets the font.
+             */
+            __publicField(this, "_font");
+          }
+          //#endregion Private Properties.
+          //#region Public Methods
+          /**
+           * Resets the SGRState.
+           */
+          reset() {
+            this._styles = void 0;
+            this._foregroundColor = void 0;
+            this._backgroundColor = void 0;
+            this._underlinedColor = void 0;
+            this._reversed = void 0;
+            this._font = void 0;
+          }
+          /**
+           * Creates a copy of the SGRState.
+           * @returns The copy of the SGRState.
+           */
+          copy() {
+            const copy = new SGRState();
+            if (this._styles && this._styles.size) {
+              const styles = /* @__PURE__ */ new Set();
+              this._styles.forEach((style2) => styles.add(style2));
+              copy._styles = styles;
+            }
+            copy._foregroundColor = this._foregroundColor;
+            copy._backgroundColor = this._backgroundColor;
+            copy._underlinedColor = this._underlinedColor;
+            copy._reversed = this._reversed;
+            copy._font = this._font;
+            return copy;
+          }
+          /**
+           * Sets a style.
+           * @param style The style to set.
+           * @param stylesToDelete The styles to delete.
+           */
+          setStyle(style2, ...stylesToDelete) {
+            if (this._styles) {
+              for (const style3 of stylesToDelete) {
+                this._styles.delete(style3);
+              }
+            } else {
+              this._styles = /* @__PURE__ */ new Set();
+            }
+            this._styles.add(style2);
+          }
+          /**
+           * Deletes styles.
+           * @param stylesToDelete The styles to delete.
+           */
+          deleteStyles(...stylesToDelete) {
+            if (this._styles) {
+              for (const style2 of stylesToDelete) {
+                this._styles.delete(style2);
+              }
+              if (!this._styles.size) {
+                this._styles = void 0;
+              }
+            }
+          }
+          /**
+           * Sets the foreground color.
+           * @param color The foreground color.
+           */
+          setForegroundColor(color) {
+            if (!this._reversed) {
+              this._foregroundColor = color;
+            } else {
+              this._backgroundColor = color;
+            }
+          }
+          /**
+           * Sets the background color.
+           * @param color The background color.
+           */
+          setBackgroundColor(color) {
+            if (!this._reversed) {
+              this._backgroundColor = color;
+            } else {
+              this._foregroundColor = color;
+            }
+          }
+          /**
+           * Sets reversed.
+           * @param reversed A value which indicates whether the foreground and background colors are
+           * reversed.
+           */
+          setReversed(reversed) {
+            if (reversed) {
+              if (!this._reversed) {
+                this._reversed = true;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            } else {
+              if (this._reversed) {
+                this._reversed = void 0;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            }
+          }
+          /**
+           * Sets the font.
+           * @param font The font.
+           */
+          setFont(font) {
+            this._font = font;
+          }
+          /**
+           *
+           * @param left
+           * @param right
+           * @returns
+           */
+          static equivalent(left2, right2) {
+            const setReplacer = (_2, value) => value instanceof Set ? !value.size ? void 0 : [...value] : value;
+            return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
+          }
+          //#endregion Public Methods
+          //#region ANSIFormat Implementation
+          /**
+           * Gets the styles.
+           */
+          get styles() {
+            return !this._styles ? void 0 : [...this._styles];
+          }
+          /**
+           * Gets the foreground color.
+           */
+          get foregroundColor() {
+            if (this._backgroundColor && !this._foregroundColor) {
+              switch (this._backgroundColor) {
+                case ANSIColor.Black:
+                case ANSIColor.BrightBlack:
+                case ANSIColor.Red:
+                case ANSIColor.BrightRed:
+                  return ANSIColor.White;
+                case ANSIColor.Green:
+                case ANSIColor.BrightGreen:
+                case ANSIColor.Yellow:
+                case ANSIColor.BrightYellow:
+                case ANSIColor.Blue:
+                case ANSIColor.BrightBlue:
+                case ANSIColor.Magenta:
+                case ANSIColor.BrightMagenta:
+                case ANSIColor.Cyan:
+                case ANSIColor.BrightCyan:
+                case ANSIColor.White:
+                case ANSIColor.BrightWhite:
+                  return ANSIColor.Black;
+              }
+            }
+            return this._foregroundColor;
+          }
+          /**
+           * Gets the background color.
+           */
+          get backgroundColor() {
+            return this._backgroundColor;
+          }
+          /**
+           * Gets the underlined color.
+           */
+          get underlinedColor() {
+            return this._underlinedColor;
+          }
+          /**
+           * Gets the font.
+           */
+          get font() {
+            return this._font;
+          }
+          //#endregion ANSIFormat Implementation
+          //#region Private Methods
+          /**
+           * Reverses the foreground and background colors.
+           */
+          reverseForegroundAndBackgroundColors() {
+            const foregroundColor = this._foregroundColor;
+            this._foregroundColor = this._backgroundColor;
+            this._backgroundColor = foregroundColor;
+          }
+        }
+        class OutputLine {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets or sets the output runs.
+             */
+            __publicField(this, "_outputRuns", []);
+            /**
+             * Gets or sets the total length.
+             */
+            __publicField(this, "_totalLength", 0);
+          }
+          //#endregion Private Properties
+          //#region Public Methods
+          /**
+           * Clears the entire output line.
+           */
+          clearEntireLine() {
+            if (this._totalLength) {
+              this._outputRuns = [new OutputRun2(" ".repeat(this._totalLength))];
+            }
+          }
+          /**
+           * Clears to the end of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToEndOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 >= this._totalLength) {
+              return;
+            }
+            if (column2 === 0) {
+              this.clearEntireLine();
+              return;
+            }
+            let leftOffset = 0;
+            let leftOutputRun;
+            let leftOutputRunIndex = void 0;
+            for (let index = 0; index < this._outputRuns.length; index++) {
+              const outputRun = this._outputRuns[index];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRun = outputRun;
+                leftOutputRunIndex = index;
+                break;
+              }
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRun === void 0 || leftOutputRunIndex === void 0) {
+              return;
+            }
+            const leftTextLength = column2 - leftOffset;
+            const erasureText = " ".repeat(this._totalLength - column2);
+            const outputRuns = [];
+            if (!leftTextLength) {
+              outputRuns.push(new OutputRun2(erasureText));
+            } else {
+              const leftText = leftOutputRun.text.slice(0, leftTextLength);
+              outputRuns.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+              outputRuns.push(new OutputRun2(erasureText));
+            }
+            this.outputRuns.splice(leftOutputRunIndex, this._outputRuns.length - leftOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Clears to the beginning of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToBeginningOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 === 0) {
+              return;
+            }
+            if (column2 >= this._totalLength) {
+              this.clearEntireLine();
+              return;
+            }
+            let rightOffset = 0;
+            let rightOutputRun;
+            let rightOutputRunIndex = void 0;
+            for (let index = this._outputRuns.length - 1; index >= 0; index--) {
+              const outputRun = this._outputRuns[index];
+              if (column2 >= rightOffset - outputRun.text.length) {
+                rightOutputRun = outputRun;
+                rightOutputRunIndex = index;
+                break;
+              }
+              rightOffset -= outputRun.text.length;
+            }
+            if (rightOutputRun === void 0 || rightOutputRunIndex === void 0) {
+              return;
+            }
+            const rightTextLength = rightOffset - column2;
+            const erasureText = " ".repeat(column2);
+            const outputRuns = [new OutputRun2(erasureText)];
+            if (rightTextLength) {
+              const rightOutputRunText = rightOutputRun.text.slice(-rightTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
+            }
+            this.outputRuns.splice(0, this._outputRuns.length - rightOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Inserts text into the output line.
+           * @param text The text to insert.
+           * @param column The column at which to insert the text.
+           * @param sgrState The SGR state.
+           */
+          insert(text2, column2, sgrState) {
+            if (!text2.length) {
+              return;
+            }
+            if (column2 === this._totalLength) {
+              this._totalLength += text2.length;
+              if (this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (SGRState.equivalent(lastOutputRun.sgrState, sgrState)) {
+                  lastOutputRun.appendText(text2);
+                  return;
                 }
               }
-            };
-            switch (t3[r3]) {
-              case a2.Reset:
-                e3.reset();
-                break;
-              case a2.Bold:
-                e3.setStyle(o2.Bold);
-                break;
-              case a2.Dim:
-                e3.setStyle(o2.Dim);
-                break;
-              case a2.Italic:
-                e3.setStyle(o2.Italic);
-                break;
-              case a2.Underlined:
-                e3.setStyle(o2.Underlined, o2.DoubleUnderlined);
-                break;
-              case a2.SlowBlink:
-                e3.setStyle(o2.SlowBlink, o2.RapidBlink);
-                break;
-              case a2.RapidBlink:
-                e3.setStyle(o2.RapidBlink, o2.SlowBlink);
-                break;
-              case a2.Reversed:
-                e3.setReversed(true);
-                break;
-              case a2.Hidden:
-                e3.setStyle(o2.Hidden);
-                break;
-              case a2.CrossedOut:
-                e3.setStyle(o2.CrossedOut);
-                break;
-              case a2.PrimaryFont:
-                e3.setFont();
-                break;
-              case a2.AlternativeFont1:
-                e3.setFont(i2.AlternativeFont1);
-                break;
-              case a2.AlternativeFont2:
-                e3.setFont(i2.AlternativeFont2);
-                break;
-              case a2.AlternativeFont3:
-                e3.setFont(i2.AlternativeFont3);
-                break;
-              case a2.AlternativeFont4:
-                e3.setFont(i2.AlternativeFont4);
-                break;
-              case a2.AlternativeFont5:
-                e3.setFont(i2.AlternativeFont5);
-                break;
-              case a2.AlternativeFont6:
-                e3.setFont(i2.AlternativeFont6);
-                break;
-              case a2.AlternativeFont7:
-                e3.setFont(i2.AlternativeFont7);
-                break;
-              case a2.AlternativeFont8:
-                e3.setFont(i2.AlternativeFont8);
-                break;
-              case a2.AlternativeFont9:
-                e3.setFont(i2.AlternativeFont9);
-                break;
-              case a2.Fraktur:
-                e3.setStyle(o2.Fraktur);
-                break;
-              case a2.DoubleUnderlined:
-                e3.setStyle(o2.DoubleUnderlined, o2.Underlined);
-                break;
-              case a2.NormalIntensity:
-                e3.deleteStyles(o2.Bold, o2.Dim);
-                break;
-              case a2.NotItalicNotFraktur:
-                e3.deleteStyles(o2.Italic, o2.Fraktur);
-                break;
-              case a2.NotUnderlined:
-                e3.deleteStyles(o2.Underlined, o2.DoubleUnderlined);
-                break;
-              case a2.NotBlinking:
-                e3.deleteStyles(o2.SlowBlink, o2.RapidBlink);
-                break;
-              case a2.ProportionalSpacing:
-                break;
-              case a2.NotReversed:
-                e3.setReversed(false);
-                break;
-              case a2.Reveal:
-                e3.deleteStyles(o2.Hidden);
-                break;
-              case a2.NotCrossedOut:
-                e3.deleteStyles(o2.CrossedOut);
-                break;
-              case a2.ForegroundBlack:
-                e3.setForegroundColor(s2.Black);
-                break;
-              case a2.ForegroundRed:
-                e3.setForegroundColor(s2.Red);
-                break;
-              case a2.ForegroundGreen:
-                e3.setForegroundColor(s2.Green);
-                break;
-              case a2.ForegroundYellow:
-                e3.setForegroundColor(s2.Yellow);
-                break;
-              case a2.ForegroundBlue:
-                e3.setForegroundColor(s2.Blue);
-                break;
-              case a2.ForegroundMagenta:
-                e3.setForegroundColor(s2.Magenta);
-                break;
-              case a2.ForegroundCyan:
-                e3.setForegroundColor(s2.Cyan);
-                break;
-              case a2.ForegroundWhite:
-                e3.setForegroundColor(s2.White);
-                break;
-              case a2.SetForeground: {
-                const t4 = n3();
-                t4 && e3.setForegroundColor(t4);
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 > this._totalLength) {
+              const spacer = " ".repeat(column2 - this._totalLength);
+              this._totalLength += spacer.length + text2.length;
+              if (!sgrState && this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (!lastOutputRun.sgrState) {
+                  lastOutputRun.appendText(spacer);
+                  lastOutputRun.appendText(text2);
+                  return;
+                }
+              }
+              if (!sgrState) {
+                this._outputRuns.push(new OutputRun2(spacer + text2));
+              } else {
+                this._outputRuns.push(new OutputRun2(spacer));
+                this._outputRuns.push(new OutputRun2(text2, sgrState));
+              }
+            }
+            let leftOffset = 0;
+            let leftOutputRunIndex = void 0;
+            for (let index = 0; index < this._outputRuns.length; index++) {
+              const outputRun = this._outputRuns[index];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRunIndex = index;
                 break;
               }
-              case a2.DefaultForeground:
-                e3.setForegroundColor();
-                break;
-              case a2.BackgroundBlack:
-                e3.setBackgroundColor(s2.Black);
-                break;
-              case a2.BackgroundRed:
-                e3.setBackgroundColor(s2.Red);
-                break;
-              case a2.BackgroundGreen:
-                e3.setBackgroundColor(s2.Green);
-                break;
-              case a2.BackgroundYellow:
-                e3.setBackgroundColor(s2.Yellow);
-                break;
-              case a2.BackgroundBlue:
-                e3.setBackgroundColor(s2.Blue);
-                break;
-              case a2.BackgroundMagenta:
-                e3.setBackgroundColor(s2.Magenta);
-                break;
-              case a2.BackgroundCyan:
-                e3.setBackgroundColor(s2.Cyan);
-                break;
-              case a2.BackgroundWhite:
-                e3.setBackgroundColor(s2.White);
-                break;
-              case a2.SetBackground: {
-                const t4 = n3();
-                t4 && e3.setBackgroundColor(t4);
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 + text2.length >= this._totalLength) {
+              const leftTextLength = column2 - leftOffset;
+              const outputRuns2 = [];
+              if (!leftTextLength) {
+                outputRuns2.push(new OutputRun2(text2, sgrState));
+              } else {
+                const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+                const leftText = leftOutputRun.text.slice(0, leftTextLength);
+                if (SGRState.equivalent(leftOutputRun.sgrState, sgrState)) {
+                  outputRuns2.push(new OutputRun2(leftText + text2, sgrState));
+                } else {
+                  outputRuns2.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+                  outputRuns2.push(new OutputRun2(text2, sgrState));
+                }
+              }
+              this.outputRuns.splice(leftOutputRunIndex, 1, ...outputRuns2);
+              this._totalLength = leftOffset + leftTextLength + text2.length;
+              return;
+            }
+            let rightOffset = this._totalLength;
+            let rightOutputRunIndex = void 0;
+            for (let index = this._outputRuns.length - 1; index >= 0; index--) {
+              const outputRun = this._outputRuns[index];
+              if (column2 + text2.length > rightOffset - outputRun.text.length) {
+                rightOutputRunIndex = index;
                 break;
               }
-              case a2.DefaultBackground:
-                e3.setBackgroundColor();
-                break;
-              case a2.ForegroundBrightBlack:
-                e3.setForegroundColor(s2.BrightBlack);
-                break;
-              case a2.ForegroundBrightRed:
-                e3.setForegroundColor(s2.BrightRed);
-                break;
-              case a2.ForegroundBrightGreen:
-                e3.setForegroundColor(s2.BrightGreen);
-                break;
-              case a2.ForegroundBrightYellow:
-                e3.setForegroundColor(s2.BrightYellow);
-                break;
-              case a2.ForegroundBrightBlue:
-                e3.setForegroundColor(s2.BrightBlue);
-                break;
-              case a2.ForegroundBrightMagenta:
-                e3.setForegroundColor(s2.BrightMagenta);
-                break;
-              case a2.ForegroundBrightCyan:
-                e3.setForegroundColor(s2.BrightCyan);
-                break;
-              case a2.ForegroundBrightWhite:
-                e3.setForegroundColor(s2.BrightWhite);
-                break;
-              case a2.BackgroundBrightBlack:
-                e3.setBackgroundColor(s2.BrightBlack);
-                break;
-              case a2.BackgroundBrightRed:
-                e3.setBackgroundColor(s2.BrightRed);
-                break;
-              case a2.BackgroundBrightGreen:
-                e3.setBackgroundColor(s2.BrightGreen);
-                break;
-              case a2.BackgroundBrightYellow:
-                e3.setBackgroundColor(s2.BrightYellow);
-                break;
-              case a2.BackgroundBrightBlue:
-                e3.setBackgroundColor(s2.BrightBlue);
-                break;
-              case a2.BackgroundBrightMagenta:
-                e3.setBackgroundColor(s2.BrightMagenta);
-                break;
-              case a2.BackgroundBrightCyan:
-                e3.setBackgroundColor(s2.BrightCyan);
-                break;
-              case a2.BackgroundBrightWhite:
-                e3.setBackgroundColor(s2.BrightWhite);
+              rightOffset -= outputRun.text.length;
             }
-          }
-          c2.equivalent(e3, this._sgrState) || (this._sgrState = e3);
-        }
-      }
-      t2.ANSIOutput = h2, function(e3) {
-        e3[e3.Reset = 0] = "Reset", e3[e3.Bold = 1] = "Bold", e3[e3.Dim = 2] = "Dim", e3[e3.Italic = 3] = "Italic", e3[e3.Underlined = 4] = "Underlined", e3[e3.SlowBlink = 5] = "SlowBlink", e3[e3.RapidBlink = 6] = "RapidBlink", e3[e3.Reversed = 7] = "Reversed", e3[e3.Hidden = 8] = "Hidden", e3[e3.CrossedOut = 9] = "CrossedOut", e3[e3.PrimaryFont = 10] = "PrimaryFont", e3[e3.AlternativeFont1 = 11] = "AlternativeFont1", e3[e3.AlternativeFont2 = 12] = "AlternativeFont2", e3[e3.AlternativeFont3 = 13] = "AlternativeFont3", e3[e3.AlternativeFont4 = 14] = "AlternativeFont4", e3[e3.AlternativeFont5 = 15] = "AlternativeFont5", e3[e3.AlternativeFont6 = 16] = "AlternativeFont6", e3[e3.AlternativeFont7 = 17] = "AlternativeFont7", e3[e3.AlternativeFont8 = 18] = "AlternativeFont8", e3[e3.AlternativeFont9 = 19] = "AlternativeFont9", e3[e3.Fraktur = 20] = "Fraktur", e3[e3.DoubleUnderlined = 21] = "DoubleUnderlined", e3[e3.NormalIntensity = 22] = "NormalIntensity", e3[e3.NotItalicNotFraktur = 23] = "NotItalicNotFraktur", e3[e3.NotUnderlined = 24] = "NotUnderlined", e3[e3.NotBlinking = 25] = "NotBlinking", e3[e3.ProportionalSpacing = 26] = "ProportionalSpacing", e3[e3.NotReversed = 27] = "NotReversed", e3[e3.Reveal = 28] = "Reveal", e3[e3.NotCrossedOut = 29] = "NotCrossedOut", e3[e3.ForegroundBlack = 30] = "ForegroundBlack", e3[e3.ForegroundRed = 31] = "ForegroundRed", e3[e3.ForegroundGreen = 32] = "ForegroundGreen", e3[e3.ForegroundYellow = 33] = "ForegroundYellow", e3[e3.ForegroundBlue = 34] = "ForegroundBlue", e3[e3.ForegroundMagenta = 35] = "ForegroundMagenta", e3[e3.ForegroundCyan = 36] = "ForegroundCyan", e3[e3.ForegroundWhite = 37] = "ForegroundWhite", e3[e3.SetForeground = 38] = "SetForeground", e3[e3.DefaultForeground = 39] = "DefaultForeground", e3[e3.BackgroundBlack = 40] = "BackgroundBlack", e3[e3.BackgroundRed = 41] = "BackgroundRed", e3[e3.BackgroundGreen = 42] = "BackgroundGreen", e3[e3.BackgroundYellow = 43] = "BackgroundYellow", e3[e3.BackgroundBlue = 44] = "BackgroundBlue", e3[e3.BackgroundMagenta = 45] = "BackgroundMagenta", e3[e3.BackgroundCyan = 46] = "BackgroundCyan", e3[e3.BackgroundWhite = 47] = "BackgroundWhite", e3[e3.SetBackground = 48] = "SetBackground", e3[e3.DefaultBackground = 49] = "DefaultBackground", e3[e3.DisableProportionalSpacing = 50] = "DisableProportionalSpacing", e3[e3.Framed = 51] = "Framed", e3[e3.Encircled = 52] = "Encircled", e3[e3.Overlined = 53] = "Overlined", e3[e3.NotFramedNotEncircled = 54] = "NotFramedNotEncircled", e3[e3.NotOverlined = 55] = "NotOverlined", e3[e3.SetUnderline = 58] = "SetUnderline", e3[e3.DefaultUnderline = 59] = "DefaultUnderline", e3[e3.IdeogramUnderlineOrRightSideLine = 60] = "IdeogramUnderlineOrRightSideLine", e3[e3.IdeogramDoubleUnderlineOrDoubleRightSideLine = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine", e3[e3.IdeogramOverlineOrLeftSideLine = 62] = "IdeogramOverlineOrLeftSideLine", e3[e3.IdeogramDoubleOverlineOrDoubleLeftSideLine = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine", e3[e3.IdeogramStressMarking = 64] = "IdeogramStressMarking", e3[e3.NoIdeogramAttributes = 65] = "NoIdeogramAttributes", e3[e3.Superscript = 73] = "Superscript", e3[e3.Subscript = 74] = "Subscript", e3[e3.NotSuperscriptNotSubscript = 75] = "NotSuperscriptNotSubscript", e3[e3.ForegroundBrightBlack = 90] = "ForegroundBrightBlack", e3[e3.ForegroundBrightRed = 91] = "ForegroundBrightRed", e3[e3.ForegroundBrightGreen = 92] = "ForegroundBrightGreen", e3[e3.ForegroundBrightYellow = 93] = "ForegroundBrightYellow", e3[e3.ForegroundBrightBlue = 94] = "ForegroundBrightBlue", e3[e3.ForegroundBrightMagenta = 95] = "ForegroundBrightMagenta", e3[e3.ForegroundBrightCyan = 96] = "ForegroundBrightCyan", e3[e3.ForegroundBrightWhite = 97] = "ForegroundBrightWhite", e3[e3.BackgroundBrightBlack = 100] = "BackgroundBrightBlack", e3[e3.BackgroundBrightRed = 101] = "BackgroundBrightRed", e3[e3.BackgroundBrightGreen = 102] = "BackgroundBrightGreen", e3[e3.BackgroundBrightYellow = 103] = "BackgroundBrightYellow", e3[e3.BackgroundBrightBlue = 104] = "BackgroundBrightBlue", e3[e3.BackgroundBrightMagenta = 105] = "BackgroundBrightMagenta", e3[e3.BackgroundBrightCyan = 106] = "BackgroundBrightCyan", e3[e3.BackgroundBrightWhite = 107] = "BackgroundBrightWhite";
-      }(a2 || (a2 = {})), function(e3) {
-        e3[e3.Color256 = 5] = "Color256", e3[e3.ColorRGB = 2] = "ColorRGB";
-      }(u2 || (u2 = {})), function(e3) {
-        e3[e3.Black = 0] = "Black", e3[e3.Red = 1] = "Red", e3[e3.Green = 2] = "Green", e3[e3.Yellow = 3] = "Yellow", e3[e3.Blue = 4] = "Blue", e3[e3.Magenta = 5] = "Magenta", e3[e3.Cyan = 6] = "Cyan", e3[e3.White = 7] = "White", e3[e3.BrightBlack = 8] = "BrightBlack", e3[e3.BrightRed = 9] = "BrightRed", e3[e3.BrightGreen = 10] = "BrightGreen", e3[e3.BrightYellow = 11] = "BrightYellow", e3[e3.BrightBlue = 12] = "BrightBlue", e3[e3.BrightMagenta = 13] = "BrightMagenta", e3[e3.BrightCyan = 14] = "BrightCyan", e3[e3.BrightWhite = 15] = "BrightWhite";
-      }(l2 || (l2 = {})), function(e3) {
-        e3[e3.BufferingOutput = 0] = "BufferingOutput", e3[e3.ControlSequenceStarted = 1] = "ControlSequenceStarted", e3[e3.ParsingControlSequence = 2] = "ParsingControlSequence";
-      }(g2 || (g2 = {}));
-      class c2 {
-        constructor() {
-          __publicField(this, "_styles");
-          __publicField(this, "_foregroundColor");
-          __publicField(this, "_backgroundColor");
-          __publicField(this, "_underlinedColor");
-          __publicField(this, "_reversed");
-          __publicField(this, "_font");
-        }
-        reset() {
-          this._styles = void 0, this._foregroundColor = void 0, this._backgroundColor = void 0, this._underlinedColor = void 0, this._reversed = void 0, this._font = void 0;
-        }
-        copy() {
-          const e3 = new c2();
-          if (this._styles && this._styles.size) {
-            const t3 = /* @__PURE__ */ new Set();
-            this._styles.forEach((e4) => t3.add(e4)), e3._styles = t3;
-          }
-          return e3._foregroundColor = this._foregroundColor, e3._backgroundColor = this._backgroundColor, e3._underlinedColor = this._underlinedColor, e3._reversed = this._reversed, e3._font = this._font, e3;
-        }
-        setStyle(e3, ...t3) {
-          if (this._styles) for (const e4 of t3) this._styles.delete(e4);
-          else this._styles = /* @__PURE__ */ new Set();
-          this._styles.add(e3);
-        }
-        deleteStyles(...e3) {
-          if (this._styles) {
-            for (const t3 of e3) this._styles.delete(t3);
-            this._styles.size || (this._styles = void 0);
-          }
-        }
-        setForegroundColor(e3) {
-          this._reversed ? this._backgroundColor = e3 : this._foregroundColor = e3;
-        }
-        setBackgroundColor(e3) {
-          this._reversed ? this._foregroundColor = e3 : this._backgroundColor = e3;
-        }
-        setReversed(e3) {
-          e3 ? this._reversed || (this._reversed = true, this.reverseForegroundAndBackgroundColors()) : this._reversed && (this._reversed = void 0, this.reverseForegroundAndBackgroundColors());
-        }
-        setFont(e3) {
-          this._font = e3;
-        }
-        static equivalent(e3, t3) {
-          const r3 = (e4, t4) => t4 instanceof Set ? t4.size ? [...t4] : void 0 : t4;
-          return e3 === t3 || JSON.stringify(e3, r3) === JSON.stringify(t3, r3);
-        }
-        get styles() {
-          return this._styles ? [...this._styles] : void 0;
-        }
-        get foregroundColor() {
-          if (this._backgroundColor && !this._foregroundColor) switch (this._backgroundColor) {
-            case s2.Black:
-            case s2.BrightBlack:
-            case s2.Red:
-            case s2.BrightRed:
-              return s2.White;
-            case s2.Green:
-            case s2.BrightGreen:
-            case s2.Yellow:
-            case s2.BrightYellow:
-            case s2.Blue:
-            case s2.BrightBlue:
-            case s2.Magenta:
-            case s2.BrightMagenta:
-            case s2.Cyan:
-            case s2.BrightCyan:
-            case s2.White:
-            case s2.BrightWhite:
-              return s2.Black;
-          }
-          return this._foregroundColor;
-        }
-        get backgroundColor() {
-          return this._backgroundColor;
-        }
-        get underlinedColor() {
-          return this._underlinedColor;
-        }
-        get font() {
-          return this._font;
-        }
-        reverseForegroundAndBackgroundColors() {
-          const e3 = this._foregroundColor;
-          this._foregroundColor = this._backgroundColor, this._backgroundColor = e3;
-        }
-      }
-      class d2 {
-        constructor() {
-          __publicField(this, "_id", n2());
-          __publicField(this, "_outputRuns", []);
-          __publicField(this, "_totalLength", 0);
-        }
-        clearEntireLine() {
-          this._totalLength && (this._outputRuns = [new B2(" ".repeat(this._totalLength))]);
-        }
-        clearToEndOfLine(e3) {
-          if ((e3 = Math.max(e3, 0)) >= this._totalLength) return;
-          if (0 === e3) return void this.clearEntireLine();
-          let t3, r3, n3 = 0;
-          for (let o4 = 0; o4 < this._outputRuns.length; o4++) {
-            const i4 = this._outputRuns[o4];
-            if (e3 < n3 + i4.text.length) {
-              t3 = i4, r3 = o4;
-              break;
+            if (rightOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
             }
-            n3 += i4.text.length;
-          }
-          if (void 0 === t3 || void 0 === r3) return;
-          const o3 = e3 - n3, i3 = " ".repeat(this._totalLength - e3), s3 = [];
-          if (o3) {
-            const e4 = t3.text.slice(0, o3);
-            s3.push(new B2(e4, t3.sgrState)), s3.push(new B2(i3));
-          } else s3.push(new B2(i3));
-          this.outputRuns.splice(r3, this._outputRuns.length - r3, ...s3);
-        }
-        clearToBeginningOfLine(e3) {
-          if (0 === (e3 = Math.max(e3, 0))) return;
-          if (e3 >= this._totalLength) return void this.clearEntireLine();
-          let t3, r3, n3 = 0;
-          for (let o4 = this._outputRuns.length - 1; o4 >= 0; o4--) {
-            const i4 = this._outputRuns[o4];
-            if (e3 >= n3 - i4.text.length) {
-              t3 = i4, r3 = o4;
-              break;
+            const outputRuns = [];
+            const leftOutputRunTextLength = column2 - leftOffset;
+            if (leftOutputRunTextLength) {
+              const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+              const leftOutputRunText = leftOutputRun.text.slice(0, leftOutputRunTextLength);
+              outputRuns.push(new OutputRun2(leftOutputRunText, leftOutputRun.sgrState));
             }
-            n3 -= i4.text.length;
-          }
-          if (void 0 === t3 || void 0 === r3) return;
-          const o3 = n3 - e3, i3 = " ".repeat(e3), s3 = [new B2(i3)];
-          if (o3) {
-            const e4 = t3.text.slice(-o3);
-            s3.push(new B2(e4, t3.sgrState));
-          }
-          this.outputRuns.splice(0, this._outputRuns.length - r3, ...s3);
-        }
-        insert(e3, t3, r3) {
-          if (!e3.length) return;
-          if (t3 === this._totalLength) {
-            if (this._totalLength += e3.length, this._outputRuns.length) {
-              const t4 = this._outputRuns[this._outputRuns.length - 1];
-              if (c2.equivalent(t4.sgrState, r3)) return void t4.appendText(e3);
+            outputRuns.push(new OutputRun2(text2, sgrState));
+            const rightOutputRunTextLength = rightOffset - (column2 + text2.length);
+            if (rightOutputRunTextLength) {
+              const rightOutputRun = this._outputRuns[rightOutputRunIndex];
+              const rightOutputRunText = rightOutputRun.text.slice(-rightOutputRunTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
             }
-            return void this._outputRuns.push(new B2(e3, r3));
-          }
-          if (t3 > this._totalLength) {
-            const n4 = " ".repeat(t3 - this._totalLength);
-            if (this._totalLength += n4.length + e3.length, !r3 && this._outputRuns.length) {
-              const t4 = this._outputRuns[this._outputRuns.length - 1];
-              if (!t4.sgrState) return t4.appendText(n4), void t4.appendText(e3);
+            this._outputRuns.splice(leftOutputRunIndex, rightOutputRunIndex - leftOutputRunIndex + 1, ...outputRuns);
+            if (this._outputRuns.length > 1) {
+              this._outputRuns = OutputRun2.optimizeOutputRuns(this._outputRuns);
             }
-            r3 ? (this._outputRuns.push(new B2(n4)), this._outputRuns.push(new B2(e3, r3))) : this._outputRuns.push(new B2(n4 + e3));
+            this._totalLength = this._outputRuns.reduce((totalLength, outputRun) => totalLength + outputRun.text.length, 0);
           }
-          let n3, o3 = 0;
-          for (let e4 = 0; e4 < this._outputRuns.length; e4++) {
-            const r4 = this._outputRuns[e4];
-            if (t3 < o3 + r4.text.length) {
-              n3 = e4;
-              break;
+          //#endregion Public Methods
+          //#region ANSIOutputLine Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
+          }
+          /**
+           * Gets the output runs.
+           */
+          get outputRuns() {
+            return this._outputRuns;
+          }
+        }
+        class OutputRun2 {
+          //#endregion Public Properties
+          //#region Constructor
+          /**
+           * Constructor.
+           * @param text The text.
+           * @param sgrState The SGR state.
+           */
+          constructor(text2, sgrState) {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the text.
+             */
+            __publicField(this, "_text");
+            this._sgrState = sgrState;
+            this._text = text2;
+          }
+          //#endregion Private Properties
+          //#region Public Properties
+          get sgrState() {
+            return this._sgrState;
+          }
+          //#endregion Constructor
+          //#region Public Methods
+          /**
+           * Optimizes a an array of output runs by combining adjacent output runs with equivalent SGR
+           * states.
+           * @param outputRunsIn The output runs to optimize.
+           * @returns The optimized output runs.
+           */
+          static optimizeOutputRuns(outputRunsIn) {
+            const outputRunsOut = [outputRunsIn[0]];
+            for (let i2 = 1, o2 = 0; i2 < outputRunsIn.length; i2++) {
+              const outputRun = outputRunsIn[i2];
+              if (SGRState.equivalent(outputRunsOut[o2].sgrState, outputRun.sgrState)) {
+                outputRunsOut[o2]._text += outputRun.text;
+              } else {
+                outputRunsOut[++o2] = outputRun;
+              }
             }
-            o3 += r4.text.length;
+            return outputRunsOut;
           }
-          if (void 0 === n3) return void this._outputRuns.push(new B2(e3, r3));
-          if (t3 + e3.length >= this._totalLength) {
-            const i4 = t3 - o3, s4 = [];
-            if (i4) {
-              const t4 = this._outputRuns[n3], o4 = t4.text.slice(0, i4);
-              c2.equivalent(t4.sgrState, r3) ? s4.push(new B2(o4 + e3, r3)) : (s4.push(new B2(o4, t4.sgrState)), s4.push(new B2(e3, r3)));
-            } else s4.push(new B2(e3, r3));
-            return this.outputRuns.splice(n3, 1, ...s4), void (this._totalLength = o3 + i4 + e3.length);
+          /**
+           * Appends text to the end of the output run.
+           * @param text The text to append.
+           */
+          appendText(text2) {
+            this._text += text2;
           }
-          let i3, s3 = this._totalLength;
-          for (let r4 = this._outputRuns.length - 1; r4 >= 0; r4--) {
-            const n4 = this._outputRuns[r4];
-            if (t3 + e3.length > s3 - n4.text.length) {
-              i3 = r4;
-              break;
-            }
-            s3 -= n4.text.length;
+          //#endregion Public Methods
+          //#region ANSIOutputRun Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
           }
-          if (void 0 === i3) return void this._outputRuns.push(new B2(e3, r3));
-          const a3 = [], u3 = t3 - o3;
-          if (u3) {
-            const e4 = this._outputRuns[n3], t4 = e4.text.slice(0, u3);
-            a3.push(new B2(t4, e4.sgrState));
+          /**
+           * Gets the format.
+           */
+          get format() {
+            return this._sgrState;
           }
-          a3.push(new B2(e3, r3));
-          const l3 = s3 - (t3 + e3.length);
-          if (l3) {
-            const e4 = this._outputRuns[i3], t4 = e4.text.slice(-l3);
-            a3.push(new B2(t4, e4.sgrState));
+          /**
+           * Gets the text.
+           */
+          get text() {
+            return this._text;
           }
-          this._outputRuns.splice(n3, i3 - n3 + 1, ...a3), this._outputRuns.length > 1 && (this._outputRuns = B2.optimizeOutputRuns(this._outputRuns)), this._totalLength = this._outputRuns.reduce((e4, t4) => e4 + t4.text.length, 0);
         }
-        get id() {
-          return this._id;
-        }
-        get outputRuns() {
-          return this._outputRuns;
-        }
-      }
-      class B2 {
-        constructor(e3, t3) {
-          __publicField(this, "_id", n2());
-          __publicField(this, "_sgrState");
-          __publicField(this, "_text");
-          this._sgrState = t3, this._text = e3;
-        }
-        get sgrState() {
-          return this._sgrState;
-        }
-        static optimizeOutputRuns(e3) {
-          const t3 = [e3[0]];
-          for (let r3 = 1, n3 = 0; r3 < e3.length; r3++) {
-            const o3 = e3[r3];
-            c2.equivalent(t3[n3].sgrState, o3.sgrState) ? t3[n3]._text += o3.text : t3[++n3] = o3;
-          }
-          return t3;
-        }
-        appendText(e3) {
-          this._text += e3;
-        }
-        get id() {
-          return this._id;
-        }
-        get format() {
-          return this._sgrState;
-        }
-        get text() {
-          return this._text;
-        }
-      }
-      const k2 = (e3, t3, r3) => {
-        const n3 = p2(e3, t3);
-        return Math.max(n3, r3);
-      }, p2 = (e3, t3) => {
-        const r3 = parseInt(e3);
-        return Number.isNaN(r3) ? t3 : r3;
-      }, _2 = (e3) => {
-        const t3 = Math.max(Math.min(255, e3), 0).toString(16);
-        return 2 === t3.length ? t3 : "0" + t3;
-      };
-    }(0, r.exports), void 0 !== t$1 && (e.exports = t$1);
-    var n = r.exports;
-    const ANSIDisplay = ({ output, style: style2 }) => {
-      const ansiOutput = new n.ANSIOutput();
-      ansiOutput.processOutput(output);
+        const rangeParam = (value, defaultValue, minValue) => {
+          const param = getParam(value, defaultValue);
+          return Math.max(param, minValue);
+        };
+        const getParam = (value, defaultValue) => {
+          const param = parseInt(value);
+          return Number.isNaN(param) ? defaultValue : param;
+        };
+        const twoDigitHex = (value) => {
+          const hex = Math.max(Math.min(255, value), 0).toString(16);
+          return hex.length === 2 ? hex : "0" + hex;
+        };
+      });
+    })(ansiOutput, ansiOutput.exports);
+    var ansiOutputExports = ansiOutput.exports;
+    const ANSIDisplay = (props) => {
+      const ansiOutput2 = new ansiOutputExports.ANSIOutput();
+      ansiOutput2.processOutput(props.output);
       let firstOutput = false;
-      return m$1`<div class="ansi-display" style=${{ ...style2 }}>
-    ${ansiOutput.outputLines.map((line2) => {
-        firstOutput = firstOutput || !!line2.outputRuns.length;
-        return m$1`<div class="ansi-display-line">
-        ${!line2.outputRuns.length ? firstOutput ? m$1`<br />` : null : line2.outputRuns.map(
-          (outputRun) => m$1`<${OutputRun}
-                  key=${outputRun.id}
-                  outputRun=${outputRun}
-                />`
-        )}
-      </div>`;
-      })}
-  </div>`;
+      return /* @__PURE__ */ u("div", {
+        className: "ansi-display",
+        style: {
+          ...props.style
+        },
+        children: ansiOutput2.outputLines.map((line2) => {
+          firstOutput = firstOutput || !!line2.outputRuns.length;
+          return /* @__PURE__ */ u("div", {
+            className: "ansi-display-line",
+            children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ u("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ u(OutputRun, {
+              run: outputRun
+            }, outputRun.id))
+          });
+        })
+      });
     };
     const kForeground = 0;
     const kBackground = 1;
-    const OutputRun = ({ outputRun }) => {
-      const computeStyles2 = (styles) => {
-        let cssProperties = {};
-        if (styles) {
-          styles.forEach((style2) => {
-            switch (style2) {
-              case n.ANSIStyle.Bold:
-                cssProperties = { ...cssProperties, ...{ fontWeight: "bold" } };
-                break;
-              case n.ANSIStyle.Dim:
-                cssProperties = { ...cssProperties, ...{ fontWeight: "lighter" } };
-                break;
-              case n.ANSIStyle.Italic:
-                cssProperties = { ...cssProperties, ...{ fontStyle: "italic" } };
-                break;
-              case n.ANSIStyle.Underlined:
-                cssProperties = {
-                  ...cssProperties,
-                  ...{
-                    textDecorationLine: "underline",
-                    textDecorationStyle: "solid"
-                  }
-                };
-                break;
-              case n.ANSIStyle.SlowBlink:
-                cssProperties = {
-                  ...cssProperties,
-                  ...{ animation: "ansi-display-run-blink 1s linear infinite" }
-                };
-                break;
-              case n.ANSIStyle.RapidBlink:
-                cssProperties = {
-                  ...cssProperties,
-                  ...{ animation: "ansi-display-run-blink 0.5s linear infinite" }
-                };
-                break;
-              case n.ANSIStyle.Hidden:
-                cssProperties = { ...cssProperties, ...{ visibility: "hidden" } };
-                break;
-              case n.ANSIStyle.CrossedOut:
-                cssProperties = {
-                  ...cssProperties,
-                  ...{
-                    textDecorationLine: "line-through",
-                    textDecorationStyle: "solid"
-                  }
-                };
-                break;
-              case n.ANSIStyle.DoubleUnderlined:
-                cssProperties = {
-                  ...cssProperties,
-                  ...{
-                    textDecorationLine: "underline",
-                    textDecorationStyle: "double"
-                  }
-                };
-                break;
-            }
-          });
-        }
-        return cssProperties;
+    const OutputRun = (props) => {
+      return /* @__PURE__ */ u("span", {
+        style: computeCSSProperties(props.run),
+        children: props.run.text
+      });
+    };
+    const computeCSSProperties = (outputRun) => {
+      return !outputRun.format ? {} : {
+        ...computeStyles(outputRun.format.styles || []),
+        ...computeForegroundBackgroundColor(kForeground, outputRun.format.foregroundColor),
+        ...computeForegroundBackgroundColor(kBackground, outputRun.format.backgroundColor)
       };
-      const computeForegroundBackgroundColor = (colorType, color) => {
-        switch (color) {
-          case void 0:
-            return {};
-          case n.ANSIColor.Black:
-          case n.ANSIColor.Red:
-          case n.ANSIColor.Green:
-          case n.ANSIColor.Yellow:
-          case n.ANSIColor.Blue:
-          case n.ANSIColor.Magenta:
-          case n.ANSIColor.Cyan:
-          case n.ANSIColor.White:
-          case n.ANSIColor.BrightBlack:
-          case n.ANSIColor.BrightRed:
-          case n.ANSIColor.BrightGreen:
-          case n.ANSIColor.BrightYellow:
-          case n.ANSIColor.BrightBlue:
-          case n.ANSIColor.BrightMagenta:
-          case n.ANSIColor.BrightCyan:
-          case n.ANSIColor.BrightWhite:
-            if (colorType === kForeground) {
-              return { color: `var(--${color})` };
-            } else {
-              return { background: `var(--${color})` };
-            }
-          default:
-            if (colorType === kForeground) {
-              return { color };
-            } else {
-              return { background: color };
-            }
-        }
-      };
-      const computeCSSProperties = (outputRun2) => {
-        return !outputRun2.format ? {} : {
-          ...computeStyles2(outputRun2.format.styles),
-          ...computeForegroundBackgroundColor(
-            kForeground,
-            outputRun2.format.foregroundColor
-          ),
-          ...computeForegroundBackgroundColor(
-            kBackground,
-            outputRun2.format.backgroundColor
-          )
-        };
-      };
-      return m$1`<span style=${computeCSSProperties(outputRun)}
-    >${outputRun.text}</span
-  >`;
+    };
+    const computeStyles = (styles) => {
+      let cssProperties = {};
+      if (styles) {
+        styles.forEach((style2) => {
+          switch (style2) {
+            case ansiOutputExports.ANSIStyle.Bold:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  fontWeight: "bold"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Dim:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  fontWeight: "lighter"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Italic:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  fontStyle: "italic"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Underlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.SlowBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  animation: "ansi-display-run-blink 1s linear infinite"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.RapidBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  animation: "ansi-display-run-blink 0.5s linear infinite"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Hidden:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  visibility: "hidden"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.CrossedOut:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "line-through",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.DoubleUnderlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "double"
+                }
+              };
+              break;
+          }
+        });
+      }
+      return cssProperties;
+    };
+    const computeForegroundBackgroundColor = (colorType, color) => {
+      switch (color) {
+        case void 0:
+          return {};
+        case ansiOutputExports.ANSIColor.Black:
+        case ansiOutputExports.ANSIColor.Red:
+        case ansiOutputExports.ANSIColor.Green:
+        case ansiOutputExports.ANSIColor.Yellow:
+        case ansiOutputExports.ANSIColor.Blue:
+        case ansiOutputExports.ANSIColor.Magenta:
+        case ansiOutputExports.ANSIColor.Cyan:
+        case ansiOutputExports.ANSIColor.White:
+        case ansiOutputExports.ANSIColor.BrightBlack:
+        case ansiOutputExports.ANSIColor.BrightRed:
+        case ansiOutputExports.ANSIColor.BrightGreen:
+        case ansiOutputExports.ANSIColor.BrightYellow:
+        case ansiOutputExports.ANSIColor.BrightBlue:
+        case ansiOutputExports.ANSIColor.BrightMagenta:
+        case ansiOutputExports.ANSIColor.BrightCyan:
+        case ansiOutputExports.ANSIColor.BrightWhite:
+          if (colorType === kForeground) {
+            return {
+              color: `var(--${color})`
+            };
+          } else {
+            return {
+              background: `var(--${color})`
+            };
+          }
+        default:
+          if (colorType === kForeground) {
+            return {
+              color
+            };
+          } else {
+            return {
+              background: color
+            };
+          }
+      }
     };
     const MetaDataView = ({
       id,
