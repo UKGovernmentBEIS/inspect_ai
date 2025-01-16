@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
+
 ## v0.3.58 (16 January 2025)
 
 - Support for [audio and video](https://inspect.ai-safety-institute.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
