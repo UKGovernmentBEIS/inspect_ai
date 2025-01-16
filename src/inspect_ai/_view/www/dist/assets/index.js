@@ -23396,40 +23396,38 @@ self.onmessage = function (e) {
       }
     };
     const api = resolveApi();
-    const DownloadButton = ({ label, fileName, fileContents }) => {
-      return m$1`<button
-    class="btn btn-outline-primary"
-    style=${{ fontSize: FontSize.small, marginTop: "3em" }}
-    onclick=${async () => {
-        await api.download_file(fileName, fileContents);
-      }}
-  >
-    ${label}
-  </button>`;
+    const DownloadButton = ({
+      label,
+      fileName,
+      fileContents
+    }) => {
+      return /* @__PURE__ */ u("button", {
+        className: "btn btn-outline-primary download-button",
+        onClick: async () => {
+          await api.download_file(fileName, fileContents);
+        },
+        children: label
+      });
     };
     const DownloadPanel = ({
       message,
       buttonLabel,
-      logFile,
       fileName,
       fileContents
     }) => {
-      return m$1`<div
-    style=${{
-        display: "grid",
-        gridTemplateRows: "content content",
-        paddingTop: "3em",
-        justifyItems: "center"
-      }}
-  >
-    <div style=${{ fontSize: FontSize.small }}>${message}</div>
-    <${DownloadButton}
-      label=${buttonLabel}
-      logFile=${logFile}
-      fileName=${fileName}
-      fileContents=${fileContents}
-    />
-  </div>`;
+      return /* @__PURE__ */ u("div", {
+        children: /* @__PURE__ */ u("div", {
+          className: "download-panel",
+          children: [/* @__PURE__ */ u("div", {
+            className: "download-panel-message",
+            children: message
+          }), /* @__PURE__ */ u(DownloadButton, {
+            label: buttonLabel,
+            fileName,
+            fileContents
+          })]
+        })
+      });
     };
     var prismCore = { exports: {} };
     (function(module2) {
@@ -24598,29 +24596,31 @@ self.onmessage = function (e) {
       });
     };
     const kJsonMaxSize = 1e7;
-    const JsonTab = ({ logFileName, capabilities, json }) => {
-      const renderedContent = [];
+    const JsonTab = ({
+      logFile,
+      capabilities,
+      json
+    }) => {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
-        const file = `${filename(logFileName)}.json`;
-        renderedContent.push(
-          m$1`<${DownloadPanel}
-        message="Log file raw JSON is too large to render."
-        buttonLabel="Download JSON File"
-        logFile=${logFileName}
-        fileName=${file}
-        fileContents=${json}
-      />`
-        );
+        const file = `${filename(logFile)}.json`;
+        return /* @__PURE__ */ u("div", {
+          className: "json-tab",
+          children: /* @__PURE__ */ u(DownloadPanel, {
+            message: "The JSON for this log file is too large to render.",
+            buttonLabel: "Download JSON File",
+            fileName: file,
+            fileContents: json
+          })
+        });
       } else {
-        return m$1` <div
-      style=${{
-          padding: "0.5rem",
-          fontSize: FontSize.small,
-          width: "100%"
-        }}
-    >
-      <${JSONPanel} id="task-json-contents" json=${json} simple=${true} />
-    </div>`;
+        return /* @__PURE__ */ u("div", {
+          className: "json-tab",
+          children: /* @__PURE__ */ u(JSONPanel, {
+            id: "task-json-contents",
+            json,
+            simple: true
+          })
+        });
       }
     };
     const CopyButton = ({
@@ -56350,7 +56350,7 @@ Supported expressions:
             };
             const json = JSON.stringify(evalHeader, null, 2);
             return m$1`<${JsonTab}
-          logFileName=${logFileName}
+          logFile=${logFileName}
           json=${json}
           capabilities=${capabilities}
           selected=${selectedTab === kJsonWorkspaceTabId}

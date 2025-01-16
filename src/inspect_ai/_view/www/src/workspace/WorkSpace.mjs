@@ -12,7 +12,7 @@ import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton";
-import { JsonTab } from "../json/JsonTab.mjs";
+import { JsonTab } from "../json/JsonTab";
 import { Navbar } from "../navbar/Navbar.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
@@ -285,7 +285,7 @@ export const WorkSpace = ({
         };
         const json = JSON.stringify(evalHeader, null, 2);
         return html`<${JsonTab}
-          logFileName=${logFileName}
+          logFile=${logFileName}
           json=${json}
           capabilities=${capabilities}
           selected=${selectedTab === kJsonWorkspaceTabId}
