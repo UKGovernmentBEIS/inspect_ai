@@ -317,6 +317,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
@@ -647,6 +653,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="./eval-logs.html">Eval Logs</a> explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
 <li><p><a href="./eval-sets.html">Eval Sets</a> covers Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
 <li><p><a href="./errors-and-limits.html">Errors and Limits</a> covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.</p></li>
+<li><p><a href="./multimodal.html">Multimodal</a> documents the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
 <li><p><a href="./typing.html">Typing</a>: provides guideance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e.&nbsp;sample metadata and store).</p></li>
 <li><p><a href="./tracing.html">Tracing</a> Describes advanced execution tracing tools used to diagnose runtime issues.</p></li>
 <li><p><a href="./caching.html">Caching</a> enables you to cache model output to reduce the number of API calls made, saving both time and expense.</p></li>
@@ -1183,7 +1190,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","openEffect":"zoom","loop":false});
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

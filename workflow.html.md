@@ -272,35 +272,6 @@ relative to whatever your current working directory is when you run
 > version control which provides an outline (e.g. keys only not values)
 > of variables that are required by the current project.
 
-## Trace Mode
-
-In some cases during development of an evaluation you’ll want to see
-message activity in realtime. You can do this via the `--trace` CLI
-option (or `trace` parameter of the `eval()` function). For example:
-
-``` bash
-$ inspect eval theory.py --trace
-```
-
-In trace mode, all messages exchanged with the model are printed to the
-terminal (tool output is truncated at 100 lines).
-
-Note that enabling trace mode automatically sets `max_tasks` and
-`max_samples` to 1, as otherwise messages from concurrently running
-samples would be interleaved together in an incoherent jumble.
-
-If you want to add your own trace content, use the `trace_enabled()`
-function to check whether trace mode is currently enabled and the
-`trace_panel()` function to output a panel that is visually consistent
-with other trace mode output. For example:
-
-``` python
-from inspect_ai.util import trace_enabled, trace_panel
-
-if trace_enabled():
-    trace_panel("My Panel", content="Panel content")
-```
-
 ## Exploratory
 
 Evaluation development is often highly exploratory and requires trying

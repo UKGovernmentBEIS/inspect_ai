@@ -398,6 +398,9 @@ get more comfortable with the basics.
   for dealing with unexpected errors and setting limits on evaluation
   tasks and samples.
 
+- [Multimodal](multimodal.qmd) documents the APIs available for creating
+  multimodal evaluations (including images, audio, and video).
+
 - [Typing](typing.qmd): provides guideance on using static type checking
   with Inspect, including creating typed interfaces to untyped storage
   (i.e. sample metadata and store).
@@ -1395,35 +1398,6 @@ relative to whatever your current working directory is when you run
 > paths. A best practice is often to check in an `.env.example` file to
 > version control which provides an outline (e.g. keys only not values)
 > of variables that are required by the current project.
-
-## Trace Mode
-
-In some cases during development of an evaluation you’ll want to see
-message activity in realtime. You can do this via the `--trace` CLI
-option (or `trace` parameter of the `eval()` function). For example:
-
-``` bash
-$ inspect eval theory.py --trace
-```
-
-In trace mode, all messages exchanged with the model are printed to the
-terminal (tool output is truncated at 100 lines).
-
-Note that enabling trace mode automatically sets `max_tasks` and
-`max_samples` to 1, as otherwise messages from concurrently running
-samples would be interleaved together in an incoherent jumble.
-
-If you want to add your own trace content, use the `trace_enabled()`
-function to check whether trace mode is currently enabled and the
-`trace_panel()` function to output a panel that is visually consistent
-with other trace mode output. For example:
-
-``` python
-from inspect_ai.util import trace_enabled, trace_panel
-
-if trace_enabled():
-    trace_panel("My Panel", content="Panel content")
-```
 
 ## Exploratory
 
@@ -2987,6 +2961,7 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True
     ) -> ExecResult[str]:
         """
         Raises:
@@ -3045,6 +3020,16 @@ required if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be
 used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services,
+the `exec()` method includes a `timeout_retry` parameter that defaults
+to `True`. For sandbox implementations this parameter is *advisory*
+(they should only use it if potential unreliablity exists in their
+runtime). No more than 2 retries should be attempted and both with
+timeouts less than 60 seconds. If you are executing commands that are
+not idempotent (i.e. the side effects of a failed first attempt may
+affect the results of subsequent attempts) then you can specify
+`timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed
@@ -3567,7 +3552,7 @@ Task(
 > [!NOTE]
 >
 > The current development version of Inspect replaces the use of the
-> `bootstrap_std` metric with `stderr` for the built in scorers
+> `bootstrap_stderr` metric with `stderr` for the built in scorers
 > enumerated above.
 >
 > Since eval scores are means of numbers having finite variance, we can
@@ -3783,7 +3768,7 @@ targets can technically be a list of strings).
 
 Line 16  
 We use the special constants `CORRECT` and `INCORRECT` for the score
-value (as the `accuracy()`, `stderr()`, and `bootstrap_std()` metrics
+value (as the `accuracy()`, `stderr()`, and `bootstrap_stderr()` metrics
 know how to convert these special constants to float values (1.0 and 0.0
 respectively).
 
@@ -4139,7 +4124,7 @@ Definition** command in your source editor.
 
   Standard error of the mean.
 
-- `bootstrap_std()`
+- `bootstrap_stderr()`
 
   Standard deviation of a bootstrapped estimate of the mean. 1000
   samples are taken by default (modify this using the `num_samples`
@@ -4410,6 +4395,14 @@ copy into the `victim` container:
 "victim:/shared/flag.txt": "flag.txt"
 ```
 
+### Setup
+
+The `setup` field contains either a path to a bash setup script
+(resolved relative to the dataset path) or the contents of a script to
+execute. Setup scripts are executed with a 5 minute timeout. If you have
+setup scripts that may take longer than this you should move some of
+your setup code into the container build setup (e.g. Dockerfile).
+
 ## Field Mapping
 
 If your dataset contains inputs and targets that don’t use `input` and
@@ -4616,7 +4609,7 @@ multi-modal input (e.g. images).
 | Field     | Type                                       | Description                                                                                                |
 |-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
-| `content` | `str | list[ChatContent]`                  | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:
@@ -4634,53 +4627,6 @@ Note that for this example we wouldn’t normally use a full chat message
 object (rather we’d just provide a simple string). Chat message objects
 are more useful when you want to include a system prompt or prime the
 conversation with “assistant” responses.
-
-## Image Input
-
-> [!NOTE]
->
-> Image input is currently only supported for OpenAI vision models
-> (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)),
-> Google Gemini vision models
-> (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)),
-> and Anthropic Claude 3 models.
-
-To include an image, your dataset input might look like this:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": [
-        { "type": "text", "text": "What is this a picture of?"},
-        { "type": "image", "image": "picture.png"}
-    ]
-  }
-]
-```
-
-Where `"picture.png"` is resolved relative to the directory containing
-the dataset file. The image can be specified either as a URL (accessible
-to the model), a local file path, or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
-
-``` python
-ChatMessageUser(content = [
-    ContentText(text="What is this a picture of?"),
-    ContentImage(image="picture.png")
-])
-```
-
-If you are using paths or URLs to images and want the full base64
-encoded content of images included in log files, use the `--log-images`
-CLI flag (or `log_images` argument to `eval`). Note however that you
-should generally not do this if you have either large images or a large
-quantity of images, as this can substantially increase the size of the
-log file, making it difficult to load into Inspect View with reasonable
-performance.
 
 ## Custom Reader
 
@@ -5917,6 +5863,7 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True
     ) -> ExecResult[str]:
         """
         Raises:
@@ -5975,6 +5922,16 @@ required if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be
 used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services,
+the `exec()` method includes a `timeout_retry` parameter that defaults
+to `True`. For sandbox implementations this parameter is *advisory*
+(they should only use it if potential unreliablity exists in their
+runtime). No more than 2 retries should be attempted and both with
+timeouts less than 60 seconds. If you are executing commands that are
+not idempotent (i.e. the side effects of a failed first attempt may
+affect the results of subsequent attempts) then you can specify
+`timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed
@@ -7188,11 +7145,9 @@ calls. You can enable this policy by using the `--approval human` CLI
 option (or the `approval = "human"`) argument to `eval()`:
 
 ``` bash
-inspect eval browser.py --approval human --trace
+inspect eval browser.py --approval human
 ```
 
-Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode)
-so that we can see all messages exchanged with the model for context.
 This example provides the model with the built-in [web
 browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a
 web and perform a search.
@@ -7227,7 +7182,7 @@ To use this policy, pass the path to the policy YAML file as the
 approver. For example:
 
 ``` bash
-inspect eval browser.py --approval approval.yaml --trace
+inspect eval browser.py --approval approval.yaml
 ```
 
 ## Approvers in Code
@@ -8444,152 +8399,6 @@ $ inspect list tasks security | xargs \
 >   ...
 > ```
 
-# Typing
-
-
-## Overview
-
-The Inspect codebase is written using strict
-[MyPy](https://mypy-lang.org/) type-checking—if you enable the same for
-your project along with installing the [MyPy VS Code
-Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker)
-you’ll benefit from all of these type definitions.
-
-The sample store and sample metadata interfaces are weakly typed to
-accommodate arbitrary user data structures. Below, we describe how to
-implement a [typed store](#typed-store) and [typed
-metadata](#typed-metadata) using Pydantic models.
-
-## Typed Store
-
-If you prefer a typesafe interface to the sample store, you can define a
-[Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
-which reads and writes values into the store. There are several benefits
-to using Pydantic models for store access:
-
-1.  You can provide type annotations and validation rules for all
-    fields.
-2.  Default values for all fields are declared using standard Pydantic
-    syntax.
-3.  Store names are automatically namespaced (to prevent conflicts
-    between multiple store accessors).
-
-#### Definition
-
-First, derive a class from `StoreModel` (which in turn derives from
-Pydantic `BaseModel`):
-
-``` python
-from pydantic import Field
-from inspect_ai.util import StoreModel
-
-class Activity(StoreModel):
-    active: bool = Field(default=False)
-    tries: int = Field(default=0)
-    actions: list[str] = Field(default_factory=list)
-```
-
-Note that we define defaults for all fields. This is generally required
-so that you can initialise your Pydantic model from an empty store. For
-collections (`list` and `dict`) you should use `default_factory` so that
-each instance gets its own default.
-
-#### Usage
-
-Use the `store_as()` function to get a typesafe interface to the store
-based on your model:
-
-``` python
-# typed interface to store from state
-activity = state.store_as(Activity)
-activity.active = True
-activity.tries += 1
-
-# global store_as() function (e.g. for use from tools)
-from inspect_ai.util import store_as
-activity = store_as(Activity)
-```
-
-Note that all instances of `Activity` created within a running sample
-share the same sample `Store` so can see each other’s changes. For
-example, you can call `state.store_as()` in multiple solvers and/or
-scorers and it will resolve to the same sample-scoped instance.
-
-The names used in the underlying `Store` are namespaced to prevent
-collisions with other `Store` accessors. For example, the `active` field
-in the `Activity` class is written to the store with the name
-`Activity:active`.
-
-#### Explicit Store
-
-The `store_as()` function automatically binds to the current sample
-`Store`. You can alternatively create an explicit `Store` and pass it
-directly to the model (e.g. for testing purposes):
-
-``` python
-from inspect_ai.util import Store
-store = Store()
-activity = Activity(store=store)
-```
-
-## Typed Metadata
-
-If you want a more strongly typed interface to sample metadata, you can
-define a [Pydantic
-model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
-both validate and read metadata.
-
-For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
-interface to metadata is read-only so you must also specify
-`frozen=True`. For example:
-
-``` python
-from pydantic import BaseModel
-
-class PopularityMetadata(BaseModel, frozen=True):
-    category: str
-    label_confidence: float
-
-dataset = json_dataset(
-    "popularity.jsonl",
-    FieldSpec(
-        input="question",
-        target="answer_matching_behavior",
-        id="question_id",
-        metadata=PopularityMetadata,
-    ),
-)
-```
-
-To read metadata in a typesafe fashion, us the `metadata_as()` method on
-`Sample` or `TaskState`:
-
-``` python
-metadata = state.metadata_as(PopularityMetadata)
-```
-
-Note again that the intended semantics of `metadata` are read-only, so
-attempting to write into the returned metadata will raise a Pydantic
-`FrozenInstanceError`.
-
-If you need per-sample mutable data, use the [sample
-store](agents-api.qmd#sample-store), which also supports
-[typing](agents-api.qmd#store-typing) using Pydantic models.
-
-## Log Samples
-
-The `store_as()` and `metadata_as()` typed accessors are also available
-when reading samples from the eval log. Continuing from the examples
-above, you access typed interfaces as follows from an `EvalLog`:
-
-``` python
-# typed store
-activity = log.samples[0].store_as(Activity)
-
-# typed metadata
-metadata = log.samples[0].metadata_as(PopularityMetadata)
-```
-
 # Errors and Limits
 
 
@@ -8863,6 +8672,375 @@ series of solvers in succession should also check `state.completed`
 (note that this is done automatically by the `chain()` function that is
 used to compose together lists of solvers).
 
+# Multimodal
+
+
+## Overview
+
+Many models now support multimodal inputs, including images, audio, and
+video. This article describes how to how to create evaluations that
+include these data types.
+
+The following providers currently have support for multimodal inputs:
+
+| Provider  | Images | Audio | Video |
+|-----------|:------:|:-----:|:-----:|
+| OpenAI    |   •    |   •   |       |
+| Anthropic |   •    |       |       |
+| Google    |   •    |   •   |   •   |
+| Vertex    |   •    |   •   |       |
+| Mistral   |   •    |       |       |
+| Grok      |   •    |       |       |
+| Bedrock   |   •    |       |       |
+| AzureAI   |   •    |       |       |
+| Groq      |   •    |       |       |
+
+Note that model providers only support multimodal inputs for a subset of
+their models. In the sections below on images, audio, and video we’ll
+enumerate which models can handle these input types. It’s also always a
+good idea to check the provider documentation for the most up to date
+compatiblity matrix.
+
+## Images
+
+The following models currently support image inputs:
+
+- OpenAI: GPT-4o series and the full o1 model,
+- Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
+- Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
+- Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
+- Grok: Vision models (e.g. `grok-vision-beta`)
+
+For Bedrock, AzureAI, and Groq, please consult model provider
+documentation for details on which models support image inputs.
+
+To include an image in a [dataset](datasets.qmd) you should use JSON
+input format (either standard JSON or JSON Lines). For example, here we
+include an image alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "image", "image": "picture.png"},
+        { "type": "text", "text": "What is this a picture of?"}
+    ]
+  }
+]
+```
+
+The `"picture.png"` path is resolved relative to the directory
+containing the dataset file. The image can be specified either as a file
+path or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentImage(image="picture.png"),
+        ContentText(text="What is this a picture of?")
+    ])
+]
+```
+
+### Detail
+
+Some providers support a `detail` option that control over how the model
+processes the image and generates its textual understanding. Valid
+options are `auto` (the default), `low`, and `high`. See the [Open AI
+documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding)
+for more information on using this option. The Mistral, AzureAI, and
+Groq APIs also support the `detail` parameter. For example, here we
+explicitly specify image detail:
+
+``` python
+ContentImage(image="picture.png", detail="low")
+```
+
+## Audio
+
+The following models currently support audio inputs:
+
+- Open AI: `gpt-4o-audio-preview`
+- Google/Vertex: Gemini 1.5 and 2.0 models
+
+To include audio in a [dataset](datasets.qmd) you should use JSON input
+format (either standard JSON or JSON Lines). For example, here we
+include audio alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "audio", "audio": "sample.mp3", "format": "mp3" },
+        { "type": "text", "text": "What words are spoken in this audio sample?"}
+    ]
+  }
+]
+```
+
+The “sample.mp3” path is resolved relative to the directory containing
+the dataset file. The audio file can be specified either as a file path
+or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentAudio(audio="sample.mp3", format="mp3"),
+        ContentText(text="What words are spoken in this audio sample?")
+    ])
+]
+```
+
+### Formats
+
+You can provide audio files in one of two formats:
+
+- MP3
+- WAV
+
+As demonstrated above, you should specify the format explicitly when
+including audio input.
+
+## Video
+
+The following models currently support video inputs:
+
+- Google: Gemini 1.5 and 2.0 models
+
+To include video in a [dataset](datasets.qmd) you should use JSON input
+format (either standard JSON or JSON Lines). For example, here we
+include video alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "video", "video": "video.mp4", "format": "mp4" },
+        { "type": "text", "text": "Can you please describe the attached video?"}
+    ]
+  }
+]
+```
+
+The “video.mp4” path is resolved relative to the directory containing
+the dataset file. The video file can be specified either as a file path
+or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentVideo(video="video.mp4", format="mp4"),
+        ContentText(text="Can you please describe the attached video?")
+    ])
+]
+```
+
+### Formats
+
+You can provide video files in one of three formats:
+
+- MP4
+- MPEG
+- MOV
+
+As demonstrated above, you should specify the format explicitly when
+including video input.
+
+## Uploads
+
+When using audio and video with the Google Gemini API, media is first
+uploaded using the [File
+API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio)
+and then the URL to the uploaded file is referenced in the chat message.
+This results in much faster performance for subsequent uses of the media
+file.
+
+The File API lets you store up to 20GB of files per project, with a
+per-file maximum size of 2GB. Files are stored for 48 hours. They can be
+accessed in that period with your API key, but cannot be downloaded from
+the API. The File API is available at no cost in all regions where the
+Gemini API is available.
+
+## Logging
+
+By default, full base64 encoded copies of media files are included in
+the log file. Media file logging will not create performance problems
+when using `.eval` logs, however if you are using `.json` logs then
+large numbers of media files could become unwieldy (i.e. if your `.json`
+log file grows to 100MB or larger as a result).
+
+You can disable all media logging using the `--no-log-images` flag. For
+example, here we enable the `.json` log format and disable media
+logging:
+
+``` bash
+inspect eval images.py --log-format=json --no-log-images
+```
+
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to
+set a global default in your `.env` configuration file.
+
+# Typing
+
+
+## Overview
+
+The Inspect codebase is written using strict
+[MyPy](https://mypy-lang.org/) type-checking—if you enable the same for
+your project along with installing the [MyPy VS Code
+Extension](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker)
+you’ll benefit from all of these type definitions.
+
+The sample store and sample metadata interfaces are weakly typed to
+accommodate arbitrary user data structures. Below, we describe how to
+implement a [typed store](#typed-store) and [typed
+metadata](#typed-metadata) using Pydantic models.
+
+## Typed Store
+
+If you prefer a typesafe interface to the sample store, you can define a
+[Pydantic model](https://docs.pydantic.dev/latest/concepts/models/)
+which reads and writes values into the store. There are several benefits
+to using Pydantic models for store access:
+
+1.  You can provide type annotations and validation rules for all
+    fields.
+2.  Default values for all fields are declared using standard Pydantic
+    syntax.
+3.  Store names are automatically namespaced (to prevent conflicts
+    between multiple store accessors).
+
+#### Definition
+
+First, derive a class from `StoreModel` (which in turn derives from
+Pydantic `BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+Note that we define defaults for all fields. This is generally required
+so that you can initialise your Pydantic model from an empty store. For
+collections (`list` and `dict`) you should use `default_factory` so that
+each instance gets its own default.
+
+#### Usage
+
+Use the `store_as()` function to get a typesafe interface to the store
+based on your model:
+
+``` python
+# typed interface to store from state
+activity = state.store_as(Activity)
+activity.active = True
+activity.tries += 1
+
+# global store_as() function (e.g. for use from tools)
+from inspect_ai.util import store_as
+activity = store_as(Activity)
+```
+
+Note that all instances of `Activity` created within a running sample
+share the same sample `Store` so can see each other’s changes. For
+example, you can call `state.store_as()` in multiple solvers and/or
+scorers and it will resolve to the same sample-scoped instance.
+
+The names used in the underlying `Store` are namespaced to prevent
+collisions with other `Store` accessors. For example, the `active` field
+in the `Activity` class is written to the store with the name
+`Activity:active`.
+
+#### Explicit Store
+
+The `store_as()` function automatically binds to the current sample
+`Store`. You can alternatively create an explicit `Store` and pass it
+directly to the model (e.g. for testing purposes):
+
+``` python
+from inspect_ai.util import Store
+store = Store()
+activity = Activity(store=store)
+```
+
+## Typed Metadata
+
+If you want a more strongly typed interface to sample metadata, you can
+define a [Pydantic
+model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
+both validate and read metadata.
+
+For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
+interface to metadata is read-only so you must also specify
+`frozen=True`. For example:
+
+``` python
+from pydantic import BaseModel
+
+class PopularityMetadata(BaseModel, frozen=True):
+    category: str
+    label_confidence: float
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=PopularityMetadata,
+    ),
+)
+```
+
+To read metadata in a typesafe fashion, us the `metadata_as()` method on
+`Sample` or `TaskState`:
+
+``` python
+metadata = state.metadata_as(PopularityMetadata)
+```
+
+Note again that the intended semantics of `metadata` are read-only, so
+attempting to write into the returned metadata will raise a Pydantic
+`FrozenInstanceError`.
+
+If you need per-sample mutable data, use the [sample
+store](agents-api.qmd#sample-store), which also supports
+[typing](agents-api.qmd#store-typing) using Pydantic models.
+
+## Log Samples
+
+The `store_as()` and `metadata_as()` typed accessors are also available
+when reading samples from the eval log. Continuing from the examples
+above, you access typed interfaces as follows from an `EvalLog`:
+
+``` python
+# typed store
+activity = log.samples[0].store_as(Activity)
+
+# typed metadata
+metadata = log.samples[0].metadata_as(PopularityMetadata)
+```
+
 # Tracing
 
 
@@ -8911,6 +9089,14 @@ log filenames include the ID of the process that created them):
 inspect trace dump trace-86396.log.gz
 ```
 
+You can also apply a filter to the trace file using the `--filter`
+argument (which will match log message text case insensitively). For
+example:
+
+``` bash
+inspect trace dump trace-86396.log.gz --filter model
+```
+
 ## Anomalies
 
 If an evaluation is running and is not terminating, you can execute the
@@ -8951,6 +9137,13 @@ problems, since both occur in the normal course of running evaluations
 (e.g. model generate calls can return errors that are retried and Docker
 or S3 can also return retryable errors or timeout when they are under
 heavy load).
+
+As with the `inspect trace dump` command, you can apply a filter when
+listing anomolies. For example:
+
+``` bash
+inspect trace anomalies --filter model
+```
 
 ## Tracing API
 
@@ -9752,35 +9945,22 @@ another example of this). See the
 [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py)
 source code for additional details.
 
-## Trace Mode
+## Conversation Display
 
-When introducing interactions it’s often useful to see a trace of
-message activity for additional context. You can do this via the
-`--trace` CLI option (or `trace` parameter of the `eval()` function).
-For example:
+When introducing interactions it’s often useful to see the full chat
+conversation printed for additional context. You can do this via the
+`--display=conversation` CLI option, for example:
 
 ``` bash
-$ inspect eval theory.py --trace
+$ inspect eval theory.py --display conversation
 ```
 
-In trace mode, all messages exchanged with the model are printed to the
-terminal (tool output is truncated at 100 lines).
+In conversation display mode, all messages exchanged with the model are
+printed to the terminal (tool output is truncated at 100 lines).
 
-Note that enabling trace mode automatically sets `max_tasks` and
-`max_samples` to 1, as otherwise messages from concurrently running
+Note that enabling conversation display automatically sets `max_tasks`
+and `max_samples` to 1, as otherwise messages from concurrently running
 samples would be interleaved together in an incoherent jumble.
-
-If you want to add your own trace content, use the `trace_enabled()`
-function to check whether trace mode is currently enabled and the
-`trace_panel()` function to output a panel that is visually consistent
-with other trace mode output. For example:
-
-``` python
-from inspect_ai.util import trace_enabled, trace_panel
-
-if trace_enabled():
-    trace_panel("My Panel", content="Panel content")
-```
 
 ## Progress
 
@@ -10215,6 +10395,7 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True
     ) -> ExecResult[str]:
         """
         Raises:
@@ -10273,6 +10454,16 @@ required if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be
 used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services,
+the `exec()` method includes a `timeout_retry` parameter that defaults
+to `True`. For sandbox implementations this parameter is *advisory*
+(they should only use it if potential unreliablity exists in their
+runtime). No more than 2 retries should be attempted and both with
+timeouts less than 60 seconds. If you are executing commands that are
+not idempotent (i.e. the side effects of a failed first attempt may
+affect the results of subsequent attempts) then you can specify
+`timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed

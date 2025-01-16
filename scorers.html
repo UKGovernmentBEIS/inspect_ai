@@ -315,6 +315,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
@@ -477,7 +483,7 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The current development version of Inspect replaces the use of the <code>bootstrap_std</code> metric with <code>stderr</code> for the built in scorers enumerated above.</p>
+<p>The current development version of Inspect replaces the use of the <code>bootstrap_stderr</code> metric with <code>stderr</code> for the built in scorers enumerated above.</p>
 <p>Since eval scores are means of numbers having finite variance, we can compute standard errors using the Central Limit Theorem rather than bootstrapping. Bootstrapping is generally useful in contexts with more complex structure or non-mean summary statistics (e.g.&nbsp;quantiles). You will notice that the bootstrap numbers will come in quite close to the analytic numbers, since they are estimating the same thing.</p>
 <p>A common misunderstanding is that “t-tests require the underlying data to be normally distributed”. This is only true for small-sample problems; for large sample problems (say 30 or more questions), you just need finite variance in the underlying data and the CLT guarantees a normally distributed mean value.</p>
 </div>
@@ -637,7 +643,7 @@ Note
 </dd>
 <dt data-target-cell="annotated-cell-7" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-7" data-code-lines="16" data-code-annotation="4">We use the special constants <code>CORRECT</code> and <code>INCORRECT</code> for the score value (as the <code>accuracy()</code>, <code>stderr()</code>, and <code>bootstrap_std()</code> metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).</span>
+<span data-code-cell="annotated-cell-7" data-code-lines="16" data-code-annotation="4">We use the special constants <code>CORRECT</code> and <code>INCORRECT</code> for the score value (as the <code>accuracy()</code>, <code>stderr()</code>, and <code>bootstrap_stderr()</code> metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).</span>
 </dd>
 <dt data-target-cell="annotated-cell-7" data-target-annotation="5">5</dt>
 <dd>
@@ -900,7 +906,7 @@ Note
 <p>Sample standard deviation of all scores.</p></li>
 <li><p><code>stderr()</code></p>
 <p>Standard error of the mean.</p></li>
-<li><p><code>bootstrap_std()</code></p>
+<li><p><code>bootstrap_stderr()</code></p>
 <p>Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the <code>num_samples</code> option).</p></li>
 </ul>
 </section>

@@ -46,6 +46,14 @@ log filenames include the ID of the process that created them):
 inspect trace dump trace-86396.log.gz
 ```
 
+You can also apply a filter to the trace file using the `--filter`
+argument (which will match log message text case insensitively). For
+example:
+
+``` bash
+inspect trace dump trace-86396.log.gz --filter model
+```
+
 ## Anomalies
 
 If an evaluation is running and is not terminating, you can execute the
@@ -86,6 +94,13 @@ problems, since both occur in the normal course of running evaluations
 (e.g. model generate calls can return errors that are retried and Docker
 or S3 can also return retryable errors or timeout when they are under
 heavy load).
+
+As with the `inspect trace dump` command, you can apply a filter when
+listing anomolies. For example:
+
+``` bash
+inspect trace anomalies --filter model
+```
 
 ## Tracing API
 

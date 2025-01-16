@@ -315,6 +315,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
@@ -365,6 +371,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#dataset-samples" id="toc-dataset-samples" class="nav-link" data-scroll-target="#dataset-samples">Dataset Samples</a>
   <ul class="collapse">
   <li><a href="#files" id="toc-files" class="nav-link" data-scroll-target="#files">Files</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
   </ul></li>
   <li><a href="#field-mapping" id="toc-field-mapping" class="nav-link" data-scroll-target="#field-mapping">Field Mapping</a>
   <ul class="collapse">
@@ -374,7 +381,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-hugging-face-datasets" id="toc-sec-hugging-face-datasets" class="nav-link" data-scroll-target="#sec-hugging-face-datasets">Hugging Face</a></li>
   <li><a href="#amazon-s3" id="toc-amazon-s3" class="nav-link" data-scroll-target="#amazon-s3">Amazon S3</a></li>
   <li><a href="#chat-messages" id="toc-chat-messages" class="nav-link" data-scroll-target="#chat-messages">Chat Messages</a></li>
-  <li><a href="#image-input" id="toc-image-input" class="nav-link" data-scroll-target="#image-input">Image Input</a></li>
   <li><a href="#sec-custom-reader" id="toc-sec-custom-reader" class="nav-link" data-scroll-target="#sec-custom-reader">Custom Reader</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -504,6 +510,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Files are copied into the default sandbox environment unless their name contains a prefix mapping them into another environment. For example, to copy into the <code>victim</code> container:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">"victim:/shared/flag.txt"</span>: <span class="st">"flag.txt"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="setup" class="level3">
+<h3 class="anchored" data-anchor-id="setup">Setup</h3>
+<p>The <code>setup</code> field contains either a path to a bash setup script (resolved relative to the dataset path) or the contents of a script to execute. Setup scripts are executed with a 5 minute timeout. If you have setup scripts that may take longer than this you should move some of your setup code into the container build setup (e.g.&nbsp;Dockerfile).</p>
+</section>
 </section>
 <section id="field-mapping" class="level2">
 <h2 class="anchored" data-anchor-id="field-mapping">Field Mapping</h2>
@@ -630,7 +640,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>content</code></td>
-<td><code>str | list[ChatContent]</code></td>
+<td><code>str | list[Content]</code></td>
 <td>The content of the message. Can be a simple string or a list of content parts intermixing text and images.</td>
 </tr>
 </tbody>
@@ -644,58 +654,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that for this example we wouldn’t normally use a full chat message object (rather we’d just provide a simple string). Chat message objects are more useful when you want to include a system prompt or prime the conversation with “assistant” responses.</p>
 </section>
-<section id="image-input" class="level2">
-<h2 class="anchored" data-anchor-id="image-input">Image Input</h2>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>Image input is currently only supported for OpenAI vision models (e.g.&nbsp;<a href="https://platform.openai.com/docs/guides/vision">gpt-4-vision-preview</a>), Google Gemini vision models (e.g.&nbsp;<a href="https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision">gemini-pro-vision</a>), and Anthropic Claude 3 models.</p>
-</div>
-</div>
-</div>
-<p>To include an image, your dataset input might look like this:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  {</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> [</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"text"</span><span class="op">,</span> <span class="st">"text"</span><span class="op">:</span> <span class="st">"What is this a picture of?"</span>}<span class="op">,</span></span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"image"</span><span class="op">,</span> <span class="st">"image"</span><span class="op">:</span> <span class="st">"picture.png"</span>}</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Where <code>"picture.png"</code> is resolved relative to the directory containing the dataset file. The image can be specified either as a URL (accessible to the model), a local file path, or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
-<p>If you are constructing chat messages programmatically, then the equivalent to the above would be:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>ChatMessageUser(content <span class="op">=</span> [</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    ContentText(text<span class="op">=</span><span class="st">"What is this a picture of?"</span>),</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    ContentImage(image<span class="op">=</span><span class="st">"picture.png"</span>)</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you are using paths or URLs to images and want the full base64 encoded content of images included in log files, use the <code>--log-images</code> CLI flag (or <code>log_images</code> argument to <code>eval</code>). Note however that you should generally not do this if you have either large images or a large quantity of images, as this can substantially increase the size of the log file, making it difficult to load into Inspect View with reasonable performance.</p>
-</section>
 <section id="sec-custom-reader" class="level2">
 <h2 class="anchored" data-anchor-id="sec-custom-reader">Custom Reader</h2>
 <p>You are not restricted to the built in dataset functions for reading samples. You can also construct a <code>MemoryDataset</code>, and pass that to a task. For example:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> MemoryDataset, Sample</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, system_message</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>MemoryDataset([</span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What cookie attributes should I use for strong security?"</span>,</span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"secure samesite and httponly"</span>,</span>
-<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>])</span>
-<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
-<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>dataset,</span>
-<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[system_message(SYSTEM_MESSAGE), generate()],</span>
-<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> MemoryDataset, Sample</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, system_message</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>dataset<span class="op">=</span>MemoryDataset([</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What cookie attributes should I use for strong security?"</span>,</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"secure samesite and httponly"</span>,</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>dataset,</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[system_message(SYSTEM_MESSAGE), generate()],</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>So if the built in dataset functions don’t meet your needs, you can create a custom function that yields a <code>MemoryDataset</code>and pass those directly to your <code>Task</code>.</p>
 
 

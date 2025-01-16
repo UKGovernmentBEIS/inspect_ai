@@ -398,6 +398,9 @@ get more comfortable with the basics.
   for dealing with unexpected errors and setting limits on evaluation
   tasks and samples.
 
+- [Multimodal](multimodal.qmd) documents the APIs available for creating
+  multimodal evaluations (including images, audio, and video).
+
 - [Typing](typing.qmd): provides guideance on using static type checking
   with Inspect, including creating typed interfaces to untyped storage
   (i.e. sample metadata and store).

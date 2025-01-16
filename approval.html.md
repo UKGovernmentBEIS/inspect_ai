@@ -31,11 +31,9 @@ calls. You can enable this policy by using the `--approval human` CLI
 option (or the `approval = "human"`) argument to `eval()`:
 
 ``` bash
-inspect eval browser.py --approval human --trace
+inspect eval browser.py --approval human
 ```
 
-Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode)
-so that we can see all messages exchanged with the model for context.
 This example provides the model with the built-in [web
 browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a
 web and perform a search.
@@ -70,7 +68,7 @@ To use this policy, pass the path to the policy YAML file as the
 approver. For example:
 
 ``` bash
-inspect eval browser.py --approval approval.yaml --trace
+inspect eval browser.py --approval approval.yaml
 ```
 
 ## Approvers in Code

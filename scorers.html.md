@@ -104,7 +104,7 @@ Task(
 > [!NOTE]
 >
 > The current development version of Inspect replaces the use of the
-> `bootstrap_std` metric with `stderr` for the built in scorers
+> `bootstrap_stderr` metric with `stderr` for the built in scorers
 > enumerated above.
 >
 > Since eval scores are means of numbers having finite variance, we can
@@ -320,7 +320,7 @@ targets can technically be a list of strings).
 
 Line 16  
 We use the special constants `CORRECT` and `INCORRECT` for the score
-value (as the `accuracy()`, `stderr()`, and `bootstrap_std()` metrics
+value (as the `accuracy()`, `stderr()`, and `bootstrap_stderr()` metrics
 know how to convert these special constants to float values (1.0 and 0.0
 respectively).
 
@@ -676,7 +676,7 @@ Definition** command in your source editor.
 
   Standard error of the mean.
 
-- `bootstrap_std()`
+- `bootstrap_stderr()`
 
   Standard deviation of a bootstrapped estimate of the mean. 1000
   samples are taken by default (modify this using the `num_samples`

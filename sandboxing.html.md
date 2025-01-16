@@ -115,6 +115,7 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True
     ) -> ExecResult[str]:
         """
         Raises:
@@ -173,6 +174,16 @@ required if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be
 used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services,
+the `exec()` method includes a `timeout_retry` parameter that defaults
+to `True`. For sandbox implementations this parameter is *advisory*
+(they should only use it if potential unreliablity exists in their
+runtime). No more than 2 retries should be attempted and both with
+timeouts less than 60 seconds. If you are executing commands that are
+not idempotent (i.e. the side effects of a failed first attempt may
+affect the results of subsequent attempts) then you can specify
+`timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised:
 these are *expected* errors and can either be caught by tools or allowed

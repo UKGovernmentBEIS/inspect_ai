@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Caching</title>
+<title>Inspect - Multimodal</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./parallelism.html" rel="next">
-<link href="./tracing.html" rel="prev">
+<link href="./typing.html" rel="next">
+<link href="./errors-and-limits.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html">Caching</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./multimodal.html">Multimodal</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -315,7 +315,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Multimodal</span></a>
   </div>
 </li>
@@ -333,7 +333,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link active">
+  <a href="./caching.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Caching</span></a>
   </div>
 </li>
@@ -368,29 +368,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#caching-basics" id="toc-caching-basics" class="nav-link" data-scroll-target="#caching-basics">Caching Basics</a>
+  <li><a href="#provider-notes" id="toc-provider-notes" class="nav-link" data-scroll-target="#provider-notes">Images</a>
   <ul class="collapse">
-  <li><a href="#model-versions" id="toc-model-versions" class="nav-link" data-scroll-target="#model-versions">Model Versions</a></li>
+  <li><a href="#detail" id="toc-detail" class="nav-link" data-scroll-target="#detail">Detail</a></li>
   </ul></li>
-  <li><a href="#cache-policy" id="toc-cache-policy" class="nav-link" data-scroll-target="#cache-policy">Cache Policy</a></li>
-  <li><a href="#management" id="toc-management" class="nav-link" data-scroll-target="#management">Management</a>
+  <li><a href="#audio" id="toc-audio" class="nav-link" data-scroll-target="#audio">Audio</a>
   <ul class="collapse">
-  <li><a href="#cache-directory" id="toc-cache-directory" class="nav-link" data-scroll-target="#cache-directory">Cache Directory</a></li>
+  <li><a href="#formats" id="toc-formats" class="nav-link" data-scroll-target="#formats">Formats</a></li>
   </ul></li>
-  <li><a href="#sec-provider-caching" id="toc-sec-provider-caching" class="nav-link" data-scroll-target="#sec-provider-caching">Provider Caching</a>
+  <li><a href="#video" id="toc-video" class="nav-link" data-scroll-target="#video">Video</a>
   <ul class="collapse">
-  <li><a href="#cache-scope" id="toc-cache-scope" class="nav-link" data-scroll-target="#cache-scope">Cache Scope</a></li>
-  <li><a href="#usage-reporting" id="toc-usage-reporting" class="nav-link" data-scroll-target="#usage-reporting">Usage Reporting</a></li>
+  <li><a href="#formats-1" id="toc-formats-1" class="nav-link" data-scroll-target="#formats-1">Formats</a></li>
   </ul></li>
+  <li><a href="#uploads" id="toc-uploads" class="nav-link" data-scroll-target="#uploads">Uploads</a></li>
+  <li><a href="#logging" id="toc-logging" class="nav-link" data-scroll-target="#logging">Logging</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./caching.html">Caching</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./multimodal.html">Multimodal</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Caching</h1>
+<h1 class="title">Multimodal</h1>
 </div>
 
 
@@ -409,137 +409,200 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development—for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.</p>
-<p>There are two types of caching available: Inspect local caching and provider level caching. We’ll first describe local caching (which works for all models) then cover <a href="sec-provider-caching">provider caching</a> which currently works only for Anthropic models.</p>
-</section>
-<section id="caching-basics" class="level2">
-<h2 class="anchored" data-anchor-id="caching-basics">Caching Basics</h2>
-<p>Use the <code>cache</code> parameter on calls to <code>generate()</code> to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:</p>
-<ul>
-<li>Model name and base URL (e.g.&nbsp;<code>openai/gpt-4-turbo</code>)</li>
-<li>Model prompt (i.e.&nbsp;message history)</li>
-<li>Epoch number (for ensuring distinct generations per epoch)</li>
-<li>Generate configuration (e.g.&nbsp;<code>temperature</code>, <code>top_p</code>, etc.)</li>
-<li>Active <code>tools</code> and <code>tool_choice</code></li>
-</ul>
-<p>If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see <a href="#cache-policy">Cache Policy</a> below for details on customising this).</p>
-<p>For example, here we are iterating on our self critique template, so we cache the main call to <code>generate()</code>:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>            chain_of_thought(),</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            generate(cache <span class="op">=</span> <span class="va">True</span>),</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            self_critique(CRITIQUE_TEMPLATE)</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        ]</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can similarly do this with the <code>generate</code> function passed into a <code>Solver</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_solver(cache):</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">async</span> <span class="kw">def</span> solve(state, generate):</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># (custom solver logic prior to generate)</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> generate(state, cache)</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You don’t strictly need to provide a <code>cache</code> argument for a custom solver that uses caching, but it’s generally good practice to enable users of the function to control caching behaviour.</p>
-<p>You can also use caching with lower-level <code>generate()</code> calls (e.g.&nbsp;a model instance you have obtained with <code>get_model()</code>. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"anthropic/claude-3-opus-20240229"</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> model.generate(<span class="bu">input</span>, cache <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="model-versions" class="level3">
-<h3 class="anchored" data-anchor-id="model-versions">Model Versions</h3>
-<p>The model name (e.g.&nbsp;<code>openai/gpt-4-turbo</code>) is used as part of the cache key. Note though that many model names are aliases to specific model versions. For example, <code>gpt-4</code>, <code>gpt-4-turbo</code>, may resolve to different versions over time as updates are released.</p>
-<p>If you want to invalidate caches for updated model versions, it’s much better to use an explicitly versioned model name. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you do this, then when a new version of <code>gpt-4-turbo</code> is deployed a call to the model will occur rather than resolving from the cache.</p>
-</section>
-</section>
-<section id="cache-policy" class="level2">
-<h2 class="anchored" data-anchor-id="cache-policy">Cache Policy</h2>
-<p>By default, if you specify <code>cache = True</code> then the cache will expire in 1 week. You can customise this by passing a <code>CachePolicy</code> rather than a boolean. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3h"</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"4D"</span>)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"2W"</span>)</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry<span class="op">=</span><span class="st">"3M"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use <code>s</code>, <code>m</code>, <code>h</code>, <code>D</code>, <code>W</code> , <code>M</code>, and <code>Y</code> as abbreviations for <code>expiry</code> values.</p>
-<p>If you want the cache to <em>never</em> expire, specify <code>None</code>. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(expiry <span class="op">=</span> <span class="va">None</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also define scopes for cache expiration (e.g.&nbsp;cache for a specific task or usage pattern). Use the <code>scopes</code> parameter to add named scopes to the cache key:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    expiry<span class="op">=</span><span class="st">"1M"</span>,</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    scopes<span class="op">=</span>{<span class="st">"role"</span>: <span class="st">"attacker"</span>, <span class="st">"team"</span>: <span class="st">"red"</span>})</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>As noted above, caching is by default done per epoch (i.e.&nbsp;each epoch has its own cache scope). You can disable the default behaviour by setting <code>per_epoch=False</code>. For example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>cache <span class="op">=</span> CachePolicy(per_epoch<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="management" class="level2">
-<h2 class="anchored" data-anchor-id="management">Management</h2>
-<p>Use the <code>inspect cache</code> command the view the current contents of the cache, prune expired entries, or clear entries entirely. For example:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># list the current contents of the cache</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># clear the cache (globally or by model)</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache clear <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># prune expired entries from the cache</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache list <span class="at">--pruneable</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect cache prune <span class="at">--model</span> openai/gpt-4-turbo-2024-04-09</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>See <code>inspect cache --help</code> for further details on management commands.</p>
-<section id="cache-directory" class="level3">
-<h3 class="anchored" data-anchor-id="cache-directory">Cache Directory</h3>
-<p>By default the model generation cache is stored in the system default location for user cache files (e.g.&nbsp;<code>XDG_CACHE_HOME</code> on Linux). You can override this and specify a different directory for cache files using the <code>INSPECT_CACHE_DIR</code> environment variable. For example:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export INSPECT_CACHE_DIR=/tmp/inspect-cache</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="sec-provider-caching" class="level2">
-<h2 class="anchored" data-anchor-id="sec-provider-caching">Provider Caching</h2>
-<p>Model providers may also provide prompt caching features to optimise cost and performance for multi-turn conversations. Currently, Inspect includes support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching">Anthropic Prompt Caching</a> and will extend this support to other providers over time as they add caching to their APIs.</p>
-<p>Provider prompt caching is controlled by the <code>cache-prompt</code> generation config option. The default value for <code>cache-prompt</code> is <code>"auto"</code>, which enables prompt caching automatically if tool definitions are included in the request. Use <code>true</code> and <code>false</code> to force caching on or off. For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>auto  <span class="co"># enable if tools defined</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>true  <span class="co"># force caching on</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--cache-prompt</span><span class="op">=</span>false <span class="co"># force caching off</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or with the <code>eval()</code> function:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"ctf.py"</span>, cache_prompt<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="cache-scope" class="level3">
-<h3 class="anchored" data-anchor-id="cache-scope">Cache Scope</h3>
-<p>Providers will typically provide various means of customising the scope of cache usage. The Inspect <code>cache-prompt</code> option will by default attempt to make maximum use of provider caches (in the Anthropic implementation system messages, tool definitions, and all messages up to the last user message are included in the cache).</p>
-<p>Currently there is no way to customise the Anthropic cache lifetime (it defaults to 5 minutes)—once this becomes possible this will also be exposed in the Inspect API.</p>
-</section>
-<section id="usage-reporting" class="level3">
-<h3 class="anchored" data-anchor-id="usage-reporting">Usage Reporting</h3>
-<p>When using provider caching, model token usage will be reported with 4 distinct values rather than the normal input and output. For example:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Where the prefixes on reported token counts stand for:</p>
+<p>Many models now support multimodal inputs, including images, audio, and video. This article describes how to how to create evaluations that include these data types.</p>
+<p>The following providers currently have support for multimodal inputs:</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Provider</th>
+<th style="text-align: center;">Images</th>
+<th style="text-align: center;">Audio</th>
+<th style="text-align: center;">Video</th>
+</tr>
+</thead>
 <tbody>
 <tr class="odd">
-<td><strong>I</strong></td>
-<td>Input tokens</td>
+<td>OpenAI</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
 </tr>
 <tr class="even">
-<td><strong>CW</strong></td>
-<td>Input token cache writes</td>
+<td>Anthropic</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
 </tr>
 <tr class="odd">
-<td><strong>CR</strong></td>
-<td>Input token cache reads</td>
+<td>Google</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;">•</td>
 </tr>
 <tr class="even">
-<td><strong>O</strong></td>
-<td>Output tokens</td>
+<td>Vertex</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="odd">
+<td>Mistral</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="even">
+<td>Grok</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="odd">
+<td>Bedrock</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="even">
+<td>AzureAI</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="odd">
+<td>Groq</td>
+<td style="text-align: center;">•</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
 </tr>
 </tbody>
 </table>
-<p>Input token cache writes will typically cost more (in the case of Anthropic roughly 25% more) but cache reads substantially less (for Anthropic 90% less) so for the example above there would have been a substantial savings in cost and execution time. See the <a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching">Anthropic Documentation</a> for additional details.</p>
-
-
+<p>Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we’ll enumerate which models can handle these input types. It’s also always a good idea to check the provider documentation for the most up to date compatiblity matrix.</p>
 </section>
+<section id="provider-notes" class="level2">
+<h2 class="anchored" data-anchor-id="provider-notes">Images</h2>
+<p>The following models currently support image inputs:</p>
+<ul>
+<li>OpenAI: GPT-4o series and the full o1 model,</li>
+<li>Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.</li>
+<li>Google/Vertex: Gemini 1.5 and Gemini 2.0 models.</li>
+<li>Mistral: Pixstral models (e.g.&nbsp;<code>pixtral-12b-2409</code>)</li>
+<li>Grok: Vision models (e.g.&nbsp;<code>grok-vision-beta</code>)</li>
+</ul>
+<p>For Bedrock, AzureAI, and Groq, please consult model provider documentation for details on which models support image inputs.</p>
+<p>To include an image in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include an image alongside some text content:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  {</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> [</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"image"</span><span class="op">,</span> <span class="st">"image"</span><span class="op">:</span> <span class="st">"picture.png"</span>}<span class="op">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"text"</span><span class="op">,</span> <span class="st">"text"</span><span class="op">:</span> <span class="st">"What is this a picture of?"</span>}</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>"picture.png"</code> path is resolved relative to the directory containing the dataset file. The image can be specified either as a file path or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
+<p>If you are constructing chat messages programmatically, then the equivalent to the above would be:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">input</span> <span class="op">=</span> [</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    ChatMessageUser(content <span class="op">=</span> [</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        ContentImage(image<span class="op">=</span><span class="st">"picture.png"</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        ContentText(text<span class="op">=</span><span class="st">"What is this a picture of?"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="detail" class="level3">
+<h3 class="anchored" data-anchor-id="detail">Detail</h3>
+<p>Some providers support a <code>detail</code> option that control over how the model processes the image and generates its textual understanding. Valid options are <code>auto</code> (the default), <code>low</code>, and <code>high</code>. See the <a href="https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding">Open AI documentation</a> for more information on using this option. The Mistral, AzureAI, and Groq APIs also support the <code>detail</code> parameter. For example, here we explicitly specify image detail:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>ContentImage(image<span class="op">=</span><span class="st">"picture.png"</span>, detail<span class="op">=</span><span class="st">"low"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="audio" class="level2">
+<h2 class="anchored" data-anchor-id="audio">Audio</h2>
+<p>The following models currently support audio inputs:</p>
+<ul>
+<li>Open AI: <code>gpt-4o-audio-preview</code></li>
+<li>Google/Vertex: Gemini 1.5 and 2.0 models</li>
+</ul>
+<p>To include audio in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include audio alongside some text content:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  {</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> [</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"audio"</span><span class="op">,</span> <span class="st">"audio"</span><span class="op">:</span> <span class="st">"sample.mp3"</span><span class="op">,</span> <span class="st">"format"</span><span class="op">:</span> <span class="st">"mp3"</span> }<span class="op">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"text"</span><span class="op">,</span> <span class="st">"text"</span><span class="op">:</span> <span class="st">"What words are spoken in this audio sample?"</span>}</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The “sample.mp3” path is resolved relative to the directory containing the dataset file. The audio file can be specified either as a file path or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
+<p>If you are constructing chat messages programmatically, then the equivalent to the above would be:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">input</span> <span class="op">=</span> [</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    ChatMessageUser(content <span class="op">=</span> [</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>        ContentAudio(audio<span class="op">=</span><span class="st">"sample.mp3"</span>, <span class="bu">format</span><span class="op">=</span><span class="st">"mp3"</span>),</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>        ContentText(text<span class="op">=</span><span class="st">"What words are spoken in this audio sample?"</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="formats" class="level3">
+<h3 class="anchored" data-anchor-id="formats">Formats</h3>
+<p>You can provide audio files in one of two formats:</p>
+<ul>
+<li>MP3</li>
+<li>WAV</li>
+</ul>
+<p>As demonstrated above, you should specify the format explicitly when including audio input.</p>
+</section>
+</section>
+<section id="video" class="level2">
+<h2 class="anchored" data-anchor-id="video">Video</h2>
+<p>The following models currently support video inputs:</p>
+<ul>
+<li>Google: Gemini 1.5 and 2.0 models</li>
+</ul>
+<p>To include video in a <a href="./datasets.html">dataset</a> you should use JSON input format (either standard JSON or JSON Lines). For example, here we include video alongside some text content:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode javascript code-with-copy"><code class="sourceCode javascript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="st">"input"</span><span class="op">:</span> [</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  {</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"role"</span><span class="op">:</span> <span class="st">"user"</span><span class="op">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content"</span><span class="op">:</span> [</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"video"</span><span class="op">,</span> <span class="st">"video"</span><span class="op">:</span> <span class="st">"video.mp4"</span><span class="op">,</span> <span class="st">"format"</span><span class="op">:</span> <span class="st">"mp4"</span> }<span class="op">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        { <span class="st">"type"</span><span class="op">:</span> <span class="st">"text"</span><span class="op">,</span> <span class="st">"text"</span><span class="op">:</span> <span class="st">"Can you please describe the attached video?"</span>}</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The “video.mp4” path is resolved relative to the directory containing the dataset file. The video file can be specified either as a file path or a base64 encoded <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs">Data URL</a>.</p>
+<p>If you are constructing chat messages programmatically, then the equivalent to the above would be:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">input</span> <span class="op">=</span> [</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    ChatMessageUser(content <span class="op">=</span> [</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        ContentVideo(video<span class="op">=</span><span class="st">"video.mp4"</span>, <span class="bu">format</span><span class="op">=</span><span class="st">"mp4"</span>),</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        ContentText(text<span class="op">=</span><span class="st">"Can you please describe the attached video?"</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="formats-1" class="level3">
+<h3 class="anchored" data-anchor-id="formats-1">Formats</h3>
+<p>You can provide video files in one of three formats:</p>
+<ul>
+<li>MP4</li>
+<li>MPEG</li>
+<li>MOV</li>
+</ul>
+<p>As demonstrated above, you should specify the format explicitly when including video input.</p>
+</section>
+</section>
+<section id="uploads" class="level2">
+<h2 class="anchored" data-anchor-id="uploads">Uploads</h2>
+<p>When using audio and video with the Google Gemini API, media is first uploaded using the <a href="https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio">File API</a> and then the URL to the uploaded file is referenced in the chat message. This results in much faster performance for subsequent uses of the media file.</p>
+<p>The File API lets you store up to 20GB of files per project, with a per-file maximum size of 2GB. Files are stored for 48 hours. They can be accessed in that period with your API key, but cannot be downloaded from the API. The File API is available at no cost in all regions where the Gemini API is available.</p>
+</section>
+<section id="logging" class="level2">
+<h2 class="anchored" data-anchor-id="logging">Logging</h2>
+<p>By default, full base64 encoded copies of media files are included in the log file. Media file logging will not create performance problems when using <code>.eval</code> logs, however if you are using <code>.json</code> logs then large numbers of media files could become unwieldy (i.e.&nbsp;if your <code>.json</code> log file grows to 100MB or larger as a result).</p>
+<p>You can disable all media logging using the <code>--no-log-images</code> flag. For example, here we enable the <code>.json</code> log format and disable media logging:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval images.py <span class="at">--log-format</span><span class="op">=</span>json <span class="at">--no-log-images</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the <code>INSPECT_EVAL_LOG_IMAGES</code> environment variable to set a global default in your <code>.env</code> configuration file.</p>
+
+
 </section>
 
 </main> <!-- /main -->
@@ -995,13 +1058,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./tracing.html" class="pagination-link" aria-label="Tracing">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Tracing</span>
+      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Errors &amp; Limits</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./parallelism.html" class="pagination-link" aria-label="Parallelism">
-        <span class="nav-page-text">Parallelism</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./typing.html" class="pagination-link" aria-label="Typing">
+        <span class="nav-page-text">Typing</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

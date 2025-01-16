@@ -81,6 +81,14 @@ copy into the `victim` container:
 "victim:/shared/flag.txt": "flag.txt"
 ```
 
+### Setup
+
+The `setup` field contains either a path to a bash setup script
+(resolved relative to the dataset path) or the contents of a script to
+execute. Setup scripts are executed with a 5 minute timeout. If you have
+setup scripts that may take longer than this you should move some of
+your setup code into the container build setup (e.g. Dockerfile).
+
 ## Field Mapping
 
 If your dataset contains inputs and targets that don’t use `input` and
@@ -287,7 +295,7 @@ multi-modal input (e.g. images).
 | Field     | Type                                       | Description                                                                                                |
 |-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
-| `content` | `str | list[ChatContent]`                  | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:
@@ -305,53 +313,6 @@ Note that for this example we wouldn’t normally use a full chat message
 object (rather we’d just provide a simple string). Chat message objects
 are more useful when you want to include a system prompt or prime the
 conversation with “assistant” responses.
-
-## Image Input
-
-> [!NOTE]
->
-> Image input is currently only supported for OpenAI vision models
-> (e.g. [gpt-4-vision-preview](https://platform.openai.com/docs/guides/vision)),
-> Google Gemini vision models
-> (e.g. [gemini-pro-vision](https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/gemini-pro-vision)),
-> and Anthropic Claude 3 models.
-
-To include an image, your dataset input might look like this:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": [
-        { "type": "text", "text": "What is this a picture of?"},
-        { "type": "image", "image": "picture.png"}
-    ]
-  }
-]
-```
-
-Where `"picture.png"` is resolved relative to the directory containing
-the dataset file. The image can be specified either as a URL (accessible
-to the model), a local file path, or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
-
-``` python
-ChatMessageUser(content = [
-    ContentText(text="What is this a picture of?"),
-    ContentImage(image="picture.png")
-])
-```
-
-If you are using paths or URLs to images and want the full base64
-encoded content of images included in log files, use the `--log-images`
-CLI flag (or `log_images` argument to `eval`). Note however that you
-should generally not do this if you have either large images or a large
-quantity of images, as this can substantially increase the size of the
-log file, making it difficult to load into Inspect View with reasonable
-performance.
 
 ## Custom Reader
 

@@ -315,6 +315,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
@@ -410,8 +416,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="human-approver" class="level2">
 <h2 class="anchored" data-anchor-id="human-approver">Human Approver</h2>
 <p>The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the <code>--approval human</code> CLI option (or the <code>approval = "human"</code>) argument to <code>eval()</code>:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> human <span class="at">--trace</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that we also enable <a href="./interactivity.html#sec-trace-mode">trace mode</a> so that we can see all messages exchanged with the model for context. This example provides the model with the built-in <a href="./tools.html#sec-web-browser">web browser</a> tool and asks it to navigate to a web and perform a search.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> human</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This example provides the model with the built-in <a href="./tools.html#sec-web-browser">web browser</a> tool and asks it to navigate to a web and perform a search.</p>
 </section>
 <section id="auto-approver" class="level2">
 <h2 class="anchored" data-anchor-id="auto-approver">Auto Approver</h2>
@@ -425,7 +431,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="st">"*"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Navigational web browser tool calls (e.g.&nbsp;<code>web_browser_go</code>) are approved automatically via the catch-all <code>auto</code> approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs.</p>
 <p>To use this policy, pass the path to the policy YAML file as the approver. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> approval.yaml <span class="at">--trace</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> approval.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="approvers-in-code" class="level2">
 <h2 class="anchored" data-anchor-id="approvers-in-code">Approvers in Code</h2>
