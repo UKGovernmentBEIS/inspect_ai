@@ -1,0 +1,10 @@
+.download-panel {
+  display: grid;
+  grid-template-rows: content content;
+  padding-top: 3em;
+  justify-items: center;
+}
+
+.download-panel-message {
+  font-size: var(--inspect-font-size-small);
+}

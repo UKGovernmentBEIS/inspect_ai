@@ -15463,6 +15463,20 @@ ul.jsondiffpatch-textdiff {
 .tool-button i {
   margin-right: 0.5em;
 }
+.download-button {
+  margin-top: 3em;
+  font-size: var(--inspect-font-size-small);
+}
+.download-panel {
+  display: grid;
+  grid-template-rows: content content;
+  padding-top: 3em;
+  justify-items: center;
+}
+
+.download-panel-message {
+  font-size: var(--inspect-font-size-small);
+}
 .json-panel {
   width: 100%;
   padding: 0.5em;
@@ -15482,6 +15496,11 @@ ul.jsondiffpatch-textdiff {
 /* Prism.js theme customizations can go here if needed */
 .language-javascript {
   background: transparent !important;
+}
+.json-tab {
+  padding: 0.5rem;
+  font-size: var(--inspect-font-size-small);
+  width: 100%;
 }
 .copy-button {
   border: none;
