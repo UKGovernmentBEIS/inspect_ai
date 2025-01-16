@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef } from "preact/hooks";
 import { ApplicationIcons } from "../appearance/icons";
 import { LargeModal } from "../components/LargeModal.mjs";
 
-import { ErrorPanel } from "../components/ErrorPanel.mjs";
+import { ErrorPanel } from "../components/ErrorPanel";
 import { SampleDisplay } from "./SampleDisplay.mjs";
 
 /**

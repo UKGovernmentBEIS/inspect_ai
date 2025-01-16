@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { Component } from "preact";
 
-import { ErrorPanel } from "./ErrorPanel.mjs";
+import { ErrorPanel } from "./ErrorPanel";
 
 export class AppErrorBoundary extends Component {
   constructor(props) {

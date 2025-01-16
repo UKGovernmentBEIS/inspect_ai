@@ -7652,30 +7652,15 @@ var require_assets = __commonJS({
     function D$1(n2, t2) {
       return "function" == typeof t2 ? t2(n2) : t2;
     }
-    const kBaseFontSize = 0.9;
-    const ScaleBaseFont = (scale) => {
-      return `${kBaseFontSize + scale}rem`;
-    };
-    const FontSize = {
-      title: ScaleBaseFont(0.6),
-      "title-secondary": ScaleBaseFont(0.4),
-      larger: ScaleBaseFont(0.2),
-      large: ScaleBaseFont(0.1),
-      base: ScaleBaseFont(0),
-      small: ScaleBaseFont(-0.1),
-      smaller: ScaleBaseFont(-0.1)
-    };
-    const TextStyle = {
-      label: {
-        textTransform: "uppercase"
-      },
-      secondary: {
-        color: "var(--bs-secondary)"
-      },
-      tertiary: {
-        color: "var(--bs-tertiary-color)"
-      }
-    };
+    var f = 0;
+    function u(e2, t2, n2, o2, i2, u2) {
+      t2 || (t2 = {});
+      var a2, c2, l2 = t2;
+      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
+      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
+      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
+      return l$1.vnode && l$1.vnode(p2), p2;
+    }
     const loggingIcons = {
       notset: "bi bi-card-text",
       debug: "bi bi-bug",
@@ -7775,65 +7760,32 @@ var require_assets = __commonJS({
       transcript: "bi bi-list-columns-reverse",
       usage: "bi bi-stopwatch"
     };
-    const ErrorPanel = ({ id, classes, title, error: error2 }) => {
-      const emptyStyle = {
-        display: "flex",
-        flex: "0 0 content",
-        alignItems: "center",
-        justifyContent: "center"
-      };
-      const message = error2.message;
-      const stack2 = error2.stack;
-      return m$1`
-    <div style=${{ overflowY: "auto", height: "100vh" }}>
-      <div
-        ...${{ id }}
-        class="${classes ? classes : ""}"
-        style=${{
-        ...emptyStyle,
-        flexDirection: "column",
-        minHeight: "10rem",
-        marginTop: "4rem",
-        marginBottom: "4em",
-        width: "100vw"
-      }}
-      >
-        <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
-          <div>
-            <i
-              class="${ApplicationIcons.error}"
-              style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
-            ></i>
-          </div>
-          <div>${title || ""}</div>
-        </div>
-        <div
-          style=${{
-        display: "inline-block",
-        fontSize: FontSize.smaller,
-        marginTop: "1rem",
-        border: "solid 1px var(--bs-border-color)",
-        borderRadius: "var(--bs-border-radius)",
-        padding: "1em",
-        maxWidth: "80%"
-      }}
-        >
-          <div>
-            Error: ${message || ""}
-            ${stack2 && error2.displayStack !== false && m$1`
-              <pre
-                style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
-              >
-            <code>
-              at ${stack2}
-            </code>
-          </pre>
-            `}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+    const ErrorPanel = (props) => {
+      const message = props.error.message;
+      const stack2 = props.error.stack;
+      return /* @__PURE__ */ u("div", {
+        className: "error-panel centered-flex",
+        children: [/* @__PURE__ */ u("div", {
+          className: "error-panel-heading centered-flex",
+          children: [/* @__PURE__ */ u("div", {
+            children: /* @__PURE__ */ u("i", {
+              class: `${ApplicationIcons.error} error-icon`
+            })
+          }), /* @__PURE__ */ u("div", {
+            children: props.title || ""
+          })]
+        }), /* @__PURE__ */ u("div", {
+          className: "error-panel-body",
+          children: /* @__PURE__ */ u("div", {
+            children: ["Error: ", message || "", "$", stack2 && props.error.displayStack !== false && /* @__PURE__ */ u("pre", {
+              className: "error-panel-stack",
+              children: /* @__PURE__ */ u("code", {
+                children: ["at $", stack2]
+              })
+            })]
+          })
+        })]
+      });
     };
     class AppErrorBoundary extends x$3 {
       constructor(props) {
@@ -7856,15 +7808,6 @@ var require_assets = __commonJS({
         }
         return this.props.children;
       }
-    }
-    var f = 0;
-    function u(e2, t2, n2, o2, i2, u2) {
-      t2 || (t2 = {});
-      var a2, c2, l2 = t2;
-      "ref" in t2 && (a2 = t2.ref, delete t2.ref);
-      var p2 = { type: e2, props: l2, key: n2, ref: a2, __k: null, __: null, __b: 0, __e: null, __c: null, constructor: void 0, __v: --f, __i: -1, __u: 0, __source: i2, __self: u2 };
-      if ("function" == typeof e2 && (a2 = e2.defaultProps)) for (c2 in a2) void 0 === l2[c2] && (l2[c2] = a2[c2]);
-      return l$1.vnode && l$1.vnode(p2), p2;
     }
     const ProgressBar = (props) => {
       return /* @__PURE__ */ u("div", {
@@ -7975,6 +7918,30 @@ var require_assets = __commonJS({
         return result;
       };
     }
+    const kBaseFontSize = 0.9;
+    const ScaleBaseFont = (scale) => {
+      return `${kBaseFontSize + scale}rem`;
+    };
+    const FontSize = {
+      title: ScaleBaseFont(0.6),
+      "title-secondary": ScaleBaseFont(0.4),
+      larger: ScaleBaseFont(0.2),
+      large: ScaleBaseFont(0.1),
+      base: ScaleBaseFont(0),
+      small: ScaleBaseFont(-0.1),
+      smaller: ScaleBaseFont(-0.1)
+    };
+    const TextStyle = {
+      label: {
+        textTransform: "uppercase"
+      },
+      secondary: {
+        color: "var(--bs-secondary)"
+      },
+      tertiary: {
+        color: "var(--bs-tertiary-color)"
+      }
+    };
     const FindBand = ({ hideBand }) => {
       const searchBoxRef = A$1(
         /** @type {HTMLInputElement|null} */

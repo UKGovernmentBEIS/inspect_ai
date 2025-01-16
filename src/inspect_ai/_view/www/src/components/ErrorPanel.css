@@ -1,0 +1,37 @@
+.error-panel {
+  flex-direction: column;
+  min-height: 10rem;
+  margin-top: 4rem;
+  margin-bottom: 4em;
+  width: 100vw;
+}
+.error-panel-heading {
+  font-size: var(--inspect-font-size-larger);
+}
+
+.error-panel-body {
+  display: inline-block;
+  font-size: var(--inspect-font-size-smaller);
+  margin-top: 1rem;
+  border: solid 1px var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  padding: 1em;
+  max-width: 80%;
+}
+
+.error-panel-stack {
+  font-size: var(--inspect-font-size-smaller);
+  white-space: prewrap;
+}
+
+.centered-flex {
+  display: flex;
+  flex: 0 0 content;
+  align-items: center;
+  justify-content: center;
+}
+
+.error-icon {
+  margin-right: 0.5rem;
+  color: var(--bs-red);
+}
