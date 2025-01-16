@@ -10092,88 +10092,69 @@ var require_assets = __commonJS({
       intermediate: 10,
       final: 1e3
     };
-    function r(e2) {
-      var t2, f2, n2 = "";
-      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
-      else if ("object" == typeof e2) if (Array.isArray(e2)) {
-        var o2 = e2.length;
-        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
-      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
-      return n2;
-    }
-    function clsx() {
-      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
-      return n2;
-    }
+    const useResizeObserver = (callback) => {
+      const elementRef = A$1(null);
+      const observerRef = A$1(null);
+      y(() => {
+        const element = elementRef.current;
+        if (!element) return;
+        observerRef.current = new ResizeObserver((entries) => {
+          if (entries[0]) {
+            callback(entries[0]);
+          }
+        });
+        observerRef.current.observe(element);
+        return () => {
+          if (observerRef.current) {
+            observerRef.current.disconnect();
+          }
+        };
+      }, [callback]);
+      return elementRef;
+    };
     const ExpandablePanel = ({
       collapse,
       border,
       lines = 15,
-      style: style2,
-      children: children2
+      children: children2,
+      style: style2
     }) => {
-      const [collapsed, setCollapsed] = h(collapse);
+      const [isCollapsed, setIsCollapsed] = h(collapse);
       const [showToggle, setShowToggle] = h(false);
-      const contentsRef = A$1(null);
-      const observerRef = A$1(null);
+      const lineHeightRef = A$1(0);
       y(() => {
-        setCollapsed(collapse);
-      }, [children2, collapse]);
-      const refreshCollapse = q$1(() => {
-        if (collapse && contentsRef.current) {
-          const isScrollable = contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-          setShowToggle(isScrollable);
+        setIsCollapsed(collapse);
+      }, [collapse, children2]);
+      const checkOverflow = q$1((entry) => {
+        const element = entry.target;
+        if (!lineHeightRef.current) {
+          const computedStyle = window.getComputedStyle(element);
+          lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
         }
-      }, [collapse, setShowToggle, contentsRef]);
-      y(() => {
-        refreshCollapse();
-      }, [children2]);
-      y(() => {
-        observerRef.current = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              refreshCollapse();
-            }
-          });
-        });
-        if (contentsRef.current) {
-          observerRef.current.observe(contentsRef.current);
-        }
-        return () => {
-          if (observerRef.current && contentsRef.current) {
-            observerRef.current.unobserve(contentsRef.current);
-          }
-        };
-      }, [contentsRef, observerRef]);
-      const className2 = [];
-      let contentsStyle = {};
-      if (collapse && collapsed) {
-        className2.push("expandable-collapsed");
-        contentsStyle = {
+        const maxCollapsedHeight = lines * lineHeightRef.current;
+        const contentHeight = element.scrollHeight;
+        setShowToggle(contentHeight > maxCollapsedHeight);
+      }, [lines]);
+      const contentRef = useResizeObserver(checkOverflow);
+      const baseStyles = {
+        overflow: "hidden",
+        ...isCollapsed && {
           maxHeight: `${lines}em`
-        };
-      }
-      if (border) {
-        className2.push("expandable-bordered");
-      }
-      if (!showToggle) {
-        className2.push("expandable-togglable");
-      }
+        },
+        ...style2
+      };
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("div", {
-          className: clsx("expandable-panel", className2),
-          ref: contentsRef,
-          style: {
-            ...contentsStyle,
-            ...style2
-          },
+          ref: contentRef,
+          className: `expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`,
+          style: baseStyles,
           children: children2
-        }), showToggle ? /* @__PURE__ */ u(MoreToggle, {
-          collapsed,
-          setCollapsed,
+        }), showToggle && /* @__PURE__ */ u(MoreToggle, {
+          collapsed: isCollapsed,
+          setCollapsed: setIsCollapsed,
           border: !border,
           style: style2
-        }) : ""]
+        })]
       });
     };
     const MoreToggle = ({
@@ -10184,23 +10165,14 @@ var require_assets = __commonJS({
     }) => {
       const text2 = collapsed ? "more" : "less";
       const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
-      const topStyle = {
-        ...style2
-      };
-      const className2 = [];
-      if (border) {
-        className2.push("bordered");
-      }
       return /* @__PURE__ */ u("div", {
-        className: clsx("more-toggle", className2),
-        style: topStyle,
+        className: `more-toggle ${border ? "bordered" : ""}`,
+        style: style2,
         children: /* @__PURE__ */ u("div", {
           className: "more-toggle-container",
           children: /* @__PURE__ */ u("button", {
             className: "btn more-toggle-button",
-            onClick: () => {
-              setCollapsed(!collapsed);
-            },
+            onClick: () => setCollapsed(!collapsed),
             children: [/* @__PURE__ */ u("i", {
               className: icon
             }), text2]
@@ -24626,6 +24598,19 @@ self.onmessage = function (e) {
         });
       }
     };
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const CopyButton = ({
       value,
       onCopySuccess,
