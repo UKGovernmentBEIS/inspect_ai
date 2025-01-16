@@ -12,7 +12,8 @@ Inspect natively supports registering Python functions as tools and
 providing these tools to models that support them (currently OpenAI,
 Claude 3, Google Gemini, and Mistral). Inspect also includes several
 built-in tools ([bash](#sec-bash-and-python),
-[python](#sec-bash-and-python), and [web_search](#sec-web-search)).
+[python](#sec-bash-and-python), [computer](#sec-computer), [web
+browser](#sec-web-browser), and [web_search](#sec-web-search)).
 
 > [!NOTE]
 >
@@ -34,6 +35,10 @@ Inspect has several built-in tools, including:
 - [Web Browser](#sec-web-browser), which provides the model with a
   headless Chromium web browser that supports navigation, history, and
   mouse/keyboard interactions.
+
+- [Computer](#sec-computer), which provides the model with a desktop
+  computer (viewed through screenshots) that supports mouse and keyboard
+  interaction.
 
 - [Web Search](#sec-web-search), which uses the Google Search API to
   execute and summarise web searches.
@@ -677,6 +682,233 @@ Note that all of the Python files in the
 [\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/)
 directory alongside the `Dockerfile` need to be available for copying
 when building the container.
+
+## Computer (Beta)
+
+> [!NOTE]
+>
+> The beta version of the computer tool described below is currently
+> available only in the development version of Inspect. To install the
+> development version:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `computer()` tool provides models with a computer desktop
+environment along with the ability to view the screen and perform mouse
+and keyboard gestures. The computer tool is based on the Anthropic
+[Computer Use
+Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
+reference implementation and works with any model that supports image
+input.
+
+The current release of the computer tool is a beta version (exported
+from the `inspect_ai.tool.beta` module). We expect to finalise the
+interface and move it into the main `inspect_ai.tool` module over the
+next several weeks.
+
+### Configuration
+
+The `computer()` tool runs within a Docker container. To use it with a
+task you need to reference the `inspect-computer-tool-beta` image in
+your Docker compose file. For example:
+
+<div class="code-with-filename">
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: inspect-computer-tool-beta
+```
+
+</div>
+
+You can configure the container to not have Internet access as follows:
+
+<div class="code-with-filename">
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: inspect-computer-tool-beta
+    network_mode: none
+```
+
+</div>
+
+Note that if you’d like to be able to view the model’s interactions with
+the computer desktop in realtime, you will need to also do some port
+mapping to enable a VNC connection with the container. See the [VNC
+Client](#vnc-client) section below for details on how to do this.
+
+The `inspect-computer-tool-beta` image is based on the
+[ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
+image and includes the following additional applications pre-installed:
+
+- Firefox
+- VS Code
+- Xpdf
+- Xpaint
+- galculator
+
+We’ll be refining this list as well as publishing more information on
+creating custom containers for use with the computer tool soon.
+
+### Task Setup
+
+A task configured to use the computer tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool.beta import computer
+
+@task
+def computer_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([computer()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Two of the Inspect examples demonstrate basic computer use:
+
+- [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py)
+  — Three simple computing tasks as a minimal demonstration of computer
+  use.
+
+  ``` bash
+  inspect eval examples/computer
+  ```
+
+- [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py)
+  — Computer task driven interactively by a human operator.
+
+  ``` bash
+  inspect eval examples/intervention -T mode=computer --display conversation
+  ```
+
+### VNC Client
+
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the
+container to watch computer use in real-time. This requires some
+additional port-mapping in the Docker compose file. You can define
+dynamic port ranges for VNC (5900) and a browser based noVNC client
+(6080) with the following `ports` entries:
+
+<div class="code-with-filename">
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: inspect-computer-tool-beta
+    ports:
+      - "5900"
+      - "6080"
+```
+
+</div>
+
+To connect to the container for a given sample, locate the sample in the
+**Running Samples** UI and expand the sample info panel at the top:
+
+<img src="images/vnc-port-info.png" class="lightbox" width="958" />
+
+Click on the link for the noVNC browser client, or use a native VNC
+client to connect to the VNC port. Note that the VNC server will take a
+few seconds to start up so you should give it some time and attempt to
+reconnect as required if the first connection fails.
+
+The browser based client provides a view-only interface. If you use a
+native VNC client you should also set it to “view only” so as to not
+interfere with the model’s use of the computer. For example, for Real
+VNC Viewer:
+
+<img src="images/vnc-view-only.png" width="549" />
+
+### Approval
+
+If the container you are using is connected to the Internet, you may
+want to configure human approval for a subset of computer tool actions.
+Here are the possible actions (specified using the `action` parameter to
+the `computer` tool):
+
+- `key`: Press a key or key-combination on the keyboard.
+- `type`: Type a string of text on the keyboard.
+- `cursor_position`: Get the current (x, y) pixel coordinate of the
+  cursor on the screen.
+- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate
+  on the screen.
+- Example: execute(action=“mouse_move”, coordinate=(100, 200))
+- `left_click`: Click the left mouse button.
+- `left_click_drag`: Click and drag the cursor to a specified (x, y)
+  pixel coordinate on the screen.
+- `right_click`: Click the right mouse button.
+- `middle_click`: Click the middle mouse button.
+- `double_click`: Double-click the left mouse button.
+- `screenshot`: Take a screenshot.
+
+Here is an approval policy that requires approval for key combos
+(e.g. `Enter` or a shortcut) and mouse clicks:
+
+<div class="code-with-filename">
+
+**approval.yaml**
+
+``` yaml
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
+```
+
+</div>
+
+Note that since this is a prefix match and there could be other
+arguments, we don’t end the tool match pattern with a parentheses.
+
+You can apply this policy using the `--approval` commmand line option:
+
+``` bash
+inspect eval computer.py --approval approval.yaml
+```
+
+### Tool Binding
+
+The computer tool’s schema is based on the standard Anthropoic [computer
+tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool).
+When using Claude 3.5 the coputer tool will automatically bind to the
+native Claude computer tool definition. This presumably provides
+improved performance due to fine tuning on the use of the tool but we
+have not verified this.
+
+If you want to experiement with bypassing the native Claude computer
+tool type and just register the computer tool as a normal function based
+tool then specify the `--no-internal-tools` generation option as
+follows:
+
+``` bash
+inspect eval computer.py --no-internal-tools
+```
 
 ## Web Search
 
