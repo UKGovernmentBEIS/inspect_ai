@@ -3,16 +3,16 @@ import "./ANSIDisplay.css";
 
 interface ANSIDisplayProps {
   output: string;
-  style: Record<string, string>;
+  style: React.CSSProperties;
 }
 
-export const ANSIDisplay = (props: ANSIDisplayProps) => {
+export const ANSIDisplay: React.FC<ANSIDisplayProps> = ({ output, style }) => {
   const ansiOutput = new ANSIOutput();
-  ansiOutput.processOutput(props.output);
+  ansiOutput.processOutput(output);
 
   let firstOutput = false;
   return (
-    <div className={"ansi-display"} style={{ ...props.style }}>
+    <div className={"ansi-display"} style={{ ...style }}>
       {ansiOutput.outputLines.map((line) => {
         firstOutput = firstOutput || !!line.outputRuns.length;
         return (
@@ -40,9 +40,9 @@ interface OutputRunProps {
   run: ANSIOutputRun;
 }
 
-const OutputRun = (props: OutputRunProps) => {
+const OutputRun: React.FC<OutputRunProps> = ({ run }) => {
   // Render.
-  return <span style={computeCSSProperties(props.run)}>{props.run.text}</span>;
+  return <span style={computeCSSProperties(run)}>{run.text}</span>;
 };
 
 const computeCSSProperties = (outputRun: ANSIOutputRun) => {

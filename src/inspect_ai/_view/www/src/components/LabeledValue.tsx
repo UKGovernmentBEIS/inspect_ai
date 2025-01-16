@@ -1,27 +1,33 @@
 interface LabeledValueProps {
   label: string;
-  style: Record<string, string>;
-  valueStyle: Record<string, string>;
+  style: React.CSSProperties;
+  valueStyle: React.CSSProperties;
   layout: "column" | "row";
   children: React.ReactNode;
 }
 
-export const LabeledValue = (props: LabeledValueProps) => {
-  const flexDirection = props.layout === "column" ? "column" : "row";
+export const LabeledValue: React.FC<LabeledValueProps> = ({
+  layout,
+  style,
+  label,
+  children,
+  valueStyle,
+}) => {
+  const flexDirection = layout === "column" ? "column" : "row";
   return (
     <div
       className={`labeled-value ${flexDirection}`}
       style={{
-        ...props.style,
+        ...style,
       }}
     >
       <div
         className={"labeled-value-label text-style-label text-style-secondary"}
       >
-        {props.label}
+        {label}
       </div>
-      <div className={"labeled-value-value"} style={{ ...props.valueStyle }}>
-        {props.children}
+      <div className={"labeled-value-value"} style={{ ...valueStyle }}>
+        {children}
       </div>
     </div>
   );

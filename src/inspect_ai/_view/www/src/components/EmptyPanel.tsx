@@ -1,12 +1,8 @@
-interface EmptyPanelProps {
-  children: React.ReactNode;
-}
-
-export const EmptyPanel = (props: EmptyPanelProps) => {
+export const EmptyPanel: React.FC = ({ children }) => {
   return (
     <div className={"empty-panel"}>
       <div className={"container"}>
-        <div>{props.children}</div>
+        <div>{children}</div>
       </div>
     </div>
   );
