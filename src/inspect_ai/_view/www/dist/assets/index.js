@@ -8050,9 +8050,12 @@ var require_assets = __commonJS({
       transcript: "bi bi-list-columns-reverse",
       usage: "bi bi-stopwatch"
     };
-    const ErrorPanel = (props) => {
-      const message = props.error.message;
-      const stack2 = props.error.stack;
+    const ErrorPanel = ({
+      title,
+      error: error2
+    }) => {
+      const message = error2.message;
+      const stack2 = error2.stack;
       return /* @__PURE__ */ u("div", {
         className: "error-panel centered-flex",
         children: [/* @__PURE__ */ u("div", {
@@ -8062,12 +8065,12 @@ var require_assets = __commonJS({
               class: `${ApplicationIcons.error} error-icon`
             })
           }), /* @__PURE__ */ u("div", {
-            children: props.title || ""
+            children: title || ""
           })]
         }), /* @__PURE__ */ u("div", {
           className: "error-panel-body",
           children: /* @__PURE__ */ u("div", {
-            children: ["Error: ", message || "", "$", stack2 && props.error.displayStack !== false && /* @__PURE__ */ u("pre", {
+            children: ["Error: ", message || "", "$", stack2 && error2.displayStack !== false && /* @__PURE__ */ u("pre", {
               className: "error-panel-stack",
               children: /* @__PURE__ */ u("code", {
                 children: ["at $", stack2]
@@ -8115,10 +8118,14 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
-    const ProgressBar = (props) => {
+    const ProgressBar = ({
+      style: style2,
+      containerStyle,
+      animating
+    }) => {
       return /* @__PURE__ */ u("div", {
         className: "progress-bar-wrapper",
-        style: props.style,
+        style: style2,
         children: /* @__PURE__ */ u("div", {
           className: "progress-container",
           role: "progressbar",
@@ -8126,10 +8133,10 @@ var require_assets = __commonJS({
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          style: props.containerStyle,
-          children: props.animating && /* @__PURE__ */ u("div", {
+          style: containerStyle,
+          children: animating && /* @__PURE__ */ u("div", {
             className: "progress-bar-animated",
-            style: props.style
+            style: style2
           })
         })
       });
@@ -9837,14 +9844,17 @@ var require_assets = __commonJS({
       });
     })(ansiOutput, ansiOutput.exports);
     var ansiOutputExports = ansiOutput.exports;
-    const ANSIDisplay = (props) => {
+    const ANSIDisplay = ({
+      output,
+      style: style2
+    }) => {
       const ansiOutput2 = new ansiOutputExports.ANSIOutput();
-      ansiOutput2.processOutput(props.output);
+      ansiOutput2.processOutput(output);
       let firstOutput = false;
       return /* @__PURE__ */ u("div", {
         className: "ansi-display",
         style: {
-          ...props.style
+          ...style2
         },
         children: ansiOutput2.outputLines.map((line2) => {
           firstOutput = firstOutput || !!line2.outputRuns.length;
@@ -9859,10 +9869,12 @@ var require_assets = __commonJS({
     };
     const kForeground = 0;
     const kBackground = 1;
-    const OutputRun = (props) => {
+    const OutputRun = ({
+      run
+    }) => {
       return /* @__PURE__ */ u("span", {
-        style: computeCSSProperties(props.run),
-        children: props.run.text
+        style: computeCSSProperties(run),
+        children: run.text
       });
     };
     const computeCSSProperties = (outputRun) => {
@@ -20899,13 +20911,15 @@ categories: ${categories.join(" ")}`;
         return attr.includes("data-vscode-");
       });
     };
-    const EmptyPanel = (props) => {
+    const EmptyPanel = ({
+      children: children2
+    }) => {
       return /* @__PURE__ */ u("div", {
         className: "empty-panel",
         children: /* @__PURE__ */ u("div", {
           className: "container",
           children: /* @__PURE__ */ u("div", {
-            children: props.children
+            children: children2
           })
         })
       });
@@ -24952,22 +24966,28 @@ self.onmessage = function (e) {
         })
       });
     };
-    const LabeledValue = (props) => {
-      const flexDirection = props.layout === "column" ? "column" : "row";
+    const LabeledValue = ({
+      layout,
+      style: style2,
+      label,
+      children: children2,
+      valueStyle
+    }) => {
+      const flexDirection = layout === "column" ? "column" : "row";
       return /* @__PURE__ */ u("div", {
         className: `labeled-value ${flexDirection}`,
         style: {
-          ...props.style
+          ...style2
         },
         children: [/* @__PURE__ */ u("div", {
           className: "labeled-value-label text-style-label text-style-secondary",
-          children: props.label
+          children: label
         }), /* @__PURE__ */ u("div", {
           className: "labeled-value-value",
           style: {
-            ...props.valueStyle
+            ...valueStyle
           },
-          children: props.children
+          children: children2
         })]
       });
     };
@@ -33534,7 +33554,7 @@ ${events}
       document.body.removeChild(div);
       return metrics;
     }
-    const AsciiCinemaPlayer = ({
+    const AsciinemaPlayer = ({
       id,
       rows,
       cols,
@@ -33549,37 +33569,34 @@ ${events}
       idleTimeLimit = 2,
       style: style2
     }) => {
-      const playerContainerRef = A$1();
+      const playerContainerRef = A$1(null);
       y(() => {
-        const player = create(
-          {
-            url: [timingUrl, outputUrl, inputUrl],
-            parser: "typescript"
-          },
-          playerContainerRef.current,
-          {
-            rows,
-            cols,
-            autoPlay,
-            loop,
-            theme: theme2,
-            speed,
-            idleTimeLimit,
-            fit
-          }
-        );
+        if (!playerContainerRef.current) return;
+        const player = create({
+          url: [timingUrl, outputUrl, inputUrl],
+          parser: "typescript"
+        }, playerContainerRef.current, {
+          rows,
+          cols,
+          autoPlay,
+          loop,
+          theme: theme2,
+          speed,
+          idleTimeLimit,
+          fit
+        });
         player.play();
         return () => {
           player.dispose();
         };
-      }, []);
-      return m$1`
-    <div
-      id="asciinema-player-${id || "default"}"
-      ref=${playerContainerRef}
-      style=${{ ...style2 }}
-    ></div>
-  `;
+      }, [timingUrl, outputUrl, inputUrl, rows, cols, autoPlay, loop, theme2, speed, idleTimeLimit, fit]);
+      return /* @__PURE__ */ u("div", {
+        id: `asciinema-player-${id || "default"}`,
+        ref: playerContainerRef,
+        style: {
+          ...style2
+        }
+      });
     };
     const LightboxCarousel = ({ slides }) => {
       const [isOpen, setIsOpen] = h(false);
@@ -33785,7 +33802,7 @@ ${events}
         player_fns.push({
           label: title,
           render: () => m$1`
-        <${AsciiCinemaPlayer}
+        <${AsciinemaPlayer}
           id=${`player-${currentCount}`}
           inputUrl=${revokableUrl(sessionLog.input)}
           outputUrl=${revokableUrl(sessionLog.output)}

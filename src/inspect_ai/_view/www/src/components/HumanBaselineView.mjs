@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { useEffect } from "preact/hooks";
 import { TextStyle } from "../appearance/fonts";
 import { formatDateTime, formatTime } from "../utils/format";
-import { AsciiCinemaPlayer } from "./AsciiCinemaPlayer.mjs";
+import { AsciinemaPlayer } from "./AsciinemaPlayer";
 import { LightboxCarousel } from "./LightboxCarousel.mjs";
 
 /**
@@ -70,7 +70,7 @@ export const HumanBaselineView = ({
     player_fns.push({
       label: title,
       render: () => html`
-        <${AsciiCinemaPlayer}
+        <${AsciinemaPlayer}
           id=${`player-${currentCount}`}
           inputUrl=${revokableUrl(sessionLog.input)}
           outputUrl=${revokableUrl(sessionLog.output)}
