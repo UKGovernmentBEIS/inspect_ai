@@ -43,7 +43,7 @@ def bootstrap_stderr(
             0 if the Value is a complex object (list or dict).
 
     Returns:
-        stderr metric
+        bootstrap_stderr metric
     """
 
     def metric(scores: list[ReducedScore]) -> float:
