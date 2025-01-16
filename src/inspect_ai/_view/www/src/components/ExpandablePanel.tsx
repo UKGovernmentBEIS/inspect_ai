@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-
-import clsx from "clsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
+import { useResizeObserver } from "../utils/dom";
 import "./ExpandablePanel.css";
 
 interface ExpandablePanelProps {
@@ -16,92 +15,62 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   collapse,
   border,
   lines = 15,
-  style,
   children,
+  style,
 }) => {
-  const [collapsed, setCollapsed] = useState(collapse);
+  const [isCollapsed, setIsCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
-
-  const contentsRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<ResizeObserver | null>(null);
-
-  // Ensure that when content changes, we reset the collapse state.
-  useEffect(() => {
-    setCollapsed(collapse);
-    ``;
-  }, [children, collapse]);
-
-  const refreshCollapse = useCallback(() => {
-    if (collapse && contentsRef.current) {
-      const isScrollable =
-        contentsRef.current.offsetHeight < contentsRef.current.scrollHeight;
-      setShowToggle(isScrollable);
-    }
-  }, [collapse, setShowToggle, contentsRef]);
+  const lineHeightRef = useRef<number>(0);
 
   useEffect(() => {
-    refreshCollapse();
-  }, [children]);
+    setIsCollapsed(collapse);
+  }, [collapse, children]);
 
-  // Determine whether we should show the toggle
-  useEffect(() => {
-    // When an entry is visible, check to see whether it is scrolling
-    observerRef.current = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          refreshCollapse();
-        }
-      });
-    });
+  const checkOverflow = useCallback(
+    (entry: ResizeObserverEntry) => {
+      const element = entry.target as HTMLDivElement;
 
-    if (contentsRef.current) {
-      observerRef.current.observe(contentsRef.current);
-    }
-
-    return () => {
-      if (observerRef.current && contentsRef.current) {
-        observerRef.current.unobserve(contentsRef.current);
+      // Calculate line height if we haven't yet
+      if (!lineHeightRef.current) {
+        const computedStyle = window.getComputedStyle(element);
+        lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16; // fallback to 16px if can't get line height
       }
-    };
-  }, [contentsRef, observerRef]);
 
-  // Enforce the line clamp if need be
+      const maxCollapsedHeight = lines * lineHeightRef.current;
+      const contentHeight = element.scrollHeight;
 
-  const className = [];
-  let contentsStyle = {};
-  if (collapse && collapsed) {
-    className.push("expandable-collapsed");
-    contentsStyle = {
+      setShowToggle(contentHeight > maxCollapsedHeight);
+    },
+    [lines],
+  );
+
+  const contentRef = useResizeObserver(checkOverflow);
+
+  const baseStyles = {
+    overflow: "hidden",
+    ...(isCollapsed && {
       maxHeight: `${lines}em`,
-    };
-  }
-
-  if (border) {
-    className.push("expandable-bordered");
-  }
-
-  if (!showToggle) {
-    className.push("expandable-togglable");
-  }
+    }),
+    ...style,
+  };
 
   return (
     <div>
       <div
-        className={clsx("expandable-panel", className)}
-        ref={contentsRef}
-        style={{ ...contentsStyle, ...style }}
+        ref={contentRef}
+        className={`expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`}
+        style={baseStyles}
       >
         {children}
       </div>
-      {showToggle ? (
+
+      {showToggle && (
         <MoreToggle
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
+          collapsed={isCollapsed}
+          setCollapsed={setIsCollapsed}
           border={!border}
           style={style}
         />
-      ) : (
-        ""
       )}
     </div>
   );
@@ -125,23 +94,12 @@ const MoreToggle: React.FC<MoreToggleProps> = ({
     ? ApplicationIcons["expand-down"]
     : ApplicationIcons.collapse.up;
 
-  const topStyle = {
-    ...style,
-  };
-
-  const className = [];
-  if (border) {
-    className.push("bordered");
-  }
-
   return (
-    <div className={clsx("more-toggle", className)} style={topStyle}>
-      <div className={"more-toggle-container"}>
+    <div className={`more-toggle ${border ? "bordered" : ""}`} style={style}>
+      <div className="more-toggle-container">
         <button
-          className={"btn more-toggle-button"}
-          onClick={() => {
-            setCollapsed(!collapsed);
-          }}
+          className="btn more-toggle-button"
+          onClick={() => setCollapsed(!collapsed)}
         >
           <i className={icon} />
           {text}
@@ -150,3 +108,5 @@ const MoreToggle: React.FC<MoreToggleProps> = ({
     </div>
   );
 };
+
+export default ExpandablePanel;
