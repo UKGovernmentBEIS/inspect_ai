@@ -8050,9 +8050,12 @@ var require_assets = __commonJS({
       transcript: "bi bi-list-columns-reverse",
       usage: "bi bi-stopwatch"
     };
-    const ErrorPanel = (props) => {
-      const message = props.error.message;
-      const stack2 = props.error.stack;
+    const ErrorPanel = ({
+      title,
+      error: error2
+    }) => {
+      const message = error2.message;
+      const stack2 = error2.stack;
       return /* @__PURE__ */ u("div", {
         className: "error-panel centered-flex",
         children: [/* @__PURE__ */ u("div", {
@@ -8062,12 +8065,12 @@ var require_assets = __commonJS({
               class: `${ApplicationIcons.error} error-icon`
             })
           }), /* @__PURE__ */ u("div", {
-            children: props.title || ""
+            children: title || ""
           })]
         }), /* @__PURE__ */ u("div", {
           className: "error-panel-body",
           children: /* @__PURE__ */ u("div", {
-            children: ["Error: ", message || "", "$", stack2 && props.error.displayStack !== false && /* @__PURE__ */ u("pre", {
+            children: ["Error: ", message || "", "$", stack2 && error2.displayStack !== false && /* @__PURE__ */ u("pre", {
               className: "error-panel-stack",
               children: /* @__PURE__ */ u("code", {
                 children: ["at $", stack2]
@@ -8115,10 +8118,14 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
-    const ProgressBar = (props) => {
+    const ProgressBar = ({
+      style: style2,
+      containerStyle,
+      animating
+    }) => {
       return /* @__PURE__ */ u("div", {
         className: "progress-bar-wrapper",
-        style: props.style,
+        style: style2,
         children: /* @__PURE__ */ u("div", {
           className: "progress-container",
           role: "progressbar",
@@ -8126,10 +8133,10 @@ var require_assets = __commonJS({
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          style: props.containerStyle,
-          children: props.animating && /* @__PURE__ */ u("div", {
+          style: containerStyle,
+          children: animating && /* @__PURE__ */ u("div", {
             className: "progress-bar-animated",
-            style: props.style
+            style: style2
           })
         })
       });
@@ -9837,14 +9844,17 @@ var require_assets = __commonJS({
       });
     })(ansiOutput, ansiOutput.exports);
     var ansiOutputExports = ansiOutput.exports;
-    const ANSIDisplay = (props) => {
+    const ANSIDisplay = ({
+      output,
+      style: style2
+    }) => {
       const ansiOutput2 = new ansiOutputExports.ANSIOutput();
-      ansiOutput2.processOutput(props.output);
+      ansiOutput2.processOutput(output);
       let firstOutput = false;
       return /* @__PURE__ */ u("div", {
         className: "ansi-display",
         style: {
-          ...props.style
+          ...style2
         },
         children: ansiOutput2.outputLines.map((line2) => {
           firstOutput = firstOutput || !!line2.outputRuns.length;
@@ -9859,10 +9869,12 @@ var require_assets = __commonJS({
     };
     const kForeground = 0;
     const kBackground = 1;
-    const OutputRun = (props) => {
+    const OutputRun = ({
+      run
+    }) => {
       return /* @__PURE__ */ u("span", {
-        style: computeCSSProperties(props.run),
-        children: props.run.text
+        style: computeCSSProperties(run),
+        children: run.text
       });
     };
     const computeCSSProperties = (outputRun) => {
@@ -16173,296 +16185,6 @@ var require_assets = __commonJS({
           return "video/mpeg";
       }
     };
-    function g(n2, t2) {
-      for (var e2 in n2) if ("__source" !== e2 && !(e2 in t2)) return true;
-      for (var r2 in t2) if ("__source" !== r2 && n2[r2] !== t2[r2]) return true;
-      return false;
-    }
-    function E(n2, t2) {
-      var e2 = t2(), r2 = h({ t: { __: e2, u: t2 } }), u2 = r2[0].t, o2 = r2[1];
-      return _(function() {
-        u2.__ = e2, u2.u = t2, C$1(u2) && o2({ t: u2 });
-      }, [n2, e2, t2]), y(function() {
-        return C$1(u2) && o2({ t: u2 }), n2(function() {
-          C$1(u2) && o2({ t: u2 });
-        });
-      }, [n2]), e2;
-    }
-    function C$1(n2) {
-      var t2, e2, r2 = n2.u, u2 = n2.__;
-      try {
-        var o2 = r2();
-        return !((t2 = u2) === (e2 = o2) && (0 !== t2 || 1 / t2 == 1 / e2) || t2 != t2 && e2 != e2);
-      } catch (n3) {
-        return true;
-      }
-    }
-    function x$1(n2) {
-      n2();
-    }
-    function R(n2) {
-      return n2;
-    }
-    function w() {
-      return [false, x$1];
-    }
-    var k = _;
-    function I(n2, t2) {
-      this.props = n2, this.context = t2;
-    }
-    function N(n2, e2) {
-      function r2(n3) {
-        var t2 = this.props.ref, r3 = t2 == n3.ref;
-        return !r3 && t2 && (t2.call ? t2(null) : t2.current = null), e2 ? !e2(this.props, n3) || !r3 : g(this.props, n3);
-      }
-      function u2(e3) {
-        return this.shouldComponentUpdate = r2, g$2(n2, e3);
-      }
-      return u2.displayName = "Memo(" + (n2.displayName || n2.name) + ")", u2.prototype.isReactComponent = true, u2.__f = true, u2;
-    }
-    (I.prototype = new x$3()).isPureReactComponent = true, I.prototype.shouldComponentUpdate = function(n2, t2) {
-      return g(this.props, n2) || g(this.state, t2);
-    };
-    var M = l$1.__b;
-    l$1.__b = function(n2) {
-      n2.type && n2.type.__f && n2.ref && (n2.props.ref = n2.ref, n2.ref = null), M && M(n2);
-    };
-    var T = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.forward_ref") || 3911;
-    function A(n2) {
-      function t2(t3) {
-        if (!("ref" in t3)) return n2(t3, null);
-        var e2 = t3.ref;
-        delete t3.ref;
-        var r2 = n2(t3, e2);
-        return t3.ref = e2, r2;
-      }
-      return t2.$$typeof = T, t2.render = t2, t2.prototype.isReactComponent = t2.__f = true, t2.displayName = "ForwardRef(" + (n2.displayName || n2.name) + ")", t2;
-    }
-    var D = function(n2, t2) {
-      return null == n2 ? null : L$1(L$1(n2).map(t2));
-    }, L = { map: D, forEach: D, count: function(n2) {
-      return n2 ? L$1(n2).length : 0;
-    }, only: function(n2) {
-      var t2 = L$1(n2);
-      if (1 !== t2.length) throw "Children.only";
-      return t2[0];
-    }, toArray: L$1 }, O = l$1.__e;
-    l$1.__e = function(n2, t2, e2, r2) {
-      if (n2.then) {
-        for (var u2, o2 = t2; o2 = o2.__; ) if ((u2 = o2.__c) && u2.__c) return null == t2.__e && (t2.__e = e2.__e, t2.__k = e2.__k), u2.__c(n2, t2);
-      }
-      O(n2, t2, e2, r2);
-    };
-    var F = l$1.unmount;
-    function U(n2, t2, e2) {
-      return n2 && (n2.__c && n2.__c.__H && (n2.__c.__H.__.forEach(function(n3) {
-        "function" == typeof n3.__c && n3.__c();
-      }), n2.__c.__H = null), null != (n2 = function(n3, t3) {
-        for (var e3 in t3) n3[e3] = t3[e3];
-        return n3;
-      }({}, n2)).__c && (n2.__c.__P === e2 && (n2.__c.__P = t2), n2.__c = null), n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return U(n3, t2, e2);
-      })), n2;
-    }
-    function V(n2, t2, e2) {
-      return n2 && e2 && (n2.__v = null, n2.__k = n2.__k && n2.__k.map(function(n3) {
-        return V(n3, t2, e2);
-      }), n2.__c && n2.__c.__P === t2 && (n2.__e && e2.appendChild(n2.__e), n2.__c.__e = true, n2.__c.__P = e2)), n2;
-    }
-    function W() {
-      this.__u = 0, this.o = null, this.__b = null;
-    }
-    function P(n2) {
-      var t2 = n2.__.__c;
-      return t2 && t2.__a && t2.__a(n2);
-    }
-    function j(n2) {
-      var e2, r2, u2;
-      function o2(o3) {
-        if (e2 || (e2 = n2()).then(function(n3) {
-          r2 = n3.default || n3;
-        }, function(n3) {
-          u2 = n3;
-        }), u2) throw u2;
-        if (!r2) throw e2;
-        return g$2(r2, o3);
-      }
-      return o2.displayName = "Lazy", o2.__f = true, o2;
-    }
-    function z() {
-      this.i = null, this.l = null;
-    }
-    l$1.unmount = function(n2) {
-      var t2 = n2.__c;
-      t2 && t2.__R && t2.__R(), t2 && 32 & n2.__u && (n2.type = null), F && F(n2);
-    }, (W.prototype = new x$3()).__c = function(n2, t2) {
-      var e2 = t2.__c, r2 = this;
-      null == r2.o && (r2.o = []), r2.o.push(e2);
-      var u2 = P(r2.__v), o2 = false, i2 = function() {
-        o2 || (o2 = true, e2.__R = null, u2 ? u2(c2) : c2());
-      };
-      e2.__R = i2;
-      var c2 = function() {
-        if (!--r2.__u) {
-          if (r2.state.__a) {
-            var n3 = r2.state.__a;
-            r2.__v.__k[0] = V(n3, n3.__c.__P, n3.__c.__O);
-          }
-          var t3;
-          for (r2.setState({ __a: r2.__b = null }); t3 = r2.o.pop(); ) t3.forceUpdate();
-        }
-      };
-      r2.__u++ || 32 & t2.__u || r2.setState({ __a: r2.__b = r2.__v.__k[0] }), n2.then(i2, i2);
-    }, W.prototype.componentWillUnmount = function() {
-      this.o = [];
-    }, W.prototype.render = function(n2, e2) {
-      if (this.__b) {
-        if (this.__v.__k) {
-          var r2 = document.createElement("div"), o2 = this.__v.__k[0].__c;
-          this.__v.__k[0] = U(this.__b, r2, o2.__O = o2.__P);
-        }
-        this.__b = null;
-      }
-      var i2 = e2.__a && g$2(k$2, null, n2.fallback);
-      return i2 && (i2.__u &= -33), [g$2(k$2, null, e2.__a ? null : n2.children), i2];
-    };
-    var B = function(n2, t2, e2) {
-      if (++e2[1] === e2[0] && n2.l.delete(t2), n2.props.revealOrder && ("t" !== n2.props.revealOrder[0] || !n2.l.size)) for (e2 = n2.i; e2; ) {
-        for (; e2.length > 3; ) e2.pop()();
-        if (e2[1] < e2[0]) break;
-        n2.i = e2 = e2[2];
-      }
-    };
-    function H(n2) {
-      return this.getChildContext = function() {
-        return n2.context;
-      }, n2.children;
-    }
-    function Z(n2) {
-      var e2 = this, r2 = n2.h;
-      e2.componentWillUnmount = function() {
-        D$2(null, e2.v), e2.v = null, e2.h = null;
-      }, e2.h && e2.h !== r2 && e2.componentWillUnmount(), e2.v || (e2.h = r2, e2.v = { nodeType: 1, parentNode: r2, childNodes: [], contains: function() {
-        return true;
-      }, appendChild: function(n3) {
-        this.childNodes.push(n3), e2.h.appendChild(n3);
-      }, insertBefore: function(n3, t2) {
-        this.childNodes.push(n3), e2.h.insertBefore(n3, t2);
-      }, removeChild: function(n3) {
-        this.childNodes.splice(this.childNodes.indexOf(n3) >>> 1, 1), e2.h.removeChild(n3);
-      } }), D$2(g$2(H, { context: e2.context }, n2.__v), e2.v);
-    }
-    function Y(n2, e2) {
-      var r2 = g$2(Z, { __v: n2, h: e2 });
-      return r2.containerInfo = e2, r2;
-    }
-    (z.prototype = new x$3()).__a = function(n2) {
-      var t2 = this, e2 = P(t2.__v), r2 = t2.l.get(n2);
-      return r2[0]++, function(u2) {
-        var o2 = function() {
-          t2.props.revealOrder ? (r2.push(u2), B(t2, n2, r2)) : u2();
-        };
-        e2 ? e2(o2) : o2();
-      };
-    }, z.prototype.render = function(n2) {
-      this.i = null, this.l = /* @__PURE__ */ new Map();
-      var t2 = L$1(n2.children);
-      n2.revealOrder && "b" === n2.revealOrder[0] && t2.reverse();
-      for (var e2 = t2.length; e2--; ) this.l.set(t2[e2], this.i = [1, 0, this.i]);
-      return n2.children;
-    }, z.prototype.componentDidUpdate = z.prototype.componentDidMount = function() {
-      var n2 = this;
-      this.l.forEach(function(t2, e2) {
-        B(n2, e2, t2);
-      });
-    };
-    var $ = "undefined" != typeof Symbol && Symbol.for && Symbol.for("react.element") || 60103, q = /^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/, G = /^on(Ani|Tra|Tou|BeforeInp|Compo)/, J = /[A-Z0-9]/g, K = "undefined" != typeof document, Q = function(n2) {
-      return ("undefined" != typeof Symbol && "symbol" == typeof Symbol() ? /fil|che|rad/ : /fil|che|ra/).test(n2);
-    };
-    function X(n2, t2, e2) {
-      return null == t2.__k && (t2.textContent = ""), D$2(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    function nn(n2, t2, e2) {
-      return E$1(n2, t2), "function" == typeof e2 && e2(), n2 ? n2.__c : null;
-    }
-    x$3.prototype.isReactComponent = {}, ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach(function(t2) {
-      Object.defineProperty(x$3.prototype, t2, { configurable: true, get: function() {
-        return this["UNSAFE_" + t2];
-      }, set: function(n2) {
-        Object.defineProperty(this, t2, { configurable: true, writable: true, value: n2 });
-      } });
-    });
-    var tn = l$1.event;
-    function en() {
-    }
-    function rn() {
-      return this.cancelBubble;
-    }
-    function un() {
-      return this.defaultPrevented;
-    }
-    l$1.event = function(n2) {
-      return tn && (n2 = tn(n2)), n2.persist = en, n2.isPropagationStopped = rn, n2.isDefaultPrevented = un, n2.nativeEvent = n2;
-    };
-    var on, cn = { enumerable: false, configurable: true, get: function() {
-      return this.class;
-    } }, fn = l$1.vnode;
-    l$1.vnode = function(n2) {
-      "string" == typeof n2.type && function(n3) {
-        var t2 = n3.props, e2 = n3.type, u2 = {}, o2 = -1 === e2.indexOf("-");
-        for (var i2 in t2) {
-          var c2 = t2[i2];
-          if (!("value" === i2 && "defaultValue" in t2 && null == c2 || K && "children" === i2 && "noscript" === e2 || "class" === i2 || "className" === i2)) {
-            var f2 = i2.toLowerCase();
-            "defaultValue" === i2 && "value" in t2 && null == t2.value ? i2 = "value" : "download" === i2 && true === c2 ? c2 = "" : "translate" === f2 && "no" === c2 ? c2 = false : "o" === f2[0] && "n" === f2[1] ? "ondoubleclick" === f2 ? i2 = "ondblclick" : "onchange" !== f2 || "input" !== e2 && "textarea" !== e2 || Q(t2.type) ? "onfocus" === f2 ? i2 = "onfocusin" : "onblur" === f2 ? i2 = "onfocusout" : G.test(i2) && (i2 = f2) : f2 = i2 = "oninput" : o2 && q.test(i2) ? i2 = i2.replace(J, "-$&").toLowerCase() : null === c2 && (c2 = void 0), "oninput" === f2 && u2[i2 = f2] && (i2 = "oninputCapture"), u2[i2] = c2;
-          }
-        }
-        "select" == e2 && u2.multiple && Array.isArray(u2.value) && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = -1 != u2.value.indexOf(n4.props.value);
-        })), "select" == e2 && null != u2.defaultValue && (u2.value = L$1(t2.children).forEach(function(n4) {
-          n4.props.selected = u2.multiple ? -1 != u2.defaultValue.indexOf(n4.props.value) : u2.defaultValue == n4.props.value;
-        })), t2.class && !t2.className ? (u2.class = t2.class, Object.defineProperty(u2, "className", cn)) : (t2.className && !t2.class || t2.class && t2.className) && (u2.class = u2.className = t2.className), n3.props = u2;
-      }(n2), n2.$$typeof = $, fn && fn(n2);
-    };
-    var ln = l$1.__r;
-    l$1.__r = function(n2) {
-      ln && ln(n2), on = n2.__c;
-    };
-    var an = l$1.diffed;
-    l$1.diffed = function(n2) {
-      an && an(n2);
-      var t2 = n2.props, e2 = n2.__e;
-      null != e2 && "textarea" === n2.type && "value" in t2 && t2.value !== e2.value && (e2.value = null == t2.value ? "" : t2.value), on = null;
-    };
-    var sn = { ReactCurrentDispatcher: { current: { readContext: function(n2) {
-      return on.__n[n2.__c].props.value;
-    }, useCallback: q$1, useContext: x$2, useDebugValue: P$2, useDeferredValue: R, useEffect: y, useId: g$1, useImperativeHandle: F$1, useInsertionEffect: k, useLayoutEffect: _, useMemo: T$1, useReducer: p, useRef: A$1, useState: h, useSyncExternalStore: E, useTransition: w } } };
-    function vn(n2) {
-      return g$2.bind(null, n2);
-    }
-    function dn(n2) {
-      return !!n2 && n2.$$typeof === $;
-    }
-    function pn(n2) {
-      return dn(n2) && n2.type === k$2;
-    }
-    function mn(n2) {
-      return !!n2 && !!n2.displayName && ("string" == typeof n2.displayName || n2.displayName instanceof String) && n2.displayName.startsWith("Memo(");
-    }
-    function yn(n2) {
-      return dn(n2) ? G$1.apply(null, arguments) : n2;
-    }
-    function _n(n2) {
-      return !!n2.__k && (D$2(null, n2), true);
-    }
-    function bn(n2) {
-      return n2 && (n2.base || 1 === n2.nodeType && n2) || null;
-    }
-    var Sn = function(n2, t2) {
-      return n2(t2);
-    }, gn = function(n2, t2) {
-      return n2(t2);
-    }, En = k$2, Cn = dn, xn = { useState: h, useId: g$1, useReducer: p, useEffect: y, useLayoutEffect: _, useInsertionEffect: k, useTransition: w, useDeferredValue: R, useSyncExternalStore: E, startTransition: x$1, useRef: A$1, useImperativeHandle: F$1, useMemo: T$1, useCallback: q$1, useContext: x$2, useDebugValue: P$2, version: "18.3.1", Children: L, render: X, hydrate: nn, unmountComponentAtNode: _n, createPortal: Y, createElement: g$2, createContext: J$1, createFactory: vn, cloneElement: yn, createRef: b, Fragment: k$2, isValidElement: dn, isElement: Cn, isFragment: pn, isMemo: mn, findDOMNode: bn, Component: x$3, PureComponent: I, memo: N, forwardRef: A, flushSync: gn, unstable_batchedUpdates: Sn, StrictMode: En, Suspense: W, SuspenseList: z, lazy: j, __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: sn };
     const VirtualList = A(
       ({
         data,
@@ -20913,13 +20635,15 @@ categories: ${categories.join(" ")}`;
         return attr.includes("data-vscode-");
       });
     };
-    const EmptyPanel = (props) => {
+    const EmptyPanel = ({
+      children: children2
+    }) => {
       return /* @__PURE__ */ u("div", {
         className: "empty-panel",
         children: /* @__PURE__ */ u("div", {
           className: "container",
           children: /* @__PURE__ */ u("div", {
-            children: props.children
+            children: children2
           })
         })
       });
@@ -24931,22 +24655,28 @@ self.onmessage = function (e) {
         })
       });
     };
-    const LabeledValue = (props) => {
-      const flexDirection = props.layout === "column" ? "column" : "row";
+    const LabeledValue = ({
+      layout,
+      style: style2,
+      label,
+      children: children2,
+      valueStyle
+    }) => {
+      const flexDirection = layout === "column" ? "column" : "row";
       return /* @__PURE__ */ u("div", {
         className: `labeled-value ${flexDirection}`,
         style: {
-          ...props.style
+          ...style2
         },
         children: [/* @__PURE__ */ u("div", {
           className: "labeled-value-label text-style-label text-style-secondary",
-          children: props.label
+          children: label
         }), /* @__PURE__ */ u("div", {
           className: "labeled-value-value",
           style: {
-            ...props.valueStyle
+            ...valueStyle
           },
-          children: props.children
+          children: children2
         })]
       });
     };
@@ -33507,7 +33237,7 @@ ${events}
       document.body.removeChild(div);
       return metrics;
     }
-    const AsciiCinemaPlayer = ({
+    const AsciinemaPlayer = ({
       id,
       rows,
       cols,
@@ -33522,37 +33252,34 @@ ${events}
       idleTimeLimit = 2,
       style: style2
     }) => {
-      const playerContainerRef = A$1();
+      const playerContainerRef = A$1(null);
       y(() => {
-        const player = create(
-          {
-            url: [timingUrl, outputUrl, inputUrl],
-            parser: "typescript"
-          },
-          playerContainerRef.current,
-          {
-            rows,
-            cols,
-            autoPlay,
-            loop,
-            theme: theme2,
-            speed,
-            idleTimeLimit,
-            fit
-          }
-        );
+        if (!playerContainerRef.current) return;
+        const player = create({
+          url: [timingUrl, outputUrl, inputUrl],
+          parser: "typescript"
+        }, playerContainerRef.current, {
+          rows,
+          cols,
+          autoPlay,
+          loop,
+          theme: theme2,
+          speed,
+          idleTimeLimit,
+          fit
+        });
         player.play();
         return () => {
           player.dispose();
         };
-      }, []);
-      return m$1`
-    <div
-      id="asciinema-player-${id || "default"}"
-      ref=${playerContainerRef}
-      style=${{ ...style2 }}
-    ></div>
-  `;
+      }, [timingUrl, outputUrl, inputUrl, rows, cols, autoPlay, loop, theme2, speed, idleTimeLimit, fit]);
+      return /* @__PURE__ */ u("div", {
+        id: `asciinema-player-${id || "default"}`,
+        ref: playerContainerRef,
+        style: {
+          ...style2
+        }
+      });
     };
     const LightboxCarousel = ({ slides }) => {
       const [isOpen, setIsOpen] = h(false);
@@ -33758,7 +33485,7 @@ ${events}
         player_fns.push({
           label: title,
           render: () => m$1`
-        <${AsciiCinemaPlayer}
+        <${AsciinemaPlayer}
           id=${`player-${currentCount}`}
           inputUrl=${revokableUrl(sessionLog.input)}
           outputUrl=${revokableUrl(sessionLog.output)}

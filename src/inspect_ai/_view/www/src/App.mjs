@@ -1,4 +1,3 @@
-import "asciinema-player/dist/bundle/asciinema-player.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.css";
 import "prismjs";
