@@ -17629,14 +17629,14 @@ ul.jsondiffpatch-textdiff {
   padding: 1em;
   margin: 0.5em 0;
   overflow: auto;
-  border: 0.3em solid #7a6651;
+  /* border: 0.3em solid #7a6651; */
   border-radius: 0.5em;
   box-shadow: 1px 1px 0.5em #000 inset;
 }
 .vscode-dark :not(pre) > code[class*="language-"] {
   padding: 0.15em 0.2em 0.05em;
   border-radius: 0.3em;
-  border: 0.13em solid #7a6651;
+  /* border: 0.13em solid #7a6651; */
   box-shadow: 1px 1px 0.3em -0.1em #000 inset;
   white-space: normal;
 }
