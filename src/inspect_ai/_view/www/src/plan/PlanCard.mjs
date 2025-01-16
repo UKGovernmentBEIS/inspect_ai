@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
-import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { toTitleCase } from "../utils/format";
 import { ghCommitUrl } from "../utils/git";
@@ -23,10 +23,7 @@ export const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
-      <${CardBody} id="${kPlanCardBodyId}" style=${{
-        paddingTop: "0",
-        paddingBottom: "0",
-      }}>
+      <${CardBody} id="${kPlanCardBodyId}">
       
         <${PlanDetailView}
           evaluation=${evalSpec}

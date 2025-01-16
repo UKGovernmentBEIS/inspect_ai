@@ -22,7 +22,7 @@ import { SampleTranscript } from "./SampleTranscript.mjs";
 
 import { ProgressBar } from "../components/ProgressBar";
 
-import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { JSONPanel } from "../components/JsonPanel";

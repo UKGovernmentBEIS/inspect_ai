@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { JSX, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import "./CopyButton.css";
@@ -44,7 +45,7 @@ export const CopyButton = ({
   return (
     <button
       type="button"
-      className={["copy-button", className].filter(Boolean).join(" ")}
+      className={clsx("copy-button", className)}
       onClick={handleClick}
       aria-label={ariaLabel}
       disabled={isCopied}

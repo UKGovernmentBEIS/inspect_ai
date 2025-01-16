@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
-import { Card, CardBody, CardHeader } from "../components/Card.mjs";
+import { Card, CardBody, CardHeader } from "../components/Card";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { formatDuration, formatNumber } from "../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable.mjs";
@@ -34,11 +34,7 @@ export const UsageCard = ({ stats }) => {
 
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
-      <${CardBody} id=${kUsageCardBodyId} style=${{
-        paddingTop: "0",
-        paddingBottom: "0",
-        borderTop: "solid var(--bs-border-color) 1px",
-      }}>
+      <${CardBody} id=${kUsageCardBodyId}>
         <div style=${{
           paddingTop: "0",
           paddingBottom: "1em",
