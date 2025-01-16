@@ -394,7 +394,13 @@ def computer_use_tool_param(tool: ToolInfo) -> ComputerUseToolParam | None:
         return ComputerUseToolParam(
             type="computer_20241022",
             name="computer",
-            display_width_px=1024,
+            # Note: The dimensions passed here for display_width_px and display_height_px should
+            # match the dimensions of screenshots returned by the tool.
+            # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
+            # in _x11_client.py.
+            # TODO: enhance this code to calculate the dimensions based on the scaled screen
+            # size used by the container.
+            display_width_px=1366,
             display_height_px=768,
             display_number=1,
         )
