@@ -78,7 +78,7 @@ def hierarchical_bootstrap(
     See tests for a more readable counterpart using loops, ``readable_hierarchical_bootstrap``.
 
     Implements hierarchical bootstrap with two levels: resample clusters, then resample members
-    within each cluster, both with replacement. In the most common use case (the ``stderr``
+    within each cluster, both with replacement. In the most common use case (the ``bootstrap_stderr``
     metric), the clusters are benchmark questions, and the members are scores from different epochs.
     """
     rng = np.random.default_rng(random_state)
