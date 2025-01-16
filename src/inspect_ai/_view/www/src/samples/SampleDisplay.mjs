@@ -13,7 +13,7 @@ import { ApplicationStyles } from "../appearance/styles";
 import { arrayToString } from "../utils/format";
 
 import { ApplicationIcons } from "../appearance/icons";
-import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { ANSIDisplay } from "../components/AnsiDisplay";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { ToolButton } from "../components/ToolButton";
 import { FlatSampleError } from "./SampleError.mjs";

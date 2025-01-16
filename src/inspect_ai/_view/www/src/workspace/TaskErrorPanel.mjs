@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { FontSize } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 
-import { ANSIDisplay } from "../components/AnsiDisplay.mjs";
+import { ANSIDisplay } from "../components/AnsiDisplay";
 import { Card, CardBody, CardHeader } from "../components/Card.mjs";
 
 export const TaskErrorCard = ({ evalError }) => {
