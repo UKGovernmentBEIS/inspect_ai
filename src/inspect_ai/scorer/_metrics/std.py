@@ -15,45 +15,12 @@ from .._metric import (
 logger = getLogger(__name__)
 
 
-@metric
-def bootstrap_stderr(
-    num_samples: int = 1000, to_float: ValueToFloat = value_to_float()
-) -> Metric:
-    """Standard error of the mean using bootstrap.
-
-    Args:
-       num_samples (int): Number of bootstrap samples to take.
-       to_float (ValueToFloat): Function for mapping
-         Value to float for computing metrics. The default
-         `value_to_float()` maps CORRECT ("C") to 1.0,
-         INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
-         NOANSWER ("N") to 0, casts numeric values to
-         float directly, and prints a warning and returns
-         0 if the Value is a complex object (list or dict).
-
-    Returns:
-       bootstrap_stderr metric
-    """
-
-    def metric(scores: list[ReducedScore]) -> float:
-        values = [to_float(score.value) for score in scores]
-        std = np.std(
-            [
-                np.mean(np.random.choice(values, len(values), replace=True))
-                for _ in range(num_samples)
-            ]
-        )
-        return cast(float, std.item())
-
-    return metric
-
-
 class InhomogenousClustersError(ValueError):
     pass
 
 
 @metric
-def stderr(
+def bootstrap_stderr(
     num_samples: int = 1000, to_float: ValueToFloat = value_to_float()
 ) -> Metric:
     """Standard error of the mean using hierarchical bootstrap.
@@ -146,6 +113,50 @@ def hierarchical_bootstrap(
     bootstrap_means = np.mean(cluster_means, axis=1)  # Shape: (num_samples,)
 
     return cast(NDArray[np.float64], bootstrap_means)
+
+
+@metric
+def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
+    """Standard error of the mean using Central Limit Theorem. Ignores variation accross epochs.
+
+    Ignores variation accross epochs due to non-deterministic model output. Only takes into account
+    variation accross questions. To take into account variation accross epochs, use the hierarchical
+    scheme in ``bootstrap_stderr``.
+
+    Uses only each ``ReducedScore``'s float ``.value``, ignoring the ``.children`` of
+    each ``ReducedScore``.
+
+    Args:
+        to_float (ValueToFloat): Function for mapping
+            Value to float for computing metrics. The default
+            `value_to_float()` maps CORRECT ("C") to 1.0,
+            INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
+            NOANSWER ("N") to 0, casts numeric values to
+            float directly, and prints a warning and returns
+            0 if the Value is a complex object (list or dict).
+
+    Returns:
+        stderr metric
+    """
+
+    def metric(scores: list[ReducedScore]) -> float:
+        values = [to_float(score.value) for score in scores]
+        n = len(values)
+
+        # standard deviation is calculated by dividing by n-ddof so ensure
+        # that we won't divide by zero
+        if (n - 1) < 1:
+            return 0
+
+        # Calculate the sample standard deviation
+        sample_std = np.std(values, ddof=1)
+
+        # Calculate the standard error of the mean
+        standard_error = sample_std / np.sqrt(n)
+
+        return cast(float, standard_error)
+
+    return metric
 
 
 @metric

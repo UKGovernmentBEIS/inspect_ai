@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from inspect_ai.scorer._metric import ReducedScore, Score
-from inspect_ai.scorer._metrics.std import hierarchical_bootstrap, stderr
+from inspect_ai.scorer._metrics.std import bootstrap_stderr, hierarchical_bootstrap
 
 
 @contextlib.contextmanager
@@ -34,7 +34,7 @@ def test_stderr_variance_hierarchy():
             ReducedScore(value=1.5, children=[Score(value=1.0), Score(value=2.0)]),
         ]
 
-        metric = stderr()
+        metric = bootstrap_stderr()
         stderr_constant = metric(scores_constant)
         stderr_varying = metric(scores_varying)
 
@@ -50,7 +50,7 @@ def test_stderr_constant():
             ReducedScore(value=1.0, children=[Score(value=1.0)]),
             ReducedScore(value=1.0, children=[Score(value=1.0)]),
         ]
-        metric = stderr()
+        metric = bootstrap_stderr()
         result = metric(scores)
         assert result == pytest.approx(0)
 
@@ -63,7 +63,7 @@ def test_stderr_trivial_clusters():
             ReducedScore(value=0.8, children=[Score(value=0.8)]),
             ReducedScore(value=0.4, children=[Score(value=0.4)]),
         ]
-        metric = stderr()
+        metric = bootstrap_stderr()
         result = metric(scores)
         # For [0.3, 0.8, 0.4]: std ≈ 0.216, sdt/√3 ≈ 0.124
         assert result == pytest.approx(0.124, rel=5 / 100)
@@ -78,7 +78,7 @@ def test_stderr_single_cluster():
                 children=[Score(value=0.3), Score(value=0.8), Score(value=0.4)],
             )
         ]
-        metric = stderr()
+        metric = bootstrap_stderr()
         result = metric(scores)
         # Same as above but with different hierarchy structure
         # For [0.3, 0.8, 0.4]: std ≈ 0.216, sdt/√3 ≈ 0.124
@@ -90,7 +90,7 @@ def test_stderr_empty_cluster_raises():
     scores = [
         ReducedScore(value=1.0, children=[]),
     ]
-    metric = stderr()
+    metric = bootstrap_stderr()
     with pytest.raises(ValueError, match="requires non-empty clusters"):
         metric(scores)
 
