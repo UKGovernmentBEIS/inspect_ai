@@ -10092,6 +10092,19 @@ var require_assets = __commonJS({
       intermediate: 10,
       final: 1e3
     };
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const ExpandablePanel = ({
       collapse,
       border,
@@ -10101,14 +10114,8 @@ var require_assets = __commonJS({
     }) => {
       const [collapsed, setCollapsed] = h(collapse);
       const [showToggle, setShowToggle] = h(false);
-      const contentsRef = A$1(
-        /** @type {HTMLElement|null} */
-        null
-      );
-      const observerRef = A$1(
-        /** @type {IntersectionObserver|null} */
-        null
-      );
+      const contentsRef = A$1(null);
+      const observerRef = A$1(null);
       y(() => {
         setCollapsed(collapse);
       }, [children2, collapse]);
@@ -10138,72 +10145,68 @@ var require_assets = __commonJS({
           }
         };
       }, [contentsRef, observerRef]);
-      let contentsStyle = { fontSize: FontSize.base };
+      const className2 = [];
+      let contentsStyle = {};
       if (collapse && collapsed) {
+        className2.push("expandable-collapsed");
         contentsStyle = {
-          ...contentsStyle,
-          maxHeight: `${lines}em`,
-          overflow: "hidden"
+          maxHeight: `${lines}em`
         };
       }
       if (border) {
-        contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+        className2.push("expandable-bordered");
       }
-      return m$1`<div
-      class="expandable-panel"
-      ref=${contentsRef}
-      style=${{ ...contentsStyle, ...style2 }}
-    >
-      ${children2}
-    </div>
-    ${showToggle ? m$1`<${MoreToggle}
-          collapsed=${collapsed}
-          setCollapsed=${setCollapsed}
-          border=${!border}
-          style=${style2}
-        />` : ""}`;
+      if (!showToggle) {
+        className2.push("expandable-togglable");
+      }
+      return /* @__PURE__ */ u("div", {
+        children: [/* @__PURE__ */ u("div", {
+          className: clsx("expandable-panel", className2),
+          ref: contentsRef,
+          style: {
+            ...contentsStyle,
+            ...style2
+          },
+          children: children2
+        }), showToggle ? /* @__PURE__ */ u(MoreToggle, {
+          collapsed,
+          setCollapsed,
+          border: !border,
+          style: style2
+        }) : ""]
+      });
     };
-    const MoreToggle = ({ collapsed, border, setCollapsed, style: style2 }) => {
+    const MoreToggle = ({
+      collapsed,
+      border,
+      setCollapsed,
+      style: style2
+    }) => {
       const text2 = collapsed ? "more" : "less";
       const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
       const topStyle = {
-        display: "flex",
-        marginBottom: "0.5em",
         ...style2
       };
+      const className2 = [];
       if (border) {
-        topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
-        topStyle.marginTop = "0.5em";
-      } else {
-        topStyle.marginTop = "0";
+        className2.push("bordered");
       }
-      return m$1`
-    <div style=${topStyle}>
-      <div
-        style=${{
-        display: "inline-block",
-        border: "solid var(--bs-light-border-subtle) 1px",
-        borderTop: "none",
-        marginLeft: "auto",
-        marginRight: "1em"
-      }}
-      >
-        <button
-          class="btn"
-          style=${{
-        fontSize: FontSize.smaller,
-        border: "none",
-        padding: "0.1rem .5rem"
-      }}
-          onclick=${() => {
-        setCollapsed(!collapsed);
-      }}
-        >
-          <i class="${icon}" /> ${text2}
-        </button>
-      </div>
-    </div>
-  `;
+      return /* @__PURE__ */ u("div", {
+        className: clsx("more-toggle", className2),
+        style: topStyle,
+        children: /* @__PURE__ */ u("div", {
+          className: "more-toggle-container",
+          children: /* @__PURE__ */ u("button", {
+            className: "btn more-toggle-button",
+            onClick: () => {
+              setCollapsed(!collapsed);
+            },
+            children: [/* @__PURE__ */ u("i", {
+              className: icon
+            }), text2]
+          })
+        })
+      });
     };
     const decodeCache = {};
     function getDecodeCache(exclude) {
@@ -24623,19 +24626,6 @@ self.onmessage = function (e) {
         });
       }
     };
-    function r(e2) {
-      var t2, f2, n2 = "";
-      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
-      else if ("object" == typeof e2) if (Array.isArray(e2)) {
-        var o2 = e2.length;
-        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
-      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
-      return n2;
-    }
-    function clsx() {
-      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
-      return n2;
-    }
     const CopyButton = ({
       value,
       onCopySuccess,

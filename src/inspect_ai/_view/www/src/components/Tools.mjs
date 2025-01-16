@@ -11,7 +11,7 @@ import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/fonts";
-import { ExpandablePanel } from "./ExpandablePanel.mjs";
+import { ExpandablePanel } from "./ExpandablePanel";
 import { MarkdownDiv } from "./MarkdownDiv.mjs";
 import { MessageContent } from "./MessageContent.mjs";
 
