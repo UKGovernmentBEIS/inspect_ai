@@ -443,7 +443,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     container,
                 ],
                 ports=await get_ports_info(container),
-                container=container
+                container=container,
             )
         # error (not currently running)
         else:
