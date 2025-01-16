@@ -141,7 +141,9 @@ class X11Client:
                 raise ToolError(output=f"{text} must be a string")
 
             if action == "key":
-                return await self.shell(f"{self.xdotool} key -- {shlex.quote(text)}")
+                return await self.shell(
+                    f"{self.xdotool} key -- {' '.join(shlex.quote(part) for part in text.split())}"
+                )
             elif action == "type":
                 results: list[ToolResult] = []
                 for chunk in chunks(text, TYPING_GROUP_SIZE):
