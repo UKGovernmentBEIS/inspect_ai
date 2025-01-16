@@ -165,7 +165,7 @@ class ModelAPI(abc.ABC):
         return False
 
     def tool_result_images(self) -> bool:
-        """Tool results can containe images"""
+        """Tool results can contain images"""
         return False
 
 
@@ -713,22 +713,28 @@ def tool_result_images_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
 ) -> list[ChatMessage]:
-    # append the message
-    messages.append(message)
-
     # if there are tool result images, pull them out into a ChatUserMessage
     if isinstance(message, ChatMessageTool) and isinstance(message.content, list):
+        tool_message = ChatMessageTool(
+            content=message.content.copy(), tool_call_id=message.tool_call_id
+        )
+        assert isinstance(tool_message.content, list)
+        messages.append(tool_message)
+
         user_content: list[Content] = []
-        for i in range(0, len(message.content)):
-            if isinstance(message.content[i], ContentImage):
+        for i in range(0, len(tool_message.content)):
+            if isinstance(tool_message.content[i], ContentImage):
                 user_content.append(message.content[i])
-                message.content[i] = ContentText(
+                tool_message.content[i] = ContentText(
                     text="Image content is in the message below."
                 )
         if len(user_content) > 0:
             messages.append(
                 ChatMessageUser(content=user_content, tool_call_id=message.tool_call_id)
             )
+
+    else:
+        messages.append(message)
 
     # return messages
     return messages

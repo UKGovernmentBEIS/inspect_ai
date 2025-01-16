@@ -1,0 +1,9 @@
+services:
+  default:
+    # Temporary internal image until the official one is available
+    image: inspect-computer-tool-beta
+    init: true
+    # Dynamically assign ports for vnc and novnc
+    ports:
+      - "5900"
+      - "6080"

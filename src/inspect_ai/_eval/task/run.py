@@ -27,10 +27,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
-from inspect_ai._util.registry import (
-    is_registry_object,
-    registry_log_name,
-)
+from inspect_ai._util.registry import is_registry_object, registry_log_name
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
