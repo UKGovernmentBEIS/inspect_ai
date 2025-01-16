@@ -151,8 +151,8 @@ def scorer_metrics(
         return cast(list[Metric | dict[str, list[Metric]]], metrics_raw)
 
 
-def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:
-    base_name = registry_unqualified_name(scorer)
+def unique_scorer_name(scorer: Scorer | str, already_used_names: list[str]) -> str:
+    base_name = scorer if isinstance(scorer, str) else registry_unqualified_name(scorer)
     scorer_name = base_name
     count = 1
     while scorer_name in already_used_names:
