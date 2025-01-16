@@ -42,6 +42,9 @@ class PortMapping(BaseModel):
 class SandboxConnection(BaseModel):
     """Information required to connect to sandbox."""
 
+    type: str
+    """Sandbox type name (e.g. 'docker', 'local', etc.)"""
+
     command: str
     """Shell command to connect to sandbox."""
 
@@ -50,6 +53,9 @@ class SandboxConnection(BaseModel):
 
     ports: list[PortMapping] | None = Field(default=None)
     """Optional list of port mappings into container"""
+
+    container: str | None = Field(default=None)
+    """Optional container name (does not apply to all sandboxes)."""
 
 
 class SandboxEnvironment(abc.ABC):

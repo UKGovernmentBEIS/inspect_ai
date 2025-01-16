@@ -436,12 +436,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # return container connection
         if container:
             return SandboxConnection(
+                type="docker",
                 command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
                 ports=await get_ports_info(container),
+                container=container
             )
         # error (not currently running)
         else:
