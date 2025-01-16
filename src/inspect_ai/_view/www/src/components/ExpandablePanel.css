@@ -1,0 +1,40 @@
+.expandable-bordered {
+  border: solid var(--bs-light-border-subtle) 1px;
+}
+
+.expandable-togglable {
+  margin-bottom: 1em;
+}
+
+.expandable-contents {
+  font-size: var(--inspect-font-size-base);
+}
+
+.expandable-collapsed {
+  overflow: hidden;
+}
+
+.more-toggle {
+  display: flex;
+  margin-bottom: 0.5em;
+  margin-top: 0;
+}
+
+.more-toggle.bordered {
+  border-top: solid var(--bs-light-border-subtle) 1px;
+  margin-top: 0.5em;
+}
+
+.more-toggle-container {
+  display: inline-block;
+  border: solid var(--bs-light-border-subtle) 1px;
+  border-top: none;
+  margin-left: auto;
+  margin-right: 1em;
+}
+
+.more-toggle-button {
+  font-size: var(--inspect-font-size-smaller);
+  border: none;
+  padding: 0.1rem 0.5rem;
+}

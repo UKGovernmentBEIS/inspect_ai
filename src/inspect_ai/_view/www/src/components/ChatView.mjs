@@ -4,7 +4,7 @@ import { html } from "htm/preact";
 import { ApplicationIcons } from "../appearance/icons";
 
 import { FontSize, TextStyle } from "../appearance/fonts";
-import { ExpandablePanel } from "./ExpandablePanel.mjs";
+import { ExpandablePanel } from "./ExpandablePanel";
 import { MessageContent } from "./MessageContent.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 import { VirtualList } from "./VirtualList.mjs";

@@ -1,10 +1,18 @@
-import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
-import { FontSize } from "../appearance/fonts";
+import clsx from "clsx";
 import { ApplicationIcons } from "../appearance/icons";
+import "./ExpandablePanel.css";
 
-export const ExpandablePanel = ({
+interface ExpandablePanelProps {
+  collapse: boolean;
+  border?: boolean;
+  lines?: number;
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
+}
+
+export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   collapse,
   border,
   lines = 15,
@@ -14,12 +22,13 @@ export const ExpandablePanel = ({
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
-  const contentsRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const observerRef = useRef(/** @type {IntersectionObserver|null} */ (null));
+  const contentsRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
 
   // Ensure that when content changes, we reset the collapse state.
   useEffect(() => {
     setCollapsed(collapse);
+    ``;
   }, [children, collapse]);
 
   const refreshCollapse = useCallback(() => {
@@ -57,80 +66,87 @@ export const ExpandablePanel = ({
   }, [contentsRef, observerRef]);
 
   // Enforce the line clamp if need be
-  let contentsStyle = { fontSize: FontSize.base };
+
+  const className = [];
+  let contentsStyle = {};
   if (collapse && collapsed) {
+    className.push("expandable-collapsed");
     contentsStyle = {
-      ...contentsStyle,
       maxHeight: `${lines}em`,
-      overflow: "hidden",
     };
   }
 
   if (border) {
-    contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+    className.push("expandable-bordered");
   }
 
-  return html`<div
-      class="expandable-panel"
-      ref=${contentsRef}
-      style=${{ ...contentsStyle, ...style }}
-    >
-      ${children}
+  if (!showToggle) {
+    className.push("expandable-togglable");
+  }
+
+  return (
+    <div>
+      <div
+        className={clsx("expandable-panel", className)}
+        ref={contentsRef}
+        style={{ ...contentsStyle, ...style }}
+      >
+        {children}
+      </div>
+      {showToggle ? (
+        <MoreToggle
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          border={!border}
+          style={style}
+        />
+      ) : (
+        ""
+      )}
     </div>
-    ${showToggle
-      ? html`<${MoreToggle}
-          collapsed=${collapsed}
-          setCollapsed=${setCollapsed}
-          border=${!border}
-          style=${style}
-        />`
-      : ""}`;
+  );
 };
 
-const MoreToggle = ({ collapsed, border, setCollapsed, style }) => {
+interface MoreToggleProps {
+  collapsed: boolean;
+  border: boolean;
+  setCollapsed: (collapsed: boolean) => void;
+  style?: React.CSSProperties;
+}
+
+const MoreToggle: React.FC<MoreToggleProps> = ({
+  collapsed,
+  border,
+  setCollapsed,
+  style,
+}) => {
   const text = collapsed ? "more" : "less";
   const icon = collapsed
     ? ApplicationIcons["expand-down"]
     : ApplicationIcons.collapse.up;
 
   const topStyle = {
-    display: "flex",
-    marginBottom: "0.5em",
     ...style,
   };
 
+  const className = [];
   if (border) {
-    topStyle.borderTop = "solid var(--bs-light-border-subtle) 1px";
-    topStyle.marginTop = "0.5em";
-  } else {
-    topStyle.marginTop = "0";
+    className.push("bordered");
   }
 
-  return html`
-    <div style=${topStyle}>
-      <div
-        style=${{
-          display: "inline-block",
-          border: "solid var(--bs-light-border-subtle) 1px",
-          borderTop: "none",
-          marginLeft: "auto",
-          marginRight: "1em",
-        }}
-      >
+  return (
+    <div className={clsx("more-toggle", className)} style={topStyle}>
+      <div className={"more-toggle-container"}>
         <button
-          class="btn"
-          style=${{
-            fontSize: FontSize.smaller,
-            border: "none",
-            padding: "0.1rem .5rem",
-          }}
-          onclick=${() => {
+          className={"btn more-toggle-button"}
+          onClick={() => {
             setCollapsed(!collapsed);
           }}
         >
-          <i class="${icon}" /> ${text}
+          <i className={icon} />
+          {text}
         </button>
       </div>
     </div>
-  `;
+  );
 };
