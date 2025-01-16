@@ -123,8 +123,7 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
     variation accross questions. To take into account variation accross epochs, use the hierarchical
     scheme in ``bootstrap_stderr``.
 
-    Uses only each ``ReducedScore``'s float ``.value``, ignoring the ``.children`` of
-    each ``ReducedScore``.
+    Uses only each ``ReducedScore``'s float ``.value``, ignoring its ``.children``.
 
     Args:
         to_float (ValueToFloat): Function for mapping
