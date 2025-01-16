@@ -44,7 +44,7 @@ var require_assets = __commonJS({
         fetch(link2.href, fetchOpts);
       }
     })();
-    var n$1, l$1, u$2, i$3, r$1, o$1, e$2, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
+    var n$1, l$1, u$2, i$3, r$2, o$1, e$2, f$2, c$2, s$1, a$1, h$1, p$1 = {}, v$1 = [], y$1 = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i, d$1 = Array.isArray;
     function w$2(n2, l2) {
       for (var u2 in l2) n2[u2] = l2[u2];
       return n2;
@@ -87,7 +87,7 @@ var require_assets = __commonJS({
       }
     }
     function M$1(n2) {
-      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$3.__r++ || r$1 !== l$1.debounceRendering) && ((r$1 = l$1.debounceRendering) || o$1)(P$3);
+      (!n2.__d && (n2.__d = true) && i$3.push(n2) && !P$3.__r++ || r$2 !== l$1.debounceRendering) && ((r$2 = l$1.debounceRendering) || o$1)(P$3);
     }
     function P$3() {
       var n2, u2, t2, r2, o2, f2, c2, s2;
@@ -7493,10 +7493,10 @@ var require_assets = __commonJS({
     }
     enableDismissTrigger(Toast);
     defineJQueryPlugin(Toast);
-    var t$1, r, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
+    var t$1, r$1, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
     function d(n2, t2) {
-      c$1.__h && c$1.__h(r, n2, o || t2), o = 0;
-      var u2 = r.__H || (r.__H = { __: [], __h: [] });
+      c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
+      var u2 = r$1.__H || (r$1.__H = { __: [], __h: [] });
       return n2 >= u2.__.length && u2.__.push({}), u2.__[n2];
     }
     function h(n2) {
@@ -7507,7 +7507,7 @@ var require_assets = __commonJS({
       if (o2.t = n2, !o2.__c && (o2.__ = [i2 ? i2(u2) : D$1(void 0, u2), function(n3) {
         var t2 = o2.__N ? o2.__N[0] : o2.__[0], r2 = o2.t(t2, n3);
         t2 !== r2 && (o2.__N = [r2, o2.__[1]], o2.__c.setState({}));
-      }], o2.__c = r, !r.u)) {
+      }], o2.__c = r$1, !r$1.u)) {
         var f2 = function(n3, t2, r2) {
           if (!o2.__c.__H) return true;
           var u3 = o2.__c.__H.__.filter(function(n4) {
@@ -7524,25 +7524,25 @@ var require_assets = __commonJS({
             }
           }), c2 && c2.call(this, n3, t2, r2) || i3;
         };
-        r.u = true;
-        var c2 = r.shouldComponentUpdate, e2 = r.componentWillUpdate;
-        r.componentWillUpdate = function(n3, t2, r2) {
+        r$1.u = true;
+        var c2 = r$1.shouldComponentUpdate, e2 = r$1.componentWillUpdate;
+        r$1.componentWillUpdate = function(n3, t2, r2) {
           if (this.__e) {
             var u3 = c2;
             c2 = void 0, f2(n3, t2, r2), c2 = u3;
           }
           e2 && e2.call(this, n3, t2, r2);
-        }, r.shouldComponentUpdate = f2;
+        }, r$1.shouldComponentUpdate = f2;
       }
       return o2.__N || o2.__;
     }
     function y(n2, u2) {
       var i2 = d(t$1++, 3);
-      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r.__H.__h.push(i2));
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__H.__h.push(i2));
     }
     function _(n2, u2) {
       var i2 = d(t$1++, 4);
-      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r.__h.push(i2));
+      !c$1.__s && C$2(i2.__H, u2) && (i2.__ = n2, i2.i = u2, r$1.__h.push(i2));
     }
     function A$1(n2) {
       return o = 5, T$1(function() {
@@ -7568,8 +7568,8 @@ var require_assets = __commonJS({
       }, t2);
     }
     function x$2(n2) {
-      var u2 = r.context[n2.__c], i2 = d(t$1++, 9);
-      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r)), u2.props.value) : n2.__;
+      var u2 = r$1.context[n2.__c], i2 = d(t$1++, 9);
+      return i2.c = n2, u2 ? (null == i2.__ && (i2.__ = true, u2.sub(r$1)), u2.props.value) : n2.__;
     }
     function P$2(n2, t2) {
       c$1.useDebugValue && c$1.useDebugValue(t2 ? t2(n2) : n2);
@@ -7577,7 +7577,7 @@ var require_assets = __commonJS({
     function g$1() {
       var n2 = d(t$1++, 11);
       if (!n2.__) {
-        for (var u2 = r.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
+        for (var u2 = r$1.__v; null !== u2 && !u2.__m && null !== u2.__; ) u2 = u2.__;
         var i2 = u2.__m || (u2.__m = [0, 0]);
         n2.__ = "P" + i2[0] + "-" + i2[1]++;
       }
@@ -7591,21 +7591,21 @@ var require_assets = __commonJS({
       }
     }
     c$1.__b = function(n2) {
-      r = null, e && e(n2);
+      r$1 = null, e && e(n2);
     }, c$1.__ = function(n2, t2) {
       n2 && t2.__k && t2.__k.__m && (n2.__m = t2.__k.__m), s && s(n2, t2);
     }, c$1.__r = function(n2) {
       a && a(n2), t$1 = 0;
-      var i2 = (r = n2.__c).__H;
-      i2 && (u$1 === r ? (i2.__h = [], r.__h = [], i2.__.forEach(function(n3) {
+      var i2 = (r$1 = n2.__c).__H;
+      i2 && (u$1 === r$1 ? (i2.__h = [], r$1.__h = [], i2.__.forEach(function(n3) {
         n3.__N && (n3.__ = n3.__N), n3.i = n3.__N = void 0;
-      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$1 = 0)), u$1 = r;
+      })) : (i2.__h.forEach(z$1), i2.__h.forEach(B$1), i2.__h = [], t$1 = 0)), u$1 = r$1;
     }, c$1.diffed = function(n2) {
       v && v(n2);
       var t2 = n2.__c;
       t2 && t2.__H && (t2.__H.__h.length && (1 !== f$1.push(t2) && i$2 === c$1.requestAnimationFrame || ((i$2 = c$1.requestAnimationFrame) || w$1)(j$1)), t2.__H.__.forEach(function(n3) {
         n3.i && (n3.__H = n3.i), n3.i = void 0;
-      })), u$1 = r = null;
+      })), u$1 = r$1 = null;
     }, c$1.__c = function(n2, t2) {
       t2.some(function(n3) {
         try {
@@ -7637,12 +7637,12 @@ var require_assets = __commonJS({
       k$1 && (t2 = requestAnimationFrame(r2));
     }
     function z$1(n2) {
-      var t2 = r, u2 = n2.__c;
-      "function" == typeof u2 && (n2.__c = void 0, u2()), r = t2;
+      var t2 = r$1, u2 = n2.__c;
+      "function" == typeof u2 && (n2.__c = void 0, u2()), r$1 = t2;
     }
     function B$1(n2) {
-      var t2 = r;
-      n2.__c = n2.__(), r = t2;
+      var t2 = r$1;
+      n2.__c = n2.__(), r$1 = t2;
     }
     function C$2(n2, t2) {
       return !n2 || n2.length !== t2.length || t2.some(function(t3, r2) {
@@ -24623,6 +24623,19 @@ self.onmessage = function (e) {
         });
       }
     };
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const CopyButton = ({
       value,
       onCopySuccess,
@@ -24645,7 +24658,7 @@ self.onmessage = function (e) {
       };
       return /* @__PURE__ */ u("button", {
         type: "button",
-        className: ["copy-button", className2].filter(Boolean).join(" "),
+        className: clsx("copy-button", className2),
         onClick: handleClick,
         "aria-label": ariaLabel,
         disabled: isCopied,
@@ -25156,66 +25169,42 @@ self.onmessage = function (e) {
     </div>
   </div>`;
     };
-    const CardHeader = ({ id, icon, label, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "0em",
-        padding: "0.5em 0.5em 0.5em 0.5em",
-        fontSize: FontSize.small,
-        fontWeight: 600,
-        ...TextStyle.label,
-        ...style2
-      }}
-  >
-    ${icon ? m$1`<i
-          class="${icon}"
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></i>` : m$1`<span
-          style=${{
-        paddingRight: "0.2rem"
-      }}
-        ></span>`}
-    ${label ? label : ""} ${children2}
-  </div> `;
+    const CardHeader = ({
+      id,
+      icon,
+      label,
+      className: className2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx("card-header-container", "text-style-label", className2),
+        id: id || "",
+        children: [icon ? /* @__PURE__ */ u("i", {
+          className: clsx("card-header-icon", icon)
+        }) : /* @__PURE__ */ u("span", {
+          className: "card-header-icon"
+        }), label ? label : "", " ", children2]
+      });
     };
-    const CardBody = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`<div
-    class="${classes || ""}"
-    ...${{ id }}
-    style=${{
-        backgroundColor: "var(--bs-body-bg)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        margin: "0 8px 8px 8px",
-        padding: "0.5em",
-        ...style2
-      }}
-  >
-    ${children2}
-  </div>`;
+    const CardBody = ({
+      id,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: "card-body",
+        id: id || "",
+        children: children2
+      });
     };
-    const Card = ({ id, classes, style: style2, children: children2 }) => {
-      return m$1`
-    <div
-      class="${classes || ""}"
-      ...${{ id }}
-      style=${{
-        backgroundColor: "var(--bs-light-bg-subtle)",
-        border: "solid 1px var(--bs-light-border-subtle)",
-        borderRadius: "var(--bs-border-radius)",
-        marginBottom: "1.5em",
-        ...style2
-      }}
-    >
-      ${children2}
-    </div>
-  `;
+    const Card = ({
+      id,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: "card",
+        id,
+        children: children2
+      });
     };
     const ghCommitUrl = (origin, commit) => {
       const baseUrl = origin.replace(/\.git$/, "");
@@ -25226,10 +25215,7 @@ self.onmessage = function (e) {
       return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
-      <${CardBody} id="${kPlanCardBodyId}" style=${{
-        paddingTop: "0",
-        paddingBottom: "0"
-      }}>
+      <${CardBody} id="${kPlanCardBodyId}">
       
         <${PlanDetailView}
           evaluation=${evalSpec}
@@ -26516,11 +26502,7 @@ self.onmessage = function (e) {
 
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.usage} label="Usage"/>
-      <${CardBody} id=${kUsageCardBodyId} style=${{
-        paddingTop: "0",
-        paddingBottom: "0",
-        borderTop: "solid var(--bs-border-color) 1px"
-      }}>
+      <${CardBody} id=${kUsageCardBodyId}>
         <div style=${{
         paddingTop: "0",
         paddingBottom: "1em",
@@ -56158,7 +56140,7 @@ Supported expressions:
       return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
-      <${CardBody} style=${{ fontSize: FontSize.smaller }}>
+      <${CardBody}>
         <${ANSIDisplay} output=${evalError.traceback_ansi} style=${{ fontSize: "clamp(0.2rem, calc(0.2em + .93vw), 0.9rem)" }}/>
       </${CardBody}>
     </${Card}>
