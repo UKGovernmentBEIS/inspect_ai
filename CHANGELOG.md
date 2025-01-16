@@ -2,7 +2,7 @@
 
 ## v0.3.58 (16 January 2025)
 
-- Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
+- Support for [audio and video](https://inspect.ai-safety-institute.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
 - Task display: Added Timeout Tool button for manually timing out a tool call.
 - Task display: Automatically switch to "plain" mode when running in a background thread
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
