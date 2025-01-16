@@ -17,7 +17,7 @@ import {
   useState,
 } from "preact/hooks";
 
-import { AppErrorBoundary } from "./components/AppErrorBoundary.mjs";
+import { AppErrorBoundary } from "./AppErrorBoundary";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
 import { clearDocumentSelection } from "./utils/browser";
