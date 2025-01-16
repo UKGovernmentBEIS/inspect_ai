@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.58 (16 January 2025)
 
 - Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
 - Task display: Added Timeout Tool button for manually timing out a tool call.
