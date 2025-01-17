@@ -8231,6 +8231,123 @@ var require_assets = __commonJS({
         return result;
       };
     }
+    const FindBand = ({
+      hideBand
+    }) => {
+      const searchBoxRef = A$1(null);
+      y(() => {
+        setTimeout(() => {
+          var _a2;
+          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
+        }, 10);
+      }, []);
+      const getParentExpandablePanel = q$1((selection) => {
+        let node = selection.anchorNode;
+        while (node) {
+          if (node instanceof HTMLElement && node.classList.contains("expandable-panel")) {
+            return node;
+          }
+          node = node.parentElement;
+        }
+        return void 0;
+      }, []);
+      const handleSearch = q$1((back = false) => {
+        var _a2;
+        const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
+        const focusedElement = document.activeElement;
+        const result = window.find(searchTerm, false, back, false, false, true, false);
+        const noResultEl = document.getElementById("inspect-find-no-results");
+        if (!noResultEl) return;
+        noResultEl.style.opacity = result ? "0" : "1";
+        if (result) {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const parentPanel = getParentExpandablePanel(selection);
+            if (parentPanel) {
+              parentPanel.style.display = "block";
+              parentPanel.style.webkitLineClamp = "";
+              parentPanel.style.webkitBoxOrient = "";
+            }
+            const range = selection.getRangeAt(0);
+            const element = range.startContainer.parentElement;
+            if (element) {
+              setTimeout(() => {
+                element.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center"
+                });
+              }, 100);
+            }
+          }
+        }
+        focusedElement == null ? void 0 : focusedElement.focus();
+      }, [getParentExpandablePanel]);
+      const handleKeyDown = q$1((e2) => {
+        if (e2.key === "Escape") {
+          hideBand();
+        } else if (e2.key === "Enter") {
+          handleSearch(false);
+        }
+      }, [hideBand, handleSearch]);
+      return /* @__PURE__ */ u("div", {
+        className: "findBand",
+        children: [/* @__PURE__ */ u("input", {
+          type: "text",
+          ref: searchBoxRef,
+          placeholder: "Find",
+          onKeyDown: handleKeyDown
+        }), /* @__PURE__ */ u("span", {
+          id: "inspect-find-no-results",
+          children: "No results"
+        }), /* @__PURE__ */ u("button", {
+          type: "button",
+          title: "Previous match",
+          className: "btn next",
+          onClick: () => handleSearch(true),
+          children: /* @__PURE__ */ u("i", {
+            className: ApplicationIcons.arrows.up
+          })
+        }), /* @__PURE__ */ u("button", {
+          type: "button",
+          title: "Next match",
+          className: "btn prev",
+          onClick: () => handleSearch(false),
+          children: /* @__PURE__ */ u("i", {
+            className: ApplicationIcons.arrows.down
+          })
+        }), /* @__PURE__ */ u("button", {
+          type: "button",
+          title: "Close",
+          className: "btn close",
+          onClick: hideBand,
+          children: /* @__PURE__ */ u("i", {
+            className: ApplicationIcons.close
+          })
+        })]
+      });
+    };
+    const kEvalWorkspaceTabId = "eval-tab";
+    const kJsonWorkspaceTabId = "json-tab";
+    const kInfoWorkspaceTabId = "plan-tab";
+    const kSampleMessagesTabId = `sample-display-messages`;
+    const kSampleTranscriptTabId = `sample-display-transcript`;
+    const kSampleScoringTabId = `sample-display-scoring`;
+    const kSampleMetdataTabId = `sample-display-metadata`;
+    const kSampleErrorTabId = `sample-display-error`;
+    const kSampleJsonTabId = `sample-display-json`;
+    const kScoreTypePassFail = "passfail";
+    const kScoreTypeCategorical = "categorical";
+    const kScoreTypeNumeric = "numeric";
+    const kScoreTypeOther = "other";
+    const kScoreTypeObject = "object";
+    const kScoreTypeBoolean = "boolean";
+    const kSampleAscVal = "sample-asc";
+    const kSampleDescVal = "sample-desc";
+    const kEpochAscVal = "epoch-asc";
+    const kEpochDescVal = "epoch-desc";
+    const kScoreAscVal = "score-asc";
+    const kScoreDescVal = "score-desc";
+    const kDefaultSort = kSampleAscVal;
     const kBaseFontSize = 0.9;
     const ScaleBaseFont = (scale) => {
       return `${kBaseFontSize + scale}rem`;
@@ -8255,175 +8372,6 @@ var require_assets = __commonJS({
         color: "var(--bs-tertiary-color)"
       }
     };
-    const FindBand = ({ hideBand }) => {
-      const searchBoxRef = A$1(
-        /** @type {HTMLInputElement|null} */
-        null
-      );
-      y(() => {
-        searchBoxRef.current.focus();
-      }, []);
-      const searchTerm = () => {
-        return searchBoxRef.current.value;
-      };
-      const search = (term, back) => {
-        const parentExpandablePanel = (selection) => {
-          let node = selection.anchorNode;
-          let expandablePanelEl = void 0;
-          while (node) {
-            if (node.classList && node.classList.contains("expandable-panel")) {
-              expandablePanelEl = node;
-              break;
-            }
-            node = node.parentElement;
-          }
-          return expandablePanelEl;
-        };
-        const focusedElement = (
-          /** @type {HTMLElement} */
-          document.activeElement
-        );
-        const result = window.find(term, false, !!back, false, false, true, false);
-        const noResultEl = window.document.getElementById(
-          "inspect-find-no-results"
-        );
-        if (result) {
-          noResultEl.style.opacity = "0";
-          const selection = window.getSelection();
-          if (selection.rangeCount > 0) {
-            const parentPanel = parentExpandablePanel(selection);
-            if (parentPanel) {
-              parentPanel.style.display = "block";
-              parentPanel.style["-webkit-line-clamp"] = "";
-              parentPanel.style["-webkit-box-orient"] = "";
-            }
-            const range = selection.getRangeAt(0);
-            setTimeout(() => {
-              const element = range.startContainer.parentElement;
-              element.scrollIntoView({
-                behavior: "smooth",
-                // Optional: adds a smooth scrolling animation
-                block: "center"
-                // Optional: scrolls so the element is centered in the view
-              });
-            }, 100);
-          }
-        } else {
-          noResultEl.style.opacity = "1";
-        }
-        if (focusedElement) {
-          focusedElement.focus();
-        }
-      };
-      return m$1`<div
-    style=${{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        marginRight: "20%",
-        zIndex: "1060",
-        color: "var(--inspect-find-foreground)",
-        backgroundColor: "var(--inspect-find-background)",
-        fontSize: "0.9rem",
-        display: "grid",
-        gridTemplateColumns: "auto auto auto auto auto",
-        columnGap: "0.2em",
-        padding: "0.2rem",
-        borderBottom: "solid 1px var(--bs-light-border-subtle)",
-        borderLeft: "solid 1px var(--bs-light-border-subtle)",
-        borderRight: "solid 1px var(--bs-light-border-subtle)",
-        boxShadow: "var(--bs-box-shadow)"
-      }}
-  >
-    <input
-      type="text"
-      ref=${searchBoxRef}
-      style=${{
-        height: "2em",
-        fontSize: "0.9em",
-        margin: "0.1rem",
-        outline: "none",
-        border: "solid 1px var(--inspect-input-border)",
-        color: "var(--inspect-input-foreground)",
-        background: "var(--inspect-input-background)"
-      }}
-      placeholder="Find"
-      onkeydown=${(e2) => {
-        if (e2.key === "Escape") {
-          hideBand();
-        } else if (e2.key === "Enter") {
-          search(searchTerm());
-        }
-      }}
-    />
-    <span
-      id="inspect-find-no-results"
-      style=${{
-        fontSize: FontSize.base,
-        opacity: 0,
-        marginTop: "auto",
-        marginBottom: "auto",
-        marginRight: "0.5em"
-      }}
-      >No results</span
-    >
-    <button
-      title="Previous match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm(), true);
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.up}></i>
-    </button>
-    <button
-      title="Next match"
-      style=${{ padding: 0, fontSize: FontSize.larger }}
-      class="btn"
-      onclick=${() => {
-        search(searchTerm());
-      }}
-    >
-      <i class=${ApplicationIcons.arrows.down}></i>
-    </button>
-    <button
-      title="Close"
-      style=${{
-        padding: 0,
-        fontSize: FontSize["title-secondary"],
-        marginTop: "-0.1rem",
-        marginBottom: "-0.1rem"
-      }}
-      class="btn"
-      onclick=${() => hideBand()}
-    >
-      <i class=${ApplicationIcons.close}></i>
-    </button>
-  </div>`;
-    };
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
-    const kScoreTypePassFail = "passfail";
-    const kScoreTypeCategorical = "categorical";
-    const kScoreTypeNumeric = "numeric";
-    const kScoreTypeOther = "other";
-    const kScoreTypeObject = "object";
-    const kScoreTypeBoolean = "boolean";
-    const kSampleAscVal = "sample-asc";
-    const kSampleDescVal = "sample-desc";
-    const kEpochAscVal = "epoch-asc";
-    const kEpochDescVal = "epoch-desc";
-    const kScoreAscVal = "score-asc";
-    const kScoreDescVal = "score-desc";
-    const kDefaultSort = kSampleAscVal;
     const ApplicationStyles = {
       moreButton: {
         maxHeight: "1.8em",
