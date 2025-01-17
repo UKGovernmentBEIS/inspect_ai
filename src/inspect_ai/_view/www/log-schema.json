@@ -1517,7 +1517,8 @@
             "time",
             "message",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -3080,7 +3081,8 @@
             "message",
             "time",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"

@@ -232,7 +232,7 @@ export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type7 = "message" | "time" | "token" | "operator";
+export type Type7 = "message" | "time" | "token" | "operator" | "custom";
 export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
@@ -395,7 +395,13 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Type13 = "context" | "time" | "message" | "token" | "operator";
+export type Type13 =
+  | "context"
+  | "time"
+  | "message"
+  | "token"
+  | "operator"
+  | "custom";
 export type Limit2 = number;
 export type Reductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;
