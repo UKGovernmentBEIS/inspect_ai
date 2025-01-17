@@ -2,6 +2,7 @@ import fnmatch
 import re
 from collections import defaultdict
 from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import Any, Tuple, cast
 
 from inspect_ai._util.registry import (
@@ -19,12 +20,35 @@ from inspect_ai.log import (
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metrics.accuracy import accuracy
+from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
     scorer_metrics,
     unique_scorer_name,
 )
+
+
+@dataclass
+class ScorerInfo:
+    name: str
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+    params: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @staticmethod
+    def from_scorer(scorer: Scorer) -> "ScorerInfo":
+        name = registry_unqualified_name(scorer)
+        metrics = scorer_metrics(scorer)
+        metadata = deepcopy(registry_info(scorer).metadata)
+        del metadata[SCORER_METRICS]
+        params = registry_params(scorer)
+        return ScorerInfo(name=name, metrics=metrics, params=params, metadata=metadata)
+
+    @staticmethod
+    def from_name(name: str) -> "ScorerInfo":
+        return ScorerInfo(name=name, metrics=[accuracy(), stderr()])
 
 
 def eval_results(
@@ -38,18 +62,23 @@ def eval_results(
     results = EvalResults(total_samples=samples, completed_samples=len(scores))
     reductions = None
 
+    # extract scorers info from scorers then create scorers info for any
+    # scores not already accounted for by a scorer name
+    scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
+    scorer_names = [info.name for info in scorers_info]
+    for name in set(key for sample_scores in scores for key in sample_scores):
+        if name not in scorer_names:
+            scorers_info.append(ScorerInfo.from_name(name))
+            scorer_names.append(name)
+
     # record scorer
-    if scorers:
+    if len(scorers_info) > 0:
         result_scores: list[EvalScore] = []
         sample_reductions: list[EvalSampleReductions] = []
-        for scorer in scorers:
-            # extract non-metrics metadata
-            metadata = deepcopy(registry_info(scorer).metadata)
-            del metadata[SCORER_METRICS]
-
+        for scorer_info in scorers_info:
             # this scorer
             scorer_name = unique_scorer_name(
-                scorer, [eval_score.name for eval_score in result_scores]
+                scorer_info.name, [eval_score.name for eval_score in result_scores]
             )
 
             # scores for this scorer
@@ -75,7 +104,7 @@ def eval_results(
 
                 # Compute metrics for this scorer
                 simple_scores = cast(list[Score], reduced_scores)
-                targets = metrics if metrics is not None else scorer_metrics(scorer)
+                targets = metrics if metrics is not None else scorer_info.metrics
                 if isinstance(targets, list):
                     ## split the metrics into the simple metrics and any dictionary
                     ## metrics, to be processed independently
@@ -88,8 +117,7 @@ def eval_results(
                     result_scores.extend(
                         scorer_for_metrics(
                             scorer_name=scorer_name,
-                            scorer=scorer,
-                            metadata=metadata,
+                            scorer_info=scorer_info,
                             scores=simple_scores,
                             metrics=simple_metrics,
                             reducer_name=reducer_display_nm,
@@ -99,8 +127,7 @@ def eval_results(
                         result_scores.extend(
                             scorers_from_metric_dict(
                                 scorer_name=scorer_name,
-                                scorer=scorer,
-                                metadata=metadata,
+                                scorer_info=scorer_info,
                                 scores=simple_scores,
                                 metrics=dict_metric,
                                 reducer_name=reducer_display_nm,
@@ -116,8 +143,7 @@ def eval_results(
                     result_scores.extend(
                         scorers_from_metric_dict(
                             scorer_name=scorer_name,
-                            scorer=scorer,
-                            metadata=metadata,
+                            scorer_info=scorer_info,
                             scores=simple_scores,
                             metrics=targets,
                             reducer_name=reducer_display_nm,
@@ -156,8 +182,7 @@ def split_metrics(
 
 def scorer_for_metrics(
     scorer_name: str,
-    scorer: Scorer,
-    metadata: dict[str, Any],
+    scorer_info: ScorerInfo,
     scores: list[Score],
     metrics: list[Metric],
     reducer_name: str | None = None,
@@ -218,8 +243,10 @@ def scorer_for_metrics(
             scorer=scorer_name,
             reducer=reducer_name,
             name=scorer_name,
-            params=registry_params(scorer),
-            metadata=metadata if len(metadata.keys()) > 0 else None,
+            params=scorer_info.params,
+            metadata=scorer_info.metadata
+            if len(scorer_info.metadata.keys()) > 0
+            else None,
             metrics=list_metrics,
         )
     )
@@ -228,8 +255,7 @@ def scorer_for_metrics(
 
 def scorers_from_metric_dict(
     scorer_name: str,
-    scorer: Scorer,
-    metadata: dict[str, Any],
+    scorer_info: ScorerInfo,
     scores: list[Score],
     metrics: dict[str, list[Metric]],
     reducer_name: str | None = None,
@@ -299,8 +325,10 @@ def scorers_from_metric_dict(
                 scorer=scorer_name,
                 reducer=reducer_name,
                 name=metric_key,
-                params=registry_params(scorer),
-                metadata=metadata if len(metadata.keys()) > 0 else None,
+                params=scorer_info.params,
+                metadata=scorer_info.metadata
+                if len(scorer_info.metadata.keys()) > 0
+                else None,
                 metrics=result_metrics,
             )
         )

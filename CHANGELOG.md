@@ -5,6 +5,7 @@
 - Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
 - Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
 - Limits: Enforce custom sample limits by raising `SampleLimitExceededError`.
+- Tasks: Optional ability for solvers to yield scores for a task.
 
 ## v0.3.58 (16 January 2025)
 

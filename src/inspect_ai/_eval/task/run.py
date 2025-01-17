@@ -672,8 +672,8 @@ async def task_run_sample(
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     async with timeout_cm:
-                        if scorers and error is None:
-                            for scorer in scorers:
+                        if error is None:
+                            for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
@@ -694,6 +694,16 @@ async def task_run_sample(
                                             )
                                         )
                                         results[scorer_name] = sample_score
+
+                            # add scores returned by solvers
+                            if state.scores is not None:
+                                for name, score in state.scores.items():
+                                    results[name] = SampleScore(
+                                        score=score, sample_id=state.sample_id
+                                    )
+
+                            # propagate results into scores
+                            state.scores = {k: v.score for k, v in results.items()}
 
                 except asyncio.CancelledError:
                     if active.interrupt_action:
@@ -839,6 +849,7 @@ async def resolve_dataset(
                 epoch=epoch,
                 model=model_name,
                 input=sample.input,
+                target=Target(sample.target),
                 choices=sample.choices,
                 messages=sample_messages(sample),
                 message_limit=message_limit,

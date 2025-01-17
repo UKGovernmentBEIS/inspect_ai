@@ -14,11 +14,11 @@ Solvers are the heart of Inspect evaluations and can serve a wide variety of pur
 5.  Multi-turn dialog
 6.  Running an agent scaffold
 
-Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two differnet roles: 
+Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two differnet roles:
 
-1. _Composite_ specifications for task execution; and
+1.  *Composite* specifications for task execution; and
 
-2. _Components_ that can be chained together.
+2.  *Components* that can be chained together.
 
 ### Example
 
@@ -173,10 +173,10 @@ We'll present an example and then discuss the various options below (in most cas
 
 Below is a full example of reading a dataset for use with `multiple choice()` and using it in an evaluation task. The underlying data in `mmlu.csv` has the following form:
 
-| Question | A | B | C | D | Answer |
+| Question                                                                            | A   | B   | C   | D   | Answer |
 |------------|------------|------------|------------|------------|:----------:|
-| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
-| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0   | 4   | 2   | 6   |   B    |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5.                 | 8   | 2   | 24  | 120 |   C    |
 
 : {tbl-colwidths=\[50,10,10,10,10,10\]}
 
@@ -217,13 +217,12 @@ We use the `record_to_sample()` function to read the `choices` along with the `t
 
 The following options are available for further customisation of the multiple choice solver:
 
-| Option | Description |
+| Option             | Description                                                                                                                                                                                                                                                                                                                                                                                               |
 |------------------------------------|------------------------------------|
-| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
-| `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
-| `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided.  NOTE: this has no effect if you provide a custom template. |
-| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
-
+| `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
+| `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
+| `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
+| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -260,40 +259,34 @@ Typically solvers can be customised with parameters (e.g. `template` for prompt 
 
 Before presenting the examples we'll take a more in-depth look at the `TaskState` class. Task states consist of both lower level data members (e.g. `messages`, `output`) as well as a number of convenience properties. The core members of `TaskState` that are *modified* by solvers are `messages` / `user_prompt` and `output`:
 
-| Member | Type | Description |
+| Member        | Type                | Description                                                                                                                                                                               |
 |-------------------|-------------------|----------------------------------|
-| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
-| `output` | ModelOutput | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver. |
+| `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
+| `output`      | ModelOutput         | The 'final' model output once we've completed all solving. This field is automatically updated with the last "assistant" message by the `generate()` solver.                              |
 
 ::: {.callout-note appearance="simple"}
 Note that the `generate()` solver automatically updates both the `messages` and `output` fields. For very simple evaluations modifying the `user_prompt` and then calling `generate()` encompasses all of the required interaction with `TaskState`.
 :::
 
-There are two additional fields that solvers might modify (but they are typically for more advanced use cases):
+Sometimes its important to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
 
-| Member | Type | Description |
+| Member       | Type                       | Description                                                                         |
 |-------------------|-------------------|----------------------------------|
-| `metadata` | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
-| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately. |
-
-Sometimes its import to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
-
-| Member | Type | Description |
-|-------------------|-------------------|----------------------------------|
-| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
-| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
+| `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
+| `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from either the task sample or evaluation:
 
-| Member | Type | Description |
+| Member      | Type                | Description                                               |
 |-------------------|-------------------|----------------------------------|
-| `sample_id` | int \| str | Unique ID for sample. |
-| `epoch` | int | Epoch for sample. |
-| `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
-| `model` | ModelName | Name of model currently being evaluated. |
+| `sample_id` | int \| str          | Unique ID for sample.                                     |
+| `epoch`     | int                 | Epoch for sample.                                         |
+| `metadata`  | dict                | Original metadata from `Sample`                           |
+| `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model`     | ModelName           | Name of model currently being evaluated.                  |
 
-Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven't yet encountered the concept of tool use in language models, don't worry about understanding these fields, the [Tools](tools.qmd) article provides a more in-depth treatment):
+Task states also include available tools as well as guidance for the model on which tools to use (if you haven't yet encountered the concept of tool use in language models, don't worry about understanding these fields, the [Tools](tools.qmd) article provides a more in-depth treatment):
 
 | Member        | Type         | Description                  |
 |---------------|--------------|------------------------------|
@@ -422,7 +415,38 @@ Note that calls to `generate()` (for both the critique model and the model being
 
 ### Scoring in Solvers {#sec-scoring-in-solvers}
 
-In some cases it is useful for a solver to score a task directly to assist in deciding whether or how to continue. You can do this using the `score()` function:
+::: {.callout-note appearance="simple"}
+The solver-based scoring feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Typically, solvers don't score samples but rather leave that to externally specified [scorers](scorers.qmd). However, in some cases it is more convenient to have solvers also do scoring (e.g. when there is high coupling between the solver and scoring). The following two task state fields can be used for scoring:
+
+| Member   | Type               | Description                  |
+|----------|--------------------|------------------------------|
+| `target` | Target             | Scoring target from `Sample` |
+| `scores` | dict\[str, Score\] | Optional scores.             |
+
+: Here is a trivial example of the code that might be used to yield scores from a solver:
+
+``` python
+async def solve(state: TaskState, generate: Generate):
+    # ...perform solver work
+    
+    # score
+    correct = state.output.completion == state.target.text
+    state.scores = { "correct": Score(value=correct) }
+    return state
+```
+
+Note that scores yielded by a `Solver` are combined with scores from the normal scoring provided by the scorer(s) defined for a `Task`.
+
+### Intermediate Scoring
+
+In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the `score()` function:
 
 ``` python
 from inspect_ai.scorer import score

@@ -16,6 +16,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.scorer._metric import Score
+from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
@@ -136,6 +138,7 @@ class TaskState:
         epoch: int,
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
+        target: Target = Target(""),
         choices: list[str] | None = [],
         output: ModelOutput | None = None,
         message_limit: int | None = None,
@@ -160,6 +163,9 @@ class TaskState:
         it can be referenced or checked wherever needed. Access through `input`
         or `input_text` only
         """
+
+        self.target = target
+        """The scoring target for this `Sample`."""
 
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
@@ -199,6 +205,9 @@ class TaskState:
             self.choices = Choices(choices)
         else:
             self.choices = Choices([])
+
+        self.scores: dict[str, Score] | None = None
+        """Scores yielded by running task."""
 
     @property
     def model(self) -> ModelName:
