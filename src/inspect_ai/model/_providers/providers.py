@@ -1,15 +1,19 @@
 import os
+import logging
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
 from .._model import ModelAPI
-from .._registry import modelapi
+from .._registry import modelapi, modelapi_register
+from .goodfire import GoodfireAPI
 
 # Defer importing model api classes until they are actually used
 # (this allows the package to load without the optional deps)
 # Note that some api providers (e.g. Cloudflare, AzureAI) don't
 # strictly require this treatment but we do it anyway for uniformity,
+
+logger = logging.getLogger(__name__)
 
 
 @modelapi(name="groq")
@@ -237,6 +241,20 @@ def mockllm() -> type[ModelAPI]:
     from .mockllm import MockLLM
 
     return MockLLM
+
+
+@modelapi(name="goodfire")
+def goodfire() -> type[ModelAPI]:
+    """Get Goodfire API provider."""
+    logger.debug("[PROVIDER] Registering goodfire provider")
+    try:
+        import goodfire
+        verify_required_version("Goodfire API", "goodfire", "0.1.0")
+        logger.debug("[PROVIDER] Successfully imported goodfire and verified version")
+        return GoodfireAPI
+    except ImportError as e:
+        logger.error("[PROVIDER] Failed to import goodfire", exc_info=True)
+        raise pip_dependency_error("Goodfire API", ["goodfire"]) from e
 
 
 def validate_openai_client(feature: str) -> None:

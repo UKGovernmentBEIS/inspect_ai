@@ -1,9 +1,11 @@
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Literal, Union
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
+from inspect_ai._util.content import Content
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -79,6 +81,20 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
 
 
+@dataclass
+class GoodfireConfig:
+    """Goodfire-specific configuration."""
+    
+    variant_name: str | None = None
+    """Name of the Goodfire variant to use."""
+    
+    feature_analysis: bool = False
+    """Whether to enable Goodfire feature analysis."""
+    
+    feature_threshold: float = 0.5
+    """Threshold for feature importance in analysis."""
+
+
 class GenerateConfig(BaseModel):
     """Base class for model generation configs."""
 
@@ -150,6 +166,9 @@ class GenerateConfig(BaseModel):
 
     reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
+
+    goodfire: GoodfireConfig = field(default_factory=GoodfireConfig)
+    """Goodfire-specific configuration."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
