@@ -1,4 +1,5 @@
 import inspect
+import logging
 from inspect import get_annotations, isclass
 from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 
@@ -9,6 +10,8 @@ from inspect_ai._util.package import get_installed_package_name
 
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
+
+logger = logging.getLogger(__name__)
 
 obj_type = type
 
@@ -48,7 +51,9 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     setattr(o, REGISTRY_INFO, info)
 
     # add to registry
-    _registry[registry_key(info.type, info.name)] = o
+    key = registry_key(info.type, info.name)
+    logger.debug(f"Adding to registry: {key} -> {o}")
+    _registry[key] = o
 
 
 def registry_tag(
@@ -130,13 +135,17 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
 
     def _lookup() -> object | None:
         # first try
+        logger.debug(f"Looking up {type} {name} in registry")
         object = _registry.get(registry_key(type, name))
         if object:
+            logger.debug(f"Found {type} {name} in registry")
             return object
         # unnamespaced objects can also be found in inspect_ai
         elif name.find("/") == -1:
+            logger.debug(f"Looking up {type} {PKG_NAME}/{name} in registry")
             return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
         else:
+            logger.debug(f"Could not find {type} {name} in registry")
             return None
 
     o = _lookup()
@@ -154,22 +163,21 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
 
 
 def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
-    r"""Find objects in the registry that match the passed predicate.
-
-    Args:
-        predicate (Callable[[RegistryInfo], bool]): Predicate to find
-
-    Returns:
-        List of registry objects found
-    """
-
+    """Find objects in the registry that match the passed predicate."""
     def _find() -> list[object]:
-        return [
-            object for object in _registry.values() if predicate(registry_info(object))
-        ]
+        logger.debug(f"[REGISTRY] Current registry keys: {list(_registry.keys())}")
+        matches = []
+        for obj in _registry.values():
+            info = registry_info(obj)
+            logger.debug(f"[REGISTRY] Checking object {getattr(obj, '__name__', str(obj))} with info: {info}")
+            if predicate(info):
+                matches.append(obj)
+        logger.debug(f"[REGISTRY] Found {len(matches)} matches: {[getattr(m, '__name__', str(m)) for m in matches]}")
+        return matches
 
     o = _find()
     if len(o) == 0:
+        logger.debug("[REGISTRY] No matches found, ensuring entry points")
         ensure_entry_points()
         return _find()
     else:
@@ -355,7 +363,9 @@ def has_registry_params(o: object) -> bool:
 
 
 def registry_key(type: RegistryType, name: str) -> str:
-    return f"{type}:{name}"
+    key = f"{type}:{name}"
+    logger.debug(f"Constructing registry key: {key}")
+    return key
 
 
 REGISTRY_INFO = "__registry_info__"

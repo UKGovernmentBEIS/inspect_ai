@@ -40,7 +40,6 @@ class GoodfireAPI(ModelAPI):
         api_key: str | None = None,
         api_key_vars: list[str] = [],
         config: GenerateConfig = GenerateConfig(),
-        model_args: dict[str, Any] = {},
         **kwargs: Any,
     ) -> None:
         """Initialize the Goodfire API provider."""
@@ -55,7 +54,7 @@ class GoodfireAPI(ModelAPI):
             api_key=api_key,
             api_key_vars=api_key_vars,
             config=config,
-            **model_args,
+            **kwargs,
         )
 
         # Set api and name attributes for registry info
