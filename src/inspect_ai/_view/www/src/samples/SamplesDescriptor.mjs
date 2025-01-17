@@ -389,7 +389,11 @@ export const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
     (previous, current) => {
       const text = inputString(current.input).join(" ");
       const scoreValue = evalDescriptor.score(current, selectedScore).value;
-      const scoreText = scoreValue ? String(scoreValue) : "";
+      const scoreText = scoreValue
+        ? String(scoreValue)
+        : current.error
+          ? String(current.error)
+          : "";
       previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),

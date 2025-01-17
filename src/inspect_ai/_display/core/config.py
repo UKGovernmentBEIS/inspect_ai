@@ -13,14 +13,14 @@ def task_config(
         value = task_args[key]
         if is_registry_dict(value):
             task_args[key] = value["name"]
-    config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
+    config = dict(profile.eval_config.model_dump(exclude_none=True)) | task_args
     if generate_config:
-        config = config | dict(profile.generate_config.model_dump(exclude_none=True))
+        config = dict(profile.generate_config.model_dump(exclude_none=True)) | config
     if profile.tags:
         config["tags"] = ",".join(profile.tags)
     config_print: list[str] = []
     for name, value in config.items():
-        if name == "approval":
+        if name == "approval" and isinstance(value, dict):
             config_print.append(
                 f"{name}: {','.join([approver['name'] for approver in value['approvers']])}"
             )

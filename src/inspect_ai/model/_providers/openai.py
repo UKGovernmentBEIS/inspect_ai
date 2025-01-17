@@ -17,6 +17,7 @@ from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
     ChatCompletionContentPartImageParam,
+    ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
@@ -36,9 +37,9 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -463,16 +464,27 @@ async def as_chat_completion_part(
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
+    elif content.type == "image":
         # API takes URL or base64 encoded file. If it's a remote file or
         # data URL leave it alone, otherwise encode it
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        if not is_http_url(image_url):
+            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
             image_url=dict(url=image_url, detail=detail),
+        )
+    elif content.type == "audio":
+        audio_data = await file_as_data_uri(content.audio)
+
+        return ChatCompletionContentPartInputAudioParam(
+            type="input_audio", input_audio=dict(data=audio_data, format=content.format)
+        )
+
+    else:
+        raise RuntimeError(
+            "Video content is not currently supported by Open AI chat models."
         )

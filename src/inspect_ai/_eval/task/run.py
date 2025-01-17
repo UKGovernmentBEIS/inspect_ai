@@ -4,6 +4,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
@@ -26,10 +27,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
-from inspect_ai._util.registry import (
-    is_registry_object,
-    registry_log_name,
-)
+from inspect_ai._util.registry import is_registry_object, registry_log_name
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
@@ -44,7 +42,11 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import active_sample
+from inspect_ai.log._samples import (
+    active_sample,
+    set_active_sample_message_limit,
+    set_active_sample_token_limit,
+)
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -71,6 +73,8 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._limit import SampleLimitExceededError
+from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
 
@@ -79,10 +83,10 @@ from ..task import Task
 from .error import SampleErrorHandler
 from .generate import task_generate
 from .images import (
-    sample_without_base64_images,
-    samples_with_base64_images,
-    state_without_base64_images,
-    states_with_base64_images,
+    sample_without_base64_content,
+    samples_with_base64_content,
+    state_without_base64_content,
+    states_with_base64_content,
 )
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
@@ -533,11 +537,6 @@ async def task_run_sample(
         else contextlib.nullcontext()
     )
 
-    # use timeout if provided
-    timeout_cm = (
-        timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
-    )
-
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> EvalError:
         err = sample_error(ex)
@@ -547,7 +546,6 @@ async def task_run_sample(
     # solver loop
     async with (
         semaphore_cm,
-        sandboxenv_cm,
         active_sample(
             task=task_name,
             model=str(state.model),
@@ -561,125 +559,179 @@ async def task_run_sample(
         ) as active,
     ):
         error: EvalError | None = None
+        results: dict[str, SampleScore] = {}
         try:
-            async with timeout_cm:
-                # sample init event (remove file bodies as they have content or absolute paths)
-                event_sample = sample.model_copy(
-                    update=dict(files={k: "" for k in sample.files.keys()})
-                    if sample.files
-                    else None
-                )
-                transcript()._event(
-                    SampleInitEvent(sample=event_sample, state=state_jsonable(state))
-                )
+            async with sandboxenv_cm:
+                try:
+                    # update active sample wth sandboxes now that we are initialised
+                    active.sandboxes = await sandbox_connections()
 
-                # set progress for plan then run it
-                state = await plan(state, generate)
-
-        except TimeoutError:
-            if time_limit is not None:
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="time",
-                        message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
-                        limit=time_limit,
+                    # initialise timeout context manager
+                    timeout_cm = (
+                        timeout(time_limit)
+                        if time_limit is not None
+                        else contextlib.nullcontext()
                     )
-                )
-            else:
-                py_logger.warning(
-                    "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
-                )
 
-            # capture most recent state for scoring
-            state = sample_state() or state
+                    # run sample w/ optional timeout
+                    async with timeout_cm:
+                        # mark started
+                        active.started = datetime.now().timestamp()
 
-        except asyncio.CancelledError as ex:
-            if active.interrupt_action:
-                # record eve t
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="operator",
-                        message="Sample completed: interrupted by operator",
-                    )
-                )
-
-                # handle the action
-                match active.interrupt_action:
-                    case "score":
-                        # continue to scoring (capture the most recent state)
-                        state = sample_state() or state
-                    case "error":
-                        # default error handling
-                        error = handle_error(ex)
-
-            else:
-                raise
-
-        except BaseException as ex:
-            error = handle_error(ex)
-
-        # set timeout for scoring. if the original timeout was never hit
-        # then just create a new timeout_cm targeting the original
-        # timeout time. if the original timeout was hit we still want
-        # to provide an opportunity for scoring, but we don't necessarily
-        # want to wait the full timeout again (especially in the case where
-        # the cause of the timeout is a hung container and scoring requires
-        # interacting with the container). as a middle ground we use half
-        # of the original timeout value for scoring.
-        if isinstance(timeout_cm, Timeout):
-            if not timeout_cm.expired():
-                timeout_cm = timeout_at(timeout_cm.when())
-            else:
-                assert time_limit
-                timeout_cm = timeout(time_limit / 2)
-
-        # scoring
-        try:
-            # timeout during scoring will result in an ordinary sample error
-            async with timeout_cm:
-                results: dict[str, SampleScore] = {}
-                if scorers and error is None:
-                    for scorer in scorers:
-                        scorer_name = unique_scorer_name(scorer, list(results.keys()))
-                        with transcript().step(name=scorer_name, type="scorer"):
-                            score_result = (
-                                await scorer(state, Target(sample.target))
-                                if scorer
-                                else None
+                        # sample init event (remove file bodies as they have content or absolute paths)
+                        event_sample = sample.model_copy(
+                            update=dict(files={k: "" for k in sample.files.keys()})
+                            if sample.files
+                            else None
+                        )
+                        transcript()._event(
+                            SampleInitEvent(
+                                sample=event_sample, state=state_jsonable(state)
                             )
-                            if score_result is not None:
-                                sample_score = SampleScore(
-                                    score=score_result,
-                                    sample_id=sample.id,
-                                )
-                                transcript()._event(
-                                    ScoreEvent(score=score_result, target=sample.target)
-                                )
-                                results[scorer_name] = sample_score
+                        )
 
-        except asyncio.CancelledError:
-            if active.interrupt_action:
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="operator",
-                        message="Unable to score sample due to operator interruption",
+                        # set progress for plan then run it
+                        state = await plan(state, generate)
+
+                except TimeoutError:
+                    if time_limit is not None:
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="time",
+                                message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                                limit=time_limit,
+                            )
+                        )
+                    else:
+                        py_logger.warning(
+                            "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
+                        )
+
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+
+                except asyncio.CancelledError as ex:
+                    if active.interrupt_action:
+                        # record eve t
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="operator",
+                                message="Sample completed: interrupted by operator",
+                            )
+                        )
+
+                        # handle the action
+                        match active.interrupt_action:
+                            case "score":
+                                # continue to scoring (capture the most recent state)
+                                state = sample_state() or state
+                            case "error":
+                                # default error handling
+                                error = handle_error(ex)
+
+                    else:
+                        raise
+
+                except SampleLimitExceededError as ex:
+                    # sample limit event
+                    transcript()._event(
+                        SampleLimitEvent(
+                            type=ex.type,
+                            limit=ex.limit,
+                            message=f"Sample completed: {ex.message}",
+                        )
                     )
-                )
 
-            raise
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+                    state.completed = True
 
+                except BaseException as ex:
+                    error = handle_error(ex)
+
+                # set timeout for scoring. if the original timeout was never hit
+                # then just create a new timeout_cm targeting the original
+                # timeout time. if the original timeout was hit we still want
+                # to provide an opportunity for scoring, but we don't necessarily
+                # want to wait the full timeout again (especially in the case where
+                # the cause of the timeout is a hung container and scoring requires
+                # interacting with the container). as a middle ground we use half
+                # of the original timeout value for scoring.
+                if isinstance(timeout_cm, Timeout):
+                    if not timeout_cm.expired():
+                        timeout_cm = timeout_at(timeout_cm.when())
+                    else:
+                        assert time_limit
+                        timeout_cm = timeout(time_limit / 2)
+
+                # turn off sample limits
+                set_active_sample_token_limit(None)
+                set_active_sample_message_limit(None)
+
+                # scoring
+                try:
+                    # timeout during scoring will result in an ordinary sample error
+                    async with timeout_cm:
+                        if error is None:
+                            for scorer in scorers or []:
+                                scorer_name = unique_scorer_name(
+                                    scorer, list(results.keys())
+                                )
+                                with transcript().step(name=scorer_name, type="scorer"):
+                                    score_result = (
+                                        await scorer(state, Target(sample.target))
+                                        if scorer
+                                        else None
+                                    )
+                                    if score_result is not None:
+                                        sample_score = SampleScore(
+                                            score=score_result,
+                                            sample_id=sample.id,
+                                        )
+                                        transcript()._event(
+                                            ScoreEvent(
+                                                score=score_result, target=sample.target
+                                            )
+                                        )
+                                        results[scorer_name] = sample_score
+
+                            # add scores returned by solvers
+                            if state.scores is not None:
+                                for name, score in state.scores.items():
+                                    results[name] = SampleScore(
+                                        score=score, sample_id=state.sample_id
+                                    )
+
+                            # propagate results into scores
+                            state.scores = {k: v.score for k, v in results.items()}
+
+                except asyncio.CancelledError:
+                    if active.interrupt_action:
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="operator",
+                                message="Unable to score sample due to operator interruption",
+                            )
+                        )
+
+                    raise
+
+                except BaseException as ex:
+                    # note timeout
+                    if isinstance(ex, TimeoutError):
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="time",
+                                message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                                limit=time_limit,
+                            )
+                        )
+
+                    # handle error (this will throw if we've exceeded the limit)
+                    error = handle_error(ex)
+
+        # handle sandboxenv init errors
         except BaseException as ex:
-            # note timeout
-            if isinstance(ex, TimeoutError):
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="time",
-                        message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
-                        limit=time_limit,
-                    )
-                )
-
-            # handle error (this will throw if we've exceeded the limit)
             error = handle_error(ex)
 
         # complete the sample
@@ -689,12 +741,12 @@ async def task_run_sample(
         if logger is not None:
             # if we are logging images then be sure to base64 images injected by solvers
             if log_images:
-                state = (await states_with_base64_images([state]))[0]
+                state = (await states_with_base64_content([state]))[0]
 
             # otherwise ensure there are no base64 images in sample or messages
             else:
-                sample = sample_without_base64_images(sample)
-                state = state_without_base64_images(state)
+                sample = sample_without_base64_content(sample)
+                state = state_without_base64_content(state)
 
             # log the sample
             await log_sample(
@@ -784,7 +836,7 @@ async def resolve_dataset(
 
     # if we are logging images then resolve sample images here
     if log_images:
-        samples = await samples_with_base64_images(samples)
+        samples = await samples_with_base64_content(samples)
 
     # prime the eval tasks (deep copy so they share no state w/ sample)
     sample_epochs: list[int] = []
@@ -797,6 +849,7 @@ async def resolve_dataset(
                 epoch=epoch,
                 model=model_name,
                 input=sample.input,
+                target=Target(sample.target),
                 choices=sample.choices,
                 messages=sample_messages(sample),
                 message_limit=message_limit,

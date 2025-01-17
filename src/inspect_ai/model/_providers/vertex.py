@@ -23,9 +23,15 @@ from vertexai.generative_models import (  # type: ignore
 )
 from vertexai.generative_models import Content as VertexContent
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import file_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
 from .._chat_message import (
@@ -244,9 +250,6 @@ def consective_tool_message_reducer(
     return messages
 
 
-NO_CONTENT = "(no content)"
-
-
 async def content_dict(
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
 ) -> VertexContent:
@@ -308,9 +311,16 @@ async def content_part(content: Content | str) -> Part:
         return Part.from_text(content or NO_CONTENT)
     elif isinstance(content, ContentText):
         return Part.from_text(content.text or NO_CONTENT)
-    else:
-        image_bytes, mime_type = await image_as_data(content.image)
+    elif isinstance(content, ContentImage):
+        image_bytes, mime_type = await file_as_data(content.image)
         return Part.from_image(image=Image.from_bytes(data=image_bytes))
+    else:
+        if isinstance(content, ContentAudio):
+            file = content.audio
+        elif isinstance(content, ContentVideo):
+            file = content.video
+        file_bytes, mime_type = await file_as_data(file)
+        return Part.from_data(file_bytes, mime_type)
 
 
 def prepend_system_messages(

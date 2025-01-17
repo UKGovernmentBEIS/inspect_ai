@@ -126,6 +126,8 @@ def agent_loop(message_limit: int = 50):
         ...
 ```
 
+Message limits are checked whenever you call `generate()` on the main model being evaluated. The `message_limit` is comparted to the number of messages passed in `input` parameter to `generate()`.
+
 ### Token Limit
 
 Here we set a `token_limit` of 500K for each sample within a task:
@@ -163,16 +165,24 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
 It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
 
-### Limit Checking
+### Custom Limit
 
-How and when are sample limits checked? Time limits are handled automatically by the code that runs the sample. Message and token limits are checked automatically when you access the `completed` property of `TaskState`. For example, most agents will use `state.completed` as their main loop condition:
-
-``` python
-while not state.completed:
-    # call model
-    output = await model.generate(state.messages, state.tools)
-    
-    ...
+::: {.callout-note appearance="simple"}
+The ability to enforce custom limits described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
+:::
 
-If you are writing an agent loop you should check `state.completed` so that message and token limits can be enforced. Library code that calls a series of solvers in succession should also check `state.completed` (note that this is done automatically by the `chain()` function that is used to compose together lists of solvers).
+When limits are exceeded, a `SampleLimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `SampleLimitExceededError` as follows:
+
+```python
+from inspect_ai.util import SampleLimitExceededError
+
+raise SampleLimitExceededError(
+    "custom", 
+    value=value,
+    limit=limit,
+    message=f"A custom limit was exceeded: {value}"
+)
+```

@@ -1,4 +1,5 @@
 import errno
+import json
 import os
 import tempfile
 from logging import getLogger
@@ -7,9 +8,11 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai.util._subprocess import ExecResult
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
+    HostMapping,
+    PortMapping,
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -138,28 +141,31 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # start the services
             await compose_up(project)
 
+            # check to ensure that the services are running
+            running_services = await compose_check_running(
+                list(services.keys()), project=project
+            )
+
             # note that the project is running
             project_startup(project)
 
-            # check to ensure that the services are running
-            await compose_check_running(list(services.keys()), project=project)
-
-            # create sandbox environments
+            # create sandbox environments for all running services
             default_service: str | None = None
             environments: dict[str, SandboxEnvironment] = {}
             for service, service_info in services.items():
-                # update the project w/ the working directory
-                working_dir = await container_working_dir(service, project)
+                if service in running_services:
+                    # update the project w/ the working directory
+                    working_dir = await container_working_dir(service, project)
 
-                # create the docker sandbox environemnt
-                docker_env = DockerSandboxEnvironment(service, project, working_dir)
+                    # create the docker sandbox environemnt
+                    docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-                # save reference to default service if requested
-                if service_info.get("x-default", False):
-                    default_service = service
+                    # save reference to default service if requested
+                    if service_info.get("x-default", False):
+                        default_service = service
 
-                # record service => environment
-                environments[service] = docker_env
+                    # record service => environment
+                    environments[service] = docker_env
 
             # confirm that we have a 'default' environemnt
             if environments.get("default", None) is None and default_service is None:
@@ -225,6 +231,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -251,6 +258,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
+            timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
@@ -428,11 +436,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # return container connection
         if container:
             return SandboxConnection(
+                type="docker",
                 command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
+                ports=await get_ports_info(container),
+                container=container,
             )
         # error (not currently running)
         else:
@@ -461,3 +472,62 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
+
+
+async def get_ports_info(container: str) -> list[PortMapping] | None:
+    try:
+        result = await subprocess(
+            [
+                "docker",
+                "inspect",
+                container,
+                "--format",
+                "{{json .NetworkSettings.Ports}}",
+            ],
+            timeout=60,
+        )
+
+        if not result.success:
+            raise RuntimeError(result.stderr)
+
+        return parse_docker_inspect_ports(result.stdout)
+
+    # It's currently a policy decision to let docker timeouts to be silent.
+    except TimeoutError:
+        return None
+
+
+def parse_docker_inspect_ports(json_str: str) -> list[PortMapping] | None:
+    """
+    Parses the JSON output from `docker inspect {container_name} --format='{{json .NetworkSettings.Ports}}'` to extract port mappings.
+
+    Args:
+        json_str (str): A JSON string representing the `NetworkSettings.Ports` output of `docker inspect`. e.g.
+          ```
+          {
+              "5900/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54023"}],
+              "8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54024"}]
+          }
+          ```
+
+    Returns:
+        list[PortMapping] | None: A list of PortMapping objects if any port mappings are found,
+                                   otherwise None.
+    """
+    data = json.loads(json_str)
+    port_mappings = []
+    for port_protocol, mappings in data.items():
+        if mappings is None:
+            continue
+        container_port, protocol = port_protocol.split("/")
+        host_mappings = [
+            HostMapping(host_ip=mapping["HostIp"], host_port=int(mapping["HostPort"]))
+            for mapping in mappings
+        ]
+        port_mapping = PortMapping(
+            container_port=int(container_port),
+            protocol=protocol,
+            mappings=host_mappings,
+        )
+        port_mappings.append(port_mapping)
+    return port_mappings if port_mappings else None

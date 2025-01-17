@@ -85,6 +85,7 @@ async def score_async(
             sample_id=sample.id,
             epoch=sample.epoch,
             input=sample.input,
+            target=Target(sample.target),
             choices=sample.choices,
             messages=sample.messages,
             output=sample.output,

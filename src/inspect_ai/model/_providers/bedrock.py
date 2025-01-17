@@ -11,7 +11,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -430,7 +430,9 @@ def model_output_from_response(
             content.append(ContentText(type="text", text=c.text))
         elif c.image is not None:
             base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
-            content.append(ContentImage(image=base64_image))
+            content.append(
+                ContentImage(image=f"data:image/{c.image.format};base64,{base64_image}")
+            )
         elif c.toolUse is not None:
             tool_calls.append(
                 ToolCall(
@@ -548,6 +550,7 @@ async def converse_chat_message(
                 "Tool call is missing a tool call id, which is required for Converse API"
             )
         if message.function is None:
+            print(message)
             raise ValueError(
                 "Tool call is missing a function, which is required for Converse API"
             )
@@ -565,7 +568,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await image_as_data(c.image)
+                    image_data, image_type = await file_as_data(c.image)
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -604,7 +607,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await image_as_data(c.image)
+                image_data, image_type = await file_as_data(c.image)
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(

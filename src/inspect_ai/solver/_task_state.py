@@ -16,6 +16,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._call_tools import tools_info
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.scorer._metric import Score
+from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
@@ -136,6 +138,7 @@ class TaskState:
         epoch: int,
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
+        target: Target = Target(""),
         choices: list[str] | None = [],
         output: ModelOutput | None = None,
         message_limit: int | None = None,
@@ -160,6 +163,9 @@ class TaskState:
         it can be referenced or checked wherever needed. Access through `input`
         or `input_text` only
         """
+
+        self.target = target
+        """The scoring target for this `Sample`."""
 
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
@@ -189,9 +195,7 @@ class TaskState:
         """
 
         self._message_limit = message_limit
-        self._message_limit_exceeded = False
         self._token_limit = token_limit
-        self._token_limit_exceeded = False
         self._completed = completed
 
         """Store for shared data"""
@@ -201,6 +205,9 @@ class TaskState:
             self.choices = Choices(choices)
         else:
             self.choices = Choices([])
+
+        self.scores: dict[str, Score] | None = None
+        """Scores yielded by running task."""
 
     @property
     def model(self) -> ModelName:
@@ -300,40 +307,7 @@ class TaskState:
     @property
     def completed(self) -> bool:
         """Is the task completed."""
-        # update messages
-        from inspect_ai.log._samples import set_active_sample_total_messages
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-
-        set_active_sample_total_messages(len(self.messages))
-
-        if self._completed:
-            return True
-        elif self.message_limit and len(self.messages) >= self.message_limit:
-            # log if this is the first time we hit this
-            if not self._message_limit_exceeded:
-                self._message_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="message",
-                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
-                        limit=self.message_limit,
-                    )
-                )
-            return True
-        elif self.token_limit and self.token_usage >= self.token_limit:
-            # log if this is the first time we hit this
-            if not self._token_limit_exceeded:
-                self._token_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="token",
-                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
-                        limit=self.token_limit,
-                    )
-                )
-            return True
-        else:
-            return False
+        return self._completed
 
     @completed.setter
     def completed(self, completed: bool) -> None:

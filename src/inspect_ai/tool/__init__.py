@@ -1,4 +1,10 @@
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._tool import Tool, ToolError, ToolResult, tool
@@ -30,8 +36,10 @@ __all__ = [
     "ToolError",
     "ToolResult",
     "Content",
+    "ContentAudio",
     "ContentImage",
     "ContentText",
+    "ContentVideo",
     "ToolCall",
     "ToolCallContent",
     "ToolCallView",

@@ -48,9 +48,6 @@ class EvalConfig(BaseModel):
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
 
-    trace: bool | None = Field(default=None)
-    """Trace message interactions with evaluated model to terminal."""
-
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 
@@ -117,7 +114,7 @@ class EvalConfig(BaseModel):
 
 
 class EvalSampleLimit(BaseModel):
-    type: Literal["context", "time", "message", "token", "operator"]
+    type: Literal["context", "time", "message", "token", "operator", "custom"]
     """The type of limit"""
 
     limit: int
@@ -355,7 +352,7 @@ class EvalResults(BaseModel):
         """Scorer used to compute results (deprecated)."""
         warn_once(
             logger,
-            "The 'scorer' field is deprecated. Use 'scorers' instead.",
+            "The 'scorer' field is deprecated. Use 'scores' instead.",
         )
         return self.scores[0] if self.scores else None
 
@@ -364,7 +361,7 @@ class EvalResults(BaseModel):
         """Metrics computed (deprecated)."""
         warn_once(
             logger,
-            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead.",
+            "The 'metrics' field is deprecated. Access metrics through 'scores' instead.",
         )
         return self.scores[0].metrics if self.scores else {}
 

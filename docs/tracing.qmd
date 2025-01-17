@@ -31,6 +31,12 @@ Trace logs are written using [JSON Lines](https://jsonlines.org/) format and are
 inspect trace dump trace-86396.log.gz
 ```
 
+You can also apply a filter to the trace file using the `--filter` argument (which will match log message text case insensitively). For example:
+
+``` bash
+inspect trace dump trace-86396.log.gz --filter model
+```
+
 ## Anomalies {#anomalies}
 
 If an evaluation is running and is not terminating, you can execute the following command to list instances of actions (e.g. model API generates, docker compose commands, tool calls, etc.) that are still running:
@@ -57,15 +63,13 @@ inspect trace anomalies --all
 
 Note that errors and timeouts are not by themselves evidence of problems, since both occur in the normal course of running evaluations (e.g. model generate calls can return errors that are retried and Docker or S3 can also return retryable errors or timeout when they are under heavy load).
 
-## Tracing API {#tracing-api}
+As with the `inspect trace dump` command, you can apply a filter when listing anomolies. For example:
 
-::: {.callout-note appearance="simple"}
-The tracing API described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```bash
+inspect trace anomalies --filter model
 ```
-:::
+
+## Tracing API {#tracing-api}
 
 In addition to the standard set of actions which are trace logged, you can do your own custom trace logging using the `trace_action()` and `trace_message()` APIs. Trace logging is a great way to make sure that logging context is *always captured* (since the last 10 trace logs are always available) without cluttering up the console or eval transcripts.
 

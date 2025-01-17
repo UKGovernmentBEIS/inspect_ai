@@ -28,14 +28,34 @@ SampleCleanup = Callable[
 ]
 
 
+class HostMapping(BaseModel):
+    host_ip: str
+    host_port: int
+
+
+class PortMapping(BaseModel):
+    container_port: int
+    protocol: Literal["tcp", "udp"]
+    mappings: list[HostMapping]
+
+
 class SandboxConnection(BaseModel):
     """Information required to connect to sandbox."""
+
+    type: str
+    """Sandbox type name (e.g. 'docker', 'local', etc.)"""
 
     command: str
     """Shell command to connect to sandbox."""
 
     vscode_command: list[Any] | None = Field(default=None)
     """Optional vscode command (+args) to connect to sandbox."""
+
+    ports: list[PortMapping] | None = Field(default=None)
+    """Optional list of port mappings into container"""
+
+    container: str | None = Field(default=None)
+    """Optional container name (does not apply to all sandboxes)."""
 
 
 class SandboxEnvironment(abc.ABC):
@@ -139,6 +159,7 @@ class SandboxEnvironment(abc.ABC):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         """Execute a command within a sandbox environment.
 
@@ -155,12 +176,17 @@ class SandboxEnvironment(abc.ABC):
           env (dict[str,str]): Environment variables for execution.
           user (str | None): Optional username or UID to run the command as.
           timeout (int | None): Optional execution timeout (seconds).
+          timeout_retry (bool): Retry the command in the case that it times out.
+            Commands will be retried up to twice, with a timeout of no greater
+            than 60 seconds for the first retry and 30 for the second.
+
 
         Returns:
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
-          TimeoutError: If the specified `timeout` expires.
+          TimeoutError: If the specified `timeout` expires
+            (and `timeout_retry` attempts also timeout).
           UnicodeDecodeError: If an error occurs while
             decoding the command output.
           PermissionError: If the user does not have

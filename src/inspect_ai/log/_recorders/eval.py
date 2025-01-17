@@ -13,7 +13,12 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
@@ -90,9 +95,11 @@ class EvalRecorder(FileRecorder):
         self.data: dict[str, ZipLogFile] = {}
 
     @override
-    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    async def log_init(
+        self, eval: EvalSpec, location: str | None = None, *, clean: bool = False
+    ) -> str:
         # if the file exists then read summaries
-        if location is not None and self.fs.exists(location):
+        if not clean and location is not None and self.fs.exists(location):
             with file(location, "rb") as f:
                 with ZipFile(f, "r") as zip:
                     log_start = _read_start(zip)
@@ -229,7 +236,7 @@ class EvalRecorder(FileRecorder):
     async def write_log(cls, location: str, log: EvalLog) -> None:
         # write using the recorder (so we get all of the extra streams)
         recorder = EvalRecorder(dirname(location))
-        await recorder.log_init(log.eval, location)
+        await recorder.log_init(log.eval, location, clean=True)
         await recorder.log_start(log.eval, log.plan)
         for sample in log.samples or []:
             await recorder.log_sample(log.eval, sample)
@@ -244,12 +251,16 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         input: list[ChatMessage] = []
         for message in inputs:
             if not isinstance(message.content, str):
-                filtered_content: list[ContentText | ContentImage] = []
+                filtered_content: list[
+                    ContentText | ContentImage | ContentAudio | ContentVideo
+                ] = []
                 for content in message.content:
-                    if content.type != "image":
+                    if content.type == "text":
                         filtered_content.append(content)
-                if len(filtered_content) == 0:
-                    filtered_content.append(ContentText(text="(Image)"))
+                    else:
+                        filtered_content.append(
+                            ContentText(text=f"({content.type.capitalize()})")
+                        )
                 message.content = filtered_content
                 input.append(message)
             else:

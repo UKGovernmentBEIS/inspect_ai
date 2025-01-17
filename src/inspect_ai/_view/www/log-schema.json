@@ -210,6 +210,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -281,6 +287,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -336,6 +348,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -429,6 +447,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -482,6 +506,36 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ContentAudio": {
+      "properties": {
+        "type": {
+          "const": "audio",
+          "default": "audio",
+          "title": "Type",
+          "type": "string"
+        },
+        "audio": {
+          "title": "Audio",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "wav",
+            "mp3"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "audio",
+        "format"
+      ],
+      "title": "ContentAudio",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentImage": {
       "properties": {
         "type": {
@@ -532,6 +586,37 @@
         "text"
       ],
       "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentVideo": {
+      "properties": {
+        "type": {
+          "const": "video",
+          "default": "video",
+          "title": "Type",
+          "type": "string"
+        },
+        "video": {
+          "title": "Video",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "mp4",
+            "mpeg",
+            "mov"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "video",
+        "format"
+      ],
+      "title": "ContentVideo",
       "type": "object",
       "additionalProperties": false
     },
@@ -656,18 +741,6 @@
           ],
           "default": null,
           "title": "Epochs Reducer"
-        },
-        "trace": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Trace"
         },
         "approval": {
           "anyOf": [
@@ -847,7 +920,6 @@
         "sample_id",
         "epochs",
         "epochs_reducer",
-        "trace",
         "approval",
         "fail_on_error",
         "message_limit",
@@ -1065,6 +1137,7 @@
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
             "reasoning_effort": null
@@ -1444,7 +1517,8 @@
             "time",
             "message",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -2118,6 +2192,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "internal_tools": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Tools"
+        },
         "max_tool_output": {
           "anyOf": [
             {
@@ -2186,6 +2272,7 @@
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "internal_tools",
         "max_tool_output",
         "cache_prompt",
         "reasoning_effort"
@@ -2994,7 +3081,8 @@
             "message",
             "time",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -3722,6 +3810,12 @@
               "$ref": "#/$defs/ContentImage"
             },
             {
+              "$ref": "#/$defs/ContentAudio"
+            },
+            {
+              "$ref": "#/$defs/ContentVideo"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -3729,6 +3823,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -4123,6 +4223,7 @@
           "best_of": null,
           "cache_prompt": null,
           "frequency_penalty": null,
+          "internal_tools": null,
           "logit_bias": null,
           "logprobs": null,
           "max_connections": null,

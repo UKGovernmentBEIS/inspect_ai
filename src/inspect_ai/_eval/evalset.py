@@ -33,7 +33,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util import DisplayType, SandboxEnvironmentType
 
 from .eval import eval, eval_init
 from .loader import ResolvedTask, resolve_task_args
@@ -59,6 +59,7 @@ def eval_set(
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
     trace: bool | None = None,
+    display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
@@ -116,6 +117,7 @@ def eval_set(
            evaluating task(s). ptional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
         trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        display (DisplayType | None): Task display type (defaults to 'full').
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -180,6 +182,7 @@ def eval_set(
             solver=solver,
             tags=tags,
             trace=trace,
+            display=display,
             approval=approval,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -501,9 +504,6 @@ def latest_completed_task_eval_logs(
     # take the most recent completed log for each id
     latest_completed_logs: list[Log] = []
     for id, id_logs in logs_by_id.items():
-        # filter on completed
-        id_logs = [id_log for id_log in id_logs if id_log[1].status != "started"]
-
         # continue if there are no target logs
         if len(id_logs) == 0:
             continue
@@ -517,11 +517,13 @@ def latest_completed_task_eval_logs(
         latest_completed_logs.append(id_logs[0])
 
         # remove the rest if requested
+        # (don't remove 'started' in case its needed for post-mortum debugging)
         if cleanup_older:
             fs = filesystem(id_logs[0][0].name)
             for id_log in id_logs[1:]:
                 try:
-                    fs.rm(id_log[0].name)
+                    if id_log.header.status != "started":
+                        fs.rm(id_log.info.name)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 
