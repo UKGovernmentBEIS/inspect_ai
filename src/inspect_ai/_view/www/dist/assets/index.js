@@ -33173,7 +33173,9 @@ ${events}
         }
       });
     };
-    const LightboxCarousel = ({ slides }) => {
+    const LightboxCarousel = ({
+      slides
+    }) => {
       const [isOpen, setIsOpen] = h(false);
       const [showOverlay, setShowOverlay] = h(false);
       const [currentIndex, setCurrentIndex] = h(0);
@@ -33217,135 +33219,52 @@ ${events}
         window.addEventListener("keyup", handleKeyUp, true);
         return () => window.removeEventListener("keyup", handleKeyUp);
       }, [isOpen, showNext, showPrev]);
-      const buttonStyle = {
-        position: "absolute",
-        top: "50%",
-        transform: "translateY(-50%)",
-        background: "none",
-        color: "#fff",
-        border: "none",
-        padding: "0.5em",
-        fontSize: "3em",
-        cursor: "pointer",
-        zIndex: "9999"
-      };
-      const prevButtonStyle = {
-        ...buttonStyle,
-        left: "10px"
-      };
-      const nextButtonStyle = {
-        ...buttonStyle,
-        right: "10px"
-      };
-      const overlayStyle = {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        background: "rgba(0,0,0,0.8)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: isOpen ? "1" : "0",
-        visibility: isOpen ? "visible" : "hidden",
-        transition: "opacity 0.3s ease, visibility 0.3s ease",
-        zIndex: 9998
-      };
-      const closeButtonWrapperStyle = {
-        position: "absolute",
-        top: "10px",
-        right: "10px"
-      };
-      const closeButtonStyle = {
-        border: "none",
-        background: "none",
-        color: "#fff",
-        fontSize: "3em",
-        fontWeight: "500",
-        cursor: "pointer",
-        paddingLeft: "1em",
-        paddingBottom: "1em",
-        zIndex: "10000"
-      };
-      const contentStyle = {
-        maxWidth: "90%",
-        maxHeight: "90%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        // fade in/out
-        opacity: isOpen ? "1" : "0",
-        visibility: isOpen ? "visible" : "hidden",
-        transition: "opacity 0.3s ease, visibility 0.3s ease",
-        zIndex: 9999
-      };
-      return m$1`
-    <div className="lightbox-carousel-container">
-      <!-- Thumbnails -->
-      <div
-        className="carousel-thumbs"
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "auto auto auto auto"
-      }}
-      >
-        ${slides.map((slide, index) => {
-        return m$1`
-            <div
-              key=${index}
-              className="carousel-thumb"
-              onClick=${() => openLightbox(index)}
-              style=${{
-          background: "black",
-          color: "white",
-          padding: "4em 0",
-          border: "0",
-          margin: "5px",
-          cursor: "pointer",
-          textAlign: "center"
-        }}
-            >
-              <div>${slide.label}</div>
-              <div>
-                <i
-                  class=${ApplicationIcons.play}
-                  style=${{ fontSize: "4em" }}
-                ></i>
-              </div>
-            </div>
-          `;
-      })}
-      </div>
-
-      <!-- Lightbox Overlay -->
-      ${showOverlay && m$1`
-        <div className="lightbox-overlay" style=${overlayStyle}>
-          <div style=${closeButtonWrapperStyle}>
-            <button style=${closeButtonStyle} onClick=${closeLightbox}>
-              <i class=${ApplicationIcons.close}></i>
-            </button>
-          </div>
-
-          ${slides.length > 1 ? m$1` <button style=${prevButtonStyle} onClick=${showPrev}>
-                <i class=${ApplicationIcons.previous}></i>
-              </button>` : ""}
-          ${slides.length > 1 ? m$1` <button style=${nextButtonStyle} onClick=${showNext}>
-                <i class=${ApplicationIcons.next}></i>
-              </button>` : ""}
-
-          <div
-            key=${`carousel-slide-${currentIndex}`}
-            className="lightbox-content"
-            style=${contentStyle}
-          >
-            ${slides[currentIndex].render()}
-          </div>
-        </div>
-      `}
-    </div>
-  `;
+      return /* @__PURE__ */ u("div", {
+        className: "lightbox-carousel-container",
+        children: [/* @__PURE__ */ u("div", {
+          className: "carousel-thumbs",
+          children: slides.map((slide, index) => {
+            return /* @__PURE__ */ u("div", {
+              className: "carousel-thumb",
+              onClick: () => openLightbox(index),
+              children: [/* @__PURE__ */ u("div", {
+                children: slide.label
+              }), /* @__PURE__ */ u("div", {
+                children: /* @__PURE__ */ u("i", {
+                  className: clsx(ApplicationIcons.play, "carousel-play-icon")
+                })
+              })]
+            }, index);
+          })
+        }), showOverlay && /* @__PURE__ */ u("div", {
+          className: clsx("lightbox-overlay", isOpen ? "open" : "closed"),
+          children: [/* @__PURE__ */ u("div", {
+            className: "lightbox-button-close-wrapper",
+            children: /* @__PURE__ */ u("button", {
+              className: "lightbox-button-close",
+              onClick: closeLightbox,
+              children: /* @__PURE__ */ u("i", {
+                class: ApplicationIcons.close
+              })
+            })
+          }), slides.length > 1 ? /* @__PURE__ */ u("button", {
+            className: "lightbox-preview-button prev",
+            onClick: showPrev,
+            children: /* @__PURE__ */ u("i", {
+              class: ApplicationIcons.previous
+            })
+          }) : "", slides.length > 1 ? /* @__PURE__ */ u("button", {
+            className: "lightbox-preview-button next",
+            onClick: showNext,
+            children: /* @__PURE__ */ u("i", {
+              class: ApplicationIcons.next
+            })
+          }) : "", /* @__PURE__ */ u("div", {
+            className: clsx("lightbox-content", isOpen ? "open" : "closed"),
+            children: slides[currentIndex].render()
+          }, `carousel-slide-${currentIndex}`)]
+        })]
+      });
     };
     const HumanBaselineView = ({
       started,
@@ -33358,7 +33277,9 @@ ${events}
       const player_fns = [];
       const revokableUrls = [];
       const revokableUrl = (data) => {
-        const blob = new Blob([data], { type: "text/plain" });
+        const blob = new Blob([data], {
+          type: "text/plain"
+        });
         const url = URL.createObjectURL(blob);
         revokableUrls.push(url);
         return url;
@@ -33370,93 +33291,86 @@ ${events}
       }, []);
       let count = 1;
       for (const sessionLog of sessionLogs) {
-        const rows = extractSize(sessionLog.output, "LINES");
-        const cols = extractSize(sessionLog.output, "COLUMNS");
+        const rows = extractSize(sessionLog.output, "LINES", 24);
+        const cols = extractSize(sessionLog.output, "COLUMNS", 80);
         const currentCount = count;
         const title = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
           label: title,
-          render: () => m$1`
-        <${AsciinemaPlayer}
-          id=${`player-${currentCount}`}
-          inputUrl=${revokableUrl(sessionLog.input)}
-          outputUrl=${revokableUrl(sessionLog.output)}
-          timingUrl=${revokableUrl(sessionLog.timing)}
-          rows=${rows}
-          cols=${cols}
-          style=${{
-            maxHeight: "100vh",
-            maxWidth: "100vw",
-            height: `${parseInt(rows) * 2}em`,
-            width: `${parseInt(cols) * 2}em`
-          }}
-          fit="both"
-        />
-      `
+          render: () => /* @__PURE__ */ u(AsciinemaPlayer, {
+            id: `player-${currentCount}`,
+            inputUrl: revokableUrl(sessionLog.input),
+            outputUrl: revokableUrl(sessionLog.output),
+            timingUrl: revokableUrl(sessionLog.timing),
+            rows,
+            cols,
+            className: "asciinema-player",
+            style: {
+              height: `${rows * 2}em`,
+              width: `${cols * 2}em`
+            },
+            fit: "both"
+          })
         });
         count += 1;
       }
-      const StatusMessage = ({ completed: completed2, running: running2, answer: answer2 }) => {
+      const StatusMessage = ({
+        completed: completed2,
+        running: running2,
+        answer: answer2
+      }) => {
         if (running2) {
-          return m$1`<span style=${{ ...TextStyle.label }}>Running</span>`;
+          return /* @__PURE__ */ u("span", {
+            className: "text-style-label",
+            children: "Running"
+          });
         } else if (completed2) {
-          return m$1`<span style=${{ ...TextStyle.label, marginRight: "0.5em" }}
-          >Answer</span
-        ><span>${answer2}</span>`;
+          return /* @__PURE__ */ u("div", {
+            children: [/* @__PURE__ */ u("span", {
+              className: "text-style-label text-style-secondary asciinema-player-status",
+              children: "Answer"
+            }), /* @__PURE__ */ u("span", {
+              children: answer2
+            })]
+          });
         } else {
           return "Unknown status";
         }
       };
-      return m$1`<div style=${{ display: "flex", justifyContent: "center" }}>
-    <div
-      style=${{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gridTemplateRows: "auto auto",
-        width: "100%"
-      }}
-    >
-      <div
-        style=${{
-        justifySelf: "start",
-        ...TextStyle.label
-      }}
-      >
-        ${started ? formatDateTime(started) : ""}${runtime ? ` (${formatTime$1(Math.floor(runtime))})` : ""}
-      </div>
-      <div
-        style=${{
-        justifySelf: "center",
-        ...TextStyle.label
-      }}
-      ></div>
-      <div
-        style=${{
-        justifySelf: "end"
-      }}
-      >
-        <${StatusMessage}
-          completed=${completed}
-          running=${running}
-          answer=${answer}
-        />
-      </div>
-      <div
-        style=${{
-        gridColumn: "span 3",
-        width: "100%"
-      }}
-      >
-        <${LightboxCarousel} slides=${player_fns} />
-      </div>
-    </div>
-  </div>`;
+      return /* @__PURE__ */ u("div", {
+        className: "asciinema-wrapper",
+        children: /* @__PURE__ */ u("div", {
+          className: "asciinema-container",
+          children: [/* @__PURE__ */ u("div", {
+            className: "asciinema-header-left text-style-label",
+            children: [started ? formatDateTime(started) : "", runtime ? ` (${formatTime$1(Math.floor(runtime))})` : ""]
+          }), /* @__PURE__ */ u("div", {
+            className: "asciinema-header-center text-style-label"
+          }), /* @__PURE__ */ u("div", {
+            className: "asciinema-header-right",
+            children: /* @__PURE__ */ u(StatusMessage, {
+              completed,
+              running,
+              answer
+            })
+          }), /* @__PURE__ */ u("div", {
+            className: "asciinema-body",
+            children: /* @__PURE__ */ u(LightboxCarousel, {
+              slides: player_fns
+            })
+          })]
+        })
+      });
     };
-    const extractSize = (value, label) => {
+    const extractSize = (value, label, defaultValue) => {
       const regex2 = new RegExp(`${label}="(\\d+)"`);
       const match = value.match(regex2);
       const size = match ? match[1] : void 0;
-      return size;
+      if (size) {
+        return parseInt(size);
+      } else {
+        return defaultValue;
+      }
     };
     const system_msg_added_sig = {
       type: "system_message",
