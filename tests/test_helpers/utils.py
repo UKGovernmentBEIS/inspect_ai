@@ -16,7 +16,6 @@ from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
-from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
@@ -140,7 +139,6 @@ def simple_task_state(
         choices=choices,
         epoch=0,
         input=[],
-        target=Target([]),
         messages=messages,
         model=ModelName(model="fake/model"),
         output=ModelOutput.from_content(model="model", content=model_output),
