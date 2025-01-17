@@ -1,6 +1,8 @@
 // @ts-check
 
 export const asyncJsonParse = async (text) => {
+  const encoder = new TextEncoder();
+  const encodedText = encoder.encode(text);
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
   const blobURL = URL.createObjectURL(blob);
   const worker = new Worker(blobURL);
@@ -17,7 +19,9 @@ export const asyncJsonParse = async (text) => {
         reject(new Error(error.message));
       };
     });
-    worker.postMessage({ scriptContent: kJson5ScriptBase64, text });
+    worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [
+      encodedText.buffer,
+    ]);
     return await result;
   } finally {
     worker.terminate();
@@ -28,12 +32,14 @@ export const asyncJsonParse = async (text) => {
 const kWorkerCode = `
 self.onmessage = function (e) {
   eval(atob(e.data.scriptContent));
-  const text = e.data.text;
+  const { encodedText } = e.data;
+  const decoder = new TextDecoder();
+  const text = decoder.decode(encodedText);
   try {
-    const result = JSON5.parse(text);
-    self.postMessage({ success: true, result });
-  } catch (error) {
-    self.postMessage({ success: false, error: error.message });
+    const result = JSON.parse(text);
+    postMessage({ success: true, result });
+  } catch (err) {
+    postMessage({ success: false, error: err.message });
   }
 };`;
 

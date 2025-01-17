@@ -34,7 +34,7 @@ export const EventRow = ({ title, icon, style, children }) => {
     class="card"
     style=${{
       padding: "0.4em",
-      marginBottom: "0.4em",
+      marginBottom: "0",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
       ...style,
