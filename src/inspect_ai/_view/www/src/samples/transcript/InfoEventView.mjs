@@ -2,7 +2,7 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/icons";
 import { JSONPanel } from "../../components/JsonPanel";
-import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./EventPanel.mjs";
 

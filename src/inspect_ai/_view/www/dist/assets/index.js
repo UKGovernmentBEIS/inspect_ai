@@ -10128,6 +10128,19 @@ var require_assets = __commonJS({
         })
       });
     };
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const decodeCache = {};
     function getDecodeCache(exclude) {
       let cache = decodeCache[exclude];
@@ -15292,8 +15305,12 @@ var require_assets = __commonJS({
       env = env || {};
       return this.renderer.render(this.parseInline(src, env), this.options, env);
     };
-    const MarkdownDiv = (props) => {
-      const { markdown, style: style2, contentRef } = props;
+    const MarkdownDiv = ({
+      markdown,
+      style: style2,
+      contentRef,
+      className: className2
+    }) => {
       const escaped = markdown ? escape$1(markdown) : "";
       const preRendered = preRenderText(escaped);
       const protectedText = protectMarkdown(preRendered);
@@ -15310,28 +15327,24 @@ var require_assets = __commonJS({
       }
       const unescaped = unprotectMarkdown(renderedHtml);
       const withCode = unescapeCodeHtmlEntities(unescaped);
-      const markup = { __html: withCode };
-      return m$1`<div
-    ref=${contentRef}
-    dangerouslySetInnerHTML=${markup}
-    style=${style2}
-    class="${props.class ? `${props.class} ` : ""}markdown-content"
-  />`;
+      const markup = {
+        __html: withCode
+      };
+      return /* @__PURE__ */ u("div", {
+        ref: contentRef,
+        dangerouslySetInnerHTML: markup,
+        style: style2,
+        className: clsx(className2, "markdown-content")
+      });
     };
     const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
     const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
     const preRenderText = (txt) => {
       txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
-      return txt.replaceAll(
-        kLetterListPattern,
-        "<p style='margin-bottom: 0.2em;'>$1</p>"
-      );
+      return txt.replaceAll(kLetterListPattern, "<p class='markdown-ordered-list-item'>$1</p>");
     };
     const protectMarkdown = (txt) => {
-      return txt.replaceAll(
-        kCommonmarkReferenceLinkPattern,
-        "(open:767A125E)$1(close:767A125E) $2 "
-      );
+      return txt.replaceAll(kCommonmarkReferenceLinkPattern, "(open:767A125E)$1(close:767A125E) $2 ");
     };
     const unprotectMarkdown = (txt) => {
       txt = txt.replaceAll("(open:767A125E)", "[");
@@ -15339,7 +15352,7 @@ var require_assets = __commonJS({
       return txt;
     };
     const escape$1 = (content2) => {
-      return content2.replace(/[<>&'"]/g, function(c2) {
+      return content2.replace(/[<>&'"]/g, (c2) => {
         switch (c2) {
           case "<":
             return "&lt;";
@@ -15351,6 +15364,8 @@ var require_assets = __commonJS({
             return "&apos;";
           case '"':
             return "&quot;";
+          default:
+            throw new Error("Matched a value that isn't replaceable");
         }
       });
     };
@@ -15362,17 +15377,9 @@ var require_assets = __commonJS({
         "&#x5C;": "\\",
         "&quot;": '"'
       };
-      return str2.replace(
-        /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
-        function(match, starttag, content2, endtag) {
-          return starttag + content2.replace(
-            /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
-            function(entity2) {
-              return htmlEntities[entity2] || entity2;
-            }
-          ) + endtag;
-        }
-      );
+      return str2.replace(/(<code[^>]*>)([\s\S]*?)(<\/code>)/gi, (_match, starttag, content2, endtag) => {
+        return starttag + content2.replace(/&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g, (entity2) => htmlEntities[entity2] || entity2) + endtag;
+      });
     }
     var murmurhash$1 = { exports: {} };
     (function(module2) {
@@ -24546,19 +24553,6 @@ self.onmessage = function (e) {
         });
       }
     };
-    function r(e2) {
-      var t2, f2, n2 = "";
-      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
-      else if ("object" == typeof e2) if (Array.isArray(e2)) {
-        var o2 = e2.length;
-        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
-      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
-      return n2;
-    }
-    function clsx() {
-      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
-      return n2;
-    }
     const CopyButton = ({
       value,
       onCopySuccess,
@@ -33548,7 +33542,7 @@ ${events}
       before=${before}
       after=${after}
       name="Diff"
-      style=${{ margin: "1em 0em" }}
+      style=${{ margin: "1em 0em", width: "100%" }}
     />`
       ];
       const changePreview = generatePreview(

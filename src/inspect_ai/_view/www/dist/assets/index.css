@@ -15549,6 +15549,9 @@ ul.jsondiffpatch-textdiff {
   border: none;
   padding: 0.1rem 0.5rem;
 }
+.markdown-ordered-list-item {
+  margin-bottom: 0.2em;
+}
 .tool-button i {
   margin-right: 0.5em;
 }
