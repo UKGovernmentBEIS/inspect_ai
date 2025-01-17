@@ -84,6 +84,29 @@ import {
  */
 
 /**
+ * @param {import("../Types.mjs").ScoreLabel | undefined} scoreLabel
+ * @returns {string}
+ */
+export const scoreLabelKey = (scoreLabel) => {
+  if (!scoreLabel) {
+    return "No score key";
+  }
+  return `${scoreLabel.scorer}.${scoreLabel.name}`;
+};
+
+/**
+ * @param {string} key
+ * @returns {import("../Types.mjs").ScoreLabel | undefined}
+ */
+export const parseScoreLabelKey = (key) => {
+  if (key == "No score key") {
+    return undefined;
+  }
+  const [scorer, name] = key.split(".");
+  return { scorer, name };
+};
+
+/**
  * @param {import("../Types.mjs").ScoreLabel[]} scores - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
@@ -163,17 +186,6 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
       }
     }
     return undefined;
-  };
-
-  /**
-   * @param {import("../Types.mjs").ScoreLabel} [scoreLabel]
-   * @returns {string}
-   */
-  const scoreLabelKey = (scoreLabel) => {
-    if (!scoreLabel) {
-      return "No score key";
-    }
-    return `${scoreLabel.scorer}.${scoreLabel.name}`;
   };
 
   /**
@@ -466,7 +478,7 @@ const scoreCategorizers = [
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     describe: (values, types) => {
-      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+      if (types.length === 1 && types[0] === "boolean") {
         return booleanScoreCategorizer();
       }
     },

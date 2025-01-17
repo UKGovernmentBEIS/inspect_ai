@@ -32,6 +32,7 @@
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
 - Inspect View: don't display the 'input' column heading if there isn't an input
+- Inspect View: allow filtering samples by compound expressions including multiple scorers.
 - Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
 - Open AI: Use new `max_completion_tokens` option for o1 full.
 - Web Browser: raise error when both `error` and `web_at` fields are present in response.
