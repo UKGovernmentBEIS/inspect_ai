@@ -716,7 +716,9 @@ def tool_result_images_reducer(
     # if there are tool result images, pull them out into a ChatUserMessage
     if isinstance(message, ChatMessageTool) and isinstance(message.content, list):
         tool_message = ChatMessageTool(
-            content=message.content.copy(), tool_call_id=message.tool_call_id
+            content=message.content.copy(),
+            tool_call_id=message.tool_call_id,
+            function=message.function,
         )
         assert isinstance(tool_message.content, list)
         messages.append(tool_message)
