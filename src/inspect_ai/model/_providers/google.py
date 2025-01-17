@@ -141,7 +141,7 @@ class GoogleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         parameters = GenerationConfig(
             temperature=config.temperature,
             top_p=config.top_p,
@@ -205,15 +205,13 @@ class GoogleAPI(ModelAPI):
         # return
         return output, model_call()
 
-    def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput:
+    def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput | Exception:
         if "size exceeds the limit" in ex.message.lower():
             return ModelOutput.from_content(
                 model=self.model_name, content=ex.message, stop_reason="model_length"
             )
         else:
-            return ModelOutput.from_content(
-                model=self.model_name, content=ex.message, stop_reason="unknown"
-            )
+            return ex
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:

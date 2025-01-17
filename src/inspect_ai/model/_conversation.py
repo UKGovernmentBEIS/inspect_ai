@@ -54,3 +54,8 @@ def conversation_assistant_message(
 
         # print the assistant message
         conversation_panel(title="Assistant", content=content)
+
+
+def conversation_assistant_error(error: Exception) -> None:
+    if display_type() == "conversation":
+        conversation_panel(title="Assistant", content=repr(error))

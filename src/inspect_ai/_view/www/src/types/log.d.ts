@@ -275,6 +275,7 @@ export type Additionalproperties1 = boolean;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name6 = string;
+export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
 export type Timestamp5 = string;
 export type Pending5 = boolean | null;
@@ -816,6 +817,7 @@ export interface ModelEvent {
   tool_choice: ToolChoice;
   config: GenerateConfig1;
   output: ModelOutput;
+  error: Error1;
   cache: Cache;
   call: ModelCall | null;
 }
