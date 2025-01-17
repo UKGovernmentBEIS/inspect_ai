@@ -20,7 +20,7 @@ import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
 
 import { FontSize } from "../appearance/fonts";
-import { MessageBand } from "../components/MessageBand.mjs";
+import { MessageBand } from "../components/MessageBand";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,

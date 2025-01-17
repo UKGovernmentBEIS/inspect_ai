@@ -25534,44 +25534,31 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const MessageBand = ({ message, hidden, setHidden, type }) => {
-      const bgColor = type === "info" ? "var(--bs-light)" : "var(--bs-" + type + "-bg-subtle)";
-      const color = type === "info" ? void 0 : "var(--bs-" + type + "-text-emphasis)";
-      return m$1`
-    <div
-      style=${{
-        gridTemplateColumns: "max-content auto max-content",
-        alignItems: "center",
-        columnGap: "0.5em",
-        fontSize: FontSize.small,
-        color,
-        background: bgColor,
-        borderBottom: "solid 1px var(--bs-light-border-subtle)",
-        padding: "0.3em 1em",
-        display: hidden ? "none" : "grid"
-      }}
-    >
-      <i class=${ApplicationIcons.logging[type]} />
-      ${message}
-      <button
-        title="Close"
-        style=${{
-        fontSize: FontSize["title-secondary"],
-        margin: "0",
-        padding: "0",
-        color,
-        height: FontSize["title-secondary"],
-        lineHeight: FontSize["title-secondary"]
-      }}
-        class="btn"
-        onclick=${() => {
-        setHidden(true);
-      }}
-      >
-        <i class=${ApplicationIcons.close}></i>
-      </button>
-    </div>
-  `;
+    const MessageBand = ({
+      message,
+      hidden,
+      setHidden,
+      type
+    }) => {
+      const className2 = [type];
+      if (hidden) {
+        className2.push("hidden");
+      }
+      return /* @__PURE__ */ u("div", {
+        className: clsx("message-band", className2),
+        children: [/* @__PURE__ */ u("i", {
+          className: ApplicationIcons.logging[type]
+        }), message, /* @__PURE__ */ u("button", {
+          className: clsx("btn", "message-band-btn", type),
+          title: "Close",
+          onClick: () => {
+            setHidden(true);
+          },
+          children: /* @__PURE__ */ u("i", {
+            className: ApplicationIcons.close
+          })
+        })]
+      });
     };
     const LargeModal = ({
       id,
