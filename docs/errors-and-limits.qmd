@@ -168,7 +168,7 @@ It's important to note that the `token_limit` is for all tokens used within the 
 ### Custom Limit
 
 ::: {.callout-note appearance="simple"}
-The ablity to enforce custom limits described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+The ability to enforce custom limits described below is currently available only in the development version of Inspect. To install the development version from GitHub:
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
