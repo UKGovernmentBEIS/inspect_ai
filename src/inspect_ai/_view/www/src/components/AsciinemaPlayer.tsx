@@ -16,6 +16,7 @@ interface AsciinemaPlayerProps {
   loop?: boolean;
   theme?: string;
   idleTimeLimit?: number;
+  className?: string;
 }
 
 export const AsciinemaPlayer: React.FC<AsciinemaPlayerProps> = ({
