@@ -6,6 +6,7 @@
 - Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
 - Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
 - Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
+- Model API: log model calls that result in bad request errors.
 
 ## v0.3.58 (16 January 2025)
 
@@ -20,7 +21,6 @@
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
-- Model API: log model calls that result in bad request errors.
 - HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
 - Eval Set: Ensure that logs with status 'started' are retried.
 - Rename the built in `bootstrap_std` metric to `bootstrap_stderr` (deprecate `bootstrap_std`)
