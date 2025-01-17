@@ -22,7 +22,7 @@ import { ProgressBar } from "./components/ProgressBar";
 import { clearDocumentSelection } from "./utils/browser";
 import { debounce, sleep } from "./utils/sync";
 
-import { FindBand } from "./components/FindBand.mjs";
+import { FindBand } from "./components/FindBand";
 import { kDefaultSort } from "./constants";
 import {
   createEvalDescriptor,
