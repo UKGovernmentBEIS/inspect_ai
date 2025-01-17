@@ -1,7 +1,7 @@
 services:
   default:
     # Temporary internal image until the official one is available
-    image: inspect-computer-tool-beta
+    image: aisiuk/inspect-computer-tool:latest-beta
     init: true
 
     # If you only launch a single container, you can vnc into that container by using
