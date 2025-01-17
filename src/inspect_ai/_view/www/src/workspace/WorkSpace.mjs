@@ -142,6 +142,8 @@ export const WorkSpace = ({
     }
   }, [divRef, task_id]);
 
+  const sampleTabScrollRef = useRef(/** @type {HTMLElement|null} */ (null));
+
   const resolvedTabs = useMemo(() => {
     // Tabs that are available within the app
     // Include the tab contents as well as any tools that the tab provides
@@ -154,6 +156,7 @@ export const WorkSpace = ({
       resolvedTabs.samples = {
         id: kEvalWorkspaceTabId,
         scrollable: samples.length === 1,
+        scrollRef: sampleTabScrollRef,
         label: samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
           return html` <${SamplesTab}
@@ -178,6 +181,7 @@ export const WorkSpace = ({
             epoch=${epoch}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
+            sampleTabScrollRef=${sampleTabScrollRef}
           />`;
         },
         tools: () => {
@@ -444,6 +448,7 @@ const WorkspaceDisplay = ({
         onSelected=${onSelected}
         selected=${selectedTab === tab.id}
         scrollable=${!!tab.scrollable}
+        scrollRef=${tab.scrollRef}
         scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
         setScrollPosition=${useCallback(
           (position) => {
