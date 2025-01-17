@@ -40,6 +40,7 @@ from typing_extensions import override
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import (
     DEFAULT_TIMEOUT,
+    NO_CONTENT,
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.images import file_as_data_uri
@@ -324,9 +325,6 @@ async def mistral_chat_message(
         return MistralAssistantMessage(
             content=await mistral_message_content(message.content)
         )
-
-
-NO_CONTENT = "(no content)"
 
 
 async def mistral_message_content(

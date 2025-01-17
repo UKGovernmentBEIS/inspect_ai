@@ -51,7 +51,7 @@ from google.protobuf.struct_pb2 import Struct
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -314,9 +314,6 @@ def consective_tool_message_reducer(
     else:
         messages.append(message)
     return messages
-
-
-NO_CONTENT = "(no content)"
 
 
 async def content_dict(
