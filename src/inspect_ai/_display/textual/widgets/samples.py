@@ -5,21 +5,10 @@ from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import (
-    Horizontal,
-    HorizontalGroup,
-    Vertical,
-    VerticalGroup,
-)
+from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import (
-    Button,
-    Collapsible,
-    LoadingIndicator,
-    OptionList,
-    Static,
-)
+from textual.widgets import Button, Collapsible, LoadingIndicator, OptionList, Static
 from textual.widgets.option_list import Option, Separator
 
 from inspect_ai._util.format import format_progress_time
@@ -28,6 +17,7 @@ from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
+from .sandbox import SandboxView
 from .transcript import TranscriptView
 
 
@@ -218,6 +208,7 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
+        self._sandbox_count: int | None = None
 
     def compose(self) -> ComposeResult:
         with Collapsible(title=""):
@@ -233,12 +224,14 @@ class SampleInfo(Horizontal):
             limits = self.query_one(SampleLimits)
             await limits.sync_sample(sample)
 
+            new_sandbox_count = len(sample.sandboxes)
             # bail if we've already processed this sample
-            if self._sample == sample:
+            if self._sample == sample and self._sandbox_count == new_sandbox_count:
                 return
 
             # set sample
             self._sample = sample
+            self._sandbox_count = new_sandbox_count
 
             # update UI
             self.display = True
@@ -295,6 +288,9 @@ class SandboxesView(Vertical):
         background: transparent;
         height: auto;
     }
+    #sandboxes-list {
+        height: auto;
+    }
     SandboxesView Static {
         background: transparent;
     }
@@ -312,16 +308,22 @@ class SandboxesView(Vertical):
 
     async def sync_sample(self, sample: ActiveSample) -> None:
         if len(sample.sandboxes) > 0:
+            multiple_sandboxes = len(sample.sandboxes) > 1
             self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
-            sandboxes_caption.update("[bold]sandbox containers:[/bold]")
+            sandboxes_caption.update(
+                f"[bold]sandbox container{'s' if multiple_sandboxes else ''}:[/bold]"
+            )
 
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
+
             await sandboxes_list.mount_all(
-                [Static(sandbox.command) for sandbox in sample.sandboxes.values()]
+                SandboxView(connection, name if multiple_sandboxes else None)
+                for name, connection in sample.sandboxes.items()
             )
-            sandboxes_list.mount(
+
+            await sandboxes_list.mount(
                 Static(
                     "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
                     classes="clipboard-message",

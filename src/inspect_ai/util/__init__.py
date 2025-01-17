@@ -3,6 +3,7 @@ from inspect_ai._util.trace import trace_action, trace_message
 from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_type
+from ._limit import SampleLimitExceededError
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -36,6 +37,7 @@ __all__ = [
     "input_panel",
     "input_screen",
     "OutputLimitExceededError",
+    "SampleLimitExceededError",
     "resource",
     "subprocess",
     "SandboxEnvironment",

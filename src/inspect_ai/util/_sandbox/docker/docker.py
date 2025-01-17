@@ -1,4 +1,5 @@
 import errno
+import json
 import os
 import tempfile
 from logging import getLogger
@@ -7,9 +8,11 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai.util._subprocess import ExecResult
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
+    HostMapping,
+    PortMapping,
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -439,6 +442,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
+                ports=await get_ports_info(container),
                 container=container,
             )
         # error (not currently running)
@@ -468,3 +472,62 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
+
+
+async def get_ports_info(container: str) -> list[PortMapping] | None:
+    try:
+        result = await subprocess(
+            [
+                "docker",
+                "inspect",
+                container,
+                "--format",
+                "{{json .NetworkSettings.Ports}}",
+            ],
+            timeout=60,
+        )
+
+        if not result.success:
+            raise RuntimeError(result.stderr)
+
+        return parse_docker_inspect_ports(result.stdout)
+
+    # It's currently a policy decision to let docker timeouts to be silent.
+    except TimeoutError:
+        return None
+
+
+def parse_docker_inspect_ports(json_str: str) -> list[PortMapping] | None:
+    """
+    Parses the JSON output from `docker inspect {container_name} --format='{{json .NetworkSettings.Ports}}'` to extract port mappings.
+
+    Args:
+        json_str (str): A JSON string representing the `NetworkSettings.Ports` output of `docker inspect`. e.g.
+          ```
+          {
+              "5900/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54023"}],
+              "8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54024"}]
+          }
+          ```
+
+    Returns:
+        list[PortMapping] | None: A list of PortMapping objects if any port mappings are found,
+                                   otherwise None.
+    """
+    data = json.loads(json_str)
+    port_mappings = []
+    for port_protocol, mappings in data.items():
+        if mappings is None:
+            continue
+        container_port, protocol = port_protocol.split("/")
+        host_mappings = [
+            HostMapping(host_ip=mapping["HostIp"], host_port=int(mapping["HostPort"]))
+            for mapping in mappings
+        ]
+        port_mapping = PortMapping(
+            container_port=int(container_port),
+            protocol=protocol,
+            mappings=host_mappings,
+        )
+        port_mappings.append(port_mapping)
+    return port_mappings if port_mappings else None

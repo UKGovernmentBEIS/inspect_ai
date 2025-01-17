@@ -550,6 +550,7 @@ async def converse_chat_message(
                 "Tool call is missing a tool call id, which is required for Converse API"
             )
         if message.function is None:
+            print(message)
             raise ValueError(
                 "Tool call is missing a function, which is required for Converse API"
             )
