@@ -426,7 +426,9 @@ def model_output_from_response(
             content.append(ContentText(type="text", text=c.text))
         elif c.image is not None:
             base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
-            content.append(ContentImage(image=base64_image))
+            content.append(
+                ContentImage(image=f"data:image/{c.image.format};base64,{base64_image}")
+            )
         elif c.toolUse is not None:
             tool_calls.append(
                 ToolCall(
@@ -544,6 +546,7 @@ async def converse_chat_message(
                 "Tool call is missing a tool call id, which is required for Converse API"
             )
         if message.function is None:
+            print(message)
             raise ValueError(
                 "Tool call is missing a function, which is required for Converse API"
             )

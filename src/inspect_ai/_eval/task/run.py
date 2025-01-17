@@ -4,6 +4,7 @@ import sys
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
@@ -26,10 +27,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
-from inspect_ai._util.registry import (
-    is_registry_object,
-    registry_log_name,
-)
+from inspect_ai._util.registry import is_registry_object, registry_log_name
 from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
@@ -44,7 +42,11 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import active_sample
+from inspect_ai.log._samples import (
+    active_sample,
+    set_active_sample_message_limit,
+    set_active_sample_token_limit,
+)
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -71,6 +73,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -534,11 +537,6 @@ async def task_run_sample(
         else contextlib.nullcontext()
     )
 
-    # use timeout if provided
-    timeout_cm = (
-        timeout(time_limit) if time_limit is not None else contextlib.nullcontext()
-    )
-
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> EvalError:
         err = sample_error(ex)
@@ -568,8 +566,18 @@ async def task_run_sample(
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
 
+                    # initialise timeout context manager
+                    timeout_cm = (
+                        timeout(time_limit)
+                        if time_limit is not None
+                        else contextlib.nullcontext()
+                    )
+
                     # run sample w/ optional timeout
                     async with timeout_cm:
+                        # mark started
+                        active.started = datetime.now().timestamp()
+
                         # sample init event (remove file bodies as they have content or absolute paths)
                         event_sample = sample.model_copy(
                             update=dict(files={k: "" for k in sample.files.keys()})
@@ -624,6 +632,20 @@ async def task_run_sample(
                     else:
                         raise
 
+                except SampleLimitExceededError as ex:
+                    # sample limit event
+                    transcript()._event(
+                        SampleLimitEvent(
+                            type=ex.type,
+                            limit=ex.limit,
+                            message=f"Sample completed: {ex.message}",
+                        )
+                    )
+
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+                    state.completed = True
+
                 except BaseException as ex:
                     error = handle_error(ex)
 
@@ -642,12 +664,16 @@ async def task_run_sample(
                         assert time_limit
                         timeout_cm = timeout(time_limit / 2)
 
+                # turn off sample limits
+                set_active_sample_token_limit(None)
+                set_active_sample_message_limit(None)
+
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     async with timeout_cm:
-                        if scorers and error is None:
-                            for scorer in scorers:
+                        if error is None:
+                            for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
@@ -668,6 +694,16 @@ async def task_run_sample(
                                             )
                                         )
                                         results[scorer_name] = sample_score
+
+                            # add scores returned by solvers
+                            if state.scores is not None:
+                                for name, score in state.scores.items():
+                                    results[name] = SampleScore(
+                                        score=score, sample_id=state.sample_id
+                                    )
+
+                            # propagate results into scores
+                            state.scores = {k: v.score for k, v in results.items()}
 
                 except asyncio.CancelledError:
                     if active.interrupt_action:
@@ -813,6 +849,7 @@ async def resolve_dataset(
                 epoch=epoch,
                 model=model_name,
                 input=sample.input,
+                target=Target(sample.target),
                 choices=sample.choices,
                 messages=sample_messages(sample),
                 message_limit=message_limit,

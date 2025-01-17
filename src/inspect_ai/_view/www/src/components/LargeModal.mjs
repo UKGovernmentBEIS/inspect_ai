@@ -5,25 +5,24 @@ import { FontSize } from "../appearance/Fonts.mjs";
 import { ProgressBar } from "./ProgressBar.mjs";
 import { MessageBand } from "./MessageBand.mjs";
 
-export const LargeModal = (props) => {
-  const {
-    id,
-    title,
-    detail,
-    detailTools,
-    footer,
-    onkeyup,
-    visible,
-    onHide,
-    showProgress,
-    children,
-    initialScrollPositionRef,
-    setInitialScrollPosition,
-    warning,
-    warningHidden,
-    setWarningHidden,
-  } = props;
-
+export const LargeModal = ({
+  id,
+  title,
+  detail,
+  detailTools,
+  footer,
+  onkeyup,
+  visible,
+  onHide,
+  showProgress,
+  children,
+  initialScrollPositionRef,
+  setInitialScrollPosition,
+  warning,
+  warningHidden,
+  setWarningHidden,
+  scrollRef,
+}) => {
   // The footer
   const modalFooter = footer
     ? html`<div class="modal-footer">${footer}</div>`
@@ -31,7 +30,7 @@ export const LargeModal = (props) => {
 
   // Support restoring the scroll position
   // but only do this for the first time that the children are set
-  const scrollRef = useRef(/** @type {HTMLElement|null} */ (null));
+  scrollRef = scrollRef || useRef(/** @type {HTMLElement|null} */ (null));
   useEffect(() => {
     if (scrollRef.current) {
       setTimeout(() => {

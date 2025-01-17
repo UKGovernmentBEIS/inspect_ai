@@ -84,6 +84,29 @@ import {
  */
 
 /**
+ * @param {import("../Types.mjs").ScoreLabel | undefined} scoreLabel
+ * @returns {string}
+ */
+export const scoreLabelKey = (scoreLabel) => {
+  if (!scoreLabel) {
+    return "No score key";
+  }
+  return `${scoreLabel.scorer}.${scoreLabel.name}`;
+};
+
+/**
+ * @param {string} key
+ * @returns {import("../Types.mjs").ScoreLabel | undefined}
+ */
+export const parseScoreLabelKey = (key) => {
+  if (key == "No score key") {
+    return undefined;
+  }
+  const [scorer, name] = key.split(".");
+  return { scorer, name };
+};
+
+/**
  * @param {import("../Types.mjs").ScoreLabel[]} scores - the list of available scores
  * @param {import("../api/Types.mjs").SampleSummary[]} samples - the list of sample summaries
  * @param {number} epochs - The number of epochs
@@ -163,17 +186,6 @@ export const createEvalDescriptor = (scores, samples, epochs) => {
       }
     }
     return undefined;
-  };
-
-  /**
-   * @param {import("../Types.mjs").ScoreLabel} [scoreLabel]
-   * @returns {string}
-   */
-  const scoreLabelKey = (scoreLabel) => {
-    if (!scoreLabel) {
-      return "No score key";
-    }
-    return `${scoreLabel.scorer}.${scoreLabel.name}`;
   };
 
   /**
@@ -377,7 +389,11 @@ export const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
     (previous, current) => {
       const text = inputString(current.input).join(" ");
       const scoreValue = evalDescriptor.score(current, selectedScore).value;
-      const scoreText = scoreValue ? String(scoreValue) : "";
+      const scoreText = scoreValue
+        ? String(scoreValue)
+        : current.error
+          ? String(current.error)
+          : "";
       previous[0] = Math.min(Math.max(previous[0], text.length), 300);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
@@ -462,7 +478,7 @@ const scoreCategorizers = [
      * @returns {ScoreDescriptor} a ScoreDescriptor
      */
     describe: (values, types) => {
-      if (values.length === 2 && types.length === 1 && types[0] === "boolean") {
+      if (types.length === 1 && types[0] === "boolean") {
         return booleanScoreCategorizer();
       }
     },
