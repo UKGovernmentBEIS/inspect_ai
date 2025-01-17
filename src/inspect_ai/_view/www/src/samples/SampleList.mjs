@@ -9,7 +9,7 @@ import {
 
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationStyles } from "../appearance/styles";
-import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv";
 import { SampleError } from "./SampleError.mjs";
 
 import { EmptyPanel } from "../components/EmptyPanel";

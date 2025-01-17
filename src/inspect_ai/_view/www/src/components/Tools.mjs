@@ -12,7 +12,7 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/fonts";
 import { ExpandablePanel } from "./ExpandablePanel";
-import { MarkdownDiv } from "./MarkdownDiv.mjs";
+import { MarkdownDiv } from "./MarkdownDiv";
 import { MessageContent } from "./MessageContent.mjs";
 
 /**

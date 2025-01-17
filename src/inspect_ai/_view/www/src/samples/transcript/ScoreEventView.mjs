@@ -2,7 +2,7 @@
 import { html } from "htm/preact";
 import { TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
-import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./EventPanel.mjs";

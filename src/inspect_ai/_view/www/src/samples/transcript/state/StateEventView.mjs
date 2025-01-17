@@ -39,7 +39,7 @@ export const StateEventView = ({
       before=${before}
       after=${after}
       name="Diff"
-      style=${{ margin: "1em 0em" }}
+      style=${{ margin: "1em 0em", width: "100%" }}
     />`,
   ];
   // This clone is important since the state is used by preact as potential values that are rendered

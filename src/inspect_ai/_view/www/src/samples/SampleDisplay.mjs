@@ -14,7 +14,7 @@ import { arrayToString } from "../utils/format";
 
 import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
-import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
+import { MarkdownDiv } from "../components/MarkdownDiv";
 import { ToolButton } from "../components/ToolButton";
 import { FlatSampleError } from "./SampleError.mjs";
 import { SampleScoreView } from "./SampleScoreView.mjs";

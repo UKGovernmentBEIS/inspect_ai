@@ -1,9 +1,21 @@
+import clsx from "clsx";
 import markdownit from "markdown-it";
-import { html } from "htm/preact";
+import { Ref } from "react";
+import "./MarkdownDiv.css";
 
-export const MarkdownDiv = (props) => {
-  const { markdown, style, contentRef } = props;
+interface MarkdownDivProps {
+  markdown: string;
+  style: React.CSSProperties;
+  contentRef: Ref<HTMLDivElement>;
+  className: string;
+}
 
+export const MarkdownDiv: React.FC<MarkdownDivProps> = ({
+  markdown,
+  style,
+  contentRef,
+  className,
+}) => {
   // Escape all tags
   const escaped = markdown ? escape(markdown) : "";
 
@@ -32,18 +44,20 @@ export const MarkdownDiv = (props) => {
   // Return the rendered markdown
   const markup = { __html: withCode };
 
-  return html`<div
-    ref=${contentRef}
-    dangerouslySetInnerHTML=${markup}
-    style=${style}
-    class="${props.class ? `${props.class} ` : ""}markdown-content"
-  />`;
+  return (
+    <div
+      ref={contentRef}
+      dangerouslySetInnerHTML={markup}
+      style={style}
+      className={clsx(className, "markdown-content")}
+    />
+  );
 };
 
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
-const preRenderText = (txt) => {
+const preRenderText = (txt: string): string => {
   // eslint-disable-next-line no-misleading-character-class
   txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
 
@@ -51,11 +65,11 @@ const preRenderText = (txt) => {
   // multiple choice (e.g. a), b), c), d) etc..)
   return txt.replaceAll(
     kLetterListPattern,
-    "<p style='margin-bottom: 0.2em;'>$1</p>",
+    "<p class='markdown-ordered-list-item'>$1</p>",
   );
 };
 
-const protectMarkdown = (txt) => {
+const protectMarkdown = (txt: string): string => {
   // Special handling for commonmark like reference links which might
   // look like:
   // [alias]: http://www.google.com
@@ -68,14 +82,14 @@ const protectMarkdown = (txt) => {
   );
 };
 
-const unprotectMarkdown = (txt) => {
+const unprotectMarkdown = (txt: string): string => {
   txt = txt.replaceAll("(open:767A125E)", "[");
   txt = txt.replaceAll("(close:767A125E)", "]");
   return txt;
 };
 
-const escape = (content) => {
-  return content.replace(/[<>&'"]/g, function (c) {
+const escape = (content: string): string => {
+  return content.replace(/[<>&'"]/g, (c: string): string => {
     switch (c) {
       case "<":
         return "&lt;";
@@ -87,12 +101,14 @@ const escape = (content) => {
         return "&apos;";
       case '"':
         return "&quot;";
+      default:
+        throw new Error("Matched a value that isn't replaceable");
     }
   });
 };
 
-function unescapeCodeHtmlEntities(str) {
-  const htmlEntities = {
+function unescapeCodeHtmlEntities(str: string): string {
+  const htmlEntities: Record<string, string> = {
     "&lt;": "<",
     "&gt;": ">",
     "&amp;": "&",
@@ -102,14 +118,17 @@ function unescapeCodeHtmlEntities(str) {
 
   return str.replace(
     /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
-    function (match, starttag, content, endtag) {
+    (
+      _match: string,
+      starttag: string,
+      content: string,
+      endtag: string,
+    ): string => {
       return (
         starttag +
         content.replace(
           /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
-          function (entity) {
-            return htmlEntities[entity] || entity;
-          },
+          (entity: string): string => htmlEntities[entity] || entity,
         ) +
         endtag
       );

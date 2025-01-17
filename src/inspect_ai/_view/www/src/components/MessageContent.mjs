@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { MarkdownDiv } from "./MarkdownDiv.mjs";
+import { MarkdownDiv } from "./MarkdownDiv";
 import { ToolOutput } from "./Tools.mjs";
 
 /**
