@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/fonts";
-import { MessageBand } from "./MessageBand.mjs";
+import { MessageBand } from "./MessageBand";
 import { ProgressBar } from "./ProgressBar";
 
 export const LargeModal = ({
