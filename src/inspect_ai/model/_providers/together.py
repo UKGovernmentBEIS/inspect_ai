@@ -104,20 +104,17 @@ class TogetherAIAPI(OpenAIAPI):
 
     @override
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
-        if ex.status_code == 400:
-            response = ex.response.json()
-            if "error" in response and "message" in response.get("error"):
-                content = response.get("error").get("message")
-            else:
-                content = str(response)
-            if "max_new_tokens" in ex.message:
-                return ModelOutput.from_content(
-                    model=self.model_name, content=content, stop_reason="model_length"
-                )
-            else:
-                return ex
+        response = ex.response.json()
+        if "error" in response and "message" in response.get("error"):
+            content = response.get("error").get("message")
         else:
-            raise ex
+            content = str(response)
+        if "max_new_tokens" in ex.message:
+            return ModelOutput.from_content(
+                model=self.model_name, content=content, stop_reason="model_length"
+            )
+        else:
+            return ex
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(

@@ -303,7 +303,7 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
 
@@ -335,25 +335,33 @@ class BedrockAPI(ModelAPI):
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
-            try:
-                # Make the request
-                request = ConverseClientConverseRequest(
-                    modelId=self.model_name,
-                    messages=messages,
-                    system=system,
-                    inferenceConfig=ConverseInferenceConfig(
-                        maxTokens=config.max_tokens,
-                        temperature=config.temperature,
-                        topP=config.top_p,
-                        stopSequences=config.stop_seqs,
+            # Make the request
+            request = ConverseClientConverseRequest(
+                modelId=self.model_name,
+                messages=messages,
+                system=system,
+                inferenceConfig=ConverseInferenceConfig(
+                    maxTokens=config.max_tokens,
+                    temperature=config.temperature,
+                    topP=config.top_p,
+                    stopSequences=config.stop_seqs,
+                ),
+                additionalModelRequestFields={
+                    "top_k": config.top_k,
+                    **config.model_config,
+                },
+                toolConfig=tool_config,
+            )
+
+            def model_call(response: dict[str, Any] | None = None) -> ModelCall:
+                return ModelCall.create(
+                    request=replace_bytes_with_placeholder(
+                        request.model_dump(exclude_none=True)
                     ),
-                    additionalModelRequestFields={
-                        "top_k": config.top_k,
-                        **config.model_config,
-                    },
-                    toolConfig=tool_config,
+                    response=response,
                 )
 
+            try:
                 # Process the reponse
                 response = await client.converse(
                     **request.model_dump(exclude_none=True)
@@ -371,23 +379,15 @@ class BedrockAPI(ModelAPI):
                             stop_reason="model_length",
                         )
                     else:
-                        raise ex
+                        return ex, model_call(None)
                 else:
                     raise ex
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
 
-        # record call
-        call = ModelCall.create(
-            request=replace_bytes_with_placeholder(
-                request.model_dump(exclude_none=True)
-            ),
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call(response)
 
 
 async def converse_messages(
