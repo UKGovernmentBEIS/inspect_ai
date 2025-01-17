@@ -354,16 +354,8 @@ solvers are `messages` / `user_prompt` and `output`:
 > the `user_prompt` and then calling `generate()` encompasses all of the
 > required interaction with `TaskState`.
 
-There are two additional fields that solvers might modify (but they are
-typically for more advanced use cases):
-
-| Member      | Type | Description                                                                                                                                                                  |
-|-------------|------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `metadata`  | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
-| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately.                                                                                         |
-
-Sometimes its import to have access to the *original* prompt input for
-the task (as other solvers may have re-written or even removed it
+Sometimes its important to have access to the *original* prompt input
+for the task (as other solvers may have re-written or even removed it
 entirely). This is available using the `input` and `input_text`
 properties:
 
@@ -379,13 +371,14 @@ either the task sample or evaluation:
 |-------------|---------------------|-----------------------------------------------------------|
 | `sample_id` | int \| str          | Unique ID for sample.                                     |
 | `epoch`     | int                 | Epoch for sample.                                         |
+| `metadata`  | dict                | Original metadata from `Sample`                           |
 | `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
 | `model`     | ModelName           | Name of model currently being evaluated.                  |
 
-Finally, task states also include available tools as well as guidance
-for the model on which tools to use (if you haven’t yet encountered the
-concept of tool use in language models, don’t worry about understanding
-these fields, the [Tools](tools.qmd) article provides a more in-depth
+Task states also include available tools as well as guidance for the
+model on which tools to use (if you haven’t yet encountered the concept
+of tool use in language models, don’t worry about understanding these
+fields, the [Tools](tools.qmd) article provides a more in-depth
 treatment):
 
 | Member        | Type         | Description                  |
@@ -533,9 +526,48 @@ generation work.
 
 ### Scoring in Solvers
 
+> [!NOTE]
+>
+> The solver-based scoring feature described below is currently
+> available only in the development version of Inspect. To install the
+> development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Typically, solvers don’t score samples but rather leave that to
+externally specified [scorers](scorers.qmd). However, in some cases it
+is more convenient to have solvers also do scoring (e.g. when there is
+high coupling between the solver and scoring). The following two task
+state fields can be used for scoring:
+
+| Member   | Type               | Description                  |
+|----------|--------------------|------------------------------|
+| `target` | Target             | Scoring target from `Sample` |
+| `scores` | dict\[str, Score\] | Optional scores.             |
+
+Here is a trivial example of the code that might be used to yield scores
+from a solver:
+
+``` python
+async def solve(state: TaskState, generate: Generate):
+    # ...perform solver work
+    
+    # score
+    correct = state.output.completion == state.target.text
+    state.scores = { "correct": Score(value=correct) }
+    return state
+```
+
+Note that scores yielded by a `Solver` are combined with scores from the
+normal scoring provided by the scorer(s) defined for a `Task`.
+
+### Intermediate Scoring
+
 In some cases it is useful for a solver to score a task directly to
-assist in deciding whether or how to continue. You can do this using the
-`score()` function:
+generate an intermediate score or assist in deciding whether or how to
+continue. You can do this using the `score()` function:
 
 ``` python
 from inspect_ai.scorer import score

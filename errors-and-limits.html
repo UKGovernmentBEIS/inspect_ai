@@ -375,7 +375,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#time-limit" id="toc-time-limit" class="nav-link" data-scroll-target="#time-limit">Time Limit</a></li>
   <li><a href="#message-limit" id="toc-message-limit" class="nav-link" data-scroll-target="#message-limit">Message Limit</a></li>
   <li><a href="#token-limit" id="toc-token-limit" class="nav-link" data-scroll-target="#token-limit">Token Limit</a></li>
-  <li><a href="#limit-checking" id="toc-limit-checking" class="nav-link" data-scroll-target="#limit-checking">Limit Checking</a></li>
+  <li><a href="#custom-limit" id="toc-custom-limit" class="nav-link" data-scroll-target="#custom-limit">Custom Limit</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -529,6 +529,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        state.message_limit <span class="op">=</span> message_limit</span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Message limits are checked whenever you call <code>generate()</code> on the main model being evaluated. The <code>message_limit</code> is comparted to the number of messages passed in <code>input</code> parameter to <code>generate()</code>.</p>
 </section>
 <section id="token-limit" class="level3">
 <h3 class="anchored" data-anchor-id="token-limit">Token Limit</h3>
@@ -569,15 +570,28 @@ Important
 </div>
 </div>
 </section>
-<section id="limit-checking" class="level3">
-<h3 class="anchored" data-anchor-id="limit-checking">Limit Checking</h3>
-<p>How and when are sample limits checked? Time limits are handled automatically by the code that runs the sample. Message and token limits are checked automatically when you access the <code>completed</code> property of <code>TaskState</code>. For example, most agents will use <code>state.completed</code> as their main loop condition:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># call model</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> <span class="cf">await</span> model.generate(state.messages, state.tools)</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you are writing an agent loop you should check <code>state.completed</code> so that message and token limits can be enforced. Library code that calls a series of solvers in succession should also check <code>state.completed</code> (note that this is done automatically by the <code>chain()</code> function that is used to compose together lists of solvers).</p>
+<section id="custom-limit" class="level3">
+<h3 class="anchored" data-anchor-id="custom-limit">Custom Limit</h3>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The ability to enforce custom limits described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>When limits are exceeded, a <code>SampleLimitExceededError</code> is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a <code>SampleLimitExceededError</code> as follows:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> SampleLimitExceededError</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="cf">raise</span> SampleLimitExceededError(</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"custom"</span>, </span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    value<span class="op">=</span>value,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    limit<span class="op">=</span>limit,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="ss">f"A custom limit was exceeded: </span><span class="sc">{</span>value<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

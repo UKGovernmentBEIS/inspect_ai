@@ -386,6 +386,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#example-prompt-template" id="toc-example-prompt-template" class="nav-link" data-scroll-target="#example-prompt-template">Example: Prompt Template</a></li>
   <li><a href="#example-self-critique" id="toc-example-self-critique" class="nav-link" data-scroll-target="#example-self-critique">Example: Self Critique</a></li>
   <li><a href="#sec-scoring-in-solvers" id="toc-sec-scoring-in-solvers" class="nav-link" data-scroll-target="#sec-scoring-in-solvers">Scoring in Solvers</a></li>
+  <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
   <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a></li>
   </ul></li>
   <li><a href="#early-termination" id="toc-early-termination" class="nav-link" data-scroll-target="#early-termination">Early Termination</a></li>
@@ -714,34 +715,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>There are two additional fields that solvers might modify (but they are typically for more advanced use cases):</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 20%">
-<col style="width: 25%">
-<col style="width: 45%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Member</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>metadata</code></td>
-<td>dict</td>
-<td>Original metadata from <code>Sample</code>, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging).</td>
-</tr>
-<tr class="even">
-<td><code>completed</code></td>
-<td>bool</td>
-<td>Solvers can set <code>completed = True</code> to cause the task to exit the sample immediately.</td>
-</tr>
-</tbody>
-</table>
-<p>Sometimes its import to have access to the <em>original</em> prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the <code>input</code> and <code>input_text</code> properties:</p>
+<p>Sometimes its important to have access to the <em>original</em> prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the <code>input</code> and <code>input_text</code> properties:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
@@ -794,18 +768,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Epoch for sample.</td>
 </tr>
 <tr class="odd">
+<td><code>metadata</code></td>
+<td>dict</td>
+<td>Original metadata from <code>Sample</code></td>
+</tr>
+<tr class="even">
 <td><code>choices</code></td>
 <td>list[str] | None</td>
 <td>Choices from sample (used only in multiple-choice evals).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>model</code></td>
 <td>ModelName</td>
 <td>Name of model currently being evaluated.</td>
 </tr>
 </tbody>
 </table>
-<p>Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the <a href="./tools.html">Tools</a> article provides a more in-depth treatment):</p>
+<p>Task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the <a href="./tools.html">Tools</a> article provides a more in-depth treatment):</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
@@ -943,18 +922,68 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-scoring-in-solvers" class="level3">
 <h3 class="anchored" data-anchor-id="sec-scoring-in-solvers">Scoring in Solvers</h3>
-<p>In some cases it is useful for a solver to score a task directly to assist in deciding whether or how to continue. You can do this using the <code>score()</code> function:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> score</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver_that_scores() <span class="op">-&gt;</span> Solver:</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># use score(s) to determine next step</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> <span class="cf">await</span> score(state)</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The solver-based scoring feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>Typically, solvers don’t score samples but rather leave that to externally specified <a href="./scorers.html">scorers</a>. However, in some cases it is more convenient to have solvers also do scoring (e.g.&nbsp;when there is high coupling between the solver and scoring). The following two task state fields can be used for scoring:</p>
+<table class="caption-top table">
+<caption>Here is a trivial example of the code that might be used to yield scores from a solver:</caption>
+<colgroup>
+<col style="width: 20%">
+<col style="width: 25%">
+<col style="width: 45%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Member</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>target</code></td>
+<td>Target</td>
+<td>Scoring target from <code>Sample</code></td>
+</tr>
+<tr class="even">
+<td><code>scores</code></td>
+<td>dict[str, Score]</td>
+<td>Optional scores.</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ...perform solver work</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># score</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> state.output.completion <span class="op">==</span> state.target.text</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    state.scores <span class="op">=</span> { <span class="st">"correct"</span>: Score(value<span class="op">=</span>correct) }</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that scores yielded by a <code>Solver</code> are combined with scores from the normal scoring provided by the scorer(s) defined for a <code>Task</code>.</p>
+</section>
+<section id="intermediate-scoring" class="level3">
+<h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
+<p>In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the <code>score()</code> function:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> score</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver_that_scores() <span class="op">-&gt;</span> Solver:</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># use score(s) to determine next step</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> <span class="cf">await</span> score(state)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>score()</code> function returns a list of <code>Score</code> (as its possible that a task could have multiple scorers).</p>
 </section>
 <section id="concurrency" class="level3">
@@ -965,16 +994,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="early-termination" class="level2">
 <h2 class="anchored" data-anchor-id="early-termination">Early Termination</h2>
 <p>In some cases a solver has the context available to request an early termination of the sample (i.e.&nbsp;don’t call the rest of the solvers). In this case, setting the <code>TaskState.completed</code> field will result in forgoing remaining solvers. For example, here’s a simple solver that terminates the sample early:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> complete_task():</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        state.completed <span class="op">=</span> <span class="va">True</span></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> complete_task():</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        state.completed <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Early termination might also occur if you specify the <code>message_limit</code> option and the conversation exceeds that limit:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># could terminate early</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(my_task, message_limit <span class="op">=</span> <span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># could terminate early</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(my_task, message_limit <span class="op">=</span> <span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
