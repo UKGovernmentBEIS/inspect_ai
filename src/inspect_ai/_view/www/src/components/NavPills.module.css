@@ -1,0 +1,18 @@
+.visible {
+  display: block;
+}
+
+.hidden {
+  display: none;
+}
+
+.pills {
+  margin-right: 0;
+}
+
+.pill {
+  min-width: 4rem;
+  font-size: var(--inspect-font-size-small);
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--bs-border-radius);
+}

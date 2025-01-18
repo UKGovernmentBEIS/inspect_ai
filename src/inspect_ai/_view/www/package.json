@@ -20,6 +20,7 @@
     "@eslint/js": "^9.5.0",
     "@preact/preset-vite": "^2.9.4",
     "@types/bootstrap": "^5.2.10",
+    "@types/css-modules": "^1.0.5",
     "@types/markdown-it": "^14.1.2",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19.0.7",

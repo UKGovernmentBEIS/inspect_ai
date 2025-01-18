@@ -838,6 +838,11 @@
   dependencies:
     "@popperjs/core" "^2.9.2"
 
+"@types/css-modules@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@types/css-modules/-/css-modules-1.0.5.tgz#8e5e40cd9bfbd1f14063d61ebec564a39fd227ce"
+  integrity sha512-oeKafs/df9lwOvtfiXVliZsocFVOexK9PZtLQWuPeuVCFR7jwiqlg60lu80JTe5NFNtH3tnV6Fs/ySR8BUPHAw==
+
 "@types/diff-match-patch@^1.0.36":
   version "1.0.36"
   resolved "https://registry.yarnpkg.com/@types/diff-match-patch/-/diff-match-patch-1.0.36.tgz#dcef10a69d357fe9d43ac4ff2eca6b85dbf466af"

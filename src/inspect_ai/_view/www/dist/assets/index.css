@@ -15552,6 +15552,24 @@ ul.jsondiffpatch-textdiff {
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
+._visible_tm52u_1 {
+  display: block;
+}
+
+._hidden_tm52u_5 {
+  display: none;
+}
+
+._pills_tm52u_9 {
+  margin-right: 0;
+}
+
+._pill_tm52u_9 {
+  min-width: 4rem;
+  font-size: var(--inspect-font-size-small);
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--bs-border-radius);
+}
 .tool-button i {
   margin-right: 0.5em;
 }

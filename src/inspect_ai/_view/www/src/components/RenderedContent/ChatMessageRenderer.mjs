@@ -1,8 +1,8 @@
 import { html } from "htm/preact";
 
-import { Buckets } from "./Types.mjs";
 import { ChatView } from "../ChatView.mjs";
-import { NavPills } from "../NavPills.mjs";
+import { NavPills } from "../NavPills.tsx";
+import { Buckets } from "./Types.mjs";
 
 /**
  * @type {import("./Types.mjs").ContentRenderer}
