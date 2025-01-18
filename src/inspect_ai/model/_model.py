@@ -27,7 +27,6 @@ from inspect_ai._util.registry import (
     registry_find,
     registry_info,
     registry_unqualified_name,
-    registry_lookup,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai._util.trace import trace_action
@@ -54,11 +53,6 @@ from ._generate_config import (
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(levelname)s:%(name)s:[%(filename)s:%(lineno)d] %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 
@@ -554,11 +548,11 @@ class ModelName:
             self.api = api
             self.name = name
         else:
-            # Get registry info directly from the model instance
-            info = registry_info(model)
-            parts = info.name.split("/")
-            self.api = "/".join(parts[1:]) if len(parts) > 1 else info.name
-            self.name = model.model_name
+            # registry names have a package prefix, strip it off
+            name = registry_info(model.api).name
+            parts = name.split("/")
+            self.api = "/".join(parts[1:]) if len(parts) > 1 else name
+            self.name = model.name
 
     def __eq__(self, pattern: object) -> bool:
         if isinstance(pattern, str):
@@ -582,37 +576,84 @@ class ModelName:
 
 
 def get_model(
-    model: str,
+    model: str | Model | None = None,
+    config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
-    model_args: dict[str, Any] | None = None,
-) -> ModelAPI:
-    """Get a model instance by name."""
-    # split model name into api and model parts
+    api_key: str | None = None,
+    **model_args: Any,
+) -> Model:
+    """Get an instance of a model.
+
+    Args:
+       model (str | Model | None): Model specification.
+         If `Model` is passed it is returned unmodified,
+         if `None` is passed then the model currently being
+         evaluated is returned (or if there is no evaluation
+         then the model referred to by `INSPECT_EVAL_MODEL`).
+       config (GenerateConfig): Configuration for model.
+       base_url (str | None): Optional. Alternate base URL for model.
+       api_key (str | None): Optional. API key for model.
+       **model_args (dict[str,Any]): Additional args to
+         pass to model constructor.
+
+    Returns:
+        Model instance.
+
+    """
+    # start with seeing if a model was passed
+    if isinstance(model, Model):
+        return model
+
+    # now try finding an 'ambient' model (active or env var)
+    if model is None:
+        # return active_model if there is one
+        active = active_model()
+        if active:
+            return active
+
+        # return based on env var if there is one
+        # (handle lists by taking the first model)
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+        if model is not None:
+            model = model.split(",")[0]
+        else:
+            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+
+    # split model into api name and model name if necessary
+    api_name = None
     parts = model.split("/")
-    if len(parts) >= 2:
+    if len(parts) > 1:
         api_name = parts[0]
         model = "/".join(parts[1:])
+
+    # check for api_name matching unqualified name (package prefix not
+    # required as modelapi providers are registred globally for ease of
+    # use from the command line and .env files)
+    def match_modelapi_type(info: RegistryInfo) -> bool:
+        if info.type == "modelapi" and registry_unqualified_name(info) == api_name:
+            return True
+        else:
+            return False
+
+    # find a matching model type
+    modelapi_types = registry_find(match_modelapi_type)
+    if len(modelapi_types) > 0:
+        # create the model (init_hooks here in case the model api
+        # is being used as a stadalone model interface outside of evals)
+        init_hooks()
+        modelapi_type = cast(type[ModelAPI], modelapi_types[0])
+        modelapi_instance = modelapi_type(
+            model_name=model,
+            base_url=base_url,
+            api_key=api_key,
+            config=config,
+            **model_args,
+        )
+        return Model(modelapi_instance, config)
+
     else:
-        api_name = model
-        model = ""
-
-    # try both namespaced and unnamespaced lookups
-    api_types = [
-        registry_lookup("modelapi", api_name),
-        registry_lookup("modelapi", f"inspect_ai/{api_name}")
-    ]
-    api_type = next((t for t in api_types if t is not None), None)
-
-    if api_type is None:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
-
-    # create model instance
-    return cast(type[ModelAPI], api_type)(
-        model_name=model,
-        base_url=base_url,
-        **model_args or {},
-    )
 
 
 def resolve_models(
@@ -630,7 +671,8 @@ def resolve_models(
         return get_model(
             model=m,
             base_url=model_base_url,
-            model_args=model_args,
+            config=config,
+            **model_args,
         )
 
     # resolve None and str to list
