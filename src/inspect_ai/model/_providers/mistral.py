@@ -123,7 +123,7 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # build request
         request: dict[str, Any] = dict(
             model=self.model_name,
@@ -147,7 +147,7 @@ class MistralAPI(ModelAPI):
             response = await self.client.chat.complete_async(**request)
         except SDKError as ex:
             if ex.status_code == 400:
-                return self.handle_bad_request(ex)
+                return self.handle_bad_request(ex), mistral_model_call(request, None)
             else:
                 raise ex
 
@@ -182,25 +182,27 @@ class MistralAPI(ModelAPI):
     def connection_key(self) -> str:
         return str(self.api_key)
 
-    def handle_bad_request(self, ex: SDKError) -> ModelOutput:
+    def handle_bad_request(self, ex: SDKError) -> ModelOutput | Exception:
+        body = json.loads(ex.body)
+        content = body.get("message", ex.body)
         if "maximum context length" in ex.body:
-            body = json.loads(ex.body)
-            content = body.get("message", ex.body)
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ex
 
 
 def mistral_model_call(
-    request: dict[str, Any], response: MistralChatCompletionResponse
+    request: dict[str, Any], response: MistralChatCompletionResponse | None
 ) -> ModelCall:
     request = request.copy()
     request.update(messages=[message.model_dump() for message in request["messages"]])
     if request.get("tools", None) is not None:
         request["tools"] = [tool.model_dump() for tool in request["tools"]]
-    return ModelCall(request=request, response=response.model_dump())
+    return ModelCall(
+        request=request, response=response.model_dump() if response else {}
+    )
 
 
 def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
