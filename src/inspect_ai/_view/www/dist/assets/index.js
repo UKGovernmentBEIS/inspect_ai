@@ -9312,9 +9312,9 @@ var require_assets = __commonJS({
           copy() {
             const copy = new SGRState();
             if (this._styles && this._styles.size) {
-              const styles = /* @__PURE__ */ new Set();
-              this._styles.forEach((style2) => styles.add(style2));
-              copy._styles = styles;
+              const styles2 = /* @__PURE__ */ new Set();
+              this._styles.forEach((style2) => styles2.add(style2));
+              copy._styles = styles2;
             }
             copy._foregroundColor = this._foregroundColor;
             copy._backgroundColor = this._backgroundColor;
@@ -9832,10 +9832,10 @@ var require_assets = __commonJS({
         ...computeForegroundBackgroundColor(kBackground, outputRun.format.backgroundColor)
       };
     };
-    const computeStyles = (styles) => {
+    const computeStyles = (styles2) => {
       let cssProperties = {};
-      if (styles) {
-        styles.forEach((style2) => {
+      if (styles2) {
+        styles2.forEach((style2) => {
           switch (style2) {
             case ansiOutputExports.ANSIStyle.Bold:
               cssProperties = {
@@ -10034,11 +10034,6 @@ var require_assets = __commonJS({
       ${entryEls}
     </tbody>
   </table>`;
-    };
-    const Buckets = {
-      first: 0,
-      intermediate: 10,
-      final: 1e3
     };
     const useResizeObserver = (callback) => {
       const elementRef = A$1(null);
@@ -16595,59 +16590,73 @@ var require_assets = __commonJS({
         });
       }
     };
-    const NavPills = ({ children: children2 }) => {
+    const visible = "_visible_tm52u_1";
+    const hidden = "_hidden_tm52u_5";
+    const pills = "_pills_tm52u_9";
+    const pill = "_pill_tm52u_9";
+    const styles = {
+      visible,
+      hidden,
+      pills,
+      pill
+    };
+    const NavPills = ({
+      children: children2
+    }) => {
+      if (!(children2 == null ? void 0 : children2.length)) {
+        return "";
+      }
       const [activeItem, setActiveItem] = h(children2[0].props["title"]);
-      const NavPill = ({ title, activeItem: activeItem2, setActiveItem: setActiveItem2 }) => {
-        const active = activeItem2 === title;
-        return m$1` <li class="nav-item">
-      <button
-        type="button"
-        role="tab"
-        aria-selected=${active}
-        style=${{
-          minWidth: "4rem",
-          ...TextStyle.label,
-          fontSize: FontSize.small,
-          padding: "0.1rem  0.6rem",
-          borderRadius: "var(--bs-border-radius)"
-        }}
-        class="nav-link ${active ? "active " : ""}"
-        onclick=${() => {
-          setActiveItem2(title);
-        }}
-      >
-        ${title}
-      </button>
-    </li>`;
-      };
       const navPills = children2.map((nav2, idx) => {
         var _a2;
         const title = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
-        return m$1`<${NavPill}
-      title=${title}
-      activeItem=${activeItem}
-      setActiveItem=${setActiveItem}
-    />`;
+        return /* @__PURE__ */ u(NavPill, {
+          title,
+          activeItem,
+          setActiveItem
+        });
       });
       const navBodies = children2.map((child) => {
         var _a2;
-        return m$1` <div
-      style=${{
-          display: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? "block" : "none"
-        }}
-    >
-      ${child}
-    </div>`;
+        return /* @__PURE__ */ u("div", {
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles.visible : styles.hidden,
+          children: ["$", child]
+        });
       });
-      return m$1`<ul
-      class="nav nav-pills card-header-pills"
-      style=${{ marginRight: "0" }}
-      role="tablist"
-      aria-orientation="horizontal"
-    >
-      ${navPills}
-    </ul>
-    ${navBodies}`;
+      return /* @__PURE__ */ u("div", {
+        children: [/* @__PURE__ */ u("ul", {
+          className: clsx("nav", "nav-pills", styles.pills),
+          role: "tablist",
+          "aria-orientation": "horizontal",
+          children: navPills
+        }), navBodies]
+      });
+    };
+    const NavPill = ({
+      title,
+      activeItem,
+      setActiveItem,
+      children: children2
+    }) => {
+      const active = activeItem === title;
+      return /* @__PURE__ */ u("li", {
+        class: "nav-item",
+        children: [/* @__PURE__ */ u("button", {
+          type: "button",
+          role: "tab",
+          "aria-selected": active,
+          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles.pill),
+          onClick: () => {
+            setActiveItem(title);
+          },
+          children: title
+        }), "$", children2]
+      });
+    };
+    const Buckets = {
+      first: 0,
+      intermediate: 10,
+      final: 1e3
     };
     const ChatMessageRenderer = {
       bucket: Buckets.first,
@@ -20578,7 +20587,7 @@ categories: ${categories.join(" ")}`;
         })
       });
     };
-    const TabSet = ({ id, type, classes, tools, styles, children: children2 }) => {
+    const TabSet = ({ id, type, classes, tools, styles: styles2, children: children2 }) => {
       if (!id) {
         throw new Error("Tabsets require an id to function properly");
       }
@@ -20592,12 +20601,12 @@ categories: ${categories.join(" ")}`;
       class="nav nav-${tabType} ${classes ? classes : ""}"
       role="tablist"
       aria-orientation="horizontal"
-      style=${{ ...tabSetStyle, ...styles.tabSet }}
+      style=${{ ...tabSetStyle, ...styles2.tabSet }}
     >
-      <${Tabs} tabs=${tabs} type=${tabType} style=${styles.tabs} />
+      <${Tabs} tabs=${tabs} type=${tabType} style=${styles2.tabs} />
       <${TabTools} tools=${tools} />
     </ul>
-    <${TabPanels} id=${id} tabs=${tabs} style=${styles.tabBody} />`;
+    <${TabPanels} id=${id} tabs=${tabs} style=${styles2.tabBody} />`;
     };
     const TabPanel = ({
       id,
@@ -25478,12 +25487,12 @@ self.onmessage = function (e) {
     };
     const MessageBand = ({
       message,
-      hidden,
+      hidden: hidden2,
       setHidden,
       type
     }) => {
       const className2 = [type];
-      if (hidden) {
+      if (hidden2) {
         className2.push("hidden");
       }
       return /* @__PURE__ */ u("div", {
@@ -25509,7 +25518,7 @@ self.onmessage = function (e) {
       detailTools,
       footer,
       onkeyup,
-      visible,
+      visible: visible2,
       onHide,
       showProgress,
       children: children2,
@@ -25604,9 +25613,9 @@ self.onmessage = function (e) {
     onkeyup=${onkeyup}
     style=${{
         borderRadius: "var(--bs-border-radius)",
-        display: visible ? "block" : "none"
+        display: visible2 ? "block" : "none"
       }}
-    tabindex=${visible ? 0 : void 0}
+    tabindex=${visible2 ? 0 : void 0}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -26178,7 +26187,7 @@ self.onmessage = function (e) {
     };
     const EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
       return m$1`<ul
-    class="nav nav-pills card-header-pills"
+    class="nav nav-pills"
     style=${{ marginRight: "0" }}
     role="tablist"
     aria-orientation="horizontal"
@@ -34864,7 +34873,7 @@ ${events}
       if (items.length === 0) {
         return m$1`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
       }
-      const [hidden, setHidden] = h(false);
+      const [hidden2, setHidden] = h(false);
       y(() => {
         setHidden(false);
       }, [items]);
@@ -34998,7 +35007,7 @@ ${events}
       const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
       const warningRow = warningMessage ? m$1`<${MessageBand}
         message=${warningMessage}
-        hidden=${hidden}
+        hidden=${hidden2}
         setHidden=${setHidden}
         type="info"
       />` : "";
@@ -47278,11 +47287,11 @@ ${events}
       }
     }
     function matchRanges(view, maxLength) {
-      let visible = view.visibleRanges;
-      if (visible.length == 1 && visible[0].from == view.viewport.from && visible[0].to == view.viewport.to)
-        return visible;
+      let visible2 = view.visibleRanges;
+      if (visible2.length == 1 && visible2[0].from == view.viewport.from && visible2[0].to == view.viewport.to)
+        return visible2;
       let result = [];
-      for (let { from, to } of visible) {
+      for (let { from, to } of visible2) {
         from = Math.max(view.state.doc.lineAt(from).from, from - maxLength);
         to = Math.min(view.state.doc.lineAt(to).to, to + maxLength);
         if (result.length && result[result.length - 1].to >= from)
@@ -47410,8 +47419,8 @@ ${events}
     function supportsTabSize() {
       var _a2;
       if (_supportsTabSize == null && typeof document != "undefined" && document.body) {
-        let styles = document.body.style;
-        _supportsTabSize = ((_a2 = styles.tabSize) !== null && _a2 !== void 0 ? _a2 : styles.MozTabSize) != null;
+        let styles2 = document.body.style;
+        _supportsTabSize = ((_a2 = styles2.tabSize) !== null && _a2 !== void 0 ? _a2 : styles2.MozTabSize) != null;
       }
       return _supportsTabSize || false;
     }
@@ -47734,13 +47743,13 @@ ${events}
             ({ scaleX, scaleY } = this.view.viewState);
           }
         }
-        let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
+        let visible2 = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view);
         return {
           visible: {
-            left: visible.left + margins.left,
-            top: visible.top + margins.top,
-            right: visible.right - margins.right,
-            bottom: visible.bottom - margins.bottom
+            left: visible2.left + margins.left,
+            top: visible2.top + margins.top,
+            right: visible2.right - margins.right,
+            bottom: visible2.bottom - margins.bottom
           },
           parent: this.parent ? this.container.getBoundingClientRect() : this.view.dom.getBoundingClientRect(),
           pos: this.manager.tooltips.map((t2, i2) => {
@@ -47762,12 +47771,12 @@ ${events}
           for (let t2 of this.manager.tooltipViews)
             t2.dom.style.position = "absolute";
         }
-        let { visible, space, scaleX, scaleY } = measured;
+        let { visible: visible2, space, scaleX, scaleY } = measured;
         let others = [];
         for (let i2 = 0; i2 < this.manager.tooltips.length; i2++) {
           let tooltip = this.manager.tooltips[i2], tView = this.manager.tooltipViews[i2], { dom } = tView;
           let pos2 = measured.pos[i2], size = measured.size[i2];
-          if (!pos2 || tooltip.clip !== false && (pos2.bottom <= Math.max(visible.top, space.top) || pos2.top >= Math.min(visible.bottom, space.bottom) || pos2.right < Math.max(visible.left, space.left) - 0.1 || pos2.left > Math.min(visible.right, space.right) + 0.1)) {
+          if (!pos2 || tooltip.clip !== false && (pos2.bottom <= Math.max(visible2.top, space.top) || pos2.top >= Math.min(visible2.bottom, space.bottom) || pos2.right < Math.max(visible2.left, space.left) - 0.1 || pos2.left > Math.min(visible2.right, space.right) + 0.1)) {
             dom.style.top = Outside;
             continue;
           }
@@ -56016,7 +56025,7 @@ Supported expressions:
       if (!evalSpec) {
         return "";
       }
-      const [hidden, setHidden] = h(false);
+      const [hidden2, setHidden] = h(false);
       y(() => {
         setHidden(false);
       }, [logFileName]);
@@ -56120,7 +56129,7 @@ Supported expressions:
               warnings.push(
                 m$1`<${MessageBand}
               message="Unable to display samples (this evaluation log may be too large)."
-              hidden=${hidden}
+              hidden=${hidden2}
               setHidden=${setHidden}
               type="warning"
             />`
@@ -56224,7 +56233,7 @@ Supported expressions:
         capabilities,
         selectedTab,
         setHidden,
-        hidden
+        hidden2
       ]);
       return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}

@@ -217,7 +217,7 @@ export const EventPanel = ({
  */
 const EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
   return html`<ul
-    class="nav nav-pills card-header-pills"
+    class="nav nav-pills"
     style=${{ marginRight: "0" }}
     role="tablist"
     aria-orientation="horizontal"
