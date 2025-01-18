@@ -45,7 +45,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._conversation import conversation_assistant_message
+from ._conversation import conversation_assistant_error, conversation_assistant_message
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -123,7 +123,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -402,6 +402,17 @@ class Model:
                 output = result
                 call = None
 
+            # raise error
+            if isinstance(output, Exception):
+                complete(output, call)
+
+                # Wrap the error in a runtime error which will show the
+                # request which caused the error
+                error = repr(output)
+                request = json.dumps(call.request, indent=2) if call is not None else ""
+                error_message = f"{error}\n\nRequest:\n{request}"
+                raise RuntimeError(error_message)
+
             # update output with time elapsed
             output.time = time_elapsed
 
@@ -477,7 +488,7 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> Callable[[ModelOutput, ModelCall | None], None]:
+    ) -> Callable[[ModelOutput | Exception, ModelCall | None], None]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
         # create event and add it to the transcript
@@ -497,13 +508,16 @@ class Model:
 
         # callable that can be used to update the interaction w/ output
         def complete(
-            updated_output: ModelOutput, updated_call: ModelCall | None
+            result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
             # trace
-            conversation_assistant_message(input, updated_output.choices[0].message)
+            if isinstance(result, ModelOutput):
+                conversation_assistant_message(input, result.choices[0].message)
+                event.output = result
+            else:
+                conversation_assistant_error(result)
+                event.error = repr(result)
 
-            # update event
-            event.output = updated_output
             event.call = updated_call
             event.pending = None
 

@@ -166,7 +166,7 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
         if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
@@ -307,27 +307,26 @@ class OpenAIAPI(ModelAPI):
         return params
 
     # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
-        if e.status_code == 400:
-            # extract message
-            if isinstance(e.body, dict) and "message" in e.body.keys():
-                content = str(e.body.get("message"))
-            else:
-                content = e.message
+    def handle_bad_request(self, e: BadRequestError) -> ModelOutput | Exception:
+        # extract message
+        if isinstance(e.body, dict) and "message" in e.body.keys():
+            content = str(e.body.get("message"))
+        else:
+            content = e.message
 
-            # narrow stop_reason
-            if e.code == "context_length_exceeded":
-                stop_reason: StopReason = "model_length"
-            elif e.code == "invalid_prompt":
-                stop_reason = "content_filter"
-            else:
-                stop_reason = "unknown"
+        # narrow stop_reason
+        stop_reason: StopReason | None = None
+        if e.code == "context_length_exceeded":
+            stop_reason = "model_length"
+        elif e.code == "invalid_prompt":
+            stop_reason = "content_filter"
 
+        if stop_reason:
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason=stop_reason
             )
         else:
-            raise e
+            return e
 
 
 async def as_openai_chat_messages(
