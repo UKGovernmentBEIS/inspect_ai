@@ -25,10 +25,15 @@ from .._chat_message import (
 )
 from .._generate_config import GenerateConfig
 from .._call_tools import Tool
+from .util import environment_prerequisite_error, model_base_url
 
 logger = logging.getLogger(__name__)
 
 GOODFIRE_API_KEY = "GOODFIRE_API_KEY"
+MIN_VERSION = "0.2.5"
+
+# Add supported model literals
+SupportedModel = Literal["meta-llama/Meta-Llama-3.1-8B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"]
 
 class GoodfireAPI(ModelAPI):
     """Goodfire API provider."""
@@ -43,23 +48,24 @@ class GoodfireAPI(ModelAPI):
         **kwargs: Any,
     ) -> None:
         """Initialize the Goodfire API provider."""
-        # Get API key from environment if not provided
-        api_key = api_key or os.environ.get(GOODFIRE_API_KEY, None)
-        if api_key is None:
-            raise ValueError("API key is required for Goodfire.")
-
+        # Call super
         super().__init__(
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=api_key_vars,
+            api_key_vars=[GOODFIRE_API_KEY],
             config=config,
             **kwargs,
         )
 
-        # Set api and name attributes for registry info
-        self.api = self
-        self.name = "goodfire"
+        # Verify package version
+        verify_required_version("Goodfire API", "goodfire", MIN_VERSION)
+
+        # Get API key from environment if not provided
+        if not self.api_key:
+            self.api_key = os.environ.get(GOODFIRE_API_KEY)
+        if not self.api_key:
+            raise environment_prerequisite_error("Goodfire", GOODFIRE_API_KEY)
 
         # Format model name to include meta-llama prefix if needed
         if not model_name.startswith("meta-llama/"):
@@ -70,10 +76,26 @@ class GoodfireAPI(ModelAPI):
         if model_name not in supported_models:
             raise ValueError(f"Model {model_name} not supported. Supported models: {supported_models}")
 
-        # Initialize client
-        self.client = goodfire.Client(api_key=api_key)
+        # Initialize client with base URL if provided
+        base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL") 
+        assert isinstance(base_url_val, str) or base_url_val is None
+        self.client = goodfire.Client(
+            api_key=self.api_key,
+            base_url=base_url_val or "https://api.goodfire.ai",
+        )
         self.model_name = model_name
-        self.variant = Variant(model_name)
+
+        # Map to supported model names for Variant
+        supported_model_map: Dict[str, SupportedModel] = {
+            "meta-llama/Meta-Llama-3-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "meta-llama/Llama-3.3-70B-Instruct": "meta-llama/Llama-3.3-70B-Instruct",
+        }
+        variant_model = supported_model_map.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
+        self.variant = Variant(variant_model)
+
+        # Remove feature analysis config since it's not supported yet
+        self.feature_analysis = False
+        self.feature_threshold = 0.5
 
     async def generate(
         self,
@@ -100,7 +122,7 @@ class GoodfireAPI(ModelAPI):
         response = completions.create(  # type: ignore
             model=self.model_name,
             messages=[self._to_goodfire_message(msg) for msg in input],
-            max_completion_tokens=int(config.max_tokens) if config.max_tokens is not None else 100,
+            max_completion_tokens=int(config.max_tokens) if config.max_tokens is not None else 4096,
             temperature=float(config.temperature) if config.temperature is not None else 0.7,
             top_p=float(config.top_p) if config.top_p is not None else 0.95,
             stream=False,
@@ -123,7 +145,8 @@ class GoodfireAPI(ModelAPI):
         return output
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
-        """Convert an Inspect message to a Goodfire message."""
+        """Convert an Inspect message to a Goodfire message.
+        Note: Tool messages are converted to user messages since Goodfire doesn't support tool calls yet."""
         role: Literal["system", "user", "assistant"] = "user"  # Default to user
         if isinstance(message, ChatMessageSystem):
             role = "system"
@@ -132,22 +155,27 @@ class GoodfireAPI(ModelAPI):
         elif isinstance(message, ChatMessageAssistant):
             role = "assistant"
         elif isinstance(message, ChatMessageTool):
-            role = "user"  # Convert tool messages to user messages
+            role = "user"  # Convert tool messages to user messages since tools aren't supported yet
         else:
             raise ValueError(f"Unknown message type: {type(message)}")
 
         content = str(message.content)
         if isinstance(message, ChatMessageTool):
-            content = f"Tool {message.function}: {content}"
+            content = f"Tool {message.function}: {content}"  # Preserve tool info in content for future compatibility
 
         return cast(GoodfireChatMessage, {
             "role": role,
             "content": content,
         })
 
+    @property
+    def name(self) -> str:
+        """Get provider name."""
+        return "goodfire"
+
     def max_tokens(self) -> Optional[int]:
         """Return maximum tokens supported by model."""
-        return None
+        return 4096  # Default max tokens for Llama models
 
     def max_connections(self) -> int:
         """Return maximum concurrent connections."""
@@ -155,7 +183,7 @@ class GoodfireAPI(ModelAPI):
 
     def connection_key(self) -> str:
         """Return key for connection pooling."""
-        return f"goodfire:{self.model_name}"
+        return f"goodfire:{self.api_key}"
 
     def is_rate_limit(self, ex: BaseException) -> bool:
         """Check if exception is due to rate limiting."""
@@ -171,10 +199,10 @@ class GoodfireAPI(ModelAPI):
 
     def tools_required(self) -> bool:
         """Whether tools are required."""
-        return False
+        return False  # Goodfire does not currently support tool calls
 
     def tool_result_images(self) -> bool:
         """Whether tool results can contain images."""
-        return False 
+        return False  # Goodfire does not currently support tool calls or images
 
 # Remove duplicate registration since it's handled in providers.py 
