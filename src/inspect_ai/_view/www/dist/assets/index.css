@@ -15623,6 +15623,29 @@ ul.jsondiffpatch-textdiff {
 .copy-button:hover {
   opacity: 0.75;
 }
+._staticCol_16s1c_1 {
+  flex-shrink: 0;
+}
+
+._justifyLeft_16s1c_5 {
+  justify-self: left;
+}
+
+._justifyCenter_16s1c_9 {
+  justify-self: center;
+}
+
+._justifyRight_16s1c_13 {
+  justify-self: right;
+}
+
+._valueGrid_16s1c_17 {
+  margin: 0;
+  padding: 0.2em 1em 0.2em 1em;
+  display: grid;
+  grid-column-gap: 1em;
+  border-top: 1px solid var(--bs-border-color);
+}
 .card-header-container {
   display: grid;
   grid-template-columns: max-content auto;

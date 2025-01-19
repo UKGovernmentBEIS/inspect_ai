@@ -8447,9 +8447,11 @@ var require_assets = __commonJS({
         });
       }
     };
-    const formatDataset = (name2, samples, epochs) => {
+    const formatDataset = (samples, epochs, name2) => {
       const perEpochSamples = epochs > 0 ? samples / epochs : samples;
-      return `${name2 ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
+      const namePrefix = name2 ? `${name2} — ` : "";
+      const terms = [namePrefix, String(perEpochSamples), epochs > 1 ? `x ${epochs} ` : "", samples === 1 ? "sample" : "samples"];
+      return terms.join(" ");
     };
     const formatTime$1 = (seconds) => {
       if (seconds < 60) {
@@ -10101,10 +10103,10 @@ var require_assets = __commonJS({
         ...style2
       };
       return /* @__PURE__ */ u("div", {
+        style: baseStyles,
         children: [/* @__PURE__ */ u("div", {
           ref: contentRef,
           className: `expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`,
-          style: baseStyles,
           children: children2
         }), showToggle && /* @__PURE__ */ u(MoreToggle, {
           collapsed: isCollapsed,
@@ -16595,7 +16597,7 @@ var require_assets = __commonJS({
     const hidden = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$2 = {
+    const styles$3 = {
       visible,
       hidden,
       pills,
@@ -16620,13 +16622,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$2.visible : styles$2.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$3.visible : styles$3.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$2.pills),
+          className: clsx("nav", "nav-pills", styles$3.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -16646,7 +16648,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active,
-          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$2.pill),
+          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$3.pill),
           onClick: () => {
             setActiveItem(title);
           },
@@ -24535,7 +24537,7 @@ self.onmessage = function (e) {
         })
       });
     };
-    const styles$1 = {
+    const styles$2 = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -24547,7 +24549,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles$1["json-tab"],
+          className: styles$2["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -24599,15 +24601,15 @@ self.onmessage = function (e) {
       });
     };
     const LabeledValue = ({
-      layout,
+      layout = "column",
       style: style2,
       label,
       children: children2,
-      valueStyle
+      valueStyle,
+      className: className2
     }) => {
-      const flexDirection = layout === "column" ? "column" : "row";
       return /* @__PURE__ */ u("div", {
-        className: `labeled-value ${flexDirection}`,
+        className: clsx("labeled-value", layout === "column" ? "column" : "row", className2),
         style: {
           ...style2
         },
@@ -24623,6 +24625,18 @@ self.onmessage = function (e) {
         })]
       });
     };
+    const staticCol = "_staticCol_16s1c_1";
+    const justifyLeft = "_justifyLeft_16s1c_5";
+    const justifyCenter = "_justifyCenter_16s1c_9";
+    const justifyRight = "_justifyRight_16s1c_13";
+    const valueGrid = "_valueGrid_16s1c_17";
+    const styles$1 = {
+      staticCol,
+      justifyLeft,
+      justifyCenter,
+      justifyRight,
+      valueGrid
+    };
     const SecondaryBar = ({
       evalSpec,
       evalPlan,
@@ -24636,106 +24650,121 @@ self.onmessage = function (e) {
       if (!evalSpec || status !== "success") {
         return "";
       }
-      const staticColStyle = {
-        flexShrink: "0"
-      };
       const epochs = evalSpec.config.epochs || 1;
       const hyperparameters = {
-        ...evalPlan == null ? void 0 : evalPlan.config,
-        ...evalSpec.task_args
+        ...(evalPlan == null ? void 0 : evalPlan.config) || {},
+        ...evalSpec.task_args || {}
       };
       const hasConfig = Object.keys(hyperparameters).length > 0;
       const values = [];
       values.push({
         size: "minmax(12%, auto)",
-        value: m$1`<${LabeledValue} label="Dataset" style=${staticColStyle}>
-    <${DatasetSummary}
-      dataset=${evalSpec.dataset}
-      samples=${samples}
-      epochs=${epochs} />
-  </${LabeledValue}>
-`
+        value: /* @__PURE__ */ u(LabeledValue, {
+          label: "Dataset",
+          className: styles$1.staticCol,
+          children: /* @__PURE__ */ u(DatasetSummary, {
+            dataset: evalSpec.dataset,
+            samples,
+            epochs
+          })
+        })
       });
-      const label = (evalResults == null ? void 0 : evalResults.scores.length) > 1 ? "Scorers" : "Scorer";
+      const label = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
       values.push({
         size: "minmax(12%, auto)",
-        value: m$1`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
-    <${ScorerSummary}
-      evalDescriptor=${evalDescriptor} />
-  </${LabeledValue}>`
+        value: /* @__PURE__ */ u(LabeledValue, {
+          label,
+          className: clsx(styles$1.staticCol, hasConfig ? styles$1.justifyLeft : styles$1.justifyCenter),
+          children: /* @__PURE__ */ u(ScorerSummary, {
+            evalDescriptor
+          })
+        })
       });
       if (hasConfig) {
         values.push({
           size: "minmax(12%, auto)",
-          value: m$1`<${LabeledValue} label="Config" style=${{ justifySelf: "right" }}>
-      <${ParamSummary} params=${hyperparameters}/>
-    </${LabeledValue}>`
+          value: /* @__PURE__ */ u(LabeledValue, {
+            label: "Config",
+            className: styles$1.justifyRight,
+            children: /* @__PURE__ */ u(ParamSummary, {
+              params: hyperparameters
+            })
+          })
         });
       }
-      const totalDuration = formatDuration(
-        new Date(evalStats.started_at),
-        new Date(evalStats.completed_at)
-      );
-      values.push({
-        size: "minmax(12%, auto)",
-        value: m$1`
-      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
-        ${totalDuration}
-      </${LabeledValue}>`
+      if (evalStats) {
+        const totalDuration = formatDuration(new Date(evalStats == null ? void 0 : evalStats.started_at), new Date(evalStats == null ? void 0 : evalStats.completed_at));
+        values.push({
+          size: "minmax(12%, auto)",
+          value: /* @__PURE__ */ u(LabeledValue, {
+            label: "Duration",
+            className: styles$1.justifyRight,
+            children: totalDuration
+          })
+        });
+      }
+      return /* @__PURE__ */ u(ExpandablePanel, {
+        style: {
+          margin: "0",
+          ...style2
+        },
+        collapse: true,
+        lines: 4,
+        children: /* @__PURE__ */ u("div", {
+          className: styles$1.valueGrid,
+          style: {
+            gridTemplateColumns: `${values.map((val) => {
+              return val.size;
+            }).join(" ")}`
+          },
+          children: values.map((val) => {
+            return val.value;
+          })
+        })
       });
-      return m$1`
-    <${ExpandablePanel} style=${{ margin: "0", ...style2 }} collapse=${true} lines=${4}>
-    <div
-      style=${{
-        margin: "0",
-        padding: "0.2em 1em 0.2em 1em",
-        display: "grid",
-        gridColumnGap: "1em",
-        borderTop: "1px solid var(--bs-border-color)",
-        gridTemplateColumns: `${values.map((val) => {
-          return val.size;
-        }).join(" ")}`
-      }}
-    >
-      ${values.map((val) => {
-        return val.value;
-      })}
-    </div>
-    </${ExpandablePanel}>
-  `;
     };
-    const DatasetSummary = ({ dataset, samples, epochs, style: style2 }) => {
+    const DatasetSummary = ({
+      dataset,
+      samples,
+      epochs
+    }) => {
       if (!dataset) {
         return "";
       }
-      return m$1`
-    <div style=${style2}>
-      ${dataset.name}${(samples == null ? void 0 : samples.length) ? m$1`${formatDataset(dataset.name, samples.length, epochs)}` : ""}
-    </div>
-  `;
+      return /* @__PURE__ */ u("div", {
+        children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : ""
+      });
     };
-    const ScorerSummary = ({ evalDescriptor }) => {
+    const ScorerSummary = ({
+      evalDescriptor
+    }) => {
       if (!evalDescriptor) {
         return "";
       }
       const items = scoreFilterItems(evalDescriptor);
-      return m$1`
-    <span style=${{ position: "relative" }}>
-      ${Array.from(items).map(
-        (item, index) => m$1`
-          ${index > 0 ? ", " : ""}
-          <span title=${item.tooltip}>${item.canonicalName}</span>
-        `
-      )}
-    </span>
-  `;
+      return /* @__PURE__ */ u("span", {
+        style: {
+          position: "relative"
+        },
+        children: Array.from(items).map((item, index, array) => /* @__PURE__ */ u("span", {
+          children: [/* @__PURE__ */ u("span", {
+            title: item.tooltip,
+            children: item.canonicalName
+          }), index < array.length - 1 ? ", " : ""]
+        }, index))
+      });
     };
-    const ParamSummary = ({ params }) => {
+    const ParamSummary = ({
+      params
+    }) => {
       if (!params) {
         return "";
       }
       const paraValues = Object.keys(params).map((key2) => {
         const val = params[key2];
+        console.log({
+          val
+        });
         if (Array.isArray(val) || typeof val === "object") {
           return `${key2}: ${JSON.stringify(val)}`;
         } else {
@@ -24743,9 +24772,13 @@ self.onmessage = function (e) {
         }
       });
       if (paraValues.length > 0) {
-        return m$1`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}
-      >${paraValues.join(", ")}</code
-    >`;
+        return /* @__PURE__ */ u("code", {
+          style: {
+            padding: 0,
+            color: "var(--bs-body-color)"
+          },
+          children: paraValues.join(", ")
+        });
       } else {
         return "";
       }

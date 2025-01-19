@@ -55,11 +55,10 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   };
 
   return (
-    <div>
+    <div style={baseStyles}>
       <div
         ref={contentRef}
         className={`expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`}
-        style={baseStyles}
       >
         {children}
       </div>

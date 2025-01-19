@@ -55,12 +55,21 @@ export const inputString = (
  * Formats dataset information into a string.
  */
 export const formatDataset = (
-  name: string,
   samples: number,
   epochs: number,
+  name: string | null,
 ): string => {
   const perEpochSamples = epochs > 0 ? samples / epochs : samples;
-  return `${name ? "— " : ""}${perEpochSamples + " "}${epochs > 1 ? `x ${epochs} ` : ""}${samples === 1 ? "sample" : "samples"}`;
+  const namePrefix = name ? `${name} — ` : "";
+
+  const terms: string[] = [
+    namePrefix,
+    String(perEpochSamples),
+    epochs > 1 ? `x ${epochs} ` : "",
+    samples === 1 ? "sample" : "samples",
+  ];
+
+  return terms.join(" ");
 };
 
 /**
