@@ -1,18 +1,24 @@
 import { ANSIColor, ANSIOutput, ANSIOutputRun, ANSIStyle } from "ansi-output";
+import clsx from "clsx";
 import "./ANSIDisplay.css";
 
 interface ANSIDisplayProps {
   output: string;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
+  className?: string[] | string;
 }
 
-export const ANSIDisplay: React.FC<ANSIDisplayProps> = ({ output, style }) => {
+export const ANSIDisplay: React.FC<ANSIDisplayProps> = ({
+  output,
+  style,
+  className,
+}) => {
   const ansiOutput = new ANSIOutput();
   ansiOutput.processOutput(output);
 
   let firstOutput = false;
   return (
-    <div className={"ansi-display"} style={{ ...style }}>
+    <div className={clsx("ansi-display", className)} style={{ ...style }}>
       {ansiOutput.outputLines.map((line) => {
         firstOutput = firstOutput || !!line.outputRuns.length;
         return (

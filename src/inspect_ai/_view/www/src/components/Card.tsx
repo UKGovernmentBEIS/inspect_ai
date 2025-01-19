@@ -3,7 +3,7 @@ import { ApplicationIcons } from "../appearance/icons";
 import "./Card.css";
 
 interface CardHeaderProps {
-  id: string;
+  id?: string;
   icon?: string;
   label?: string;
   className?: string;
@@ -11,12 +11,12 @@ interface CardHeaderProps {
 }
 
 interface CardBodyProps {
-  id: string;
+  id?: string;
   children?: React.ReactNode;
 }
 
 interface CardProps {
-  id: string;
+  id?: string;
   children?: React.ReactNode;
 }
 

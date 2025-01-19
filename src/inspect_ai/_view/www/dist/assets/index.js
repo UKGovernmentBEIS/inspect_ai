@@ -9792,15 +9792,29 @@ var require_assets = __commonJS({
       });
     })(ansiOutput, ansiOutput.exports);
     var ansiOutputExports = ansiOutput.exports;
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const ANSIDisplay = ({
       output,
-      style: style2
+      style: style2,
+      className: className2
     }) => {
       const ansiOutput2 = new ansiOutputExports.ANSIOutput();
       ansiOutput2.processOutput(output);
       let firstOutput = false;
       return /* @__PURE__ */ u("div", {
-        className: "ansi-display",
+        className: clsx("ansi-display", className2),
         style: {
           ...style2
         },
@@ -10123,19 +10137,6 @@ var require_assets = __commonJS({
         })
       });
     };
-    function r(e2) {
-      var t2, f2, n2 = "";
-      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
-      else if ("object" == typeof e2) if (Array.isArray(e2)) {
-        var o2 = e2.length;
-        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
-      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
-      return n2;
-    }
-    function clsx() {
-      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
-      return n2;
-    }
     const decodeCache = {};
     function getDecodeCache(exclude) {
       let cache = decodeCache[exclude];
@@ -16594,7 +16595,7 @@ var require_assets = __commonJS({
     const hidden = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1 = {
+    const styles$2 = {
       visible,
       hidden,
       pills,
@@ -16619,13 +16620,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1.visible : styles$1.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$2.visible : styles$2.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$1.pills),
+          className: clsx("nav", "nav-pills", styles$2.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -16645,7 +16646,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active,
-          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$1.pill),
+          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$2.pill),
           onClick: () => {
             setActiveItem(title);
           },
@@ -24534,7 +24535,7 @@ self.onmessage = function (e) {
         })
       });
     };
-    const styles = {
+    const styles$1 = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -24546,7 +24547,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles["json-tab"],
+          className: styles$1["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -55966,15 +55967,23 @@ Supported expressions:
       );
       return tools;
     };
-    const TaskErrorCard = ({ evalError }) => {
-      return m$1`
-    <${Card}>
-      <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
-      <${CardBody}>
-        <${ANSIDisplay} output=${evalError.traceback_ansi} style=${{ fontSize: "clamp(0.2rem, calc(0.2em + .93vw), 0.9rem)" }}/>
-      </${CardBody}>
-    </${Card}>
-  `;
+    const styles = {
+      "task-error-display": "_task-error-display_1624b_1"
+    };
+    const TaskErrorCard = ({
+      error: error2
+    }) => {
+      return /* @__PURE__ */ u(Card, {
+        children: [/* @__PURE__ */ u(CardHeader, {
+          icon: ApplicationIcons.error,
+          label: "Task Failed: ${error.message}"
+        }), /* @__PURE__ */ u(CardBody, {
+          children: /* @__PURE__ */ u(ANSIDisplay, {
+            output: error2.traceback_ansi,
+            className: styles["task-error-display"]
+          })
+        })]
+      });
     };
     const WorkSpace = ({
       task_id,

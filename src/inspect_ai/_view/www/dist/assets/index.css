@@ -18215,3 +18215,6 @@ span.ap-marker-container:hover span.ap-marker {
     visibility 0.3s ease;
   z-index: 9999;
 }
+._task-error-display_1624b_1 {
+  font-size: clamp(0.2rem, calc(0.2em + 0.93vw), 0.9rem);
+}
