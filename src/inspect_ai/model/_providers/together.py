@@ -27,7 +27,7 @@ from .._model_output import (
 )
 from .openai import (
     OpenAIAPI,
-    chat_message_assistant,
+    chat_message_assistant_from_openai,
 )
 from .util import (
     as_stop_reason,
@@ -68,7 +68,7 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
+            message=chat_message_assistant_from_openai(choice.message, tools),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
