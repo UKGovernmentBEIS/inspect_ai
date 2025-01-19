@@ -1,0 +1,3 @@
+.task-error-display {
+  font-size: clamp(0.2rem, calc(0.2em + 0.93vw), 0.9rem);
+}

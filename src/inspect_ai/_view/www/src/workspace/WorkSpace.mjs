@@ -27,7 +27,7 @@ import {
   kJsonWorkspaceTabId,
 } from "../constants";
 import { debounce } from "../utils/sync";
-import { TaskErrorCard } from "./TaskErrorPanel.mjs";
+import { TaskErrorCard } from "./TaskErrorPanel";
 
 /**
  * Renders the Main Application
