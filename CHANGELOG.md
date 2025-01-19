@@ -10,6 +10,7 @@
 - Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
 - Model API: Log model calls that result in bad request errors.
 - Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
+- Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
 
 ## v0.3.58 (16 January 2025)
 
