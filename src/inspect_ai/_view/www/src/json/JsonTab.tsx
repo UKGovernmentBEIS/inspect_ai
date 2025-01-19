@@ -1,11 +1,9 @@
-//@ts-check
-
 import { filename } from "../utils/path";
 
 import { Capabilities } from "../api/Types";
 import { DownloadPanel } from "../components/DownloadPanel";
 import { JSONPanel } from "../components/JsonPanel";
-import "./JsonTab.css";
+import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;
 
@@ -29,7 +27,7 @@ export const JsonTab: React.FC<JsonTabProps> = ({
     // we should instead just provide a DL link
     const file = `${filename(logFile)}.json`;
     return (
-      <div className={"json-tab"}>
+      <div className={styles["json-tab"]}>
         <DownloadPanel
           message="The JSON for this log file is too large to render."
           buttonLabel="Download JSON File"
