@@ -1,22 +1,29 @@
+import clsx from "clsx";
+
 interface LabeledValueProps {
   label: string;
-  style: React.CSSProperties;
-  valueStyle: React.CSSProperties;
-  layout: "column" | "row";
+  style?: React.CSSProperties;
+  valueStyle?: React.CSSProperties;
+  layout?: "column" | "row";
   children: React.ReactNode;
+  className?: string | string[];
 }
 
 export const LabeledValue: React.FC<LabeledValueProps> = ({
-  layout,
+  layout = "column",
   style,
   label,
   children,
   valueStyle,
+  className,
 }) => {
-  const flexDirection = layout === "column" ? "column" : "row";
   return (
     <div
-      className={`labeled-value ${flexDirection}`}
+      className={clsx(
+        "labeled-value",
+        layout === "column" ? "column" : "row",
+        className,
+      )}
       style={{
         ...style,
       }}

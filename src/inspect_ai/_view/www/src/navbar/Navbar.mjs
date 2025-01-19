@@ -7,7 +7,7 @@ import { ApplicationStyles } from "./../appearance/styles";
 import { filename } from "./../utils/path";
 
 import { CopyButton } from "./../components/CopyButton";
-import { SecondaryBar } from "./SecondaryBar.mjs";
+import { SecondaryBar } from "./SecondaryBar";
 
 /**
  * Renders the Navbar

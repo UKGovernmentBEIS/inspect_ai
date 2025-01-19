@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-bs-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inspect View</title>
+    <link rel="icon" href="./assets/favicon.svg" />
+
+    <script>
+      // Forward the theme (dark or light) onto the root html element
+      // this parameter will tend to appear when the view is hosted within
+      // an iframe (e.g. in vscode)
+      const urlParams = new URLSearchParams(window.location.search);
+      const theme = urlParams.get("inspectLogviewThemeCategory");
+      if (theme) {
+        document.documentElement.setAttribute("data-text-highlight", theme);
+        document.documentElement.setAttribute("data-bs-theme", theme);
+      }
+    </script>
+    <script type="module" crossorigin src="./assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index.css">
+  </head>
+
+  <body style="min-width: 450px;">
+    <div id="app"></div>
+  </body>
+</html>
