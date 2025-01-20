@@ -1,0 +1,29 @@
+.entry {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.title {
+  overflow: hidden;
+  min-width: 33%;
+}
+
+.task {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.params {
+  margin-top: 1em;
+}
+
+.scores {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(auto, 1fr) minmax(1fr, 1fr);
+  column-gap: 1rem;
+  justify-content: space-between;
+  margin-top: 0em;
+}

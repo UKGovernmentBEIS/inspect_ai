@@ -1,0 +1,15 @@
+.error {
+  color: var(--bs-danger);
+  margin-top: 0.2em;
+}
+
+.running {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5em;
+  margin-top: 0.3em;
+}
+
+.cancelled {
+  margin-top: 0.2em;
+}

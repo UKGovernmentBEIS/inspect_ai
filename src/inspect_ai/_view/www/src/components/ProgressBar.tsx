@@ -1,8 +1,8 @@
 import "./ProgressBar.css";
 
 interface ProgressBarProps {
-  style: React.CSSProperties;
-  containerStyle: React.CSSProperties;
+  style?: React.CSSProperties;
+  containerStyle?: React.CSSProperties;
   animating: boolean;
 }
 

@@ -190,7 +190,6 @@ const ParamSummary: React.FC<ParamSummaryProps> = ({ params }) => {
   }
   const paraValues = Object.keys(params).map((key) => {
     const val = params[key];
-    console.log({ val });
     if (Array.isArray(val) || typeof val === "object") {
       return `${key}: ${JSON.stringify(val)}`;
     } else {

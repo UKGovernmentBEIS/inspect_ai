@@ -71,6 +71,7 @@ import { TaskErrorCard } from "./TaskErrorPanel";
  * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
  * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
+ * @param {(offcanvas: boolean) => void} props.setOffcanvas - set off canvas
  * @param {string} props.selectedTab - The selected tab id
  * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
  * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - The initial scroll position for the sample
@@ -98,6 +99,7 @@ export const WorkSpace = ({
   refreshLog,
   capabilities,
   offcanvas,
+  setOffcanvas,
   samplesDescriptor,
   selectedSampleIndex,
   setSelectedSampleIndex,
@@ -381,6 +383,7 @@ export const WorkSpace = ({
     setSelectedTab=${setSelectedTab}
     workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+    setOffcanvas=${setOffcanvas}
   />`;
 };
 
@@ -399,6 +402,7 @@ const WorkspaceDisplay = ({
   setSelectedTab,
   divRef,
   offcanvas,
+  setOffcanvas,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
@@ -473,8 +477,8 @@ const WorkspaceDisplay = ({
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-
       offcanvas=${offcanvas}
+      setOffcanvas=${setOffcanvas}
     />
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",

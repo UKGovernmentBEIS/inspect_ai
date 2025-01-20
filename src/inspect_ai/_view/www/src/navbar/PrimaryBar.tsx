@@ -11,6 +11,7 @@ import { CancelledPanel, ErroredPanel, RunningPanel } from "./StatusPanel";
 interface PrimaryBarProps {
   showToggle: boolean;
   offcanvas: boolean;
+  setOffcanvas: (offcanvas: boolean) => void;
   status?: Status;
   evalResults?: EvalResults;
   samples?: SampleSummary[];
@@ -26,6 +27,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
   samples,
   file,
   evalSpec,
+  setOffcanvas,
 }) => {
   let statusPanel;
   if (status === "success") {
@@ -38,6 +40,10 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
     statusPanel = <ErroredPanel sampleCount={samples?.length || 0} />;
   }
   const logFileName = file ? filename(file) : "";
+
+  const handleToggle = () => {
+    setOffcanvas(!offcanvas);
+  };
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -52,15 +58,13 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
         {showToggle ? (
           <button
             id="sidebarToggle"
+            onClick={handleToggle}
             className={clsx(
               "btn",
-              offcanvas ? undefined : "d-md-none",
+              offcanvas ? "d-md-none" : undefined,
               styles.toggle,
             )}
             type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#sidebarOffCanvas"
-            aria-controls="sidebarOffCanvas"
           >
             <i class={ApplicationIcons.menu}></i>
           </button>
@@ -71,7 +75,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
           <div className={styles.bodyContainer}>
             <div
               id="task-title"
-              className={clsx("task-title", "text-wrap", styles.taskTitle)}
+              className={clsx("task-title", "text-truncate", styles.taskTitle)}
               title={evalSpec?.task}
             >
               {evalSpec?.task}
@@ -80,7 +84,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
               id="task-model"
               className={clsx(
                 "task-model",
-                "text-wrap",
+                "text-truncate",
                 styles.taskModel,
                 "text-size-base",
               )}
@@ -90,7 +94,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
             </div>
           </div>
           <div className={clsx("text-size-small", styles.secondaryContainer)}>
-            <div className={clsx("navbar-secondary-text", "text-wrap")}>
+            <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
             {file ? <CopyButton value={file} /> : ""}
