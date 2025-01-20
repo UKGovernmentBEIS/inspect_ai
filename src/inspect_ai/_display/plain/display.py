@@ -14,9 +14,10 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult, TR,
 )
-from ..core.panel import task_targets, task_title
-from ..core.results import task_metric, tasks_results
-
+from ..core.footer import task_footer
+from ..core.panel import task_targets, task_title, task_panel
+from ..core.results import task_metric, tasks_results, task_stats
+import rich
 
 class PlainDisplay(Display):
     def __init__(self) -> None:
@@ -54,23 +55,25 @@ class PlainDisplay(Display):
             # Print final results
             if self.tasks:
                 print("\nResults:")
-                print("-" * 40)
                 self._print_results()
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        # Print task header
-        print("\n" + "=" * 40)
-        print(task_title(profile, show_model=True))
-
-        # Print config and targets
-        config = task_config(profile)
-        if config:
-            print(f"Config: {config}")
-        targets = task_targets(profile)
-        if targets:
-            print(f"Dataset: {targets}")
-        print("-" * 40)
+        # Print initial task information using a rich panel
+        panel = task_panel(
+            profile=profile,
+            show_model=True,
+            body="",  # Empty body since we haven't started yet
+            subtitle=(
+                task_config(profile),
+                task_targets(profile)
+            ),
+            footer=None,
+            log_location=None,
+        )
+        print("\n")
+        rich.print(panel)
+        print("\n")  # Add space before progress starts
 
         # Create and yield task display
         task = TaskWithResult(profile, None)
@@ -78,25 +81,23 @@ class PlainDisplay(Display):
         yield PlainTaskDisplay(task)
 
     def _print_results(self) -> None:
+        """Print final results using rich panels"""
         for task in self.tasks:
             if task.result:
-                print(f"\nTask: {task_title(task.profile, show_model=True)}")
-
-                # Print token usage stats
-                if task.result.stats and task.result.stats.model_usage:
-                    print("\nToken Usage:")
-                    for model, usage in task.result.stats.model_usage.items():
-                        total = usage.total_tokens
-                        input = usage.input_tokens
-                        output = usage.output_tokens
-                        print(f"{model}: {total:,} tokens [I: {input:,}, O: {output:,}]")
-
-                # Print evaluation results
-                if task.result.results and task.result.results.scores:
-                    print("\nScores:")
-                    for score in task.result.results.scores:
-                        for name, metric in score.metrics.items():
-                            print(f"{name}: {metric.value:.3f}")
+                # Use rich panel for final summary
+                panel = task_panel(
+                    profile=task.profile,
+                    show_model=True,
+                    body=task_stats(task.result.stats),
+                    subtitle=(
+                        task_config(task.profile),
+                        task_targets(task.profile)
+                    ),
+                    footer=task_footer(),
+                    log_location=task.profile.log_location
+                )
+                print("\n")
+                rich.print(panel)
 
 
 class PlainProgress(Progress):
