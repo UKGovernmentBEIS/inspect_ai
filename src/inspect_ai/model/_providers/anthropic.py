@@ -14,8 +14,10 @@ from anthropic import (
     APIConnectionError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicVertex,
     BadRequestError,
     InternalServerError,
+    NotGiven,
     RateLimitError,
 )
 from anthropic.types import (
@@ -65,14 +67,20 @@ class AnthropicAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         bedrock: bool = False,
+        vertex: bool = False,
         **model_args: Any,
     ):
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
-            service = parts[0]
-            bedrock = service == "bedrock"
+            self.service: str | None = parts[0]
             model_name = "/".join(parts[1:])
+        elif bedrock:
+            self.service = "bedrock"
+        elif vertex:
+            self.service = "vertex"
+        else:
+            self.service = None
 
         # call super
         super().__init__(
@@ -84,7 +92,7 @@ class AnthropicAPI(ModelAPI):
         )
 
         # create client
-        if bedrock:
+        if self.is_bedrock():
             base_url = model_base_url(
                 base_url, ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"]
             )
@@ -95,12 +103,29 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            self.client: AsyncAnthropic | AsyncAnthropicBedrock = AsyncAnthropicBedrock(
+            self.client: (
+                AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
+            ) = AsyncAnthropicBedrock(
                 base_url=base_url,
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
                 aws_region=aws_region,
+                **model_args,
+            )
+        elif self.is_vertex():
+            base_url = model_base_url(
+                base_url, ["ANTHROPIC_VERTEX_BASE_URL", "VERTEX_ANTHROPIC_BASE_URL"]
+            )
+            region = os.environ.get("ANTHROPIC_VERTEX_REGION", NotGiven())
+            project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", NotGiven())
+            self.client = AsyncAnthropicVertex(
+                region=region,
+                project_id=project_id,
+                base_url=base_url,
+                max_retries=(
+                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
+                ),
                 **model_args,
             )
         else:
@@ -118,6 +143,12 @@ class AnthropicAPI(ModelAPI):
                 ),
                 **model_args,
             )
+
+    def is_bedrock(self) -> bool:
+        return self.service == "bedrock"
+
+    def is_vertex(self) -> bool:
+        return self.service == "vertex"
 
     async def generate(
         self,
