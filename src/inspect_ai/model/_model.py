@@ -935,4 +935,4 @@ def sample_total_tokens() -> int:
 
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
-) 
+)
