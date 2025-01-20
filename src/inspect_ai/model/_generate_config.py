@@ -167,8 +167,8 @@ class GenerateConfig(BaseModel):
     reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
 
-    goodfire: GoodfireConfig = field(default_factory=GoodfireConfig)
-    """Goodfire-specific configuration."""
+    goodfire: GoodfireConfig | None = Field(default=None)
+    """Goodfire-specific configuration. Only used when using Goodfire models."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]
