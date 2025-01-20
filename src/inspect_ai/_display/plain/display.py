@@ -4,6 +4,10 @@ from typing import Any, AsyncIterator, Coroutine, Iterator
 
 import rich
 
+from inspect_ai._display.core.rich import rich_initialise
+from inspect_ai._util.text import truncate
+from inspect_ai._util.throttle import throttle
+
 from ...util._concurrency import concurrency_status
 from ..core.config import task_config
 from ..core.display import (
@@ -28,6 +32,7 @@ class PlainDisplay(Display):
         self.total_tasks: int = 0
         self.tasks: list[TaskWithResult] = []
         self.parallel = False
+        rich_initialise()
 
     def print(self, message: str) -> None:
         print(message)
@@ -48,6 +53,8 @@ class PlainDisplay(Display):
         self, tasks: list[TaskSpec], parallel: bool
     ) -> AsyncIterator[TaskScreen]:
         self.total_tasks = len(tasks)
+        self.multiple_task_names = len({task.name for task in tasks}) > 1
+        self.multiple_model_names = len({str(task.model) for task in tasks}) > 1
         self.tasks = []
         self.parallel = parallel
         try:
@@ -58,7 +65,6 @@ class PlainDisplay(Display):
         finally:
             # Print final results
             if self.tasks:
-                print("\nResults:")
                 self._print_results()
 
     @contextlib.contextmanager
@@ -72,13 +78,16 @@ class PlainDisplay(Display):
             footer=None,
             log_location=None,
         )
-        print("Running task:")
         rich.print(panel)
 
         # Create and yield task display
         task = TaskWithResult(profile, None)
         self.tasks.append(task)
-        yield PlainTaskDisplay(task)
+        yield PlainTaskDisplay(
+            task,
+            show_task_names=self.multiple_task_names,
+            show_model_names=self.multiple_model_names,
+        )
 
     def _print_results(self) -> None:
         """Print final results using rich panels"""
@@ -100,8 +109,12 @@ class PlainProgress(Progress):
 
 
 class PlainTaskDisplay(TaskDisplay):
-    def __init__(self, task: TaskWithResult):
+    def __init__(
+        self, task: TaskWithResult, *, show_task_names: bool, show_model_names: bool
+    ):
         self.task = task
+        self.show_task_names = show_task_names
+        self.show_model_names = show_model_names
         self.progress_display: PlainProgress | None = None
         self.samples_complete = 0
         self.samples_total = 0
@@ -112,6 +125,10 @@ class PlainTaskDisplay(TaskDisplay):
     def progress(self) -> Iterator[Progress]:
         self.progress_display = PlainProgress(self.task.profile.steps)
         yield self.progress_display
+
+    @throttle(1)
+    def _print_status_throttled(self) -> None:
+        self._print_status()
 
     def _print_status(self) -> None:
         """Print status updates on new lines when there's meaningful progress"""
@@ -125,16 +142,25 @@ class PlainTaskDisplay(TaskDisplay):
 
         # Only print on percentage changes to avoid too much output
         if current_progress != self.last_progress:
-            status_parts = []
+            status_parts: list[str] = []
+
+            # if this is parallel print task and model to distinguish (limit both to 12 chars)
+            MAX_NAME_WIDTH = 12
+            if self.show_task_names:
+                status_parts.append(truncate(self.task.profile.name, MAX_NAME_WIDTH))
+            if self.show_model_names:
+                status_parts.append(
+                    truncate(str(self.task.profile.model), MAX_NAME_WIDTH)
+                )
 
             # Add step progress
             status_parts.append(
-                f"Steps: {self.progress_display.current}/{self.progress_display.total} ({current_progress}%)"
+                f"Steps: {self.progress_display.current:3d}/{self.progress_display.total} {current_progress:3d}%"
             )
 
             # Add sample progress
             status_parts.append(
-                f"Samples: {self.samples_complete}/{self.samples_total}"
+                f"Samples: {self.samples_complete:3d}/{self.samples_total:3d}"
             )
 
             # Add metrics
@@ -147,7 +173,7 @@ class PlainTaskDisplay(TaskDisplay):
             # the rich formatting added in the ``task_dict`` call
             resources_dict: dict[str, str] = {}
             for model, resource in concurrency_status().items():
-                resources_dict[model] = f"{resource[0]}/{resource[1]}"
+                resources_dict[model] = f"{resource[0]:2d}/{resource[1]:2d}"
             resources = "".join(
                 [f"{key}: {value}" for key, value in resources_dict.items()]
             )
@@ -166,12 +192,12 @@ class PlainTaskDisplay(TaskDisplay):
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
         self.samples_total = total
-        self._print_status()
+        self._print_status_throttled()
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         self.current_metrics = metrics
-        self._print_status()
+        self._print_status_throttled()
 
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
-        print("Task complete.")
+        self._print_status()
