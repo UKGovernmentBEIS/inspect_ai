@@ -22,6 +22,7 @@ interface NavBarProps {
   samples?: SampleSummary[];
   status?: Status;
   offcanvas: boolean;
+  setOffcanvas: (offcanvas: boolean) => void;
   showToggle: boolean;
 }
 
@@ -38,6 +39,7 @@ export const Navbar: React.FC<NavBarProps> = ({
   evalDescriptor,
   showToggle,
   offcanvas,
+  setOffcanvas,
   status,
 }) => {
   return (
@@ -49,6 +51,7 @@ export const Navbar: React.FC<NavBarProps> = ({
         samples={samples}
         showToggle={showToggle}
         offcanvas={offcanvas}
+        setOffcanvas={setOffcanvas}
         status={status}
       />
       <SecondaryBar

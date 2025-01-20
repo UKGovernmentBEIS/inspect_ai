@@ -1705,16 +1705,16 @@ var require_assets = __commonJS({
         function parseRange(range) {
           var m2 = /^\s*(\d+)\s*(?:(,)\s*(?:(\d+)\s*)?)?$/.exec(range || "");
           if (m2) {
-            var start2 = Number(m2[1]);
+            var start = Number(m2[1]);
             var comma = m2[2];
-            var end2 = m2[3];
+            var end = m2[3];
             if (!comma) {
-              return [start2, start2];
+              return [start, start];
             }
-            if (!end2) {
-              return [start2, void 0];
+            if (!end) {
+              return [start, void 0];
             }
-            return [start2, Number(end2)];
+            return [start, Number(end)];
           }
           return void 0;
         }
@@ -1750,19 +1750,19 @@ var require_assets = __commonJS({
                 var range = parseRange(pre.getAttribute("data-range"));
                 if (range) {
                   var lines = text2.split(/\r\n?|\n/g);
-                  var start2 = range[0];
-                  var end2 = range[1] == null ? lines.length : range[1];
-                  if (start2 < 0) {
-                    start2 += lines.length;
+                  var start = range[0];
+                  var end = range[1] == null ? lines.length : range[1];
+                  if (start < 0) {
+                    start += lines.length;
                   }
-                  start2 = Math.max(0, Math.min(start2 - 1, lines.length));
-                  if (end2 < 0) {
-                    end2 += lines.length;
+                  start = Math.max(0, Math.min(start - 1, lines.length));
+                  if (end < 0) {
+                    end += lines.length;
                   }
-                  end2 = Math.max(0, Math.min(end2, lines.length));
-                  text2 = lines.slice(start2, end2).join("\n");
+                  end = Math.max(0, Math.min(end, lines.length));
+                  text2 = lines.slice(start, end).join("\n");
                   if (!pre.hasAttribute("data-start")) {
-                    pre.setAttribute("data-start", String(start2 + 1));
+                    pre.setAttribute("data-start", String(start + 1));
                   }
                 }
                 code2.textContent = text2;
@@ -1849,14 +1849,14 @@ var require_assets = __commonJS({
                   };
                   var actions_cut = ClipboardActionCut;
                   function createFakeElement(value) {
-                    var isRTL2 = document.documentElement.getAttribute("dir") === "rtl";
+                    var isRTL = document.documentElement.getAttribute("dir") === "rtl";
                     var fakeElement = document.createElement("textarea");
                     fakeElement.style.fontSize = "12pt";
                     fakeElement.style.border = "0";
                     fakeElement.style.padding = "0";
                     fakeElement.style.margin = "0";
                     fakeElement.style.position = "absolute";
-                    fakeElement.style[isRTL2 ? "right" : "left"] = "-9999px";
+                    fakeElement.style[isRTL ? "right" : "left"] = "-9999px";
                     var yPosition = window.pageYOffset || document.documentElement.scrollTop;
                     fakeElement.style.top = "".concat(yPosition, "px");
                     fakeElement.setAttribute("readonly", "");
@@ -2445,5054 +2445,6 @@ var require_assets = __commonJS({
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-    var top$1 = "top";
-    var bottom = "bottom";
-    var right = "right";
-    var left = "left";
-    var auto = "auto";
-    var basePlacements = [top$1, bottom, right, left];
-    var start = "start";
-    var end = "end";
-    var clippingParents = "clippingParents";
-    var viewport = "viewport";
-    var popper = "popper";
-    var reference$1 = "reference";
-    var variationPlacements = /* @__PURE__ */ basePlacements.reduce(function(acc, placement) {
-      return acc.concat([placement + "-" + start, placement + "-" + end]);
-    }, []);
-    var placements = /* @__PURE__ */ [].concat(basePlacements, [auto]).reduce(function(acc, placement) {
-      return acc.concat([placement, placement + "-" + start, placement + "-" + end]);
-    }, []);
-    var beforeRead = "beforeRead";
-    var read$1 = "read";
-    var afterRead = "afterRead";
-    var beforeMain = "beforeMain";
-    var main = "main";
-    var afterMain = "afterMain";
-    var beforeWrite = "beforeWrite";
-    var write = "write";
-    var afterWrite = "afterWrite";
-    var modifierPhases = [beforeRead, read$1, afterRead, beforeMain, main, afterMain, beforeWrite, write, afterWrite];
-    function getNodeName(element) {
-      return element ? (element.nodeName || "").toLowerCase() : null;
-    }
-    function getWindow(node) {
-      if (node == null) {
-        return window;
-      }
-      if (node.toString() !== "[object Window]") {
-        var ownerDocument = node.ownerDocument;
-        return ownerDocument ? ownerDocument.defaultView || window : window;
-      }
-      return node;
-    }
-    function isElement$1(node) {
-      var OwnElement = getWindow(node).Element;
-      return node instanceof OwnElement || node instanceof Element;
-    }
-    function isHTMLElement(node) {
-      var OwnElement = getWindow(node).HTMLElement;
-      return node instanceof OwnElement || node instanceof HTMLElement;
-    }
-    function isShadowRoot(node) {
-      if (typeof ShadowRoot === "undefined") {
-        return false;
-      }
-      var OwnElement = getWindow(node).ShadowRoot;
-      return node instanceof OwnElement || node instanceof ShadowRoot;
-    }
-    function applyStyles(_ref) {
-      var state = _ref.state;
-      Object.keys(state.elements).forEach(function(name2) {
-        var style2 = state.styles[name2] || {};
-        var attributes = state.attributes[name2] || {};
-        var element = state.elements[name2];
-        if (!isHTMLElement(element) || !getNodeName(element)) {
-          return;
-        }
-        Object.assign(element.style, style2);
-        Object.keys(attributes).forEach(function(name3) {
-          var value = attributes[name3];
-          if (value === false) {
-            element.removeAttribute(name3);
-          } else {
-            element.setAttribute(name3, value === true ? "" : value);
-          }
-        });
-      });
-    }
-    function effect$2(_ref2) {
-      var state = _ref2.state;
-      var initialStyles = {
-        popper: {
-          position: state.options.strategy,
-          left: "0",
-          top: "0",
-          margin: "0"
-        },
-        arrow: {
-          position: "absolute"
-        },
-        reference: {}
-      };
-      Object.assign(state.elements.popper.style, initialStyles.popper);
-      state.styles = initialStyles;
-      if (state.elements.arrow) {
-        Object.assign(state.elements.arrow.style, initialStyles.arrow);
-      }
-      return function() {
-        Object.keys(state.elements).forEach(function(name2) {
-          var element = state.elements[name2];
-          var attributes = state.attributes[name2] || {};
-          var styleProperties = Object.keys(state.styles.hasOwnProperty(name2) ? state.styles[name2] : initialStyles[name2]);
-          var style2 = styleProperties.reduce(function(style3, property) {
-            style3[property] = "";
-            return style3;
-          }, {});
-          if (!isHTMLElement(element) || !getNodeName(element)) {
-            return;
-          }
-          Object.assign(element.style, style2);
-          Object.keys(attributes).forEach(function(attribute2) {
-            element.removeAttribute(attribute2);
-          });
-        });
-      };
-    }
-    const applyStyles$1 = {
-      name: "applyStyles",
-      enabled: true,
-      phase: "write",
-      fn: applyStyles,
-      effect: effect$2,
-      requires: ["computeStyles"]
-    };
-    function getBasePlacement(placement) {
-      return placement.split("-")[0];
-    }
-    var max$2 = Math.max;
-    var min$1 = Math.min;
-    var round = Math.round;
-    function getUAString() {
-      var uaData = navigator.userAgentData;
-      if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) {
-        return uaData.brands.map(function(item) {
-          return item.brand + "/" + item.version;
-        }).join(" ");
-      }
-      return navigator.userAgent;
-    }
-    function isLayoutViewport() {
-      return !/^((?!chrome|android).)*safari/i.test(getUAString());
-    }
-    function getBoundingClientRect(element, includeScale, isFixedStrategy) {
-      if (includeScale === void 0) {
-        includeScale = false;
-      }
-      if (isFixedStrategy === void 0) {
-        isFixedStrategy = false;
-      }
-      var clientRect = element.getBoundingClientRect();
-      var scaleX = 1;
-      var scaleY = 1;
-      if (includeScale && isHTMLElement(element)) {
-        scaleX = element.offsetWidth > 0 ? round(clientRect.width) / element.offsetWidth || 1 : 1;
-        scaleY = element.offsetHeight > 0 ? round(clientRect.height) / element.offsetHeight || 1 : 1;
-      }
-      var _ref = isElement$1(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
-      var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
-      var x2 = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
-      var y2 = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
-      var width = clientRect.width / scaleX;
-      var height = clientRect.height / scaleY;
-      return {
-        width,
-        height,
-        top: y2,
-        right: x2 + width,
-        bottom: y2 + height,
-        left: x2,
-        x: x2,
-        y: y2
-      };
-    }
-    function getLayoutRect(element) {
-      var clientRect = getBoundingClientRect(element);
-      var width = element.offsetWidth;
-      var height = element.offsetHeight;
-      if (Math.abs(clientRect.width - width) <= 1) {
-        width = clientRect.width;
-      }
-      if (Math.abs(clientRect.height - height) <= 1) {
-        height = clientRect.height;
-      }
-      return {
-        x: element.offsetLeft,
-        y: element.offsetTop,
-        width,
-        height
-      };
-    }
-    function contains$1(parent, child) {
-      var rootNode = child.getRootNode && child.getRootNode();
-      if (parent.contains(child)) {
-        return true;
-      } else if (rootNode && isShadowRoot(rootNode)) {
-        var next = child;
-        do {
-          if (next && parent.isSameNode(next)) {
-            return true;
-          }
-          next = next.parentNode || next.host;
-        } while (next);
-      }
-      return false;
-    }
-    function getComputedStyle$1(element) {
-      return getWindow(element).getComputedStyle(element);
-    }
-    function isTableElement(element) {
-      return ["table", "td", "th"].indexOf(getNodeName(element)) >= 0;
-    }
-    function getDocumentElement(element) {
-      return ((isElement$1(element) ? element.ownerDocument : (
-        // $FlowFixMe[prop-missing]
-        element.document
-      )) || window.document).documentElement;
-    }
-    function getParentNode(element) {
-      if (getNodeName(element) === "html") {
-        return element;
-      }
-      return (
-        // this is a quicker (but less type safe) way to save quite some bytes from the bundle
-        // $FlowFixMe[incompatible-return]
-        // $FlowFixMe[prop-missing]
-        element.assignedSlot || // step into the shadow DOM of the parent of a slotted node
-        element.parentNode || // DOM Element detected
-        (isShadowRoot(element) ? element.host : null) || // ShadowRoot detected
-        // $FlowFixMe[incompatible-call]: HTMLElement is a Node
-        getDocumentElement(element)
-      );
-    }
-    function getTrueOffsetParent(element) {
-      if (!isHTMLElement(element) || // https://github.com/popperjs/popper-core/issues/837
-      getComputedStyle$1(element).position === "fixed") {
-        return null;
-      }
-      return element.offsetParent;
-    }
-    function getContainingBlock(element) {
-      var isFirefox = /firefox/i.test(getUAString());
-      var isIE = /Trident/i.test(getUAString());
-      if (isIE && isHTMLElement(element)) {
-        var elementCss = getComputedStyle$1(element);
-        if (elementCss.position === "fixed") {
-          return null;
-        }
-      }
-      var currentNode = getParentNode(element);
-      if (isShadowRoot(currentNode)) {
-        currentNode = currentNode.host;
-      }
-      while (isHTMLElement(currentNode) && ["html", "body"].indexOf(getNodeName(currentNode)) < 0) {
-        var css = getComputedStyle$1(currentNode);
-        if (css.transform !== "none" || css.perspective !== "none" || css.contain === "paint" || ["transform", "perspective"].indexOf(css.willChange) !== -1 || isFirefox && css.willChange === "filter" || isFirefox && css.filter && css.filter !== "none") {
-          return currentNode;
-        } else {
-          currentNode = currentNode.parentNode;
-        }
-      }
-      return null;
-    }
-    function getOffsetParent(element) {
-      var window2 = getWindow(element);
-      var offsetParent = getTrueOffsetParent(element);
-      while (offsetParent && isTableElement(offsetParent) && getComputedStyle$1(offsetParent).position === "static") {
-        offsetParent = getTrueOffsetParent(offsetParent);
-      }
-      if (offsetParent && (getNodeName(offsetParent) === "html" || getNodeName(offsetParent) === "body" && getComputedStyle$1(offsetParent).position === "static")) {
-        return window2;
-      }
-      return offsetParent || getContainingBlock(element) || window2;
-    }
-    function getMainAxisFromPlacement(placement) {
-      return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
-    }
-    function within(min2, value, max2) {
-      return max$2(min2, min$1(value, max2));
-    }
-    function withinMaxClamp(min2, value, max2) {
-      var v2 = within(min2, value, max2);
-      return v2 > max2 ? max2 : v2;
-    }
-    function getFreshSideObject() {
-      return {
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0
-      };
-    }
-    function mergePaddingObject(paddingObject) {
-      return Object.assign({}, getFreshSideObject(), paddingObject);
-    }
-    function expandToHashMap(value, keys) {
-      return keys.reduce(function(hashMap, key2) {
-        hashMap[key2] = value;
-        return hashMap;
-      }, {});
-    }
-    var toPaddingObject = function toPaddingObject2(padding, state) {
-      padding = typeof padding === "function" ? padding(Object.assign({}, state.rects, {
-        placement: state.placement
-      })) : padding;
-      return mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-    };
-    function arrow(_ref) {
-      var _state$modifiersData$;
-      var state = _ref.state, name2 = _ref.name, options = _ref.options;
-      var arrowElement = state.elements.arrow;
-      var popperOffsets2 = state.modifiersData.popperOffsets;
-      var basePlacement = getBasePlacement(state.placement);
-      var axis = getMainAxisFromPlacement(basePlacement);
-      var isVertical = [left, right].indexOf(basePlacement) >= 0;
-      var len = isVertical ? "height" : "width";
-      if (!arrowElement || !popperOffsets2) {
-        return;
-      }
-      var paddingObject = toPaddingObject(options.padding, state);
-      var arrowRect = getLayoutRect(arrowElement);
-      var minProp = axis === "y" ? top$1 : left;
-      var maxProp = axis === "y" ? bottom : right;
-      var endDiff = state.rects.reference[len] + state.rects.reference[axis] - popperOffsets2[axis] - state.rects.popper[len];
-      var startDiff = popperOffsets2[axis] - state.rects.reference[axis];
-      var arrowOffsetParent = getOffsetParent(arrowElement);
-      var clientSize = arrowOffsetParent ? axis === "y" ? arrowOffsetParent.clientHeight || 0 : arrowOffsetParent.clientWidth || 0 : 0;
-      var centerToReference = endDiff / 2 - startDiff / 2;
-      var min2 = paddingObject[minProp];
-      var max2 = clientSize - arrowRect[len] - paddingObject[maxProp];
-      var center = clientSize / 2 - arrowRect[len] / 2 + centerToReference;
-      var offset2 = within(min2, center, max2);
-      var axisProp = axis;
-      state.modifiersData[name2] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset2, _state$modifiersData$.centerOffset = offset2 - center, _state$modifiersData$);
-    }
-    function effect$1(_ref2) {
-      var state = _ref2.state, options = _ref2.options;
-      var _options$element = options.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
-      if (arrowElement == null) {
-        return;
-      }
-      if (typeof arrowElement === "string") {
-        arrowElement = state.elements.popper.querySelector(arrowElement);
-        if (!arrowElement) {
-          return;
-        }
-      }
-      if (!contains$1(state.elements.popper, arrowElement)) {
-        return;
-      }
-      state.elements.arrow = arrowElement;
-    }
-    const arrow$1 = {
-      name: "arrow",
-      enabled: true,
-      phase: "main",
-      fn: arrow,
-      effect: effect$1,
-      requires: ["popperOffsets"],
-      requiresIfExists: ["preventOverflow"]
-    };
-    function getVariation(placement) {
-      return placement.split("-")[1];
-    }
-    var unsetSides = {
-      top: "auto",
-      right: "auto",
-      bottom: "auto",
-      left: "auto"
-    };
-    function roundOffsetsByDPR(_ref, win) {
-      var x2 = _ref.x, y2 = _ref.y;
-      var dpr = win.devicePixelRatio || 1;
-      return {
-        x: round(x2 * dpr) / dpr || 0,
-        y: round(y2 * dpr) / dpr || 0
-      };
-    }
-    function mapToStyles(_ref2) {
-      var _Object$assign2;
-      var popper2 = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
-      var _offsets$x = offsets.x, x2 = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
-      var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
-        x: x2,
-        y: y2
-      }) : {
-        x: x2,
-        y: y2
-      };
-      x2 = _ref3.x;
-      y2 = _ref3.y;
-      var hasX = offsets.hasOwnProperty("x");
-      var hasY = offsets.hasOwnProperty("y");
-      var sideX = left;
-      var sideY = top$1;
-      var win = window;
-      if (adaptive) {
-        var offsetParent = getOffsetParent(popper2);
-        var heightProp = "clientHeight";
-        var widthProp = "clientWidth";
-        if (offsetParent === getWindow(popper2)) {
-          offsetParent = getDocumentElement(popper2);
-          if (getComputedStyle$1(offsetParent).position !== "static" && position === "absolute") {
-            heightProp = "scrollHeight";
-            widthProp = "scrollWidth";
-          }
-        }
-        offsetParent = offsetParent;
-        if (placement === top$1 || (placement === left || placement === right) && variation === end) {
-          sideY = bottom;
-          var offsetY = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.height : (
-            // $FlowFixMe[prop-missing]
-            offsetParent[heightProp]
-          );
-          y2 -= offsetY - popperRect.height;
-          y2 *= gpuAcceleration ? 1 : -1;
-        }
-        if (placement === left || (placement === top$1 || placement === bottom) && variation === end) {
-          sideX = right;
-          var offsetX = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.width : (
-            // $FlowFixMe[prop-missing]
-            offsetParent[widthProp]
-          );
-          x2 -= offsetX - popperRect.width;
-          x2 *= gpuAcceleration ? 1 : -1;
-        }
-      }
-      var commonStyles = Object.assign({
-        position
-      }, adaptive && unsetSides);
-      var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
-        x: x2,
-        y: y2
-      }, getWindow(popper2)) : {
-        x: x2,
-        y: y2
-      };
-      x2 = _ref4.x;
-      y2 = _ref4.y;
-      if (gpuAcceleration) {
-        var _Object$assign;
-        return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x2 + "px, " + y2 + "px)" : "translate3d(" + x2 + "px, " + y2 + "px, 0)", _Object$assign));
-      }
-      return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
-    }
-    function computeStyles$1(_ref5) {
-      var state = _ref5.state, options = _ref5.options;
-      var _options$gpuAccelerat = options.gpuAcceleration, gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat, _options$adaptive = options.adaptive, adaptive = _options$adaptive === void 0 ? true : _options$adaptive, _options$roundOffsets = options.roundOffsets, roundOffsets = _options$roundOffsets === void 0 ? true : _options$roundOffsets;
-      var commonStyles = {
-        placement: getBasePlacement(state.placement),
-        variation: getVariation(state.placement),
-        popper: state.elements.popper,
-        popperRect: state.rects.popper,
-        gpuAcceleration,
-        isFixed: state.options.strategy === "fixed"
-      };
-      if (state.modifiersData.popperOffsets != null) {
-        state.styles.popper = Object.assign({}, state.styles.popper, mapToStyles(Object.assign({}, commonStyles, {
-          offsets: state.modifiersData.popperOffsets,
-          position: state.options.strategy,
-          adaptive,
-          roundOffsets
-        })));
-      }
-      if (state.modifiersData.arrow != null) {
-        state.styles.arrow = Object.assign({}, state.styles.arrow, mapToStyles(Object.assign({}, commonStyles, {
-          offsets: state.modifiersData.arrow,
-          position: "absolute",
-          adaptive: false,
-          roundOffsets
-        })));
-      }
-      state.attributes.popper = Object.assign({}, state.attributes.popper, {
-        "data-popper-placement": state.placement
-      });
-    }
-    const computeStyles$2 = {
-      name: "computeStyles",
-      enabled: true,
-      phase: "beforeWrite",
-      fn: computeStyles$1,
-      data: {}
-    };
-    var passive = {
-      passive: true
-    };
-    function effect(_ref) {
-      var state = _ref.state, instance = _ref.instance, options = _ref.options;
-      var _options$scroll = options.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options.resize, resize = _options$resize === void 0 ? true : _options$resize;
-      var window2 = getWindow(state.elements.popper);
-      var scrollParents = [].concat(state.scrollParents.reference, state.scrollParents.popper);
-      if (scroll) {
-        scrollParents.forEach(function(scrollParent) {
-          scrollParent.addEventListener("scroll", instance.update, passive);
-        });
-      }
-      if (resize) {
-        window2.addEventListener("resize", instance.update, passive);
-      }
-      return function() {
-        if (scroll) {
-          scrollParents.forEach(function(scrollParent) {
-            scrollParent.removeEventListener("scroll", instance.update, passive);
-          });
-        }
-        if (resize) {
-          window2.removeEventListener("resize", instance.update, passive);
-        }
-      };
-    }
-    const eventListeners = {
-      name: "eventListeners",
-      enabled: true,
-      phase: "write",
-      fn: function fn2() {
-      },
-      effect,
-      data: {}
-    };
-    var hash$1 = {
-      left: "right",
-      right: "left",
-      bottom: "top",
-      top: "bottom"
-    };
-    function getOppositePlacement(placement) {
-      return placement.replace(/left|right|bottom|top/g, function(matched) {
-        return hash$1[matched];
-      });
-    }
-    var hash = {
-      start: "end",
-      end: "start"
-    };
-    function getOppositeVariationPlacement(placement) {
-      return placement.replace(/start|end/g, function(matched) {
-        return hash[matched];
-      });
-    }
-    function getWindowScroll(node) {
-      var win = getWindow(node);
-      var scrollLeft = win.pageXOffset;
-      var scrollTop = win.pageYOffset;
-      return {
-        scrollLeft,
-        scrollTop
-      };
-    }
-    function getWindowScrollBarX(element) {
-      return getBoundingClientRect(getDocumentElement(element)).left + getWindowScroll(element).scrollLeft;
-    }
-    function getViewportRect(element, strategy) {
-      var win = getWindow(element);
-      var html = getDocumentElement(element);
-      var visualViewport = win.visualViewport;
-      var width = html.clientWidth;
-      var height = html.clientHeight;
-      var x2 = 0;
-      var y2 = 0;
-      if (visualViewport) {
-        width = visualViewport.width;
-        height = visualViewport.height;
-        var layoutViewport = isLayoutViewport();
-        if (layoutViewport || !layoutViewport && strategy === "fixed") {
-          x2 = visualViewport.offsetLeft;
-          y2 = visualViewport.offsetTop;
-        }
-      }
-      return {
-        width,
-        height,
-        x: x2 + getWindowScrollBarX(element),
-        y: y2
-      };
-    }
-    function getDocumentRect(element) {
-      var _element$ownerDocumen;
-      var html = getDocumentElement(element);
-      var winScroll = getWindowScroll(element);
-      var body2 = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-      var width = max$2(html.scrollWidth, html.clientWidth, body2 ? body2.scrollWidth : 0, body2 ? body2.clientWidth : 0);
-      var height = max$2(html.scrollHeight, html.clientHeight, body2 ? body2.scrollHeight : 0, body2 ? body2.clientHeight : 0);
-      var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
-      var y2 = -winScroll.scrollTop;
-      if (getComputedStyle$1(body2 || html).direction === "rtl") {
-        x2 += max$2(html.clientWidth, body2 ? body2.clientWidth : 0) - width;
-      }
-      return {
-        width,
-        height,
-        x: x2,
-        y: y2
-      };
-    }
-    function isScrollParent(element) {
-      var _getComputedStyle = getComputedStyle$1(element), overflow = _getComputedStyle.overflow, overflowX = _getComputedStyle.overflowX, overflowY = _getComputedStyle.overflowY;
-      return /auto|scroll|overlay|hidden/.test(overflow + overflowY + overflowX);
-    }
-    function getScrollParent(node) {
-      if (["html", "body", "#document"].indexOf(getNodeName(node)) >= 0) {
-        return node.ownerDocument.body;
-      }
-      if (isHTMLElement(node) && isScrollParent(node)) {
-        return node;
-      }
-      return getScrollParent(getParentNode(node));
-    }
-    function listScrollParents(element, list2) {
-      var _element$ownerDocumen;
-      if (list2 === void 0) {
-        list2 = [];
-      }
-      var scrollParent = getScrollParent(element);
-      var isBody = scrollParent === ((_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body);
-      var win = getWindow(scrollParent);
-      var target = isBody ? [win].concat(win.visualViewport || [], isScrollParent(scrollParent) ? scrollParent : []) : scrollParent;
-      var updatedList = list2.concat(target);
-      return isBody ? updatedList : (
-        // $FlowFixMe[incompatible-call]: isBody tells us target will be an HTMLElement here
-        updatedList.concat(listScrollParents(getParentNode(target)))
-      );
-    }
-    function rectToClientRect(rect) {
-      return Object.assign({}, rect, {
-        left: rect.x,
-        top: rect.y,
-        right: rect.x + rect.width,
-        bottom: rect.y + rect.height
-      });
-    }
-    function getInnerBoundingClientRect(element, strategy) {
-      var rect = getBoundingClientRect(element, false, strategy === "fixed");
-      rect.top = rect.top + element.clientTop;
-      rect.left = rect.left + element.clientLeft;
-      rect.bottom = rect.top + element.clientHeight;
-      rect.right = rect.left + element.clientWidth;
-      rect.width = element.clientWidth;
-      rect.height = element.clientHeight;
-      rect.x = rect.left;
-      rect.y = rect.top;
-      return rect;
-    }
-    function getClientRectFromMixedType(element, clippingParent, strategy) {
-      return clippingParent === viewport ? rectToClientRect(getViewportRect(element, strategy)) : isElement$1(clippingParent) ? getInnerBoundingClientRect(clippingParent, strategy) : rectToClientRect(getDocumentRect(getDocumentElement(element)));
-    }
-    function getClippingParents(element) {
-      var clippingParents2 = listScrollParents(getParentNode(element));
-      var canEscapeClipping = ["absolute", "fixed"].indexOf(getComputedStyle$1(element).position) >= 0;
-      var clipperElement = canEscapeClipping && isHTMLElement(element) ? getOffsetParent(element) : element;
-      if (!isElement$1(clipperElement)) {
-        return [];
-      }
-      return clippingParents2.filter(function(clippingParent) {
-        return isElement$1(clippingParent) && contains$1(clippingParent, clipperElement) && getNodeName(clippingParent) !== "body";
-      });
-    }
-    function getClippingRect(element, boundary, rootBoundary, strategy) {
-      var mainClippingParents = boundary === "clippingParents" ? getClippingParents(element) : [].concat(boundary);
-      var clippingParents2 = [].concat(mainClippingParents, [rootBoundary]);
-      var firstClippingParent = clippingParents2[0];
-      var clippingRect = clippingParents2.reduce(function(accRect, clippingParent) {
-        var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-        accRect.top = max$2(rect.top, accRect.top);
-        accRect.right = min$1(rect.right, accRect.right);
-        accRect.bottom = min$1(rect.bottom, accRect.bottom);
-        accRect.left = max$2(rect.left, accRect.left);
-        return accRect;
-      }, getClientRectFromMixedType(element, firstClippingParent, strategy));
-      clippingRect.width = clippingRect.right - clippingRect.left;
-      clippingRect.height = clippingRect.bottom - clippingRect.top;
-      clippingRect.x = clippingRect.left;
-      clippingRect.y = clippingRect.top;
-      return clippingRect;
-    }
-    function computeOffsets(_ref) {
-      var reference2 = _ref.reference, element = _ref.element, placement = _ref.placement;
-      var basePlacement = placement ? getBasePlacement(placement) : null;
-      var variation = placement ? getVariation(placement) : null;
-      var commonX = reference2.x + reference2.width / 2 - element.width / 2;
-      var commonY = reference2.y + reference2.height / 2 - element.height / 2;
-      var offsets;
-      switch (basePlacement) {
-        case top$1:
-          offsets = {
-            x: commonX,
-            y: reference2.y - element.height
-          };
-          break;
-        case bottom:
-          offsets = {
-            x: commonX,
-            y: reference2.y + reference2.height
-          };
-          break;
-        case right:
-          offsets = {
-            x: reference2.x + reference2.width,
-            y: commonY
-          };
-          break;
-        case left:
-          offsets = {
-            x: reference2.x - element.width,
-            y: commonY
-          };
-          break;
-        default:
-          offsets = {
-            x: reference2.x,
-            y: reference2.y
-          };
-      }
-      var mainAxis = basePlacement ? getMainAxisFromPlacement(basePlacement) : null;
-      if (mainAxis != null) {
-        var len = mainAxis === "y" ? "height" : "width";
-        switch (variation) {
-          case start:
-            offsets[mainAxis] = offsets[mainAxis] - (reference2[len] / 2 - element[len] / 2);
-            break;
-          case end:
-            offsets[mainAxis] = offsets[mainAxis] + (reference2[len] / 2 - element[len] / 2);
-            break;
-        }
-      }
-      return offsets;
-    }
-    function detectOverflow(state, options) {
-      if (options === void 0) {
-        options = {};
-      }
-      var _options = options, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
-      var paddingObject = mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-      var altContext = elementContext === popper ? reference$1 : popper;
-      var popperRect = state.rects.popper;
-      var element = state.elements[altBoundary ? altContext : elementContext];
-      var clippingClientRect = getClippingRect(isElement$1(element) ? element : element.contextElement || getDocumentElement(state.elements.popper), boundary, rootBoundary, strategy);
-      var referenceClientRect = getBoundingClientRect(state.elements.reference);
-      var popperOffsets2 = computeOffsets({
-        reference: referenceClientRect,
-        element: popperRect,
-        strategy: "absolute",
-        placement
-      });
-      var popperClientRect = rectToClientRect(Object.assign({}, popperRect, popperOffsets2));
-      var elementClientRect = elementContext === popper ? popperClientRect : referenceClientRect;
-      var overflowOffsets = {
-        top: clippingClientRect.top - elementClientRect.top + paddingObject.top,
-        bottom: elementClientRect.bottom - clippingClientRect.bottom + paddingObject.bottom,
-        left: clippingClientRect.left - elementClientRect.left + paddingObject.left,
-        right: elementClientRect.right - clippingClientRect.right + paddingObject.right
-      };
-      var offsetData = state.modifiersData.offset;
-      if (elementContext === popper && offsetData) {
-        var offset2 = offsetData[placement];
-        Object.keys(overflowOffsets).forEach(function(key2) {
-          var multiply = [right, bottom].indexOf(key2) >= 0 ? 1 : -1;
-          var axis = [top$1, bottom].indexOf(key2) >= 0 ? "y" : "x";
-          overflowOffsets[key2] += offset2[axis] * multiply;
-        });
-      }
-      return overflowOffsets;
-    }
-    function computeAutoPlacement(state, options) {
-      if (options === void 0) {
-        options = {};
-      }
-      var _options = options, placement = _options.placement, boundary = _options.boundary, rootBoundary = _options.rootBoundary, padding = _options.padding, flipVariations = _options.flipVariations, _options$allowedAutoP = _options.allowedAutoPlacements, allowedAutoPlacements = _options$allowedAutoP === void 0 ? placements : _options$allowedAutoP;
-      var variation = getVariation(placement);
-      var placements$1 = variation ? flipVariations ? variationPlacements : variationPlacements.filter(function(placement2) {
-        return getVariation(placement2) === variation;
-      }) : basePlacements;
-      var allowedPlacements = placements$1.filter(function(placement2) {
-        return allowedAutoPlacements.indexOf(placement2) >= 0;
-      });
-      if (allowedPlacements.length === 0) {
-        allowedPlacements = placements$1;
-      }
-      var overflows = allowedPlacements.reduce(function(acc, placement2) {
-        acc[placement2] = detectOverflow(state, {
-          placement: placement2,
-          boundary,
-          rootBoundary,
-          padding
-        })[getBasePlacement(placement2)];
-        return acc;
-      }, {});
-      return Object.keys(overflows).sort(function(a2, b2) {
-        return overflows[a2] - overflows[b2];
-      });
-    }
-    function getExpandedFallbackPlacements(placement) {
-      if (getBasePlacement(placement) === auto) {
-        return [];
-      }
-      var oppositePlacement = getOppositePlacement(placement);
-      return [getOppositeVariationPlacement(placement), oppositePlacement, getOppositeVariationPlacement(oppositePlacement)];
-    }
-    function flip(_ref) {
-      var state = _ref.state, options = _ref.options, name2 = _ref.name;
-      if (state.modifiersData[name2]._skip) {
-        return;
-      }
-      var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? true : _options$altAxis, specifiedFallbackPlacements = options.fallbackPlacements, padding = options.padding, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, _options$flipVariatio = options.flipVariations, flipVariations = _options$flipVariatio === void 0 ? true : _options$flipVariatio, allowedAutoPlacements = options.allowedAutoPlacements;
-      var preferredPlacement = state.options.placement;
-      var basePlacement = getBasePlacement(preferredPlacement);
-      var isBasePlacement = basePlacement === preferredPlacement;
-      var fallbackPlacements = specifiedFallbackPlacements || (isBasePlacement || !flipVariations ? [getOppositePlacement(preferredPlacement)] : getExpandedFallbackPlacements(preferredPlacement));
-      var placements2 = [preferredPlacement].concat(fallbackPlacements).reduce(function(acc, placement2) {
-        return acc.concat(getBasePlacement(placement2) === auto ? computeAutoPlacement(state, {
-          placement: placement2,
-          boundary,
-          rootBoundary,
-          padding,
-          flipVariations,
-          allowedAutoPlacements
-        }) : placement2);
-      }, []);
-      var referenceRect = state.rects.reference;
-      var popperRect = state.rects.popper;
-      var checksMap = /* @__PURE__ */ new Map();
-      var makeFallbackChecks = true;
-      var firstFittingPlacement = placements2[0];
-      for (var i2 = 0; i2 < placements2.length; i2++) {
-        var placement = placements2[i2];
-        var _basePlacement = getBasePlacement(placement);
-        var isStartVariation = getVariation(placement) === start;
-        var isVertical = [top$1, bottom].indexOf(_basePlacement) >= 0;
-        var len = isVertical ? "width" : "height";
-        var overflow = detectOverflow(state, {
-          placement,
-          boundary,
-          rootBoundary,
-          altBoundary,
-          padding
-        });
-        var mainVariationSide = isVertical ? isStartVariation ? right : left : isStartVariation ? bottom : top$1;
-        if (referenceRect[len] > popperRect[len]) {
-          mainVariationSide = getOppositePlacement(mainVariationSide);
-        }
-        var altVariationSide = getOppositePlacement(mainVariationSide);
-        var checks = [];
-        if (checkMainAxis) {
-          checks.push(overflow[_basePlacement] <= 0);
-        }
-        if (checkAltAxis) {
-          checks.push(overflow[mainVariationSide] <= 0, overflow[altVariationSide] <= 0);
-        }
-        if (checks.every(function(check) {
-          return check;
-        })) {
-          firstFittingPlacement = placement;
-          makeFallbackChecks = false;
-          break;
-        }
-        checksMap.set(placement, checks);
-      }
-      if (makeFallbackChecks) {
-        var numberOfChecks = flipVariations ? 3 : 1;
-        var _loop = function _loop2(_i2) {
-          var fittingPlacement = placements2.find(function(placement2) {
-            var checks2 = checksMap.get(placement2);
-            if (checks2) {
-              return checks2.slice(0, _i2).every(function(check) {
-                return check;
-              });
-            }
-          });
-          if (fittingPlacement) {
-            firstFittingPlacement = fittingPlacement;
-            return "break";
-          }
-        };
-        for (var _i = numberOfChecks; _i > 0; _i--) {
-          var _ret = _loop(_i);
-          if (_ret === "break") break;
-        }
-      }
-      if (state.placement !== firstFittingPlacement) {
-        state.modifiersData[name2]._skip = true;
-        state.placement = firstFittingPlacement;
-        state.reset = true;
-      }
-    }
-    const flip$1 = {
-      name: "flip",
-      enabled: true,
-      phase: "main",
-      fn: flip,
-      requiresIfExists: ["offset"],
-      data: {
-        _skip: false
-      }
-    };
-    function getSideOffsets(overflow, rect, preventedOffsets) {
-      if (preventedOffsets === void 0) {
-        preventedOffsets = {
-          x: 0,
-          y: 0
-        };
-      }
-      return {
-        top: overflow.top - rect.height - preventedOffsets.y,
-        right: overflow.right - rect.width + preventedOffsets.x,
-        bottom: overflow.bottom - rect.height + preventedOffsets.y,
-        left: overflow.left - rect.width - preventedOffsets.x
-      };
-    }
-    function isAnySideFullyClipped(overflow) {
-      return [top$1, right, bottom, left].some(function(side) {
-        return overflow[side] >= 0;
-      });
-    }
-    function hide(_ref) {
-      var state = _ref.state, name2 = _ref.name;
-      var referenceRect = state.rects.reference;
-      var popperRect = state.rects.popper;
-      var preventedOffsets = state.modifiersData.preventOverflow;
-      var referenceOverflow = detectOverflow(state, {
-        elementContext: "reference"
-      });
-      var popperAltOverflow = detectOverflow(state, {
-        altBoundary: true
-      });
-      var referenceClippingOffsets = getSideOffsets(referenceOverflow, referenceRect);
-      var popperEscapeOffsets = getSideOffsets(popperAltOverflow, popperRect, preventedOffsets);
-      var isReferenceHidden = isAnySideFullyClipped(referenceClippingOffsets);
-      var hasPopperEscaped = isAnySideFullyClipped(popperEscapeOffsets);
-      state.modifiersData[name2] = {
-        referenceClippingOffsets,
-        popperEscapeOffsets,
-        isReferenceHidden,
-        hasPopperEscaped
-      };
-      state.attributes.popper = Object.assign({}, state.attributes.popper, {
-        "data-popper-reference-hidden": isReferenceHidden,
-        "data-popper-escaped": hasPopperEscaped
-      });
-    }
-    const hide$1 = {
-      name: "hide",
-      enabled: true,
-      phase: "main",
-      requiresIfExists: ["preventOverflow"],
-      fn: hide
-    };
-    function distanceAndSkiddingToXY(placement, rects, offset2) {
-      var basePlacement = getBasePlacement(placement);
-      var invertDistance = [left, top$1].indexOf(basePlacement) >= 0 ? -1 : 1;
-      var _ref = typeof offset2 === "function" ? offset2(Object.assign({}, rects, {
-        placement
-      })) : offset2, skidding = _ref[0], distance = _ref[1];
-      skidding = skidding || 0;
-      distance = (distance || 0) * invertDistance;
-      return [left, right].indexOf(basePlacement) >= 0 ? {
-        x: distance,
-        y: skidding
-      } : {
-        x: skidding,
-        y: distance
-      };
-    }
-    function offset(_ref2) {
-      var state = _ref2.state, options = _ref2.options, name2 = _ref2.name;
-      var _options$offset = options.offset, offset2 = _options$offset === void 0 ? [0, 0] : _options$offset;
-      var data = placements.reduce(function(acc, placement) {
-        acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
-        return acc;
-      }, {});
-      var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y2 = _data$state$placement.y;
-      if (state.modifiersData.popperOffsets != null) {
-        state.modifiersData.popperOffsets.x += x2;
-        state.modifiersData.popperOffsets.y += y2;
-      }
-      state.modifiersData[name2] = data;
-    }
-    const offset$1 = {
-      name: "offset",
-      enabled: true,
-      phase: "main",
-      requires: ["popperOffsets"],
-      fn: offset
-    };
-    function popperOffsets(_ref) {
-      var state = _ref.state, name2 = _ref.name;
-      state.modifiersData[name2] = computeOffsets({
-        reference: state.rects.reference,
-        element: state.rects.popper,
-        strategy: "absolute",
-        placement: state.placement
-      });
-    }
-    const popperOffsets$1 = {
-      name: "popperOffsets",
-      enabled: true,
-      phase: "read",
-      fn: popperOffsets,
-      data: {}
-    };
-    function getAltAxis(axis) {
-      return axis === "x" ? "y" : "x";
-    }
-    function preventOverflow(_ref) {
-      var state = _ref.state, options = _ref.options, name2 = _ref.name;
-      var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? false : _options$altAxis, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, padding = options.padding, _options$tether = options.tether, tether = _options$tether === void 0 ? true : _options$tether, _options$tetherOffset = options.tetherOffset, tetherOffset = _options$tetherOffset === void 0 ? 0 : _options$tetherOffset;
-      var overflow = detectOverflow(state, {
-        boundary,
-        rootBoundary,
-        padding,
-        altBoundary
-      });
-      var basePlacement = getBasePlacement(state.placement);
-      var variation = getVariation(state.placement);
-      var isBasePlacement = !variation;
-      var mainAxis = getMainAxisFromPlacement(basePlacement);
-      var altAxis = getAltAxis(mainAxis);
-      var popperOffsets2 = state.modifiersData.popperOffsets;
-      var referenceRect = state.rects.reference;
-      var popperRect = state.rects.popper;
-      var tetherOffsetValue = typeof tetherOffset === "function" ? tetherOffset(Object.assign({}, state.rects, {
-        placement: state.placement
-      })) : tetherOffset;
-      var normalizedTetherOffsetValue = typeof tetherOffsetValue === "number" ? {
-        mainAxis: tetherOffsetValue,
-        altAxis: tetherOffsetValue
-      } : Object.assign({
-        mainAxis: 0,
-        altAxis: 0
-      }, tetherOffsetValue);
-      var offsetModifierState = state.modifiersData.offset ? state.modifiersData.offset[state.placement] : null;
-      var data = {
-        x: 0,
-        y: 0
-      };
-      if (!popperOffsets2) {
-        return;
-      }
-      if (checkMainAxis) {
-        var _offsetModifierState$;
-        var mainSide = mainAxis === "y" ? top$1 : left;
-        var altSide = mainAxis === "y" ? bottom : right;
-        var len = mainAxis === "y" ? "height" : "width";
-        var offset2 = popperOffsets2[mainAxis];
-        var min2 = offset2 + overflow[mainSide];
-        var max2 = offset2 - overflow[altSide];
-        var additive = tether ? -popperRect[len] / 2 : 0;
-        var minLen = variation === start ? referenceRect[len] : popperRect[len];
-        var maxLen = variation === start ? -popperRect[len] : -referenceRect[len];
-        var arrowElement = state.elements.arrow;
-        var arrowRect = tether && arrowElement ? getLayoutRect(arrowElement) : {
-          width: 0,
-          height: 0
-        };
-        var arrowPaddingObject = state.modifiersData["arrow#persistent"] ? state.modifiersData["arrow#persistent"].padding : getFreshSideObject();
-        var arrowPaddingMin = arrowPaddingObject[mainSide];
-        var arrowPaddingMax = arrowPaddingObject[altSide];
-        var arrowLen = within(0, referenceRect[len], arrowRect[len]);
-        var minOffset = isBasePlacement ? referenceRect[len] / 2 - additive - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis : minLen - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis;
-        var maxOffset2 = isBasePlacement ? -referenceRect[len] / 2 + additive + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis : maxLen + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis;
-        var arrowOffsetParent = state.elements.arrow && getOffsetParent(state.elements.arrow);
-        var clientOffset = arrowOffsetParent ? mainAxis === "y" ? arrowOffsetParent.clientTop || 0 : arrowOffsetParent.clientLeft || 0 : 0;
-        var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
-        var tetherMin = offset2 + minOffset - offsetModifierValue - clientOffset;
-        var tetherMax = offset2 + maxOffset2 - offsetModifierValue;
-        var preventedOffset = within(tether ? min$1(min2, tetherMin) : min2, offset2, tether ? max$2(max2, tetherMax) : max2);
-        popperOffsets2[mainAxis] = preventedOffset;
-        data[mainAxis] = preventedOffset - offset2;
-      }
-      if (checkAltAxis) {
-        var _offsetModifierState$2;
-        var _mainSide = mainAxis === "x" ? top$1 : left;
-        var _altSide = mainAxis === "x" ? bottom : right;
-        var _offset = popperOffsets2[altAxis];
-        var _len = altAxis === "y" ? "height" : "width";
-        var _min = _offset + overflow[_mainSide];
-        var _max = _offset - overflow[_altSide];
-        var isOriginSide = [top$1, left].indexOf(basePlacement) !== -1;
-        var _offsetModifierValue = (_offsetModifierState$2 = offsetModifierState == null ? void 0 : offsetModifierState[altAxis]) != null ? _offsetModifierState$2 : 0;
-        var _tetherMin = isOriginSide ? _min : _offset - referenceRect[_len] - popperRect[_len] - _offsetModifierValue + normalizedTetherOffsetValue.altAxis;
-        var _tetherMax = isOriginSide ? _offset + referenceRect[_len] + popperRect[_len] - _offsetModifierValue - normalizedTetherOffsetValue.altAxis : _max;
-        var _preventedOffset = tether && isOriginSide ? withinMaxClamp(_tetherMin, _offset, _tetherMax) : within(tether ? _tetherMin : _min, _offset, tether ? _tetherMax : _max);
-        popperOffsets2[altAxis] = _preventedOffset;
-        data[altAxis] = _preventedOffset - _offset;
-      }
-      state.modifiersData[name2] = data;
-    }
-    const preventOverflow$1 = {
-      name: "preventOverflow",
-      enabled: true,
-      phase: "main",
-      fn: preventOverflow,
-      requiresIfExists: ["offset"]
-    };
-    function getHTMLElementScroll(element) {
-      return {
-        scrollLeft: element.scrollLeft,
-        scrollTop: element.scrollTop
-      };
-    }
-    function getNodeScroll(node) {
-      if (node === getWindow(node) || !isHTMLElement(node)) {
-        return getWindowScroll(node);
-      } else {
-        return getHTMLElementScroll(node);
-      }
-    }
-    function isElementScaled(element) {
-      var rect = element.getBoundingClientRect();
-      var scaleX = round(rect.width) / element.offsetWidth || 1;
-      var scaleY = round(rect.height) / element.offsetHeight || 1;
-      return scaleX !== 1 || scaleY !== 1;
-    }
-    function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
-      if (isFixed === void 0) {
-        isFixed = false;
-      }
-      var isOffsetParentAnElement = isHTMLElement(offsetParent);
-      var offsetParentIsScaled = isHTMLElement(offsetParent) && isElementScaled(offsetParent);
-      var documentElement = getDocumentElement(offsetParent);
-      var rect = getBoundingClientRect(elementOrVirtualElement, offsetParentIsScaled, isFixed);
-      var scroll = {
-        scrollLeft: 0,
-        scrollTop: 0
-      };
-      var offsets = {
-        x: 0,
-        y: 0
-      };
-      if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
-        if (getNodeName(offsetParent) !== "body" || // https://github.com/popperjs/popper-core/issues/1078
-        isScrollParent(documentElement)) {
-          scroll = getNodeScroll(offsetParent);
-        }
-        if (isHTMLElement(offsetParent)) {
-          offsets = getBoundingClientRect(offsetParent, true);
-          offsets.x += offsetParent.clientLeft;
-          offsets.y += offsetParent.clientTop;
-        } else if (documentElement) {
-          offsets.x = getWindowScrollBarX(documentElement);
-        }
-      }
-      return {
-        x: rect.left + scroll.scrollLeft - offsets.x,
-        y: rect.top + scroll.scrollTop - offsets.y,
-        width: rect.width,
-        height: rect.height
-      };
-    }
-    function order(modifiers2) {
-      var map2 = /* @__PURE__ */ new Map();
-      var visited = /* @__PURE__ */ new Set();
-      var result = [];
-      modifiers2.forEach(function(modifier) {
-        map2.set(modifier.name, modifier);
-      });
-      function sort(modifier) {
-        visited.add(modifier.name);
-        var requires = [].concat(modifier.requires || [], modifier.requiresIfExists || []);
-        requires.forEach(function(dep) {
-          if (!visited.has(dep)) {
-            var depModifier = map2.get(dep);
-            if (depModifier) {
-              sort(depModifier);
-            }
-          }
-        });
-        result.push(modifier);
-      }
-      modifiers2.forEach(function(modifier) {
-        if (!visited.has(modifier.name)) {
-          sort(modifier);
-        }
-      });
-      return result;
-    }
-    function orderModifiers(modifiers2) {
-      var orderedModifiers = order(modifiers2);
-      return modifierPhases.reduce(function(acc, phase) {
-        return acc.concat(orderedModifiers.filter(function(modifier) {
-          return modifier.phase === phase;
-        }));
-      }, []);
-    }
-    function debounce$2(fn2) {
-      var pending;
-      return function() {
-        if (!pending) {
-          pending = new Promise(function(resolve) {
-            Promise.resolve().then(function() {
-              pending = void 0;
-              resolve(fn2());
-            });
-          });
-        }
-        return pending;
-      };
-    }
-    function mergeByName(modifiers2) {
-      var merged = modifiers2.reduce(function(merged2, current) {
-        var existing = merged2[current.name];
-        merged2[current.name] = existing ? Object.assign({}, existing, current, {
-          options: Object.assign({}, existing.options, current.options),
-          data: Object.assign({}, existing.data, current.data)
-        }) : current;
-        return merged2;
-      }, {});
-      return Object.keys(merged).map(function(key2) {
-        return merged[key2];
-      });
-    }
-    var DEFAULT_OPTIONS = {
-      placement: "bottom",
-      modifiers: [],
-      strategy: "absolute"
-    };
-    function areValidElements() {
-      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
-      return !args.some(function(element) {
-        return !(element && typeof element.getBoundingClientRect === "function");
-      });
-    }
-    function popperGenerator(generatorOptions) {
-      if (generatorOptions === void 0) {
-        generatorOptions = {};
-      }
-      var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers2 = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions2 = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
-      return function createPopper2(reference2, popper2, options) {
-        if (options === void 0) {
-          options = defaultOptions2;
-        }
-        var state = {
-          placement: "bottom",
-          orderedModifiers: [],
-          options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions2),
-          modifiersData: {},
-          elements: {
-            reference: reference2,
-            popper: popper2
-          },
-          attributes: {},
-          styles: {}
-        };
-        var effectCleanupFns = [];
-        var isDestroyed = false;
-        var instance = {
-          state,
-          setOptions: function setOptions(setOptionsAction) {
-            var options2 = typeof setOptionsAction === "function" ? setOptionsAction(state.options) : setOptionsAction;
-            cleanupModifierEffects();
-            state.options = Object.assign({}, defaultOptions2, state.options, options2);
-            state.scrollParents = {
-              reference: isElement$1(reference2) ? listScrollParents(reference2) : reference2.contextElement ? listScrollParents(reference2.contextElement) : [],
-              popper: listScrollParents(popper2)
-            };
-            var orderedModifiers = orderModifiers(mergeByName([].concat(defaultModifiers2, state.options.modifiers)));
-            state.orderedModifiers = orderedModifiers.filter(function(m2) {
-              return m2.enabled;
-            });
-            runModifierEffects();
-            return instance.update();
-          },
-          // Sync update – it will always be executed, even if not necessary. This
-          // is useful for low frequency updates where sync behavior simplifies the
-          // logic.
-          // For high frequency updates (e.g. `resize` and `scroll` events), always
-          // prefer the async Popper#update method
-          forceUpdate: function forceUpdate() {
-            if (isDestroyed) {
-              return;
-            }
-            var _state$elements = state.elements, reference3 = _state$elements.reference, popper3 = _state$elements.popper;
-            if (!areValidElements(reference3, popper3)) {
-              return;
-            }
-            state.rects = {
-              reference: getCompositeRect(reference3, getOffsetParent(popper3), state.options.strategy === "fixed"),
-              popper: getLayoutRect(popper3)
-            };
-            state.reset = false;
-            state.placement = state.options.placement;
-            state.orderedModifiers.forEach(function(modifier) {
-              return state.modifiersData[modifier.name] = Object.assign({}, modifier.data);
-            });
-            for (var index = 0; index < state.orderedModifiers.length; index++) {
-              if (state.reset === true) {
-                state.reset = false;
-                index = -1;
-                continue;
-              }
-              var _state$orderedModifie = state.orderedModifiers[index], fn2 = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name2 = _state$orderedModifie.name;
-              if (typeof fn2 === "function") {
-                state = fn2({
-                  state,
-                  options: _options,
-                  name: name2,
-                  instance
-                }) || state;
-              }
-            }
-          },
-          // Async and optimistically optimized update – it will not be executed if
-          // not necessary (debounced to run at most once-per-tick)
-          update: debounce$2(function() {
-            return new Promise(function(resolve) {
-              instance.forceUpdate();
-              resolve(state);
-            });
-          }),
-          destroy: function destroy() {
-            cleanupModifierEffects();
-            isDestroyed = true;
-          }
-        };
-        if (!areValidElements(reference2, popper2)) {
-          return instance;
-        }
-        instance.setOptions(options).then(function(state2) {
-          if (!isDestroyed && options.onFirstUpdate) {
-            options.onFirstUpdate(state2);
-          }
-        });
-        function runModifierEffects() {
-          state.orderedModifiers.forEach(function(_ref) {
-            var name2 = _ref.name, _ref$options = _ref.options, options2 = _ref$options === void 0 ? {} : _ref$options, effect2 = _ref.effect;
-            if (typeof effect2 === "function") {
-              var cleanupFn = effect2({
-                state,
-                name: name2,
-                instance,
-                options: options2
-              });
-              var noopFn = function noopFn2() {
-              };
-              effectCleanupFns.push(cleanupFn || noopFn);
-            }
-          });
-        }
-        function cleanupModifierEffects() {
-          effectCleanupFns.forEach(function(fn2) {
-            return fn2();
-          });
-          effectCleanupFns = [];
-        }
-        return instance;
-      };
-    }
-    var createPopper$2 = /* @__PURE__ */ popperGenerator();
-    var defaultModifiers$1 = [eventListeners, popperOffsets$1, computeStyles$2, applyStyles$1];
-    var createPopper$1 = /* @__PURE__ */ popperGenerator({
-      defaultModifiers: defaultModifiers$1
-    });
-    var defaultModifiers = [eventListeners, popperOffsets$1, computeStyles$2, applyStyles$1, offset$1, flip$1, preventOverflow$1, arrow$1, hide$1];
-    var createPopper = /* @__PURE__ */ popperGenerator({
-      defaultModifiers
-    });
-    const Popper = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-      __proto__: null,
-      afterMain,
-      afterRead,
-      afterWrite,
-      applyStyles: applyStyles$1,
-      arrow: arrow$1,
-      auto,
-      basePlacements,
-      beforeMain,
-      beforeRead,
-      beforeWrite,
-      bottom,
-      clippingParents,
-      computeStyles: computeStyles$2,
-      createPopper,
-      createPopperBase: createPopper$2,
-      createPopperLite: createPopper$1,
-      detectOverflow,
-      end,
-      eventListeners,
-      flip: flip$1,
-      hide: hide$1,
-      left,
-      main,
-      modifierPhases,
-      offset: offset$1,
-      placements,
-      popper,
-      popperGenerator,
-      popperOffsets: popperOffsets$1,
-      preventOverflow: preventOverflow$1,
-      read: read$1,
-      reference: reference$1,
-      right,
-      start,
-      top: top$1,
-      variationPlacements,
-      viewport,
-      write
-    }, Symbol.toStringTag, { value: "Module" }));
-    /*!
-      * Bootstrap v5.3.3 (https://getbootstrap.com/)
-      * Copyright 2011-2024 The Bootstrap Authors (https://github.com/twbs/bootstrap/graphs/contributors)
-      * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
-      */
-    const elementMap = /* @__PURE__ */ new Map();
-    const Data = {
-      set(element, key2, instance) {
-        if (!elementMap.has(element)) {
-          elementMap.set(element, /* @__PURE__ */ new Map());
-        }
-        const instanceMap = elementMap.get(element);
-        if (!instanceMap.has(key2) && instanceMap.size !== 0) {
-          console.error(`Bootstrap doesn't allow more than one instance per element. Bound instance: ${Array.from(instanceMap.keys())[0]}.`);
-          return;
-        }
-        instanceMap.set(key2, instance);
-      },
-      get(element, key2) {
-        if (elementMap.has(element)) {
-          return elementMap.get(element).get(key2) || null;
-        }
-        return null;
-      },
-      remove(element, key2) {
-        if (!elementMap.has(element)) {
-          return;
-        }
-        const instanceMap = elementMap.get(element);
-        instanceMap.delete(key2);
-        if (instanceMap.size === 0) {
-          elementMap.delete(element);
-        }
-      }
-    };
-    const MAX_UID = 1e6;
-    const MILLISECONDS_MULTIPLIER = 1e3;
-    const TRANSITION_END = "transitionend";
-    const parseSelector = (selector) => {
-      if (selector && window.CSS && window.CSS.escape) {
-        selector = selector.replace(/#([^\s"#']+)/g, (match, id) => `#${CSS.escape(id)}`);
-      }
-      return selector;
-    };
-    const toType = (object) => {
-      if (object === null || object === void 0) {
-        return `${object}`;
-      }
-      return Object.prototype.toString.call(object).match(/\s([a-z]+)/i)[1].toLowerCase();
-    };
-    const getUID = (prefix) => {
-      do {
-        prefix += Math.floor(Math.random() * MAX_UID);
-      } while (document.getElementById(prefix));
-      return prefix;
-    };
-    const getTransitionDurationFromElement = (element) => {
-      if (!element) {
-        return 0;
-      }
-      let {
-        transitionDuration,
-        transitionDelay
-      } = window.getComputedStyle(element);
-      const floatTransitionDuration = Number.parseFloat(transitionDuration);
-      const floatTransitionDelay = Number.parseFloat(transitionDelay);
-      if (!floatTransitionDuration && !floatTransitionDelay) {
-        return 0;
-      }
-      transitionDuration = transitionDuration.split(",")[0];
-      transitionDelay = transitionDelay.split(",")[0];
-      return (Number.parseFloat(transitionDuration) + Number.parseFloat(transitionDelay)) * MILLISECONDS_MULTIPLIER;
-    };
-    const triggerTransitionEnd = (element) => {
-      element.dispatchEvent(new Event(TRANSITION_END));
-    };
-    const isElement = (object) => {
-      if (!object || typeof object !== "object") {
-        return false;
-      }
-      if (typeof object.jquery !== "undefined") {
-        object = object[0];
-      }
-      return typeof object.nodeType !== "undefined";
-    };
-    const getElement = (object) => {
-      if (isElement(object)) {
-        return object.jquery ? object[0] : object;
-      }
-      if (typeof object === "string" && object.length > 0) {
-        return document.querySelector(parseSelector(object));
-      }
-      return null;
-    };
-    const isVisible = (element) => {
-      if (!isElement(element) || element.getClientRects().length === 0) {
-        return false;
-      }
-      const elementIsVisible = getComputedStyle(element).getPropertyValue("visibility") === "visible";
-      const closedDetails = element.closest("details:not([open])");
-      if (!closedDetails) {
-        return elementIsVisible;
-      }
-      if (closedDetails !== element) {
-        const summary = element.closest("summary");
-        if (summary && summary.parentNode !== closedDetails) {
-          return false;
-        }
-        if (summary === null) {
-          return false;
-        }
-      }
-      return elementIsVisible;
-    };
-    const isDisabled = (element) => {
-      if (!element || element.nodeType !== Node.ELEMENT_NODE) {
-        return true;
-      }
-      if (element.classList.contains("disabled")) {
-        return true;
-      }
-      if (typeof element.disabled !== "undefined") {
-        return element.disabled;
-      }
-      return element.hasAttribute("disabled") && element.getAttribute("disabled") !== "false";
-    };
-    const findShadowRoot = (element) => {
-      if (!document.documentElement.attachShadow) {
-        return null;
-      }
-      if (typeof element.getRootNode === "function") {
-        const root2 = element.getRootNode();
-        return root2 instanceof ShadowRoot ? root2 : null;
-      }
-      if (element instanceof ShadowRoot) {
-        return element;
-      }
-      if (!element.parentNode) {
-        return null;
-      }
-      return findShadowRoot(element.parentNode);
-    };
-    const noop = () => {
-    };
-    const reflow = (element) => {
-      element.offsetHeight;
-    };
-    const getjQuery = () => {
-      if (window.jQuery && !document.body.hasAttribute("data-bs-no-jquery")) {
-        return window.jQuery;
-      }
-      return null;
-    };
-    const DOMContentLoadedCallbacks = [];
-    const onDOMContentLoaded = (callback) => {
-      if (document.readyState === "loading") {
-        if (!DOMContentLoadedCallbacks.length) {
-          document.addEventListener("DOMContentLoaded", () => {
-            for (const callback2 of DOMContentLoadedCallbacks) {
-              callback2();
-            }
-          });
-        }
-        DOMContentLoadedCallbacks.push(callback);
-      } else {
-        callback();
-      }
-    };
-    const isRTL = () => document.documentElement.dir === "rtl";
-    const defineJQueryPlugin = (plugin) => {
-      onDOMContentLoaded(() => {
-        const $2 = getjQuery();
-        if ($2) {
-          const name2 = plugin.NAME;
-          const JQUERY_NO_CONFLICT = $2.fn[name2];
-          $2.fn[name2] = plugin.jQueryInterface;
-          $2.fn[name2].Constructor = plugin;
-          $2.fn[name2].noConflict = () => {
-            $2.fn[name2] = JQUERY_NO_CONFLICT;
-            return plugin.jQueryInterface;
-          };
-        }
-      });
-    };
-    const execute = (possibleCallback, args = [], defaultValue = possibleCallback) => {
-      return typeof possibleCallback === "function" ? possibleCallback(...args) : defaultValue;
-    };
-    const executeAfterTransition = (callback, transitionElement, waitForTransition = true) => {
-      if (!waitForTransition) {
-        execute(callback);
-        return;
-      }
-      const durationPadding = 5;
-      const emulatedDuration = getTransitionDurationFromElement(transitionElement) + durationPadding;
-      let called = false;
-      const handler = ({
-        target
-      }) => {
-        if (target !== transitionElement) {
-          return;
-        }
-        called = true;
-        transitionElement.removeEventListener(TRANSITION_END, handler);
-        execute(callback);
-      };
-      transitionElement.addEventListener(TRANSITION_END, handler);
-      setTimeout(() => {
-        if (!called) {
-          triggerTransitionEnd(transitionElement);
-        }
-      }, emulatedDuration);
-    };
-    const getNextActiveElement = (list2, activeElement, shouldGetNext, isCycleAllowed) => {
-      const listLength = list2.length;
-      let index = list2.indexOf(activeElement);
-      if (index === -1) {
-        return !shouldGetNext && isCycleAllowed ? list2[listLength - 1] : list2[0];
-      }
-      index += shouldGetNext ? 1 : -1;
-      if (isCycleAllowed) {
-        index = (index + listLength) % listLength;
-      }
-      return list2[Math.max(0, Math.min(index, listLength - 1))];
-    };
-    const namespaceRegex = /[^.]*(?=\..*)\.|.*/;
-    const stripNameRegex = /\..*/;
-    const stripUidRegex = /::\d+$/;
-    const eventRegistry = {};
-    let uidEvent = 1;
-    const customEvents = {
-      mouseenter: "mouseover",
-      mouseleave: "mouseout"
-    };
-    const nativeEvents = /* @__PURE__ */ new Set(["click", "dblclick", "mouseup", "mousedown", "contextmenu", "mousewheel", "DOMMouseScroll", "mouseover", "mouseout", "mousemove", "selectstart", "selectend", "keydown", "keypress", "keyup", "orientationchange", "touchstart", "touchmove", "touchend", "touchcancel", "pointerdown", "pointermove", "pointerup", "pointerleave", "pointercancel", "gesturestart", "gesturechange", "gestureend", "focus", "blur", "change", "reset", "select", "submit", "focusin", "focusout", "load", "unload", "beforeunload", "resize", "move", "DOMContentLoaded", "readystatechange", "error", "abort", "scroll"]);
-    function makeEventUid(element, uid) {
-      return uid && `${uid}::${uidEvent++}` || element.uidEvent || uidEvent++;
-    }
-    function getElementEvents(element) {
-      const uid = makeEventUid(element);
-      element.uidEvent = uid;
-      eventRegistry[uid] = eventRegistry[uid] || {};
-      return eventRegistry[uid];
-    }
-    function bootstrapHandler(element, fn2) {
-      return function handler(event) {
-        hydrateObj(event, {
-          delegateTarget: element
-        });
-        if (handler.oneOff) {
-          EventHandler.off(element, event.type, fn2);
-        }
-        return fn2.apply(element, [event]);
-      };
-    }
-    function bootstrapDelegationHandler(element, selector, fn2) {
-      return function handler(event) {
-        const domElements = element.querySelectorAll(selector);
-        for (let {
-          target
-        } = event; target && target !== this; target = target.parentNode) {
-          for (const domElement of domElements) {
-            if (domElement !== target) {
-              continue;
-            }
-            hydrateObj(event, {
-              delegateTarget: target
-            });
-            if (handler.oneOff) {
-              EventHandler.off(element, event.type, selector, fn2);
-            }
-            return fn2.apply(target, [event]);
-          }
-        }
-      };
-    }
-    function findHandler(events, callable, delegationSelector = null) {
-      return Object.values(events).find((event) => event.callable === callable && event.delegationSelector === delegationSelector);
-    }
-    function normalizeParameters(originalTypeEvent, handler, delegationFunction) {
-      const isDelegated = typeof handler === "string";
-      const callable = isDelegated ? delegationFunction : handler || delegationFunction;
-      let typeEvent = getTypeEvent(originalTypeEvent);
-      if (!nativeEvents.has(typeEvent)) {
-        typeEvent = originalTypeEvent;
-      }
-      return [isDelegated, callable, typeEvent];
-    }
-    function addHandler(element, originalTypeEvent, handler, delegationFunction, oneOff) {
-      if (typeof originalTypeEvent !== "string" || !element) {
-        return;
-      }
-      let [isDelegated, callable, typeEvent] = normalizeParameters(originalTypeEvent, handler, delegationFunction);
-      if (originalTypeEvent in customEvents) {
-        const wrapFunction = (fn3) => {
-          return function(event) {
-            if (!event.relatedTarget || event.relatedTarget !== event.delegateTarget && !event.delegateTarget.contains(event.relatedTarget)) {
-              return fn3.call(this, event);
-            }
-          };
-        };
-        callable = wrapFunction(callable);
-      }
-      const events = getElementEvents(element);
-      const handlers2 = events[typeEvent] || (events[typeEvent] = {});
-      const previousFunction = findHandler(handlers2, callable, isDelegated ? handler : null);
-      if (previousFunction) {
-        previousFunction.oneOff = previousFunction.oneOff && oneOff;
-        return;
-      }
-      const uid = makeEventUid(callable, originalTypeEvent.replace(namespaceRegex, ""));
-      const fn2 = isDelegated ? bootstrapDelegationHandler(element, handler, callable) : bootstrapHandler(element, callable);
-      fn2.delegationSelector = isDelegated ? handler : null;
-      fn2.callable = callable;
-      fn2.oneOff = oneOff;
-      fn2.uidEvent = uid;
-      handlers2[uid] = fn2;
-      element.addEventListener(typeEvent, fn2, isDelegated);
-    }
-    function removeHandler(element, events, typeEvent, handler, delegationSelector) {
-      const fn2 = findHandler(events[typeEvent], handler, delegationSelector);
-      if (!fn2) {
-        return;
-      }
-      element.removeEventListener(typeEvent, fn2, Boolean(delegationSelector));
-      delete events[typeEvent][fn2.uidEvent];
-    }
-    function removeNamespacedHandlers(element, events, typeEvent, namespace) {
-      const storeElementEvent = events[typeEvent] || {};
-      for (const [handlerKey, event] of Object.entries(storeElementEvent)) {
-        if (handlerKey.includes(namespace)) {
-          removeHandler(element, events, typeEvent, event.callable, event.delegationSelector);
-        }
-      }
-    }
-    function getTypeEvent(event) {
-      event = event.replace(stripNameRegex, "");
-      return customEvents[event] || event;
-    }
-    const EventHandler = {
-      on(element, event, handler, delegationFunction) {
-        addHandler(element, event, handler, delegationFunction, false);
-      },
-      one(element, event, handler, delegationFunction) {
-        addHandler(element, event, handler, delegationFunction, true);
-      },
-      off(element, originalTypeEvent, handler, delegationFunction) {
-        if (typeof originalTypeEvent !== "string" || !element) {
-          return;
-        }
-        const [isDelegated, callable, typeEvent] = normalizeParameters(originalTypeEvent, handler, delegationFunction);
-        const inNamespace = typeEvent !== originalTypeEvent;
-        const events = getElementEvents(element);
-        const storeElementEvent = events[typeEvent] || {};
-        const isNamespace = originalTypeEvent.startsWith(".");
-        if (typeof callable !== "undefined") {
-          if (!Object.keys(storeElementEvent).length) {
-            return;
-          }
-          removeHandler(element, events, typeEvent, callable, isDelegated ? handler : null);
-          return;
-        }
-        if (isNamespace) {
-          for (const elementEvent of Object.keys(events)) {
-            removeNamespacedHandlers(element, events, elementEvent, originalTypeEvent.slice(1));
-          }
-        }
-        for (const [keyHandlers, event] of Object.entries(storeElementEvent)) {
-          const handlerKey = keyHandlers.replace(stripUidRegex, "");
-          if (!inNamespace || originalTypeEvent.includes(handlerKey)) {
-            removeHandler(element, events, typeEvent, event.callable, event.delegationSelector);
-          }
-        }
-      },
-      trigger(element, event, args) {
-        if (typeof event !== "string" || !element) {
-          return null;
-        }
-        const $2 = getjQuery();
-        const typeEvent = getTypeEvent(event);
-        const inNamespace = event !== typeEvent;
-        let jQueryEvent = null;
-        let bubbles = true;
-        let nativeDispatch = true;
-        let defaultPrevented = false;
-        if (inNamespace && $2) {
-          jQueryEvent = $2.Event(event, args);
-          $2(element).trigger(jQueryEvent);
-          bubbles = !jQueryEvent.isPropagationStopped();
-          nativeDispatch = !jQueryEvent.isImmediatePropagationStopped();
-          defaultPrevented = jQueryEvent.isDefaultPrevented();
-        }
-        const evt = hydrateObj(new Event(event, {
-          bubbles,
-          cancelable: true
-        }), args);
-        if (defaultPrevented) {
-          evt.preventDefault();
-        }
-        if (nativeDispatch) {
-          element.dispatchEvent(evt);
-        }
-        if (evt.defaultPrevented && jQueryEvent) {
-          jQueryEvent.preventDefault();
-        }
-        return evt;
-      }
-    };
-    function hydrateObj(obj, meta2 = {}) {
-      for (const [key2, value] of Object.entries(meta2)) {
-        try {
-          obj[key2] = value;
-        } catch (_unused) {
-          Object.defineProperty(obj, key2, {
-            configurable: true,
-            get() {
-              return value;
-            }
-          });
-        }
-      }
-      return obj;
-    }
-    function normalizeData(value) {
-      if (value === "true") {
-        return true;
-      }
-      if (value === "false") {
-        return false;
-      }
-      if (value === Number(value).toString()) {
-        return Number(value);
-      }
-      if (value === "" || value === "null") {
-        return null;
-      }
-      if (typeof value !== "string") {
-        return value;
-      }
-      try {
-        return JSON.parse(decodeURIComponent(value));
-      } catch (_unused) {
-        return value;
-      }
-    }
-    function normalizeDataKey(key2) {
-      return key2.replace(/[A-Z]/g, (chr) => `-${chr.toLowerCase()}`);
-    }
-    const Manipulator = {
-      setDataAttribute(element, key2, value) {
-        element.setAttribute(`data-bs-${normalizeDataKey(key2)}`, value);
-      },
-      removeDataAttribute(element, key2) {
-        element.removeAttribute(`data-bs-${normalizeDataKey(key2)}`);
-      },
-      getDataAttributes(element) {
-        if (!element) {
-          return {};
-        }
-        const attributes = {};
-        const bsKeys = Object.keys(element.dataset).filter((key2) => key2.startsWith("bs") && !key2.startsWith("bsConfig"));
-        for (const key2 of bsKeys) {
-          let pureKey = key2.replace(/^bs/, "");
-          pureKey = pureKey.charAt(0).toLowerCase() + pureKey.slice(1, pureKey.length);
-          attributes[pureKey] = normalizeData(element.dataset[key2]);
-        }
-        return attributes;
-      },
-      getDataAttribute(element, key2) {
-        return normalizeData(element.getAttribute(`data-bs-${normalizeDataKey(key2)}`));
-      }
-    };
-    class Config {
-      // Getters
-      static get Default() {
-        return {};
-      }
-      static get DefaultType() {
-        return {};
-      }
-      static get NAME() {
-        throw new Error('You have to implement the static method "NAME", for each component!');
-      }
-      _getConfig(config2) {
-        config2 = this._mergeConfigObj(config2);
-        config2 = this._configAfterMerge(config2);
-        this._typeCheckConfig(config2);
-        return config2;
-      }
-      _configAfterMerge(config2) {
-        return config2;
-      }
-      _mergeConfigObj(config2, element) {
-        const jsonConfig = isElement(element) ? Manipulator.getDataAttribute(element, "config") : {};
-        return {
-          ...this.constructor.Default,
-          ...typeof jsonConfig === "object" ? jsonConfig : {},
-          ...isElement(element) ? Manipulator.getDataAttributes(element) : {},
-          ...typeof config2 === "object" ? config2 : {}
-        };
-      }
-      _typeCheckConfig(config2, configTypes = this.constructor.DefaultType) {
-        for (const [property, expectedTypes] of Object.entries(configTypes)) {
-          const value = config2[property];
-          const valueType = isElement(value) ? "element" : toType(value);
-          if (!new RegExp(expectedTypes).test(valueType)) {
-            throw new TypeError(`${this.constructor.NAME.toUpperCase()}: Option "${property}" provided type "${valueType}" but expected type "${expectedTypes}".`);
-          }
-        }
-      }
-    }
-    const VERSION = "5.3.3";
-    class BaseComponent extends Config {
-      constructor(element, config2) {
-        super();
-        element = getElement(element);
-        if (!element) {
-          return;
-        }
-        this._element = element;
-        this._config = this._getConfig(config2);
-        Data.set(this._element, this.constructor.DATA_KEY, this);
-      }
-      // Public
-      dispose() {
-        Data.remove(this._element, this.constructor.DATA_KEY);
-        EventHandler.off(this._element, this.constructor.EVENT_KEY);
-        for (const propertyName2 of Object.getOwnPropertyNames(this)) {
-          this[propertyName2] = null;
-        }
-      }
-      _queueCallback(callback, element, isAnimated = true) {
-        executeAfterTransition(callback, element, isAnimated);
-      }
-      _getConfig(config2) {
-        config2 = this._mergeConfigObj(config2, this._element);
-        config2 = this._configAfterMerge(config2);
-        this._typeCheckConfig(config2);
-        return config2;
-      }
-      // Static
-      static getInstance(element) {
-        return Data.get(getElement(element), this.DATA_KEY);
-      }
-      static getOrCreateInstance(element, config2 = {}) {
-        return this.getInstance(element) || new this(element, typeof config2 === "object" ? config2 : null);
-      }
-      static get VERSION() {
-        return VERSION;
-      }
-      static get DATA_KEY() {
-        return `bs.${this.NAME}`;
-      }
-      static get EVENT_KEY() {
-        return `.${this.DATA_KEY}`;
-      }
-      static eventName(name2) {
-        return `${name2}${this.EVENT_KEY}`;
-      }
-    }
-    const getSelector = (element) => {
-      let selector = element.getAttribute("data-bs-target");
-      if (!selector || selector === "#") {
-        let hrefAttribute = element.getAttribute("href");
-        if (!hrefAttribute || !hrefAttribute.includes("#") && !hrefAttribute.startsWith(".")) {
-          return null;
-        }
-        if (hrefAttribute.includes("#") && !hrefAttribute.startsWith("#")) {
-          hrefAttribute = `#${hrefAttribute.split("#")[1]}`;
-        }
-        selector = hrefAttribute && hrefAttribute !== "#" ? hrefAttribute.trim() : null;
-      }
-      return selector ? selector.split(",").map((sel) => parseSelector(sel)).join(",") : null;
-    };
-    const SelectorEngine = {
-      find(selector, element = document.documentElement) {
-        return [].concat(...Element.prototype.querySelectorAll.call(element, selector));
-      },
-      findOne(selector, element = document.documentElement) {
-        return Element.prototype.querySelector.call(element, selector);
-      },
-      children(element, selector) {
-        return [].concat(...element.children).filter((child) => child.matches(selector));
-      },
-      parents(element, selector) {
-        const parents = [];
-        let ancestor = element.parentNode.closest(selector);
-        while (ancestor) {
-          parents.push(ancestor);
-          ancestor = ancestor.parentNode.closest(selector);
-        }
-        return parents;
-      },
-      prev(element, selector) {
-        let previous = element.previousElementSibling;
-        while (previous) {
-          if (previous.matches(selector)) {
-            return [previous];
-          }
-          previous = previous.previousElementSibling;
-        }
-        return [];
-      },
-      // TODO: this is now unused; remove later along with prev()
-      next(element, selector) {
-        let next = element.nextElementSibling;
-        while (next) {
-          if (next.matches(selector)) {
-            return [next];
-          }
-          next = next.nextElementSibling;
-        }
-        return [];
-      },
-      focusableChildren(element) {
-        const focusables = ["a", "button", "input", "textarea", "select", "details", "[tabindex]", '[contenteditable="true"]'].map((selector) => `${selector}:not([tabindex^="-"])`).join(",");
-        return this.find(focusables, element).filter((el) => !isDisabled(el) && isVisible(el));
-      },
-      getSelectorFromElement(element) {
-        const selector = getSelector(element);
-        if (selector) {
-          return SelectorEngine.findOne(selector) ? selector : null;
-        }
-        return null;
-      },
-      getElementFromSelector(element) {
-        const selector = getSelector(element);
-        return selector ? SelectorEngine.findOne(selector) : null;
-      },
-      getMultipleElementsFromSelector(element) {
-        const selector = getSelector(element);
-        return selector ? SelectorEngine.find(selector) : [];
-      }
-    };
-    const enableDismissTrigger = (component, method = "hide") => {
-      const clickEvent = `click.dismiss${component.EVENT_KEY}`;
-      const name2 = component.NAME;
-      EventHandler.on(document, clickEvent, `[data-bs-dismiss="${name2}"]`, function(event) {
-        if (["A", "AREA"].includes(this.tagName)) {
-          event.preventDefault();
-        }
-        if (isDisabled(this)) {
-          return;
-        }
-        const target = SelectorEngine.getElementFromSelector(this) || this.closest(`.${name2}`);
-        const instance = component.getOrCreateInstance(target);
-        instance[method]();
-      });
-    };
-    const NAME$f = "alert";
-    const DATA_KEY$a = "bs.alert";
-    const EVENT_KEY$b = `.${DATA_KEY$a}`;
-    const EVENT_CLOSE = `close${EVENT_KEY$b}`;
-    const EVENT_CLOSED = `closed${EVENT_KEY$b}`;
-    const CLASS_NAME_FADE$5 = "fade";
-    const CLASS_NAME_SHOW$8 = "show";
-    class Alert extends BaseComponent {
-      // Getters
-      static get NAME() {
-        return NAME$f;
-      }
-      // Public
-      close() {
-        const closeEvent = EventHandler.trigger(this._element, EVENT_CLOSE);
-        if (closeEvent.defaultPrevented) {
-          return;
-        }
-        this._element.classList.remove(CLASS_NAME_SHOW$8);
-        const isAnimated = this._element.classList.contains(CLASS_NAME_FADE$5);
-        this._queueCallback(() => this._destroyElement(), this._element, isAnimated);
-      }
-      // Private
-      _destroyElement() {
-        this._element.remove();
-        EventHandler.trigger(this._element, EVENT_CLOSED);
-        this.dispose();
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Alert.getOrCreateInstance(this);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2](this);
-        });
-      }
-    }
-    enableDismissTrigger(Alert, "close");
-    defineJQueryPlugin(Alert);
-    const NAME$e = "button";
-    const DATA_KEY$9 = "bs.button";
-    const EVENT_KEY$a = `.${DATA_KEY$9}`;
-    const DATA_API_KEY$6 = ".data-api";
-    const CLASS_NAME_ACTIVE$3 = "active";
-    const SELECTOR_DATA_TOGGLE$5 = '[data-bs-toggle="button"]';
-    const EVENT_CLICK_DATA_API$6 = `click${EVENT_KEY$a}${DATA_API_KEY$6}`;
-    class Button extends BaseComponent {
-      // Getters
-      static get NAME() {
-        return NAME$e;
-      }
-      // Public
-      toggle() {
-        this._element.setAttribute("aria-pressed", this._element.classList.toggle(CLASS_NAME_ACTIVE$3));
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Button.getOrCreateInstance(this);
-          if (config2 === "toggle") {
-            data[config2]();
-          }
-        });
-      }
-    }
-    EventHandler.on(document, EVENT_CLICK_DATA_API$6, SELECTOR_DATA_TOGGLE$5, (event) => {
-      event.preventDefault();
-      const button = event.target.closest(SELECTOR_DATA_TOGGLE$5);
-      const data = Button.getOrCreateInstance(button);
-      data.toggle();
-    });
-    defineJQueryPlugin(Button);
-    const NAME$d = "swipe";
-    const EVENT_KEY$9 = ".bs.swipe";
-    const EVENT_TOUCHSTART = `touchstart${EVENT_KEY$9}`;
-    const EVENT_TOUCHMOVE = `touchmove${EVENT_KEY$9}`;
-    const EVENT_TOUCHEND = `touchend${EVENT_KEY$9}`;
-    const EVENT_POINTERDOWN = `pointerdown${EVENT_KEY$9}`;
-    const EVENT_POINTERUP = `pointerup${EVENT_KEY$9}`;
-    const POINTER_TYPE_TOUCH = "touch";
-    const POINTER_TYPE_PEN = "pen";
-    const CLASS_NAME_POINTER_EVENT = "pointer-event";
-    const SWIPE_THRESHOLD = 40;
-    const Default$c = {
-      endCallback: null,
-      leftCallback: null,
-      rightCallback: null
-    };
-    const DefaultType$c = {
-      endCallback: "(function|null)",
-      leftCallback: "(function|null)",
-      rightCallback: "(function|null)"
-    };
-    class Swipe extends Config {
-      constructor(element, config2) {
-        super();
-        this._element = element;
-        if (!element || !Swipe.isSupported()) {
-          return;
-        }
-        this._config = this._getConfig(config2);
-        this._deltaX = 0;
-        this._supportPointerEvents = Boolean(window.PointerEvent);
-        this._initEvents();
-      }
-      // Getters
-      static get Default() {
-        return Default$c;
-      }
-      static get DefaultType() {
-        return DefaultType$c;
-      }
-      static get NAME() {
-        return NAME$d;
-      }
-      // Public
-      dispose() {
-        EventHandler.off(this._element, EVENT_KEY$9);
-      }
-      // Private
-      _start(event) {
-        if (!this._supportPointerEvents) {
-          this._deltaX = event.touches[0].clientX;
-          return;
-        }
-        if (this._eventIsPointerPenTouch(event)) {
-          this._deltaX = event.clientX;
-        }
-      }
-      _end(event) {
-        if (this._eventIsPointerPenTouch(event)) {
-          this._deltaX = event.clientX - this._deltaX;
-        }
-        this._handleSwipe();
-        execute(this._config.endCallback);
-      }
-      _move(event) {
-        this._deltaX = event.touches && event.touches.length > 1 ? 0 : event.touches[0].clientX - this._deltaX;
-      }
-      _handleSwipe() {
-        const absDeltaX = Math.abs(this._deltaX);
-        if (absDeltaX <= SWIPE_THRESHOLD) {
-          return;
-        }
-        const direction = absDeltaX / this._deltaX;
-        this._deltaX = 0;
-        if (!direction) {
-          return;
-        }
-        execute(direction > 0 ? this._config.rightCallback : this._config.leftCallback);
-      }
-      _initEvents() {
-        if (this._supportPointerEvents) {
-          EventHandler.on(this._element, EVENT_POINTERDOWN, (event) => this._start(event));
-          EventHandler.on(this._element, EVENT_POINTERUP, (event) => this._end(event));
-          this._element.classList.add(CLASS_NAME_POINTER_EVENT);
-        } else {
-          EventHandler.on(this._element, EVENT_TOUCHSTART, (event) => this._start(event));
-          EventHandler.on(this._element, EVENT_TOUCHMOVE, (event) => this._move(event));
-          EventHandler.on(this._element, EVENT_TOUCHEND, (event) => this._end(event));
-        }
-      }
-      _eventIsPointerPenTouch(event) {
-        return this._supportPointerEvents && (event.pointerType === POINTER_TYPE_PEN || event.pointerType === POINTER_TYPE_TOUCH);
-      }
-      // Static
-      static isSupported() {
-        return "ontouchstart" in document.documentElement || navigator.maxTouchPoints > 0;
-      }
-    }
-    const NAME$c = "carousel";
-    const DATA_KEY$8 = "bs.carousel";
-    const EVENT_KEY$8 = `.${DATA_KEY$8}`;
-    const DATA_API_KEY$5 = ".data-api";
-    const ARROW_LEFT_KEY$1 = "ArrowLeft";
-    const ARROW_RIGHT_KEY$1 = "ArrowRight";
-    const TOUCHEVENT_COMPAT_WAIT = 500;
-    const ORDER_NEXT = "next";
-    const ORDER_PREV = "prev";
-    const DIRECTION_LEFT = "left";
-    const DIRECTION_RIGHT = "right";
-    const EVENT_SLIDE = `slide${EVENT_KEY$8}`;
-    const EVENT_SLID = `slid${EVENT_KEY$8}`;
-    const EVENT_KEYDOWN$1 = `keydown${EVENT_KEY$8}`;
-    const EVENT_MOUSEENTER$1 = `mouseenter${EVENT_KEY$8}`;
-    const EVENT_MOUSELEAVE$1 = `mouseleave${EVENT_KEY$8}`;
-    const EVENT_DRAG_START = `dragstart${EVENT_KEY$8}`;
-    const EVENT_LOAD_DATA_API$3 = `load${EVENT_KEY$8}${DATA_API_KEY$5}`;
-    const EVENT_CLICK_DATA_API$5 = `click${EVENT_KEY$8}${DATA_API_KEY$5}`;
-    const CLASS_NAME_CAROUSEL = "carousel";
-    const CLASS_NAME_ACTIVE$2 = "active";
-    const CLASS_NAME_SLIDE = "slide";
-    const CLASS_NAME_END = "carousel-item-end";
-    const CLASS_NAME_START = "carousel-item-start";
-    const CLASS_NAME_NEXT = "carousel-item-next";
-    const CLASS_NAME_PREV = "carousel-item-prev";
-    const SELECTOR_ACTIVE = ".active";
-    const SELECTOR_ITEM = ".carousel-item";
-    const SELECTOR_ACTIVE_ITEM = SELECTOR_ACTIVE + SELECTOR_ITEM;
-    const SELECTOR_ITEM_IMG = ".carousel-item img";
-    const SELECTOR_INDICATORS = ".carousel-indicators";
-    const SELECTOR_DATA_SLIDE = "[data-bs-slide], [data-bs-slide-to]";
-    const SELECTOR_DATA_RIDE = '[data-bs-ride="carousel"]';
-    const KEY_TO_DIRECTION = {
-      [ARROW_LEFT_KEY$1]: DIRECTION_RIGHT,
-      [ARROW_RIGHT_KEY$1]: DIRECTION_LEFT
-    };
-    const Default$b = {
-      interval: 5e3,
-      keyboard: true,
-      pause: "hover",
-      ride: false,
-      touch: true,
-      wrap: true
-    };
-    const DefaultType$b = {
-      interval: "(number|boolean)",
-      // TODO:v6 remove boolean support
-      keyboard: "boolean",
-      pause: "(string|boolean)",
-      ride: "(boolean|string)",
-      touch: "boolean",
-      wrap: "boolean"
-    };
-    class Carousel extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._interval = null;
-        this._activeElement = null;
-        this._isSliding = false;
-        this.touchTimeout = null;
-        this._swipeHelper = null;
-        this._indicatorsElement = SelectorEngine.findOne(SELECTOR_INDICATORS, this._element);
-        this._addEventListeners();
-        if (this._config.ride === CLASS_NAME_CAROUSEL) {
-          this.cycle();
-        }
-      }
-      // Getters
-      static get Default() {
-        return Default$b;
-      }
-      static get DefaultType() {
-        return DefaultType$b;
-      }
-      static get NAME() {
-        return NAME$c;
-      }
-      // Public
-      next() {
-        this._slide(ORDER_NEXT);
-      }
-      nextWhenVisible() {
-        if (!document.hidden && isVisible(this._element)) {
-          this.next();
-        }
-      }
-      prev() {
-        this._slide(ORDER_PREV);
-      }
-      pause() {
-        if (this._isSliding) {
-          triggerTransitionEnd(this._element);
-        }
-        this._clearInterval();
-      }
-      cycle() {
-        this._clearInterval();
-        this._updateInterval();
-        this._interval = setInterval(() => this.nextWhenVisible(), this._config.interval);
-      }
-      _maybeEnableCycle() {
-        if (!this._config.ride) {
-          return;
-        }
-        if (this._isSliding) {
-          EventHandler.one(this._element, EVENT_SLID, () => this.cycle());
-          return;
-        }
-        this.cycle();
-      }
-      to(index) {
-        const items = this._getItems();
-        if (index > items.length - 1 || index < 0) {
-          return;
-        }
-        if (this._isSliding) {
-          EventHandler.one(this._element, EVENT_SLID, () => this.to(index));
-          return;
-        }
-        const activeIndex = this._getItemIndex(this._getActive());
-        if (activeIndex === index) {
-          return;
-        }
-        const order2 = index > activeIndex ? ORDER_NEXT : ORDER_PREV;
-        this._slide(order2, items[index]);
-      }
-      dispose() {
-        if (this._swipeHelper) {
-          this._swipeHelper.dispose();
-        }
-        super.dispose();
-      }
-      // Private
-      _configAfterMerge(config2) {
-        config2.defaultInterval = config2.interval;
-        return config2;
-      }
-      _addEventListeners() {
-        if (this._config.keyboard) {
-          EventHandler.on(this._element, EVENT_KEYDOWN$1, (event) => this._keydown(event));
-        }
-        if (this._config.pause === "hover") {
-          EventHandler.on(this._element, EVENT_MOUSEENTER$1, () => this.pause());
-          EventHandler.on(this._element, EVENT_MOUSELEAVE$1, () => this._maybeEnableCycle());
-        }
-        if (this._config.touch && Swipe.isSupported()) {
-          this._addTouchEventListeners();
-        }
-      }
-      _addTouchEventListeners() {
-        for (const img of SelectorEngine.find(SELECTOR_ITEM_IMG, this._element)) {
-          EventHandler.on(img, EVENT_DRAG_START, (event) => event.preventDefault());
-        }
-        const endCallBack = () => {
-          if (this._config.pause !== "hover") {
-            return;
-          }
-          this.pause();
-          if (this.touchTimeout) {
-            clearTimeout(this.touchTimeout);
-          }
-          this.touchTimeout = setTimeout(() => this._maybeEnableCycle(), TOUCHEVENT_COMPAT_WAIT + this._config.interval);
-        };
-        const swipeConfig = {
-          leftCallback: () => this._slide(this._directionToOrder(DIRECTION_LEFT)),
-          rightCallback: () => this._slide(this._directionToOrder(DIRECTION_RIGHT)),
-          endCallback: endCallBack
-        };
-        this._swipeHelper = new Swipe(this._element, swipeConfig);
-      }
-      _keydown(event) {
-        if (/input|textarea/i.test(event.target.tagName)) {
-          return;
-        }
-        const direction = KEY_TO_DIRECTION[event.key];
-        if (direction) {
-          event.preventDefault();
-          this._slide(this._directionToOrder(direction));
-        }
-      }
-      _getItemIndex(element) {
-        return this._getItems().indexOf(element);
-      }
-      _setActiveIndicatorElement(index) {
-        if (!this._indicatorsElement) {
-          return;
-        }
-        const activeIndicator = SelectorEngine.findOne(SELECTOR_ACTIVE, this._indicatorsElement);
-        activeIndicator.classList.remove(CLASS_NAME_ACTIVE$2);
-        activeIndicator.removeAttribute("aria-current");
-        const newActiveIndicator = SelectorEngine.findOne(`[data-bs-slide-to="${index}"]`, this._indicatorsElement);
-        if (newActiveIndicator) {
-          newActiveIndicator.classList.add(CLASS_NAME_ACTIVE$2);
-          newActiveIndicator.setAttribute("aria-current", "true");
-        }
-      }
-      _updateInterval() {
-        const element = this._activeElement || this._getActive();
-        if (!element) {
-          return;
-        }
-        const elementInterval = Number.parseInt(element.getAttribute("data-bs-interval"), 10);
-        this._config.interval = elementInterval || this._config.defaultInterval;
-      }
-      _slide(order2, element = null) {
-        if (this._isSliding) {
-          return;
-        }
-        const activeElement = this._getActive();
-        const isNext = order2 === ORDER_NEXT;
-        const nextElement = element || getNextActiveElement(this._getItems(), activeElement, isNext, this._config.wrap);
-        if (nextElement === activeElement) {
-          return;
-        }
-        const nextElementIndex = this._getItemIndex(nextElement);
-        const triggerEvent = (eventName) => {
-          return EventHandler.trigger(this._element, eventName, {
-            relatedTarget: nextElement,
-            direction: this._orderToDirection(order2),
-            from: this._getItemIndex(activeElement),
-            to: nextElementIndex
-          });
-        };
-        const slideEvent = triggerEvent(EVENT_SLIDE);
-        if (slideEvent.defaultPrevented) {
-          return;
-        }
-        if (!activeElement || !nextElement) {
-          return;
-        }
-        const isCycling = Boolean(this._interval);
-        this.pause();
-        this._isSliding = true;
-        this._setActiveIndicatorElement(nextElementIndex);
-        this._activeElement = nextElement;
-        const directionalClassName = isNext ? CLASS_NAME_START : CLASS_NAME_END;
-        const orderClassName = isNext ? CLASS_NAME_NEXT : CLASS_NAME_PREV;
-        nextElement.classList.add(orderClassName);
-        reflow(nextElement);
-        activeElement.classList.add(directionalClassName);
-        nextElement.classList.add(directionalClassName);
-        const completeCallBack = () => {
-          nextElement.classList.remove(directionalClassName, orderClassName);
-          nextElement.classList.add(CLASS_NAME_ACTIVE$2);
-          activeElement.classList.remove(CLASS_NAME_ACTIVE$2, orderClassName, directionalClassName);
-          this._isSliding = false;
-          triggerEvent(EVENT_SLID);
-        };
-        this._queueCallback(completeCallBack, activeElement, this._isAnimated());
-        if (isCycling) {
-          this.cycle();
-        }
-      }
-      _isAnimated() {
-        return this._element.classList.contains(CLASS_NAME_SLIDE);
-      }
-      _getActive() {
-        return SelectorEngine.findOne(SELECTOR_ACTIVE_ITEM, this._element);
-      }
-      _getItems() {
-        return SelectorEngine.find(SELECTOR_ITEM, this._element);
-      }
-      _clearInterval() {
-        if (this._interval) {
-          clearInterval(this._interval);
-          this._interval = null;
-        }
-      }
-      _directionToOrder(direction) {
-        if (isRTL()) {
-          return direction === DIRECTION_LEFT ? ORDER_PREV : ORDER_NEXT;
-        }
-        return direction === DIRECTION_LEFT ? ORDER_NEXT : ORDER_PREV;
-      }
-      _orderToDirection(order2) {
-        if (isRTL()) {
-          return order2 === ORDER_PREV ? DIRECTION_LEFT : DIRECTION_RIGHT;
-        }
-        return order2 === ORDER_PREV ? DIRECTION_RIGHT : DIRECTION_LEFT;
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Carousel.getOrCreateInstance(this, config2);
-          if (typeof config2 === "number") {
-            data.to(config2);
-            return;
-          }
-          if (typeof config2 === "string") {
-            if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-              throw new TypeError(`No method named "${config2}"`);
-            }
-            data[config2]();
-          }
-        });
-      }
-    }
-    EventHandler.on(document, EVENT_CLICK_DATA_API$5, SELECTOR_DATA_SLIDE, function(event) {
-      const target = SelectorEngine.getElementFromSelector(this);
-      if (!target || !target.classList.contains(CLASS_NAME_CAROUSEL)) {
-        return;
-      }
-      event.preventDefault();
-      const carousel = Carousel.getOrCreateInstance(target);
-      const slideIndex = this.getAttribute("data-bs-slide-to");
-      if (slideIndex) {
-        carousel.to(slideIndex);
-        carousel._maybeEnableCycle();
-        return;
-      }
-      if (Manipulator.getDataAttribute(this, "slide") === "next") {
-        carousel.next();
-        carousel._maybeEnableCycle();
-        return;
-      }
-      carousel.prev();
-      carousel._maybeEnableCycle();
-    });
-    EventHandler.on(window, EVENT_LOAD_DATA_API$3, () => {
-      const carousels = SelectorEngine.find(SELECTOR_DATA_RIDE);
-      for (const carousel of carousels) {
-        Carousel.getOrCreateInstance(carousel);
-      }
-    });
-    defineJQueryPlugin(Carousel);
-    const NAME$b = "collapse";
-    const DATA_KEY$7 = "bs.collapse";
-    const EVENT_KEY$7 = `.${DATA_KEY$7}`;
-    const DATA_API_KEY$4 = ".data-api";
-    const EVENT_SHOW$6 = `show${EVENT_KEY$7}`;
-    const EVENT_SHOWN$6 = `shown${EVENT_KEY$7}`;
-    const EVENT_HIDE$6 = `hide${EVENT_KEY$7}`;
-    const EVENT_HIDDEN$6 = `hidden${EVENT_KEY$7}`;
-    const EVENT_CLICK_DATA_API$4 = `click${EVENT_KEY$7}${DATA_API_KEY$4}`;
-    const CLASS_NAME_SHOW$7 = "show";
-    const CLASS_NAME_COLLAPSE = "collapse";
-    const CLASS_NAME_COLLAPSING = "collapsing";
-    const CLASS_NAME_COLLAPSED = "collapsed";
-    const CLASS_NAME_DEEPER_CHILDREN = `:scope .${CLASS_NAME_COLLAPSE} .${CLASS_NAME_COLLAPSE}`;
-    const CLASS_NAME_HORIZONTAL = "collapse-horizontal";
-    const WIDTH = "width";
-    const HEIGHT = "height";
-    const SELECTOR_ACTIVES = ".collapse.show, .collapse.collapsing";
-    const SELECTOR_DATA_TOGGLE$4 = '[data-bs-toggle="collapse"]';
-    const Default$a = {
-      parent: null,
-      toggle: true
-    };
-    const DefaultType$a = {
-      parent: "(null|element)",
-      toggle: "boolean"
-    };
-    class Collapse extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._isTransitioning = false;
-        this._triggerArray = [];
-        const toggleList = SelectorEngine.find(SELECTOR_DATA_TOGGLE$4);
-        for (const elem of toggleList) {
-          const selector = SelectorEngine.getSelectorFromElement(elem);
-          const filterElement = SelectorEngine.find(selector).filter((foundElement) => foundElement === this._element);
-          if (selector !== null && filterElement.length) {
-            this._triggerArray.push(elem);
-          }
-        }
-        this._initializeChildren();
-        if (!this._config.parent) {
-          this._addAriaAndCollapsedClass(this._triggerArray, this._isShown());
-        }
-        if (this._config.toggle) {
-          this.toggle();
-        }
-      }
-      // Getters
-      static get Default() {
-        return Default$a;
-      }
-      static get DefaultType() {
-        return DefaultType$a;
-      }
-      static get NAME() {
-        return NAME$b;
-      }
-      // Public
-      toggle() {
-        if (this._isShown()) {
-          this.hide();
-        } else {
-          this.show();
-        }
-      }
-      show() {
-        if (this._isTransitioning || this._isShown()) {
-          return;
-        }
-        let activeChildren = [];
-        if (this._config.parent) {
-          activeChildren = this._getFirstLevelChildren(SELECTOR_ACTIVES).filter((element) => element !== this._element).map((element) => Collapse.getOrCreateInstance(element, {
-            toggle: false
-          }));
-        }
-        if (activeChildren.length && activeChildren[0]._isTransitioning) {
-          return;
-        }
-        const startEvent = EventHandler.trigger(this._element, EVENT_SHOW$6);
-        if (startEvent.defaultPrevented) {
-          return;
-        }
-        for (const activeInstance of activeChildren) {
-          activeInstance.hide();
-        }
-        const dimension = this._getDimension();
-        this._element.classList.remove(CLASS_NAME_COLLAPSE);
-        this._element.classList.add(CLASS_NAME_COLLAPSING);
-        this._element.style[dimension] = 0;
-        this._addAriaAndCollapsedClass(this._triggerArray, true);
-        this._isTransitioning = true;
-        const complete = () => {
-          this._isTransitioning = false;
-          this._element.classList.remove(CLASS_NAME_COLLAPSING);
-          this._element.classList.add(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW$7);
-          this._element.style[dimension] = "";
-          EventHandler.trigger(this._element, EVENT_SHOWN$6);
-        };
-        const capitalizedDimension = dimension[0].toUpperCase() + dimension.slice(1);
-        const scrollSize = `scroll${capitalizedDimension}`;
-        this._queueCallback(complete, this._element, true);
-        this._element.style[dimension] = `${this._element[scrollSize]}px`;
-      }
-      hide() {
-        if (this._isTransitioning || !this._isShown()) {
-          return;
-        }
-        const startEvent = EventHandler.trigger(this._element, EVENT_HIDE$6);
-        if (startEvent.defaultPrevented) {
-          return;
-        }
-        const dimension = this._getDimension();
-        this._element.style[dimension] = `${this._element.getBoundingClientRect()[dimension]}px`;
-        reflow(this._element);
-        this._element.classList.add(CLASS_NAME_COLLAPSING);
-        this._element.classList.remove(CLASS_NAME_COLLAPSE, CLASS_NAME_SHOW$7);
-        for (const trigger of this._triggerArray) {
-          const element = SelectorEngine.getElementFromSelector(trigger);
-          if (element && !this._isShown(element)) {
-            this._addAriaAndCollapsedClass([trigger], false);
-          }
-        }
-        this._isTransitioning = true;
-        const complete = () => {
-          this._isTransitioning = false;
-          this._element.classList.remove(CLASS_NAME_COLLAPSING);
-          this._element.classList.add(CLASS_NAME_COLLAPSE);
-          EventHandler.trigger(this._element, EVENT_HIDDEN$6);
-        };
-        this._element.style[dimension] = "";
-        this._queueCallback(complete, this._element, true);
-      }
-      _isShown(element = this._element) {
-        return element.classList.contains(CLASS_NAME_SHOW$7);
-      }
-      // Private
-      _configAfterMerge(config2) {
-        config2.toggle = Boolean(config2.toggle);
-        config2.parent = getElement(config2.parent);
-        return config2;
-      }
-      _getDimension() {
-        return this._element.classList.contains(CLASS_NAME_HORIZONTAL) ? WIDTH : HEIGHT;
-      }
-      _initializeChildren() {
-        if (!this._config.parent) {
-          return;
-        }
-        const children2 = this._getFirstLevelChildren(SELECTOR_DATA_TOGGLE$4);
-        for (const element of children2) {
-          const selected = SelectorEngine.getElementFromSelector(element);
-          if (selected) {
-            this._addAriaAndCollapsedClass([element], this._isShown(selected));
-          }
-        }
-      }
-      _getFirstLevelChildren(selector) {
-        const children2 = SelectorEngine.find(CLASS_NAME_DEEPER_CHILDREN, this._config.parent);
-        return SelectorEngine.find(selector, this._config.parent).filter((element) => !children2.includes(element));
-      }
-      _addAriaAndCollapsedClass(triggerArray, isOpen) {
-        if (!triggerArray.length) {
-          return;
-        }
-        for (const element of triggerArray) {
-          element.classList.toggle(CLASS_NAME_COLLAPSED, !isOpen);
-          element.setAttribute("aria-expanded", isOpen);
-        }
-      }
-      // Static
-      static jQueryInterface(config2) {
-        const _config = {};
-        if (typeof config2 === "string" && /show|hide/.test(config2)) {
-          _config.toggle = false;
-        }
-        return this.each(function() {
-          const data = Collapse.getOrCreateInstance(this, _config);
-          if (typeof config2 === "string") {
-            if (typeof data[config2] === "undefined") {
-              throw new TypeError(`No method named "${config2}"`);
-            }
-            data[config2]();
-          }
-        });
-      }
-    }
-    EventHandler.on(document, EVENT_CLICK_DATA_API$4, SELECTOR_DATA_TOGGLE$4, function(event) {
-      if (event.target.tagName === "A" || event.delegateTarget && event.delegateTarget.tagName === "A") {
-        event.preventDefault();
-      }
-      for (const element of SelectorEngine.getMultipleElementsFromSelector(this)) {
-        Collapse.getOrCreateInstance(element, {
-          toggle: false
-        }).toggle();
-      }
-    });
-    defineJQueryPlugin(Collapse);
-    const NAME$a = "dropdown";
-    const DATA_KEY$6 = "bs.dropdown";
-    const EVENT_KEY$6 = `.${DATA_KEY$6}`;
-    const DATA_API_KEY$3 = ".data-api";
-    const ESCAPE_KEY$2 = "Escape";
-    const TAB_KEY$1 = "Tab";
-    const ARROW_UP_KEY$1 = "ArrowUp";
-    const ARROW_DOWN_KEY$1 = "ArrowDown";
-    const RIGHT_MOUSE_BUTTON = 2;
-    const EVENT_HIDE$5 = `hide${EVENT_KEY$6}`;
-    const EVENT_HIDDEN$5 = `hidden${EVENT_KEY$6}`;
-    const EVENT_SHOW$5 = `show${EVENT_KEY$6}`;
-    const EVENT_SHOWN$5 = `shown${EVENT_KEY$6}`;
-    const EVENT_CLICK_DATA_API$3 = `click${EVENT_KEY$6}${DATA_API_KEY$3}`;
-    const EVENT_KEYDOWN_DATA_API = `keydown${EVENT_KEY$6}${DATA_API_KEY$3}`;
-    const EVENT_KEYUP_DATA_API = `keyup${EVENT_KEY$6}${DATA_API_KEY$3}`;
-    const CLASS_NAME_SHOW$6 = "show";
-    const CLASS_NAME_DROPUP = "dropup";
-    const CLASS_NAME_DROPEND = "dropend";
-    const CLASS_NAME_DROPSTART = "dropstart";
-    const CLASS_NAME_DROPUP_CENTER = "dropup-center";
-    const CLASS_NAME_DROPDOWN_CENTER = "dropdown-center";
-    const SELECTOR_DATA_TOGGLE$3 = '[data-bs-toggle="dropdown"]:not(.disabled):not(:disabled)';
-    const SELECTOR_DATA_TOGGLE_SHOWN = `${SELECTOR_DATA_TOGGLE$3}.${CLASS_NAME_SHOW$6}`;
-    const SELECTOR_MENU = ".dropdown-menu";
-    const SELECTOR_NAVBAR = ".navbar";
-    const SELECTOR_NAVBAR_NAV = ".navbar-nav";
-    const SELECTOR_VISIBLE_ITEMS = ".dropdown-menu .dropdown-item:not(.disabled):not(:disabled)";
-    const PLACEMENT_TOP = isRTL() ? "top-end" : "top-start";
-    const PLACEMENT_TOPEND = isRTL() ? "top-start" : "top-end";
-    const PLACEMENT_BOTTOM = isRTL() ? "bottom-end" : "bottom-start";
-    const PLACEMENT_BOTTOMEND = isRTL() ? "bottom-start" : "bottom-end";
-    const PLACEMENT_RIGHT = isRTL() ? "left-start" : "right-start";
-    const PLACEMENT_LEFT = isRTL() ? "right-start" : "left-start";
-    const PLACEMENT_TOPCENTER = "top";
-    const PLACEMENT_BOTTOMCENTER = "bottom";
-    const Default$9 = {
-      autoClose: true,
-      boundary: "clippingParents",
-      display: "dynamic",
-      offset: [0, 2],
-      popperConfig: null,
-      reference: "toggle"
-    };
-    const DefaultType$9 = {
-      autoClose: "(boolean|string)",
-      boundary: "(string|element)",
-      display: "string",
-      offset: "(array|string|function)",
-      popperConfig: "(null|object|function)",
-      reference: "(string|element|object)"
-    };
-    class Dropdown extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._popper = null;
-        this._parent = this._element.parentNode;
-        this._menu = SelectorEngine.next(this._element, SELECTOR_MENU)[0] || SelectorEngine.prev(this._element, SELECTOR_MENU)[0] || SelectorEngine.findOne(SELECTOR_MENU, this._parent);
-        this._inNavbar = this._detectNavbar();
-      }
-      // Getters
-      static get Default() {
-        return Default$9;
-      }
-      static get DefaultType() {
-        return DefaultType$9;
-      }
-      static get NAME() {
-        return NAME$a;
-      }
-      // Public
-      toggle() {
-        return this._isShown() ? this.hide() : this.show();
-      }
-      show() {
-        if (isDisabled(this._element) || this._isShown()) {
-          return;
-        }
-        const relatedTarget = {
-          relatedTarget: this._element
-        };
-        const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$5, relatedTarget);
-        if (showEvent.defaultPrevented) {
-          return;
-        }
-        this._createPopper();
-        if ("ontouchstart" in document.documentElement && !this._parent.closest(SELECTOR_NAVBAR_NAV)) {
-          for (const element of [].concat(...document.body.children)) {
-            EventHandler.on(element, "mouseover", noop);
-          }
-        }
-        this._element.focus();
-        this._element.setAttribute("aria-expanded", true);
-        this._menu.classList.add(CLASS_NAME_SHOW$6);
-        this._element.classList.add(CLASS_NAME_SHOW$6);
-        EventHandler.trigger(this._element, EVENT_SHOWN$5, relatedTarget);
-      }
-      hide() {
-        if (isDisabled(this._element) || !this._isShown()) {
-          return;
-        }
-        const relatedTarget = {
-          relatedTarget: this._element
-        };
-        this._completeHide(relatedTarget);
-      }
-      dispose() {
-        if (this._popper) {
-          this._popper.destroy();
-        }
-        super.dispose();
-      }
-      update() {
-        this._inNavbar = this._detectNavbar();
-        if (this._popper) {
-          this._popper.update();
-        }
-      }
-      // Private
-      _completeHide(relatedTarget) {
-        const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$5, relatedTarget);
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        if ("ontouchstart" in document.documentElement) {
-          for (const element of [].concat(...document.body.children)) {
-            EventHandler.off(element, "mouseover", noop);
-          }
-        }
-        if (this._popper) {
-          this._popper.destroy();
-        }
-        this._menu.classList.remove(CLASS_NAME_SHOW$6);
-        this._element.classList.remove(CLASS_NAME_SHOW$6);
-        this._element.setAttribute("aria-expanded", "false");
-        Manipulator.removeDataAttribute(this._menu, "popper");
-        EventHandler.trigger(this._element, EVENT_HIDDEN$5, relatedTarget);
-      }
-      _getConfig(config2) {
-        config2 = super._getConfig(config2);
-        if (typeof config2.reference === "object" && !isElement(config2.reference) && typeof config2.reference.getBoundingClientRect !== "function") {
-          throw new TypeError(`${NAME$a.toUpperCase()}: Option "reference" provided type "object" without a required "getBoundingClientRect" method.`);
-        }
-        return config2;
-      }
-      _createPopper() {
-        if (typeof Popper === "undefined") {
-          throw new TypeError("Bootstrap's dropdowns require Popper (https://popper.js.org)");
-        }
-        let referenceElement = this._element;
-        if (this._config.reference === "parent") {
-          referenceElement = this._parent;
-        } else if (isElement(this._config.reference)) {
-          referenceElement = getElement(this._config.reference);
-        } else if (typeof this._config.reference === "object") {
-          referenceElement = this._config.reference;
-        }
-        const popperConfig = this._getPopperConfig();
-        this._popper = createPopper(referenceElement, this._menu, popperConfig);
-      }
-      _isShown() {
-        return this._menu.classList.contains(CLASS_NAME_SHOW$6);
-      }
-      _getPlacement() {
-        const parentDropdown = this._parent;
-        if (parentDropdown.classList.contains(CLASS_NAME_DROPEND)) {
-          return PLACEMENT_RIGHT;
-        }
-        if (parentDropdown.classList.contains(CLASS_NAME_DROPSTART)) {
-          return PLACEMENT_LEFT;
-        }
-        if (parentDropdown.classList.contains(CLASS_NAME_DROPUP_CENTER)) {
-          return PLACEMENT_TOPCENTER;
-        }
-        if (parentDropdown.classList.contains(CLASS_NAME_DROPDOWN_CENTER)) {
-          return PLACEMENT_BOTTOMCENTER;
-        }
-        const isEnd = getComputedStyle(this._menu).getPropertyValue("--bs-position").trim() === "end";
-        if (parentDropdown.classList.contains(CLASS_NAME_DROPUP)) {
-          return isEnd ? PLACEMENT_TOPEND : PLACEMENT_TOP;
-        }
-        return isEnd ? PLACEMENT_BOTTOMEND : PLACEMENT_BOTTOM;
-      }
-      _detectNavbar() {
-        return this._element.closest(SELECTOR_NAVBAR) !== null;
-      }
-      _getOffset() {
-        const {
-          offset: offset2
-        } = this._config;
-        if (typeof offset2 === "string") {
-          return offset2.split(",").map((value) => Number.parseInt(value, 10));
-        }
-        if (typeof offset2 === "function") {
-          return (popperData) => offset2(popperData, this._element);
-        }
-        return offset2;
-      }
-      _getPopperConfig() {
-        const defaultBsPopperConfig = {
-          placement: this._getPlacement(),
-          modifiers: [{
-            name: "preventOverflow",
-            options: {
-              boundary: this._config.boundary
-            }
-          }, {
-            name: "offset",
-            options: {
-              offset: this._getOffset()
-            }
-          }]
-        };
-        if (this._inNavbar || this._config.display === "static") {
-          Manipulator.setDataAttribute(this._menu, "popper", "static");
-          defaultBsPopperConfig.modifiers = [{
-            name: "applyStyles",
-            enabled: false
-          }];
-        }
-        return {
-          ...defaultBsPopperConfig,
-          ...execute(this._config.popperConfig, [defaultBsPopperConfig])
-        };
-      }
-      _selectMenuItem({
-        key: key2,
-        target
-      }) {
-        const items = SelectorEngine.find(SELECTOR_VISIBLE_ITEMS, this._menu).filter((element) => isVisible(element));
-        if (!items.length) {
-          return;
-        }
-        getNextActiveElement(items, target, key2 === ARROW_DOWN_KEY$1, !items.includes(target)).focus();
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Dropdown.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (typeof data[config2] === "undefined") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2]();
-        });
-      }
-      static clearMenus(event) {
-        if (event.button === RIGHT_MOUSE_BUTTON || event.type === "keyup" && event.key !== TAB_KEY$1) {
-          return;
-        }
-        const openToggles = SelectorEngine.find(SELECTOR_DATA_TOGGLE_SHOWN);
-        for (const toggle2 of openToggles) {
-          const context = Dropdown.getInstance(toggle2);
-          if (!context || context._config.autoClose === false) {
-            continue;
-          }
-          const composedPath = event.composedPath();
-          const isMenuTarget = composedPath.includes(context._menu);
-          if (composedPath.includes(context._element) || context._config.autoClose === "inside" && !isMenuTarget || context._config.autoClose === "outside" && isMenuTarget) {
-            continue;
-          }
-          if (context._menu.contains(event.target) && (event.type === "keyup" && event.key === TAB_KEY$1 || /input|select|option|textarea|form/i.test(event.target.tagName))) {
-            continue;
-          }
-          const relatedTarget = {
-            relatedTarget: context._element
-          };
-          if (event.type === "click") {
-            relatedTarget.clickEvent = event;
-          }
-          context._completeHide(relatedTarget);
-        }
-      }
-      static dataApiKeydownHandler(event) {
-        const isInput = /input|textarea/i.test(event.target.tagName);
-        const isEscapeEvent = event.key === ESCAPE_KEY$2;
-        const isUpOrDownEvent = [ARROW_UP_KEY$1, ARROW_DOWN_KEY$1].includes(event.key);
-        if (!isUpOrDownEvent && !isEscapeEvent) {
-          return;
-        }
-        if (isInput && !isEscapeEvent) {
-          return;
-        }
-        event.preventDefault();
-        const getToggleButton = this.matches(SELECTOR_DATA_TOGGLE$3) ? this : SelectorEngine.prev(this, SELECTOR_DATA_TOGGLE$3)[0] || SelectorEngine.next(this, SELECTOR_DATA_TOGGLE$3)[0] || SelectorEngine.findOne(SELECTOR_DATA_TOGGLE$3, event.delegateTarget.parentNode);
-        const instance = Dropdown.getOrCreateInstance(getToggleButton);
-        if (isUpOrDownEvent) {
-          event.stopPropagation();
-          instance.show();
-          instance._selectMenuItem(event);
-          return;
-        }
-        if (instance._isShown()) {
-          event.stopPropagation();
-          instance.hide();
-          getToggleButton.focus();
-        }
-      }
-    }
-    EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_DATA_TOGGLE$3, Dropdown.dataApiKeydownHandler);
-    EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_MENU, Dropdown.dataApiKeydownHandler);
-    EventHandler.on(document, EVENT_CLICK_DATA_API$3, Dropdown.clearMenus);
-    EventHandler.on(document, EVENT_KEYUP_DATA_API, Dropdown.clearMenus);
-    EventHandler.on(document, EVENT_CLICK_DATA_API$3, SELECTOR_DATA_TOGGLE$3, function(event) {
-      event.preventDefault();
-      Dropdown.getOrCreateInstance(this).toggle();
-    });
-    defineJQueryPlugin(Dropdown);
-    const NAME$9 = "backdrop";
-    const CLASS_NAME_FADE$4 = "fade";
-    const CLASS_NAME_SHOW$5 = "show";
-    const EVENT_MOUSEDOWN = `mousedown.bs.${NAME$9}`;
-    const Default$8 = {
-      className: "modal-backdrop",
-      clickCallback: null,
-      isAnimated: false,
-      isVisible: true,
-      // if false, we use the backdrop helper without adding any element to the dom
-      rootElement: "body"
-      // give the choice to place backdrop under different elements
-    };
-    const DefaultType$8 = {
-      className: "string",
-      clickCallback: "(function|null)",
-      isAnimated: "boolean",
-      isVisible: "boolean",
-      rootElement: "(element|string)"
-    };
-    class Backdrop extends Config {
-      constructor(config2) {
-        super();
-        this._config = this._getConfig(config2);
-        this._isAppended = false;
-        this._element = null;
-      }
-      // Getters
-      static get Default() {
-        return Default$8;
-      }
-      static get DefaultType() {
-        return DefaultType$8;
-      }
-      static get NAME() {
-        return NAME$9;
-      }
-      // Public
-      show(callback) {
-        if (!this._config.isVisible) {
-          execute(callback);
-          return;
-        }
-        this._append();
-        const element = this._getElement();
-        if (this._config.isAnimated) {
-          reflow(element);
-        }
-        element.classList.add(CLASS_NAME_SHOW$5);
-        this._emulateAnimation(() => {
-          execute(callback);
-        });
-      }
-      hide(callback) {
-        if (!this._config.isVisible) {
-          execute(callback);
-          return;
-        }
-        this._getElement().classList.remove(CLASS_NAME_SHOW$5);
-        this._emulateAnimation(() => {
-          this.dispose();
-          execute(callback);
-        });
-      }
-      dispose() {
-        if (!this._isAppended) {
-          return;
-        }
-        EventHandler.off(this._element, EVENT_MOUSEDOWN);
-        this._element.remove();
-        this._isAppended = false;
-      }
-      // Private
-      _getElement() {
-        if (!this._element) {
-          const backdrop = document.createElement("div");
-          backdrop.className = this._config.className;
-          if (this._config.isAnimated) {
-            backdrop.classList.add(CLASS_NAME_FADE$4);
-          }
-          this._element = backdrop;
-        }
-        return this._element;
-      }
-      _configAfterMerge(config2) {
-        config2.rootElement = getElement(config2.rootElement);
-        return config2;
-      }
-      _append() {
-        if (this._isAppended) {
-          return;
-        }
-        const element = this._getElement();
-        this._config.rootElement.append(element);
-        EventHandler.on(element, EVENT_MOUSEDOWN, () => {
-          execute(this._config.clickCallback);
-        });
-        this._isAppended = true;
-      }
-      _emulateAnimation(callback) {
-        executeAfterTransition(callback, this._getElement(), this._config.isAnimated);
-      }
-    }
-    const NAME$8 = "focustrap";
-    const DATA_KEY$5 = "bs.focustrap";
-    const EVENT_KEY$5 = `.${DATA_KEY$5}`;
-    const EVENT_FOCUSIN$2 = `focusin${EVENT_KEY$5}`;
-    const EVENT_KEYDOWN_TAB = `keydown.tab${EVENT_KEY$5}`;
-    const TAB_KEY = "Tab";
-    const TAB_NAV_FORWARD = "forward";
-    const TAB_NAV_BACKWARD = "backward";
-    const Default$7 = {
-      autofocus: true,
-      trapElement: null
-      // The element to trap focus inside of
-    };
-    const DefaultType$7 = {
-      autofocus: "boolean",
-      trapElement: "element"
-    };
-    class FocusTrap extends Config {
-      constructor(config2) {
-        super();
-        this._config = this._getConfig(config2);
-        this._isActive = false;
-        this._lastTabNavDirection = null;
-      }
-      // Getters
-      static get Default() {
-        return Default$7;
-      }
-      static get DefaultType() {
-        return DefaultType$7;
-      }
-      static get NAME() {
-        return NAME$8;
-      }
-      // Public
-      activate() {
-        if (this._isActive) {
-          return;
-        }
-        if (this._config.autofocus) {
-          this._config.trapElement.focus();
-        }
-        EventHandler.off(document, EVENT_KEY$5);
-        EventHandler.on(document, EVENT_FOCUSIN$2, (event) => this._handleFocusin(event));
-        EventHandler.on(document, EVENT_KEYDOWN_TAB, (event) => this._handleKeydown(event));
-        this._isActive = true;
-      }
-      deactivate() {
-        if (!this._isActive) {
-          return;
-        }
-        this._isActive = false;
-        EventHandler.off(document, EVENT_KEY$5);
-      }
-      // Private
-      _handleFocusin(event) {
-        const {
-          trapElement
-        } = this._config;
-        if (event.target === document || event.target === trapElement || trapElement.contains(event.target)) {
-          return;
-        }
-        const elements = SelectorEngine.focusableChildren(trapElement);
-        if (elements.length === 0) {
-          trapElement.focus();
-        } else if (this._lastTabNavDirection === TAB_NAV_BACKWARD) {
-          elements[elements.length - 1].focus();
-        } else {
-          elements[0].focus();
-        }
-      }
-      _handleKeydown(event) {
-        if (event.key !== TAB_KEY) {
-          return;
-        }
-        this._lastTabNavDirection = event.shiftKey ? TAB_NAV_BACKWARD : TAB_NAV_FORWARD;
-      }
-    }
-    const SELECTOR_FIXED_CONTENT = ".fixed-top, .fixed-bottom, .is-fixed, .sticky-top";
-    const SELECTOR_STICKY_CONTENT = ".sticky-top";
-    const PROPERTY_PADDING = "padding-right";
-    const PROPERTY_MARGIN = "margin-right";
-    class ScrollBarHelper {
-      constructor() {
-        this._element = document.body;
-      }
-      // Public
-      getWidth() {
-        const documentWidth = document.documentElement.clientWidth;
-        return Math.abs(window.innerWidth - documentWidth);
-      }
-      hide() {
-        const width = this.getWidth();
-        this._disableOverFlow();
-        this._setElementAttributes(this._element, PROPERTY_PADDING, (calculatedValue) => calculatedValue + width);
-        this._setElementAttributes(SELECTOR_FIXED_CONTENT, PROPERTY_PADDING, (calculatedValue) => calculatedValue + width);
-        this._setElementAttributes(SELECTOR_STICKY_CONTENT, PROPERTY_MARGIN, (calculatedValue) => calculatedValue - width);
-      }
-      reset() {
-        this._resetElementAttributes(this._element, "overflow");
-        this._resetElementAttributes(this._element, PROPERTY_PADDING);
-        this._resetElementAttributes(SELECTOR_FIXED_CONTENT, PROPERTY_PADDING);
-        this._resetElementAttributes(SELECTOR_STICKY_CONTENT, PROPERTY_MARGIN);
-      }
-      isOverflowing() {
-        return this.getWidth() > 0;
-      }
-      // Private
-      _disableOverFlow() {
-        this._saveInitialAttribute(this._element, "overflow");
-        this._element.style.overflow = "hidden";
-      }
-      _setElementAttributes(selector, styleProperty, callback) {
-        const scrollbarWidth = this.getWidth();
-        const manipulationCallBack = (element) => {
-          if (element !== this._element && window.innerWidth > element.clientWidth + scrollbarWidth) {
-            return;
-          }
-          this._saveInitialAttribute(element, styleProperty);
-          const calculatedValue = window.getComputedStyle(element).getPropertyValue(styleProperty);
-          element.style.setProperty(styleProperty, `${callback(Number.parseFloat(calculatedValue))}px`);
-        };
-        this._applyManipulationCallback(selector, manipulationCallBack);
-      }
-      _saveInitialAttribute(element, styleProperty) {
-        const actualValue = element.style.getPropertyValue(styleProperty);
-        if (actualValue) {
-          Manipulator.setDataAttribute(element, styleProperty, actualValue);
-        }
-      }
-      _resetElementAttributes(selector, styleProperty) {
-        const manipulationCallBack = (element) => {
-          const value = Manipulator.getDataAttribute(element, styleProperty);
-          if (value === null) {
-            element.style.removeProperty(styleProperty);
-            return;
-          }
-          Manipulator.removeDataAttribute(element, styleProperty);
-          element.style.setProperty(styleProperty, value);
-        };
-        this._applyManipulationCallback(selector, manipulationCallBack);
-      }
-      _applyManipulationCallback(selector, callBack) {
-        if (isElement(selector)) {
-          callBack(selector);
-          return;
-        }
-        for (const sel of SelectorEngine.find(selector, this._element)) {
-          callBack(sel);
-        }
-      }
-    }
-    const NAME$7 = "modal";
-    const DATA_KEY$4 = "bs.modal";
-    const EVENT_KEY$4 = `.${DATA_KEY$4}`;
-    const DATA_API_KEY$2 = ".data-api";
-    const ESCAPE_KEY$1 = "Escape";
-    const EVENT_HIDE$4 = `hide${EVENT_KEY$4}`;
-    const EVENT_HIDE_PREVENTED$1 = `hidePrevented${EVENT_KEY$4}`;
-    const EVENT_HIDDEN$4 = `hidden${EVENT_KEY$4}`;
-    const EVENT_SHOW$4 = `show${EVENT_KEY$4}`;
-    const EVENT_SHOWN$4 = `shown${EVENT_KEY$4}`;
-    const EVENT_RESIZE$1 = `resize${EVENT_KEY$4}`;
-    const EVENT_CLICK_DISMISS = `click.dismiss${EVENT_KEY$4}`;
-    const EVENT_MOUSEDOWN_DISMISS = `mousedown.dismiss${EVENT_KEY$4}`;
-    const EVENT_KEYDOWN_DISMISS$1 = `keydown.dismiss${EVENT_KEY$4}`;
-    const EVENT_CLICK_DATA_API$2 = `click${EVENT_KEY$4}${DATA_API_KEY$2}`;
-    const CLASS_NAME_OPEN = "modal-open";
-    const CLASS_NAME_FADE$3 = "fade";
-    const CLASS_NAME_SHOW$4 = "show";
-    const CLASS_NAME_STATIC = "modal-static";
-    const OPEN_SELECTOR$1 = ".modal.show";
-    const SELECTOR_DIALOG = ".modal-dialog";
-    const SELECTOR_MODAL_BODY = ".modal-body";
-    const SELECTOR_DATA_TOGGLE$2 = '[data-bs-toggle="modal"]';
-    const Default$6 = {
-      backdrop: true,
-      focus: true,
-      keyboard: true
-    };
-    const DefaultType$6 = {
-      backdrop: "(boolean|string)",
-      focus: "boolean",
-      keyboard: "boolean"
-    };
-    class Modal extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._dialog = SelectorEngine.findOne(SELECTOR_DIALOG, this._element);
-        this._backdrop = this._initializeBackDrop();
-        this._focustrap = this._initializeFocusTrap();
-        this._isShown = false;
-        this._isTransitioning = false;
-        this._scrollBar = new ScrollBarHelper();
-        this._addEventListeners();
-      }
-      // Getters
-      static get Default() {
-        return Default$6;
-      }
-      static get DefaultType() {
-        return DefaultType$6;
-      }
-      static get NAME() {
-        return NAME$7;
-      }
-      // Public
-      toggle(relatedTarget) {
-        return this._isShown ? this.hide() : this.show(relatedTarget);
-      }
-      show(relatedTarget) {
-        if (this._isShown || this._isTransitioning) {
-          return;
-        }
-        const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$4, {
-          relatedTarget
-        });
-        if (showEvent.defaultPrevented) {
-          return;
-        }
-        this._isShown = true;
-        this._isTransitioning = true;
-        this._scrollBar.hide();
-        document.body.classList.add(CLASS_NAME_OPEN);
-        this._adjustDialog();
-        this._backdrop.show(() => this._showElement(relatedTarget));
-      }
-      hide() {
-        if (!this._isShown || this._isTransitioning) {
-          return;
-        }
-        const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$4);
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        this._isShown = false;
-        this._isTransitioning = true;
-        this._focustrap.deactivate();
-        this._element.classList.remove(CLASS_NAME_SHOW$4);
-        this._queueCallback(() => this._hideModal(), this._element, this._isAnimated());
-      }
-      dispose() {
-        EventHandler.off(window, EVENT_KEY$4);
-        EventHandler.off(this._dialog, EVENT_KEY$4);
-        this._backdrop.dispose();
-        this._focustrap.deactivate();
-        super.dispose();
-      }
-      handleUpdate() {
-        this._adjustDialog();
-      }
-      // Private
-      _initializeBackDrop() {
-        return new Backdrop({
-          isVisible: Boolean(this._config.backdrop),
-          // 'static' option will be translated to true, and booleans will keep their value,
-          isAnimated: this._isAnimated()
-        });
-      }
-      _initializeFocusTrap() {
-        return new FocusTrap({
-          trapElement: this._element
-        });
-      }
-      _showElement(relatedTarget) {
-        if (!document.body.contains(this._element)) {
-          document.body.append(this._element);
-        }
-        this._element.style.display = "block";
-        this._element.removeAttribute("aria-hidden");
-        this._element.setAttribute("aria-modal", true);
-        this._element.setAttribute("role", "dialog");
-        this._element.scrollTop = 0;
-        const modalBody = SelectorEngine.findOne(SELECTOR_MODAL_BODY, this._dialog);
-        if (modalBody) {
-          modalBody.scrollTop = 0;
-        }
-        reflow(this._element);
-        this._element.classList.add(CLASS_NAME_SHOW$4);
-        const transitionComplete = () => {
-          if (this._config.focus) {
-            this._focustrap.activate();
-          }
-          this._isTransitioning = false;
-          EventHandler.trigger(this._element, EVENT_SHOWN$4, {
-            relatedTarget
-          });
-        };
-        this._queueCallback(transitionComplete, this._dialog, this._isAnimated());
-      }
-      _addEventListeners() {
-        EventHandler.on(this._element, EVENT_KEYDOWN_DISMISS$1, (event) => {
-          if (event.key !== ESCAPE_KEY$1) {
-            return;
-          }
-          if (this._config.keyboard) {
-            this.hide();
-            return;
-          }
-          this._triggerBackdropTransition();
-        });
-        EventHandler.on(window, EVENT_RESIZE$1, () => {
-          if (this._isShown && !this._isTransitioning) {
-            this._adjustDialog();
-          }
-        });
-        EventHandler.on(this._element, EVENT_MOUSEDOWN_DISMISS, (event) => {
-          EventHandler.one(this._element, EVENT_CLICK_DISMISS, (event2) => {
-            if (this._element !== event.target || this._element !== event2.target) {
-              return;
-            }
-            if (this._config.backdrop === "static") {
-              this._triggerBackdropTransition();
-              return;
-            }
-            if (this._config.backdrop) {
-              this.hide();
-            }
-          });
-        });
-      }
-      _hideModal() {
-        this._element.style.display = "none";
-        this._element.setAttribute("aria-hidden", true);
-        this._element.removeAttribute("aria-modal");
-        this._element.removeAttribute("role");
-        this._isTransitioning = false;
-        this._backdrop.hide(() => {
-          document.body.classList.remove(CLASS_NAME_OPEN);
-          this._resetAdjustments();
-          this._scrollBar.reset();
-          EventHandler.trigger(this._element, EVENT_HIDDEN$4);
-        });
-      }
-      _isAnimated() {
-        return this._element.classList.contains(CLASS_NAME_FADE$3);
-      }
-      _triggerBackdropTransition() {
-        const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED$1);
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        const isModalOverflowing = this._element.scrollHeight > document.documentElement.clientHeight;
-        const initialOverflowY = this._element.style.overflowY;
-        if (initialOverflowY === "hidden" || this._element.classList.contains(CLASS_NAME_STATIC)) {
-          return;
-        }
-        if (!isModalOverflowing) {
-          this._element.style.overflowY = "hidden";
-        }
-        this._element.classList.add(CLASS_NAME_STATIC);
-        this._queueCallback(() => {
-          this._element.classList.remove(CLASS_NAME_STATIC);
-          this._queueCallback(() => {
-            this._element.style.overflowY = initialOverflowY;
-          }, this._dialog);
-        }, this._dialog);
-        this._element.focus();
-      }
-      /**
-       * The following methods are used to handle overflowing modals
-       */
-      _adjustDialog() {
-        const isModalOverflowing = this._element.scrollHeight > document.documentElement.clientHeight;
-        const scrollbarWidth = this._scrollBar.getWidth();
-        const isBodyOverflowing = scrollbarWidth > 0;
-        if (isBodyOverflowing && !isModalOverflowing) {
-          const property = isRTL() ? "paddingLeft" : "paddingRight";
-          this._element.style[property] = `${scrollbarWidth}px`;
-        }
-        if (!isBodyOverflowing && isModalOverflowing) {
-          const property = isRTL() ? "paddingRight" : "paddingLeft";
-          this._element.style[property] = `${scrollbarWidth}px`;
-        }
-      }
-      _resetAdjustments() {
-        this._element.style.paddingLeft = "";
-        this._element.style.paddingRight = "";
-      }
-      // Static
-      static jQueryInterface(config2, relatedTarget) {
-        return this.each(function() {
-          const data = Modal.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (typeof data[config2] === "undefined") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2](relatedTarget);
-        });
-      }
-    }
-    EventHandler.on(document, EVENT_CLICK_DATA_API$2, SELECTOR_DATA_TOGGLE$2, function(event) {
-      const target = SelectorEngine.getElementFromSelector(this);
-      if (["A", "AREA"].includes(this.tagName)) {
-        event.preventDefault();
-      }
-      EventHandler.one(target, EVENT_SHOW$4, (showEvent) => {
-        if (showEvent.defaultPrevented) {
-          return;
-        }
-        EventHandler.one(target, EVENT_HIDDEN$4, () => {
-          if (isVisible(this)) {
-            this.focus();
-          }
-        });
-      });
-      const alreadyOpen = SelectorEngine.findOne(OPEN_SELECTOR$1);
-      if (alreadyOpen) {
-        Modal.getInstance(alreadyOpen).hide();
-      }
-      const data = Modal.getOrCreateInstance(target);
-      data.toggle(this);
-    });
-    enableDismissTrigger(Modal);
-    defineJQueryPlugin(Modal);
-    const NAME$6 = "offcanvas";
-    const DATA_KEY$3 = "bs.offcanvas";
-    const EVENT_KEY$3 = `.${DATA_KEY$3}`;
-    const DATA_API_KEY$1 = ".data-api";
-    const EVENT_LOAD_DATA_API$2 = `load${EVENT_KEY$3}${DATA_API_KEY$1}`;
-    const ESCAPE_KEY = "Escape";
-    const CLASS_NAME_SHOW$3 = "show";
-    const CLASS_NAME_SHOWING$1 = "showing";
-    const CLASS_NAME_HIDING = "hiding";
-    const CLASS_NAME_BACKDROP = "offcanvas-backdrop";
-    const OPEN_SELECTOR = ".offcanvas.show";
-    const EVENT_SHOW$3 = `show${EVENT_KEY$3}`;
-    const EVENT_SHOWN$3 = `shown${EVENT_KEY$3}`;
-    const EVENT_HIDE$3 = `hide${EVENT_KEY$3}`;
-    const EVENT_HIDE_PREVENTED = `hidePrevented${EVENT_KEY$3}`;
-    const EVENT_HIDDEN$3 = `hidden${EVENT_KEY$3}`;
-    const EVENT_RESIZE = `resize${EVENT_KEY$3}`;
-    const EVENT_CLICK_DATA_API$1 = `click${EVENT_KEY$3}${DATA_API_KEY$1}`;
-    const EVENT_KEYDOWN_DISMISS = `keydown.dismiss${EVENT_KEY$3}`;
-    const SELECTOR_DATA_TOGGLE$1 = '[data-bs-toggle="offcanvas"]';
-    const Default$5 = {
-      backdrop: true,
-      keyboard: true,
-      scroll: false
-    };
-    const DefaultType$5 = {
-      backdrop: "(boolean|string)",
-      keyboard: "boolean",
-      scroll: "boolean"
-    };
-    class Offcanvas extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._isShown = false;
-        this._backdrop = this._initializeBackDrop();
-        this._focustrap = this._initializeFocusTrap();
-        this._addEventListeners();
-      }
-      // Getters
-      static get Default() {
-        return Default$5;
-      }
-      static get DefaultType() {
-        return DefaultType$5;
-      }
-      static get NAME() {
-        return NAME$6;
-      }
-      // Public
-      toggle(relatedTarget) {
-        return this._isShown ? this.hide() : this.show(relatedTarget);
-      }
-      show(relatedTarget) {
-        if (this._isShown) {
-          return;
-        }
-        const showEvent = EventHandler.trigger(this._element, EVENT_SHOW$3, {
-          relatedTarget
-        });
-        if (showEvent.defaultPrevented) {
-          return;
-        }
-        this._isShown = true;
-        this._backdrop.show();
-        if (!this._config.scroll) {
-          new ScrollBarHelper().hide();
-        }
-        this._element.setAttribute("aria-modal", true);
-        this._element.setAttribute("role", "dialog");
-        this._element.classList.add(CLASS_NAME_SHOWING$1);
-        const completeCallBack = () => {
-          if (!this._config.scroll || this._config.backdrop) {
-            this._focustrap.activate();
-          }
-          this._element.classList.add(CLASS_NAME_SHOW$3);
-          this._element.classList.remove(CLASS_NAME_SHOWING$1);
-          EventHandler.trigger(this._element, EVENT_SHOWN$3, {
-            relatedTarget
-          });
-        };
-        this._queueCallback(completeCallBack, this._element, true);
-      }
-      hide() {
-        if (!this._isShown) {
-          return;
-        }
-        const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE$3);
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        this._focustrap.deactivate();
-        this._element.blur();
-        this._isShown = false;
-        this._element.classList.add(CLASS_NAME_HIDING);
-        this._backdrop.hide();
-        const completeCallback = () => {
-          this._element.classList.remove(CLASS_NAME_SHOW$3, CLASS_NAME_HIDING);
-          this._element.removeAttribute("aria-modal");
-          this._element.removeAttribute("role");
-          if (!this._config.scroll) {
-            new ScrollBarHelper().reset();
-          }
-          EventHandler.trigger(this._element, EVENT_HIDDEN$3);
-        };
-        this._queueCallback(completeCallback, this._element, true);
-      }
-      dispose() {
-        this._backdrop.dispose();
-        this._focustrap.deactivate();
-        super.dispose();
-      }
-      // Private
-      _initializeBackDrop() {
-        const clickCallback = () => {
-          if (this._config.backdrop === "static") {
-            EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED);
-            return;
-          }
-          this.hide();
-        };
-        const isVisible2 = Boolean(this._config.backdrop);
-        return new Backdrop({
-          className: CLASS_NAME_BACKDROP,
-          isVisible: isVisible2,
-          isAnimated: true,
-          rootElement: this._element.parentNode,
-          clickCallback: isVisible2 ? clickCallback : null
-        });
-      }
-      _initializeFocusTrap() {
-        return new FocusTrap({
-          trapElement: this._element
-        });
-      }
-      _addEventListeners() {
-        EventHandler.on(this._element, EVENT_KEYDOWN_DISMISS, (event) => {
-          if (event.key !== ESCAPE_KEY) {
-            return;
-          }
-          if (this._config.keyboard) {
-            this.hide();
-            return;
-          }
-          EventHandler.trigger(this._element, EVENT_HIDE_PREVENTED);
-        });
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Offcanvas.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2](this);
-        });
-      }
-    }
-    EventHandler.on(document, EVENT_CLICK_DATA_API$1, SELECTOR_DATA_TOGGLE$1, function(event) {
-      const target = SelectorEngine.getElementFromSelector(this);
-      if (["A", "AREA"].includes(this.tagName)) {
-        event.preventDefault();
-      }
-      if (isDisabled(this)) {
-        return;
-      }
-      EventHandler.one(target, EVENT_HIDDEN$3, () => {
-        if (isVisible(this)) {
-          this.focus();
-        }
-      });
-      const alreadyOpen = SelectorEngine.findOne(OPEN_SELECTOR);
-      if (alreadyOpen && alreadyOpen !== target) {
-        Offcanvas.getInstance(alreadyOpen).hide();
-      }
-      const data = Offcanvas.getOrCreateInstance(target);
-      data.toggle(this);
-    });
-    EventHandler.on(window, EVENT_LOAD_DATA_API$2, () => {
-      for (const selector of SelectorEngine.find(OPEN_SELECTOR)) {
-        Offcanvas.getOrCreateInstance(selector).show();
-      }
-    });
-    EventHandler.on(window, EVENT_RESIZE, () => {
-      for (const element of SelectorEngine.find("[aria-modal][class*=show][class*=offcanvas-]")) {
-        if (getComputedStyle(element).position !== "fixed") {
-          Offcanvas.getOrCreateInstance(element).hide();
-        }
-      }
-    });
-    enableDismissTrigger(Offcanvas);
-    defineJQueryPlugin(Offcanvas);
-    const ARIA_ATTRIBUTE_PATTERN = /^aria-[\w-]*$/i;
-    const DefaultAllowlist = {
-      // Global attributes allowed on any supplied element below.
-      "*": ["class", "dir", "id", "lang", "role", ARIA_ATTRIBUTE_PATTERN],
-      a: ["target", "href", "title", "rel"],
-      area: [],
-      b: [],
-      br: [],
-      col: [],
-      code: [],
-      dd: [],
-      div: [],
-      dl: [],
-      dt: [],
-      em: [],
-      hr: [],
-      h1: [],
-      h2: [],
-      h3: [],
-      h4: [],
-      h5: [],
-      h6: [],
-      i: [],
-      img: ["src", "srcset", "alt", "title", "width", "height"],
-      li: [],
-      ol: [],
-      p: [],
-      pre: [],
-      s: [],
-      small: [],
-      span: [],
-      sub: [],
-      sup: [],
-      strong: [],
-      u: [],
-      ul: []
-    };
-    const uriAttributes = /* @__PURE__ */ new Set(["background", "cite", "href", "itemtype", "longdesc", "poster", "src", "xlink:href"]);
-    const SAFE_URL_PATTERN = /^(?!javascript:)(?:[a-z0-9+.-]+:|[^&:/?#]*(?:[/?#]|$))/i;
-    const allowedAttribute = (attribute2, allowedAttributeList) => {
-      const attributeName = attribute2.nodeName.toLowerCase();
-      if (allowedAttributeList.includes(attributeName)) {
-        if (uriAttributes.has(attributeName)) {
-          return Boolean(SAFE_URL_PATTERN.test(attribute2.nodeValue));
-        }
-        return true;
-      }
-      return allowedAttributeList.filter((attributeRegex) => attributeRegex instanceof RegExp).some((regex2) => regex2.test(attributeName));
-    };
-    function sanitizeHtml(unsafeHtml, allowList, sanitizeFunction) {
-      if (!unsafeHtml.length) {
-        return unsafeHtml;
-      }
-      if (sanitizeFunction && typeof sanitizeFunction === "function") {
-        return sanitizeFunction(unsafeHtml);
-      }
-      const domParser = new window.DOMParser();
-      const createdDocument = domParser.parseFromString(unsafeHtml, "text/html");
-      const elements = [].concat(...createdDocument.body.querySelectorAll("*"));
-      for (const element of elements) {
-        const elementName = element.nodeName.toLowerCase();
-        if (!Object.keys(allowList).includes(elementName)) {
-          element.remove();
-          continue;
-        }
-        const attributeList = [].concat(...element.attributes);
-        const allowedAttributes = [].concat(allowList["*"] || [], allowList[elementName] || []);
-        for (const attribute2 of attributeList) {
-          if (!allowedAttribute(attribute2, allowedAttributes)) {
-            element.removeAttribute(attribute2.nodeName);
-          }
-        }
-      }
-      return createdDocument.body.innerHTML;
-    }
-    const NAME$5 = "TemplateFactory";
-    const Default$4 = {
-      allowList: DefaultAllowlist,
-      content: {},
-      // { selector : text ,  selector2 : text2 , }
-      extraClass: "",
-      html: false,
-      sanitize: true,
-      sanitizeFn: null,
-      template: "<div></div>"
-    };
-    const DefaultType$4 = {
-      allowList: "object",
-      content: "object",
-      extraClass: "(string|function)",
-      html: "boolean",
-      sanitize: "boolean",
-      sanitizeFn: "(null|function)",
-      template: "string"
-    };
-    const DefaultContentType = {
-      entry: "(string|element|function|null)",
-      selector: "(string|element)"
-    };
-    class TemplateFactory extends Config {
-      constructor(config2) {
-        super();
-        this._config = this._getConfig(config2);
-      }
-      // Getters
-      static get Default() {
-        return Default$4;
-      }
-      static get DefaultType() {
-        return DefaultType$4;
-      }
-      static get NAME() {
-        return NAME$5;
-      }
-      // Public
-      getContent() {
-        return Object.values(this._config.content).map((config2) => this._resolvePossibleFunction(config2)).filter(Boolean);
-      }
-      hasContent() {
-        return this.getContent().length > 0;
-      }
-      changeContent(content2) {
-        this._checkContent(content2);
-        this._config.content = {
-          ...this._config.content,
-          ...content2
-        };
-        return this;
-      }
-      toHtml() {
-        const templateWrapper = document.createElement("div");
-        templateWrapper.innerHTML = this._maybeSanitize(this._config.template);
-        for (const [selector, text2] of Object.entries(this._config.content)) {
-          this._setContent(templateWrapper, text2, selector);
-        }
-        const template2 = templateWrapper.children[0];
-        const extraClass = this._resolvePossibleFunction(this._config.extraClass);
-        if (extraClass) {
-          template2.classList.add(...extraClass.split(" "));
-        }
-        return template2;
-      }
-      // Private
-      _typeCheckConfig(config2) {
-        super._typeCheckConfig(config2);
-        this._checkContent(config2.content);
-      }
-      _checkContent(arg) {
-        for (const [selector, content2] of Object.entries(arg)) {
-          super._typeCheckConfig({
-            selector,
-            entry: content2
-          }, DefaultContentType);
-        }
-      }
-      _setContent(template2, content2, selector) {
-        const templateElement = SelectorEngine.findOne(selector, template2);
-        if (!templateElement) {
-          return;
-        }
-        content2 = this._resolvePossibleFunction(content2);
-        if (!content2) {
-          templateElement.remove();
-          return;
-        }
-        if (isElement(content2)) {
-          this._putElementInTemplate(getElement(content2), templateElement);
-          return;
-        }
-        if (this._config.html) {
-          templateElement.innerHTML = this._maybeSanitize(content2);
-          return;
-        }
-        templateElement.textContent = content2;
-      }
-      _maybeSanitize(arg) {
-        return this._config.sanitize ? sanitizeHtml(arg, this._config.allowList, this._config.sanitizeFn) : arg;
-      }
-      _resolvePossibleFunction(arg) {
-        return execute(arg, [this]);
-      }
-      _putElementInTemplate(element, templateElement) {
-        if (this._config.html) {
-          templateElement.innerHTML = "";
-          templateElement.append(element);
-          return;
-        }
-        templateElement.textContent = element.textContent;
-      }
-    }
-    const NAME$4 = "tooltip";
-    const DISALLOWED_ATTRIBUTES = /* @__PURE__ */ new Set(["sanitize", "allowList", "sanitizeFn"]);
-    const CLASS_NAME_FADE$2 = "fade";
-    const CLASS_NAME_MODAL = "modal";
-    const CLASS_NAME_SHOW$2 = "show";
-    const SELECTOR_TOOLTIP_INNER = ".tooltip-inner";
-    const SELECTOR_MODAL = `.${CLASS_NAME_MODAL}`;
-    const EVENT_MODAL_HIDE = "hide.bs.modal";
-    const TRIGGER_HOVER = "hover";
-    const TRIGGER_FOCUS = "focus";
-    const TRIGGER_CLICK = "click";
-    const TRIGGER_MANUAL = "manual";
-    const EVENT_HIDE$2 = "hide";
-    const EVENT_HIDDEN$2 = "hidden";
-    const EVENT_SHOW$2 = "show";
-    const EVENT_SHOWN$2 = "shown";
-    const EVENT_INSERTED = "inserted";
-    const EVENT_CLICK$1 = "click";
-    const EVENT_FOCUSIN$1 = "focusin";
-    const EVENT_FOCUSOUT$1 = "focusout";
-    const EVENT_MOUSEENTER = "mouseenter";
-    const EVENT_MOUSELEAVE = "mouseleave";
-    const AttachmentMap = {
-      AUTO: "auto",
-      TOP: "top",
-      RIGHT: isRTL() ? "left" : "right",
-      BOTTOM: "bottom",
-      LEFT: isRTL() ? "right" : "left"
-    };
-    const Default$3 = {
-      allowList: DefaultAllowlist,
-      animation: true,
-      boundary: "clippingParents",
-      container: false,
-      customClass: "",
-      delay: 0,
-      fallbackPlacements: ["top", "right", "bottom", "left"],
-      html: false,
-      offset: [0, 6],
-      placement: "top",
-      popperConfig: null,
-      sanitize: true,
-      sanitizeFn: null,
-      selector: false,
-      template: '<div class="tooltip" role="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>',
-      title: "",
-      trigger: "hover focus"
-    };
-    const DefaultType$3 = {
-      allowList: "object",
-      animation: "boolean",
-      boundary: "(string|element)",
-      container: "(string|element|boolean)",
-      customClass: "(string|function)",
-      delay: "(number|object)",
-      fallbackPlacements: "array",
-      html: "boolean",
-      offset: "(array|string|function)",
-      placement: "(string|function)",
-      popperConfig: "(null|object|function)",
-      sanitize: "boolean",
-      sanitizeFn: "(null|function)",
-      selector: "(string|boolean)",
-      template: "string",
-      title: "(string|element|function)",
-      trigger: "string"
-    };
-    class Tooltip extends BaseComponent {
-      constructor(element, config2) {
-        if (typeof Popper === "undefined") {
-          throw new TypeError("Bootstrap's tooltips require Popper (https://popper.js.org)");
-        }
-        super(element, config2);
-        this._isEnabled = true;
-        this._timeout = 0;
-        this._isHovered = null;
-        this._activeTrigger = {};
-        this._popper = null;
-        this._templateFactory = null;
-        this._newContent = null;
-        this.tip = null;
-        this._setListeners();
-        if (!this._config.selector) {
-          this._fixTitle();
-        }
-      }
-      // Getters
-      static get Default() {
-        return Default$3;
-      }
-      static get DefaultType() {
-        return DefaultType$3;
-      }
-      static get NAME() {
-        return NAME$4;
-      }
-      // Public
-      enable() {
-        this._isEnabled = true;
-      }
-      disable() {
-        this._isEnabled = false;
-      }
-      toggleEnabled() {
-        this._isEnabled = !this._isEnabled;
-      }
-      toggle() {
-        if (!this._isEnabled) {
-          return;
-        }
-        this._activeTrigger.click = !this._activeTrigger.click;
-        if (this._isShown()) {
-          this._leave();
-          return;
-        }
-        this._enter();
-      }
-      dispose() {
-        clearTimeout(this._timeout);
-        EventHandler.off(this._element.closest(SELECTOR_MODAL), EVENT_MODAL_HIDE, this._hideModalHandler);
-        if (this._element.getAttribute("data-bs-original-title")) {
-          this._element.setAttribute("title", this._element.getAttribute("data-bs-original-title"));
-        }
-        this._disposePopper();
-        super.dispose();
-      }
-      show() {
-        if (this._element.style.display === "none") {
-          throw new Error("Please use show on visible elements");
-        }
-        if (!(this._isWithContent() && this._isEnabled)) {
-          return;
-        }
-        const showEvent = EventHandler.trigger(this._element, this.constructor.eventName(EVENT_SHOW$2));
-        const shadowRoot = findShadowRoot(this._element);
-        const isInTheDom = (shadowRoot || this._element.ownerDocument.documentElement).contains(this._element);
-        if (showEvent.defaultPrevented || !isInTheDom) {
-          return;
-        }
-        this._disposePopper();
-        const tip = this._getTipElement();
-        this._element.setAttribute("aria-describedby", tip.getAttribute("id"));
-        const {
-          container: container2
-        } = this._config;
-        if (!this._element.ownerDocument.documentElement.contains(this.tip)) {
-          container2.append(tip);
-          EventHandler.trigger(this._element, this.constructor.eventName(EVENT_INSERTED));
-        }
-        this._popper = this._createPopper(tip);
-        tip.classList.add(CLASS_NAME_SHOW$2);
-        if ("ontouchstart" in document.documentElement) {
-          for (const element of [].concat(...document.body.children)) {
-            EventHandler.on(element, "mouseover", noop);
-          }
-        }
-        const complete = () => {
-          EventHandler.trigger(this._element, this.constructor.eventName(EVENT_SHOWN$2));
-          if (this._isHovered === false) {
-            this._leave();
-          }
-          this._isHovered = false;
-        };
-        this._queueCallback(complete, this.tip, this._isAnimated());
-      }
-      hide() {
-        if (!this._isShown()) {
-          return;
-        }
-        const hideEvent = EventHandler.trigger(this._element, this.constructor.eventName(EVENT_HIDE$2));
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        const tip = this._getTipElement();
-        tip.classList.remove(CLASS_NAME_SHOW$2);
-        if ("ontouchstart" in document.documentElement) {
-          for (const element of [].concat(...document.body.children)) {
-            EventHandler.off(element, "mouseover", noop);
-          }
-        }
-        this._activeTrigger[TRIGGER_CLICK] = false;
-        this._activeTrigger[TRIGGER_FOCUS] = false;
-        this._activeTrigger[TRIGGER_HOVER] = false;
-        this._isHovered = null;
-        const complete = () => {
-          if (this._isWithActiveTrigger()) {
-            return;
-          }
-          if (!this._isHovered) {
-            this._disposePopper();
-          }
-          this._element.removeAttribute("aria-describedby");
-          EventHandler.trigger(this._element, this.constructor.eventName(EVENT_HIDDEN$2));
-        };
-        this._queueCallback(complete, this.tip, this._isAnimated());
-      }
-      update() {
-        if (this._popper) {
-          this._popper.update();
-        }
-      }
-      // Protected
-      _isWithContent() {
-        return Boolean(this._getTitle());
-      }
-      _getTipElement() {
-        if (!this.tip) {
-          this.tip = this._createTipElement(this._newContent || this._getContentForTemplate());
-        }
-        return this.tip;
-      }
-      _createTipElement(content2) {
-        const tip = this._getTemplateFactory(content2).toHtml();
-        if (!tip) {
-          return null;
-        }
-        tip.classList.remove(CLASS_NAME_FADE$2, CLASS_NAME_SHOW$2);
-        tip.classList.add(`bs-${this.constructor.NAME}-auto`);
-        const tipId = getUID(this.constructor.NAME).toString();
-        tip.setAttribute("id", tipId);
-        if (this._isAnimated()) {
-          tip.classList.add(CLASS_NAME_FADE$2);
-        }
-        return tip;
-      }
-      setContent(content2) {
-        this._newContent = content2;
-        if (this._isShown()) {
-          this._disposePopper();
-          this.show();
-        }
-      }
-      _getTemplateFactory(content2) {
-        if (this._templateFactory) {
-          this._templateFactory.changeContent(content2);
-        } else {
-          this._templateFactory = new TemplateFactory({
-            ...this._config,
-            // the `content` var has to be after `this._config`
-            // to override config.content in case of popover
-            content: content2,
-            extraClass: this._resolvePossibleFunction(this._config.customClass)
-          });
-        }
-        return this._templateFactory;
-      }
-      _getContentForTemplate() {
-        return {
-          [SELECTOR_TOOLTIP_INNER]: this._getTitle()
-        };
-      }
-      _getTitle() {
-        return this._resolvePossibleFunction(this._config.title) || this._element.getAttribute("data-bs-original-title");
-      }
-      // Private
-      _initializeOnDelegatedTarget(event) {
-        return this.constructor.getOrCreateInstance(event.delegateTarget, this._getDelegateConfig());
-      }
-      _isAnimated() {
-        return this._config.animation || this.tip && this.tip.classList.contains(CLASS_NAME_FADE$2);
-      }
-      _isShown() {
-        return this.tip && this.tip.classList.contains(CLASS_NAME_SHOW$2);
-      }
-      _createPopper(tip) {
-        const placement = execute(this._config.placement, [this, tip, this._element]);
-        const attachment = AttachmentMap[placement.toUpperCase()];
-        return createPopper(this._element, tip, this._getPopperConfig(attachment));
-      }
-      _getOffset() {
-        const {
-          offset: offset2
-        } = this._config;
-        if (typeof offset2 === "string") {
-          return offset2.split(",").map((value) => Number.parseInt(value, 10));
-        }
-        if (typeof offset2 === "function") {
-          return (popperData) => offset2(popperData, this._element);
-        }
-        return offset2;
-      }
-      _resolvePossibleFunction(arg) {
-        return execute(arg, [this._element]);
-      }
-      _getPopperConfig(attachment) {
-        const defaultBsPopperConfig = {
-          placement: attachment,
-          modifiers: [{
-            name: "flip",
-            options: {
-              fallbackPlacements: this._config.fallbackPlacements
-            }
-          }, {
-            name: "offset",
-            options: {
-              offset: this._getOffset()
-            }
-          }, {
-            name: "preventOverflow",
-            options: {
-              boundary: this._config.boundary
-            }
-          }, {
-            name: "arrow",
-            options: {
-              element: `.${this.constructor.NAME}-arrow`
-            }
-          }, {
-            name: "preSetPlacement",
-            enabled: true,
-            phase: "beforeMain",
-            fn: (data) => {
-              this._getTipElement().setAttribute("data-popper-placement", data.state.placement);
-            }
-          }]
-        };
-        return {
-          ...defaultBsPopperConfig,
-          ...execute(this._config.popperConfig, [defaultBsPopperConfig])
-        };
-      }
-      _setListeners() {
-        const triggers = this._config.trigger.split(" ");
-        for (const trigger of triggers) {
-          if (trigger === "click") {
-            EventHandler.on(this._element, this.constructor.eventName(EVENT_CLICK$1), this._config.selector, (event) => {
-              const context = this._initializeOnDelegatedTarget(event);
-              context.toggle();
-            });
-          } else if (trigger !== TRIGGER_MANUAL) {
-            const eventIn = trigger === TRIGGER_HOVER ? this.constructor.eventName(EVENT_MOUSEENTER) : this.constructor.eventName(EVENT_FOCUSIN$1);
-            const eventOut = trigger === TRIGGER_HOVER ? this.constructor.eventName(EVENT_MOUSELEAVE) : this.constructor.eventName(EVENT_FOCUSOUT$1);
-            EventHandler.on(this._element, eventIn, this._config.selector, (event) => {
-              const context = this._initializeOnDelegatedTarget(event);
-              context._activeTrigger[event.type === "focusin" ? TRIGGER_FOCUS : TRIGGER_HOVER] = true;
-              context._enter();
-            });
-            EventHandler.on(this._element, eventOut, this._config.selector, (event) => {
-              const context = this._initializeOnDelegatedTarget(event);
-              context._activeTrigger[event.type === "focusout" ? TRIGGER_FOCUS : TRIGGER_HOVER] = context._element.contains(event.relatedTarget);
-              context._leave();
-            });
-          }
-        }
-        this._hideModalHandler = () => {
-          if (this._element) {
-            this.hide();
-          }
-        };
-        EventHandler.on(this._element.closest(SELECTOR_MODAL), EVENT_MODAL_HIDE, this._hideModalHandler);
-      }
-      _fixTitle() {
-        const title = this._element.getAttribute("title");
-        if (!title) {
-          return;
-        }
-        if (!this._element.getAttribute("aria-label") && !this._element.textContent.trim()) {
-          this._element.setAttribute("aria-label", title);
-        }
-        this._element.setAttribute("data-bs-original-title", title);
-        this._element.removeAttribute("title");
-      }
-      _enter() {
-        if (this._isShown() || this._isHovered) {
-          this._isHovered = true;
-          return;
-        }
-        this._isHovered = true;
-        this._setTimeout(() => {
-          if (this._isHovered) {
-            this.show();
-          }
-        }, this._config.delay.show);
-      }
-      _leave() {
-        if (this._isWithActiveTrigger()) {
-          return;
-        }
-        this._isHovered = false;
-        this._setTimeout(() => {
-          if (!this._isHovered) {
-            this.hide();
-          }
-        }, this._config.delay.hide);
-      }
-      _setTimeout(handler, timeout) {
-        clearTimeout(this._timeout);
-        this._timeout = setTimeout(handler, timeout);
-      }
-      _isWithActiveTrigger() {
-        return Object.values(this._activeTrigger).includes(true);
-      }
-      _getConfig(config2) {
-        const dataAttributes = Manipulator.getDataAttributes(this._element);
-        for (const dataAttribute of Object.keys(dataAttributes)) {
-          if (DISALLOWED_ATTRIBUTES.has(dataAttribute)) {
-            delete dataAttributes[dataAttribute];
-          }
-        }
-        config2 = {
-          ...dataAttributes,
-          ...typeof config2 === "object" && config2 ? config2 : {}
-        };
-        config2 = this._mergeConfigObj(config2);
-        config2 = this._configAfterMerge(config2);
-        this._typeCheckConfig(config2);
-        return config2;
-      }
-      _configAfterMerge(config2) {
-        config2.container = config2.container === false ? document.body : getElement(config2.container);
-        if (typeof config2.delay === "number") {
-          config2.delay = {
-            show: config2.delay,
-            hide: config2.delay
-          };
-        }
-        if (typeof config2.title === "number") {
-          config2.title = config2.title.toString();
-        }
-        if (typeof config2.content === "number") {
-          config2.content = config2.content.toString();
-        }
-        return config2;
-      }
-      _getDelegateConfig() {
-        const config2 = {};
-        for (const [key2, value] of Object.entries(this._config)) {
-          if (this.constructor.Default[key2] !== value) {
-            config2[key2] = value;
-          }
-        }
-        config2.selector = false;
-        config2.trigger = "manual";
-        return config2;
-      }
-      _disposePopper() {
-        if (this._popper) {
-          this._popper.destroy();
-          this._popper = null;
-        }
-        if (this.tip) {
-          this.tip.remove();
-          this.tip = null;
-        }
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Tooltip.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (typeof data[config2] === "undefined") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2]();
-        });
-      }
-    }
-    defineJQueryPlugin(Tooltip);
-    const NAME$3 = "popover";
-    const SELECTOR_TITLE = ".popover-header";
-    const SELECTOR_CONTENT = ".popover-body";
-    const Default$2 = {
-      ...Tooltip.Default,
-      content: "",
-      offset: [0, 8],
-      placement: "right",
-      template: '<div class="popover" role="tooltip"><div class="popover-arrow"></div><h3 class="popover-header"></h3><div class="popover-body"></div></div>',
-      trigger: "click"
-    };
-    const DefaultType$2 = {
-      ...Tooltip.DefaultType,
-      content: "(null|string|element|function)"
-    };
-    class Popover extends Tooltip {
-      // Getters
-      static get Default() {
-        return Default$2;
-      }
-      static get DefaultType() {
-        return DefaultType$2;
-      }
-      static get NAME() {
-        return NAME$3;
-      }
-      // Overrides
-      _isWithContent() {
-        return this._getTitle() || this._getContent();
-      }
-      // Private
-      _getContentForTemplate() {
-        return {
-          [SELECTOR_TITLE]: this._getTitle(),
-          [SELECTOR_CONTENT]: this._getContent()
-        };
-      }
-      _getContent() {
-        return this._resolvePossibleFunction(this._config.content);
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Popover.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (typeof data[config2] === "undefined") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2]();
-        });
-      }
-    }
-    defineJQueryPlugin(Popover);
-    const NAME$2 = "scrollspy";
-    const DATA_KEY$2 = "bs.scrollspy";
-    const EVENT_KEY$2 = `.${DATA_KEY$2}`;
-    const DATA_API_KEY = ".data-api";
-    const EVENT_ACTIVATE = `activate${EVENT_KEY$2}`;
-    const EVENT_CLICK = `click${EVENT_KEY$2}`;
-    const EVENT_LOAD_DATA_API$1 = `load${EVENT_KEY$2}${DATA_API_KEY}`;
-    const CLASS_NAME_DROPDOWN_ITEM = "dropdown-item";
-    const CLASS_NAME_ACTIVE$1 = "active";
-    const SELECTOR_DATA_SPY = '[data-bs-spy="scroll"]';
-    const SELECTOR_TARGET_LINKS = "[href]";
-    const SELECTOR_NAV_LIST_GROUP = ".nav, .list-group";
-    const SELECTOR_NAV_LINKS = ".nav-link";
-    const SELECTOR_NAV_ITEMS = ".nav-item";
-    const SELECTOR_LIST_ITEMS = ".list-group-item";
-    const SELECTOR_LINK_ITEMS = `${SELECTOR_NAV_LINKS}, ${SELECTOR_NAV_ITEMS} > ${SELECTOR_NAV_LINKS}, ${SELECTOR_LIST_ITEMS}`;
-    const SELECTOR_DROPDOWN = ".dropdown";
-    const SELECTOR_DROPDOWN_TOGGLE$1 = ".dropdown-toggle";
-    const Default$1 = {
-      offset: null,
-      // TODO: v6 @deprecated, keep it for backwards compatibility reasons
-      rootMargin: "0px 0px -25%",
-      smoothScroll: false,
-      target: null,
-      threshold: [0.1, 0.5, 1]
-    };
-    const DefaultType$1 = {
-      offset: "(number|null)",
-      // TODO v6 @deprecated, keep it for backwards compatibility reasons
-      rootMargin: "string",
-      smoothScroll: "boolean",
-      target: "element",
-      threshold: "array"
-    };
-    class ScrollSpy extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._targetLinks = /* @__PURE__ */ new Map();
-        this._observableSections = /* @__PURE__ */ new Map();
-        this._rootElement = getComputedStyle(this._element).overflowY === "visible" ? null : this._element;
-        this._activeTarget = null;
-        this._observer = null;
-        this._previousScrollData = {
-          visibleEntryTop: 0,
-          parentScrollTop: 0
-        };
-        this.refresh();
-      }
-      // Getters
-      static get Default() {
-        return Default$1;
-      }
-      static get DefaultType() {
-        return DefaultType$1;
-      }
-      static get NAME() {
-        return NAME$2;
-      }
-      // Public
-      refresh() {
-        this._initializeTargetsAndObservables();
-        this._maybeEnableSmoothScroll();
-        if (this._observer) {
-          this._observer.disconnect();
-        } else {
-          this._observer = this._getNewObserver();
-        }
-        for (const section of this._observableSections.values()) {
-          this._observer.observe(section);
-        }
-      }
-      dispose() {
-        this._observer.disconnect();
-        super.dispose();
-      }
-      // Private
-      _configAfterMerge(config2) {
-        config2.target = getElement(config2.target) || document.body;
-        config2.rootMargin = config2.offset ? `${config2.offset}px 0px -30%` : config2.rootMargin;
-        if (typeof config2.threshold === "string") {
-          config2.threshold = config2.threshold.split(",").map((value) => Number.parseFloat(value));
-        }
-        return config2;
-      }
-      _maybeEnableSmoothScroll() {
-        if (!this._config.smoothScroll) {
-          return;
-        }
-        EventHandler.off(this._config.target, EVENT_CLICK);
-        EventHandler.on(this._config.target, EVENT_CLICK, SELECTOR_TARGET_LINKS, (event) => {
-          const observableSection = this._observableSections.get(event.target.hash);
-          if (observableSection) {
-            event.preventDefault();
-            const root2 = this._rootElement || window;
-            const height = observableSection.offsetTop - this._element.offsetTop;
-            if (root2.scrollTo) {
-              root2.scrollTo({
-                top: height,
-                behavior: "smooth"
-              });
-              return;
-            }
-            root2.scrollTop = height;
-          }
-        });
-      }
-      _getNewObserver() {
-        const options = {
-          root: this._rootElement,
-          threshold: this._config.threshold,
-          rootMargin: this._config.rootMargin
-        };
-        return new IntersectionObserver((entries) => this._observerCallback(entries), options);
-      }
-      // The logic of selection
-      _observerCallback(entries) {
-        const targetElement = (entry) => this._targetLinks.get(`#${entry.target.id}`);
-        const activate = (entry) => {
-          this._previousScrollData.visibleEntryTop = entry.target.offsetTop;
-          this._process(targetElement(entry));
-        };
-        const parentScrollTop = (this._rootElement || document.documentElement).scrollTop;
-        const userScrollsDown = parentScrollTop >= this._previousScrollData.parentScrollTop;
-        this._previousScrollData.parentScrollTop = parentScrollTop;
-        for (const entry of entries) {
-          if (!entry.isIntersecting) {
-            this._activeTarget = null;
-            this._clearActiveClass(targetElement(entry));
-            continue;
-          }
-          const entryIsLowerThanPrevious = entry.target.offsetTop >= this._previousScrollData.visibleEntryTop;
-          if (userScrollsDown && entryIsLowerThanPrevious) {
-            activate(entry);
-            if (!parentScrollTop) {
-              return;
-            }
-            continue;
-          }
-          if (!userScrollsDown && !entryIsLowerThanPrevious) {
-            activate(entry);
-          }
-        }
-      }
-      _initializeTargetsAndObservables() {
-        this._targetLinks = /* @__PURE__ */ new Map();
-        this._observableSections = /* @__PURE__ */ new Map();
-        const targetLinks = SelectorEngine.find(SELECTOR_TARGET_LINKS, this._config.target);
-        for (const anchor of targetLinks) {
-          if (!anchor.hash || isDisabled(anchor)) {
-            continue;
-          }
-          const observableSection = SelectorEngine.findOne(decodeURI(anchor.hash), this._element);
-          if (isVisible(observableSection)) {
-            this._targetLinks.set(decodeURI(anchor.hash), anchor);
-            this._observableSections.set(anchor.hash, observableSection);
-          }
-        }
-      }
-      _process(target) {
-        if (this._activeTarget === target) {
-          return;
-        }
-        this._clearActiveClass(this._config.target);
-        this._activeTarget = target;
-        target.classList.add(CLASS_NAME_ACTIVE$1);
-        this._activateParents(target);
-        EventHandler.trigger(this._element, EVENT_ACTIVATE, {
-          relatedTarget: target
-        });
-      }
-      _activateParents(target) {
-        if (target.classList.contains(CLASS_NAME_DROPDOWN_ITEM)) {
-          SelectorEngine.findOne(SELECTOR_DROPDOWN_TOGGLE$1, target.closest(SELECTOR_DROPDOWN)).classList.add(CLASS_NAME_ACTIVE$1);
-          return;
-        }
-        for (const listGroup of SelectorEngine.parents(target, SELECTOR_NAV_LIST_GROUP)) {
-          for (const item of SelectorEngine.prev(listGroup, SELECTOR_LINK_ITEMS)) {
-            item.classList.add(CLASS_NAME_ACTIVE$1);
-          }
-        }
-      }
-      _clearActiveClass(parent) {
-        parent.classList.remove(CLASS_NAME_ACTIVE$1);
-        const activeNodes = SelectorEngine.find(`${SELECTOR_TARGET_LINKS}.${CLASS_NAME_ACTIVE$1}`, parent);
-        for (const node of activeNodes) {
-          node.classList.remove(CLASS_NAME_ACTIVE$1);
-        }
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = ScrollSpy.getOrCreateInstance(this, config2);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2]();
-        });
-      }
-    }
-    EventHandler.on(window, EVENT_LOAD_DATA_API$1, () => {
-      for (const spy of SelectorEngine.find(SELECTOR_DATA_SPY)) {
-        ScrollSpy.getOrCreateInstance(spy);
-      }
-    });
-    defineJQueryPlugin(ScrollSpy);
-    const NAME$1 = "tab";
-    const DATA_KEY$1 = "bs.tab";
-    const EVENT_KEY$1 = `.${DATA_KEY$1}`;
-    const EVENT_HIDE$1 = `hide${EVENT_KEY$1}`;
-    const EVENT_HIDDEN$1 = `hidden${EVENT_KEY$1}`;
-    const EVENT_SHOW$1 = `show${EVENT_KEY$1}`;
-    const EVENT_SHOWN$1 = `shown${EVENT_KEY$1}`;
-    const EVENT_CLICK_DATA_API = `click${EVENT_KEY$1}`;
-    const EVENT_KEYDOWN = `keydown${EVENT_KEY$1}`;
-    const EVENT_LOAD_DATA_API = `load${EVENT_KEY$1}`;
-    const ARROW_LEFT_KEY = "ArrowLeft";
-    const ARROW_RIGHT_KEY = "ArrowRight";
-    const ARROW_UP_KEY = "ArrowUp";
-    const ARROW_DOWN_KEY = "ArrowDown";
-    const HOME_KEY = "Home";
-    const END_KEY = "End";
-    const CLASS_NAME_ACTIVE = "active";
-    const CLASS_NAME_FADE$1 = "fade";
-    const CLASS_NAME_SHOW$1 = "show";
-    const CLASS_DROPDOWN = "dropdown";
-    const SELECTOR_DROPDOWN_TOGGLE = ".dropdown-toggle";
-    const SELECTOR_DROPDOWN_MENU = ".dropdown-menu";
-    const NOT_SELECTOR_DROPDOWN_TOGGLE = `:not(${SELECTOR_DROPDOWN_TOGGLE})`;
-    const SELECTOR_TAB_PANEL = '.list-group, .nav, [role="tablist"]';
-    const SELECTOR_OUTER = ".nav-item, .list-group-item";
-    const SELECTOR_INNER = `.nav-link${NOT_SELECTOR_DROPDOWN_TOGGLE}, .list-group-item${NOT_SELECTOR_DROPDOWN_TOGGLE}, [role="tab"]${NOT_SELECTOR_DROPDOWN_TOGGLE}`;
-    const SELECTOR_DATA_TOGGLE = '[data-bs-toggle="tab"], [data-bs-toggle="pill"], [data-bs-toggle="list"]';
-    const SELECTOR_INNER_ELEM = `${SELECTOR_INNER}, ${SELECTOR_DATA_TOGGLE}`;
-    const SELECTOR_DATA_TOGGLE_ACTIVE = `.${CLASS_NAME_ACTIVE}[data-bs-toggle="tab"], .${CLASS_NAME_ACTIVE}[data-bs-toggle="pill"], .${CLASS_NAME_ACTIVE}[data-bs-toggle="list"]`;
-    let Tab$1 = class Tab2 extends BaseComponent {
-      constructor(element) {
-        super(element);
-        this._parent = this._element.closest(SELECTOR_TAB_PANEL);
-        if (!this._parent) {
-          return;
-        }
-        this._setInitialAttributes(this._parent, this._getChildren());
-        EventHandler.on(this._element, EVENT_KEYDOWN, (event) => this._keydown(event));
-      }
-      // Getters
-      static get NAME() {
-        return NAME$1;
-      }
-      // Public
-      show() {
-        const innerElem = this._element;
-        if (this._elemIsActive(innerElem)) {
-          return;
-        }
-        const active = this._getActiveElem();
-        const hideEvent = active ? EventHandler.trigger(active, EVENT_HIDE$1, {
-          relatedTarget: innerElem
-        }) : null;
-        const showEvent = EventHandler.trigger(innerElem, EVENT_SHOW$1, {
-          relatedTarget: active
-        });
-        if (showEvent.defaultPrevented || hideEvent && hideEvent.defaultPrevented) {
-          return;
-        }
-        this._deactivate(active, innerElem);
-        this._activate(innerElem, active);
-      }
-      // Private
-      _activate(element, relatedElem) {
-        if (!element) {
-          return;
-        }
-        element.classList.add(CLASS_NAME_ACTIVE);
-        this._activate(SelectorEngine.getElementFromSelector(element));
-        const complete = () => {
-          if (element.getAttribute("role") !== "tab") {
-            element.classList.add(CLASS_NAME_SHOW$1);
-            return;
-          }
-          element.removeAttribute("tabindex");
-          element.setAttribute("aria-selected", true);
-          this._toggleDropDown(element, true);
-          EventHandler.trigger(element, EVENT_SHOWN$1, {
-            relatedTarget: relatedElem
-          });
-        };
-        this._queueCallback(complete, element, element.classList.contains(CLASS_NAME_FADE$1));
-      }
-      _deactivate(element, relatedElem) {
-        if (!element) {
-          return;
-        }
-        element.classList.remove(CLASS_NAME_ACTIVE);
-        element.blur();
-        this._deactivate(SelectorEngine.getElementFromSelector(element));
-        const complete = () => {
-          if (element.getAttribute("role") !== "tab") {
-            element.classList.remove(CLASS_NAME_SHOW$1);
-            return;
-          }
-          element.setAttribute("aria-selected", false);
-          element.setAttribute("tabindex", "-1");
-          this._toggleDropDown(element, false);
-          EventHandler.trigger(element, EVENT_HIDDEN$1, {
-            relatedTarget: relatedElem
-          });
-        };
-        this._queueCallback(complete, element, element.classList.contains(CLASS_NAME_FADE$1));
-      }
-      _keydown(event) {
-        if (![ARROW_LEFT_KEY, ARROW_RIGHT_KEY, ARROW_UP_KEY, ARROW_DOWN_KEY, HOME_KEY, END_KEY].includes(event.key)) {
-          return;
-        }
-        event.stopPropagation();
-        event.preventDefault();
-        const children2 = this._getChildren().filter((element) => !isDisabled(element));
-        let nextActiveElement;
-        if ([HOME_KEY, END_KEY].includes(event.key)) {
-          nextActiveElement = children2[event.key === HOME_KEY ? 0 : children2.length - 1];
-        } else {
-          const isNext = [ARROW_RIGHT_KEY, ARROW_DOWN_KEY].includes(event.key);
-          nextActiveElement = getNextActiveElement(children2, event.target, isNext, true);
-        }
-        if (nextActiveElement) {
-          nextActiveElement.focus({
-            preventScroll: true
-          });
-          Tab2.getOrCreateInstance(nextActiveElement).show();
-        }
-      }
-      _getChildren() {
-        return SelectorEngine.find(SELECTOR_INNER_ELEM, this._parent);
-      }
-      _getActiveElem() {
-        return this._getChildren().find((child) => this._elemIsActive(child)) || null;
-      }
-      _setInitialAttributes(parent, children2) {
-        this._setAttributeIfNotExists(parent, "role", "tablist");
-        for (const child of children2) {
-          this._setInitialAttributesOnChild(child);
-        }
-      }
-      _setInitialAttributesOnChild(child) {
-        child = this._getInnerElement(child);
-        const isActive = this._elemIsActive(child);
-        const outerElem = this._getOuterElement(child);
-        child.setAttribute("aria-selected", isActive);
-        if (outerElem !== child) {
-          this._setAttributeIfNotExists(outerElem, "role", "presentation");
-        }
-        if (!isActive) {
-          child.setAttribute("tabindex", "-1");
-        }
-        this._setAttributeIfNotExists(child, "role", "tab");
-        this._setInitialAttributesOnTargetPanel(child);
-      }
-      _setInitialAttributesOnTargetPanel(child) {
-        const target = SelectorEngine.getElementFromSelector(child);
-        if (!target) {
-          return;
-        }
-        this._setAttributeIfNotExists(target, "role", "tabpanel");
-        if (child.id) {
-          this._setAttributeIfNotExists(target, "aria-labelledby", `${child.id}`);
-        }
-      }
-      _toggleDropDown(element, open) {
-        const outerElem = this._getOuterElement(element);
-        if (!outerElem.classList.contains(CLASS_DROPDOWN)) {
-          return;
-        }
-        const toggle2 = (selector, className2) => {
-          const element2 = SelectorEngine.findOne(selector, outerElem);
-          if (element2) {
-            element2.classList.toggle(className2, open);
-          }
-        };
-        toggle2(SELECTOR_DROPDOWN_TOGGLE, CLASS_NAME_ACTIVE);
-        toggle2(SELECTOR_DROPDOWN_MENU, CLASS_NAME_SHOW$1);
-        outerElem.setAttribute("aria-expanded", open);
-      }
-      _setAttributeIfNotExists(element, attribute2, value) {
-        if (!element.hasAttribute(attribute2)) {
-          element.setAttribute(attribute2, value);
-        }
-      }
-      _elemIsActive(elem) {
-        return elem.classList.contains(CLASS_NAME_ACTIVE);
-      }
-      // Try to get the inner element (usually the .nav-link)
-      _getInnerElement(elem) {
-        return elem.matches(SELECTOR_INNER_ELEM) ? elem : SelectorEngine.findOne(SELECTOR_INNER_ELEM, elem);
-      }
-      // Try to get the outer element (usually the .nav-item)
-      _getOuterElement(elem) {
-        return elem.closest(SELECTOR_OUTER) || elem;
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Tab2.getOrCreateInstance(this);
-          if (typeof config2 !== "string") {
-            return;
-          }
-          if (data[config2] === void 0 || config2.startsWith("_") || config2 === "constructor") {
-            throw new TypeError(`No method named "${config2}"`);
-          }
-          data[config2]();
-        });
-      }
-    };
-    EventHandler.on(document, EVENT_CLICK_DATA_API, SELECTOR_DATA_TOGGLE, function(event) {
-      if (["A", "AREA"].includes(this.tagName)) {
-        event.preventDefault();
-      }
-      if (isDisabled(this)) {
-        return;
-      }
-      Tab$1.getOrCreateInstance(this).show();
-    });
-    EventHandler.on(window, EVENT_LOAD_DATA_API, () => {
-      for (const element of SelectorEngine.find(SELECTOR_DATA_TOGGLE_ACTIVE)) {
-        Tab$1.getOrCreateInstance(element);
-      }
-    });
-    defineJQueryPlugin(Tab$1);
-    const NAME = "toast";
-    const DATA_KEY = "bs.toast";
-    const EVENT_KEY = `.${DATA_KEY}`;
-    const EVENT_MOUSEOVER = `mouseover${EVENT_KEY}`;
-    const EVENT_MOUSEOUT = `mouseout${EVENT_KEY}`;
-    const EVENT_FOCUSIN = `focusin${EVENT_KEY}`;
-    const EVENT_FOCUSOUT = `focusout${EVENT_KEY}`;
-    const EVENT_HIDE = `hide${EVENT_KEY}`;
-    const EVENT_HIDDEN = `hidden${EVENT_KEY}`;
-    const EVENT_SHOW = `show${EVENT_KEY}`;
-    const EVENT_SHOWN = `shown${EVENT_KEY}`;
-    const CLASS_NAME_FADE = "fade";
-    const CLASS_NAME_HIDE = "hide";
-    const CLASS_NAME_SHOW = "show";
-    const CLASS_NAME_SHOWING = "showing";
-    const DefaultType = {
-      animation: "boolean",
-      autohide: "boolean",
-      delay: "number"
-    };
-    const Default = {
-      animation: true,
-      autohide: true,
-      delay: 5e3
-    };
-    class Toast extends BaseComponent {
-      constructor(element, config2) {
-        super(element, config2);
-        this._timeout = null;
-        this._hasMouseInteraction = false;
-        this._hasKeyboardInteraction = false;
-        this._setListeners();
-      }
-      // Getters
-      static get Default() {
-        return Default;
-      }
-      static get DefaultType() {
-        return DefaultType;
-      }
-      static get NAME() {
-        return NAME;
-      }
-      // Public
-      show() {
-        const showEvent = EventHandler.trigger(this._element, EVENT_SHOW);
-        if (showEvent.defaultPrevented) {
-          return;
-        }
-        this._clearTimeout();
-        if (this._config.animation) {
-          this._element.classList.add(CLASS_NAME_FADE);
-        }
-        const complete = () => {
-          this._element.classList.remove(CLASS_NAME_SHOWING);
-          EventHandler.trigger(this._element, EVENT_SHOWN);
-          this._maybeScheduleHide();
-        };
-        this._element.classList.remove(CLASS_NAME_HIDE);
-        reflow(this._element);
-        this._element.classList.add(CLASS_NAME_SHOW, CLASS_NAME_SHOWING);
-        this._queueCallback(complete, this._element, this._config.animation);
-      }
-      hide() {
-        if (!this.isShown()) {
-          return;
-        }
-        const hideEvent = EventHandler.trigger(this._element, EVENT_HIDE);
-        if (hideEvent.defaultPrevented) {
-          return;
-        }
-        const complete = () => {
-          this._element.classList.add(CLASS_NAME_HIDE);
-          this._element.classList.remove(CLASS_NAME_SHOWING, CLASS_NAME_SHOW);
-          EventHandler.trigger(this._element, EVENT_HIDDEN);
-        };
-        this._element.classList.add(CLASS_NAME_SHOWING);
-        this._queueCallback(complete, this._element, this._config.animation);
-      }
-      dispose() {
-        this._clearTimeout();
-        if (this.isShown()) {
-          this._element.classList.remove(CLASS_NAME_SHOW);
-        }
-        super.dispose();
-      }
-      isShown() {
-        return this._element.classList.contains(CLASS_NAME_SHOW);
-      }
-      // Private
-      _maybeScheduleHide() {
-        if (!this._config.autohide) {
-          return;
-        }
-        if (this._hasMouseInteraction || this._hasKeyboardInteraction) {
-          return;
-        }
-        this._timeout = setTimeout(() => {
-          this.hide();
-        }, this._config.delay);
-      }
-      _onInteraction(event, isInteracting) {
-        switch (event.type) {
-          case "mouseover":
-          case "mouseout": {
-            this._hasMouseInteraction = isInteracting;
-            break;
-          }
-          case "focusin":
-          case "focusout": {
-            this._hasKeyboardInteraction = isInteracting;
-            break;
-          }
-        }
-        if (isInteracting) {
-          this._clearTimeout();
-          return;
-        }
-        const nextElement = event.relatedTarget;
-        if (this._element === nextElement || this._element.contains(nextElement)) {
-          return;
-        }
-        this._maybeScheduleHide();
-      }
-      _setListeners() {
-        EventHandler.on(this._element, EVENT_MOUSEOVER, (event) => this._onInteraction(event, true));
-        EventHandler.on(this._element, EVENT_MOUSEOUT, (event) => this._onInteraction(event, false));
-        EventHandler.on(this._element, EVENT_FOCUSIN, (event) => this._onInteraction(event, true));
-        EventHandler.on(this._element, EVENT_FOCUSOUT, (event) => this._onInteraction(event, false));
-      }
-      _clearTimeout() {
-        clearTimeout(this._timeout);
-        this._timeout = null;
-      }
-      // Static
-      static jQueryInterface(config2) {
-        return this.each(function() {
-          const data = Toast.getOrCreateInstance(this, config2);
-          if (typeof config2 === "string") {
-            if (typeof data[config2] === "undefined") {
-              throw new TypeError(`No method named "${config2}"`);
-            }
-            data[config2](this);
-          }
-        });
-      }
-    }
-    enableDismissTrigger(Toast);
-    defineJQueryPlugin(Toast);
     var t$1, r$1, u$1, i$2, o = 0, f$1 = [], c$1 = l$1, e = c$1.__b, a = c$1.__r, v = c$1.diffed, l = c$1.__c, m = c$1.unmount, s = c$1.__;
     function d(n2, t2) {
       c$1.__h && c$1.__h(r$1, n2, o || t2), o = 0;
@@ -8051,7 +3003,7 @@ var require_assets = __commonJS({
       usage: "bi bi-stopwatch"
     };
     const ErrorPanel = ({
-      title,
+      title: title2,
       error: error2
     }) => {
       const message = error2.message;
@@ -8065,7 +3017,7 @@ var require_assets = __commonJS({
               class: `${ApplicationIcons.error} error-icon`
             })
           }), /* @__PURE__ */ u("div", {
-            children: title || ""
+            children: title2 || ""
           })]
         }), /* @__PURE__ */ u("div", {
           className: "error-panel-body",
@@ -8521,8 +3473,8 @@ var require_assets = __commonJS({
       };
       return new Intl.DateTimeFormat(void 0, options).format(date);
     }
-    function formatDuration(start2, end2) {
-      const durationMs = end2.getTime() - start2.getTime();
+    function formatDuration(start, end) {
+      const durationMs = end.getTime() - start.getTime();
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
@@ -9407,9 +4359,9 @@ var require_assets = __commonJS({
            * @param right
            * @returns
            */
-          static equivalent(left2, right2) {
+          static equivalent(left, right) {
             const setReplacer = (_2, value) => value instanceof Set ? !value.size ? void 0 : [...value] : value;
-            return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
+            return left === right || JSON.stringify(left, setReplacer) === JSON.stringify(right, setReplacer);
           }
           //#endregion Public Methods
           //#region ANSIFormat Implementation
@@ -10017,17 +4969,17 @@ var require_assets = __commonJS({
           });
         }
       }
-      const entryEls = (coercedEntries || []).map((entry, index) => {
+      const entryEls = (coercedEntries || []).map((entry2, index) => {
         const id2 = `${baseId}-value-${index}`;
         return m$1`<tr class="${baseId}-row">
       <td
         class="${baseId}-key"
         style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
       >
-        ${entry.name}
+        ${entry2.name}
       </td>
       <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry} />
+        <${RenderedContent} id=${id2} entry=${entry2} />
       </td>
     </tr>`;
       });
@@ -10085,8 +5037,8 @@ var require_assets = __commonJS({
       y(() => {
         setIsCollapsed(collapse);
       }, [collapse, children2]);
-      const checkOverflow = q$1((entry) => {
-        const element = entry.target;
+      const checkOverflow = q$1((entry2) => {
+        const element = entry2.target;
         if (!lineHeightRef.current) {
           const computedStyle = window.getComputedStyle(element);
           lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
@@ -10446,10 +5398,10 @@ var require_assets = __commonJS({
           this.hostname = this.hostname.substr(1, this.hostname.length - 2);
         }
       }
-      const hash2 = rest.indexOf("#");
-      if (hash2 !== -1) {
-        this.hash = rest.substr(hash2);
-        rest = rest.slice(0, hash2);
+      const hash = rest.indexOf("#");
+      if (hash !== -1) {
+        this.hash = rest.substr(hash);
+        rest = rest.slice(0, hash);
       }
       const qm = rest.indexOf("?");
       if (qm !== -1) {
@@ -10639,28 +5591,28 @@ var require_assets = __commonJS({
        * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      write(str2, offset2) {
+      write(str2, offset) {
         switch (this.state) {
           case EntityDecoderState.EntityStart: {
-            if (str2.charCodeAt(offset2) === CharCodes.NUM) {
+            if (str2.charCodeAt(offset) === CharCodes.NUM) {
               this.state = EntityDecoderState.NumericStart;
               this.consumed += 1;
-              return this.stateNumericStart(str2, offset2 + 1);
+              return this.stateNumericStart(str2, offset + 1);
             }
             this.state = EntityDecoderState.NamedEntity;
-            return this.stateNamedEntity(str2, offset2);
+            return this.stateNamedEntity(str2, offset);
           }
           case EntityDecoderState.NumericStart: {
-            return this.stateNumericStart(str2, offset2);
+            return this.stateNumericStart(str2, offset);
           }
           case EntityDecoderState.NumericDecimal: {
-            return this.stateNumericDecimal(str2, offset2);
+            return this.stateNumericDecimal(str2, offset);
           }
           case EntityDecoderState.NumericHex: {
-            return this.stateNumericHex(str2, offset2);
+            return this.stateNumericHex(str2, offset);
           }
           case EntityDecoderState.NamedEntity: {
-            return this.stateNamedEntity(str2, offset2);
+            return this.stateNamedEntity(str2, offset);
           }
         }
       }
@@ -10673,22 +5625,22 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericStart(str2, offset2) {
-        if (offset2 >= str2.length) {
+      stateNumericStart(str2, offset) {
+        if (offset >= str2.length) {
           return -1;
         }
-        if ((str2.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
           this.state = EntityDecoderState.NumericHex;
           this.consumed += 1;
-          return this.stateNumericHex(str2, offset2 + 1);
+          return this.stateNumericHex(str2, offset + 1);
         }
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str2, offset2);
+        return this.stateNumericDecimal(str2, offset);
       }
-      addToNumericResult(str2, start2, end2, base2) {
-        if (start2 !== end2) {
-          const digitCount = end2 - start2;
-          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start2, digitCount), base2);
+      addToNumericResult(str2, start, end, base2) {
+        if (start !== end) {
+          const digitCount = end - start;
+          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start, digitCount), base2);
           this.consumed += digitCount;
         }
       }
@@ -10701,18 +5653,18 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericHex(str2, offset2) {
-        const startIdx = offset2;
-        while (offset2 < str2.length) {
-          const char = str2.charCodeAt(offset2);
+      stateNumericHex(str2, offset) {
+        const startIdx = offset;
+        while (offset < str2.length) {
+          const char = str2.charCodeAt(offset);
           if (isNumber(char) || isHexadecimalCharacter(char)) {
-            offset2 += 1;
+            offset += 1;
           } else {
-            this.addToNumericResult(str2, startIdx, offset2, 16);
+            this.addToNumericResult(str2, startIdx, offset, 16);
             return this.emitNumericEntity(char, 3);
           }
         }
-        this.addToNumericResult(str2, startIdx, offset2, 16);
+        this.addToNumericResult(str2, startIdx, offset, 16);
         return -1;
       }
       /**
@@ -10724,18 +5676,18 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericDecimal(str2, offset2) {
-        const startIdx = offset2;
-        while (offset2 < str2.length) {
-          const char = str2.charCodeAt(offset2);
+      stateNumericDecimal(str2, offset) {
+        const startIdx = offset;
+        while (offset < str2.length) {
+          const char = str2.charCodeAt(offset);
           if (isNumber(char)) {
-            offset2 += 1;
+            offset += 1;
           } else {
-            this.addToNumericResult(str2, startIdx, offset2, 10);
+            this.addToNumericResult(str2, startIdx, offset, 10);
             return this.emitNumericEntity(char, 2);
           }
         }
-        this.addToNumericResult(str2, startIdx, offset2, 10);
+        this.addToNumericResult(str2, startIdx, offset, 10);
         return -1;
       }
       /**
@@ -10780,12 +5732,12 @@ var require_assets = __commonJS({
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNamedEntity(str2, offset2) {
+      stateNamedEntity(str2, offset) {
         const { decodeTree } = this;
         let current = decodeTree[this.treeIndex];
         let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-        for (; offset2 < str2.length; offset2++, this.excess++) {
-          const char = str2.charCodeAt(offset2);
+        for (; offset < str2.length; offset++, this.excess++) {
+          const char = str2.charCodeAt(offset);
           this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
           if (this.treeIndex < 0) {
             return this.result === 0 || // If we are parsing an attribute
@@ -10872,21 +5824,21 @@ var require_assets = __commonJS({
       const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint$2(str2));
       return function decodeWithTrie(str2, decodeMode) {
         let lastIndex = 0;
-        let offset2 = 0;
-        while ((offset2 = str2.indexOf("&", offset2)) >= 0) {
-          ret += str2.slice(lastIndex, offset2);
+        let offset = 0;
+        while ((offset = str2.indexOf("&", offset)) >= 0) {
+          ret += str2.slice(lastIndex, offset);
           decoder.startEntity(decodeMode);
           const len = decoder.write(
             str2,
             // Skip the "&"
-            offset2 + 1
+            offset + 1
           );
           if (len < 0) {
-            lastIndex = offset2 + decoder.end();
+            lastIndex = offset + decoder.end();
             break;
           }
-          lastIndex = offset2 + len;
-          offset2 = len === 0 ? lastIndex + 1 : lastIndex;
+          lastIndex = offset + len;
+          offset = len === 0 ? lastIndex + 1 : lastIndex;
         }
         const result = ret + str2.slice(lastIndex);
         ret = "";
@@ -11140,11 +6092,11 @@ var require_assets = __commonJS({
       unescapeAll,
       unescapeMd
     }, Symbol.toStringTag, { value: "Module" }));
-    function parseLinkLabel(state, start2, disableNested) {
+    function parseLinkLabel(state, start, disableNested) {
       let level, found, marker, prevPos;
       const max2 = state.posMax;
       const oldPos = state.pos;
-      state.pos = start2 + 1;
+      state.pos = start + 1;
       level = 1;
       while (state.pos < max2) {
         marker = state.src.charCodeAt(state.pos);
@@ -11173,9 +6125,9 @@ var require_assets = __commonJS({
       state.pos = oldPos;
       return labelEnd;
     }
-    function parseLinkDestination(str2, start2, max2) {
+    function parseLinkDestination(str2, start, max2) {
       let code2;
-      let pos2 = start2;
+      let pos2 = start;
       const result = {
         ok: false,
         pos: 0,
@@ -11193,7 +6145,7 @@ var require_assets = __commonJS({
           }
           if (code2 === 62) {
             result.pos = pos2 + 1;
-            result.str = unescapeAll(str2.slice(start2 + 1, pos2));
+            result.str = unescapeAll(str2.slice(start + 1, pos2));
             result.ok = true;
             return result;
           }
@@ -11235,20 +6187,20 @@ var require_assets = __commonJS({
         }
         pos2++;
       }
-      if (start2 === pos2) {
+      if (start === pos2) {
         return result;
       }
       if (level !== 0) {
         return result;
       }
-      result.str = unescapeAll(str2.slice(start2, pos2));
+      result.str = unescapeAll(str2.slice(start, pos2));
       result.pos = pos2;
       result.ok = true;
       return result;
     }
-    function parseLinkTitle(str2, start2, max2, prev_state) {
+    function parseLinkTitle(str2, start, max2, prev_state) {
       let code2;
-      let pos2 = start2;
+      let pos2 = start;
       const state = {
         // if `true`, this is a valid link title
         ok: false,
@@ -11272,7 +6224,7 @@ var require_assets = __commonJS({
         if (marker !== 34 && marker !== 39 && marker !== 40) {
           return state;
         }
-        start2++;
+        start++;
         pos2++;
         if (marker === 40) {
           marker = 41;
@@ -11283,7 +6235,7 @@ var require_assets = __commonJS({
         code2 = str2.charCodeAt(pos2);
         if (code2 === state.marker) {
           state.pos = pos2 + 1;
-          state.str += unescapeAll(str2.slice(start2, pos2));
+          state.str += unescapeAll(str2.slice(start, pos2));
           state.ok = true;
           return state;
         } else if (code2 === 40 && state.marker === 41) {
@@ -11294,7 +6246,7 @@ var require_assets = __commonJS({
         pos2++;
       }
       state.can_continue = true;
-      state.str += unescapeAll(str2.slice(start2, pos2));
+      state.str += unescapeAll(str2.slice(start, pos2));
       return state;
     }
     const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -11947,12 +6899,12 @@ var require_assets = __commonJS({
             }
             if (canClose) {
               for (j2 = stack2.length - 1; j2 >= 0; j2--) {
-                let item = stack2[j2];
+                let item2 = stack2[j2];
                 if (stack2[j2].level < thisLevel) {
                   break;
                 }
-                if (item.single === isSingle && stack2[j2].level === thisLevel) {
-                  item = stack2[j2];
+                if (item2.single === isSingle && stack2[j2].level === thisLevel) {
+                  item2 = stack2[j2];
                   let openQuote;
                   let closeQuote;
                   if (isSingle) {
@@ -11963,13 +6915,13 @@ var require_assets = __commonJS({
                     closeQuote = state.md.options.quotes[1];
                   }
                   token2.content = replaceAt(token2.content, t2.index, closeQuote);
-                  tokens[item.token].content = replaceAt(
-                    tokens[item.token].content,
-                    item.pos,
+                  tokens[item2.token].content = replaceAt(
+                    tokens[item2.token].content,
+                    item2.pos,
                     openQuote
                   );
                   pos2 += closeQuote.length - 1;
-                  if (item.token === i2) {
+                  if (item2.token === i2) {
                     pos2 += openQuote.length - 1;
                   }
                   text2 = token2.content;
@@ -12074,15 +7026,15 @@ var require_assets = __commonJS({
       this.parentType = "root";
       this.level = 0;
       const s2 = this.src;
-      for (let start2 = 0, pos2 = 0, indent = 0, offset2 = 0, len = s2.length, indent_found = false; pos2 < len; pos2++) {
+      for (let start = 0, pos2 = 0, indent = 0, offset = 0, len = s2.length, indent_found = false; pos2 < len; pos2++) {
         const ch3 = s2.charCodeAt(pos2);
         if (!indent_found) {
           if (isSpace(ch3)) {
             indent++;
             if (ch3 === 9) {
-              offset2 += 4 - offset2 % 4;
+              offset += 4 - offset % 4;
             } else {
-              offset2++;
+              offset++;
             }
             continue;
           } else {
@@ -12093,15 +7045,15 @@ var require_assets = __commonJS({
           if (ch3 !== 10) {
             pos2++;
           }
-          this.bMarks.push(start2);
+          this.bMarks.push(start);
           this.eMarks.push(pos2);
           this.tShift.push(indent);
-          this.sCount.push(offset2);
+          this.sCount.push(offset);
           this.bsCount.push(0);
           indent_found = false;
           indent = 0;
-          offset2 = 0;
-          start2 = pos2 + 1;
+          offset = 0;
+          start = pos2 + 1;
         }
       }
       this.bMarks.push(s2.length);
@@ -12170,17 +7122,17 @@ var require_assets = __commonJS({
       }
       return pos2;
     };
-    StateBlock.prototype.getLines = function getLines(begin, end2, indent, keepLastLF) {
-      if (begin >= end2) {
+    StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
+      if (begin >= end) {
         return "";
       }
-      const queue = new Array(end2 - begin);
-      for (let i2 = 0, line2 = begin; line2 < end2; line2++, i2++) {
+      const queue = new Array(end - begin);
+      for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
         let lineIndent = 0;
         const lineStart = this.bMarks[line2];
         let first = lineStart;
         let last;
-        if (line2 + 1 < end2 || keepLastLF) {
+        if (line2 + 1 < end || keepLastLF) {
           last = this.eMarks[line2] + 1;
         } else {
           last = this.eMarks[line2];
@@ -12441,9 +7393,9 @@ var require_assets = __commonJS({
         return false;
       }
       const markup = state.src.slice(mem, pos2);
-      const params = state.src.slice(pos2, max2);
+      const params2 = state.src.slice(pos2, max2);
       if (marker === 96) {
-        if (params.indexOf(String.fromCharCode(marker)) >= 0) {
+        if (params2.indexOf(String.fromCharCode(marker)) >= 0) {
           return false;
         }
       }
@@ -12482,7 +7434,7 @@ var require_assets = __commonJS({
       len = state.sCount[startLine];
       state.line = nextLine + (haveEndMarker ? 1 : 0);
       const token2 = state.push("fence", "code", 0);
-      token2.info = params;
+      token2.info = params2;
       token2.content = state.getLines(startLine + 1, nextLine, len, true);
       token2.markup = markup;
       token2.map = [startLine, state.line];
@@ -12538,16 +7490,16 @@ var require_assets = __commonJS({
           } else {
             spaceAfterMarker = false;
           }
-          let offset2 = initial;
+          let offset = initial;
           oldBMarks.push(state.bMarks[nextLine]);
           state.bMarks[nextLine] = pos2;
           while (pos2 < max2) {
             const ch3 = state.src.charCodeAt(pos2);
             if (isSpace(ch3)) {
               if (ch3 === 9) {
-                offset2 += 4 - (offset2 + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+                offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
               } else {
-                offset2++;
+                offset++;
               }
             } else {
               break;
@@ -12558,7 +7510,7 @@ var require_assets = __commonJS({
           oldBSCount.push(state.bsCount[nextLine]);
           state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
           oldSCount.push(state.sCount[nextLine]);
-          state.sCount[nextLine] = offset2 - initial;
+          state.sCount[nextLine] = offset - initial;
           oldTShift.push(state.tShift[nextLine]);
           state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
           continue;
@@ -12659,9 +7611,9 @@ var require_assets = __commonJS({
       return pos2;
     }
     function skipOrderedListMarker(state, startLine) {
-      const start2 = state.bMarks[startLine] + state.tShift[startLine];
+      const start = state.bMarks[startLine] + state.tShift[startLine];
       const max2 = state.eMarks[startLine];
-      let pos2 = start2;
+      let pos2 = start;
       if (pos2 + 1 >= max2) {
         return -1;
       }
@@ -12675,7 +7627,7 @@ var require_assets = __commonJS({
         }
         ch3 = state.src.charCodeAt(pos2++);
         if (ch3 >= 48 && ch3 <= 57) {
-          if (pos2 - start2 >= 10) {
+          if (pos2 - start >= 10) {
             return -1;
           }
           continue;
@@ -12703,8 +7655,8 @@ var require_assets = __commonJS({
         }
       }
     }
-    function list(state, startLine, endLine, silent) {
-      let max2, pos2, start2, token2;
+    function list$1(state, startLine, endLine, silent) {
+      let max2, pos2, start, token2;
       let nextLine = startLine;
       let tight = true;
       if (state.sCount[nextLine] - state.blkIndent >= 4) {
@@ -12724,8 +7676,8 @@ var require_assets = __commonJS({
       let posAfterMarker;
       if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
         isOrdered = true;
-        start2 = state.bMarks[nextLine] + state.tShift[nextLine];
-        markerValue = Number(state.src.slice(start2, posAfterMarker - 1));
+        start = state.bMarks[nextLine] + state.tShift[nextLine];
+        markerValue = Number(state.src.slice(start, posAfterMarker - 1));
         if (isTerminatingParagraph && markerValue !== 1) return false;
       } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
         isOrdered = false;
@@ -12759,13 +7711,13 @@ var require_assets = __commonJS({
         pos2 = posAfterMarker;
         max2 = state.eMarks[nextLine];
         const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
-        let offset2 = initial;
+        let offset = initial;
         while (pos2 < max2) {
           const ch3 = state.src.charCodeAt(pos2);
           if (ch3 === 9) {
-            offset2 += 4 - (offset2 + state.bsCount[nextLine]) % 4;
+            offset += 4 - (offset + state.bsCount[nextLine]) % 4;
           } else if (ch3 === 32) {
-            offset2++;
+            offset++;
           } else {
             break;
           }
@@ -12776,7 +7728,7 @@ var require_assets = __commonJS({
         if (contentStart >= max2) {
           indentAfterMarker = 1;
         } else {
-          indentAfterMarker = offset2 - initial;
+          indentAfterMarker = offset - initial;
         }
         if (indentAfterMarker > 4) {
           indentAfterMarker = 1;
@@ -12787,7 +7739,7 @@ var require_assets = __commonJS({
         const itemLines = [nextLine, 0];
         token2.map = itemLines;
         if (isOrdered) {
-          token2.info = state.src.slice(start2, posAfterMarker - 1);
+          token2.info = state.src.slice(start, posAfterMarker - 1);
         }
         const oldTight = state.tight;
         const oldTShift = state.tShift[nextLine];
@@ -12797,7 +7749,7 @@ var require_assets = __commonJS({
         state.blkIndent = indent;
         state.tight = true;
         state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
-        state.sCount[nextLine] = offset2;
+        state.sCount[nextLine] = offset;
         if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
           state.line = Math.min(state.line + 2, endLine);
         } else {
@@ -12840,7 +7792,7 @@ var require_assets = __commonJS({
           if (posAfterMarker < 0) {
             break;
           }
-          start2 = state.bMarks[nextLine] + state.tShift[nextLine];
+          start = state.bMarks[nextLine] + state.tShift[nextLine];
         } else {
           posAfterMarker = skipBulletListMarker(state, nextLine);
           if (posAfterMarker < 0) {
@@ -12964,7 +7916,7 @@ var require_assets = __commonJS({
       pos2 = destRes.pos;
       const destEndPos = pos2;
       const destEndLineNo = nextLine;
-      const start2 = pos2;
+      const start = pos2;
       for (; pos2 < max2; pos2++) {
         const ch3 = str2.charCodeAt(pos2);
         if (ch3 === 10) {
@@ -12989,12 +7941,12 @@ var require_assets = __commonJS({
         nextLine++;
         titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2, titleRes);
       }
-      let title;
-      if (pos2 < max2 && start2 !== pos2 && titleRes.ok) {
-        title = titleRes.str;
+      let title2;
+      if (pos2 < max2 && start !== pos2 && titleRes.ok) {
+        title2 = titleRes.str;
         pos2 = titleRes.pos;
       } else {
-        title = "";
+        title2 = "";
         pos2 = destEndPos;
         nextLine = destEndLineNo;
       }
@@ -13006,8 +7958,8 @@ var require_assets = __commonJS({
         pos2++;
       }
       if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
-        if (title) {
-          title = "";
+        if (title2) {
+          title2 = "";
           pos2 = destEndPos;
           nextLine = destEndLineNo;
           while (pos2 < max2) {
@@ -13033,7 +7985,7 @@ var require_assets = __commonJS({
         state.env.references = {};
       }
       if (typeof state.env.references[label] === "undefined") {
-        state.env.references[label] = { title, href };
+        state.env.references[label] = { title: title2, href };
       }
       state.line = nextLine;
       return true;
@@ -13315,7 +8267,7 @@ var require_assets = __commonJS({
       ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
       ["hr", hr, ["paragraph", "reference", "blockquote", "list"]],
-      ["list", list, ["paragraph", "reference", "blockquote"]],
+      ["list", list$1, ["paragraph", "reference", "blockquote"]],
       ["reference", reference],
       ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
       ["heading", heading$1, ["paragraph", "reference", "blockquote"]],
@@ -13426,15 +8378,15 @@ var require_assets = __commonJS({
       this.tokens_meta.push(token_meta);
       return token2;
     };
-    StateInline.prototype.scanDelims = function(start2, canSplitWord) {
+    StateInline.prototype.scanDelims = function(start, canSplitWord) {
       const max2 = this.posMax;
-      const marker = this.src.charCodeAt(start2);
-      const lastChar = start2 > 0 ? this.src.charCodeAt(start2 - 1) : 32;
-      let pos2 = start2;
+      const marker = this.src.charCodeAt(start);
+      const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
+      let pos2 = start;
       while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
         pos2++;
       }
-      const count = pos2 - start2;
+      const count = pos2 - start;
       const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
       const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
       const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
@@ -13610,15 +8562,15 @@ var require_assets = __commonJS({
       if (ch3 !== 96) {
         return false;
       }
-      const start2 = pos2;
+      const start = pos2;
       pos2++;
       const max2 = state.posMax;
       while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
         pos2++;
       }
-      const marker = state.src.slice(start2, pos2);
+      const marker = state.src.slice(start, pos2);
       const openerLength = marker.length;
-      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start2) {
+      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
         if (!silent) state.pending += marker;
         state.pos += openerLength;
         return true;
@@ -13648,8 +8600,8 @@ var require_assets = __commonJS({
       return true;
     }
     function strikethrough_tokenize(state, silent) {
-      const start2 = state.pos;
-      const marker = state.src.charCodeAt(start2);
+      const start = state.pos;
+      const marker = state.src.charCodeAt(start);
       if (silent) {
         return false;
       }
@@ -13742,8 +8694,8 @@ var require_assets = __commonJS({
       postProcess: strikethrough_postProcess
     };
     function emphasis_tokenize(state, silent) {
-      const start2 = state.pos;
-      const marker = state.src.charCodeAt(start2);
+      const start = state.pos;
+      const marker = state.src.charCodeAt(start);
       if (silent) {
         return false;
       }
@@ -13829,8 +8781,8 @@ var require_assets = __commonJS({
     function link(state, silent) {
       let code2, label, res, ref;
       let href = "";
-      let title = "";
-      let start2 = state.pos;
+      let title2 = "";
+      let start = state.pos;
       let parseReference = true;
       if (state.src.charCodeAt(state.pos) !== 91) {
         return false;
@@ -13855,7 +8807,7 @@ var require_assets = __commonJS({
         if (pos2 >= max2) {
           return false;
         }
-        start2 = pos2;
+        start = pos2;
         res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
         if (res.ok) {
           href = state.md.normalizeLink(res.str);
@@ -13864,7 +8816,7 @@ var require_assets = __commonJS({
           } else {
             href = "";
           }
-          start2 = pos2;
+          start = pos2;
           for (; pos2 < max2; pos2++) {
             code2 = state.src.charCodeAt(pos2);
             if (!isSpace(code2) && code2 !== 10) {
@@ -13872,8 +8824,8 @@ var require_assets = __commonJS({
             }
           }
           res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-          if (pos2 < max2 && start2 !== pos2 && res.ok) {
-            title = res.str;
+          if (pos2 < max2 && start !== pos2 && res.ok) {
+            title2 = res.str;
             pos2 = res.pos;
             for (; pos2 < max2; pos2++) {
               code2 = state.src.charCodeAt(pos2);
@@ -13893,10 +8845,10 @@ var require_assets = __commonJS({
           return false;
         }
         if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start2 = pos2 + 1;
+          start = pos2 + 1;
           pos2 = state.md.helpers.parseLinkLabel(state, pos2);
           if (pos2 >= 0) {
-            label = state.src.slice(start2, pos2++);
+            label = state.src.slice(start, pos2++);
           } else {
             pos2 = labelEnd + 1;
           }
@@ -13912,7 +8864,7 @@ var require_assets = __commonJS({
           return false;
         }
         href = ref.href;
-        title = ref.title;
+        title2 = ref.title;
       }
       if (!silent) {
         state.pos = labelStart;
@@ -13920,8 +8872,8 @@ var require_assets = __commonJS({
         const token_o = state.push("link_open", "a", 1);
         const attrs = [["href", href]];
         token_o.attrs = attrs;
-        if (title) {
-          attrs.push(["title", title]);
+        if (title2) {
+          attrs.push(["title", title2]);
         }
         state.linkLevel++;
         state.md.inline.tokenize(state);
@@ -13933,7 +8885,7 @@ var require_assets = __commonJS({
       return true;
     }
     function image(state, silent) {
-      let code2, content2, label, pos2, ref, res, title, start2;
+      let code2, content2, label, pos2, ref, res, title2, start;
       let href = "";
       const oldPos = state.pos;
       const max2 = state.posMax;
@@ -13960,7 +8912,7 @@ var require_assets = __commonJS({
         if (pos2 >= max2) {
           return false;
         }
-        start2 = pos2;
+        start = pos2;
         res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
         if (res.ok) {
           href = state.md.normalizeLink(res.str);
@@ -13970,7 +8922,7 @@ var require_assets = __commonJS({
             href = "";
           }
         }
-        start2 = pos2;
+        start = pos2;
         for (; pos2 < max2; pos2++) {
           code2 = state.src.charCodeAt(pos2);
           if (!isSpace(code2) && code2 !== 10) {
@@ -13978,8 +8930,8 @@ var require_assets = __commonJS({
           }
         }
         res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-        if (pos2 < max2 && start2 !== pos2 && res.ok) {
-          title = res.str;
+        if (pos2 < max2 && start !== pos2 && res.ok) {
+          title2 = res.str;
           pos2 = res.pos;
           for (; pos2 < max2; pos2++) {
             code2 = state.src.charCodeAt(pos2);
@@ -13988,7 +8940,7 @@ var require_assets = __commonJS({
             }
           }
         } else {
-          title = "";
+          title2 = "";
         }
         if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
           state.pos = oldPos;
@@ -14000,10 +8952,10 @@ var require_assets = __commonJS({
           return false;
         }
         if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start2 = pos2 + 1;
+          start = pos2 + 1;
           pos2 = state.md.helpers.parseLinkLabel(state, pos2);
           if (pos2 >= 0) {
-            label = state.src.slice(start2, pos2++);
+            label = state.src.slice(start, pos2++);
           } else {
             pos2 = labelEnd + 1;
           }
@@ -14019,7 +8971,7 @@ var require_assets = __commonJS({
           return false;
         }
         href = ref.href;
-        title = ref.title;
+        title2 = ref.title;
       }
       if (!silent) {
         content2 = state.src.slice(labelStart, labelEnd);
@@ -14035,8 +8987,8 @@ var require_assets = __commonJS({
         token2.attrs = attrs;
         token2.children = tokens;
         token2.content = content2;
-        if (title) {
-          attrs.push(["title", title]);
+        if (title2) {
+          attrs.push(["title", title2]);
         }
       }
       state.pos = pos2;
@@ -14050,7 +9002,7 @@ var require_assets = __commonJS({
       if (state.src.charCodeAt(pos2) !== 60) {
         return false;
       }
-      const start2 = state.pos;
+      const start = state.pos;
       const max2 = state.posMax;
       for (; ; ) {
         if (++pos2 >= max2) return false;
@@ -14058,7 +9010,7 @@ var require_assets = __commonJS({
         if (ch3 === 60) return false;
         if (ch3 === 62) break;
       }
-      const url = state.src.slice(start2 + 1, pos2);
+      const url = state.src.slice(start + 1, pos2);
       if (AUTOLINK_RE.test(url)) {
         const fullUrl = state.md.normalizeLink(url);
         if (!state.md.validateLink(fullUrl)) {
@@ -14324,9 +9276,9 @@ var require_assets = __commonJS({
     ParserInline.prototype.tokenize = function(state) {
       const rules = this.ruler.getRules("");
       const len = rules.length;
-      const end2 = state.posMax;
+      const end = state.posMax;
       const maxNesting = state.md.options.maxNesting;
-      while (state.pos < end2) {
+      while (state.pos < end) {
         const prevPos = state.pos;
         let ok = false;
         if (state.level < maxNesting) {
@@ -14341,7 +9293,7 @@ var require_assets = __commonJS({
           }
         }
         if (ok) {
-          if (state.pos >= end2) {
+          if (state.pos >= end) {
             break;
           }
           continue;
@@ -14591,12 +9543,12 @@ var require_assets = __commonJS({
       resetScanCache(self2);
     }
     function Match$1(self2, shift2) {
-      const start2 = self2.__index__;
-      const end2 = self2.__last_index__;
-      const text2 = self2.__text_cache__.slice(start2, end2);
+      const start = self2.__index__;
+      const end = self2.__last_index__;
+      const text2 = self2.__text_cache__.slice(start, end);
       this.schema = self2.__schema__.toLowerCase();
-      this.index = start2 + shift2;
-      this.lastIndex = end2 + shift2;
+      this.index = start + shift2;
+      this.lastIndex = end + shift2;
       this.raw = text2;
       this.text = text2;
       this.url = text2;
@@ -14772,7 +9724,7 @@ var require_assets = __commonJS({
     const baseMinusTMin = base$1 - tMin;
     const floor = Math.floor;
     const stringFromCharCode = String.fromCharCode;
-    function error(type) {
+    function error$1(type) {
       throw new RangeError(errors[type]);
     }
     function map(array, callback) {
@@ -14852,7 +9804,7 @@ var require_assets = __commonJS({
       }
       for (let j2 = 0; j2 < basic; ++j2) {
         if (input.charCodeAt(j2) >= 128) {
-          error("not-basic");
+          error$1("not-basic");
         }
         output.push(input.charCodeAt(j2));
       }
@@ -14860,14 +9812,14 @@ var require_assets = __commonJS({
         const oldi = i2;
         for (let w2 = 1, k2 = base$1; ; k2 += base$1) {
           if (index >= inputLength) {
-            error("invalid-input");
+            error$1("invalid-input");
           }
           const digit = basicToDigit(input.charCodeAt(index++));
           if (digit >= base$1) {
-            error("invalid-input");
+            error$1("invalid-input");
           }
           if (digit > floor((maxInt - i2) / w2)) {
-            error("overflow");
+            error$1("overflow");
           }
           i2 += digit * w2;
           const t2 = k2 <= bias ? tMin : k2 >= bias + tMax ? tMax : k2 - bias;
@@ -14876,14 +9828,14 @@ var require_assets = __commonJS({
           }
           const baseMinusT = base$1 - t2;
           if (w2 > floor(maxInt / baseMinusT)) {
-            error("overflow");
+            error$1("overflow");
           }
           w2 *= baseMinusT;
         }
         const out = output.length + 1;
         bias = adapt(i2 - oldi, out, oldi == 0);
         if (floor(i2 / out) > maxInt - n2) {
-          error("overflow");
+          error$1("overflow");
         }
         n2 += floor(i2 / out);
         i2 %= out;
@@ -14917,13 +9869,13 @@ var require_assets = __commonJS({
         }
         const handledCPCountPlusOne = handledCPCount + 1;
         if (m2 - n2 > floor((maxInt - delta) / handledCPCountPlusOne)) {
-          error("overflow");
+          error$1("overflow");
         }
         delta += (m2 - n2) * handledCPCountPlusOne;
         n2 = m2;
         for (const currentValue of input) {
           if (currentValue < n2 && ++delta > maxInt) {
-            error("overflow");
+            error$1("overflow");
           }
           if (currentValue === n2) {
             let q2 = delta;
@@ -15807,7 +10759,7 @@ var require_assets = __commonJS({
         }
         return false;
       }
-      const collapse = Array.isArray(output) ? output.every((item) => !isContentImage(item)) : !isContentImage(output);
+      const collapse = Array.isArray(output) ? output.every((item2) => !isContentImage(item2)) : !isContentImage(output);
       return m$1`<div>
     ${mode !== "compact" && (!view || view.title) ? m$1`<${ToolTitle} title=${(view == null ? void 0 : view.title) || functionCall} />` : ""}
     <div>
@@ -15826,7 +10778,7 @@ var require_assets = __commonJS({
     </div>
   </div>`;
     };
-    const ToolTitle = ({ title }) => {
+    const ToolTitle = ({ title: title2 }) => {
       return m$1` <i
       class="bi bi-tools"
       style=${{
@@ -15834,7 +10786,7 @@ var require_assets = __commonJS({
         opacity: "0.4"
       }}
     ></i>
-    <code style=${{ fontSize: FontSize.small }}>${title}</code>`;
+    <code style=${{ fontSize: FontSize.small }}>${title2}</code>`;
     };
     const normalizeContent$1 = (output) => {
       if (Array.isArray(output)) {
@@ -16126,7 +11078,7 @@ var require_assets = __commonJS({
         ...props
       }, ref) => {
         const [height, setHeight] = h(0);
-        const [offset2, setOffset] = h(0);
+        const [offset, setOffset] = h(0);
         const [listMetrics, setListMetrics] = h({
           rowHeights: /* @__PURE__ */ new Map(),
           totalHeight: data.length * estimatedRowHeight
@@ -16160,8 +11112,8 @@ var require_assets = __commonJS({
               const rowTop = rowPositions.get(index) || 0;
               const rowHeight = getRowHeight(index);
               const rowBottom = rowTop + rowHeight;
-              const isVisible2 = rowTop >= currentScrollTop && rowBottom <= currentScrollTop + viewportHeight;
-              if (isVisible2) {
+              const isVisible = rowTop >= currentScrollTop && rowBottom <= currentScrollTop + viewportHeight;
+              if (isVisible) {
                 return;
               }
               let newScrollTop;
@@ -16251,14 +11203,14 @@ var require_assets = __commonJS({
           }
           return lastValid;
         };
-        const firstVisibleIdx = findRowAtOffset(offset2);
-        const lastVisibleIdx = findRowAtOffset(offset2 + height);
-        const start2 = Math.max(0, firstVisibleIdx - overscanCount);
-        const end2 = Math.min(data.length, lastVisibleIdx + overscanCount);
+        const firstVisibleIdx = findRowAtOffset(offset);
+        const lastVisibleIdx = findRowAtOffset(offset + height);
+        const start = Math.max(0, firstVisibleIdx - overscanCount);
+        const end = Math.min(data.length, lastVisibleIdx + overscanCount);
         const renderedRows = T$1(() => {
-          const selection = data.slice(start2, end2);
-          return selection.map((item, index) => {
-            const actualIndex = start2 + index;
+          const selection = data.slice(start, end);
+          return selection.map((item2, index) => {
+            const actualIndex = start + index;
             return m$1`
           <div
             key=${`list-item-${actualIndex}`}
@@ -16270,11 +11222,11 @@ var require_assets = __commonJS({
               }
             }}
           >
-            ${renderRow(item, actualIndex)}
+            ${renderRow(item2, actualIndex)}
           </div>
         `;
           });
-        }, [data, start2, end2, renderRow]);
+        }, [data, start, end, renderRow]);
         const style_inner = {
           position: "relative",
           overflow: (scrollRef == null ? void 0 : scrollRef.current) ? "visible" : "hidden",
@@ -16289,7 +11241,7 @@ var require_assets = __commonJS({
           width: "100%",
           overflow: "visible"
         };
-        const top2 = rowPositions.get(start2) || 0;
+        const top2 = rowPositions.get(start) || 0;
         const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
         return m$1`
       <div ref=${baseRef} ...${props} ...${scrollProps}>
@@ -16317,12 +11269,12 @@ var require_assets = __commonJS({
       scrollRef
     }) => {
       const collapsedMessages = resolveMessages(messages);
-      const renderRow = (item, index) => {
+      const renderRow = (item2, index) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return m$1`<${ChatMessageRow}
       id=${id}
       number=${number2}
-      resolvedMessage=${item}
+      resolvedMessage=${item2}
       indented=${indented}
       toolCallStyle=${toolCallStyle}
     />`;
@@ -16599,7 +11551,7 @@ var require_assets = __commonJS({
     const hidden = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$7 = {
+    const styles$d = {
       visible,
       hidden,
       pills,
@@ -16614,9 +11566,9 @@ var require_assets = __commonJS({
       const [activeItem, setActiveItem] = h(children2[0].props["title"]);
       const navPills = children2.map((nav2, idx) => {
         var _a2;
-        const title = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+        const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
         return /* @__PURE__ */ u(NavPill, {
-          title,
+          title: title2,
           activeItem,
           setActiveItem
         });
@@ -16624,13 +11576,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$7.visible : styles$7.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$d.visible : styles$d.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$7.pills),
+          className: clsx("nav", "nav-pills", styles$d.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -16638,23 +11590,23 @@ var require_assets = __commonJS({
       });
     };
     const NavPill = ({
-      title,
+      title: title2,
       activeItem,
       setActiveItem,
       children: children2
     }) => {
-      const active = activeItem === title;
+      const active2 = activeItem === title2;
       return /* @__PURE__ */ u("li", {
         class: "nav-item",
         children: [/* @__PURE__ */ u("button", {
           type: "button",
           role: "tab",
-          "aria-selected": active,
-          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$7.pill),
+          "aria-selected": active2,
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$d.pill),
           onClick: () => {
-            setActiveItem(title);
+            setActiveItem(title2);
           },
-          children: title
+          children: title2
         }), "$", children2]
       });
     };
@@ -16665,17 +11617,17 @@ var require_assets = __commonJS({
     };
     const ChatMessageRenderer = {
       bucket: Buckets.first,
-      canRender: (entry) => {
+      canRender: (entry2) => {
         var _a2, _b2;
-        const val = entry.value;
+        const val = entry2.value;
         return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
       },
-      render: (id, entry) => {
+      render: (id, entry2) => {
         return {
           rendered: m$1`
         <${NavPills}>
-        <${ChatSummary} title="Last Turn" id=${id} messages=${entry.value} />
-        <${ChatView} title="All" id=${id} messages=${entry.value} />
+        <${ChatSummary} title="Last Turn" id=${id} messages=${entry2.value} />
+        <${ChatView} title="All" id=${id} messages=${entry2.value} />
         </${NavPills}>
         `
         };
@@ -16691,8 +11643,8 @@ var require_assets = __commonJS({
       }
       return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
     };
-    const RenderedContent = ({ id, entry }) => {
-      if (entry.value === null) {
+    const RenderedContent = ({ id, entry: entry2 }) => {
+      if (entry2.value === null) {
         return "[null]";
       }
       const renderer = Object.keys(contentRenderers).map((key2) => {
@@ -16700,11 +11652,11 @@ var require_assets = __commonJS({
       }).sort((a2, b2) => {
         return a2.bucket - b2.bucket;
       }).find((renderer2) => {
-        return renderer2.canRender(entry);
+        return renderer2.canRender(entry2);
       });
-      let value = entry.value;
+      let value = entry2.value;
       if (renderer) {
-        const { rendered } = renderer.render(id, entry);
+        const { rendered } = renderer.render(id, entry2);
         if (rendered !== void 0) {
           value = rendered;
         }
@@ -16714,53 +11666,53 @@ var require_assets = __commonJS({
     const contentRenderers = {
       AnsiString: {
         bucket: Buckets.first,
-        canRender: (entry) => {
-          return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
+        canRender: (entry2) => {
+          return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
         },
-        render: (id, entry) => {
+        render: (id, entry2) => {
           return {
-            rendered: m$1`<${ANSIDisplay} output=${entry.value} />`
+            rendered: m$1`<${ANSIDisplay} output=${entry2.value} />`
           };
         }
       },
       Model: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "object" && entry.value._model;
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.value._model;
         },
-        render: (_id, entry) => {
+        render: (_id, entry2) => {
           return {
-            rendered: m$1`<i class="${ApplicationIcons.model}"></i> ${entry.value._model}`
+            rendered: m$1`<i class="${ApplicationIcons.model}"></i> ${entry2.value._model}`
           };
         }
       },
       Boolean: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "boolean";
+        canRender: (entry2) => {
+          return typeof entry2.value === "boolean";
         },
-        render: (id, entry) => {
-          entry.value = entry.value.toString();
-          return contentRenderers.String.render(id, entry);
+        render: (id, entry2) => {
+          entry2.value = entry2.value.toString();
+          return contentRenderers.String.render(id, entry2);
         }
       },
       Number: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "number";
+        canRender: (entry2) => {
+          return typeof entry2.value === "number";
         },
-        render: (id, entry) => {
-          entry.value = formatNumber(entry.value);
-          return contentRenderers.String.render(id, entry);
+        render: (id, entry2) => {
+          entry2.value = formatNumber(entry2.value);
+          return contentRenderers.String.render(id, entry2);
         }
       },
       String: {
         bucket: Buckets.final,
-        canRender: (entry) => {
-          return typeof entry.value === "string";
+        canRender: (entry2) => {
+          return typeof entry2.value === "string";
         },
-        render: (_id, entry, defaultRendering) => {
-          const rendered = defaultRendering ? defaultRendering(entry.value.trim()) : entry.value.trim();
+        render: (_id, entry2, defaultRendering) => {
+          const rendered = defaultRendering ? defaultRendering(entry2.value.trim()) : entry2.value.trim();
           return {
             rendered
           };
@@ -16768,12 +11720,12 @@ var require_assets = __commonJS({
       },
       Array: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          const isArray = Array.isArray(entry.value);
+        canRender: (entry2) => {
+          const isArray = Array.isArray(entry2.value);
           if (isArray) {
             const types2 = new Set(
-              entry.value.map((entry2) => {
-                return typeof entry2;
+              entry2.value.map((entry3) => {
+                return typeof entry3;
               })
             );
             return types2.size === 1;
@@ -16781,10 +11733,10 @@ var require_assets = __commonJS({
             return false;
           }
         },
-        render: (id, entry) => {
+        render: (id, entry2) => {
           const arrayMap = {};
-          entry.value.forEach((entry2, index) => {
-            arrayMap[`[${index}]`] = entry2;
+          entry2.value.forEach((entry3, index) => {
+            arrayMap[`[${index}]`] = entry3;
           });
           const arrayRendered = m$1`<${MetaDataView}
         id=${id}
@@ -16799,17 +11751,17 @@ var require_assets = __commonJS({
       ChatMessage: ChatMessageRenderer,
       web_search: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "object" && entry.name === "web_search";
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.name === "web_search";
         },
-        render: (_id, entry) => {
+        render: (_id, entry2) => {
           const results = [];
           results.push(
             m$1`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
-          <i class=${ApplicationIcons.search}></i> ${entry.value.query}
+          <i class=${ApplicationIcons.search}></i> ${entry2.value.query}
         </div>`
           );
-          entry.value.results.forEach((result) => {
+          entry2.value.results.forEach((result) => {
             results.push(
               m$1`<div>
             <a href="${result.url}">${result.url}</a>
@@ -16830,48 +11782,48 @@ var require_assets = __commonJS({
       },
       web_browser: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
+        canRender: (entry2) => {
           var _a2;
-          return typeof entry.value === "string" && ((_a2 = entry.name) == null ? void 0 : _a2.startsWith("web_browser"));
+          return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
         },
-        render: (_id, entry) => {
+        render: (_id, entry2) => {
           return {
             rendered: m$1`<pre style=${{ whiteSpace: "pre-wrap" }}>
-${entry.value}</pre
+${entry2.value}</pre
         >`
           };
         }
       },
       Html: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "object" && entry.value._html;
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.value._html;
         },
-        render: (id, entry) => {
+        render: (id, entry2) => {
           return {
-            rendered: entry.value._html
+            rendered: entry2.value._html
           };
         }
       },
       Image: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "string" && entry.value.startsWith("data:image/");
+        canRender: (entry2) => {
+          return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
         },
-        render: (id, entry) => {
+        render: (id, entry2) => {
           return {
-            rendered: m$1`<img src=${entry.value} />`
+            rendered: m$1`<img src=${entry2.value} />`
           };
         }
       },
       Object: {
         bucket: Buckets.intermediate,
-        canRender: (entry) => {
-          return typeof entry.value === "object";
+        canRender: (entry2) => {
+          return typeof entry2.value === "object";
         },
-        render: (id, entry) => {
+        render: (id, entry2) => {
           const summary = [];
-          const keys = Object.keys(entry.value);
+          const keys = Object.keys(entry2.value);
           if (keys.length > 4) {
             summary.push(...keys.slice(0, 2));
             summary.push("...");
@@ -16883,7 +11835,7 @@ ${entry.value}</pre
             rendered: m$1`<${MetaDataView}
           id=${id}
           style=${{ fontSize: FontSize.smaller }}
-          entries="${entry.value}"
+          entries="${entry2.value}"
           tableOptions="borderless,sm"
           compact
         />`
@@ -16907,7 +11859,7 @@ ${entry.value}</pre
       }
       return `${scoreLabel.scorer}.${scoreLabel.name}`;
     };
-    const createEvalDescriptor = (scores, samples, epochs) => {
+    const createEvalDescriptor = (scores2, samples, epochs) => {
       if (!samples) {
         return void 0;
       }
@@ -16952,7 +11904,7 @@ ${entry.value}</pre
         return void 0;
       };
       const scoreDescriptorMap = /* @__PURE__ */ new Map();
-      for (const scoreLabel of scores) {
+      for (const scoreLabel of scores2) {
         const uniqScoreValues = [
           ...new Set(
             samples.filter((sample) => !!sample.scores).filter((sample) => {
@@ -17020,7 +11972,7 @@ ${entry.value}</pre
             if (!myScoreDescriptor) {
               return [];
             }
-            const scoreNames = scores.map((score3) => {
+            const scoreNames = scores2.map((score3) => {
               return score3.name;
             });
             const sampleScorer = sample.scores[scoreLabel.scorer];
@@ -17030,7 +11982,7 @@ ${entry.value}</pre
               if (names.find((name2) => {
                 return scoreNames.includes(name2);
               })) {
-                const scores2 = names.map((name2) => {
+                const scores3 = names.map((name2) => {
                   return {
                     name: name2,
                     rendered: () => {
@@ -17038,7 +11990,7 @@ ${entry.value}</pre
                     }
                   };
                 });
-                return scores2;
+                return scores3;
               } else {
                 return [
                   {
@@ -17073,7 +12025,7 @@ ${entry.value}</pre
       return {
         epochs,
         samples,
-        scores,
+        scores: scores2,
         scorerDescriptor,
         scoreDescriptor,
         score: score2,
@@ -17274,7 +12226,7 @@ ${entry.value}</pre
                 if (score2 === null || score2 === void 0) {
                   return "[null]";
                 }
-                const scores = [];
+                const scores2 = [];
                 const keys = Object.keys(score2);
                 keys.forEach((key2, index) => {
                   const value = score2[key2];
@@ -17288,7 +12240,7 @@ ${entry.value}</pre
                   if (index + 1 < keys.length) {
                     style2["paddingBottom"] = "1em";
                   }
-                  scores.push(m$1`
+                  scores2.push(m$1`
                 <div style=${style2}>
                   <div style=${{ fontSize: FontSize.smaller, fontWeight: 300 }}>
                     ${key2}
@@ -17299,7 +12251,7 @@ ${entry.value}</pre
                 </div>
               `);
                 });
-                return scores;
+                return scores2;
               }
             };
           }
@@ -17381,7 +12333,7 @@ ${entry.value}</pre
           text: "Refusal"
         });
       }
-      const order2 = ["C", "P", "I", "N"];
+      const order = ["C", "P", "I", "N"];
       return {
         scoreType: kScoreTypePassFail,
         categories,
@@ -17423,7 +12375,7 @@ ${entry.value}</pre
           }
         },
         compare: (a2, b2) => {
-          const sort = order2.indexOf(a2.value) - order2.indexOf(b2.value);
+          const sort = order.indexOf(a2.value) - order.indexOf(b2.value);
           return sort;
         }
       };
@@ -19032,7 +13984,7 @@ ${entry.value}</pre
         defaultActions: {
           11: [2, 1]
         },
-        parseError: function parseError(str2, hash2) {
+        parseError: function parseError(str2, hash) {
           throw new Error(str2);
         },
         parse: function parse2(input) {
@@ -19190,9 +14142,9 @@ ${entry.value}</pre
       var lexer = function() {
         var lexer2 = {
           EOF: 1,
-          parseError: function parseError(str2, hash2) {
+          parseError: function parseError(str2, hash) {
             if (this.yy.parser) {
-              this.yy.parser.parseError(str2, hash2);
+              this.yy.parser.parseError(str2, hash);
             } else {
               throw new Error(str2);
             }
@@ -19843,13 +14795,13 @@ ${entry.value}</pre
       }
     };
     const isFilteringSupportedForValue = (value) => ["string", "number", "boolean"].includes(typeof value);
-    const bannedShortScoreNames = (scores) => {
+    const bannedShortScoreNames = (scores2) => {
       const used = /* @__PURE__ */ new Set();
       const banned = /* @__PURE__ */ new Set();
       for (const {
         scorer,
         name: name2
-      } of scores) {
+      } of scores2) {
         banned.add(scorer);
         if (used.has(name2)) {
           banned.add(name2);
@@ -20163,158 +15115,36 @@ categories: ${categories.join(" ")}`;
         order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
       };
     };
-    const Sidebar = ({
-      offcanvas,
-      logs,
-      loading,
-      logHeaders,
-      selectedIndex,
-      onSelectedIndexChanged
+    const dirname$1 = "_dirname_16ra5_1";
+    const styles$c = {
+      dirname: dirname$1
+    };
+    const LogDirectoryTitleView = ({
+      log_dir,
+      offcanvas
     }) => {
-      const btnOffCanClass = offcanvas ? "" : " d-md-none";
-      const sidebarOffCanClass = offcanvas ? " offcanvas" : " offcanvas-md";
-      return m$1`
-    <div
-      class="sidebar border-end offcanvas-start${sidebarOffCanClass}"
-      id="sidebarOffCanvas"
-      style=${{ display: "flex", flexDirection: "column", height: "100%" }}
-    >
-      <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) auto",
-        columnGap: "0.2rem",
-        alignItems: "center",
-        paddingLeft: "0.5rem",
-        opacity: "0.7",
-        position: "fixed",
-        width: "var(--sidebar-width)",
-        zIndex: 10,
-        borderBottom: "solid var(--bs-light-border-subtle) 1px",
-        paddingBottom: "0.5rem",
-        paddingTop: "0.5rem",
-        height: "3.6em"
-      }}
-      >
-        <${LogDirectoryTitle} log_dir=${logs.log_dir} offcanvas=${offcanvas} />
-        <button
-          id="sidebarToggle"
-          class="btn d-inline${btnOffCanClass}"
-          type="button"
-          data-bs-toggle="offcanvas"
-          data-bs-target="#sidebarOffCanvas"
-          aria-controls="sidebarOffCanvas"
-          style=${{
-        padding: ".1rem",
-        alignSelf: "end",
-        width: "40px",
-        flex: "0 0 content"
-      }}
-        >
-          <i class=${ApplicationIcons.close}></i>
-        </button>
-      </div>
-      <div style=${{ marginTop: "3.6em", zIndex: 3 }}>
-        <${ProgressBar} animating=${loading} style=${{ marginTop: "-2px" }} />
-      </div>
-      <ul
-        class="list-group"
-        style=${{ flexGrow: 1, overflowY: "auto", marginTop: "-3px" }}
-      >
-        ${logs.files.map((file, index) => {
-        var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
-        const active = index === selectedIndex ? " active" : "";
-        const logHeader = logHeaders[file.name];
-        const hyperparameters = logHeader ? {
-          ...(_a2 = logHeader.plan) == null ? void 0 : _a2.config,
-          ...(_b2 = logHeader.eval) == null ? void 0 : _b2.task_args
-        } : void 0;
-        const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
-        const dataset = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset;
-        const uniqScorers = /* @__PURE__ */ new Set();
-        (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer2) => {
-          uniqScorers.add(scorer2.name);
+      if (log_dir) {
+        const displayDir = prettyDir(log_dir);
+        return /* @__PURE__ */ u("div", {
+          style: {
+            display: "flex",
+            flexDirection: "column"
+          },
+          children: [/* @__PURE__ */ u("span", {
+            className: clsx("text-style-secondary", "text-style-label", "text-size-small"),
+            children: "Log Directory"
+          }), /* @__PURE__ */ u("span", {
+            title: displayDir,
+            className: clsx("text-size-base", styles$c.dirname),
+            children: offcanvas ? displayDir : ""
+          })]
         });
-        const scorer = Array.from(uniqScorers).join(",");
-        const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
-        const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
-        const time = completed ? new Date(completed) : void 0;
-        const timeStr = time ? `${time.toDateString()}
-          ${time.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit"
-        })}` : "";
-        return m$1`
-            <li
-              class="list-group-item list-group-item-action${active}"
-              onclick=${() => onSelectedIndexChanged(index)}
-            >
-              <div
-                style=${{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "space-between"
-        }}
-              >
-                <div style=${{ overflow: "hidden" }}>
-                  <div
-                    style=${{
-          fontSize: FontSize["title-secondary"],
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis"
-        }}
-                  >
-                    ${((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || file.task}
-                  </div>
-                  <small class="mb-1" style=${{ fontSize: FontSize.small }}>
-                    ${timeStr}
-                  </small>
-
-                  ${model ? m$1` <div>
-                        <small
-                          class="mb-1"
-                          style=${{ fontSize: FontSize.small }}
-                          >${model}</small
-                        >
-                      </div>` : ""}
-                </div>
-                <${EvalStatus} logHeader=${logHeader} />
-              </div>
-              <div
-                style=${{
-          marginTop: "1em",
-          ...ApplicationStyles.threeLineClamp
-        }}
-              >
-                <small class="mb-1">
-                  ${hyperparameters ? Object.keys(hyperparameters).map((key2) => {
-          const val = hyperparameters[key2];
-          if (Array.isArray(val) || typeof val === "object") {
-            return `${key2}: ${JSON.stringify(val)}`;
-          } else {
-            return `${key2}: ${val}`;
-          }
-        }).join(", ") : ""}
-                </small>
-              </div>
-              ${(dataset || scorer) && (logHeader == null ? void 0 : logHeader.status) === "success" ? m$1`<div
-                    style=${{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "0em",
-          fontSize: FontSize.small
-        }}
-                  >
-                    <span>dataset: ${dataset.name || "(samples)"}</span
-                    ><span>${scorerLabel}: ${scorer}</span>
-                  </div>` : ""}
-            </li>
-          `;
-      })}
-      </ul>
-    </div>
-  `;
+      } else {
+        return /* @__PURE__ */ u("span", {
+          className: clsx("text-size-title"),
+          children: offcanvas ? "Log History" : ""
+        });
+      }
     };
     const prettyDir = (path) => {
       try {
@@ -20328,214 +15158,309 @@ categories: ${categories.join(" ")}`;
         return path;
       }
     };
-    const EvalStatus = ({ logHeader }) => {
+    const sidebar = "_sidebar_1u82r_1";
+    const sidebarClosed = "_sidebarClosed_1u82r_15";
+    const sidebarOpen = "_sidebarOpen_1u82r_19";
+    const header = "_header_1u82r_23";
+    const toggle$1 = "_toggle_1u82r_39";
+    const progress = "_progress_1u82r_46";
+    const list = "_list_1u82r_50";
+    const backdrop = "_backdrop_1u82r_55";
+    const active = "_active_1u82r_62";
+    const item = "_item_1u82r_66";
+    const styles$b = {
+      sidebar,
+      sidebarClosed,
+      sidebarOpen,
+      header,
+      toggle: toggle$1,
+      progress,
+      list,
+      backdrop,
+      active,
+      item
+    };
+    const error = "_error_srruf_1";
+    const running = "_running_srruf_6";
+    const cancelled = "_cancelled_srruf_13";
+    const styles$a = {
+      error,
+      running,
+      cancelled
+    };
+    const container$3 = "_container_1frsg_1";
+    const metric = "_metric_1frsg_8";
+    const metricName$1 = "_metricName_1frsg_17";
+    const metricReducer$1 = "_metricReducer_1frsg_21";
+    const styles$9 = {
+      container: container$3,
+      metric,
+      metricName: metricName$1,
+      metricReducer: metricReducer$1
+    };
+    const SidebarScoreView = ({
+      scorer
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: styles$9.container,
+        children: Object.keys(scorer.metrics).map((metric2) => {
+          return /* @__PURE__ */ u("div", {
+            className: styles$9.metric,
+            children: [/* @__PURE__ */ u("div", {
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$9.metricName),
+              children: scorer.metrics[metric2].name
+            }), scorer.reducer ? /* @__PURE__ */ u("div", {
+              className: clsx("text-size-small", styles$9.metricReducer),
+              children: ["$", scorer.reducer]
+            }) : "", /* @__PURE__ */ u("div", {
+              className: "text-size-title-secondary",
+              children: formatPrettyDecimal(scorer.metrics[metric2].value)
+            })]
+          });
+        })
+      });
+    };
+    const container$2 = "_container_5kpg1_1";
+    const scoreWrapper = "_scoreWrapper_5kpg1_9";
+    const metricName = "_metricName_5kpg1_16";
+    const metricReducer = "_metricReducer_5kpg1_22";
+    const metricValues = "_metricValues_5kpg1_27";
+    const metricValue = "_metricValue_5kpg1_27";
+    const styles$8 = {
+      container: container$2,
+      scoreWrapper,
+      metricName,
+      metricReducer,
+      metricValues,
+      metricValue
+    };
+    const SidebarScoresView = ({
+      scores: scores2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: styles$8.container,
+        children: scores2.map((score2) => {
+          const name2 = score2.name;
+          const reducer = score2.reducer;
+          return /* @__PURE__ */ u("div", {
+            className: styles$8.scoreWrapper,
+            children: [/* @__PURE__ */ u("div", {
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$8.metricName),
+              children: name2
+            }), reducer ? /* @__PURE__ */ u("div", {
+              className: clsx("text-size-small", styles$8.metricReducer),
+              children: reducer
+            }) : "", /* @__PURE__ */ u("div", {
+              className: clsx("text-size-small", styles$8.metricValues),
+              children: Object.keys(score2.metrics).map((key2) => {
+                const metric2 = score2.metrics[key2];
+                return /* @__PURE__ */ u(xn.Fragment, {
+                  children: [/* @__PURE__ */ u("div", {
+                    className: clsx("text-style-secondary", "text-style-label"),
+                    children: metric2.name
+                  }), /* @__PURE__ */ u("div", {
+                    className: styles$8.metricValue,
+                    children: formatPrettyDecimal(metric2.value)
+                  })]
+                }, key2);
+              })
+            })]
+          });
+        })
+      });
+    };
+    const EvalStatus = ({
+      logHeader
+    }) => {
       var _a2, _b2;
       switch (logHeader == null ? void 0 : logHeader.status) {
         case "error":
-          return m$1`<${StatusError} message="Error" />`;
+          return /* @__PURE__ */ u(StatusError, {
+            message: "Error"
+          });
         case "cancelled":
-          return m$1`<${StatusCancelled} message="Cancelled" />`;
+          return /* @__PURE__ */ u(StatusCancelled, {
+            message: "Cancelled"
+          });
         case "started":
-          return m$1`<${StatusRunning} message="Running" />`;
+          return /* @__PURE__ */ u(StatusRunning, {
+            message: "Running"
+          });
         default:
           if (((_a2 = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _a2.scores) && ((_b2 = logHeader.results) == null ? void 0 : _b2.scores.length) > 0) {
             if (logHeader.results.scores.length === 1) {
-              return m$1`<${SidebarScore}
-            scorer=${logHeader.results.scores[0]}
-          />`;
+              return /* @__PURE__ */ u(SidebarScoreView, {
+                scorer: logHeader.results.scores[0]
+              });
             } else {
-              return m$1`<${SidebarScores} scores=${logHeader.results.scores} />`;
+              return /* @__PURE__ */ u(SidebarScoresView, {
+                scores: logHeader.results.scores
+              });
             }
           } else {
             return "";
           }
       }
     };
-    const SidebarScore = ({ scorer }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end"
-      }}
-  >
-    ${Object.keys(scorer.metrics).map((metric) => {
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          marginLeft: "1em",
-          marginBottom: "0.4em",
-          marginTop: "0.5rem"
-        }}
-        >
-          <div
-            style=${{
-          marginBottom: "-0.3em",
-          fontSize: FontSize.small,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${scorer.metrics[metric].name}
-          </div>
-          ${scorer.reducer ? m$1`<div
-                style=${{
-          fontSize: FontSize.small,
-          marginBottom: "-0.2rem"
-        }}
-              >
-                ${scorer.reducer}
-              </div>` : ""}
-          <div style=${{ fontSize: FontSize["title-secondary"] }}>
-            ${formatPrettyDecimal(scorer.metrics[metric].value)}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
+    const StatusCancelled = ({
+      message
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$a.cancelled),
+        children: message
+      });
     };
-    const SidebarScores = ({ scores }) => {
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "flex-end",
-        rowGap: "1em"
-      }}
-  >
-    ${scores.map((score2) => {
-        const name2 = score2.name;
-        const reducer = score2.reducer;
-        return m$1`
-        <div
-          style=${{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          marginLeft: "1em"
-        }}
-        >
-          <div
-            style=${{
-          fontSize: FontSize.base,
-          width: "100%",
-          fontWeight: 300,
-          borderBottom: "solid var(--bs-border-color) 1px",
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-          >
-            ${name2}
-          </div>
-          ${reducer ? m$1` <div
-                style=${{
-          fontSize: FontSize.smaller,
-          width: "100%",
-          fontWeight: 300
-        }}
-              >
-                ${reducer}
-              </div>` : ""}
-          <div
-            style=${{
-          fontSize: FontSize.smaller,
-          display: "grid",
-          gridTemplateColumns: "max-content max-content",
-          gridGap: "0 0.3rem"
-        }}
-          >
-            ${Object.keys(score2.metrics).map((key2) => {
-          const metric = score2.metrics[key2];
-          return m$1` <div
-                  style=${{ ...TextStyle.label, ...TextStyle.secondary }}
-                >
-                  ${metric.name}
-                </div>
-                <div style=${{ fontWeight: "600" }}>
-                  ${formatPrettyDecimal(metric.value)}
-                </div>`;
-        })}
-          </div>
-        </div>
-      `;
-      })}
-  </div>`;
+    const StatusRunning = ({
+      message
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$a.running),
+        children: /* @__PURE__ */ u("div", {
+          children: message
+        })
+      });
     };
-    const StatusCancelled = ({ message }) => {
-      return m$1`<div
-    style=${{
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-  >
-    ${message}
-  </div>`;
+    const StatusError = ({
+      message
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx(styles$a.error, "text-size-small"),
+        children: message
+      });
     };
-    const StatusRunning = ({ message }) => {
-      return m$1` <div
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content max-content",
-        columnGap: "0.5em",
-        marginTop: "0.3em",
-        fontSize: FontSize.small,
-        ...TextStyle.secondary,
-        ...TextStyle.label
-      }}
-  >
-    <div>${message}</div>
-  </div>`;
+    const entry = "_entry_12m5n_1";
+    const title = "_title_12m5n_7";
+    const task = "_task_12m5n_12";
+    const params = "_params_12m5n_18";
+    const scores = "_scores_12m5n_22";
+    const styles$7 = {
+      entry,
+      title,
+      task,
+      params,
+      scores
     };
-    const StatusError = ({ message }) => {
-      return m$1`<div
-    style=${{
-        color: "var(--bs-danger)",
-        marginTop: "0.2em",
-        fontSize: FontSize.small,
-        ...TextStyle.label
-      }}
-  >
-    ${message}
-  </div>`;
+    const SidebarLogEntry = ({
+      logHeader,
+      task: task2
+    }) => {
+      var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+      const hyperparameters = {
+        ...((_a2 = logHeader == null ? void 0 : logHeader.plan) == null ? void 0 : _a2.config) || {},
+        ...((_b2 = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _b2.task_args) || {}
+      };
+      const model = (_c = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _c.model;
+      const datasetName = (_d = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _d.dataset.name;
+      const uniqScorers = /* @__PURE__ */ new Set();
+      (_f = (_e = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _e.scores) == null ? void 0 : _f.forEach((scorer) => {
+        uniqScorers.add(scorer.name);
+      });
+      const scorerNames = Array.from(uniqScorers).join(",");
+      const scorerLabel = Object.keys(((_g = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _g.scores) || {}).length === 1 ? "scorer" : "scorers";
+      const completed = (_h = logHeader == null ? void 0 : logHeader.stats) == null ? void 0 : _h.completed_at;
+      const time = completed ? new Date(completed) : void 0;
+      const timeStr = time ? `${time.toDateString()}
+    ${time.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      })}` : "";
+      return /* @__PURE__ */ u(xn.Fragment, {
+        children: [/* @__PURE__ */ u("div", {
+          className: styles$7.entry,
+          children: [/* @__PURE__ */ u("div", {
+            className: styles$7.title,
+            children: [/* @__PURE__ */ u("div", {
+              className: clsx(styles$7.task, "text-size-title-secondary"),
+              children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2
+            }), /* @__PURE__ */ u("small", {
+              className: clsx("mb-1", "text-size-small"),
+              children: timeStr
+            }), model ? /* @__PURE__ */ u("div", {
+              children: /* @__PURE__ */ u("small", {
+                className: clsx("mb-1", "text-size-small"),
+                children: model
+              })
+            }) : ""]
+          }), /* @__PURE__ */ u(EvalStatus, {
+            logHeader
+          })]
+        }), /* @__PURE__ */ u("div", {
+          className: clsx(styles$7.params, "three-line-clamp"),
+          children: /* @__PURE__ */ u("small", {
+            className: "mb-1",
+            children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+              const val = hyperparameters[key2];
+              if (Array.isArray(val) || typeof val === "object") {
+                return `${key2}: ${JSON.stringify(val)}`;
+              } else {
+                return `${key2}: ${val}`;
+              }
+            }).join(", ") : ""
+          })
+        }), (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u("div", {
+          className: clsx("text-truncate", "text-size-small", styles$7.scores),
+          children: [/* @__PURE__ */ u("div", {
+            children: ["dataset: ", datasetName || "(samples)"]
+          }), /* @__PURE__ */ u("div", {
+            className: clsx("text-truncate", styles$7.scoreInfo),
+            children: [scorerLabel, ": ", scorerNames || "(none)"]
+          })]
+        }) : ""]
+      });
     };
-    const LogDirectoryTitle = ({ log_dir, offcanvas }) => {
-      if (log_dir) {
-        const displayDir = prettyDir(log_dir);
-        return m$1`<div style=${{ display: "flex", flexDirection: "column" }}>
-      <span
-        style=${{
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary
-        }}
-        >Log Directory</span
-      >
-      <span
-        title=${displayDir}
-        style=${{
-          fontSize: FontSize.base,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis"
-        }}
-        >${offcanvas ? displayDir : ""}</span
-      >
-    </div>`;
-      } else {
-        return m$1`<span
-      style=${{
-          fontSize: FontSize.title
-        }}
-      >${offcanvas ? "Log History" : ""}
-    </span>`;
-      }
+    const Sidebar = ({
+      logs,
+      logHeaders,
+      offcanvas,
+      setOffcanvas,
+      loading,
+      selectedIndex,
+      onSelectedIndexChanged
+    }) => {
+      const handleToggle = () => {
+        setOffcanvas(!offcanvas);
+      };
+      return /* @__PURE__ */ u(k$2, {
+        children: [offcanvas && /* @__PURE__ */ u("div", {
+          className: styles$b.backdrop,
+          onClick: handleToggle
+        }), /* @__PURE__ */ u("div", {
+          className: clsx(styles$b.sidebar, offcanvas ? styles$b.sidebarOpen : styles$b.sidebarClosed),
+          children: [/* @__PURE__ */ u("div", {
+            className: styles$b.header,
+            children: [/* @__PURE__ */ u(LogDirectoryTitleView, {
+              log_dir: logs.log_dir,
+              offcanvas
+            }), /* @__PURE__ */ u("button", {
+              onClick: handleToggle,
+              className: clsx("btn", styles$b.toggle),
+              type: "button",
+              "aria-label": "Close sidebar",
+              children: /* @__PURE__ */ u("i", {
+                className: ApplicationIcons.close
+              })
+            })]
+          }), /* @__PURE__ */ u("div", {
+            className: styles$b.progress,
+            children: /* @__PURE__ */ u(ProgressBar, {
+              animating: loading
+            })
+          }), /* @__PURE__ */ u("ul", {
+            className: clsx("list-group", styles$b.list),
+            children: logs.files.map((file, index) => {
+              const logHeader = logHeaders[file.name];
+              return /* @__PURE__ */ u("li", {
+                className: clsx("list-group-item", "list-group-item-action", styles$b.item, selectedIndex === index ? styles$b.active : void 0),
+                onClick: () => onSelectedIndexChanged(index),
+                children: /* @__PURE__ */ u(SidebarLogEntry, {
+                  logHeader,
+                  task: file.task
+                })
+              }, file.name);
+            })
+          })]
+        })]
+      });
     };
     const resolveAttachments = (value, attachments) => {
       const kContentProtocol = "tc://";
@@ -20849,10 +15774,10 @@ self.onmessage = function (e) {
     const loaded_time = Date.now();
     let last_eval_time = 0;
     async function client_events$1() {
-      const params = new URLSearchParams();
-      params.append("loaded_time", String(loaded_time.valueOf()));
-      params.append("last_eval_time", String(last_eval_time.valueOf()));
-      return (await api$2("GET", `/api/events?${params.toString()}`)).parsed;
+      const params2 = new URLSearchParams();
+      params2.append("loaded_time", String(loaded_time.valueOf()));
+      params2.append("last_eval_time", String(last_eval_time.valueOf()));
+      return (await api$2("GET", `/api/events?${params2.toString()}`)).parsed;
     }
     async function eval_logs$1() {
       const logs = await api$2("GET", `/api/logs`);
@@ -20865,15 +15790,15 @@ self.onmessage = function (e) {
     async function eval_log_size$1(file) {
       return (await api$2("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
     }
-    async function eval_log_bytes$1(file, start2, end2) {
-      return await api_bytes("GET", `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`);
+    async function eval_log_bytes$1(file, start, end) {
+      return await api_bytes("GET", `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`);
     }
     async function eval_log_headers$1(files) {
-      const params = new URLSearchParams();
+      const params2 = new URLSearchParams();
       for (const file of files) {
-        params.append("file", file);
+        params2.append("file", file);
       }
-      return (await api$2("GET", `/api/log-headers?${params.toString()}`)).parsed;
+      return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
     async function api$2(method, path, body2) {
       const headers = {
@@ -21817,14 +16742,14 @@ self.onmessage = function (e) {
       } else if (Array.isArray(replacer)) {
         propertyList = [];
         for (const v2 of replacer) {
-          let item;
+          let item2;
           if (typeof v2 === "string") {
-            item = v2;
+            item2 = v2;
           } else if (typeof v2 === "number" || v2 instanceof String || v2 instanceof Number) {
-            item = String(v2);
+            item2 = String(v2);
           }
-          if (item !== void 0 && propertyList.indexOf(item) < 0) {
-            propertyList.push(item);
+          if (item2 !== void 0 && propertyList.indexOf(item2) < 0) {
+            propertyList.push(item2);
           }
         }
       }
@@ -22057,7 +16982,7 @@ self.onmessage = function (e) {
         }
       });
       return {
-        request: (method, params) => {
+        request: (method, params2) => {
           return new Promise((resolve, reject) => {
             const requestId = Math.floor(Math.random() * 1e6);
             requests.set(requestId, {
@@ -22068,7 +16993,7 @@ self.onmessage = function (e) {
               jsonrpc: kJsonRpcVersion,
               id: requestId,
               method,
-              params
+              params: params2
             };
             target.postMessage(request);
           });
@@ -22132,8 +17057,8 @@ self.onmessage = function (e) {
     async function eval_log_size(log_file) {
       return await vscodeClient(kMethodEvalLogSize, [log_file]);
     }
-    async function eval_log_bytes(log_file, start2, end2) {
-      return await vscodeClient(kMethodEvalLogBytes, [log_file, start2, end2]);
+    async function eval_log_bytes(log_file, start, end) {
+      return await vscodeClient(kMethodEvalLogBytes, [log_file, start, end]);
     }
     async function eval_log_headers(files) {
       const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
@@ -22256,10 +17181,10 @@ self.onmessage = function (e) {
       0
     ]);
     var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
-    var freb = function(eb, start2) {
+    var freb = function(eb, start) {
       var b2 = new u16(31);
       for (var i2 = 0; i2 < 31; ++i2) {
-        b2[i2] = start2 += 1 << eb[i2 - 1];
+        b2[i2] = start += 1 << eb[i2 - 1];
       }
       var r2 = new i32(b2[30]);
       for (var i2 = 1; i2 < 30; ++i2) {
@@ -22504,15 +17429,15 @@ self.onmessage = function (e) {
             }
             if (resize)
               cbuf(bt + 131072);
-            var end2 = bt + add2;
+            var end = bt + add2;
             if (bt < dt) {
-              var shift2 = dl - dt, dend = Math.min(dt, end2);
+              var shift2 = dl - dt, dend = Math.min(dt, end);
               if (shift2 + bt < 0)
                 err(3);
               for (; bt < dend; ++bt)
                 buf[bt] = dict[shift2 + bt];
             }
-            for (; bt < end2; ++bt)
+            for (; bt < end; ++bt)
               buf[bt] = buf[bt - dt];
           }
         }
@@ -22715,19 +17640,19 @@ self.onmessage = function (e) {
       return {
         centralDirectory,
         readFile: async (file, maxBytes) => {
-          const entry = centralDirectory.get(file);
-          if (!entry) {
+          const entry2 = centralDirectory.get(file);
+          if (!entry2) {
             throw new Error(`File not found: ${file}`);
           }
           const headerSize = 30;
-          const headerData = await fetchBytes(url, entry.fileOffset, entry.fileOffset + headerSize - 1);
+          const headerData = await fetchBytes(url, entry2.fileOffset, entry2.fileOffset + headerSize - 1);
           const filenameLength = headerData[26] + (headerData[27] << 8);
           const extraFieldLength = headerData[28] + (headerData[29] << 8);
-          const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+          const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry2.compressedSize;
           if (maxBytes && totalSizeToFetch > maxBytes) {
             throw new FileSizeLimitError(file, maxBytes);
           }
-          const fileData = await fetchBytes(url, entry.fileOffset, entry.fileOffset + totalSizeToFetch - 1);
+          const fileData = await fetchBytes(url, entry2.fileOffset, entry2.fileOffset + totalSizeToFetch - 1);
           const zipFileEntry = await parseZipFileEntry(file, fileData);
           if (zipFileEntry.compressionMethod === 0) {
             return zipFileEntry.data;
@@ -22749,10 +17674,10 @@ self.onmessage = function (e) {
       const contentLength = Number(response.headers.get("Content-Length"));
       return contentLength;
     };
-    const fetchRange = async (url, start2, end2) => {
+    const fetchRange = async (url, start, end) => {
       const response = await fetch(`${url}`, {
         headers: {
-          Range: `bytes=${start2}-${end2}`
+          Range: `bytes=${start}-${end}`
         }
       });
       const arrayBuffer = await response.arrayBuffer();
@@ -22771,31 +17696,31 @@ self.onmessage = function (e) {
     };
     const parseZipFileEntry = async (file, rawData) => {
       const view = new DataView(rawData.buffer);
-      let offset2 = 0;
-      const signature = view.getUint32(offset2, true);
+      let offset = 0;
+      const signature = view.getUint32(offset, true);
       if (signature !== 67324752) {
         throw new Error(`Invalid ZIP entry signature for ${file}`);
       }
-      offset2 += 4;
-      const versionNeeded = view.getUint16(offset2, true);
-      offset2 += 2;
-      const bitFlag = view.getUint16(offset2, true);
-      offset2 += 2;
-      const compressionMethod = view.getUint16(offset2, true);
-      offset2 += 2;
-      offset2 += 4;
-      const crc32 = view.getUint32(offset2, true);
-      offset2 += 4;
-      const compressedSize = view.getUint32(offset2, true);
-      offset2 += 4;
-      const uncompressedSize = view.getUint32(offset2, true);
-      offset2 += 4;
-      const filenameLength = view.getUint16(offset2, true);
-      offset2 += 2;
-      const extraFieldLength = view.getUint16(offset2, true);
-      offset2 += 2;
-      offset2 += filenameLength + extraFieldLength;
-      const data = rawData.subarray(offset2, offset2 + compressedSize);
+      offset += 4;
+      const versionNeeded = view.getUint16(offset, true);
+      offset += 2;
+      const bitFlag = view.getUint16(offset, true);
+      offset += 2;
+      const compressionMethod = view.getUint16(offset, true);
+      offset += 2;
+      offset += 4;
+      const crc32 = view.getUint32(offset, true);
+      offset += 4;
+      const compressedSize = view.getUint32(offset, true);
+      offset += 4;
+      const uncompressedSize = view.getUint32(offset, true);
+      offset += 4;
+      const filenameLength = view.getUint16(offset, true);
+      offset += 2;
+      const extraFieldLength = view.getUint16(offset, true);
+      offset += 2;
+      offset += filenameLength + extraFieldLength;
+      const data = rawData.subarray(offset, offset + compressedSize);
       return {
         versionNeeded,
         bitFlag,
@@ -22809,24 +17734,24 @@ self.onmessage = function (e) {
       };
     };
     const parseCentralDirectory = (buffer2) => {
-      let offset2 = 0;
+      let offset = 0;
       const view = new DataView(buffer2.buffer);
       const entries = /* @__PURE__ */ new Map();
-      while (offset2 < buffer2.length) {
-        if (view.getUint32(offset2, true) !== 33639248) break;
-        const filenameLength = view.getUint16(offset2 + 28, true);
-        const extraFieldLength = view.getUint16(offset2 + 30, true);
-        const fileCommentLength = view.getUint16(offset2 + 32, true);
-        const filename2 = new TextDecoder().decode(buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength));
-        const entry = {
+      while (offset < buffer2.length) {
+        if (view.getUint32(offset, true) !== 33639248) break;
+        const filenameLength = view.getUint16(offset + 28, true);
+        const extraFieldLength = view.getUint16(offset + 30, true);
+        const fileCommentLength = view.getUint16(offset + 32, true);
+        const filename2 = new TextDecoder().decode(buffer2.subarray(offset + 46, offset + 46 + filenameLength));
+        const entry2 = {
           filename: filename2,
-          compressionMethod: view.getUint16(offset2 + 10, true),
-          compressedSize: view.getUint32(offset2 + 20, true),
-          uncompressedSize: view.getUint32(offset2 + 24, true),
-          fileOffset: view.getUint32(offset2 + 42, true)
+          compressionMethod: view.getUint16(offset + 10, true),
+          compressedSize: view.getUint32(offset + 20, true),
+          uncompressedSize: view.getUint32(offset + 24, true),
+          fileOffset: view.getUint32(offset + 42, true)
         };
-        entries.set(filename2, entry);
-        offset2 += 46 + filenameLength + extraFieldLength + fileCommentLength;
+        entries.set(filename2, entry2);
+        offset += 46 + filenameLength + extraFieldLength + fileCommentLength;
       }
       return entries;
     };
@@ -22877,8 +17802,8 @@ self.onmessage = function (e) {
         eval_log_size: async (log_file2) => {
           return await fetchSize(log_file2);
         },
-        eval_log_bytes: async (log_file2, start2, end2) => {
-          return await fetchRange(log_file2, start2, end2);
+        eval_log_bytes: async (log_file2, start, end) => {
+          return await fetchRange(log_file2, start, end);
         },
         eval_log_headers: async (files) => {
           if (files.length === 0) {
@@ -22986,11 +17911,11 @@ self.onmessage = function (e) {
         this.runningCount = 0;
       }
       // Adds a task to the queue and runs it if the concurrency limit allows.
-      async enqueue(task) {
+      async enqueue(task2) {
         return new Promise((resolve, reject) => {
           this.queue.push(async () => {
             try {
-              const result = await task();
+              const result = await task2();
               resolve(result);
             } catch (error2) {
               reject(error2);
@@ -23007,10 +17932,10 @@ self.onmessage = function (e) {
       // Runs the next task in the queue if there are available slots for concurrent execution.
       runNext() {
         if (this.queue.length > 0 && this.runningCount < this.concurrentLimit) {
-          const task = this.queue.shift();
-          if (task) {
+          const task2 = this.queue.shift();
+          if (task2) {
             this.runningCount++;
-            task();
+            task2();
           }
         }
       }
@@ -23094,14 +18019,14 @@ self.onmessage = function (e) {
       return {
         readHeader,
         readLogSummary: async () => {
-          const [header, sampleSummaries] = await Promise.all([readHeader(), readSampleSummaries()]);
+          const [header2, sampleSummaries] = await Promise.all([readHeader(), readSampleSummaries()]);
           const result = {
-            status: header.status,
-            eval: header.eval,
-            plan: header.plan,
-            results: header.results,
-            stats: header.stats,
-            error: header.error,
+            status: header2.status,
+            eval: header2.eval,
+            plan: header2.plan,
+            results: header2.results,
+            stats: header2.stats,
+            error: header2.error,
             sampleSummaries
           };
           return result;
@@ -23257,21 +18182,21 @@ self.onmessage = function (e) {
           }
           index++;
         }
-        const evalLogHeadersPromises = Object.keys(eval_files).map((file) => get_eval_log_header(file).then((header) => ({
+        const evalLogHeadersPromises = Object.keys(eval_files).map((file) => get_eval_log_header(file).then((header2) => ({
           index: eval_files[file],
           // Store original index
-          header
+          header: header2
         })));
-        const jsonLogHeadersPromise = api2.eval_log_headers(Object.keys(json_files)).then((headers2) => headers2.map((header, i2) => ({
+        const jsonLogHeadersPromise = api2.eval_log_headers(Object.keys(json_files)).then((headers2) => headers2.map((header2, i2) => ({
           index: json_files[Object.keys(json_files)[i2]],
           // Store original index
-          header
+          header: header2
         })));
         const headers = await Promise.all([...evalLogHeadersPromises, jsonLogHeadersPromise]);
         const orderedHeaders = headers.flat().sort((a2, b2) => a2.index - b2.index);
         return orderedHeaders.map(({
-          header
-        }) => header);
+          header: header2
+        }) => header2);
       };
       const get_log_paths = async () => {
         const logFiles = await api2.eval_logs();
@@ -24686,9 +19611,9 @@ self.onmessage = function (e) {
         const metrics = Object.values(scorers)[0];
         return /* @__PURE__ */ u("div", {
           className: styles$3.simpleMetricsRows,
-          children: metrics.map((metric, i2) => {
+          children: metrics.map((metric2, i2) => {
             return /* @__PURE__ */ u(VerticalMetric, {
-              metricSummary: metric,
+              metricSummary: metric2,
               isFirst: i2 === 0
             });
           })
@@ -24748,13 +19673,13 @@ self.onmessage = function (e) {
         }), reducer_component, /* @__PURE__ */ u("div", {
           className: clsx(valueFontClz, styles$3.multiScorerValue),
           children: Object.keys(scorer.metrics).map((key2) => {
-            const metric = scorer.metrics[key2];
+            const metric2 = scorer.metrics[key2];
             return /* @__PURE__ */ u("div", {
               children: [/* @__PURE__ */ u("div", {
-                children: metric.name
+                children: metric2.name
               }), /* @__PURE__ */ u("div", {
                 className: styles$3.multiScorerValueContent,
-                children: formatPrettyDecimal(metric.value)
+                children: formatPrettyDecimal(metric2.value)
               })]
             });
           })
@@ -24820,7 +19745,8 @@ self.onmessage = function (e) {
       evalResults,
       samples,
       file,
-      evalSpec
+      evalSpec,
+      setOffcanvas
     }) => {
       let statusPanel2;
       if (status === "success") {
@@ -24841,17 +19767,18 @@ self.onmessage = function (e) {
         });
       }
       const logFileName = file ? filename(file) : "";
+      const handleToggle = () => {
+        setOffcanvas(!offcanvas);
+      };
       return /* @__PURE__ */ u("div", {
         className: clsx(styles$4.wrapper),
         children: [/* @__PURE__ */ u("div", {
           className: clsx("navbar-brand", "navbar-text", "mb-0", styles$4.container),
           children: [showToggle ? /* @__PURE__ */ u("button", {
             id: "sidebarToggle",
-            className: clsx("btn", offcanvas ? void 0 : "d-md-none", styles$4.toggle),
+            onClick: handleToggle,
+            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$4.toggle),
             type: "button",
-            "data-bs-toggle": "offcanvas",
-            "data-bs-target": "#sidebarOffCanvas",
-            "aria-controls": "sidebarOffCanvas",
             children: /* @__PURE__ */ u("i", {
               class: ApplicationIcons.menu
             })
@@ -24861,19 +19788,19 @@ self.onmessage = function (e) {
               className: styles$4.bodyContainer,
               children: [/* @__PURE__ */ u("div", {
                 id: "task-title",
-                className: clsx("task-title", "text-wrap", styles$4.taskTitle),
+                className: clsx("task-title", "text-truncate", styles$4.taskTitle),
                 title: evalSpec == null ? void 0 : evalSpec.task,
                 children: evalSpec == null ? void 0 : evalSpec.task
               }), /* @__PURE__ */ u("div", {
                 id: "task-model",
-                className: clsx("task-model", "text-wrap", styles$4.taskModel, "text-size-base"),
+                className: clsx("task-model", "text-truncate", styles$4.taskModel, "text-size-base"),
                 title: evalSpec == null ? void 0 : evalSpec.model,
                 children: evalSpec == null ? void 0 : evalSpec.model
               })]
             }), /* @__PURE__ */ u("div", {
               className: clsx("text-size-small", styles$4.secondaryContainer),
               children: [/* @__PURE__ */ u("div", {
-                className: clsx("navbar-secondary-text", "text-wrap"),
+                className: clsx("navbar-secondary-text", "text-truncate"),
                 children: logFileName
               }), file ? /* @__PURE__ */ u(CopyButton, {
                 value: file
@@ -25030,25 +19957,22 @@ self.onmessage = function (e) {
         style: {
           position: "relative"
         },
-        children: Array.from(items).map((item, index, array) => /* @__PURE__ */ u("span", {
+        children: Array.from(items).map((item2, index, array) => /* @__PURE__ */ u("span", {
           children: [/* @__PURE__ */ u("span", {
-            title: item.tooltip,
-            children: item.canonicalName
+            title: item2.tooltip,
+            children: item2.canonicalName
           }), index < array.length - 1 ? ", " : ""]
         }, index))
       });
     };
     const ParamSummary = ({
-      params
+      params: params2
     }) => {
-      if (!params) {
+      if (!params2) {
         return "";
       }
-      const paraValues = Object.keys(params).map((key2) => {
-        const val = params[key2];
-        console.log({
-          val
-        });
+      const paraValues = Object.keys(params2).map((key2) => {
+        const val = params2[key2];
         if (Array.isArray(val) || typeof val === "object") {
           return `${key2}: ${JSON.stringify(val)}`;
         } else {
@@ -25077,6 +20001,7 @@ self.onmessage = function (e) {
       evalDescriptor,
       showToggle,
       offcanvas,
+      setOffcanvas,
       status
     }) => {
       return /* @__PURE__ */ u("nav", {
@@ -25088,6 +20013,7 @@ self.onmessage = function (e) {
           samples,
           showToggle,
           offcanvas,
+          setOffcanvas,
           status
         }), /* @__PURE__ */ u(SecondaryBar, {
           evalSpec,
@@ -25142,7 +20068,7 @@ self.onmessage = function (e) {
       return `${baseUrl}/commit/${commit}`;
     };
     const kPlanCardBodyId = "task-plan-card-body";
-    const PlanCard = ({ evalSpec, evalPlan, scores }) => {
+    const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
       return m$1`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -25151,7 +20077,7 @@ self.onmessage = function (e) {
         <${PlanDetailView}
           evaluation=${evalSpec}
           plan=${evalPlan}
-          scores=${scores}
+          scores=${scores2}
         />
       </${CardBody}>
     </${Card}>
@@ -25167,14 +20093,14 @@ self.onmessage = function (e) {
       marginTop: "em",
       marginBottom: "-0.1em"
     };
-    const ScorerDetailView = ({ name: name2, scores, params }) => {
-      if (scores.length > 1) {
-        params["scores"] = scores;
+    const ScorerDetailView = ({ name: name2, scores: scores2, params: params2 }) => {
+      if (scores2.length > 1) {
+        params2["scores"] = scores2;
       }
       return m$1`<${DetailStep}
     icon=${ApplicationIcons.scorer}
     name=${name2}
-    params=${params}
+    params=${params2}
     style=${planItemStyle}
   />`;
     };
@@ -25212,7 +20138,7 @@ self.onmessage = function (e) {
     ${details}
   </div>`;
     };
-    const DetailStep = ({ icon, name: name2, params, style: style2 }) => {
+    const DetailStep = ({ icon, name: name2, params: params2, style: style2 }) => {
       const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
       return m$1`
     <div style=${style2}>
@@ -25225,14 +20151,14 @@ self.onmessage = function (e) {
       }}
       >
         ${m$1`<${MetaDataView}
-          entries="${params}"
+          entries="${params2}"
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
     </div>
   `;
     };
-    const PlanDetailView = ({ evaluation, plan, scores }) => {
+    const PlanDetailView = ({ evaluation, plan, scores: scores2 }) => {
       if (!evaluation) {
         return "";
       }
@@ -25310,8 +20236,8 @@ self.onmessage = function (e) {
         style: wideColumnStyle,
         contents: m$1` <${SolversDetailView} steps=${steps} /> `
       });
-      if (scores) {
-        const scorers = scores.reduce((accum, score2) => {
+      if (scores2) {
+        const scorers = scores2.reduce((accum, score2) => {
           if (!accum[score2.scorer]) {
             accum[score2.scorer] = {
               scores: [score2.name],
@@ -25472,7 +20398,7 @@ self.onmessage = function (e) {
       }
       return count;
     };
-    const PlanColumn = ({ title, classes, style: style2, children: children2 }) => {
+    const PlanColumn = ({ title: title2, classes, style: style2, children: children2 }) => {
       return m$1`
     <div class="${classes || ""}" ...${{ style: style2 }}>
       <div
@@ -25484,7 +20410,7 @@ self.onmessage = function (e) {
         marginTop: "1em"
       }}
       >
-        ${title}
+        ${title2}
       </div>
       ${children2}
     </div>
@@ -25518,7 +20444,7 @@ self.onmessage = function (e) {
     };
     const LargeModal = ({
       id,
-      title,
+      title: title2,
       detail,
       detailTools,
       footer,
@@ -25560,7 +20486,7 @@ self.onmessage = function (e) {
       class="modal-title"
       style=${{ fontSize: FontSize.smaller, flex: "1 1 auto" }}
     >
-      ${title || ""}
+      ${title2 || ""}
     </div>`
       );
       if (detail) {
@@ -25772,7 +20698,7 @@ self.onmessage = function (e) {
           return entries2;
         }
       };
-      const entryEls = entryRecords(entries).map((entry, index) => {
+      const entryEls = entryRecords(entries).map((entry2, index) => {
         const id2 = `${baseId}-value-${index}`;
         return m$1`
       <div
@@ -25785,10 +20711,10 @@ self.onmessage = function (e) {
         class="${baseId}-key"
         style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
       >
-        ${entry.name}
+        ${entry2.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry} />
+        <${RenderedContent} id=${id2} entry=${entry2} />
       </div>
     `;
       });
@@ -25806,11 +20732,11 @@ self.onmessage = function (e) {
   </div>`;
     };
     const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
-      const scores = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
-      if (scores.length === 1) {
-        return scores[0].rendered();
+      const scores2 = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
+      if (scores2.length === 1) {
+        return scores2[0].rendered();
       } else {
-        const rows = scores.map((score2) => {
+        const rows = scores2.map((score2) => {
           return m$1` <div style=${{ opacity: "0.7" }}>${score2.name}</div>
         <div>${score2.rendered()}</div>`;
         });
@@ -25969,8 +20895,8 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const EventRow = ({ title, icon, style: style2, children: children2 }) => {
-      const contentEl = title ? m$1`<div
+    const EventRow = ({ title: title2, icon, style: style2, children: children2 }) => {
+      const contentEl = title2 ? m$1`<div
         style=${{
         marginLeft: "0.5em",
         display: "grid",
@@ -25980,7 +20906,7 @@ self.onmessage = function (e) {
       }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
-        <div style=${{ ...TextStyle.label }}>${title}</div>
+        <div style=${{ ...TextStyle.label }}>${title2}</div>
         <div>${children2}</div>
       </div>` : "";
       const card = m$1` <div
@@ -26043,7 +20969,7 @@ self.onmessage = function (e) {
     const EventPanel = ({
       id,
       classes,
-      title,
+      title: title2,
       subTitle,
       text: text2,
       icon,
@@ -26078,7 +21004,7 @@ self.onmessage = function (e) {
       gridColumns2.push("auto");
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
-      const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
+      const titleEl = title2 || icon || filteredArrChildren.length > 1 ? m$1`<div
           title=${subTitle}
           style=${{
         display: "grid",
@@ -26116,7 +21042,7 @@ self.onmessage = function (e) {
         onCollapsed(!isCollapsed);
       }}
           >
-            ${title}
+            ${title2}
           </div>
           <div
             onclick=${() => {
@@ -26146,10 +21072,10 @@ self.onmessage = function (e) {
                   navs=${filteredArrChildren.map((child, index) => {
         var _a2;
         const defaultTitle = `Tab ${index}`;
-        const title2 = child && typeof child === "object" ? ((_a2 = child["props"]) == null ? void 0 : _a2.name) || defaultTitle : defaultTitle;
+        const title3 = child && typeof child === "object" ? ((_a2 = child["props"]) == null ? void 0 : _a2.name) || defaultTitle : defaultTitle;
         return {
           id: `eventpanel-${id}-${index}`,
-          title: title2,
+          title: title3,
           target: pillId(index)
         };
       })}
@@ -26209,14 +21135,14 @@ self.onmessage = function (e) {
       })}
   </ul>`;
     };
-    const EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
-      const active = target === selectedNav;
+    const EventNav = ({ target, title: title2, selectedNav, setSelectedNav }) => {
+      const active2 = target === selectedNav;
       return m$1`<li class="nav-item">
     <button
       type="button"
       role="tab"
       aria-controls=${target}
-      aria-selected=${active}
+      aria-selected=${active2}
       style=${{
         minWidth: "4rem",
         ...TextStyle.label,
@@ -26224,12 +21150,12 @@ self.onmessage = function (e) {
         padding: "0.1rem  0.6rem",
         borderRadius: "var(--bs-border-radius)"
       }}
-      class="nav-link ${active ? "active " : ""}"
+      class="nav-link ${active2 ? "active " : ""}"
       onclick=${() => {
         setSelectedNav(target);
       }}
     >
-      ${title}
+      ${title2}
     </button>
   </li>`;
     };
@@ -26524,7 +21450,7 @@ self.onmessage = function (e) {
       })}
   </div>`;
     };
-    const EventSection = ({ title, style: style2, children: children2 }) => {
+    const EventSection = ({ title: title2, style: style2, children: children2 }) => {
       return m$1`<div
     style=${{
         margin: "1em 0 0 0",
@@ -26539,7 +21465,7 @@ self.onmessage = function (e) {
         paddingBottom: "0.3em"
       }}
     >
-      ${title}
+      ${title2}
     </div>
     ${children2}
   </div>`;
@@ -26812,12 +21738,12 @@ self.onmessage = function (e) {
             return ApplicationIcons.limits.operator;
         }
       };
-      const title = resolve_title(event.type);
+      const title2 = resolve_title(event.type);
       const icon = resolve_icon(event.type);
       return m$1`
   <${EventPanel} 
     id=${id} 
-    title=${title} 
+    title=${title2} 
     icon=${icon} 
     style=${style2}
     selectedNav=${eventState.selectedNav || ""}
@@ -27009,19 +21935,19 @@ self.onmessage = function (e) {
       list() {
         return this.filters.map((f2) => f2.filterName);
       }
-      after(filterName, ...params) {
+      after(filterName, ...params2) {
         const index = this.indexOf(filterName);
-        this.filters.splice(index + 1, 0, ...params);
+        this.filters.splice(index + 1, 0, ...params2);
         return this;
       }
-      before(filterName, ...params) {
+      before(filterName, ...params2) {
         const index = this.indexOf(filterName);
-        this.filters.splice(index, 0, ...params);
+        this.filters.splice(index, 0, ...params2);
         return this;
       }
-      replace(filterName, ...params) {
+      replace(filterName, ...params2) {
         const index = this.indexOf(filterName);
-        this.filters.splice(index, 1, ...params);
+        this.filters.splice(index, 1, ...params2);
         return this;
       }
       remove(filterName) {
@@ -27110,10 +22036,10 @@ self.onmessage = function (e) {
       return cloned;
     }
     class DiffContext extends Context {
-      constructor(left2, right2) {
+      constructor(left, right) {
         super();
-        this.left = left2;
-        this.right = right2;
+        this.left = left;
+        this.right = right;
         this.pipe = "diff";
       }
       setResult(result) {
@@ -27130,9 +22056,9 @@ self.onmessage = function (e) {
       }
     }
     class PatchContext extends Context {
-      constructor(left2, delta) {
+      constructor(left, delta) {
         super();
-        this.left = left2;
+        this.left = left;
         this.delta = delta;
         this.pipe = "patch";
       }
@@ -27270,30 +22196,30 @@ self.onmessage = function (e) {
       if (context.leftIsArray || context.leftType !== "object") {
         return;
       }
-      const left2 = context.left;
-      const right2 = context.right;
+      const left = context.left;
+      const right = context.right;
       let name2;
       let child;
       const propertyFilter = context.options.propertyFilter;
-      for (name2 in left2) {
-        if (!Object.prototype.hasOwnProperty.call(left2, name2)) {
+      for (name2 in left) {
+        if (!Object.prototype.hasOwnProperty.call(left, name2)) {
           continue;
         }
         if (propertyFilter && !propertyFilter(name2, context)) {
           continue;
         }
-        child = new DiffContext(left2[name2], right2[name2]);
+        child = new DiffContext(left[name2], right[name2]);
         context.push(child, name2);
       }
-      for (name2 in right2) {
-        if (!Object.prototype.hasOwnProperty.call(right2, name2)) {
+      for (name2 in right) {
+        if (!Object.prototype.hasOwnProperty.call(right, name2)) {
           continue;
         }
         if (propertyFilter && !propertyFilter(name2, context)) {
           continue;
         }
-        if (typeof left2[name2] === "undefined") {
-          child = new DiffContext(void 0, right2[name2]);
+        if (typeof left[name2] === "undefined") {
+          child = new DiffContext(void 0, right[name2]);
           context.push(child, name2);
         }
       }
@@ -27854,20 +22780,20 @@ self.onmessage = function (e) {
       if (context.leftType !== "string") {
         return;
       }
-      const left2 = context.left;
-      const right2 = context.right;
+      const left = context.left;
+      const right = context.right;
       const minLength = context.options && context.options.textDiff && context.options.textDiff.minLength || DEFAULT_MIN_LENGTH;
-      if (left2.length < minLength || right2.length < minLength) {
-        context.setResult([left2, right2]).exit();
+      if (left.length < minLength || right.length < minLength) {
+        context.setResult([left, right]).exit();
         return;
       }
       const diffMatchPatch = getDiffMatchPatch(context.options);
       if (!diffMatchPatch) {
-        context.setResult([left2, right2]).exit();
+        context.setResult([left, right]).exit();
         return;
       }
       const diff2 = diffMatchPatch.diff;
-      context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
+      context.setResult([diff2(left, right), 0, TEXT_DIFF]).exit();
     };
     diffFilter.filterName = "texts";
     const patchFilter = function textsPatchFilter(context) {
@@ -27888,7 +22814,7 @@ self.onmessage = function (e) {
       let l2;
       let line2;
       let lineTmp;
-      let header = null;
+      let header2 = null;
       const headerRegex = /^@@ +-(\d+),(\d+) +\+(\d+),(\d+) +@@$/;
       let lineHeader;
       const lines = delta.split("\n");
@@ -27896,9 +22822,9 @@ self.onmessage = function (e) {
         line2 = lines[i2];
         const lineStart = line2.slice(0, 1);
         if (lineStart === "@") {
-          header = headerRegex.exec(line2);
+          header2 = headerRegex.exec(line2);
           lineHeader = i2;
-          lines[lineHeader] = "@@ -" + header[3] + "," + header[4] + " +" + header[1] + "," + header[2] + " @@";
+          lines[lineHeader] = "@@ -" + header2[3] + "," + header2[4] + " +" + header2[1] + "," + header2[2] + " @@";
         } else if (lineStart === "+") {
           lines[i2] = "-" + lines[i2].slice(1);
           if (lines[i2 - 1].slice(0, 1) === "+") {
@@ -27934,28 +22860,28 @@ self.onmessage = function (e) {
       options(options) {
         return this.processor.options(options);
       }
-      diff(left2, right2) {
-        return this.processor.process(new DiffContext(left2, right2));
+      diff(left, right) {
+        return this.processor.process(new DiffContext(left, right));
       }
-      patch(left2, delta) {
-        return this.processor.process(new PatchContext(left2, delta));
+      patch(left, delta) {
+        return this.processor.process(new PatchContext(left, delta));
       }
       reverse(delta) {
         return this.processor.process(new ReverseContext(delta));
       }
-      unpatch(right2, delta) {
-        return this.patch(right2, this.reverse(delta));
+      unpatch(right, delta) {
+        return this.patch(right, this.reverse(delta));
       }
       clone(value) {
         return clone(value);
       }
     }
     let defaultInstance$1;
-    function diff(left2, right2) {
+    function diff(left, right) {
       if (!defaultInstance$1) {
         defaultInstance$1 = new DiffPatcher();
       }
-      return defaultInstance$1.diff(left2, right2);
+      return defaultInstance$1.diff(left, right);
     }
     const trimUnderscore = (str2) => {
       if (str2.substring(0, 1) === "_") {
@@ -27976,11 +22902,11 @@ self.onmessage = function (e) {
     };
     const arrayKeyComparer = (key1, key2) => arrayKeyToSortNumber(key1) - arrayKeyToSortNumber(key2);
     class BaseFormatter {
-      format(delta, left2) {
+      format(delta, left) {
         const context = {};
         this.prepareContext(context);
         const preparedContext = context;
-        this.recurse(preparedContext, delta, left2);
+        this.recurse(preparedContext, delta, left);
         return this.finalize(preparedContext);
       }
       prepareContext(context) {
@@ -28001,9 +22927,9 @@ self.onmessage = function (e) {
           return buffer2.join("");
         }
       }
-      recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
+      recurse(context, delta, left, key2, leftKey, movedFrom, isLast) {
         const useMoveOriginHere = delta && movedFrom;
-        const leftValue = useMoveOriginHere ? movedFrom.value : left2;
+        const leftValue = useMoveOriginHere ? movedFrom.value : left;
         if (typeof delta === "undefined" && typeof key2 === "undefined") {
           return void 0;
         }
@@ -28030,19 +22956,19 @@ self.onmessage = function (e) {
           this.rootEnd(context, type, nodeType);
         }
       }
-      formatDeltaChildren(context, delta, left2) {
-        this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
-          this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+      formatDeltaChildren(context, delta, left) {
+        this.forEachDeltaKey(delta, left, (key2, leftKey, movedFrom, isLast) => {
+          this.recurse(context, delta[key2], left ? left[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
         });
       }
-      forEachDeltaKey(delta, left2, fn2) {
+      forEachDeltaKey(delta, left, fn2) {
         const keys = Object.keys(delta);
         const arrayKeys = delta._t === "a";
         const moveDestinations = {};
         let name2;
-        if (typeof left2 !== "undefined") {
-          for (name2 in left2) {
-            if (Object.prototype.hasOwnProperty.call(left2, name2)) {
+        if (typeof left !== "undefined") {
+          for (name2 in left) {
+            if (Object.prototype.hasOwnProperty.call(left, name2)) {
               if (typeof delta[name2] === "undefined" && (!arrayKeys || typeof delta[`_${name2}`] === "undefined")) {
                 keys.push(name2);
               }
@@ -28056,10 +22982,10 @@ self.onmessage = function (e) {
               const movedDelta = value;
               moveDestinations[`${movedDelta[1]}`] = {
                 key: name2,
-                value: left2 && left2[parseInt(name2.substring(1), 10)]
+                value: left && left[parseInt(name2.substring(1), 10)]
               };
               if (this.includeMoveDestinations !== false) {
-                if (typeof left2 === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
+                if (typeof left === "undefined" && typeof delta[movedDelta[1]] === "undefined") {
                   keys.push(movedDelta[1].toString());
                 }
               }
@@ -28180,26 +23106,26 @@ self.onmessage = function (e) {
       nodeEnd(context) {
         context.out("</li>");
       }
-      format_unchanged(context, delta, left2) {
-        if (typeof left2 === "undefined") {
+      format_unchanged(context, delta, left) {
+        if (typeof left === "undefined") {
           return;
         }
         context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left2);
+        this.formatValue(context, left);
         context.out("</div>");
       }
-      format_movedestination(context, delta, left2) {
-        if (typeof left2 === "undefined") {
+      format_movedestination(context, delta, left) {
+        if (typeof left === "undefined") {
           return;
         }
         context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left2);
+        this.formatValue(context, left);
         context.out("</div>");
       }
-      format_node(context, delta, left2) {
+      format_node(context, delta, left) {
         const nodeType = delta._t === "a" ? "array" : "object";
         context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-        this.formatDeltaChildren(context, delta, left2);
+        this.formatDeltaChildren(context, delta, left);
         context.out("</ul>");
       }
       format_added(context, delta) {
@@ -28304,11 +23230,11 @@ self.onmessage = function (e) {
       });
     };
     let defaultInstance;
-    function format(delta, left2) {
+    function format(delta, left) {
       if (!defaultInstance) {
         defaultInstance = new HtmlFormatter();
       }
-      return defaultInstance.format(delta, left2);
+      return defaultInstance.format(delta, left);
     }
     const StateDiffView = ({ before, after, style: style2 }) => {
       const state_diff = diff(sanitizeKeys(before), sanitizeKeys(after));
@@ -28705,7 +23631,7 @@ self.onmessage = function (e) {
         let newItems = list2() || [], i2, j2;
         newItems[$TRACK];
         return untrack(() => {
-          let newLen = newItems.length, newIndices, newIndicesNext, temp, tempdisposers, tempIndexes, start2, end2, newEnd, item;
+          let newLen = newItems.length, newIndices, newIndicesNext, temp, tempdisposers, tempIndexes, start, end, newEnd, item2;
           if (newLen === 0) {
             if (len !== 0) {
               dispose(disposers);
@@ -28734,32 +23660,32 @@ self.onmessage = function (e) {
             temp = new Array(newLen);
             tempdisposers = new Array(newLen);
             indexes && (tempIndexes = new Array(newLen));
-            for (start2 = 0, end2 = Math.min(len, newLen); start2 < end2 && items[start2] === newItems[start2]; start2++) ;
-            for (end2 = len - 1, newEnd = newLen - 1; end2 >= start2 && newEnd >= start2 && items[end2] === newItems[newEnd]; end2--, newEnd--) {
-              temp[newEnd] = mapped[end2];
-              tempdisposers[newEnd] = disposers[end2];
-              indexes && (tempIndexes[newEnd] = indexes[end2]);
+            for (start = 0, end = Math.min(len, newLen); start < end && items[start] === newItems[start]; start++) ;
+            for (end = len - 1, newEnd = newLen - 1; end >= start && newEnd >= start && items[end] === newItems[newEnd]; end--, newEnd--) {
+              temp[newEnd] = mapped[end];
+              tempdisposers[newEnd] = disposers[end];
+              indexes && (tempIndexes[newEnd] = indexes[end]);
             }
             newIndices = /* @__PURE__ */ new Map();
             newIndicesNext = new Array(newEnd + 1);
-            for (j2 = newEnd; j2 >= start2; j2--) {
-              item = newItems[j2];
-              i2 = newIndices.get(item);
+            for (j2 = newEnd; j2 >= start; j2--) {
+              item2 = newItems[j2];
+              i2 = newIndices.get(item2);
               newIndicesNext[j2] = i2 === void 0 ? -1 : i2;
-              newIndices.set(item, j2);
+              newIndices.set(item2, j2);
             }
-            for (i2 = start2; i2 <= end2; i2++) {
-              item = items[i2];
-              j2 = newIndices.get(item);
+            for (i2 = start; i2 <= end; i2++) {
+              item2 = items[i2];
+              j2 = newIndices.get(item2);
               if (j2 !== void 0 && j2 !== -1) {
                 temp[j2] = mapped[i2];
                 tempdisposers[j2] = disposers[i2];
                 indexes && (tempIndexes[j2] = indexes[i2]);
                 j2 = newIndicesNext[j2];
-                newIndices.set(item, j2);
+                newIndices.set(item2, j2);
               } else disposers[i2]();
             }
-            for (j2 = start2; j2 < newLen; j2++) {
+            for (j2 = start; j2 < newLen; j2++) {
               if (j2 in temp) {
                 mapped[j2] = temp[j2];
                 disposers[j2] = tempdisposers[j2];
@@ -29208,22 +24134,22 @@ self.onmessage = function (e) {
     function normalizeIncomingArray(normalized, array, current, unwrap2) {
       let dynamic = false;
       for (let i2 = 0, len = array.length; i2 < len; i2++) {
-        let item = array[i2], prev = current && current[i2];
-        if (item instanceof Node) {
-          normalized.push(item);
-        } else if (item == null || item === true || item === false) ;
-        else if (Array.isArray(item)) {
-          dynamic = normalizeIncomingArray(normalized, item, prev) || dynamic;
-        } else if (typeof item === "function") {
+        let item2 = array[i2], prev = current && current[i2];
+        if (item2 instanceof Node) {
+          normalized.push(item2);
+        } else if (item2 == null || item2 === true || item2 === false) ;
+        else if (Array.isArray(item2)) {
+          dynamic = normalizeIncomingArray(normalized, item2, prev) || dynamic;
+        } else if (typeof item2 === "function") {
           if (unwrap2) {
-            while (typeof item === "function") item = item();
-            dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item], Array.isArray(prev) ? prev : [prev]) || dynamic;
+            while (typeof item2 === "function") item2 = item2();
+            dynamic = normalizeIncomingArray(normalized, Array.isArray(item2) ? item2 : [item2], Array.isArray(prev) ? prev : [prev]) || dynamic;
           } else {
-            normalized.push(item);
+            normalized.push(item2);
             dynamic = true;
           }
         } else {
-          const value = String(item);
+          const value = String(item2);
           if (prev && prev.nodeType === 3 && prev.data === value) {
             normalized.push(prev);
           } else normalized.push(document.createTextNode(value));
@@ -29379,23 +24305,23 @@ ${val.stack}`;
       let len = arg.length;
       let ptr = malloc(len, 1) >>> 0;
       const mem = getUint8Memory0();
-      let offset2 = 0;
-      for (; offset2 < len; offset2++) {
-        const code2 = arg.charCodeAt(offset2);
+      let offset = 0;
+      for (; offset < len; offset++) {
+        const code2 = arg.charCodeAt(offset);
         if (code2 > 127) break;
-        mem[ptr + offset2] = code2;
+        mem[ptr + offset] = code2;
       }
-      if (offset2 !== len) {
-        if (offset2 !== 0) {
-          arg = arg.slice(offset2);
+      if (offset !== len) {
+        if (offset !== 0) {
+          arg = arg.slice(offset);
         }
-        ptr = realloc(ptr, len, len = offset2 + arg.length * 3, 1) >>> 0;
-        const view = getUint8Memory0().subarray(ptr + offset2, ptr + len);
+        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
+        const view = getUint8Memory0().subarray(ptr + offset, ptr + len);
         const ret = encodeString(arg, view);
-        offset2 += ret.written;
-        ptr = realloc(ptr, len, offset2, 1) >>> 0;
+        offset += ret.written;
+        ptr = realloc(ptr, len, offset, 1) >>> 0;
       }
-      WASM_VECTOR_LEN = offset2;
+      WASM_VECTOR_LEN = offset;
       return ptr;
     }
     let cachedInt32Memory0 = null;
@@ -30229,29 +25155,29 @@ ${val.stack}`;
       let proto;
       return obj != null && typeof obj === "object" && (obj[$PROXY] || !(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype || Array.isArray(obj));
     }
-    function unwrap(item, set = /* @__PURE__ */ new Set()) {
+    function unwrap(item2, set = /* @__PURE__ */ new Set()) {
       let result, unwrapped, v2, prop;
-      if (result = item != null && item[$RAW]) return result;
-      if (!isWrappable(item) || set.has(item)) return item;
-      if (Array.isArray(item)) {
-        if (Object.isFrozen(item)) item = item.slice(0);
-        else set.add(item);
-        for (let i2 = 0, l2 = item.length; i2 < l2; i2++) {
-          v2 = item[i2];
-          if ((unwrapped = unwrap(v2, set)) !== v2) item[i2] = unwrapped;
+      if (result = item2 != null && item2[$RAW]) return result;
+      if (!isWrappable(item2) || set.has(item2)) return item2;
+      if (Array.isArray(item2)) {
+        if (Object.isFrozen(item2)) item2 = item2.slice(0);
+        else set.add(item2);
+        for (let i2 = 0, l2 = item2.length; i2 < l2; i2++) {
+          v2 = item2[i2];
+          if ((unwrapped = unwrap(v2, set)) !== v2) item2[i2] = unwrapped;
         }
       } else {
-        if (Object.isFrozen(item)) item = Object.assign({}, item);
-        else set.add(item);
-        const keys = Object.keys(item), desc = Object.getOwnPropertyDescriptors(item);
+        if (Object.isFrozen(item2)) item2 = Object.assign({}, item2);
+        else set.add(item2);
+        const keys = Object.keys(item2), desc = Object.getOwnPropertyDescriptors(item2);
         for (let i2 = 0, l2 = keys.length; i2 < l2; i2++) {
           prop = keys[i2];
           if (desc[prop].get) continue;
-          v2 = item[prop];
-          if ((unwrapped = unwrap(v2, set)) !== v2) item[prop] = unwrapped;
+          v2 = item2[prop];
+          if ((unwrapped = unwrap(v2, set)) !== v2) item2[prop] = unwrapped;
         }
       }
-      return item;
+      return item2;
     }
     function getDataNodes(target) {
       let nodes = target[$NODE];
@@ -30418,16 +25344,16 @@ ${val.stack}`;
       }
       if (Array.isArray(target)) {
         if (target.length && previous.length && (!merge || key2 && target[0] && target[0][key2] != null)) {
-          let i2, j2, start2, end2, newEnd, item, newIndicesNext, keyVal;
-          for (start2 = 0, end2 = Math.min(previous.length, target.length); start2 < end2 && (previous[start2] === target[start2] || key2 && previous[start2] && target[start2] && previous[start2][key2] === target[start2][key2]); start2++) {
-            applyState(target[start2], previous, start2, merge, key2);
+          let i2, j2, start, end, newEnd, item2, newIndicesNext, keyVal;
+          for (start = 0, end = Math.min(previous.length, target.length); start < end && (previous[start] === target[start] || key2 && previous[start] && target[start] && previous[start][key2] === target[start][key2]); start++) {
+            applyState(target[start], previous, start, merge, key2);
           }
           const temp = new Array(target.length), newIndices = /* @__PURE__ */ new Map();
-          for (end2 = previous.length - 1, newEnd = target.length - 1; end2 >= start2 && newEnd >= start2 && (previous[end2] === target[newEnd] || key2 && previous[start2] && target[start2] && previous[end2][key2] === target[newEnd][key2]); end2--, newEnd--) {
-            temp[newEnd] = previous[end2];
+          for (end = previous.length - 1, newEnd = target.length - 1; end >= start && newEnd >= start && (previous[end] === target[newEnd] || key2 && previous[start] && target[start] && previous[end][key2] === target[newEnd][key2]); end--, newEnd--) {
+            temp[newEnd] = previous[end];
           }
-          if (start2 > newEnd || start2 > end2) {
-            for (j2 = start2; j2 <= newEnd; j2++) setProperty(previous, j2, target[j2]);
+          if (start > newEnd || start > end) {
+            for (j2 = start; j2 <= newEnd; j2++) setProperty(previous, j2, target[j2]);
             for (; j2 < target.length; j2++) {
               setProperty(previous, j2, temp[j2]);
               applyState(target[j2], previous, j2, merge, key2);
@@ -30436,16 +25362,16 @@ ${val.stack}`;
             return;
           }
           newIndicesNext = new Array(newEnd + 1);
-          for (j2 = newEnd; j2 >= start2; j2--) {
-            item = target[j2];
-            keyVal = key2 && item ? item[key2] : item;
+          for (j2 = newEnd; j2 >= start; j2--) {
+            item2 = target[j2];
+            keyVal = key2 && item2 ? item2[key2] : item2;
             i2 = newIndices.get(keyVal);
             newIndicesNext[j2] = i2 === void 0 ? -1 : i2;
             newIndices.set(keyVal, j2);
           }
-          for (i2 = start2; i2 <= end2; i2++) {
-            item = previous[i2];
-            keyVal = key2 && item ? item[key2] : item;
+          for (i2 = start; i2 <= end; i2++) {
+            item2 = previous[i2];
+            keyVal = key2 && item2 ? item2[key2] : item2;
             j2 = newIndices.get(keyVal);
             if (j2 !== void 0 && j2 !== -1) {
               temp[j2] = previous[i2];
@@ -30453,7 +25379,7 @@ ${val.stack}`;
               newIndices.set(keyVal, j2);
             }
           }
-          for (j2 = start2; j2 < target.length; j2++) {
+          for (j2 = start; j2 < target.length; j2++) {
             if (j2 in temp) {
               setProperty(previous, j2, temp[j2]);
               applyState(target[j2], previous, j2, merge, key2);
@@ -30558,11 +25484,11 @@ ${val.stack}`;
         return `${prefix}${color}`;
       }
     }
-    function buildStyle(attrs, offset2, width) {
+    function buildStyle(attrs, offset, width) {
       const fg = attrs.get("fg");
       const bg = attrs.get("bg");
       let style2 = {
-        "--offset": offset2,
+        "--offset": offset,
         width: `${width + 0.01}ch`
       };
       if (typeof fg === "string") {
@@ -31243,11 +26169,11 @@ ${val.stack}`;
       const updateTime = () => {
         const currentTime = core.getCurrentTime();
         const remainingTime = core.getRemainingTime();
-        const progress = core.getProgress();
+        const progress2 = core.getProgress();
         setState({
           currentTime,
           remainingTime,
-          progress
+          progress: progress2
         });
       };
       const startBlinking = () => {
@@ -31657,9 +26583,9 @@ ${val.stack}`;
       }
     }
     class Multiplexer {
-      constructor(left2, right2, comparator) {
-        this.left = left2;
-        this.right = right2;
+      constructor(left, right, comparator) {
+        this.left = left;
+        this.right = right;
         this.comparator = comparator;
       }
       [Symbol.iterator]() {
@@ -31721,44 +26647,44 @@ ${val.stack}`;
       }
     }
     async function parse$2(data) {
-      let header;
+      let header2;
       let events;
       if (data instanceof Response) {
         const text2 = await data.text();
         const result = parseJsonl(text2);
         if (result !== void 0) {
-          header = result.header;
+          header2 = result.header;
           events = result.events;
         } else {
-          header = JSON.parse(text2);
+          header2 = JSON.parse(text2);
         }
       } else if (typeof data === "object" && typeof data.version === "number") {
-        header = data;
+        header2 = data;
       } else if (Array.isArray(data)) {
-        header = data[0];
+        header2 = data[0];
         events = data.slice(1, data.length);
       } else {
         throw "invalid data";
       }
-      if (header.version === 1) {
-        return parseAsciicastV1(header);
-      } else if (header.version === 2) {
-        return parseAsciicastV2(header, events);
+      if (header2.version === 1) {
+        return parseAsciicastV1(header2);
+      } else if (header2.version === 2) {
+        return parseAsciicastV2(header2, events);
       } else {
-        throw `asciicast v${header.version} format not supported`;
+        throw `asciicast v${header2.version} format not supported`;
       }
     }
     function parseJsonl(jsonl) {
       const lines = jsonl.split("\n");
-      let header;
+      let header2;
       try {
-        header = JSON.parse(lines[0]);
+        header2 = JSON.parse(lines[0]);
       } catch (_error) {
         return;
       }
       const events = new Stream(lines).drop(1).filter((l2) => l2[0] === "[").map(JSON.parse).toArray();
       return {
-        header,
+        header: header2,
         events
       };
     }
@@ -31774,13 +26700,13 @@ ${val.stack}`;
         events
       };
     }
-    function parseAsciicastV2(header, events) {
+    function parseAsciicastV2(header2, events) {
       return {
-        cols: header.width,
-        rows: header.height,
-        theme: parseTheme(header.theme),
+        cols: header2.width,
+        rows: header2.height,
+        theme: parseTheme(header2.theme),
         events,
-        idleTimeLimit: header.idle_time_limit
+        idleTimeLimit: header2.idle_time_limit
       };
     }
     function parseTheme(theme2) {
@@ -31798,13 +26724,13 @@ ${val.stack}`;
       }
     }
     function unparseAsciicastV2(recording2) {
-      const header = JSON.stringify({
+      const header2 = JSON.stringify({
         version: 2,
         width: recording2.cols,
         height: recording2.rows
       });
       const events = recording2.events.map(JSON.stringify).join("\n");
-      return `${header}
+      return `${header2}
 ${events}
 `;
     }
@@ -32403,8 +27329,8 @@ ${events}
         this.items = [];
         this.onPush = void 0;
       }
-      push(item) {
-        this.items.push(item);
+      push(item2) {
+        this.items.push(item2);
         if (this.onPush !== void 0) {
           this.onPush(this.popAll());
           this.onPush = void 0;
@@ -32424,10 +27350,10 @@ ${events}
       }
     }
     function getBuffer(bufferTime, feed, resize, setTime, baseStreamTime, minFrameTime, logger) {
-      const execute2 = executeEvent(feed, resize);
+      const execute = executeEvent(feed, resize);
       if (bufferTime === 0) {
         logger.debug("using no buffer");
-        return nullBuffer(execute2);
+        return nullBuffer(execute);
       } else {
         bufferTime = bufferTime ?? {};
         let getBufferTime;
@@ -32445,16 +27371,16 @@ ${events}
             logger
           }, bufferTime);
         }
-        return buffer(getBufferTime, execute2, setTime, logger, baseStreamTime ?? 0, minFrameTime);
+        return buffer(getBufferTime, execute, setTime, logger, baseStreamTime ?? 0, minFrameTime);
       }
     }
-    function nullBuffer(execute2) {
+    function nullBuffer(execute) {
       return {
         pushEvent(event) {
-          execute2(event[1], event[2]);
+          execute(event[1], event[2]);
         },
         pushText(text2) {
-          execute2("o", text2);
+          execute("o", text2);
         },
         stop() {
         }
@@ -32470,7 +27396,7 @@ ${events}
         }
       };
     }
-    function buffer(getBufferTime, execute2, setTime, logger, baseStreamTime) {
+    function buffer(getBufferTime, execute, setTime, logger, baseStreamTime) {
       let minFrameTime = arguments.length > 5 && arguments[5] !== void 0 ? arguments[5] : 1 / 60;
       let epoch = performance.now() - baseStreamTime * 1e3;
       let bufferTime = getBufferTime(0);
@@ -32488,7 +27414,7 @@ ${events}
           for (const event of events) {
             const elapsedStreamTime = event[0] * 1e3 + bufferTime;
             if (elapsedStreamTime - prevElapsedStreamTime < minFrameTime) {
-              execute2(event[1], event[2]);
+              execute(event[1], event[2]);
               continue;
             }
             const delay = elapsedStreamTime - elapsedWallTime();
@@ -32497,7 +27423,7 @@ ${events}
               if (stop) return;
             }
             setTime(event[0]);
-            execute2(event[1], event[2]);
+            execute(event[1], event[2]);
             prevElapsedStreamTime = elapsedStreamTime;
           }
         }
@@ -32692,27 +27618,27 @@ ${events}
         const buffer2 = event.data;
         const view = new DataView(buffer2);
         const type = view.getUint8(0);
-        let offset2 = 1;
+        let offset = 1;
         if (type === 1) {
-          const cols = view.getUint16(offset2, true);
-          offset2 += 2;
-          const rows = view.getUint16(offset2, true);
-          offset2 += 2;
-          const time = view.getFloat32(offset2, true);
-          offset2 += 4;
-          const themeFormat = view.getUint8(offset2);
-          offset2 += 1;
+          const cols = view.getUint16(offset, true);
+          offset += 2;
+          const rows = view.getUint16(offset, true);
+          offset += 2;
+          const time = view.getFloat32(offset, true);
+          offset += 4;
+          const themeFormat = view.getUint8(offset);
+          offset += 1;
           let theme2;
           if (themeFormat === 1) {
-            theme2 = parseTheme2(new Uint8Array(buffer2, offset2, THEME_LEN));
-            offset2 += THEME_LEN;
+            theme2 = parseTheme2(new Uint8Array(buffer2, offset, THEME_LEN));
+            offset += THEME_LEN;
           }
-          const initLen = view.getUint32(offset2, true);
-          offset2 += 4;
+          const initLen = view.getUint32(offset, true);
+          offset += 4;
           let init;
           if (initLen > 0) {
-            init = utfDecoder.decode(new Uint8Array(buffer2, offset2, initLen));
-            offset2 += initLen;
+            init = utfDecoder.decode(new Uint8Array(buffer2, offset, initLen));
+            offset += initLen;
           }
           handleResetMessage(cols, rows, time, init, theme2);
         } else if (type === 111) {
@@ -32896,13 +27822,13 @@ ${events}
       let rows;
       let timing = (await responses[0].text()).split("\n").filter((line2) => line2.length > 0).map((line2) => line2.split(" "));
       if (timing[0].length < 3) {
-        timing = timing.map((entry) => ["O", entry[0], entry[1]]);
+        timing = timing.map((entry2) => ["O", entry2[0], entry2[1]]);
       }
       const buffer2 = await responses[1].arrayBuffer();
       const array = new Uint8Array(buffer2);
       const dataOffset = array.findIndex((byte) => byte == 10) + 1;
-      const header = textDecoder.decode(array.subarray(0, dataOffset));
-      const sizeMatch = header.match(/COLUMNS="(\d+)" LINES="(\d+)"/);
+      const header2 = textDecoder.decode(array.subarray(0, dataOffset));
+      const sizeMatch = header2.match(/COLUMNS="(\d+)" LINES="(\d+)"/);
       if (sizeMatch !== null) {
         cols = parseInt(sizeMatch[1], 10);
         rows = parseInt(sizeMatch[2], 10);
@@ -32922,28 +27848,28 @@ ${events}
       }
       const events = [];
       let time = 0;
-      for (const entry of timing) {
-        time += parseFloat(entry[1]);
-        if (entry[0] === "O") {
-          const count = parseInt(entry[2], 10);
+      for (const entry2 of timing) {
+        time += parseFloat(entry2[1]);
+        if (entry2[0] === "O") {
+          const count = parseInt(entry2[2], 10);
           const bytes = stdout.array.subarray(stdout.cursor, stdout.cursor + count);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "o", text2]);
           stdout.cursor += count;
-        } else if (entry[0] === "I") {
-          const count = parseInt(entry[2], 10);
+        } else if (entry2[0] === "I") {
+          const count = parseInt(entry2[2], 10);
           const bytes = stdin.array.subarray(stdin.cursor, stdin.cursor + count);
           const text2 = textDecoder.decode(bytes);
           events.push([time, "i", text2]);
           stdin.cursor += count;
-        } else if (entry[0] === "S" && entry[2] === "SIGWINCH") {
-          const cols2 = parseInt(entry[4].slice(5), 10);
-          const rows2 = parseInt(entry[3].slice(5), 10);
+        } else if (entry2[0] === "S" && entry2[2] === "SIGWINCH") {
+          const cols2 = parseInt(entry2[4].slice(5), 10);
+          const rows2 = parseInt(entry2[3].slice(5), 10);
           events.push([time, "r", `${cols2}x${rows2}`]);
-        } else if (entry[0] === "H" && entry[2] === "COLUMNS") {
-          cols = parseInt(entry[3], 10);
-        } else if (entry[0] === "H" && entry[2] === "LINES") {
-          rows = parseInt(entry[3], 10);
+        } else if (entry2[0] === "H" && entry2[2] === "COLUMNS") {
+          cols = parseInt(entry2[3], 10);
+        } else if (entry2[0] === "H" && entry2[2] === "LINES") {
+          rows = parseInt(entry2[3], 10);
         }
       }
       cols = cols ?? 80;
@@ -33279,7 +28205,7 @@ ${events}
       runtime,
       answer,
       completed,
-      running,
+      running: running2,
       sessionLogs
     }) => {
       const player_fns = [];
@@ -33302,9 +28228,9 @@ ${events}
         const rows = extractSize(sessionLog.output, "LINES", 24);
         const cols = extractSize(sessionLog.output, "COLUMNS", 80);
         const currentCount = count;
-        const title = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
+        const title2 = sessionLogs.length === 1 ? "Terminal Session" : `Terminal Session ${currentCount}`;
         player_fns.push({
-          label: title,
+          label: title2,
           render: () => /* @__PURE__ */ u(AsciinemaPlayer, {
             id: `player-${currentCount}`,
             inputUrl: revokableUrl(sessionLog.input),
@@ -33324,10 +28250,10 @@ ${events}
       }
       const StatusMessage = ({
         completed: completed2,
-        running: running2,
+        running: running22,
         answer: answer2
       }) => {
-        if (running2) {
+        if (running22) {
           return /* @__PURE__ */ u("span", {
             className: "text-style-label",
             children: "Running"
@@ -33358,7 +28284,7 @@ ${events}
             className: "asciinema-header-right",
             children: /* @__PURE__ */ u(StatusMessage, {
               completed,
-              running,
+              running: running2,
               answer
             })
           }), /* @__PURE__ */ u("div", {
@@ -33433,7 +28359,7 @@ ${events}
         const runtime = resolvedState[humanAgentKey("accumulated_time")];
         const answer = resolvedState[humanAgentKey("answer")];
         const completed = !!answer;
-        const running = resolvedState[humanAgentKey("running_state")];
+        const running2 = resolvedState[humanAgentKey("running_state")];
         const rawSessions = resolvedState[humanAgentKey("logs")];
         const startedDate = started ? new Date(started * 1e3) : void 0;
         const sessions = {};
@@ -33453,7 +28379,7 @@ ${events}
         }
         return m$1`<${HumanBaselineView}
       started=${startedDate}
-      running=${running}
+      running=${running2}
       completed=${completed}
       answer=${answer}
       runtime=${runtime}
@@ -33571,11 +28497,11 @@ ${events}
       </div>`
         );
       }
-      const title = event.event === "state" ? "State Updated" : "Store Updated";
+      const title2 = event.event === "state" ? "State Updated" : "Store Updated";
       return m$1`
   <${EventPanel} 
     id=${id} 
-    title="${title}" 
+    title="${title2}" 
     subTitle=${formatDateTime(new Date(event.timestamp))} 
     text=${tabs.length === 1 ? summary : void 0} 
     collapse=${changePreview === void 0 ? true : void 0} 
@@ -33737,7 +28663,7 @@ ${events}
       scrollRef
     }) => {
       const descriptor = stepDescriptor(event);
-      const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+      const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
       const [transcriptState, setTranscriptState] = h({});
       const onTranscriptState = q$1(
@@ -33749,7 +28675,7 @@ ${events}
       return m$1`<${EventPanel}
     id=${`step-${event.name}`}
     classes="transcript-step"
-    title="${title}"
+    title="${title2}"
     subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style2 }}
@@ -33964,11 +28890,11 @@ ${events}
       const approvalEvent = event.events.find((e2) => {
         return e2.event === "approval";
       });
-      const title = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
+      const title2 = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return m$1`
   <${EventPanel} 
     id=${id} 
-    title="${title}" 
+    title="${title2}" 
     subTitle=${formatDateTime(new Date(event.timestamp))} 
     icon=${ApplicationIcons.solvers.use_tools} 
     style=${style2}
@@ -34063,9 +28989,9 @@ ${events}
       transcriptState,
       setTranscriptState
     }) => {
-      const renderRow = (item, index) => {
+      const renderRow = (item2, index) => {
         const toggleStyle = {};
-        if (item.depth % 2 == 0) {
+        if (item2.depth % 2 == 0) {
           toggleStyle.backgroundColor = "var(--bs-light-bg-subtle)";
         } else {
           toggleStyle.backgroundColor = "var(--bs-body-bg)";
@@ -34084,7 +29010,7 @@ ${events}
         return m$1`<div style=${{ paddingTop, paddingBottom: ".5em" }}>
       <${RenderedEventNode}
         id=${eventId}
-        node=${item}
+        node=${item2}
         style=${{
           ...toggleStyle,
           ...style2
@@ -34384,12 +29310,12 @@ ${events}
       if (!taskEl || !modelEl || !timeEl) {
         throw new Error("Failed to compute heading HTML. The task, model, or time element can't be found.");
       }
-      const task = taskEl.innerText;
+      const task2 = taskEl.innerText;
       const model = modelEl.innerText;
       const time = timeEl.innerText;
       const headingHtml = `
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.5em; margin-bottom: 2em; justify-content: space-between; border-bottom: solid 1px silver;">
-<div style="font-weight: 600">${task}</div>
+<div style="font-weight: 600">${task2}</div>
 <div style="text-align: center;">${model}</div>
 <div style="text-align: right;">${time}</div>
 </div>`;
@@ -34775,7 +29701,7 @@ ${events}
     };
     const SampleDialog = ({
       id,
-      title,
+      title: title2,
       sample,
       sampleDescriptor,
       nextSample,
@@ -34847,7 +29773,7 @@ ${events}
       return m$1`
     <${LargeModal} 
       id=${id} 
-      detail=${title}
+      detail=${title2}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
       visible=${showingSampleDialog}
@@ -34884,8 +29810,8 @@ ${events}
       }, [items]);
       const itemRowMapping = T$1(() => {
         const rowIndexes = [];
-        items.forEach((item, index) => {
-          if (item.type === "sample") {
+        items.forEach((item2, index) => {
+          if (item2.type === "sample") {
             rowIndexes.push(index);
           }
         });
@@ -34902,26 +29828,26 @@ ${events}
           prevSelectedIndexRef.current = actualRowIndex;
         }
       }, [selectedIndex, listRef, itemRowMapping]);
-      const renderRow = (item) => {
-        if (item.type === "sample") {
+      const renderRow = (item2) => {
+        if (item2.type === "sample") {
           return m$1`
         <${SampleRow}
-          id=${item.number}
-          index=${item.index}
-          sample=${item.data}
+          id=${item2.number}
+          index=${item2.index}
+          sample=${item2.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === item.index}
+          selected=${selectedIndex === item2.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
         />
       `;
-        } else if (item.type === "separator") {
+        } else if (item2.type === "separator") {
           return m$1`
         <${SeparatorRow}
-          id=${`sample-group${item.number}`}
-          title=${item.data}
+          id=${`sample-group${item2.number}`}
+          title=${item2.data}
           height=${kSeparatorHeight}
         />
       `;
@@ -34993,15 +29919,15 @@ ${events}
   >
     <div>${sampleCount} Samples</div>
   </div>`;
-      const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
-        if (item.data.error) {
+      const errorCount = items == null ? void 0 : items.reduce((previous, item2) => {
+        if (item2.data.error) {
           return previous + 1;
         } else {
           return previous;
         }
       }, 0);
-      const limitCount = items == null ? void 0 : items.reduce((previous, item) => {
-        if (item.data.limit) {
+      const limitCount = items == null ? void 0 : items.reduce((previous, item2) => {
+        if (item2.data.limit) {
           return previous + 1;
         } else {
           return previous;
@@ -35031,7 +29957,7 @@ ${events}
     ${footerRow}
   </div>`;
     };
-    const SeparatorRow = ({ id, title, height }) => {
+    const SeparatorRow = ({ id, title: title2, height }) => {
       return m$1`<div
     id=${id}
     style=${{
@@ -35044,7 +29970,7 @@ ${events}
         height: `${height}px`
       }}
   >
-    <div>${title}</div>
+    <div>${title2}</div>
   </div>`;
     };
     const SampleRow = ({
@@ -35253,8 +30179,8 @@ ${events}
         });
         setItems(items2);
         setSampleItems(
-          items2.filter((item) => {
-            return item.type === "sample";
+          items2.filter((item2) => {
+            return item2.type === "sample";
           })
         );
       }, [samples, groupBy, groupByOrder, sampleDescriptor]);
@@ -35312,14 +30238,14 @@ ${events}
       } else {
         elements.push(m$1`<${EmptyPanel} />`);
       }
-      const title = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
+      const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       const index = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].index : -1;
       elements.push(m$1`
     <${SampleDialog}
       id=${(sample == null ? void 0 : sample.id) || ""}
       ref=${sampleDialogRef}
       task=${task_id}
-      title=${title}
+      title=${title2}
       index=${index}
       sample=${sample}
       sampleStatus=${sampleStatus}
@@ -35346,8 +30272,8 @@ ${events}
         return noGrouping(samples, groupByOrder);
       }
     };
-    const noGrouping = (samples, order2) => {
-      const counter = getCounter(samples.length, 1, order2);
+    const noGrouping = (samples, order) => {
+      const counter = getCounter(samples.length, 1, order);
       return (sample, index) => {
         counter.incrementItem();
         const itemCount = counter.item();
@@ -35362,16 +30288,16 @@ ${events}
         ];
       };
     };
-    const groupBySample = (samples, sampleDescriptor, order2) => {
+    const groupBySample = (samples, sampleDescriptor, order) => {
       samples = samples.sort((a2, b2) => {
         if (typeof a2.id === "string") {
-          if (order2 === "asc") {
+          if (order === "asc") {
             return String(a2.id).localeCompare(String(b2.id));
           } else {
             return String(b2.id).localeCompare(String(a2.id));
           }
         } else {
-          if (order2 === "asc") {
+          if (order === "asc") {
             return Number(a2.id) - Number(b2.id);
           } else {
             return Number(b2.id) - Number(b2.id);
@@ -35380,7 +30306,7 @@ ${events}
       });
       const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
       const itemCount = samples.length / groupCount;
-      const counter = getCounter(itemCount, groupCount, order2);
+      const counter = getCounter(itemCount, groupCount, order);
       return (sample, index, previousSample) => {
         const results = [];
         const lastId = previousSample ? previousSample.id : void 0;
@@ -35406,10 +30332,10 @@ ${events}
         return results;
       };
     };
-    const groupByEpoch = (samples, sampleDescriptor, order2) => {
+    const groupByEpoch = (samples, sampleDescriptor, order) => {
       const groupCount = sampleDescriptor.evalDescriptor.epochs;
       const itemCount = samples.length / groupCount;
-      const counter = getCounter(itemCount, groupCount, order2);
+      const counter = getCounter(itemCount, groupCount, order);
       return (sample, index, previousSample) => {
         const results = [];
         const lastEpoch = previousSample ? previousSample.epoch : -1;
@@ -35435,22 +30361,22 @@ ${events}
         return results;
       };
     };
-    const getCounter = (itemCount, groupCount, order2) => {
-      let itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
-      let groupIndex = order2 !== "desc" ? 0 : groupCount + 1;
+    const getCounter = (itemCount, groupCount, order) => {
+      let itemIndex = order !== "desc" ? 0 : itemCount + 1;
+      let groupIndex = order !== "desc" ? 0 : groupCount + 1;
       return {
         resetItem: () => {
-          itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
+          itemIndex = order !== "desc" ? 0 : itemCount + 1;
         },
         incrementItem: () => {
-          if (order2 !== "desc") {
+          if (order !== "desc") {
             itemIndex++;
           } else {
             itemIndex--;
           }
         },
         incrementGroup: () => {
-          if (order2 !== "desc") {
+          if (order !== "desc") {
             groupIndex++;
           } else {
             groupIndex--;
@@ -35569,16 +30495,16 @@ ${events}
           return true;
         if (other.length != this.length || other.lines != this.lines)
           return false;
-        let start2 = this.scanIdentical(other, 1), end2 = this.length - this.scanIdentical(other, -1);
+        let start = this.scanIdentical(other, 1), end = this.length - this.scanIdentical(other, -1);
         let a2 = new RawTextCursor(this), b2 = new RawTextCursor(other);
-        for (let skip = start2, pos2 = start2; ; ) {
+        for (let skip = start, pos2 = start; ; ) {
           a2.next(skip);
           b2.next(skip);
           skip = 0;
           if (a2.lineBreak != b2.lineBreak || a2.done != b2.done || a2.value != b2.value)
             return false;
           pos2 += a2.value.length;
-          if (a2.done || pos2 >= end2)
+          if (a2.done || pos2 >= end)
             return true;
         }
       }
@@ -35611,8 +30537,8 @@ ${events}
         } else {
           if (to == null)
             to = this.lines + 1;
-          let start2 = this.line(from).from;
-          inner = this.iterRange(start2, Math.max(start2, to == this.lines + 1 ? this.length : to <= 1 ? 0 : this.line(to - 1).to));
+          let start = this.line(from).from;
+          inner = this.iterRange(start, Math.max(start, to == this.lines + 1 ? this.length : to <= 1 ? 0 : this.line(to - 1).to));
         }
         return new LineCursor(inner);
       }
@@ -35660,12 +30586,12 @@ ${events}
       get children() {
         return null;
       }
-      lineInner(target, isLine, line2, offset2) {
+      lineInner(target, isLine, line2, offset) {
         for (let i2 = 0; ; i2++) {
-          let string2 = this.text[i2], end2 = offset2 + string2.length;
-          if ((isLine ? line2 : end2) >= target)
-            return new Line(offset2, end2, line2, string2);
-          offset2 = end2 + 1;
+          let string2 = this.text[i2], end = offset + string2.length;
+          if ((isLine ? line2 : end) >= target)
+            return new Line(offset, end, line2, string2);
+          offset = end + 1;
           line2++;
         }
       }
@@ -35698,12 +30624,12 @@ ${events}
         [from, to] = clip(this, from, to);
         let result = "";
         for (let pos2 = 0, i2 = 0; pos2 <= to && i2 < this.text.length; i2++) {
-          let line2 = this.text[i2], end2 = pos2 + line2.length;
+          let line2 = this.text[i2], end = pos2 + line2.length;
           if (pos2 > from && i2)
             result += lineSep;
-          if (from < end2 && to > pos2)
+          if (from < end && to > pos2)
             result += line2.slice(Math.max(0, from - pos2), to - pos2);
-          pos2 = end2 + 1;
+          pos2 = end + 1;
         }
         return result;
       }
@@ -35739,34 +30665,34 @@ ${events}
         for (let child of children2)
           this.lines += child.lines;
       }
-      lineInner(target, isLine, line2, offset2) {
+      lineInner(target, isLine, line2, offset) {
         for (let i2 = 0; ; i2++) {
-          let child = this.children[i2], end2 = offset2 + child.length, endLine = line2 + child.lines - 1;
-          if ((isLine ? endLine : end2) >= target)
-            return child.lineInner(target, isLine, line2, offset2);
-          offset2 = end2 + 1;
+          let child = this.children[i2], end = offset + child.length, endLine = line2 + child.lines - 1;
+          if ((isLine ? endLine : end) >= target)
+            return child.lineInner(target, isLine, line2, offset);
+          offset = end + 1;
           line2 = endLine + 1;
         }
       }
       decompose(from, to, target, open) {
         for (let i2 = 0, pos2 = 0; pos2 <= to && i2 < this.children.length; i2++) {
-          let child = this.children[i2], end2 = pos2 + child.length;
-          if (from <= end2 && to >= pos2) {
-            let childOpen = open & ((pos2 <= from ? 1 : 0) | (end2 >= to ? 2 : 0));
-            if (pos2 >= from && end2 <= to && !childOpen)
+          let child = this.children[i2], end = pos2 + child.length;
+          if (from <= end && to >= pos2) {
+            let childOpen = open & ((pos2 <= from ? 1 : 0) | (end >= to ? 2 : 0));
+            if (pos2 >= from && end <= to && !childOpen)
               target.push(child);
             else
               child.decompose(from - pos2, to - pos2, target, childOpen);
           }
-          pos2 = end2 + 1;
+          pos2 = end + 1;
         }
       }
       replace(from, to, text2) {
         [from, to] = clip(this, from, to);
         if (text2.lines < this.lines)
           for (let i2 = 0, pos2 = 0; i2 < this.children.length; i2++) {
-            let child = this.children[i2], end2 = pos2 + child.length;
-            if (from >= pos2 && to <= end2) {
+            let child = this.children[i2], end = pos2 + child.length;
+            if (from >= pos2 && to <= end) {
               let updated = child.replace(from - pos2, to - pos2, text2);
               let totalLines = this.lines - child.lines + updated.lines;
               if (updated.lines < totalLines >> 5 - 1 && updated.lines > totalLines >> 5 + 1) {
@@ -35774,9 +30700,9 @@ ${events}
                 copy[i2] = updated;
                 return new TextNode(copy, this.length - (to - from) + text2.length);
               }
-              return super.replace(pos2, end2, updated);
+              return super.replace(pos2, end, updated);
             }
-            pos2 = end2 + 1;
+            pos2 = end + 1;
           }
         return super.replace(from, to, text2);
       }
@@ -35784,12 +30710,12 @@ ${events}
         [from, to] = clip(this, from, to);
         let result = "";
         for (let i2 = 0, pos2 = 0; i2 < this.children.length && pos2 <= to; i2++) {
-          let child = this.children[i2], end2 = pos2 + child.length;
+          let child = this.children[i2], end = pos2 + child.length;
           if (pos2 > from && i2)
             result += lineSep;
-          if (from < end2 && to > pos2)
+          if (from < end && to > pos2)
             result += child.sliceString(from - pos2, to - pos2, lineSep);
-          pos2 = end2 + 1;
+          pos2 = end + 1;
         }
         return result;
       }
@@ -35869,9 +30795,9 @@ ${events}
     }
     function appendText(text2, target, from = 0, to = 1e9) {
       for (let pos2 = 0, i2 = 0, first = true; i2 < text2.length && pos2 <= to; i2++) {
-        let line2 = text2[i2], end2 = pos2 + line2.length;
-        if (end2 >= from) {
-          if (end2 > to)
+        let line2 = text2[i2], end = pos2 + line2.length;
+        if (end >= from) {
+          if (end > to)
             line2 = line2.slice(0, to - pos2);
           if (pos2 < from)
             line2 = line2.slice(from - pos2);
@@ -35881,7 +30807,7 @@ ${events}
           } else
             target.push(line2);
         }
-        pos2 = end2 + 1;
+        pos2 = end + 1;
       }
       return target;
     }
@@ -35901,9 +30827,9 @@ ${events}
         this.done = this.lineBreak = false;
         for (; ; ) {
           let last = this.nodes.length - 1;
-          let top2 = this.nodes[last], offsetValue = this.offsets[last], offset2 = offsetValue >> 1;
+          let top2 = this.nodes[last], offsetValue = this.offsets[last], offset = offsetValue >> 1;
           let size = top2 instanceof TextLeaf ? top2.text.length : top2.children.length;
-          if (offset2 == (dir > 0 ? size : 0)) {
+          if (offset == (dir > 0 ? size : 0)) {
             if (last == 0) {
               this.done = true;
               this.value = "";
@@ -35922,7 +30848,7 @@ ${events}
             }
             skip--;
           } else if (top2 instanceof TextLeaf) {
-            let next = top2.text[offset2 + (dir < 0 ? -1 : 0)];
+            let next = top2.text[offset + (dir < 0 ? -1 : 0)];
             this.offsets[last] += dir;
             if (next.length > Math.max(0, skip)) {
               this.value = skip == 0 ? next : dir > 0 ? next.slice(skip) : next.slice(0, next.length - skip);
@@ -35930,7 +30856,7 @@ ${events}
             }
             skip -= next.length;
           } else {
-            let next = top2.children[offset2 + (dir < 0 ? -1 : 0)];
+            let next = top2.children[offset + (dir < 0 ? -1 : 0)];
             if (skip > next.length) {
               skip -= next.length;
               this.offsets[last] += dir;
@@ -35952,13 +30878,13 @@ ${events}
       }
     }
     class PartialTextCursor {
-      constructor(text2, start2, end2) {
+      constructor(text2, start, end) {
         this.value = "";
         this.done = false;
-        this.cursor = new RawTextCursor(text2, start2 > end2 ? -1 : 1);
-        this.pos = start2 > end2 ? text2.length : 0;
-        this.from = Math.min(start2, end2);
-        this.to = Math.max(start2, end2);
+        this.cursor = new RawTextCursor(text2, start > end ? -1 : 1);
+        this.pos = start > end ? text2.length : 0;
+        this.from = Math.min(start, end);
+        this.to = Math.max(start, end);
       }
       nextInner(skip, dir) {
         if (dir < 0 ? this.pos <= this.from : this.pos >= this.to) {
@@ -36263,10 +31189,10 @@ ${events}
       */
       touchesRange(from, to = from) {
         for (let i2 = 0, pos2 = 0; i2 < this.sections.length && pos2 <= to; ) {
-          let len = this.sections[i2++], ins = this.sections[i2++], end2 = pos2 + len;
-          if (ins >= 0 && pos2 <= to && end2 >= from)
-            return pos2 < from && end2 > to ? "cover" : true;
-          pos2 = end2;
+          let len = this.sections[i2++], ins = this.sections[i2++], end = pos2 + len;
+          if (ins >= 0 && pos2 <= to && end >= from)
+            return pos2 < from && end > to ? "cover" : true;
+          pos2 = end;
         }
         return false;
       }
@@ -36407,11 +31333,11 @@ ${events}
             iter.forward(len);
             pos2 += len;
           }
-          let end2 = ranges[i2++];
-          while (pos2 < end2) {
+          let end = ranges[i2++];
+          while (pos2 < end) {
             if (iter.done)
               break done;
-            let len = Math.min(iter.len, end2 - pos2);
+            let len = Math.min(iter.len, end - pos2);
             addSection(resultSections, len, -1);
             addSection(filteredSections, len, iter.ins == -1 ? -1 : iter.off == 0 ? iter.ins : 0);
             iter.forward(len);
@@ -36601,15 +31527,15 @@ ${events}
           }
           b2.next();
         } else if (a2.ins >= 0) {
-          let len = 0, left2 = a2.len;
-          while (left2) {
+          let len = 0, left = a2.len;
+          while (left) {
             if (b2.ins == -1) {
-              let piece = Math.min(left2, b2.len);
+              let piece = Math.min(left, b2.len);
               len += piece;
-              left2 -= piece;
+              left -= piece;
               b2.forward(piece);
-            } else if (b2.ins == 0 && b2.len < left2) {
-              left2 -= b2.len;
+            } else if (b2.ins == 0 && b2.len < left) {
+              left -= b2.len;
               b2.next();
             } else {
               break;
@@ -36619,7 +31545,7 @@ ${events}
           if (insert2 && inserted < a2.i)
             addInsert(insert2, sections, a2.text);
           inserted = a2.i;
-          a2.forward(a2.len - left2);
+          a2.forward(a2.len - left);
         } else if (a2.done && b2.done) {
           return insert2 ? ChangeSet.createSet(sections, insert2) : ChangeDesc.create(sections);
         } else {
@@ -36866,8 +31792,8 @@ ${events}
       /**
       Extend this selection with an extra range.
       */
-      addRange(range, main2 = true) {
-        return EditorSelection.create([range].concat(this.ranges), main2 ? 0 : this.mainIndex + 1);
+      addRange(range, main = true) {
+        return EditorSelection.create([range].concat(this.ranges), main ? 0 : this.mainIndex + 1);
       }
       /**
       Replace a given range with another range, and then normalize the
@@ -36932,9 +31858,9 @@ ${events}
       @internal
       */
       static normalized(ranges, mainIndex = 0) {
-        let main2 = ranges[mainIndex];
+        let main = ranges[mainIndex];
         ranges.sort((a2, b2) => a2.from - b2.from);
-        mainIndex = ranges.indexOf(main2);
+        mainIndex = ranges.indexOf(main);
         for (let i2 = 1; i2 < ranges.length; i2++) {
           let range = ranges[i2], prev = ranges[i2 - 1];
           if (range.empty ? range.from <= prev.to : range.from < prev.to) {
@@ -37490,8 +32416,8 @@ ${events}
         if (!effects.length)
           return effects;
         let result = [];
-        for (let effect2 of effects) {
-          let mapped = effect2.map(mapping);
+        for (let effect of effects) {
+          let mapped = effect.map(mapping);
           if (mapped)
             result.push(mapped);
         }
@@ -37785,20 +32711,20 @@ ${events}
       */
       applyTransaction(tr) {
         let conf = this.config, { base: base2, compartments } = conf;
-        for (let effect2 of tr.effects) {
-          if (effect2.is(Compartment.reconfigure)) {
+        for (let effect of tr.effects) {
+          if (effect.is(Compartment.reconfigure)) {
             if (conf) {
               compartments = /* @__PURE__ */ new Map();
               conf.compartments.forEach((val, key2) => compartments.set(key2, val));
               conf = null;
             }
-            compartments.set(effect2.value.compartment, effect2.value.extension);
-          } else if (effect2.is(StateEffect.reconfigure)) {
+            compartments.set(effect.value.compartment, effect.value.extension);
+          } else if (effect.is(StateEffect.reconfigure)) {
             conf = null;
-            base2 = effect2.value;
-          } else if (effect2.is(StateEffect.appendConfig)) {
+            base2 = effect.value;
+          } else if (effect.is(StateEffect.appendConfig)) {
             conf = null;
-            base2 = asArray(base2).concat(effect2.value);
+            base2 = asArray(base2).concat(effect.value);
           }
         }
         let startValues;
@@ -38041,20 +32967,20 @@ ${events}
       wordAt(pos2) {
         let { text: text2, from, length } = this.doc.lineAt(pos2);
         let cat = this.charCategorizer(pos2);
-        let start2 = pos2 - from, end2 = pos2 - from;
-        while (start2 > 0) {
-          let prev = findClusterBreak(text2, start2, false);
-          if (cat(text2.slice(prev, start2)) != CharCategory.Word)
+        let start = pos2 - from, end = pos2 - from;
+        while (start > 0) {
+          let prev = findClusterBreak(text2, start, false);
+          if (cat(text2.slice(prev, start)) != CharCategory.Word)
             break;
-          start2 = prev;
+          start = prev;
         }
-        while (end2 < length) {
-          let next = findClusterBreak(text2, end2);
-          if (cat(text2.slice(end2, next)) != CharCategory.Word)
+        while (end < length) {
+          let next = findClusterBreak(text2, end);
+          if (cat(text2.slice(end, next)) != CharCategory.Word)
             break;
-          end2 = next;
+          end = next;
         }
-        return start2 == end2 ? null : EditorSelection.range(start2 + from, end2 + from);
+        return start == end ? null : EditorSelection.range(start + from, end + from);
       }
     }
     EditorState.allowMultipleSelections = allowMultipleSelections;
@@ -38141,13 +33067,13 @@ ${events}
       }
       // Find the index of the given position and side. Use the ranges'
       // `from` pos when `end == false`, `to` when `end == true`.
-      findIndex(pos2, side, end2, startAt = 0) {
-        let arr2 = end2 ? this.to : this.from;
+      findIndex(pos2, side, end, startAt = 0) {
+        let arr2 = end ? this.to : this.from;
         for (let lo = startAt, hi = arr2.length; ; ) {
           if (lo == hi)
             return lo;
           let mid = lo + hi >> 1;
-          let diff2 = arr2[mid] - pos2 || (end2 ? this.value[mid].endSide : this.value[mid].startSide) - side;
+          let diff2 = arr2[mid] - pos2 || (end ? this.value[mid].endSide : this.value[mid].startSide) - side;
           if (mid == lo)
             return diff2 >= 0 ? lo : hi;
           if (diff2 >= 0)
@@ -38156,15 +33082,15 @@ ${events}
             lo = mid + 1;
         }
       }
-      between(offset2, from, to, f2) {
+      between(offset, from, to, f2) {
         for (let i2 = this.findIndex(from, -1e9, true), e2 = this.findIndex(to, 1e9, false, i2); i2 < e2; i2++)
-          if (f2(this.from[i2] + offset2, this.to[i2] + offset2, this.value[i2]) === false)
+          if (f2(this.from[i2] + offset, this.to[i2] + offset, this.value[i2]) === false)
             return false;
       }
-      map(offset2, changes) {
+      map(offset, changes) {
         let value = [], from = [], to = [], newPos = -1, maxPoint = -1;
         for (let i2 = 0; i2 < this.value.length; i2++) {
-          let val = this.value[i2], curFrom = this.from[i2] + offset2, curTo = this.to[i2] + offset2, newFrom, newTo;
+          let val = this.value[i2], curFrom = this.from[i2] + offset, curTo = this.to[i2] + offset, newFrom, newTo;
           if (curFrom == curTo) {
             let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
             if (mapped == null)
@@ -38276,14 +33202,14 @@ ${events}
           return this;
         let chunks = [], chunkPos = [], maxPoint = -1;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
-          let start2 = this.chunkPos[i2], chunk = this.chunk[i2];
-          let touch = changes.touchesRange(start2, start2 + chunk.length);
+          let start = this.chunkPos[i2], chunk = this.chunk[i2];
+          let touch = changes.touchesRange(start, start + chunk.length);
           if (touch === false) {
             maxPoint = Math.max(maxPoint, chunk.maxPoint);
             chunks.push(chunk);
-            chunkPos.push(changes.mapPos(start2));
+            chunkPos.push(changes.mapPos(start));
           } else if (touch === true) {
-            let { mapped, pos: pos2 } = chunk.map(start2, changes);
+            let { mapped, pos: pos2 } = chunk.map(start, changes);
             if (mapped) {
               maxPoint = Math.max(maxPoint, mapped.maxPoint);
               chunks.push(mapped);
@@ -38304,8 +33230,8 @@ ${events}
         if (this.isEmpty)
           return;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
-          let start2 = this.chunkPos[i2], chunk = this.chunk[i2];
-          if (to >= start2 && from <= start2 + chunk.length && chunk.between(start2, from - start2, to - start2, f2) === false)
+          let start = this.chunkPos[i2], chunk = this.chunk[i2];
+          if (to >= start && from <= start + chunk.length && chunk.between(start, from - start, to - start, f2) === false)
             return;
         }
         this.nextLayer.between(from, to, f2);
@@ -38381,10 +33307,10 @@ ${events}
         for (; ; ) {
           let curTo = Math.min(cursor.to, to);
           if (cursor.point) {
-            let active = cursor.activeForPoint(cursor.to);
-            let openCount = cursor.pointFrom < from ? active.length + 1 : cursor.point.startSide < 0 ? active.length : Math.min(active.length, openRanges);
-            iterator.point(pos2, curTo, cursor.point, active, openCount, cursor.pointRank);
-            openRanges = Math.min(cursor.openEnd(curTo), active.length);
+            let active2 = cursor.activeForPoint(cursor.to);
+            let openCount = cursor.pointFrom < from ? active2.length + 1 : cursor.point.startSide < 0 ? active2.length : Math.min(active2.length, openRanges);
+            iterator.point(pos2, curTo, cursor.point, active2, openCount, cursor.pointRank);
+            openRanges = Math.min(cursor.openEnd(curTo), active2.length);
           } else if (curTo > pos2) {
             iterator.span(pos2, curTo, cursor.active, openRanges);
             openRanges = cursor.openEnd(curTo);
@@ -38789,14 +33715,14 @@ ${events}
       activeForPoint(to) {
         if (!this.active.length)
           return this.active;
-        let active = [];
+        let active2 = [];
         for (let i2 = this.active.length - 1; i2 >= 0; i2--) {
           if (this.activeRank[i2] < this.pointRank)
             break;
           if (this.activeTo[i2] > to || this.activeTo[i2] == to && this.active[i2].endSide >= this.point.endSide)
-            active.push(this.active[i2]);
+            active2.push(this.active[i2]);
         }
-        return active.reverse();
+        return active2.reverse();
       }
       openEnd(to) {
         let open = 0;
@@ -38812,7 +33738,7 @@ ${events}
       let pos2 = startB, dPos = startB - startA;
       for (; ; ) {
         let diff2 = a2.to + dPos - b2.to || a2.endSide - b2.endSide;
-        let end2 = diff2 < 0 ? a2.to + dPos : b2.to, clipEnd = Math.min(end2, endB);
+        let end = diff2 < 0 ? a2.to + dPos : b2.to, clipEnd = Math.min(end, endB);
         if (a2.point || b2.point) {
           if (!(a2.point && b2.point && (a2.point == b2.point || a2.point.eq(b2.point)) && sameValues(a2.activeForPoint(a2.to), b2.activeForPoint(b2.to))))
             comparator.comparePoint(pos2, clipEnd, a2.point, b2.point);
@@ -38820,9 +33746,9 @@ ${events}
           if (clipEnd > pos2 && !sameValues(a2.active, b2.active))
             comparator.compareRange(pos2, clipEnd, a2.active, b2.active);
         }
-        if (end2 > endB)
+        if (end > endB)
           break;
-        pos2 = end2;
+        pos2 = end;
         if (diff2 <= 0)
           a2.next();
         if (diff2 >= 0)
@@ -39176,8 +34102,8 @@ ${events}
     function maxOffset(node) {
       return node.nodeType == 3 ? node.nodeValue.length : node.childNodes.length;
     }
-    function flattenRect(rect, left2) {
-      let x2 = left2 ? rect.left : rect.right;
+    function flattenRect(rect, left) {
+      let x2 = left ? rect.left : rect.right;
       return { left: x2, right: x2, top: rect.top, bottom: rect.bottom };
     }
     function windowRect(win) {
@@ -39265,14 +34191,14 @@ ${events}
             } else {
               let movedX = 0, movedY = 0;
               if (moveY) {
-                let start2 = cur2.scrollTop;
+                let start = cur2.scrollTop;
                 cur2.scrollTop += moveY / scaleY;
-                movedY = (cur2.scrollTop - start2) * scaleY;
+                movedY = (cur2.scrollTop - start) * scaleY;
               }
               if (moveX) {
-                let start2 = cur2.scrollLeft;
+                let start = cur2.scrollLeft;
                 cur2.scrollLeft += moveX / scaleX;
-                movedX = (cur2.scrollLeft - start2) * scaleX;
+                movedX = (cur2.scrollLeft - start) * scaleX;
               }
               rect = {
                 left: rect.left - movedX,
@@ -39357,11 +34283,11 @@ ${events}
       if (!preventScrollSupported) {
         preventScrollSupported = false;
         for (let i2 = 0; i2 < stack2.length; ) {
-          let elt = stack2[i2++], top2 = stack2[i2++], left2 = stack2[i2++];
+          let elt = stack2[i2++], top2 = stack2[i2++], left = stack2[i2++];
           if (elt.scrollTop != top2)
             elt.scrollTop = top2;
-          if (elt.scrollLeft != left2)
-            elt.scrollLeft = left2;
+          if (elt.scrollLeft != left)
+            elt.scrollLeft = left;
         }
       }
     }
@@ -39397,25 +34323,25 @@ ${events}
         node.removeAttributeNode(node.attributes[0]);
     }
     function atElementStart(doc2, selection) {
-      let node = selection.focusNode, offset2 = selection.focusOffset;
-      if (!node || selection.anchorNode != node || selection.anchorOffset != offset2)
+      let node = selection.focusNode, offset = selection.focusOffset;
+      if (!node || selection.anchorNode != node || selection.anchorOffset != offset)
         return false;
-      offset2 = Math.min(offset2, maxOffset(node));
+      offset = Math.min(offset, maxOffset(node));
       for (; ; ) {
-        if (offset2) {
+        if (offset) {
           if (node.nodeType != 1)
             return false;
-          let prev = node.childNodes[offset2 - 1];
+          let prev = node.childNodes[offset - 1];
           if (prev.contentEditable == "false")
-            offset2--;
+            offset--;
           else {
             node = prev;
-            offset2 = maxOffset(node);
+            offset = maxOffset(node);
           }
         } else if (node == doc2) {
           return true;
         } else {
-          offset2 = domIndex(node);
+          offset = domIndex(node);
           node = node.parentNode;
         }
       }
@@ -39424,16 +34350,16 @@ ${events}
       return elt.scrollTop > Math.max(1, elt.scrollHeight - elt.clientHeight - 4);
     }
     function textNodeBefore(startNode, startOffset) {
-      for (let node = startNode, offset2 = startOffset; ; ) {
-        if (node.nodeType == 3 && offset2 > 0) {
-          return { node, offset: offset2 };
-        } else if (node.nodeType == 1 && offset2 > 0) {
+      for (let node = startNode, offset = startOffset; ; ) {
+        if (node.nodeType == 3 && offset > 0) {
+          return { node, offset };
+        } else if (node.nodeType == 1 && offset > 0) {
           if (node.contentEditable == "false")
             return null;
-          node = node.childNodes[offset2 - 1];
-          offset2 = maxOffset(node);
+          node = node.childNodes[offset - 1];
+          offset = maxOffset(node);
         } else if (node.parentNode && !isBlockElement(node)) {
-          offset2 = domIndex(node);
+          offset = domIndex(node);
           node = node.parentNode;
         } else {
           return null;
@@ -39441,16 +34367,16 @@ ${events}
       }
     }
     function textNodeAfter(startNode, startOffset) {
-      for (let node = startNode, offset2 = startOffset; ; ) {
-        if (node.nodeType == 3 && offset2 < node.nodeValue.length) {
-          return { node, offset: offset2 };
-        } else if (node.nodeType == 1 && offset2 < node.childNodes.length) {
+      for (let node = startNode, offset = startOffset; ; ) {
+        if (node.nodeType == 3 && offset < node.nodeValue.length) {
+          return { node, offset };
+        } else if (node.nodeType == 1 && offset < node.childNodes.length) {
           if (node.contentEditable == "false")
             return null;
-          node = node.childNodes[offset2];
-          offset2 = 0;
+          node = node.childNodes[offset];
+          offset = 0;
         } else if (node.parentNode && !isBlockElement(node)) {
-          offset2 = domIndex(node) + 1;
+          offset = domIndex(node) + 1;
           node = node.parentNode;
         } else {
           return null;
@@ -39458,9 +34384,9 @@ ${events}
       }
     }
     class DOMPos {
-      constructor(node, offset2, precise = true) {
+      constructor(node, offset, precise = true) {
         this.node = node;
-        this.offset = offset2;
+        this.offset = offset;
         this.precise = precise;
       }
       static before(dom, precise) {
@@ -39538,12 +34464,12 @@ ${events}
       }
       reuseDOM(_dom) {
       }
-      localPosFromDOM(node, offset2) {
+      localPosFromDOM(node, offset) {
         let after;
         if (node == this.dom) {
-          after = this.dom.childNodes[offset2];
+          after = this.dom.childNodes[offset];
         } else {
-          let bias = maxOffset(node) == 0 ? 0 : offset2 == 0 ? -1 : 1;
+          let bias = maxOffset(node) == 0 ? 0 : offset == 0 ? -1 : 1;
           for (; ; ) {
             let parent = node.parentNode;
             if (parent == this.dom)
@@ -39574,13 +34500,13 @@ ${events}
           pos2 += child.length + child.breakAfter;
         }
       }
-      domBoundsAround(from, to, offset2 = 0) {
+      domBoundsAround(from, to, offset = 0) {
         let fromI = -1, fromStart = -1, toI = -1, toEnd = -1;
-        for (let i2 = 0, pos2 = offset2, prevEnd = offset2; i2 < this.children.length; i2++) {
-          let child = this.children[i2], end2 = pos2 + child.length;
-          if (pos2 < from && end2 > to)
+        for (let i2 = 0, pos2 = offset, prevEnd = offset; i2 < this.children.length; i2++) {
+          let child = this.children[i2], end = pos2 + child.length;
+          if (pos2 < from && end > to)
             return child.domBoundsAround(from, to, pos2);
-          if (end2 >= from && fromI == -1) {
+          if (end >= from && fromI == -1) {
             fromI = i2;
             fromStart = pos2;
           }
@@ -39589,12 +34515,12 @@ ${events}
             toEnd = prevEnd;
             break;
           }
-          prevEnd = end2;
-          pos2 = end2 + child.breakAfter;
+          prevEnd = end;
+          pos2 = end + child.breakAfter;
         }
         return {
           from: fromStart,
-          to: toEnd < 0 ? offset2 + this.length : toEnd,
+          to: toEnd < 0 ? offset + this.length : toEnd,
           startDOM: (fromI ? this.children[fromI - 1].dom.nextSibling : null) || this.dom.firstChild,
           endDOM: toI < this.children.length && toI >= 0 ? this.children[toI].dom : null
         };
@@ -39859,14 +34785,14 @@ ${events}
         result.flags |= this.flags & 8;
         return result;
       }
-      localPosFromDOM(node, offset2) {
-        return node == this.dom ? offset2 : offset2 ? this.text.length : 0;
+      localPosFromDOM(node, offset) {
+        return node == this.dom ? offset : offset ? this.text.length : 0;
       }
       domAtPos(pos2) {
         return new DOMPos(this.dom, pos2);
       }
-      domBoundsAround(_from, _to, offset2) {
-        return { from: offset2, to: offset2 + this.length, startDOM: this.dom, endDOM: this.dom.nextSibling };
+      domBoundsAround(_from, _to, offset) {
+        return { from: offset, to: offset + this.length, startDOM: this.dom, endDOM: this.dom.nextSibling };
       }
       coordsAt(pos2, side) {
         return textCoords(this.dom, pos2, side);
@@ -39916,12 +34842,12 @@ ${events}
       split(from) {
         let result = [], off = 0, detachFrom = -1, i2 = 0;
         for (let elt of this.children) {
-          let end2 = off + elt.length;
-          if (end2 > from)
+          let end = off + elt.length;
+          if (end > from)
             result.push(off < from ? elt.split(from - off) : elt);
           if (detachFrom < 0 && off >= from)
             detachFrom = i2;
-          off = end2;
+          off = end;
           i2++;
         }
         let length = this.length - from;
@@ -40027,8 +34953,8 @@ ${events}
         let top2 = this;
         while (top2.parent)
           top2 = top2.parent;
-        let { view } = top2, text2 = view && view.state.doc, start2 = this.posAtStart;
-        return text2 ? text2.slice(start2, start2 + this.length) : Text.empty;
+        let { view } = top2, text2 = view && view.state.doc, start = this.posAtStart;
+        return text2 ? text2.slice(start, start + this.length) : Text.empty;
       }
       domAtPos(pos2) {
         return (this.length ? pos2 == 0 : this.side > 0) ? DOMPos.before(this.dom) : DOMPos.after(this.dom, pos2 == this.length);
@@ -40117,14 +35043,14 @@ ${events}
     function inlineDOMAtPos(parent, pos2) {
       let dom = parent.dom, { children: children2 } = parent, i2 = 0;
       for (let off = 0; i2 < children2.length; i2++) {
-        let child = children2[i2], end2 = off + child.length;
-        if (end2 == off && child.getSide() <= 0)
+        let child = children2[i2], end = off + child.length;
+        if (end == off && child.getSide() <= 0)
           continue;
-        if (pos2 > off && pos2 < end2 && child.dom.parentNode == dom)
+        if (pos2 > off && pos2 < end && child.dom.parentNode == dom)
           return child.domAtPos(pos2 - off);
         if (pos2 <= off)
           break;
-        off = end2;
+        off = end;
       }
       for (let j2 = i2; j2 > 0; j2--) {
         let prev = children2[j2 - 1];
@@ -40152,19 +35078,19 @@ ${events}
       let before = null, beforePos = -1, after = null, afterPos = -1;
       function scan(view2, pos3) {
         for (let i2 = 0, off = 0; i2 < view2.children.length && off <= pos3; i2++) {
-          let child = view2.children[i2], end2 = off + child.length;
-          if (end2 >= pos3) {
+          let child = view2.children[i2], end = off + child.length;
+          if (end >= pos3) {
             if (child.children.length) {
               scan(child, pos3 - off);
-            } else if ((!after || after.isHidden && side > 0) && (end2 > pos3 || off == end2 && child.getSide() > 0)) {
+            } else if ((!after || after.isHidden && side > 0) && (end > pos3 || off == end && child.getSide() > 0)) {
               after = child;
               afterPos = pos3 - off;
-            } else if (off < pos3 || off == end2 && child.getSide() < 0 && !child.isHidden) {
+            } else if (off < pos3 || off == end && child.getSide() < 0 && !child.isHidden) {
               before = child;
               beforePos = pos3 - off;
             }
           }
-          off = end2;
+          off = end;
         }
       }
       scan(view, pos2);
@@ -40376,9 +35302,9 @@ ${events}
           startSide = -5e8;
           endSide = 4e8;
         } else {
-          let { start: start2, end: end2 } = getInclusive(spec, block2);
-          startSide = (start2 ? block2 ? -3e8 : -1 : 5e8) - 1;
-          endSide = (end2 ? block2 ? 2e8 : 1 : -6e8) + 1;
+          let { start, end } = getInclusive(spec, block2);
+          startSide = (start ? block2 ? -3e8 : -1 : 5e8) - 1;
+          endSide = (end ? block2 ? 2e8 : 1 : -6e8) + 1;
         }
         return new PointDecoration(spec, startSide, endSide, block2, spec.widget || null, true);
       }
@@ -40407,8 +35333,8 @@ ${events}
     Decoration.none = RangeSet.empty;
     class MarkDecoration extends Decoration {
       constructor(spec) {
-        let { start: start2, end: end2 } = getInclusive(spec);
-        super(start2 ? -1 : 5e8, end2 ? 1 : -6e8, null, spec);
+        let { start, end } = getInclusive(spec);
+        super(start ? -1 : 5e8, end ? 1 : -6e8, null, spec);
         this.tagName = spec.tagName || "span";
         this.class = spec.class || "";
         this.attrs = spec.attributes || null;
@@ -40466,12 +35392,12 @@ ${events}
     }
     PointDecoration.prototype.point = true;
     function getInclusive(spec, block2 = false) {
-      let { inclusiveStart: start2, inclusiveEnd: end2 } = spec;
-      if (start2 == null)
-        start2 = spec.inclusive;
-      if (end2 == null)
-        end2 = spec.inclusive;
-      return { start: start2 !== null && start2 !== void 0 ? start2 : block2, end: end2 !== null && end2 !== void 0 ? end2 : block2 };
+      let { inclusiveStart: start, inclusiveEnd: end } = spec;
+      if (start == null)
+        start = spec.inclusive;
+      if (end == null)
+        end = spec.inclusive;
+      return { start: start !== null && start !== void 0 ? start : block2, end: end !== null && end !== void 0 ? end : block2 };
     }
     function widgetsEq(a2, b2) {
       return a2 == b2 || !!(a2 && b2 && a2.compare(b2));
@@ -40506,24 +35432,24 @@ ${events}
         return true;
       }
       split(at) {
-        let end2 = new LineView();
-        end2.breakAfter = this.breakAfter;
+        let end = new LineView();
+        end.breakAfter = this.breakAfter;
         if (this.length == 0)
-          return end2;
+          return end;
         let { i: i2, off } = this.childPos(at);
         if (off) {
-          end2.append(this.children[i2].split(off), 0);
+          end.append(this.children[i2].split(off), 0);
           this.children[i2].merge(off, this.children[i2].length, null, false, 0, 0);
           i2++;
         }
         for (let j2 = i2; j2 < this.children.length; j2++)
-          end2.append(this.children[j2], 0);
+          end.append(this.children[j2], 0);
         while (i2 > 0 && this.children[i2 - 1].length == 0)
           this.children[--i2].destroy();
         this.children.length = i2;
         this.markDirty();
         this.length = at;
-        return end2;
+        return end;
       }
       transferDOM(other) {
         if (!this.dom)
@@ -40627,14 +35553,14 @@ ${events}
       }
       static find(docView, pos2) {
         for (let i2 = 0, off = 0; i2 < docView.children.length; i2++) {
-          let block2 = docView.children[i2], end2 = off + block2.length;
-          if (end2 >= pos2) {
+          let block2 = docView.children[i2], end = off + block2.length;
+          if (end >= pos2) {
             if (block2 instanceof LineView)
               return block2;
-            if (end2 > pos2)
+            if (end > pos2)
               break;
           }
-          off = end2 + block2.breakAfter;
+          off = end + block2.breakAfter;
         }
         return null;
       }
@@ -40660,9 +35586,9 @@ ${events}
       split(at) {
         let len = this.length - at;
         this.length = at;
-        let end2 = new BlockWidgetView(this.widget, len, this.deco);
-        end2.breakAfter = this.breakAfter;
-        return end2;
+        let end = new BlockWidgetView(this.widget, len, this.deco);
+        end.breakAfter = this.breakAfter;
+        return end;
       }
       get children() {
         return noChildren;
@@ -40756,10 +35682,10 @@ ${events}
       }
     }
     class ContentBuilder {
-      constructor(doc2, pos2, end2, disallowBlockEffectsFor) {
+      constructor(doc2, pos2, end, disallowBlockEffectsFor) {
         this.doc = doc2;
         this.pos = pos2;
-        this.end = end2;
+        this.end = end;
         this.disallowBlockEffectsFor = disallowBlockEffectsFor;
         this.content = [];
         this.curLine = null;
@@ -40787,9 +35713,9 @@ ${events}
         }
         return this.curLine;
       }
-      flushBuffer(active = this.bufferMarks) {
+      flushBuffer(active2 = this.bufferMarks) {
         if (this.pendingBuffer) {
-          this.curLine.append(wrapMarks(new WidgetBufferView(-1), active), active.length);
+          this.curLine.append(wrapMarks(new WidgetBufferView(-1), active2), active2.length);
           this.pendingBuffer = 0;
         }
       }
@@ -40806,7 +35732,7 @@ ${events}
         if (!this.posCovered() && !(openEnd && this.content.length && this.content[this.content.length - 1] instanceof BlockWidgetView))
           this.getLine();
       }
-      buildText(length, active, openStart) {
+      buildText(length, active2, openStart) {
         while (length > 0) {
           if (this.textOff == this.text.length) {
             let { value, lineBreak, done } = this.cursor.next(this.skip);
@@ -40836,21 +35762,21 @@ ${events}
             512
             /* T.Chunk */
           );
-          this.flushBuffer(active.slice(active.length - openStart));
-          this.getLine().append(wrapMarks(new TextView(this.text.slice(this.textOff, this.textOff + take)), active), openStart);
+          this.flushBuffer(active2.slice(active2.length - openStart));
+          this.getLine().append(wrapMarks(new TextView(this.text.slice(this.textOff, this.textOff + take)), active2), openStart);
           this.atCursorPos = true;
           this.textOff += take;
           length -= take;
           openStart = 0;
         }
       }
-      span(from, to, active, openStart) {
-        this.buildText(to - from, active, openStart);
+      span(from, to, active2, openStart) {
+        this.buildText(to - from, active2, openStart);
         this.pos = to;
         if (this.openStart < 0)
           this.openStart = openStart;
       }
-      point(from, to, deco, active, openStart, index) {
+      point(from, to, deco, active2, openStart, index) {
         if (this.disallowBlockEffectsFor[index] && deco instanceof PointDecoration) {
           if (deco.block)
             throw new RangeError("Block decorations may not be specified via plugins");
@@ -40865,21 +35791,21 @@ ${events}
             this.addBlockWidget(new BlockWidgetView(deco.widget || NullWidget.block, len, deco));
           } else {
             let view = WidgetView.create(deco.widget || NullWidget.inline, len, len ? 0 : deco.startSide);
-            let cursorBefore = this.atCursorPos && !view.isEditable && openStart <= active.length && (from < to || deco.startSide > 0);
-            let cursorAfter = !view.isEditable && (from < to || openStart > active.length || deco.startSide <= 0);
+            let cursorBefore = this.atCursorPos && !view.isEditable && openStart <= active2.length && (from < to || deco.startSide > 0);
+            let cursorAfter = !view.isEditable && (from < to || openStart > active2.length || deco.startSide <= 0);
             let line2 = this.getLine();
             if (this.pendingBuffer == 2 && !cursorBefore && !view.isEditable)
               this.pendingBuffer = 0;
-            this.flushBuffer(active);
+            this.flushBuffer(active2);
             if (cursorBefore) {
-              line2.append(wrapMarks(new WidgetBufferView(1), active), openStart);
-              openStart = active.length + Math.max(0, openStart - active.length);
+              line2.append(wrapMarks(new WidgetBufferView(1), active2), openStart);
+              openStart = active2.length + Math.max(0, openStart - active2.length);
             }
-            line2.append(wrapMarks(view, active), openStart);
+            line2.append(wrapMarks(view, active2), openStart);
             this.atCursorPos = cursorAfter;
-            this.pendingBuffer = !cursorAfter ? 0 : from < to || openStart > active.length ? 1 : 2;
+            this.pendingBuffer = !cursorAfter ? 0 : from < to || openStart > active2.length ? 1 : 2;
             if (this.pendingBuffer)
-              this.bufferMarks = active.slice();
+              this.bufferMarks = active2.slice();
           }
         } else if (this.doc.lineAt(this.pos).from == this.pos) {
           this.getLine().addLineDeco(deco);
@@ -40906,8 +35832,8 @@ ${events}
         return builder;
       }
     }
-    function wrapMarks(view, active) {
-      for (let mark of active)
+    function wrapMarks(view, active2) {
+      for (let mark of active2)
         view = new MarkView(mark, [view], view.length);
       return view;
     }
@@ -40973,8 +35899,8 @@ ${events}
       /**
       @internal
       */
-      side(end2, dir) {
-        return this.dir == dir == end2 ? this.to : this.from;
+      side(end, dir) {
+        return this.dir == dir == end ? this.to : this.from;
       }
       /**
       @internal
@@ -40985,14 +35911,14 @@ ${events}
       /**
       @internal
       */
-      static find(order2, index, level, assoc) {
+      static find(order, index, level, assoc) {
         let maybe = -1;
-        for (let i2 = 0; i2 < order2.length; i2++) {
-          let span = order2[i2];
+        for (let i2 = 0; i2 < order.length; i2++) {
+          let span = order[i2];
           if (span.from <= index && span.to >= index) {
             if (span.level == level)
               return i2;
-            if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span.from < index : span.to > index : order2[maybe].level > span.level))
+            if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span.from < index : span.to > index : order[maybe].level > span.level))
               maybe = i2;
           }
         }
@@ -41035,13 +35961,13 @@ ${events}
             else
               types[i2] = 256;
           } else if (type == 64) {
-            let end2 = i2 + 1;
-            while (end2 < to && types[end2] == 64)
-              end2++;
-            let replace2 = i2 && prev == 8 || end2 < rTo && types[end2] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
-            for (let j2 = i2; j2 < end2; j2++)
+            let end = i2 + 1;
+            while (end < to && types[end] == 64)
+              end++;
+            let replace2 = i2 && prev == 8 || end < rTo && types[end] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
+            for (let j2 = i2; j2 < end; j2++)
               types[j2] = replace2;
-            i2 = end2 - 1;
+            i2 = end - 1;
           } else if (type == 8 && prevStrong == 1) {
             types[i2] = 1;
           }
@@ -41100,30 +36026,30 @@ ${events}
         for (let i2 = from; i2 < to; ) {
           let type = types[i2];
           if (type == 256) {
-            let end2 = i2 + 1;
+            let end = i2 + 1;
             for (; ; ) {
-              if (end2 == to) {
+              if (end == to) {
                 if (iI == isolates.length)
                   break;
-                end2 = isolates[iI++].to;
+                end = isolates[iI++].to;
                 to = iI < isolates.length ? isolates[iI].from : rTo;
-              } else if (types[end2] == 256) {
-                end2++;
+              } else if (types[end] == 256) {
+                end++;
               } else {
                 break;
               }
             }
             let beforeL = prev == 1;
-            let afterL = (end2 < rTo ? types[end2] : outerType) == 1;
+            let afterL = (end < rTo ? types[end] : outerType) == 1;
             let replace2 = beforeL == afterL ? beforeL ? 1 : 2 : outerType;
-            for (let j2 = end2, jI = iI, fromJ = jI ? isolates[jI - 1].to : rFrom; j2 > i2; ) {
+            for (let j2 = end, jI = iI, fromJ = jI ? isolates[jI - 1].to : rFrom; j2 > i2; ) {
               if (j2 == fromJ) {
                 j2 = isolates[--jI].from;
                 fromJ = jI ? isolates[jI - 1].to : rFrom;
               }
               types[--j2] = replace2;
             }
-            i2 = end2;
+            i2 = end;
           } else {
             prev = type;
             i2++;
@@ -41131,7 +36057,7 @@ ${events}
         }
       }
     }
-    function emitSpans(line2, from, to, level, baseLevel, isolates, order2) {
+    function emitSpans(line2, from, to, level, baseLevel, isolates, order) {
       let ourType = level % 2 ? 2 : 1;
       if (level % 2 == baseLevel % 2) {
         for (let iCh = from, iI = 0; iCh < to; ) {
@@ -41167,9 +36093,9 @@ ${events}
                 recurse.push(iso);
               } else {
                 if (iso.from > iCh)
-                  order2.push(new BidiSpan(iCh, iso.from, localLevel));
+                  order.push(new BidiSpan(iCh, iso.from, localLevel));
                 let dirSwap = iso.direction == LTR != !(localLevel % 2);
-                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order2);
+                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order);
                 iCh = iso.to;
               }
               iScan = iso.to;
@@ -41180,9 +36106,9 @@ ${events}
             }
           }
           if (recurse)
-            emitSpans(line2, iCh, iScan, level + 1, baseLevel, recurse, order2);
+            emitSpans(line2, iCh, iScan, level + 1, baseLevel, recurse, order);
           else if (iCh < iScan)
-            order2.push(new BidiSpan(iCh, iScan, localLevel));
+            order.push(new BidiSpan(iCh, iScan, localLevel));
           iCh = iScan;
         }
       } else {
@@ -41218,9 +36144,9 @@ ${events}
                 recurse.push(iso);
               } else {
                 if (iso.to < iCh)
-                  order2.push(new BidiSpan(iso.to, iCh, localLevel));
+                  order.push(new BidiSpan(iso.to, iCh, localLevel));
                 let dirSwap = iso.direction == LTR != !(localLevel % 2);
-                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order2);
+                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order);
                 iCh = iso.from;
               }
               iScan = iso.from;
@@ -41231,19 +36157,19 @@ ${events}
             }
           }
           if (recurse)
-            emitSpans(line2, iScan, iCh, level + 1, baseLevel, recurse, order2);
+            emitSpans(line2, iScan, iCh, level + 1, baseLevel, recurse, order);
           else if (iScan < iCh)
-            order2.push(new BidiSpan(iScan, iCh, localLevel));
+            order.push(new BidiSpan(iScan, iCh, localLevel));
           iCh = iScan;
         }
       }
     }
-    function computeSectionOrder(line2, level, baseLevel, isolates, from, to, order2) {
+    function computeSectionOrder(line2, level, baseLevel, isolates, from, to, order) {
       let outerType = level % 2 ? 2 : 1;
       computeCharTypes(line2, from, to, isolates, outerType);
       processBracketPairs(line2, from, to, isolates, outerType);
       processNeutrals(from, to, isolates, outerType);
-      emitSpans(line2, from, to, level, baseLevel, isolates, order2);
+      emitSpans(line2, from, to, level, baseLevel, isolates, order);
     }
     function computeOrder(line2, direction, isolates) {
       if (!line2)
@@ -41253,24 +36179,24 @@ ${events}
       if (isolates.length)
         while (line2.length > types.length)
           types[types.length] = 256;
-      let order2 = [], level = direction == LTR ? 0 : 1;
-      computeSectionOrder(line2, level, level, isolates, 0, line2.length, order2);
-      return order2;
+      let order = [], level = direction == LTR ? 0 : 1;
+      computeSectionOrder(line2, level, level, isolates, 0, line2.length, order);
+      return order;
     }
     function trivialOrder(length) {
       return [new BidiSpan(0, length, 0)];
     }
     let movedOver = "";
-    function moveVisually(line2, order2, dir, start2, forward) {
+    function moveVisually(line2, order, dir, start, forward) {
       var _a2;
-      let startIndex = start2.head - line2.from;
-      let spanI = BidiSpan.find(order2, startIndex, (_a2 = start2.bidiLevel) !== null && _a2 !== void 0 ? _a2 : -1, start2.assoc);
-      let span = order2[spanI], spanEnd = span.side(forward, dir);
+      let startIndex = start.head - line2.from;
+      let spanI = BidiSpan.find(order, startIndex, (_a2 = start.bidiLevel) !== null && _a2 !== void 0 ? _a2 : -1, start.assoc);
+      let span = order[spanI], spanEnd = span.side(forward, dir);
       if (startIndex == spanEnd) {
         let nextI = spanI += forward ? 1 : -1;
-        if (nextI < 0 || nextI >= order2.length)
+        if (nextI < 0 || nextI >= order.length)
           return null;
-        span = order2[spanI = nextI];
+        span = order[spanI = nextI];
         startIndex = span.side(!forward, dir);
         spanEnd = span.side(forward, dir);
       }
@@ -41278,7 +36204,7 @@ ${events}
       if (nextIndex < span.from || nextIndex > span.to)
         nextIndex = spanEnd;
       movedOver = line2.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex));
-      let nextSpan = spanI == (forward ? order2.length - 1 : 0) ? null : order2[spanI + (forward ? 1 : -1)];
+      let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)];
       if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
         return EditorSelection.cursor(nextSpan.side(!forward, dir) + line2.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
       return EditorSelection.cursor(nextIndex + line2.from, span.forward(forward, dir) ? -1 : 1, span.level);
@@ -41439,11 +36365,11 @@ ${events}
       RangeSet.spans(sets, line2.from, line2.to, {
         point() {
         },
-        span(fromDoc, toDoc, active, open) {
+        span(fromDoc, toDoc, active2, open) {
           let from = fromDoc - line2.from, to = toDoc - line2.from;
           let level = result;
-          for (let i2 = active.length - 1; i2 >= 0; i2--, open--) {
-            let direction = active[i2].spec.bidiIsolate, update;
+          for (let i2 = active2.length - 1; i2 >= 0; i2--, open--) {
+            let direction = active2[i2].spec.bidiIsolate, update;
             if (direction == null)
               direction = autoDirection(line2.text, from, to);
             if (open > 0 && level.length && (update = level[level.length - 1]).to == from && update.direction == direction) {
@@ -41461,21 +36387,21 @@ ${events}
     }
     const scrollMargins = /* @__PURE__ */ Facet.define();
     function getScrollMargins(view) {
-      let left2 = 0, right2 = 0, top2 = 0, bottom2 = 0;
+      let left = 0, right = 0, top2 = 0, bottom = 0;
       for (let source2 of view.state.facet(scrollMargins)) {
         let m2 = source2(view);
         if (m2) {
           if (m2.left != null)
-            left2 = Math.max(left2, m2.left);
+            left = Math.max(left, m2.left);
           if (m2.right != null)
-            right2 = Math.max(right2, m2.right);
+            right = Math.max(right, m2.right);
           if (m2.top != null)
             top2 = Math.max(top2, m2.top);
           if (m2.bottom != null)
-            bottom2 = Math.max(bottom2, m2.bottom);
+            bottom = Math.max(bottom, m2.bottom);
         }
       }
-      return { left: left2, right: right2, top: top2, bottom: bottom2 };
+      return { left, right, top: top2, bottom };
     }
     const styleModule = /* @__PURE__ */ Facet.define();
     class ChangedRange {
@@ -41508,13 +36434,13 @@ ${events}
         let result = [];
         for (let dI = 0, rI = 0, posA = 0, posB = 0; ; dI++) {
           let next = dI == diff2.length ? null : diff2[dI], off = posA - posB;
-          let end2 = next ? next.fromB : 1e9;
-          while (rI < ranges.length && ranges[rI] < end2) {
+          let end = next ? next.fromB : 1e9;
+          while (rI < ranges.length && ranges[rI] < end) {
             let from = ranges[rI], to = ranges[rI + 1];
-            let fromB = Math.max(posB, from), toB = Math.min(end2, to);
+            let fromB = Math.max(posB, from), toB = Math.min(end, to);
             if (fromB <= toB)
               new ChangedRange(fromB + off, toB + off, fromB, toB).addToSet(result);
-            if (to > end2)
+            if (to > end)
               break;
             else
               rI += 2;
@@ -41729,9 +36655,9 @@ ${events}
       updateEditContextFormatting(update) {
         this.editContextFormatting = this.editContextFormatting.map(update.changes);
         for (let tr of update.transactions)
-          for (let effect2 of tr.effects)
-            if (effect2.is(setEditContextFormatting)) {
-              this.editContextFormatting = effect2.value;
+          for (let effect of tr.effects)
+            if (effect.is(setEditContextFormatting)) {
+              this.editContextFormatting = effect.value;
             }
       }
       compositionView(composition) {
@@ -41774,17 +36700,17 @@ ${events}
           return;
         let force = this.forceSelection;
         this.forceSelection = false;
-        let main2 = this.view.state.selection.main;
-        let anchor = this.moveToLine(this.domAtPos(main2.anchor));
-        let head = main2.empty ? anchor : this.moveToLine(this.domAtPos(main2.head));
-        if (browser.gecko && main2.empty && !this.hasComposition && betweenUneditable(anchor)) {
+        let main = this.view.state.selection.main;
+        let anchor = this.moveToLine(this.domAtPos(main.anchor));
+        let head = main.empty ? anchor : this.moveToLine(this.domAtPos(main.head));
+        if (browser.gecko && main.empty && !this.hasComposition && betweenUneditable(anchor)) {
           let dummy = document.createTextNode("");
           this.view.observer.ignore(() => anchor.node.insertBefore(dummy, anchor.node.childNodes[anchor.offset] || null));
           anchor = head = new DOMPos(dummy, 0);
           force = true;
         }
         let domSel = this.view.observer.selectionRange;
-        if (force || !domSel.focusNode || (!isEquivalentPosition(anchor.node, anchor.offset, domSel.anchorNode, domSel.anchorOffset) || !isEquivalentPosition(head.node, head.offset, domSel.focusNode, domSel.focusOffset)) && !this.suppressWidgetCursorChange(domSel, main2)) {
+        if (force || !domSel.focusNode || (!isEquivalentPosition(anchor.node, anchor.offset, domSel.anchorNode, domSel.anchorOffset) || !isEquivalentPosition(head.node, head.offset, domSel.focusNode, domSel.focusOffset)) && !this.suppressWidgetCursorChange(domSel, main)) {
           this.view.observer.ignore(() => {
             if (browser.android && browser.chrome && this.dom.contains(domSel.focusNode) && inUneditable(domSel.focusNode, this.dom)) {
               this.dom.blur();
@@ -41792,7 +36718,7 @@ ${events}
             }
             let rawSel = getSelection(this.view.root);
             if (!rawSel) ;
-            else if (main2.empty) {
+            else if (main.empty) {
               if (browser.gecko) {
                 let nextTo = nextToUneditable(anchor.node, anchor.offset);
                 if (nextTo && nextTo != (1 | 2)) {
@@ -41802,8 +36728,8 @@ ${events}
                 }
               }
               rawSel.collapse(anchor.node, anchor.offset);
-              if (main2.bidiLevel != null && rawSel.caretBidiLevel !== void 0)
-                rawSel.caretBidiLevel = main2.bidiLevel;
+              if (main.bidiLevel != null && rawSel.caretBidiLevel !== void 0)
+                rawSel.caretBidiLevel = main.bidiLevel;
             } else if (rawSel.extend) {
               rawSel.collapse(anchor.node, anchor.offset);
               try {
@@ -41812,7 +36738,7 @@ ${events}
               }
             } else {
               let range = document.createRange();
-              if (main2.anchor > main2.head)
+              if (main.anchor > main.head)
                 [anchor, head] = [head, anchor];
               range.setEnd(head.node, head.offset);
               range.setStart(anchor.node, anchor.offset);
@@ -41888,11 +36814,11 @@ ${events}
         }
         return null;
       }
-      posFromDOM(node, offset2) {
+      posFromDOM(node, offset) {
         let view = this.nearest(node);
         if (!view)
           throw new RangeError("Trying to find position for a DOM position outside of the document");
-        return view.localPosFromDOM(node, offset2) + view.posAtStart;
+        return view.localPosFromDOM(node, offset) + view.posAtStart;
       }
       domAtPos(pos2) {
         let { i: i2, off } = this.childCursor().findPos(pos2, -1);
@@ -41908,19 +36834,19 @@ ${events}
       coordsAt(pos2, side) {
         let best = null, bestPos = 0;
         for (let off = this.length, i2 = this.children.length - 1; i2 >= 0; i2--) {
-          let child = this.children[i2], end2 = off - child.breakAfter, start2 = end2 - child.length;
-          if (end2 < pos2)
+          let child = this.children[i2], end = off - child.breakAfter, start = end - child.length;
+          if (end < pos2)
             break;
-          if (start2 <= pos2 && (start2 < pos2 || child.covers(-1)) && (end2 > pos2 || child.covers(1)) && (!best || child instanceof LineView && !(best instanceof LineView && side >= 0))) {
+          if (start <= pos2 && (start < pos2 || child.covers(-1)) && (end > pos2 || child.covers(1)) && (!best || child instanceof LineView && !(best instanceof LineView && side >= 0))) {
             best = child;
-            bestPos = start2;
-          } else if (best && start2 == pos2 && end2 == pos2 && child instanceof BlockWidgetView && Math.abs(side) < 2) {
+            bestPos = start;
+          } else if (best && start == pos2 && end == pos2 && child instanceof BlockWidgetView && Math.abs(side) < 2) {
             if (child.deco.startSide < 0)
               break;
             else if (i2)
               best = null;
           }
-          off = start2;
+          off = start;
         }
         return best ? best.coordsAt(pos2 - bestPos, side) : null;
       }
@@ -41940,10 +36866,10 @@ ${events}
         }
         if (!(child instanceof TextView))
           return null;
-        let end2 = findClusterBreak(child.text, off);
-        if (end2 == off)
+        let end = findClusterBreak(child.text, off);
+        if (end == off)
           return null;
-        let rects = textRange(child.dom, off, end2).getClientRects();
+        let rects = textRange(child.dom, off, end).getClientRects();
         for (let i3 = 0; i3 < rects.length; i3++) {
           let rect = rects[i3];
           if (i3 == rects.length - 1 || rect.top < rect.bottom && rect.left < rect.right)
@@ -41951,14 +36877,14 @@ ${events}
         }
         return null;
       }
-      measureVisibleLineHeights(viewport2) {
-        let result = [], { from, to } = viewport2;
+      measureVisibleLineHeights(viewport) {
+        let result = [], { from, to } = viewport;
         let contentWidth = this.view.contentDOM.clientWidth;
         let isWider = contentWidth > Math.max(this.view.scrollDOM.clientWidth, this.minWidth) + 1;
         let widest = -1, ltr = this.view.textDirection == Direction.LTR;
         for (let pos2 = 0, i2 = 0; i2 < this.children.length; i2++) {
-          let child = this.children[i2], end2 = pos2 + child.length;
-          if (end2 > to)
+          let child = this.children[i2], end = pos2 + child.length;
+          if (end > to)
             break;
           if (pos2 >= from) {
             let childRect = child.dom.getBoundingClientRect();
@@ -41973,12 +36899,12 @@ ${events}
                   widest = width;
                   this.minWidth = contentWidth;
                   this.minWidthFrom = pos2;
-                  this.minWidthTo = end2;
+                  this.minWidthTo = end;
                 }
               }
             }
           }
-          pos2 = end2 + child.breakAfter;
+          pos2 = end + child.breakAfter;
         }
         return result;
       }
@@ -42019,15 +36945,15 @@ ${events}
         let deco = [], vs = this.view.viewState;
         for (let pos2 = 0, i2 = 0; ; i2++) {
           let next = i2 == vs.viewports.length ? null : vs.viewports[i2];
-          let end2 = next ? next.from - 1 : this.length;
-          if (end2 > pos2) {
-            let height = (vs.lineBlockAt(end2).bottom - vs.lineBlockAt(pos2).top) / this.view.scaleY;
+          let end = next ? next.from - 1 : this.length;
+          if (end > pos2) {
+            let height = (vs.lineBlockAt(end).bottom - vs.lineBlockAt(pos2).top) / this.view.scaleY;
             deco.push(Decoration.replace({
               widget: new BlockGapWidget(height),
               block: true,
               inclusive: true,
               isBlockGap: true
-            }).range(pos2, end2));
+            }).range(pos2, end));
           }
           if (!next)
             break;
@@ -42152,10 +37078,10 @@ ${events}
           return null;
       }
     }
-    function nextToUneditable(node, offset2) {
+    function nextToUneditable(node, offset) {
       if (node.nodeType != 1)
         return 0;
-      return (offset2 && node.childNodes[offset2 - 1].contentEditable == "false" ? 1 : 0) | (offset2 < node.childNodes.length && node.childNodes[offset2].contentEditable == "false" ? 2 : 0);
+      return (offset && node.childNodes[offset - 1].contentEditable == "false" ? 1 : 0) | (offset < node.childNodes.length && node.childNodes[offset].contentEditable == "false" ? 2 : 0);
     }
     let DecorationComparator$1 = class DecorationComparator {
       constructor() {
@@ -42231,8 +37157,8 @@ ${events}
     function upTop(rect, top2) {
       return top2 < rect.top ? { top: top2, left: rect.left, right: rect.right, bottom: rect.bottom } : rect;
     }
-    function upBot(rect, bottom2) {
-      return bottom2 > rect.bottom ? { top: rect.top, left: rect.left, right: rect.right, bottom: bottom2 } : rect;
+    function upBot(rect, bottom) {
+      return bottom > rect.bottom ? { top: rect.top, left: rect.left, right: rect.right, bottom } : rect;
     }
     function domPosAtCoords(parent, x2, y2) {
       let closest, closestRect, closestX, closestY, closestOverlap = false;
@@ -42283,8 +37209,8 @@ ${events}
         return domPosInText(closest, clipX, y2);
       if (closestOverlap && closest.contentEditable != "false")
         return domPosAtCoords(closest, clipX, y2);
-      let offset2 = Array.prototype.indexOf.call(parent.childNodes, closest) + (x2 >= (closestRect.left + closestRect.right) / 2 ? 1 : 0);
-      return { node: parent, offset: offset2 };
+      let offset = Array.prototype.indexOf.call(parent.childNodes, closest) + (x2 >= (closestRect.left + closestRect.right) / 2 ? 1 : 0);
+      return { node: parent, offset };
     }
     function domPosInText(node, x2, y2) {
       let len = node.nodeValue.length;
@@ -42299,11 +37225,11 @@ ${events}
             generalSide = x2 - rect.left;
           let dy = (rect.top > y2 ? rect.top - y2 : y2 - rect.bottom) - 1;
           if (rect.left - 1 <= x2 && rect.right + 1 >= x2 && dy < closestDY) {
-            let right2 = x2 >= (rect.left + rect.right) / 2, after = right2;
+            let right = x2 >= (rect.left + rect.right) / 2, after = right;
             if (browser.chrome || browser.gecko) {
               let rectBefore = textRange(node, i2).getBoundingClientRect();
               if (rectBefore.left == rect.right)
-                after = !right2;
+                after = !right;
             }
             if (dy <= 0)
               return { node, offset: i2 + (after ? 1 : 0) };
@@ -42354,28 +37280,28 @@ ${events}
         if (element && !view.contentDOM.contains(element))
           element = null;
       }
-      let node, offset2 = -1;
+      let node, offset = -1;
       if (element && ((_a2 = view.docView.nearest(element)) === null || _a2 === void 0 ? void 0 : _a2.isEditable) != false) {
         if (doc2.caretPositionFromPoint) {
           let pos2 = doc2.caretPositionFromPoint(x2, y2);
           if (pos2)
-            ({ offsetNode: node, offset: offset2 } = pos2);
+            ({ offsetNode: node, offset } = pos2);
         } else if (doc2.caretRangeFromPoint) {
           let range = doc2.caretRangeFromPoint(x2, y2);
           if (range) {
-            ({ startContainer: node, startOffset: offset2 } = range);
-            if (!view.contentDOM.contains(node) || browser.safari && isSuspiciousSafariCaretResult(node, offset2, x2) || browser.chrome && isSuspiciousChromeCaretResult(node, offset2, x2))
+            ({ startContainer: node, startOffset: offset } = range);
+            if (!view.contentDOM.contains(node) || browser.safari && isSuspiciousSafariCaretResult(node, offset, x2) || browser.chrome && isSuspiciousChromeCaretResult(node, offset, x2))
               node = void 0;
           }
         }
         if (node)
-          offset2 = Math.min(maxOffset(node), offset2);
+          offset = Math.min(maxOffset(node), offset);
       }
       if (!node || !view.docView.dom.contains(node)) {
         let line2 = LineView.find(view.docView, lineStart);
         if (!line2)
           return yOffset > block2.top + block2.height / 2 ? block2.to : block2.from;
-        ({ node, offset: offset2 } = domPosAtCoords(line2.dom, x2, y2));
+        ({ node, offset } = domPosAtCoords(line2.dom, x2, y2));
       }
       let nearest = view.docView.nearest(node);
       if (!nearest)
@@ -42384,7 +37310,7 @@ ${events}
         let rect = nearest.dom.getBoundingClientRect();
         return coords.y < rect.top || coords.y <= rect.bottom && coords.x <= (rect.left + rect.right) / 2 ? nearest.posAtStart : nearest.posAtEnd;
       } else {
-        return nearest.localPosFromDOM(node, offset2) + nearest.posAtStart;
+        return nearest.localPosFromDOM(node, offset) + nearest.posAtStart;
       }
     }
     function posAtCoordsImprecise(view, contentRect, block2, x2, y2) {
@@ -42397,17 +37323,17 @@ ${events}
       let content2 = view.state.sliceDoc(block2.from, block2.to);
       return block2.from + findColumn(content2, into, view.state.tabSize);
     }
-    function isSuspiciousSafariCaretResult(node, offset2, x2) {
+    function isSuspiciousSafariCaretResult(node, offset, x2) {
       let len;
-      if (node.nodeType != 3 || offset2 != (len = node.nodeValue.length))
+      if (node.nodeType != 3 || offset != (len = node.nodeValue.length))
         return false;
       for (let next = node.nextSibling; next; next = next.nextSibling)
         if (next.nodeType != 1 || next.nodeName != "BR")
           return false;
       return textRange(node, len - 1, len).getBoundingClientRect().left > x2;
     }
-    function isSuspiciousChromeCaretResult(node, offset2, x2) {
-      if (offset2 != 0)
+    function isSuspiciousChromeCaretResult(node, offset, x2) {
+      if (offset != 0)
         return false;
       for (let cur2 = node; ; ) {
         let parent = cur2.parentNode;
@@ -42429,9 +37355,9 @@ ${events}
         }
       return line2;
     }
-    function moveToLineBoundary(view, start2, forward, includeWrap) {
-      let line2 = blockAt(view, start2.head);
-      let coords = !includeWrap || line2.type != BlockType.Text || !(view.lineWrapping || line2.widgetLineBreaks) ? null : view.coordsAtPos(start2.assoc < 0 && start2.head > line2.from ? start2.head - 1 : start2.head);
+    function moveToLineBoundary(view, start, forward, includeWrap) {
+      let line2 = blockAt(view, start.head);
+      let coords = !includeWrap || line2.type != BlockType.Text || !(view.lineWrapping || line2.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > line2.from ? start.head - 1 : start.head);
       if (coords) {
         let editorRect = view.dom.getBoundingClientRect();
         let direction = view.textDirectionAt(line2.from);
@@ -42444,10 +37370,10 @@ ${events}
       }
       return EditorSelection.cursor(forward ? line2.to : line2.from, forward ? -1 : 1);
     }
-    function moveByChar(view, start2, forward, by) {
-      let line2 = view.state.doc.lineAt(start2.head), spans = view.bidiSpans(line2);
+    function moveByChar(view, start, forward, by) {
+      let line2 = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line2);
       let direction = view.textDirectionAt(line2.from);
-      for (let cur2 = start2, check = null; ; ) {
+      for (let cur2 = start, check = null; ; ) {
         let next = moveVisually(line2, spans, direction, cur2, forward), char = movedOver;
         if (!next) {
           if (line2.number == (forward ? view.state.doc.lines : 1))
@@ -42467,9 +37393,9 @@ ${events}
         cur2 = next;
       }
     }
-    function byGroup(view, pos2, start2) {
+    function byGroup(view, pos2, start) {
       let categorize = view.state.charCategorizer(pos2);
-      let cat = categorize(start2);
+      let cat = categorize(start);
       return (next) => {
         let nextCat = categorize(next);
         if (cat == CharCategory.Space)
@@ -42477,13 +37403,13 @@ ${events}
         return cat == nextCat;
       };
     }
-    function moveVertically(view, start2, forward, distance) {
-      let startPos = start2.head, dir = forward ? 1 : -1;
+    function moveVertically(view, start, forward, distance) {
+      let startPos = start.head, dir = forward ? 1 : -1;
       if (startPos == (forward ? view.state.doc.length : 0))
-        return EditorSelection.cursor(startPos, start2.assoc);
-      let goal = start2.goalColumn, startY;
+        return EditorSelection.cursor(startPos, start.assoc);
+      let goal = start.goalColumn, startY;
       let rect = view.contentDOM.getBoundingClientRect();
-      let startCoords = view.coordsAtPos(startPos, start2.assoc || -1), docTop = view.documentTop;
+      let startCoords = view.coordsAtPos(startPos, start.assoc || -1), docTop = view.documentTop;
       if (startCoords) {
         if (goal == null)
           goal = startCoords.left - rect.left;
@@ -42539,23 +37465,23 @@ ${events}
       lineBreak() {
         this.text += LineBreakPlaceholder;
       }
-      readRange(start2, end2) {
-        if (!start2)
+      readRange(start, end) {
+        if (!start)
           return this;
-        let parent = start2.parentNode;
-        for (let cur2 = start2; ; ) {
+        let parent = start.parentNode;
+        for (let cur2 = start; ; ) {
           this.findPointBefore(parent, cur2);
           let oldLen = this.text.length;
           this.readNode(cur2);
           let next = cur2.nextSibling;
-          if (next == end2)
+          if (next == end)
             break;
           let view = ContentView.get(cur2), nextView = ContentView.get(next);
           if (view && nextView ? view.breakAfter : (view ? view.breakAfter : isBlockElement(cur2)) || isBlockElement(next) && (cur2.nodeName != "BR" || cur2.cmIgnore) && this.text.length > oldLen)
             this.lineBreak();
           cur2 = next;
         }
-        this.findPointBefore(parent, end2);
+        this.findPointBefore(parent, end);
         return this;
       }
       readTextNode(node) {
@@ -42617,33 +37543,33 @@ ${events}
             point.pos = this.text.length + (isAtEnd(node, point.node, point.offset) ? length : 0);
       }
     }
-    function isAtEnd(parent, node, offset2) {
+    function isAtEnd(parent, node, offset) {
       for (; ; ) {
-        if (!node || offset2 < maxOffset(node))
+        if (!node || offset < maxOffset(node))
           return false;
         if (node == parent)
           return true;
-        offset2 = domIndex(node) + 1;
+        offset = domIndex(node) + 1;
         node = node.parentNode;
       }
     }
     class DOMPoint {
-      constructor(node, offset2) {
+      constructor(node, offset) {
         this.node = node;
-        this.offset = offset2;
+        this.offset = offset;
         this.pos = -1;
       }
     }
     class DOMChange {
-      constructor(view, start2, end2, typeOver) {
+      constructor(view, start, end, typeOver) {
         this.typeOver = typeOver;
         this.bounds = null;
         this.text = "";
-        this.domChanged = start2 > -1;
+        this.domChanged = start > -1;
         let { impreciseHead: iHead, impreciseAnchor: iAnchor } = view.docView;
-        if (view.state.readOnly && start2 > -1) {
+        if (view.state.readOnly && start > -1) {
           this.newSel = null;
-        } else if (start2 > -1 && (this.bounds = view.docView.domBoundsAround(start2, end2, 0))) {
+        } else if (start > -1 && (this.bounds = view.docView.domBoundsAround(start, end, 0))) {
           let selPoints = iHead || iAnchor ? [] : selectionPoints(view);
           let reader = new DOMReader(selPoints, view.state);
           reader.readRange(this.bounds.startDOM, this.bounds.endDOM);
@@ -42759,11 +37685,11 @@ ${events}
           } else {
             compositionRange = view.state.doc.lineAt(sel.head);
           }
-          let offset2 = sel.to - change.to, size = sel.to - sel.from;
+          let offset = sel.to - change.to, size = sel.to - sel.from;
           tr = startState.changeByRange((range) => {
             if (range.from == sel.from && range.to == sel.to)
               return { changes, range: mainSel || range.map(changes) };
-            let to = range.to - offset2, from = to - replaced.length;
+            let to = range.to - offset, from = to - replaced.length;
             if (range.to - range.from != size || view.state.sliceDoc(from, to) != replaced || // Unfortunately, there's no way to make multiple
             // changes in the same node work without aborting
             // composition, so cursors in the composition range are
@@ -42901,14 +37827,14 @@ ${events}
         let handlers2 = computeHandlers(plugins), prev = this.handlers, dom = this.view.contentDOM;
         for (let type in handlers2)
           if (type != "scroll") {
-            let passive2 = !handlers2[type].handlers.length;
+            let passive = !handlers2[type].handlers.length;
             let exists = prev[type];
-            if (exists && passive2 != !exists.handlers.length) {
+            if (exists && passive != !exists.handlers.length) {
               dom.removeEventListener(type, this.handleEvent);
               exists = null;
             }
             if (!exists)
-              dom.addEventListener(type, this.handleEvent, { passive: passive2 });
+              dom.addEventListener(type, this.handleEvent, { passive });
           }
         for (let type in prev)
           if (type != "scroll" && !handlers2[type])
@@ -43054,20 +37980,20 @@ ${events}
           return;
         this.select(this.lastEvent = event);
         let sx = 0, sy = 0;
-        let left2 = 0, top2 = 0, right2 = this.view.win.innerWidth, bottom2 = this.view.win.innerHeight;
+        let left = 0, top2 = 0, right = this.view.win.innerWidth, bottom = this.view.win.innerHeight;
         if (this.scrollParents.x)
-          ({ left: left2, right: right2 } = this.scrollParents.x.getBoundingClientRect());
+          ({ left, right } = this.scrollParents.x.getBoundingClientRect());
         if (this.scrollParents.y)
-          ({ top: top2, bottom: bottom2 } = this.scrollParents.y.getBoundingClientRect());
+          ({ top: top2, bottom } = this.scrollParents.y.getBoundingClientRect());
         let margins = getScrollMargins(this.view);
-        if (event.clientX - margins.left <= left2 + dragScrollMargin)
-          sx = -dragScrollSpeed(left2 - event.clientX);
-        else if (event.clientX + margins.right >= right2 - dragScrollMargin)
-          sx = dragScrollSpeed(event.clientX - right2);
+        if (event.clientX - margins.left <= left + dragScrollMargin)
+          sx = -dragScrollSpeed(left - event.clientX);
+        else if (event.clientX + margins.right >= right - dragScrollMargin)
+          sx = dragScrollSpeed(event.clientX - right);
         if (event.clientY - margins.top <= top2 + dragScrollMargin)
           sy = -dragScrollSpeed(top2 - event.clientY);
-        else if (event.clientY + margins.bottom >= bottom2 - dragScrollMargin)
-          sy = dragScrollSpeed(event.clientY - bottom2);
+        else if (event.clientY + margins.bottom >= bottom - dragScrollMargin)
+          sy = dragScrollSpeed(event.clientY - bottom);
         this.setScrollSpeed(sx, sy);
       }
       up(event) {
@@ -43156,8 +38082,8 @@ ${events}
       return facet.length ? facet[0](event) : browser.mac ? !event.altKey : !event.ctrlKey;
     }
     function isInPrimarySelection(view, event) {
-      let { main: main2 } = view.state.selection;
-      if (main2.empty)
+      let { main } = view.state.selection;
+      if (main.empty)
         return false;
       let sel = getSelection(view.root);
       if (!sel || sel.rangeCount == 0)
@@ -43270,9 +38196,9 @@ ${events}
         if (mustFocus)
           view.observer.ignore(() => {
             focusPreventScroll(view.contentDOM);
-            let active = view.root.activeElement;
-            if (active && !active.contains(view.contentDOM))
-              active.blur();
+            let active2 = view.root.activeElement;
+            if (active2 && !active2.contains(view.contentDOM))
+              active2.blur();
           });
         let mouseSel = view.inputState.mouseSelection;
         if (mouseSel) {
@@ -43328,20 +38254,20 @@ ${events}
       return lastMouseDownCount = !last || lastTime > Date.now() - 400 && Math.abs(last.clientX - event.clientX) < 2 && Math.abs(last.clientY - event.clientY) < 2 ? (lastMouseDownCount + 1) % 3 : 1;
     }
     function basicMouseSelection(view, event) {
-      let start2 = queryPos(view, event), type = getClickType(event);
+      let start = queryPos(view, event), type = getClickType(event);
       let startSel = view.state.selection;
       return {
         update(update) {
           if (update.docChanged) {
-            start2.pos = update.changes.mapPos(start2.pos);
+            start.pos = update.changes.mapPos(start.pos);
             startSel = startSel.map(update.changes);
           }
         },
         get(event2, extend2, multiple) {
           let cur2 = queryPos(view, event2), removed;
           let range = rangeForClick(view, cur2.pos, cur2.bias, type);
-          if (start2.pos != cur2.pos && !extend2) {
-            let startRange = rangeForClick(view, start2.pos, start2.bias, type);
+          if (start.pos != cur2.pos && !extend2) {
+            let startRange = rangeForClick(view, start.pos, start.bias, type);
             let from = Math.min(startRange.from, range.from), to = Math.max(startRange.to, range.to);
             range = from < range.from ? EditorSelection.range(from, to) : EditorSelection.range(to, from);
           }
@@ -43512,9 +38438,9 @@ ${events}
     function focusChangeTransaction(state, focus) {
       let effects = [];
       for (let getEffect of state.facet(focusChangeEffect)) {
-        let effect2 = getEffect(state, focus);
-        if (effect2)
-          effects.push(effect2);
+        let effect = getEffect(state, focus);
+        if (effect)
+          effects.push(effect);
       }
       return effects ? state.update({ effects, annotations: isFocusChange.of(true) }) : null;
     }
@@ -43789,19 +38715,19 @@ ${events}
         let me = this, doc2 = oracle.doc;
         for (let i2 = changes.length - 1; i2 >= 0; i2--) {
           let { fromA, toA, fromB, toB } = changes[i2];
-          let start2 = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
-          let end2 = start2.to >= toA ? start2 : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
-          toB += end2.to - toA;
-          toA = end2.to;
-          while (i2 > 0 && start2.from <= changes[i2 - 1].toA) {
+          let start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
+          let end = start.to >= toA ? start : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
+          toB += end.to - toA;
+          toA = end.to;
+          while (i2 > 0 && start.from <= changes[i2 - 1].toA) {
             fromA = changes[i2 - 1].fromA;
             fromB = changes[i2 - 1].fromB;
             i2--;
-            if (fromA < start2.from)
-              start2 = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
+            if (fromA < start.from)
+              start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
           }
-          fromB += start2.from - fromA;
-          fromA = start2.from;
+          fromB += start.from - fromA;
+          fromA = start.from;
           let nodes = NodeBuilder.build(oracle.setDoc(doc2), decorations2, fromB, toB);
           me = replace(me, me.replace(fromA, toA, nodes));
         }
@@ -43873,18 +38799,18 @@ ${events}
         super(length, height);
         this.deco = deco;
       }
-      blockAt(_height, _oracle, top2, offset2) {
-        return new BlockInfo(offset2, this.length, top2, this.height, this.deco || 0);
+      blockAt(_height, _oracle, top2, offset) {
+        return new BlockInfo(offset, this.length, top2, this.height, this.deco || 0);
       }
-      lineAt(_value, _type, oracle, top2, offset2) {
-        return this.blockAt(0, oracle, top2, offset2);
+      lineAt(_value, _type, oracle, top2, offset) {
+        return this.blockAt(0, oracle, top2, offset);
       }
-      forEachLine(from, to, oracle, top2, offset2, f2) {
-        if (from <= offset2 + this.length && to >= offset2)
-          f2(this.blockAt(0, oracle, top2, offset2));
+      forEachLine(from, to, oracle, top2, offset, f2) {
+        if (from <= offset + this.length && to >= offset)
+          f2(this.blockAt(0, oracle, top2, offset));
       }
-      updateHeight(oracle, offset2 = 0, _force = false, measured) {
-        if (measured && measured.from <= offset2 && measured.more)
+      updateHeight(oracle, offset = 0, _force = false, measured) {
+        if (measured && measured.from <= offset && measured.more)
           this.setHeight(measured.heights[measured.index++]);
         this.outdated = false;
         return this;
@@ -43900,8 +38826,8 @@ ${events}
         this.widgetHeight = 0;
         this.breaks = 0;
       }
-      blockAt(_height, _oracle, top2, offset2) {
-        return new BlockInfo(offset2, this.length, top2, this.height, this.breaks);
+      blockAt(_height, _oracle, top2, offset) {
+        return new BlockInfo(offset, this.length, top2, this.height, this.breaks);
       }
       replace(_from, _to, nodes) {
         let node = nodes[0];
@@ -43917,8 +38843,8 @@ ${events}
           return HeightMap.of(nodes);
         }
       }
-      updateHeight(oracle, offset2 = 0, force = false, measured) {
-        if (measured && measured.from <= offset2 && measured.more)
+      updateHeight(oracle, offset = 0, force = false, measured) {
+        if (measured && measured.from <= offset && measured.more)
           this.setHeight(measured.heights[measured.index++]);
         else if (force || this.outdated)
           this.setHeight(Math.max(this.widgetHeight, oracle.heightForLine(this.length - this.collapsed)) + this.breaks * oracle.lineHeight);
@@ -43933,8 +38859,8 @@ ${events}
       constructor(length) {
         super(length, 0);
       }
-      heightMetrics(oracle, offset2) {
-        let firstLine = oracle.doc.lineAt(offset2).number, lastLine = oracle.doc.lineAt(offset2 + this.length).number;
+      heightMetrics(oracle, offset) {
+        let firstLine = oracle.doc.lineAt(offset).number, lastLine = oracle.doc.lineAt(offset + this.length).number;
         let lines = lastLine - firstLine + 1;
         let perLine, perChar = 0;
         if (oracle.lineWrapping) {
@@ -43947,10 +38873,10 @@ ${events}
         }
         return { firstLine, lastLine, perLine, perChar };
       }
-      blockAt(height, oracle, top2, offset2) {
-        let { firstLine, lastLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
+      blockAt(height, oracle, top2, offset) {
+        let { firstLine, lastLine, perLine, perChar } = this.heightMetrics(oracle, offset);
         if (oracle.lineWrapping) {
-          let guess = offset2 + (height < oracle.lineHeight ? 0 : Math.round(Math.max(0, Math.min(1, (height - top2) / this.height)) * this.length));
+          let guess = offset + (height < oracle.lineHeight ? 0 : Math.round(Math.max(0, Math.min(1, (height - top2) / this.height)) * this.length));
           let line2 = oracle.doc.lineAt(guess), lineHeight = perLine + line2.length * perChar;
           let lineTop = Math.max(top2, height - lineHeight / 2);
           return new BlockInfo(line2.from, line2.length, lineTop, lineHeight, 0);
@@ -43960,28 +38886,28 @@ ${events}
           return new BlockInfo(from, length, top2 + perLine * line2, perLine, 0);
         }
       }
-      lineAt(value, type, oracle, top2, offset2) {
+      lineAt(value, type, oracle, top2, offset) {
         if (type == QueryType.ByHeight)
-          return this.blockAt(value, oracle, top2, offset2);
+          return this.blockAt(value, oracle, top2, offset);
         if (type == QueryType.ByPosNoHeight) {
           let { from, to } = oracle.doc.lineAt(value);
           return new BlockInfo(from, to - from, 0, 0, 0);
         }
-        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
+        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset);
         let line2 = oracle.doc.lineAt(value), lineHeight = perLine + line2.length * perChar;
         let linesAbove = line2.number - firstLine;
-        let lineTop = top2 + perLine * linesAbove + perChar * (line2.from - offset2 - linesAbove);
+        let lineTop = top2 + perLine * linesAbove + perChar * (line2.from - offset - linesAbove);
         return new BlockInfo(line2.from, line2.length, Math.max(top2, Math.min(lineTop, top2 + this.height - lineHeight)), lineHeight, 0);
       }
-      forEachLine(from, to, oracle, top2, offset2, f2) {
-        from = Math.max(from, offset2);
-        to = Math.min(to, offset2 + this.length);
-        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
+      forEachLine(from, to, oracle, top2, offset, f2) {
+        from = Math.max(from, offset);
+        to = Math.min(to, offset + this.length);
+        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset);
         for (let pos2 = from, lineTop = top2; pos2 <= to; ) {
           let line2 = oracle.doc.lineAt(pos2);
           if (pos2 == from) {
             let linesAbove = line2.number - firstLine;
-            lineTop += perLine * linesAbove + perChar * (from - offset2 - linesAbove);
+            lineTop += perLine * linesAbove + perChar * (from - offset - linesAbove);
           }
           let lineHeight = perLine + perChar * line2.length;
           f2(new BlockInfo(line2.from, line2.length, lineTop, lineHeight, 0));
@@ -44013,13 +38939,13 @@ ${events}
       decomposeRight(from, result) {
         result.push(null, new HeightMapGap(this.length - from - 1));
       }
-      updateHeight(oracle, offset2 = 0, force = false, measured) {
-        let end2 = offset2 + this.length;
-        if (measured && measured.from <= offset2 + this.length && measured.more) {
-          let nodes = [], pos2 = Math.max(offset2, measured.from), singleHeight = -1;
-          if (measured.from > offset2)
-            nodes.push(new HeightMapGap(measured.from - offset2 - 1).updateHeight(oracle, offset2));
-          while (pos2 <= end2 && measured.more) {
+      updateHeight(oracle, offset = 0, force = false, measured) {
+        let end = offset + this.length;
+        if (measured && measured.from <= offset + this.length && measured.more) {
+          let nodes = [], pos2 = Math.max(offset, measured.from), singleHeight = -1;
+          if (measured.from > offset)
+            nodes.push(new HeightMapGap(measured.from - offset - 1).updateHeight(oracle, offset));
+          while (pos2 <= end && measured.more) {
             let len = oracle.doc.lineAt(pos2).length;
             if (nodes.length)
               nodes.push(null);
@@ -44033,14 +38959,14 @@ ${events}
             nodes.push(line2);
             pos2 += len + 1;
           }
-          if (pos2 <= end2)
-            nodes.push(null, new HeightMapGap(end2 - pos2).updateHeight(oracle, pos2));
+          if (pos2 <= end)
+            nodes.push(null, new HeightMapGap(end - pos2).updateHeight(oracle, pos2));
           let result = HeightMap.of(nodes);
-          if (singleHeight < 0 || Math.abs(result.height - this.height) >= Epsilon || Math.abs(singleHeight - this.heightMetrics(oracle, offset2).perLine) >= Epsilon)
+          if (singleHeight < 0 || Math.abs(result.height - this.height) >= Epsilon || Math.abs(singleHeight - this.heightMetrics(oracle, offset).perLine) >= Epsilon)
             heightChangeFlag = true;
           return replace(this, result);
         } else if (force || this.outdated) {
-          this.setHeight(oracle.heightForGap(offset2, offset2 + this.length));
+          this.setHeight(oracle.heightForGap(offset, offset + this.length));
           this.outdated = false;
         }
         return this;
@@ -44050,42 +38976,42 @@ ${events}
       }
     }
     class HeightMapBranch extends HeightMap {
-      constructor(left2, brk, right2) {
-        super(left2.length + brk + right2.length, left2.height + right2.height, brk | (left2.outdated || right2.outdated ? 2 : 0));
-        this.left = left2;
-        this.right = right2;
-        this.size = left2.size + right2.size;
+      constructor(left, brk, right) {
+        super(left.length + brk + right.length, left.height + right.height, brk | (left.outdated || right.outdated ? 2 : 0));
+        this.left = left;
+        this.right = right;
+        this.size = left.size + right.size;
       }
       get break() {
         return this.flags & 1;
       }
-      blockAt(height, oracle, top2, offset2) {
+      blockAt(height, oracle, top2, offset) {
         let mid = top2 + this.left.height;
-        return height < mid ? this.left.blockAt(height, oracle, top2, offset2) : this.right.blockAt(height, oracle, mid, offset2 + this.left.length + this.break);
+        return height < mid ? this.left.blockAt(height, oracle, top2, offset) : this.right.blockAt(height, oracle, mid, offset + this.left.length + this.break);
       }
-      lineAt(value, type, oracle, top2, offset2) {
-        let rightTop = top2 + this.left.height, rightOffset = offset2 + this.left.length + this.break;
-        let left2 = type == QueryType.ByHeight ? value < rightTop : value < rightOffset;
-        let base2 = left2 ? this.left.lineAt(value, type, oracle, top2, offset2) : this.right.lineAt(value, type, oracle, rightTop, rightOffset);
-        if (this.break || (left2 ? base2.to < rightOffset : base2.from > rightOffset))
+      lineAt(value, type, oracle, top2, offset) {
+        let rightTop = top2 + this.left.height, rightOffset = offset + this.left.length + this.break;
+        let left = type == QueryType.ByHeight ? value < rightTop : value < rightOffset;
+        let base2 = left ? this.left.lineAt(value, type, oracle, top2, offset) : this.right.lineAt(value, type, oracle, rightTop, rightOffset);
+        if (this.break || (left ? base2.to < rightOffset : base2.from > rightOffset))
           return base2;
         let subQuery = type == QueryType.ByPosNoHeight ? QueryType.ByPosNoHeight : QueryType.ByPos;
-        if (left2)
+        if (left)
           return base2.join(this.right.lineAt(rightOffset, subQuery, oracle, rightTop, rightOffset));
         else
-          return this.left.lineAt(rightOffset, subQuery, oracle, top2, offset2).join(base2);
+          return this.left.lineAt(rightOffset, subQuery, oracle, top2, offset).join(base2);
       }
-      forEachLine(from, to, oracle, top2, offset2, f2) {
-        let rightTop = top2 + this.left.height, rightOffset = offset2 + this.left.length + this.break;
+      forEachLine(from, to, oracle, top2, offset, f2) {
+        let rightTop = top2 + this.left.height, rightOffset = offset + this.left.length + this.break;
         if (this.break) {
           if (from < rightOffset)
-            this.left.forEachLine(from, to, oracle, top2, offset2, f2);
+            this.left.forEachLine(from, to, oracle, top2, offset, f2);
           if (to >= rightOffset)
             this.right.forEachLine(from, to, oracle, rightTop, rightOffset, f2);
         } else {
-          let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top2, offset2);
+          let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top2, offset);
           if (from < mid.from)
-            this.left.forEachLine(from, mid.from - 1, oracle, top2, offset2, f2);
+            this.left.forEachLine(from, mid.from - 1, oracle, top2, offset, f2);
           if (mid.to >= from && mid.from <= to)
             f2(mid);
           if (to > mid.to)
@@ -44101,64 +39027,64 @@ ${events}
         let result = [];
         if (from > 0)
           this.decomposeLeft(from, result);
-        let left2 = result.length;
+        let left = result.length;
         for (let node of nodes)
           result.push(node);
         if (from > 0)
-          mergeGaps(result, left2 - 1);
+          mergeGaps(result, left - 1);
         if (to < this.length) {
-          let right2 = result.length;
+          let right = result.length;
           this.decomposeRight(to, result);
-          mergeGaps(result, right2);
+          mergeGaps(result, right);
         }
         return HeightMap.of(result);
       }
       decomposeLeft(to, result) {
-        let left2 = this.left.length;
-        if (to <= left2)
+        let left = this.left.length;
+        if (to <= left)
           return this.left.decomposeLeft(to, result);
         result.push(this.left);
         if (this.break) {
-          left2++;
-          if (to >= left2)
+          left++;
+          if (to >= left)
             result.push(null);
         }
-        if (to > left2)
-          this.right.decomposeLeft(to - left2, result);
+        if (to > left)
+          this.right.decomposeLeft(to - left, result);
       }
       decomposeRight(from, result) {
-        let left2 = this.left.length, right2 = left2 + this.break;
-        if (from >= right2)
-          return this.right.decomposeRight(from - right2, result);
-        if (from < left2)
+        let left = this.left.length, right = left + this.break;
+        if (from >= right)
+          return this.right.decomposeRight(from - right, result);
+        if (from < left)
           this.left.decomposeRight(from, result);
-        if (this.break && from < right2)
+        if (this.break && from < right)
           result.push(null);
         result.push(this.right);
       }
-      balanced(left2, right2) {
-        if (left2.size > 2 * right2.size || right2.size > 2 * left2.size)
-          return HeightMap.of(this.break ? [left2, null, right2] : [left2, right2]);
-        this.left = replace(this.left, left2);
-        this.right = replace(this.right, right2);
-        this.setHeight(left2.height + right2.height);
-        this.outdated = left2.outdated || right2.outdated;
-        this.size = left2.size + right2.size;
-        this.length = left2.length + this.break + right2.length;
+      balanced(left, right) {
+        if (left.size > 2 * right.size || right.size > 2 * left.size)
+          return HeightMap.of(this.break ? [left, null, right] : [left, right]);
+        this.left = replace(this.left, left);
+        this.right = replace(this.right, right);
+        this.setHeight(left.height + right.height);
+        this.outdated = left.outdated || right.outdated;
+        this.size = left.size + right.size;
+        this.length = left.length + this.break + right.length;
         return this;
       }
-      updateHeight(oracle, offset2 = 0, force = false, measured) {
-        let { left: left2, right: right2 } = this, rightStart = offset2 + left2.length + this.break, rebalance = null;
-        if (measured && measured.from <= offset2 + left2.length && measured.more)
-          rebalance = left2 = left2.updateHeight(oracle, offset2, force, measured);
+      updateHeight(oracle, offset = 0, force = false, measured) {
+        let { left, right } = this, rightStart = offset + left.length + this.break, rebalance = null;
+        if (measured && measured.from <= offset + left.length && measured.more)
+          rebalance = left = left.updateHeight(oracle, offset, force, measured);
         else
-          left2.updateHeight(oracle, offset2, force);
-        if (measured && measured.from <= rightStart + right2.length && measured.more)
-          rebalance = right2 = right2.updateHeight(oracle, rightStart, force, measured);
+          left.updateHeight(oracle, offset, force);
+        if (measured && measured.from <= rightStart + right.length && measured.more)
+          rebalance = right = right.updateHeight(oracle, rightStart, force, measured);
         else
-          right2.updateHeight(oracle, rightStart, force);
+          right.updateHeight(oracle, rightStart, force);
         if (rebalance)
-          return this.balanced(left2, right2);
+          return this.balanced(left, right);
         this.height = this.left.height + this.right.height;
         this.outdated = false;
         return this;
@@ -44188,13 +39114,13 @@ ${events}
       }
       span(_from, to) {
         if (this.lineStart > -1) {
-          let end2 = Math.min(to, this.lineEnd), last = this.nodes[this.nodes.length - 1];
+          let end = Math.min(to, this.lineEnd), last = this.nodes[this.nodes.length - 1];
           if (last instanceof HeightMapText)
-            last.length += end2 - this.pos;
-          else if (end2 > this.pos || !this.isCovered)
-            this.nodes.push(new HeightMapText(end2 - this.pos, -1));
-          this.writtenTo = end2;
-          if (to > end2) {
+            last.length += end - this.pos;
+          else if (end > this.pos || !this.isCovered)
+            this.nodes.push(new HeightMapText(end - this.pos, -1));
+          this.writtenTo = end;
+          if (to > end) {
             this.nodes.push(null);
             this.writtenTo++;
             this.lineStart = -1;
@@ -44312,18 +39238,18 @@ ${events}
     function visiblePixelRange(dom, paddingTop) {
       let rect = dom.getBoundingClientRect();
       let doc2 = dom.ownerDocument, win = doc2.defaultView || window;
-      let left2 = Math.max(0, rect.left), right2 = Math.min(win.innerWidth, rect.right);
-      let top2 = Math.max(0, rect.top), bottom2 = Math.min(win.innerHeight, rect.bottom);
+      let left = Math.max(0, rect.left), right = Math.min(win.innerWidth, rect.right);
+      let top2 = Math.max(0, rect.top), bottom = Math.min(win.innerHeight, rect.bottom);
       for (let parent = dom.parentNode; parent && parent != doc2.body; ) {
         if (parent.nodeType == 1) {
           let elt = parent;
           let style2 = window.getComputedStyle(elt);
           if ((elt.scrollHeight > elt.clientHeight || elt.scrollWidth > elt.clientWidth) && style2.overflow != "visible") {
             let parentRect = elt.getBoundingClientRect();
-            left2 = Math.max(left2, parentRect.left);
-            right2 = Math.min(right2, parentRect.right);
+            left = Math.max(left, parentRect.left);
+            right = Math.min(right, parentRect.right);
             top2 = Math.max(top2, parentRect.top);
-            bottom2 = Math.min(parent == dom.parentNode ? win.innerHeight : bottom2, parentRect.bottom);
+            bottom = Math.min(parent == dom.parentNode ? win.innerHeight : bottom, parentRect.bottom);
           }
           parent = style2.position == "absolute" || style2.position == "fixed" ? elt.offsetParent : elt.parentNode;
         } else if (parent.nodeType == 11) {
@@ -44333,10 +39259,10 @@ ${events}
         }
       }
       return {
-        left: left2 - rect.left,
-        right: Math.max(left2, right2) - rect.left,
+        left: left - rect.left,
+        right: Math.max(left, right) - rect.left,
         top: top2 - (rect.top + paddingTop),
-        bottom: Math.max(top2, bottom2) - (rect.top + paddingTop)
+        bottom: Math.max(top2, bottom) - (rect.top + paddingTop)
       };
     }
     function fullPixelRange(dom, paddingTop) {
@@ -44434,9 +39360,9 @@ ${events}
         this.computeVisibleRanges();
       }
       updateForViewport() {
-        let viewports = [this.viewport], { main: main2 } = this.state.selection;
+        let viewports = [this.viewport], { main } = this.state.selection;
         for (let i2 = 0; i2 <= 1; i2++) {
-          let pos2 = i2 ? main2.head : main2.anchor;
+          let pos2 = i2 ? main.head : main.anchor;
           if (!viewports.some(({ from, to }) => pos2 >= from && pos2 <= to)) {
             let { from, to } = this.lineBlockAt(pos2);
             viewports.push(new Viewport(from, to));
@@ -44475,11 +39401,11 @@ ${events}
           this.scrollAnchorPos = -1;
           this.scrollAnchorHeight = this.heightMap.height;
         }
-        let viewport2 = heightChanges.length ? this.mapViewport(this.viewport, update.changes) : this.viewport;
-        if (scrollTarget && (scrollTarget.range.head < viewport2.from || scrollTarget.range.head > viewport2.to) || !this.viewportIsAppropriate(viewport2))
-          viewport2 = this.getViewport(0, scrollTarget);
-        let viewportChange = viewport2.from != this.viewport.from || viewport2.to != this.viewport.to;
-        this.viewport = viewport2;
+        let viewport = heightChanges.length ? this.mapViewport(this.viewport, update.changes) : this.viewport;
+        if (scrollTarget && (scrollTarget.range.head < viewport.from || scrollTarget.range.head > viewport.to) || !this.viewportIsAppropriate(viewport))
+          viewport = this.getViewport(0, scrollTarget);
+        let viewportChange = viewport.from != this.viewport.from || viewport.to != this.viewport.to;
+        this.viewport = viewport;
         update.flags |= this.updateForViewport();
         if (viewportChange || !update.changes.empty || update.flags & 2)
           this.updateViewportLines();
@@ -44599,25 +39525,25 @@ ${events}
         let marginTop = 0.5 - Math.max(-0.5, Math.min(0.5, bias / 1e3 / 2));
         let map2 = this.heightMap, oracle = this.heightOracle;
         let { visibleTop, visibleBottom } = this;
-        let viewport2 = new Viewport(map2.lineAt(visibleTop - marginTop * 1e3, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(visibleBottom + (1 - marginTop) * 1e3, QueryType.ByHeight, oracle, 0, 0).to);
+        let viewport = new Viewport(map2.lineAt(visibleTop - marginTop * 1e3, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(visibleBottom + (1 - marginTop) * 1e3, QueryType.ByHeight, oracle, 0, 0).to);
         if (scrollTarget) {
           let { head } = scrollTarget.range;
-          if (head < viewport2.from || head > viewport2.to) {
+          if (head < viewport.from || head > viewport.to) {
             let viewHeight = Math.min(this.editorHeight, this.pixelViewport.bottom - this.pixelViewport.top);
             let block2 = map2.lineAt(head, QueryType.ByPos, oracle, 0, 0), topPos;
             if (scrollTarget.y == "center")
               topPos = (block2.top + block2.bottom) / 2 - viewHeight / 2;
-            else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport2.from)
+            else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport.from)
               topPos = block2.top;
             else
               topPos = block2.bottom - viewHeight;
-            viewport2 = new Viewport(map2.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
+            viewport = new Viewport(map2.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
           }
         }
-        return viewport2;
+        return viewport;
       }
-      mapViewport(viewport2, changes) {
-        let from = changes.mapPos(viewport2.from, -1), to = changes.mapPos(viewport2.to, 1);
+      mapViewport(viewport, changes) {
+        let from = changes.mapPos(viewport.from, -1), to = changes.mapPos(viewport.to, 1);
         return new Viewport(this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0).from, this.heightMap.lineAt(to, QueryType.ByPos, this.heightOracle, 0, 0).to);
       }
       // Checks if a given viewport covers the visible part of the
@@ -44626,17 +39552,17 @@ ${events}
         if (!this.inView)
           return true;
         let { top: top2 } = this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0);
-        let { bottom: bottom2 } = this.heightMap.lineAt(to, QueryType.ByPos, this.heightOracle, 0, 0);
+        let { bottom } = this.heightMap.lineAt(to, QueryType.ByPos, this.heightOracle, 0, 0);
         let { visibleTop, visibleBottom } = this;
         return (from == 0 || top2 <= visibleTop - Math.max(10, Math.min(
           -bias,
           250
           /* VP.MaxCoverMargin */
-        ))) && (to == this.state.doc.length || bottom2 >= visibleBottom + Math.max(10, Math.min(
+        ))) && (to == this.state.doc.length || bottom >= visibleBottom + Math.max(10, Math.min(
           bias,
           250
           /* VP.MaxCoverMargin */
-        ))) && (top2 > visibleTop - 2 * 1e3 && bottom2 < visibleBottom + 2 * 1e3);
+        ))) && (top2 > visibleTop - 2 * 1e3 && bottom < visibleBottom + 2 * 1e3);
       }
       mapLineGaps(gaps, changes) {
         if (!gaps.length || changes.empty)
@@ -44718,18 +39644,18 @@ ${events}
                   horizOffset = old.size - old.displaySize;
               }
             let pxLeft = this.pixelViewport.left + horizOffset, pxRight = this.pixelViewport.right + horizOffset;
-            let left2, right2;
+            let left, right;
             if (target != null) {
               let targetFrac = findFraction(structure, target);
               let spaceFrac = ((pxRight - pxLeft) / 2 + marginWidth) / totalWidth;
-              left2 = targetFrac - spaceFrac;
-              right2 = targetFrac + spaceFrac;
+              left = targetFrac - spaceFrac;
+              right = targetFrac + spaceFrac;
             } else {
-              left2 = (pxLeft - marginWidth) / totalWidth;
-              right2 = (pxRight + marginWidth) / totalWidth;
+              left = (pxLeft - marginWidth) / totalWidth;
+              right = (pxRight + marginWidth) / totalWidth;
             }
-            viewFrom = findPosition(structure, left2);
-            viewTo = findPosition(structure, right2);
+            viewFrom = findPosition(structure, left);
+            viewTo = findPosition(structure, right);
           }
           if (viewFrom > line2.from)
             addGap(line2.from, viewFrom, line2, structure);
@@ -44866,9 +39792,9 @@ ${events}
         let vpHeight = 0, base2 = 0, domBase = 0;
         this.viewports = viewports.map(({ from, to }) => {
           let top2 = heightMap.lineAt(from, QueryType.ByPos, oracle, 0, 0).top;
-          let bottom2 = heightMap.lineAt(to, QueryType.ByPos, oracle, 0, 0).bottom;
-          vpHeight += bottom2 - top2;
-          return { from, to, top: top2, bottom: bottom2, domTop: 0, domBottom: 0 };
+          let bottom = heightMap.lineAt(to, QueryType.ByPos, oracle, 0, 0).bottom;
+          vpHeight += bottom - top2;
+          return { from, to, top: top2, bottom, domTop: 0, domBottom: 0 };
         });
         this.scale = (7e6 - vpHeight) / (heightMap.height - vpHeight);
         for (let obj of this.viewports) {
@@ -44915,16 +39841,16 @@ ${events}
     const darkTheme = /* @__PURE__ */ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
     const baseThemeID = /* @__PURE__ */ StyleModule.newName(), baseLightID = /* @__PURE__ */ StyleModule.newName(), baseDarkID = /* @__PURE__ */ StyleModule.newName();
     const lightDarkIDs = { "&light": "." + baseLightID, "&dark": "." + baseDarkID };
-    function buildTheme(main2, spec, scopes) {
+    function buildTheme(main, spec, scopes) {
       return new StyleModule(spec, {
         finish(sel) {
           return /&/.test(sel) ? sel.replace(/&\w*/, (m2) => {
             if (m2 == "&")
-              return main2;
+              return main;
             if (!scopes || !scopes[m2])
               throw new RangeError(`Unsupported selector: ${m2}`);
             return scopes[m2];
-          }) : main2 + " " + sel;
+          }) : main + " " + sel;
         }
       });
     }
@@ -45665,7 +40591,7 @@ ${events}
         };
         this.handlers.characterboundsupdate = (e2) => {
           let rects = [], prev = null;
-          for (let i2 = this.toEditorPos(e2.rangeStart), end2 = this.toEditorPos(e2.rangeEnd); i2 < end2; i2++) {
+          for (let i2 = this.toEditorPos(e2.rangeStart), end = this.toEditorPos(e2.rangeEnd); i2 < end; i2++) {
             let rect = view.coordsForChar(i2);
             prev = rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) || prev || new DOMRect();
             rects.push(prev);
@@ -45782,11 +40708,11 @@ ${events}
         this.editContext.updateText(this.toContextPos(pending.from), this.toContextPos(pending.from + pending.insert.length), state.doc.sliceString(pending.from, pending.to));
       }
       setSelection(state) {
-        let { main: main2 } = state.selection;
-        let start2 = this.toContextPos(Math.max(this.from, Math.min(this.to, main2.anchor)));
-        let end2 = this.toContextPos(main2.head);
-        if (this.editContext.selectionStart != start2 || this.editContext.selectionEnd != end2)
-          this.editContext.updateSelection(start2, end2);
+        let { main } = state.selection;
+        let start = this.toContextPos(Math.max(this.from, Math.min(this.to, main.anchor)));
+        let end = this.toContextPos(main.head);
+        if (this.editContext.selectionStart != start || this.editContext.selectionEnd != end)
+          this.editContext.updateSelection(start, end);
       }
       rangeIsValid(state) {
         let { head } = state.selection.main;
@@ -45975,8 +40901,8 @@ ${events}
             if (scrollTarget)
               scrollTarget = scrollTarget.map(tr.changes);
             if (tr.scrollIntoView) {
-              let { main: main2 } = tr.state.selection;
-              scrollTarget = new ScrollTarget(main2.empty ? main2 : EditorSelection.cursor(main2.head, main2.head > main2.anchor ? -1 : 1));
+              let { main } = tr.state.selection;
+              scrollTarget = new ScrollTarget(main.empty ? main : EditorSelection.cursor(main.head, main.head > main.anchor ? -1 : 1));
             }
             for (let e2 of tr.effects)
               if (e2.is(scrollIntoView$1))
@@ -46243,13 +41169,13 @@ ${events}
       showAnnouncements(trs) {
         let first = true;
         for (let tr of trs)
-          for (let effect2 of tr.effects)
-            if (effect2.is(EditorView.announce)) {
+          for (let effect of tr.effects)
+            if (effect.is(EditorView.announce)) {
               if (first)
                 this.announceDOM.textContent = "";
               first = false;
               let div = this.announceDOM.appendChild(document.createElement("div"));
-              div.textContent = effect2.value;
+              div.textContent = effect.value;
             }
       }
       mountStyles() {
@@ -46388,16 +41314,16 @@ ${events}
       a predicate that determines, for each subsequent cluster,
       whether it should also be moved over.
       */
-      moveByChar(start2, forward, by) {
-        return skipAtoms(this, start2, moveByChar(this, start2, forward, by));
+      moveByChar(start, forward, by) {
+        return skipAtoms(this, start, moveByChar(this, start, forward, by));
       }
       /**
       Move a cursor position across the next group of either
       [letters](https://codemirror.net/6/docs/ref/#state.EditorState.charCategorizer) or non-letter
       non-whitespace characters.
       */
-      moveByGroup(start2, forward) {
-        return skipAtoms(this, start2, moveByChar(this, start2, forward, (initial) => byGroup(this, start2.head, initial)));
+      moveByGroup(start, forward) {
+        return skipAtoms(this, start, moveByChar(this, start, forward, (initial) => byGroup(this, start.head, initial)));
       }
       /**
       Get the cursor position visually at the start or end of a line.
@@ -46405,10 +41331,10 @@ ${events}
       start or end (which is simply at `line.from`/`line.to`) if text
       at the start or end goes against the line's base text direction.
       */
-      visualLineSide(line2, end2) {
-        let order2 = this.bidiSpans(line2), dir = this.textDirectionAt(line2.from);
-        let span = order2[end2 ? order2.length - 1 : 0];
-        return EditorSelection.cursor(span.side(end2, dir) + line2.from, span.forward(!end2, dir) ? 1 : -1);
+      visualLineSide(line2, end) {
+        let order = this.bidiSpans(line2), dir = this.textDirectionAt(line2.from);
+        let span = order[end ? order.length - 1 : 0];
+        return EditorSelection.cursor(span.side(end, dir) + line2.from, span.forward(!end, dir) ? 1 : -1);
       }
       /**
       Move to the next line boundary in the given direction. If
@@ -46417,8 +41343,8 @@ ${events}
       returned. Otherwise this function will return the start or end
       of the line.
       */
-      moveToLineBoundary(start2, forward, includeWrap = true) {
-        return moveToLineBoundary(this, start2, forward, includeWrap);
+      moveToLineBoundary(start, forward, includeWrap = true) {
+        return moveToLineBoundary(this, start, forward, includeWrap);
       }
       /**
       Move a cursor position vertically. When `distance` isn't given,
@@ -46433,8 +41359,8 @@ ${events}
       cursor will have its goal column set to whichever column was
       used.
       */
-      moveVertically(start2, forward, distance) {
-        return skipAtoms(this, start2, moveVertically(this, start2, forward, distance));
+      moveVertically(start, forward, distance) {
+        return skipAtoms(this, start, moveVertically(this, start, forward, distance));
       }
       /**
       Find the DOM parent node and offset (child offset if `node` is
@@ -46454,8 +41380,8 @@ ${events}
       for associating positions with DOM events. Will raise an error
       when `node` isn't part of the editor content.
       */
-      posAtDOM(node, offset2 = 0) {
-        return this.docView.posFromDOM(node, offset2);
+      posAtDOM(node, offset = 0) {
+        return this.docView.posFromDOM(node, offset);
       }
       posAtCoords(coords, precise = true) {
         this.readMeasured();
@@ -46473,8 +41399,8 @@ ${events}
         let rect = this.docView.coordsAt(pos2, side);
         if (!rect || rect.left == rect.right)
           return rect;
-        let line2 = this.state.doc.lineAt(pos2), order2 = this.bidiSpans(line2);
-        let span = order2[BidiSpan.find(order2, pos2 - line2.from, -1, side)];
+        let line2 = this.state.doc.lineAt(pos2), order = this.bidiSpans(line2);
+        let span = order[BidiSpan.find(order, pos2 - line2.from, -1, side)];
         return flattenRect(rect, span.dir == Direction.LTR == side > 0);
       }
       /**
@@ -46548,15 +41474,15 @@ ${events}
         if (line2.length > MaxBidiLine)
           return trivialOrder(line2.length);
         let dir = this.textDirectionAt(line2.from), isolates;
-        for (let entry of this.bidiCache) {
-          if (entry.from == line2.from && entry.dir == dir && (entry.fresh || isolatesEq(entry.isolates, isolates = getIsolatedRanges(this, line2))))
-            return entry.order;
+        for (let entry2 of this.bidiCache) {
+          if (entry2.from == line2.from && entry2.dir == dir && (entry2.fresh || isolatesEq(entry2.isolates, isolates = getIsolatedRanges(this, line2))))
+            return entry2.order;
         }
         if (!isolates)
           isolates = getIsolatedRanges(this, line2);
-        let order2 = computeOrder(line2.text, dir, isolates);
-        this.bidiCache.push(new CachedOrder(line2.from, line2.to, dir, isolates, true, order2));
-        return order2;
+        let order = computeOrder(line2.text, dir, isolates);
+        this.bidiCache.push(new CachedOrder(line2.from, line2.to, dir, isolates, true, order));
+        return order;
       }
       /**
       Check whether the editor has focus.
@@ -46748,22 +41674,22 @@ ${events}
     const MaxBidiLine = 4096;
     const BadMeasure = {};
     class CachedOrder {
-      constructor(from, to, dir, isolates, fresh, order2) {
+      constructor(from, to, dir, isolates, fresh, order) {
         this.from = from;
         this.to = to;
         this.dir = dir;
         this.isolates = isolates;
         this.fresh = fresh;
-        this.order = order2;
+        this.order = order;
       }
       static update(cache, changes) {
         if (changes.empty && !cache.some((c2) => c2.fresh))
           return cache;
         let result = [], lastDir = cache.length ? cache[cache.length - 1].dir : Direction.LTR;
         for (let i2 = Math.max(0, cache.length - 10); i2 < cache.length; i2++) {
-          let entry = cache[i2];
-          if (entry.dir == lastDir && !changes.touchesRange(entry.from, entry.to))
-            result.push(new CachedOrder(changes.mapPos(entry.from, 1), changes.mapPos(entry.to, -1), entry.dir, entry.isolates, false, entry.order));
+          let entry2 = cache[i2];
+          if (entry2.dir == lastDir && !changes.touchesRange(entry2.from, entry2.to))
+            result.push(new CachedOrder(changes.mapPos(entry2.from, 1), changes.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
         }
         return result;
       }
@@ -46967,9 +41893,9 @@ ${events}
       Create a marker with the given class and dimensions. If `width`
       is null, the DOM element will get no width style.
       */
-      constructor(className2, left2, top2, width, height) {
+      constructor(className2, left, top2, width, height) {
         this.className = className2;
-        this.left = left2;
+        this.left = left;
         this.top = top2;
         this.width = width;
         this.height = height;
@@ -47017,8 +41943,8 @@ ${events}
     }
     function getBase(view) {
       let rect = view.scrollDOM.getBoundingClientRect();
-      let left2 = view.textDirection == Direction.LTR ? rect.left : rect.right - view.scrollDOM.clientWidth * view.scaleX;
-      return { left: left2 - view.scrollDOM.scrollLeft * view.scaleX, top: rect.top - view.scrollDOM.scrollTop * view.scaleY };
+      let left = view.textDirection == Direction.LTR ? rect.left : rect.right - view.scrollDOM.clientWidth * view.scaleX;
+      return { left: left - view.scrollDOM.scrollLeft * view.scaleX, top: rect.top - view.scrollDOM.scrollTop * view.scaleY };
     }
     function wrappedLine(view, pos2, side, inside2) {
       let coords = view.coordsAtPos(pos2, side * 2);
@@ -47026,11 +41952,11 @@ ${events}
         return inside2;
       let editorRect = view.dom.getBoundingClientRect();
       let y2 = (coords.top + coords.bottom) / 2;
-      let left2 = view.posAtCoords({ x: editorRect.left + 1, y: y2 });
-      let right2 = view.posAtCoords({ x: editorRect.right - 1, y: y2 });
-      if (left2 == null || right2 == null)
+      let left = view.posAtCoords({ x: editorRect.left + 1, y: y2 });
+      let right = view.posAtCoords({ x: editorRect.right - 1, y: y2 });
+      if (left == null || right == null)
         return inside2;
-      return { from: Math.max(inside2.from, Math.min(left2, right2)), to: Math.min(inside2.to, Math.max(left2, right2)) };
+      return { from: Math.max(inside2.from, Math.min(left, right)), to: Math.min(inside2.to, Math.max(left, right)) };
     }
     function rectanglesForRange(view, className2, range) {
       if (range.to <= view.viewport.from || range.from >= view.viewport.to)
@@ -47052,55 +41978,55 @@ ${events}
         return pieces(drawForLine(range.from, range.to, visualStart));
       } else {
         let top2 = visualStart ? drawForLine(range.from, null, visualStart) : drawForWidget(startBlock, false);
-        let bottom2 = visualEnd ? drawForLine(null, range.to, visualEnd) : drawForWidget(endBlock, true);
+        let bottom = visualEnd ? drawForLine(null, range.to, visualEnd) : drawForWidget(endBlock, true);
         let between = [];
-        if ((visualStart || startBlock).to < (visualEnd || endBlock).from - (visualStart && visualEnd ? 1 : 0) || startBlock.widgetLineBreaks > 1 && top2.bottom + view.defaultLineHeight / 2 < bottom2.top)
-          between.push(piece(leftSide, top2.bottom, rightSide, bottom2.top));
-        else if (top2.bottom < bottom2.top && view.elementAtHeight((top2.bottom + bottom2.top) / 2).type == BlockType.Text)
-          top2.bottom = bottom2.top = (top2.bottom + bottom2.top) / 2;
-        return pieces(top2).concat(between).concat(pieces(bottom2));
+        if ((visualStart || startBlock).to < (visualEnd || endBlock).from - (visualStart && visualEnd ? 1 : 0) || startBlock.widgetLineBreaks > 1 && top2.bottom + view.defaultLineHeight / 2 < bottom.top)
+          between.push(piece(leftSide, top2.bottom, rightSide, bottom.top));
+        else if (top2.bottom < bottom.top && view.elementAtHeight((top2.bottom + bottom.top) / 2).type == BlockType.Text)
+          top2.bottom = bottom.top = (top2.bottom + bottom.top) / 2;
+        return pieces(top2).concat(between).concat(pieces(bottom));
       }
-      function piece(left2, top2, right2, bottom2) {
+      function piece(left, top2, right, bottom) {
         return new RectangleMarker(
           className2,
-          left2 - base2.left,
+          left - base2.left,
           top2 - base2.top - 0.01,
-          right2 - left2,
-          bottom2 - top2 + 0.01
+          right - left,
+          bottom - top2 + 0.01
           /* C.Epsilon */
         );
       }
-      function pieces({ top: top2, bottom: bottom2, horizontal }) {
+      function pieces({ top: top2, bottom, horizontal }) {
         let pieces2 = [];
         for (let i2 = 0; i2 < horizontal.length; i2 += 2)
-          pieces2.push(piece(horizontal[i2], top2, horizontal[i2 + 1], bottom2));
+          pieces2.push(piece(horizontal[i2], top2, horizontal[i2 + 1], bottom));
         return pieces2;
       }
       function drawForLine(from2, to2, line2) {
-        let top2 = 1e9, bottom2 = -1e9, horizontal = [];
+        let top2 = 1e9, bottom = -1e9, horizontal = [];
         function addSpan(from3, fromOpen, to3, toOpen, dir) {
           let fromCoords = view.coordsAtPos(from3, from3 == line2.to ? -2 : 2);
           let toCoords = view.coordsAtPos(to3, to3 == line2.from ? 2 : -2);
           if (!fromCoords || !toCoords)
             return;
           top2 = Math.min(fromCoords.top, toCoords.top, top2);
-          bottom2 = Math.max(fromCoords.bottom, toCoords.bottom, bottom2);
+          bottom = Math.max(fromCoords.bottom, toCoords.bottom, bottom);
           if (dir == Direction.LTR)
             horizontal.push(ltr && fromOpen ? leftSide : fromCoords.left, ltr && toOpen ? rightSide : toCoords.right);
           else
             horizontal.push(!ltr && toOpen ? leftSide : toCoords.left, !ltr && fromOpen ? rightSide : fromCoords.right);
         }
-        let start2 = from2 !== null && from2 !== void 0 ? from2 : line2.from, end2 = to2 !== null && to2 !== void 0 ? to2 : line2.to;
+        let start = from2 !== null && from2 !== void 0 ? from2 : line2.from, end = to2 !== null && to2 !== void 0 ? to2 : line2.to;
         for (let r2 of view.visibleRanges)
-          if (r2.to > start2 && r2.from < end2) {
-            for (let pos2 = Math.max(r2.from, start2), endPos = Math.min(r2.to, end2); ; ) {
+          if (r2.to > start && r2.from < end) {
+            for (let pos2 = Math.max(r2.from, start), endPos = Math.min(r2.to, end); ; ) {
               let docLine = view.state.doc.lineAt(pos2);
               for (let span of view.bidiSpans(docLine)) {
                 let spanFrom = span.from + docLine.from, spanTo = span.to + docLine.from;
                 if (spanFrom >= endPos)
                   break;
                 if (spanTo > pos2)
-                  addSpan(Math.max(spanFrom, pos2), from2 == null && spanFrom <= start2, Math.min(spanTo, endPos), to2 == null && spanTo >= end2, span.dir);
+                  addSpan(Math.max(spanFrom, pos2), from2 == null && spanFrom <= start, Math.min(spanTo, endPos), to2 == null && spanTo >= end, span.dir);
               }
               pos2 = docLine.to + 1;
               if (pos2 >= endPos)
@@ -47108,8 +42034,8 @@ ${events}
             }
           }
         if (horizontal.length == 0)
-          addSpan(start2, from2 == null, end2, to2 == null, view.textDirection);
-        return { top: top2, bottom: bottom2, horizontal };
+          addSpan(start, from2 == null, end, to2 == null, view.textDirection);
+        return { top: top2, bottom, horizontal };
       }
       function drawForWidget(block2, top2) {
         let y2 = contentRect.top + (top2 ? block2.top : block2.bottom);
@@ -47153,8 +42079,8 @@ ${events}
           view.requestMeasure(this.measureReq);
       }
       setOrder(state) {
-        let pos2 = 0, order2 = state.facet(layerOrder);
-        while (pos2 < order2.length && order2[pos2] != this.layer)
+        let pos2 = 0, order = state.facet(layerOrder);
+        while (pos2 < order.length && order[pos2] != this.layer)
           pos2++;
         this.dom.style.zIndex = String((this.layer.above ? 150 : -1) - pos2);
       }
@@ -47367,29 +42293,29 @@ ${events}
           let from = Math.max(r2.from, updateFrom), to = Math.min(r2.to, updateTo);
           if (to > from) {
             let fromLine = view.state.doc.lineAt(from), toLine = fromLine.to < to ? view.state.doc.lineAt(to) : fromLine;
-            let start2 = Math.max(r2.from, fromLine.from), end2 = Math.min(r2.to, toLine.to);
+            let start = Math.max(r2.from, fromLine.from), end = Math.min(r2.to, toLine.to);
             if (this.boundary) {
               for (; from > fromLine.from; from--)
                 if (this.boundary.test(fromLine.text[from - 1 - fromLine.from])) {
-                  start2 = from;
+                  start = from;
                   break;
                 }
               for (; to < toLine.to; to++)
                 if (this.boundary.test(toLine.text[to - toLine.from])) {
-                  end2 = to;
+                  end = to;
                   break;
                 }
             }
             let ranges = [], m2;
             let add2 = (from2, to2, deco2) => ranges.push(deco2.range(from2, to2));
             if (fromLine == toLine) {
-              this.regexp.lastIndex = start2 - fromLine.from;
-              while ((m2 = this.regexp.exec(fromLine.text)) && m2.index < end2 - fromLine.from)
+              this.regexp.lastIndex = start - fromLine.from;
+              while ((m2 = this.regexp.exec(fromLine.text)) && m2.index < end - fromLine.from)
                 this.addMatch(m2, view, m2.index + fromLine.from, add2);
             } else {
-              iterMatches(view.state.doc, this.regexp, start2, end2, (from2, m3) => this.addMatch(m3, view, from2, add2));
+              iterMatches(view.state.doc, this.regexp, start, end, (from2, m3) => this.addMatch(m3, view, from2, add2));
             }
-            deco = deco.update({ filterFrom: start2, filterTo: end2, filter: (from2, to2) => from2 < start2 || to2 > end2, add: ranges });
+            deco = deco.update({ filterFrom: start, filterTo: end, filter: (from2, to2) => from2 < start || to2 > end, add: ranges });
           }
         }
         return deco;
@@ -47699,9 +42625,9 @@ ${events}
         let before = prev ? prev.dom : null;
         tooltipView.dom.classList.add("cm-tooltip");
         if (tooltip.arrow && !tooltipView.dom.querySelector(".cm-tooltip > .cm-tooltip-arrow")) {
-          let arrow2 = document.createElement("div");
-          arrow2.className = "cm-tooltip-arrow";
-          tooltipView.dom.appendChild(arrow2);
+          let arrow = document.createElement("div");
+          arrow.className = "cm-tooltip-arrow";
+          tooltipView.dom.appendChild(arrow);
         }
         tooltipView.dom.style.position = this.position;
         tooltipView.dom.style.top = Outside;
@@ -47785,13 +42711,13 @@ ${events}
             dom.style.top = Outside;
             continue;
           }
-          let arrow2 = tooltip.arrow ? tView.dom.querySelector(".cm-tooltip-arrow") : null;
-          let arrowHeight = arrow2 ? 7 : 0;
+          let arrow = tooltip.arrow ? tView.dom.querySelector(".cm-tooltip-arrow") : null;
+          let arrowHeight = arrow ? 7 : 0;
           let width = size.right - size.left, height = (_a2 = knownHeight.get(tView)) !== null && _a2 !== void 0 ? _a2 : size.bottom - size.top;
-          let offset2 = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR;
-          let left2 = size.width > space.right - space.left ? ltr ? space.left : space.right - size.width : ltr ? Math.max(space.left, Math.min(pos2.left - (arrow2 ? 14 : 0) + offset2.x, space.right - width)) : Math.min(Math.max(space.left, pos2.left - width + (arrow2 ? 14 : 0) - offset2.x), space.right - width);
+          let offset = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR;
+          let left = size.width > space.right - space.left ? ltr ? space.left : space.right - size.width : ltr ? Math.max(space.left, Math.min(pos2.left - (arrow ? 14 : 0) + offset.x, space.right - width)) : Math.min(Math.max(space.left, pos2.left - width + (arrow ? 14 : 0) - offset.x), space.right - width);
           let above = this.above[i2];
-          if (!tooltip.strictSide && (above ? pos2.top - height - arrowHeight - offset2.y < space.top : pos2.bottom + height + arrowHeight + offset2.y > space.bottom) && above == space.bottom - pos2.bottom > pos2.top - space.top)
+          if (!tooltip.strictSide && (above ? pos2.top - height - arrowHeight - offset.y < space.top : pos2.bottom + height + arrowHeight + offset.y > space.bottom) && above == space.bottom - pos2.bottom > pos2.top - space.top)
             above = this.above[i2] = !above;
           let spaceVert = (above ? pos2.top - space.top : space.bottom - pos2.bottom) - arrowHeight;
           if (spaceVert < height && tView.resize !== false) {
@@ -47804,26 +42730,26 @@ ${events}
           } else if (dom.style.height) {
             dom.style.height = "";
           }
-          let top2 = above ? pos2.top - height - arrowHeight - offset2.y : pos2.bottom + arrowHeight + offset2.y;
-          let right2 = left2 + width;
+          let top2 = above ? pos2.top - height - arrowHeight - offset.y : pos2.bottom + arrowHeight + offset.y;
+          let right = left + width;
           if (tView.overlap !== true) {
             for (let r2 of others)
-              if (r2.left < right2 && r2.right > left2 && r2.top < top2 + height && r2.bottom > top2)
+              if (r2.left < right && r2.right > left && r2.top < top2 + height && r2.bottom > top2)
                 top2 = above ? r2.top - height - 2 - arrowHeight : r2.bottom + arrowHeight + 2;
           }
           if (this.position == "absolute") {
             dom.style.top = (top2 - measured.parent.top) / scaleY + "px";
-            dom.style.left = (left2 - measured.parent.left) / scaleX + "px";
+            dom.style.left = (left - measured.parent.left) / scaleX + "px";
           } else {
             dom.style.top = top2 / scaleY + "px";
-            dom.style.left = left2 / scaleX + "px";
+            dom.style.left = left / scaleX + "px";
           }
-          if (arrow2) {
-            let arrowLeft = pos2.left + (ltr ? offset2.x : -offset2.x) - (left2 + 14 - 7);
-            arrow2.style.left = arrowLeft / scaleX + "px";
+          if (arrow) {
+            let arrowLeft = pos2.left + (ltr ? offset.x : -offset.x) - (left + 14 - 7);
+            arrow.style.left = arrowLeft / scaleX + "px";
           }
           if (tView.overlap !== true)
-            others.push({ left: left2, top: top2, right: right2, bottom: top2 + height });
+            others.push({ left, top: top2, right, bottom: top2 + height });
           dom.classList.toggle("cm-tooltip-above", above);
           dom.classList.toggle("cm-tooltip-below", !above);
           if (tView.positioned)
@@ -48079,10 +43005,10 @@ ${events}
         this.lastMove = { x: event.clientX, y: event.clientY, target: event.target, time: Date.now() };
         if (this.hoverTimeout < 0)
           this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
-        let { active, tooltip } = this;
-        if (active.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
-          let { pos: pos2 } = active[0] || this.pending, end2 = (_b2 = (_a2 = active[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
-          if (pos2 == end2 ? this.view.posAtCoords(this.lastMove) != pos2 : !isOverRange(this.view, pos2, end2, event.clientX, event.clientY)) {
+        let { active: active2, tooltip } = this;
+        if (active2.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
+          let { pos: pos2 } = active2[0] || this.pending, end = (_b2 = (_a2 = active2[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
+          if (pos2 == end ? this.view.posAtCoords(this.lastMove) != pos2 : !isOverRange(this.view, pos2, end, event.clientX, event.clientY)) {
             this.view.dispatch({ effects: this.setHover.of([]) });
             this.pending = null;
           }
@@ -48091,8 +43017,8 @@ ${events}
       mouseleave(event) {
         clearTimeout(this.hoverTimeout);
         this.hoverTimeout = -1;
-        let { active } = this;
-        if (active.length) {
+        let { active: active2 } = this;
+        if (active2.length) {
           let { tooltip } = this;
           let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget);
           if (!inTooltip)
@@ -48117,13 +43043,13 @@ ${events}
     }
     const tooltipMargin = 4;
     function isInTooltip(tooltip, event) {
-      let { left: left2, right: right2, top: top2, bottom: bottom2 } = tooltip.getBoundingClientRect(), arrow2;
-      if (arrow2 = tooltip.querySelector(".cm-tooltip-arrow")) {
-        let arrowRect = arrow2.getBoundingClientRect();
+      let { left, right, top: top2, bottom } = tooltip.getBoundingClientRect(), arrow;
+      if (arrow = tooltip.querySelector(".cm-tooltip-arrow")) {
+        let arrowRect = arrow.getBoundingClientRect();
         top2 = Math.min(arrowRect.top, top2);
-        bottom2 = Math.max(arrowRect.bottom, bottom2);
+        bottom = Math.max(arrowRect.bottom, bottom);
       }
-      return event.clientX >= left2 - tooltipMargin && event.clientX <= right2 + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom2 + tooltipMargin;
+      return event.clientX >= left - tooltipMargin && event.clientX <= right + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom + tooltipMargin;
     }
     function isOverRange(view, from, to, x2, y2, margin) {
       let rect = view.scrollDOM.getBoundingClientRect();
@@ -48160,10 +43086,10 @@ ${events}
               value = mapped;
             }
           }
-          for (let effect2 of tr.effects) {
-            if (effect2.is(setHover))
-              value = effect2.value;
-            if (effect2.is(closeHoverTooltipEffect))
+          for (let effect of tr.effects) {
+            if (effect.is(setHover))
+              value = effect.value;
+            if (effect.is(closeHoverTooltipEffect))
               value = [];
           }
           return value;
@@ -48235,7 +43161,7 @@ ${events}
         let input = update.state.facet(showPanel);
         if (input != this.input) {
           let specs = input.filter((x2) => x2);
-          let panels = [], top2 = [], bottom2 = [], mount = [];
+          let panels = [], top2 = [], bottom = [], mount = [];
           for (let spec of specs) {
             let known = this.specs.indexOf(spec), panel;
             if (known < 0) {
@@ -48247,12 +43173,12 @@ ${events}
                 panel.update(update);
             }
             panels.push(panel);
-            (panel.top ? top2 : bottom2).push(panel);
+            (panel.top ? top2 : bottom).push(panel);
           }
           this.specs = specs;
           this.panels = panels;
           this.top.sync(top2);
-          this.bottom.sync(bottom2);
+          this.bottom.sync(bottom);
           for (let p2 of mount) {
             p2.dom.classList.add("cm-panel");
             if (p2.mount)
@@ -48937,20 +43863,20 @@ ${events}
       nextChild(i2, dir, pos2, side, mode = 0) {
         for (let parent = this; ; ) {
           for (let { children: children2, positions } = parent._tree, e2 = dir > 0 ? children2.length : -1; i2 != e2; i2 += dir) {
-            let next = children2[i2], start2 = positions[i2] + parent.from;
-            if (!checkSide(side, pos2, start2, start2 + next.length))
+            let next = children2[i2], start = positions[i2] + parent.from;
+            if (!checkSide(side, pos2, start, start + next.length))
               continue;
             if (next instanceof TreeBuffer) {
               if (mode & IterMode.ExcludeBuffers)
                 continue;
-              let index = next.findChild(0, next.buffer.length, dir, pos2 - start2, side);
+              let index = next.findChild(0, next.buffer.length, dir, pos2 - start, side);
               if (index > -1)
-                return new BufferNode(new BufferContext(parent, next, i2, start2), null, index);
+                return new BufferNode(new BufferContext(parent, next, i2, start), null, index);
             } else if (mode & IterMode.IncludeAnonymous || (!next.type.isAnonymous || hasChild(next))) {
               let mounted;
               if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay)
-                return new TreeNode(mounted.tree, start2, i2, parent);
-              let inner = new TreeNode(next, start2, i2, parent);
+                return new TreeNode(mounted.tree, start, i2, parent);
+              let inner = new TreeNode(next, start, i2, parent);
               return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos2, side);
             }
           }
@@ -49084,11 +44010,11 @@ ${events}
       return true;
     }
     class BufferContext {
-      constructor(parent, buffer2, index, start2) {
+      constructor(parent, buffer2, index, start) {
         this.parent = parent;
         this.buffer = buffer2;
         this.index = index;
-        this.start = start2;
+        this.start = start;
       }
     }
     class BufferNode extends BaseNode {
@@ -49289,10 +44215,10 @@ ${events}
       }
       yieldBuf(index, type) {
         this.index = index;
-        let { start: start2, buffer: buffer2 } = this.buffer;
+        let { start, buffer: buffer2 } = this.buffer;
         this.type = type || buffer2.set.types[buffer2.buffer[index]];
-        this.from = start2 + buffer2.buffer[index + 1];
-        this.to = start2 + buffer2.buffer[index + 2];
+        this.from = start + buffer2.buffer[index + 1];
+        this.to = start + buffer2.buffer[index + 2];
         return true;
       }
       /**
@@ -49601,14 +44527,14 @@ ${events}
       let types2 = nodeSet2.types;
       let contextHash = 0, lookAhead = 0;
       function takeNode(parentStart, minPos, children3, positions2, inRepeat, depth) {
-        let { id, start: start2, end: end2, size } = cursor;
+        let { id, start, end, size } = cursor;
         let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
         while (size < 0) {
           cursor.next();
           if (size == -1) {
             let node2 = reused[id];
             children3.push(node2);
-            positions2.push(start2 - parentStart);
+            positions2.push(start - parentStart);
             return;
           } else if (size == -3) {
             contextHash = id;
@@ -49621,43 +44547,43 @@ ${events}
           }
         }
         let type = types2[id], node, buffer3;
-        let startPos = start2 - parentStart;
-        if (end2 - start2 <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
+        let startPos = start - parentStart;
+        if (end - start <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
           let data2 = new Uint16Array(buffer3.size - buffer3.skip);
           let endPos = cursor.pos - buffer3.size, index = data2.length;
           while (cursor.pos > endPos)
             index = copyToBuffer(buffer3.start, data2, index);
-          node = new TreeBuffer(data2, end2 - buffer3.start, nodeSet2);
+          node = new TreeBuffer(data2, end - buffer3.start, nodeSet2);
           startPos = buffer3.start - parentStart;
         } else {
           let endPos = cursor.pos - size;
           cursor.next();
           let localChildren = [], localPositions = [];
           let localInRepeat = id >= minRepeatType ? id : -1;
-          let lastGroup = 0, lastEnd = end2;
+          let lastGroup = 0, lastEnd = end;
           while (cursor.pos > endPos) {
             if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
               if (cursor.end <= lastEnd - maxBufferLength) {
-                makeRepeatLeaf(localChildren, localPositions, start2, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+                makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
                 lastGroup = localChildren.length;
                 lastEnd = cursor.end;
               }
               cursor.next();
             } else if (depth > 2500) {
-              takeFlatNode(start2, endPos, localChildren, localPositions);
+              takeFlatNode(start, endPos, localChildren, localPositions);
             } else {
-              takeNode(start2, endPos, localChildren, localPositions, localInRepeat, depth + 1);
+              takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
             }
           }
           if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length)
-            makeRepeatLeaf(localChildren, localPositions, start2, lastGroup, start2, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
           localChildren.reverse();
           localPositions.reverse();
           if (localInRepeat > -1 && lastGroup > 0) {
             let make = makeBalanced(type, contextAtStart);
-            node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end2 - start2, make, make);
+            node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
           } else {
-            node = makeTree(type, localChildren, localPositions, end2 - start2, lookAheadAtStart - end2, contextAtStart);
+            node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
           }
         }
         children3.push(node);
@@ -49667,30 +44593,30 @@ ${events}
         let nodes = [];
         let nodeCount = 0, stopAt = -1;
         while (cursor.pos > minPos) {
-          let { id, start: start2, end: end2, size } = cursor;
+          let { id, start, end, size } = cursor;
           if (size > 4) {
             cursor.next();
-          } else if (stopAt > -1 && start2 < stopAt) {
+          } else if (stopAt > -1 && start < stopAt) {
             break;
           } else {
             if (stopAt < 0)
-              stopAt = end2 - maxBufferLength;
-            nodes.push(id, start2, end2);
+              stopAt = end - maxBufferLength;
+            nodes.push(id, start, end);
             nodeCount++;
             cursor.next();
           }
         }
         if (nodeCount) {
           let buffer3 = new Uint16Array(nodeCount * 4);
-          let start2 = nodes[nodes.length - 2];
+          let start = nodes[nodes.length - 2];
           for (let i2 = nodes.length - 3, j2 = 0; i2 >= 0; i2 -= 3) {
             buffer3[j2++] = nodes[i2];
-            buffer3[j2++] = nodes[i2 + 1] - start2;
-            buffer3[j2++] = nodes[i2 + 2] - start2;
+            buffer3[j2++] = nodes[i2 + 1] - start;
+            buffer3[j2++] = nodes[i2 + 2] - start;
             buffer3[j2++] = j2;
           }
-          children3.push(new TreeBuffer(buffer3, nodes[2] - start2, nodeSet2));
-          positions2.push(start2 - parentStart);
+          children3.push(new TreeBuffer(buffer3, nodes[2] - start, nodeSet2));
+          positions2.push(start - parentStart);
         }
       }
       function makeBalanced(type, contextHash2) {
@@ -49727,13 +44653,13 @@ ${events}
       }
       function findBufferSize(maxSize, inRepeat) {
         let fork = cursor.fork();
-        let size = 0, start2 = 0, skip = 0, minStart = fork.end - maxBufferLength;
+        let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
         let result = { size: 0, start: 0, skip: 0 };
         scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos; ) {
           let nodeSize2 = fork.size;
           if (fork.id == inRepeat && nodeSize2 >= 0) {
             result.size = size;
-            result.start = start2;
+            result.start = start;
             result.skip = skip;
             skip += 4;
             size += 4;
@@ -49757,19 +44683,19 @@ ${events}
             }
             fork.next();
           }
-          start2 = nodeStart;
+          start = nodeStart;
           size += nodeSize2;
           skip += localSkipped;
         }
         if (inRepeat < 0 || size == maxSize) {
           result.size = size;
-          result.start = start2;
+          result.start = start;
           result.skip = skip;
         }
         return result.size > 4 ? result : void 0;
       }
       function copyToBuffer(bufferStart, buffer3, index) {
-        let { id, start: start2, end: end2, size } = cursor;
+        let { id, start, end, size } = cursor;
         cursor.next();
         if (size >= 0 && id < minRepeatType) {
           let startIndex = index;
@@ -49779,8 +44705,8 @@ ${events}
               index = copyToBuffer(bufferStart, buffer3, index);
           }
           buffer3[--index] = startIndex;
-          buffer3[--index] = end2 - bufferStart;
-          buffer3[--index] = start2 - bufferStart;
+          buffer3[--index] = end - bufferStart;
+          buffer3[--index] = start - bufferStart;
           buffer3[--index] = id;
         } else if (size == -3) {
           contextHash = id;
@@ -49813,7 +44739,7 @@ ${events}
       }
       return size;
     }
-    function balanceRange(balanceType, children2, positions, from, to, start2, length, mkTop, mkTree) {
+    function balanceRange(balanceType, children2, positions, from, to, start, length, mkTop, mkTree) {
       let total = 0;
       for (let i2 = from; i2 < to; i2++)
         total += nodeSize(balanceType, children2[i2]);
@@ -49822,7 +44748,7 @@ ${events}
         /* Balance.BranchFactor */
       );
       let localChildren = [], localPositions = [];
-      function divide(children3, positions2, from2, to2, offset2) {
+      function divide(children3, positions2, from2, to2, offset) {
         for (let i2 = from2; i2 < to2; ) {
           let groupFrom = i2, groupStart = positions2[i2], groupSize = nodeSize(balanceType, children3[i2]);
           i2++;
@@ -49835,7 +44761,7 @@ ${events}
           if (i2 == groupFrom + 1) {
             if (groupSize > maxChild) {
               let only = children3[groupFrom];
-              divide(only.children, only.positions, 0, only.children.length, positions2[groupFrom] + offset2);
+              divide(only.children, only.positions, 0, only.children.length, positions2[groupFrom] + offset);
               continue;
             }
             localChildren.push(children3[groupFrom]);
@@ -49843,7 +44769,7 @@ ${events}
             let length2 = positions2[i2 - 1] + children3[i2 - 1].length - groupStart;
             localChildren.push(balanceRange(balanceType, children3, positions2, groupFrom, i2, groupStart, length2, null, mkTree));
           }
-          localPositions.push(groupStart + offset2 - start2);
+          localPositions.push(groupStart + offset - start);
         }
       }
       divide(children2, positions, from, to, 0);
@@ -49856,11 +44782,11 @@ ${events}
       [`applyChanges`](#common.TreeFragment^applyChanges) instead of
       calling this directly.
       */
-      constructor(from, to, tree, offset2, openStart = false, openEnd = false) {
+      constructor(from, to, tree, offset, openStart = false, openEnd = false) {
         this.from = from;
         this.to = to;
         this.tree = tree;
-        this.offset = offset2;
+        this.offset = offset;
         this.open = (openStart ? 1 : 0) | (openEnd ? 2 : 0);
       }
       /**
@@ -50191,8 +45117,8 @@ ${events}
           this.span(this.at, to, this.class);
       }
       highlightRange(cursor, from, to, inheritedClass, highlighters) {
-        let { type, from: start2, to: end2 } = cursor;
-        if (start2 >= to || end2 <= from)
+        let { type, from: start, to: end } = cursor;
+        if (start >= to || end <= from)
           return;
         if (type.isTop)
           highlighters = this.highlighters.filter((h2) => !h2.scope || h2.scope(type));
@@ -50206,17 +45132,17 @@ ${events}
           if (rule.mode == 1)
             inheritedClass += (inheritedClass ? " " : "") + tagCls;
         }
-        this.startSpan(Math.max(from, start2), cls);
+        this.startSpan(Math.max(from, start), cls);
         if (rule.opaque)
           return;
         let mounted = cursor.tree && cursor.tree.prop(NodeProp.mounted);
         if (mounted && mounted.overlay) {
-          let inner = cursor.node.enter(mounted.overlay[0].from + start2, 1);
+          let inner = cursor.node.enter(mounted.overlay[0].from + start, 1);
           let innerHighlighters = this.highlighters.filter((h2) => !h2.scope || h2.scope(mounted.tree.type));
           let hasChild2 = cursor.firstChild();
-          for (let i2 = 0, pos2 = start2; ; i2++) {
+          for (let i2 = 0, pos2 = start; ; i2++) {
             let next = i2 < mounted.overlay.length ? mounted.overlay[i2] : null;
-            let nextPos = next ? next.from + start2 : end2;
+            let nextPos = next ? next.from + start : end;
             let rangeFrom = Math.max(from, pos2), rangeTo = Math.min(to, nextPos);
             if (rangeFrom < rangeTo && hasChild2) {
               while (cursor.from < rangeTo) {
@@ -50228,9 +45154,9 @@ ${events}
             }
             if (!next || nextPos > to)
               break;
-            pos2 = next.to + start2;
+            pos2 = next.to + start;
             if (pos2 > from) {
-              this.highlightRange(inner.cursor(), Math.max(from, next.from + start2), Math.min(to, pos2), "", innerHighlighters);
+              this.highlightRange(inner.cursor(), Math.max(from, next.from + start), Math.min(to, pos2), "", innerHighlighters);
               this.startSpan(Math.min(to, pos2), cls);
             }
           }
@@ -50810,13 +45736,13 @@ ${events}
     }
     let currentContext = null;
     class ParseContext {
-      constructor(parser2, state, fragments = [], tree, treeLen, viewport2, skipped, scheduleOn) {
+      constructor(parser2, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
         this.parser = parser2;
         this.state = state;
         this.fragments = fragments;
         this.tree = tree;
         this.treeLen = treeLen;
-        this.viewport = viewport2;
+        this.viewport = viewport;
         this.skipped = skipped;
         this.scheduleOn = scheduleOn;
         this.parse = null;
@@ -50825,8 +45751,8 @@ ${events}
       /**
       @internal
       */
-      static create(parser2, state, viewport2) {
-        return new ParseContext(parser2, state, [], Tree.empty, 0, viewport2, [], null);
+      static create(parser2, state, viewport) {
+        return new ParseContext(parser2, state, [], Tree.empty, 0, viewport, [], null);
       }
       startParse() {
         return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -50904,7 +45830,7 @@ ${events}
       @internal
       */
       changes(changes, newState) {
-        let { fragments, tree, treeLen, viewport: viewport2, skipped } = this;
+        let { fragments, tree, treeLen, viewport, skipped } = this;
         this.takeTree();
         if (!changes.empty) {
           let ranges = [];
@@ -50912,7 +45838,7 @@ ${events}
           fragments = TreeFragment.applyChanges(fragments, ranges);
           tree = Tree.empty;
           treeLen = 0;
-          viewport2 = { from: changes.mapPos(viewport2.from, -1), to: changes.mapPos(viewport2.to, 1) };
+          viewport = { from: changes.mapPos(viewport.from, -1), to: changes.mapPos(viewport.to, 1) };
           if (this.skipped.length) {
             skipped = [];
             for (let r2 of this.skipped) {
@@ -50922,19 +45848,19 @@ ${events}
             }
           }
         }
-        return new ParseContext(this.parser, newState, fragments, tree, treeLen, viewport2, skipped, this.scheduleOn);
+        return new ParseContext(this.parser, newState, fragments, tree, treeLen, viewport, skipped, this.scheduleOn);
       }
       /**
       @internal
       */
-      updateViewport(viewport2) {
-        if (this.viewport.from == viewport2.from && this.viewport.to == viewport2.to)
+      updateViewport(viewport) {
+        if (this.viewport.from == viewport.from && this.viewport.to == viewport.to)
           return false;
-        this.viewport = viewport2;
+        this.viewport = viewport;
         let startLen = this.skipped.length;
         for (let i2 = 0; i2 < this.skipped.length; i2++) {
           let { from, to } = this.skipped[i2];
-          if (from < viewport2.to && to > viewport2.from) {
+          if (from < viewport.to && to > viewport.from) {
             this.fragments = cutFragments(this.fragments, from, to);
             this.skipped.splice(i2--, 1);
           }
@@ -51459,8 +46385,8 @@ ${events}
       }
     });
     function getHighlighters(state) {
-      let main2 = state.facet(highlighterFacet);
-      return main2.length ? main2 : state.facet(fallbackHighlighter);
+      let main = state.facet(highlighterFacet);
+      return main.length ? main : state.facet(fallbackHighlighter);
     }
     function syntaxHighlighting(highlighter, options) {
       let ext = [treeHighlighter], themeType;
@@ -51489,14 +46415,14 @@ ${events}
       update(update) {
         let tree = syntaxTree(update.state), highlighters = getHighlighters(update.state);
         let styleChange = highlighters != getHighlighters(update.startState);
-        let { viewport: viewport2 } = update.view, decoratedToMapped = update.changes.mapPos(this.decoratedTo, 1);
-        if (tree.length < viewport2.to && !styleChange && tree.type == this.tree.type && decoratedToMapped >= viewport2.to) {
+        let { viewport } = update.view, decoratedToMapped = update.changes.mapPos(this.decoratedTo, 1);
+        if (tree.length < viewport.to && !styleChange && tree.type == this.tree.type && decoratedToMapped >= viewport.to) {
           this.decorations = this.decorations.map(update.changes);
           this.decoratedTo = decoratedToMapped;
         } else if (tree != this.tree || update.viewportChanged || styleChange) {
           this.tree = tree;
           this.decorations = this.buildDeco(update.view, highlighters);
-          this.decoratedTo = viewport2.to;
+          this.decoratedTo = viewport.to;
         }
       }
       buildDeco(view, highlighters) {
@@ -51711,7 +46637,7 @@ ${events}
         if (dir < 0)
           distance += text2.length;
         let basePos = pos2 + distance * dir;
-        for (let pos3 = dir > 0 ? 0 : text2.length - 1, end2 = dir > 0 ? text2.length : -1; pos3 != end2; pos3 += dir) {
+        for (let pos3 = dir > 0 ? 0 : text2.length - 1, end = dir > 0 ? text2.length : -1; pos3 != end; pos3 += dir) {
           let found = brackets.indexOf(text2[pos3]);
           if (found < 0 || tree.resolveInner(basePos + pos3, 1).type != tokenType)
             continue;
@@ -51728,14 +46654,14 @@ ${events}
       }
       return iter.done ? { start: startToken, matched: false } : null;
     }
-    function countCol(string2, end2, tabSize, startIndex = 0, startValue = 0) {
-      if (end2 == null) {
-        end2 = string2.search(/[^\s\u00a0]/);
-        if (end2 == -1)
-          end2 = string2.length;
+    function countCol(string2, end, tabSize, startIndex = 0, startValue = 0) {
+      if (end == null) {
+        end = string2.search(/[^\s\u00a0]/);
+        if (end == -1)
+          end = string2.length;
       }
       let n2 = startValue;
-      for (let i2 = startIndex; i2 < end2; i2++) {
+      for (let i2 = startIndex; i2 < end; i2++) {
         if (string2.charCodeAt(i2) == 9)
           n2 += tabSize - n2 % tabSize;
         else
@@ -51805,20 +46731,20 @@ ${events}
       characters were consumed.
       */
       eatWhile(match) {
-        let start2 = this.pos;
+        let start = this.pos;
         while (this.eat(match)) {
         }
-        return this.pos > start2;
+        return this.pos > start;
       }
       /**
       Consume whitespace ahead of `this.pos`. Return true if any was
       found.
       */
       eatSpace() {
-        let start2 = this.pos;
+        let start = this.pos;
         while (/[\s\u00a0]/.test(this.string.charAt(this.pos)))
           ++this.pos;
-        return this.pos > start2;
+        return this.pos > start;
       }
       /**
       Move to the end of the line.
@@ -51954,10 +46880,10 @@ ${events}
           if (from != null && from < cx.pos - 1e4)
             from = void 0;
         }
-        let start2 = findState(this, cx.node.tree, 0, cx.node.from, from !== null && from !== void 0 ? from : cx.pos), statePos, state;
-        if (start2) {
-          state = start2.state;
-          statePos = start2.pos + 1;
+        let start = findState(this, cx.node.tree, 0, cx.node.from, from !== null && from !== void 0 ? from : cx.pos), statePos, state;
+        if (start) {
+          state = start.state;
+          statePos = start.pos + 1;
         } else {
           state = this.streamParser.startState(cx.unit);
           statePos = 0;
@@ -51965,16 +46891,16 @@ ${events}
         if (cx.pos - statePos > 1e4)
           return null;
         while (statePos < cx.pos) {
-          let line3 = cx.state.doc.lineAt(statePos), end2 = Math.min(cx.pos, line3.to);
+          let line3 = cx.state.doc.lineAt(statePos), end = Math.min(cx.pos, line3.to);
           if (line3.length) {
             let indentation = overrideIndentation ? overrideIndentation(line3.from) : -1;
             let stream = new StringStream(line3.text, cx.state.tabSize, cx.unit, indentation < 0 ? void 0 : indentation);
-            while (stream.pos < end2 - line3.from)
+            while (stream.pos < end - line3.from)
               readToken(this.streamParser.token, stream, state);
           } else {
             this.streamParser.blankLine(state, cx.unit);
           }
-          if (end2 == cx.pos)
+          if (end == cx.pos)
             break;
           statePos = line3.to + 1;
         }
@@ -52054,14 +46980,14 @@ ${events}
       advance() {
         let context = ParseContext.get();
         let parseEnd = this.stoppedAt == null ? this.to : Math.min(this.to, this.stoppedAt);
-        let end2 = Math.min(
+        let end = Math.min(
           parseEnd,
           this.chunkStart + 2048
           /* C.ChunkSize */
         );
         if (context)
-          end2 = Math.min(end2, context.viewport.to);
-        while (this.parsedPos < end2)
+          end = Math.min(end, context.viewport.to);
+        while (this.parsedPos < end)
           this.parseLine(context);
         if (this.chunkStart < this.parsedPos)
           this.finishChunk();
@@ -52088,44 +47014,44 @@ ${events}
         return pos2 + chunk.length <= this.to ? chunk : chunk.slice(0, this.to - pos2);
       }
       nextLine() {
-        let from = this.parsedPos, line2 = this.lineAfter(from), end2 = from + line2.length;
+        let from = this.parsedPos, line2 = this.lineAfter(from), end = from + line2.length;
         for (let index = this.rangeIndex; ; ) {
           let rangeEnd2 = this.ranges[index].to;
-          if (rangeEnd2 >= end2)
+          if (rangeEnd2 >= end)
             break;
-          line2 = line2.slice(0, rangeEnd2 - (end2 - line2.length));
+          line2 = line2.slice(0, rangeEnd2 - (end - line2.length));
           index++;
           if (index == this.ranges.length)
             break;
           let rangeStart = this.ranges[index].from;
           let after = this.lineAfter(rangeStart);
           line2 += after;
-          end2 = rangeStart + after.length;
+          end = rangeStart + after.length;
         }
-        return { line: line2, end: end2 };
+        return { line: line2, end };
       }
-      skipGapsTo(pos2, offset2, side) {
+      skipGapsTo(pos2, offset, side) {
         for (; ; ) {
-          let end2 = this.ranges[this.rangeIndex].to, offPos = pos2 + offset2;
-          if (side > 0 ? end2 > offPos : end2 >= offPos)
+          let end = this.ranges[this.rangeIndex].to, offPos = pos2 + offset;
+          if (side > 0 ? end > offPos : end >= offPos)
             break;
-          let start2 = this.ranges[++this.rangeIndex].from;
-          offset2 += start2 - end2;
+          let start = this.ranges[++this.rangeIndex].from;
+          offset += start - end;
         }
-        return offset2;
+        return offset;
       }
       moveRangeIndex() {
         while (this.ranges[this.rangeIndex].to < this.parsedPos)
           this.rangeIndex++;
       }
-      emitToken(id, from, to, offset2) {
+      emitToken(id, from, to, offset) {
         let size = 4;
         if (this.ranges.length > 1) {
-          offset2 = this.skipGapsTo(from, offset2, 1);
-          from += offset2;
+          offset = this.skipGapsTo(from, offset, 1);
+          from += offset;
           let len0 = this.chunk.length;
-          offset2 = this.skipGapsTo(to, offset2, -1);
-          to += offset2;
+          offset = this.skipGapsTo(to, offset, -1);
+          to += offset;
           size += this.chunk.length - len0;
         }
         let last = this.chunk.length - 4;
@@ -52133,10 +47059,10 @@ ${events}
           this.chunk[last + 2] = to;
         else
           this.chunk.push(id, from, to, size);
-        return offset2;
+        return offset;
       }
       parseLine(context) {
-        let { line: line2, end: end2 } = this.nextLine(), offset2 = 0, { streamParser } = this.lang;
+        let { line: line2, end } = this.nextLine(), offset = 0, { streamParser } = this.lang;
         let stream = new StringStream(line2, context ? context.state.tabSize : 4, context ? getIndentUnit(context.state) : 2);
         if (stream.eol()) {
           streamParser.blankLine(this.state, stream.indentUnit);
@@ -52144,12 +47070,12 @@ ${events}
           while (!stream.eol()) {
             let token2 = readToken(streamParser.token, stream, this.state);
             if (token2)
-              offset2 = this.emitToken(this.lang.tokenTable.resolve(token2), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset2);
+              offset = this.emitToken(this.lang.tokenTable.resolve(token2), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset);
             if (stream.start > 1e4)
               break;
           }
         }
-        this.parsedPos = end2;
+        this.parsedPos = end;
         this.moveRangeIndex();
         if (this.parsedPos < this.to)
           this.parsedPos++;
@@ -52306,10 +47232,10 @@ ${events}
       */
       matchBefore(expr) {
         let line2 = this.state.doc.lineAt(this.pos);
-        let start2 = Math.max(line2.from, this.pos - 250);
-        let str2 = line2.text.slice(start2 - line2.from, this.pos - line2.from);
+        let start = Math.max(line2.from, this.pos - 250);
+        let str2 = line2.text.slice(start - line2.from, this.pos - line2.from);
         let found = str2.search(ensureAnchor(expr, false));
-        return found < 0 ? null : { from: start2 + found, to: this.pos, text: str2.slice(found) };
+        return found < 0 ? null : { from: start + found, to: this.pos, text: str2.slice(found) };
       }
       /**
       Yields true when the query has been aborted. Can be useful in
@@ -52375,23 +47301,23 @@ ${events}
     function cur(state) {
       return state.selection.main.from;
     }
-    function ensureAnchor(expr, start2) {
+    function ensureAnchor(expr, start) {
       var _a2;
       let { source: source2 } = expr;
-      let addStart = start2 && source2[0] != "^", addEnd = source2[source2.length - 1] != "$";
+      let addStart = start && source2[0] != "^", addEnd = source2[source2.length - 1] != "$";
       if (!addStart && !addEnd)
         return expr;
       return new RegExp(`${addStart ? "^" : ""}(?:${source2})${addEnd ? "$" : ""}`, (_a2 = expr.flags) !== null && _a2 !== void 0 ? _a2 : expr.ignoreCase ? "i" : "");
     }
     const pickedCompletion = /* @__PURE__ */ Annotation.define();
     function insertCompletionText(state, text2, from, to) {
-      let { main: main2 } = state.selection, fromOff = from - main2.from, toOff = to - main2.from;
+      let { main } = state.selection, fromOff = from - main.from, toOff = to - main.from;
       return Object.assign(Object.assign({}, state.changeByRange((range) => {
-        if (range != main2 && from != to && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to))
+        if (range != main && from != to && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to))
           return { range };
         let lines = state.toText(text2);
         return {
-          changes: { from: range.from + fromOff, to: to == main2.from ? range.to : range.from + toOff, insert: lines },
+          changes: { from: range.from + fromOff, to: to == main.from ? range.to : range.from + toOff, insert: lines },
           range: EditorSelection.cursor(range.from + fromOff + lines.length)
         };
       })), { scrollIntoView: true, userEvent: "input.complete" });
@@ -52534,11 +47460,11 @@ ${events}
       match(word) {
         if (word.length < this.pattern.length)
           return null;
-        let start2 = word.slice(0, this.pattern.length);
-        let match = start2 == this.pattern ? 0 : start2.toLowerCase() == this.folded ? -200 : null;
+        let start = word.slice(0, this.pattern.length);
+        let match = start == this.pattern ? 0 : start.toLowerCase() == this.folded ? -200 : null;
         if (match == null)
           return null;
-        this.matched = [0, start2.length];
+        this.matched = [0, start.length];
         this.score = match + (word.length == this.pattern.length ? 0 : -100);
         return this;
       }
@@ -52579,17 +47505,17 @@ ${events}
       return a2 ? b2 ? a2 + " " + b2 : a2 : b2;
     }
     function defaultPositionInfo(view, list2, option, info, space, tooltip) {
-      let rtl = view.textDirection == Direction.RTL, left2 = rtl, narrow = false;
-      let side = "top", offset2, maxWidth;
+      let rtl = view.textDirection == Direction.RTL, left = rtl, narrow = false;
+      let side = "top", offset, maxWidth;
       let spaceLeft = list2.left - space.left, spaceRight = space.right - list2.right;
       let infoWidth = info.right - info.left, infoHeight = info.bottom - info.top;
-      if (left2 && spaceLeft < Math.min(infoWidth, spaceRight))
-        left2 = false;
-      else if (!left2 && spaceRight < Math.min(infoWidth, spaceLeft))
-        left2 = true;
-      if (infoWidth <= (left2 ? spaceLeft : spaceRight)) {
-        offset2 = Math.max(space.top, Math.min(option.top, space.bottom - infoHeight)) - list2.top;
-        maxWidth = Math.min(400, left2 ? spaceLeft : spaceRight);
+      if (left && spaceLeft < Math.min(infoWidth, spaceRight))
+        left = false;
+      else if (!left && spaceRight < Math.min(infoWidth, spaceLeft))
+        left = true;
+      if (infoWidth <= (left ? spaceLeft : spaceRight)) {
+        offset = Math.max(space.top, Math.min(option.top, space.bottom - infoHeight)) - list2.top;
+        maxWidth = Math.min(400, left ? spaceLeft : spaceRight);
       } else {
         narrow = true;
         maxWidth = Math.min(
@@ -52599,17 +47525,17 @@ ${events}
         );
         let spaceBelow = space.bottom - list2.bottom;
         if (spaceBelow >= infoHeight || spaceBelow > list2.top) {
-          offset2 = option.bottom - list2.top;
+          offset = option.bottom - list2.top;
         } else {
           side = "bottom";
-          offset2 = list2.bottom - option.top;
+          offset = list2.bottom - option.top;
         }
       }
       let scaleY = (list2.bottom - list2.top) / tooltip.offsetHeight;
       let scaleX = (list2.right - list2.left) / tooltip.offsetWidth;
       return {
-        style: `${side}: ${offset2 / scaleY}px; max-width: ${maxWidth / scaleX}px`,
-        class: "cm-completionInfo-" + (narrow ? rtl ? "left-narrow" : "right-narrow" : left2 ? "left" : "right")
+        style: `${side}: ${offset / scaleY}px; max-width: ${maxWidth / scaleX}px`,
+        class: "cm-completionInfo-" + (narrow ? rtl ? "left-narrow" : "right-narrow" : left ? "left" : "right")
       };
     }
     function optionContent(config2) {
@@ -52858,8 +47784,8 @@ ${events}
               if (typeof section != "string" && section.header) {
                 ul.appendChild(section.header(section));
               } else {
-                let header = ul.appendChild(document.createElement("completion-section"));
-                header.textContent = name2;
+                let header2 = ul.appendChild(document.createElement("completion-section"));
+                header2.textContent = name2;
               }
             }
           }
@@ -52908,7 +47834,7 @@ ${events}
     function score(option) {
       return (option.boost || 0) * 100 + (option.apply ? 10 : 0) + (option.info ? 5 : 0) + (option.type ? 1 : 0);
     }
-    function sortOptions(active, state) {
+    function sortOptions(active2, state) {
       let options = [];
       let sections = null;
       let addOption = (option) => {
@@ -52923,7 +47849,7 @@ ${events}
         }
       };
       let conf = state.facet(completionConfig);
-      for (let a2 of active)
+      for (let a2 of active2)
         if (a2.hasResult()) {
           let getMatch = a2.result.getMatch;
           if (a2.result.filter === false) {
@@ -52980,12 +47906,12 @@ ${events}
       setSelected(selected, id) {
         return selected == this.selected || selected >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected), this.tooltip, this.timestamp, selected, this.disabled);
       }
-      static build(active, state, id, prev, conf, didSetActive) {
-        if (prev && !didSetActive && active.some((s2) => s2.isPending))
+      static build(active2, state, id, prev, conf, didSetActive) {
+        if (prev && !didSetActive && active2.some((s2) => s2.isPending))
           return prev.setDisabled();
-        let options = sortOptions(active, state);
+        let options = sortOptions(active2, state);
         if (!options.length)
-          return prev && active.some((a2) => a2.isPending) ? prev.setDisabled() : null;
+          return prev && active2.some((a2) => a2.isPending) ? prev.setDisabled() : null;
         let selected = state.facet(completionConfig).selectOnOpen ? 0 : -1;
         if (prev && prev.selected != selected && prev.selected != -1) {
           let selectedValue = prev.options[prev.selected].completion;
@@ -52996,7 +47922,7 @@ ${events}
             }
         }
         return new CompletionDialog(options, makeAttrs(id, selected), {
-          pos: active.reduce((a2, b2) => b2.hasResult() ? Math.min(a2, b2.from) : a2, 1e8),
+          pos: active2.reduce((a2, b2) => b2.hasResult() ? Math.min(a2, b2.from) : a2, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
         }, prev ? prev.timestamp : Date.now(), selected, false);
@@ -53009,8 +47935,8 @@ ${events}
       }
     }
     class CompletionState {
-      constructor(active, id, open) {
-        this.active = active;
+      constructor(active2, id, open) {
+        this.active = active2;
         this.id = id;
         this.open = open;
       }
@@ -53020,7 +47946,7 @@ ${events}
       update(tr) {
         let { state } = tr, conf = state.facet(completionConfig);
         let sources = conf.override || state.languageDataAt("autocomplete", cur(state)).map(asSource);
-        let active = sources.map((source2) => {
+        let active2 = sources.map((source2) => {
           let value = this.active.find((s2) => s2.source == source2) || new ActiveSource(
             source2,
             this.active.some(
@@ -53031,25 +47957,25 @@ ${events}
           );
           return value.update(tr, conf);
         });
-        if (active.length == this.active.length && active.every((a2, i2) => a2 == this.active[i2]))
-          active = this.active;
+        if (active2.length == this.active.length && active2.every((a2, i2) => a2 == this.active[i2]))
+          active2 = this.active;
         let open = this.open, didSet = tr.effects.some((e2) => e2.is(setActiveEffect));
         if (open && tr.docChanged)
           open = open.map(tr.changes);
-        if (tr.selection || active.some((a2) => a2.hasResult() && tr.changes.touchesRange(a2.from, a2.to)) || !sameResults(active, this.active) || didSet)
-          open = CompletionDialog.build(active, state, this.id, open, conf, didSet);
-        else if (open && open.disabled && !active.some((a2) => a2.isPending))
+        if (tr.selection || active2.some((a2) => a2.hasResult() && tr.changes.touchesRange(a2.from, a2.to)) || !sameResults(active2, this.active) || didSet)
+          open = CompletionDialog.build(active2, state, this.id, open, conf, didSet);
+        else if (open && open.disabled && !active2.some((a2) => a2.isPending))
           open = null;
-        if (!open && active.every((a2) => !a2.isPending) && active.some((a2) => a2.hasResult()))
-          active = active.map((a2) => a2.hasResult() ? new ActiveSource(
+        if (!open && active2.every((a2) => !a2.isPending) && active2.some((a2) => a2.hasResult()))
+          active2 = active2.map((a2) => a2.hasResult() ? new ActiveSource(
             a2.source,
             0
             /* State.Inactive */
           ) : a2);
-        for (let effect2 of tr.effects)
-          if (effect2.is(setSelectedEffect))
-            open = open && open.setSelected(effect2.value, this.id);
-        return active == this.active && open == this.open ? this : new CompletionState(active, this.id, open);
+        for (let effect of tr.effects)
+          if (effect.is(setSelectedEffect))
+            open = open && open.setSelected(effect.value, this.id);
+        return active2 == this.active && open == this.open ? this : new CompletionState(active2, this.id, open);
       }
       get tooltip() {
         return this.open ? this.open.tooltip : null;
@@ -53124,19 +48050,19 @@ ${events}
             /* State.Pending */
           );
         value = value.updateFor(tr, type);
-        for (let effect2 of tr.effects) {
-          if (effect2.is(startCompletionEffect))
-            value = new ActiveSource(value.source, 1, effect2.value);
-          else if (effect2.is(closeCompletionEffect))
+        for (let effect of tr.effects) {
+          if (effect.is(startCompletionEffect))
+            value = new ActiveSource(value.source, 1, effect.value);
+          else if (effect.is(closeCompletionEffect))
             value = new ActiveSource(
               value.source,
               0
               /* State.Inactive */
             );
-          else if (effect2.is(setActiveEffect)) {
-            for (let active of effect2.value)
-              if (active.source == value.source)
-                value = active;
+          else if (effect.is(setActiveEffect)) {
+            for (let active2 of effect.value)
+              if (active2.source == value.source)
+                value = active2;
           }
         }
         return value;
@@ -53278,8 +48204,8 @@ ${events}
       return true;
     };
     class RunningQuery {
-      constructor(active, context) {
-        this.active = active;
+      constructor(active2, context) {
+        this.active = active2;
         this.context = context;
         this.time = Date.now();
         this.updates = [];
@@ -53295,9 +48221,9 @@ ${events}
         this.debounceAccept = -1;
         this.pendingStart = false;
         this.composing = 0;
-        for (let active of view.state.field(completionState).active)
-          if (active.isPending)
-            this.startQuery(active);
+        for (let active2 of view.state.field(completionState).active)
+          if (active2.isPending)
+            this.startQuery(active2);
       }
       update(update) {
         let cState = update.state.field(completionState);
@@ -53342,19 +48268,19 @@ ${events}
         this.debounceUpdate = -1;
         this.pendingStart = false;
         let { state } = this.view, cState = state.field(completionState);
-        for (let active of cState.active) {
-          if (active.isPending && !this.running.some((r2) => r2.active.source == active.source))
-            this.startQuery(active);
+        for (let active2 of cState.active) {
+          if (active2.isPending && !this.running.some((r2) => r2.active.source == active2.source))
+            this.startQuery(active2);
         }
         if (this.running.length && cState.open && cState.open.disabled)
           this.debounceAccept = setTimeout(() => this.accept(), this.view.state.facet(completionConfig).updateSyncTime);
       }
-      startQuery(active) {
+      startQuery(active2) {
         let { state } = this.view, pos2 = cur(state);
-        let context = new CompletionContext(state, pos2, active.explicit, this.view);
-        let pending = new RunningQuery(active, context);
+        let context = new CompletionContext(state, pos2, active2.explicit, this.view);
+        let pending = new RunningQuery(active2, context);
         this.running.push(pending);
-        Promise.resolve(active.source(context)).then((result) => {
+        Promise.resolve(active2.source(context)).then((result) => {
           if (!pending.context.aborted) {
             pending.done = result || null;
             this.scheduleAccept();
@@ -53387,26 +48313,26 @@ ${events}
           if (query.done) {
             let pos2 = cur(query.updates.length ? query.updates[0].startState : this.view.state);
             let limit = Math.min(pos2, query.done.from + (query.active.explicit ? 0 : 1));
-            let active = new ActiveResult(query.active.source, query.active.explicit, limit, query.done, query.done.from, (_a2 = query.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
+            let active2 = new ActiveResult(query.active.source, query.active.explicit, limit, query.done, query.done.from, (_a2 = query.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
             for (let tr of query.updates)
-              active = active.update(tr, conf);
-            if (active.hasResult()) {
-              updated.push(active);
+              active2 = active2.update(tr, conf);
+            if (active2.hasResult()) {
+              updated.push(active2);
               continue;
             }
           }
           let current = cState.active.find((a2) => a2.source == query.active.source);
           if (current && current.isPending) {
             if (query.done == null) {
-              let active = new ActiveSource(
+              let active2 = new ActiveSource(
                 query.active.source,
                 0
                 /* State.Inactive */
               );
               for (let tr of query.updates)
-                active = active.update(tr, conf);
-              if (!active.isPending)
-                updated.push(active);
+                active2 = active2.update(tr, conf);
+              if (!active2.isPending)
+                updated.push(active2);
             } else {
               this.startQuery(current);
             }
@@ -53645,25 +48571,25 @@ ${events}
         if (diagnosticFilter)
           markedDiagnostics = diagnosticFilter(markedDiagnostics, state);
         let sorted = diagnostics.slice().sort((a2, b2) => a2.from - b2.from || a2.to - b2.to);
-        let deco = new RangeSetBuilder(), active = [], pos2 = 0;
+        let deco = new RangeSetBuilder(), active2 = [], pos2 = 0;
         for (let i2 = 0; ; ) {
           let next = i2 == sorted.length ? null : sorted[i2];
-          if (!next && !active.length)
+          if (!next && !active2.length)
             break;
           let from, to;
-          if (active.length) {
+          if (active2.length) {
             from = pos2;
-            to = active.reduce((p2, d2) => Math.min(p2, d2.to), next && next.from > from ? next.from : 1e8);
+            to = active2.reduce((p2, d2) => Math.min(p2, d2.to), next && next.from > from ? next.from : 1e8);
           } else {
             from = next.from;
             to = next.to;
-            active.push(next);
+            active2.push(next);
             i2++;
           }
           while (i2 < sorted.length) {
             let next2 = sorted[i2];
             if (next2.from == from && (next2.to > next2.from || next2.to == from)) {
-              active.push(next2);
+              active2.push(next2);
               i2++;
               to = Math.min(next2.to, to);
             } else {
@@ -53671,24 +48597,24 @@ ${events}
               break;
             }
           }
-          let sev = maxSeverity(active);
-          if (active.some((d2) => d2.from == d2.to || d2.from == d2.to - 1 && state.doc.lineAt(d2.from).to == d2.from)) {
+          let sev = maxSeverity(active2);
+          if (active2.some((d2) => d2.from == d2.to || d2.from == d2.to - 1 && state.doc.lineAt(d2.from).to == d2.from)) {
             deco.add(from, from, Decoration.widget({
               widget: new DiagnosticWidget(sev),
-              diagnostics: active.slice()
+              diagnostics: active2.slice()
             }));
           } else {
-            let markClass = active.reduce((c2, d2) => d2.markClass ? c2 + " " + d2.markClass : c2, "");
+            let markClass = active2.reduce((c2, d2) => d2.markClass ? c2 + " " + d2.markClass : c2, "");
             deco.add(from, to, Decoration.mark({
               class: "cm-lintRange cm-lintRange-" + sev + markClass,
-              diagnostics: active.slice(),
-              inclusiveEnd: active.some((a2) => a2.to > to)
+              diagnostics: active2.slice(),
+              inclusiveEnd: active2.some((a2) => a2.to > to)
             }));
           }
           pos2 = to;
-          for (let i3 = 0; i3 < active.length; i3++)
-            if (active[i3].to <= pos2)
-              active.splice(i3--, 1);
+          for (let i3 = 0; i3 < active2.length; i3++)
+            if (active2[i3].to <= pos2)
+              active2.splice(i3--, 1);
         }
         let set = deco.finish();
         return new LintState(set, panel, findDiagnostic(set));
@@ -53742,14 +48668,14 @@ ${events}
             panel = null;
           value = new LintState(mapped, panel, selected);
         }
-        for (let effect2 of tr.effects) {
-          if (effect2.is(setDiagnosticsEffect)) {
-            let panel = !tr.state.facet(lintConfig).autoPanel ? value.panel : effect2.value.length ? LintPanel.open : null;
-            value = LintState.init(effect2.value, panel, tr.state);
-          } else if (effect2.is(togglePanel)) {
-            value = new LintState(value.diagnostics, effect2.value ? LintPanel.open : null, value.selected);
-          } else if (effect2.is(movePanelSelection)) {
-            value = new LintState(value.diagnostics, value.panel, effect2.value);
+        for (let effect of tr.effects) {
+          if (effect.is(setDiagnosticsEffect)) {
+            let panel = !tr.state.facet(lintConfig).autoPanel ? value.panel : effect.value.length ? LintPanel.open : null;
+            value = LintState.init(effect.value, panel, tr.state);
+          } else if (effect.is(togglePanel)) {
+            value = new LintState(value.diagnostics, effect.value ? LintPanel.open : null, value.selected);
+          } else if (effect.is(movePanelSelection)) {
+            value = new LintState(value.diagnostics, value.panel, effect.value);
           }
         }
         return value;
@@ -53762,12 +48688,12 @@ ${events}
     const activeMark = /* @__PURE__ */ Decoration.mark({ class: "cm-lintRange cm-lintRange-active" });
     function lintTooltip(view, pos2, side) {
       let { diagnostics } = view.state.field(lintState);
-      let found, start2 = -1, end2 = -1;
+      let found, start = -1, end = -1;
       diagnostics.between(pos2 - (side < 0 ? 1 : 0), pos2 + (side > 0 ? 1 : 0), (from, to, { spec }) => {
         if (pos2 >= from && pos2 <= to && (from == to || (pos2 > from || side > 0) && (pos2 < to || side < 0))) {
           found = spec.diagnostics;
-          start2 = from;
-          end2 = to;
+          start = from;
+          end = to;
           return false;
         }
       });
@@ -53777,9 +48703,9 @@ ${events}
       if (!found)
         return null;
       return {
-        pos: start2,
-        end: end2,
-        above: view.state.doc.lineAt(start2).to < end2,
+        pos: start,
+        end,
+        above: view.state.doc.lineAt(start).to < end,
         create() {
           return { dom: diagnosticsTooltip(view, found) };
         }
@@ -54008,30 +48934,30 @@ ${events}
             if (seen.has(diagnostic))
               continue;
             seen.add(diagnostic);
-            let found = -1, item;
+            let found = -1, item2;
             for (let j2 = i2; j2 < this.items.length; j2++)
               if (this.items[j2].diagnostic == diagnostic) {
                 found = j2;
                 break;
               }
             if (found < 0) {
-              item = new PanelItem(this.view, diagnostic);
-              this.items.splice(i2, 0, item);
+              item2 = new PanelItem(this.view, diagnostic);
+              this.items.splice(i2, 0, item2);
               needsSync = true;
             } else {
-              item = this.items[found];
+              item2 = this.items[found];
               if (found > i2) {
                 this.items.splice(i2, found - i2);
                 needsSync = true;
               }
             }
-            if (selected && item.diagnostic == selected.diagnostic) {
-              if (!item.dom.hasAttribute("aria-selected")) {
-                item.dom.setAttribute("aria-selected", "true");
-                newSelectedItem = item;
+            if (selected && item2.diagnostic == selected.diagnostic) {
+              if (!item2.dom.hasAttribute("aria-selected")) {
+                item2.dom.setAttribute("aria-selected", "true");
+                newSelectedItem = item2;
               }
-            } else if (item.dom.hasAttribute("aria-selected")) {
-              item.dom.removeAttribute("aria-selected");
+            } else if (item2.dom.hasAttribute("aria-selected")) {
+              item2.dom.removeAttribute("aria-selected");
             }
             i2++;
           }
@@ -54075,13 +49001,13 @@ ${events}
           domPos = prev.nextSibling;
           prev.remove();
         }
-        for (let item of this.items) {
-          if (item.dom.parentNode == this.list) {
-            while (domPos != item.dom)
+        for (let item2 of this.items) {
+          if (item2.dom.parentNode == this.list) {
+            while (domPos != item2.dom)
               rm2();
-            domPos = item.dom.nextSibling;
+            domPos = item2.dom.nextSibling;
           } else {
-            this.list.insertBefore(item.dom, domPos);
+            this.list.insertBefore(item2.dom, domPos);
           }
         }
         while (domPos)
@@ -54405,10 +49331,10 @@ ${events}
         let config2 = tr.state.facet(historyConfig);
         let fromHist = tr.annotation(fromHistory);
         if (fromHist) {
-          let item = HistEvent.fromTransaction(tr, fromHist.selection), from = fromHist.side;
+          let item2 = HistEvent.fromTransaction(tr, fromHist.selection), from = fromHist.side;
           let other = from == 0 ? state.undone : state.done;
-          if (item)
-            other = updateBranch(other, other.length, config2.minDepth, item);
+          if (item2)
+            other = updateBranch(other, other.length, config2.minDepth, item2);
           else
             other = addSelection(other, tr.startState.selection);
           return new HistoryState(from == 0 ? fromHist.rest : other, from == 0 ? other : fromHist.rest);
@@ -54510,8 +49436,8 @@ ${events}
       }
     }
     function updateBranch(branch, to, maxLen, newEvent) {
-      let start2 = to + 1 > maxLen + 20 ? to - maxLen - 1 : 0;
-      let newBranch = branch.slice(start2, to);
+      let start = to + 1 > maxLen + 20 ? to - maxLen - 1 : 0;
+      let newBranch = branch.slice(start, to);
       newBranch.push(newEvent);
       return newBranch;
     }
@@ -54682,10 +49608,10 @@ ${events}
       let len = node.to - node.from;
       return len && (len > 2 || /[^\s,.;:]/.test(state.sliceDoc(node.from, node.to))) || node.firstChild;
     }
-    function moveBySyntax(state, start2, forward) {
-      let pos2 = syntaxTree(state).resolveInner(start2.head);
+    function moveBySyntax(state, start, forward) {
+      let pos2 = syntaxTree(state).resolveInner(start.head);
       let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
-      for (let at = start2.head; ; ) {
+      for (let at = start.head; ; ) {
         let next = forward ? pos2.childAfter(at) : pos2.childBefore(at);
         if (!next)
           break;
@@ -54742,26 +49668,26 @@ ${events}
       });
       if (selection.eq(state.selection))
         return false;
-      let effect2;
+      let effect;
       if (page.selfScroll) {
         let startPos = view.coordsAtPos(state.selection.main.head);
         let scrollRect = view.scrollDOM.getBoundingClientRect();
         let scrollTop = scrollRect.top + page.marginTop, scrollBottom = scrollRect.bottom - page.marginBottom;
         if (startPos && startPos.top > scrollTop && startPos.bottom < scrollBottom)
-          effect2 = EditorView.scrollIntoView(selection.main.head, { y: "start", yMargin: startPos.top - scrollTop });
+          effect = EditorView.scrollIntoView(selection.main.head, { y: "start", yMargin: startPos.top - scrollTop });
       }
-      view.dispatch(setSel(state, selection), { effects: effect2 });
+      view.dispatch(setSel(state, selection), { effects: effect });
       return true;
     }
     const cursorPageUp = (view) => cursorByPage(view, false);
     const cursorPageDown = (view) => cursorByPage(view, true);
-    function moveByLineBoundary(view, start2, forward) {
-      let line2 = view.lineBlockAt(start2.head), moved = view.moveToLineBoundary(start2, forward);
-      if (moved.head == start2.head && moved.head != (forward ? line2.to : line2.from))
-        moved = view.moveToLineBoundary(start2, forward, false);
+    function moveByLineBoundary(view, start, forward) {
+      let line2 = view.lineBlockAt(start.head), moved = view.moveToLineBoundary(start, forward);
+      if (moved.head == start.head && moved.head != (forward ? line2.to : line2.from))
+        moved = view.moveToLineBoundary(start, forward, false);
       if (!forward && moved.head == line2.from && line2.length) {
         let space = /^\s*/.exec(view.state.sliceDoc(line2.from, Math.min(line2.from + 100, line2.to)))[0].length;
-        if (space && start2.head != line2.from + space)
+        if (space && start.head != line2.from + space)
           moved = EditorSelection.cursor(line2.from + space);
       }
       return moved;
@@ -55157,8 +50083,8 @@ ${events}
       if (state.readOnly)
         return false;
       let updated = /* @__PURE__ */ Object.create(null);
-      let context = new IndentContext(state, { overrideIndentation: (start2) => {
-        let found = updated[start2];
+      let context = new IndentContext(state, { overrideIndentation: (start) => {
+        let found = updated[start];
         return found == null ? -1 : found;
       } });
       let changes = changeBySelectedLine(state, (line2, changes2, range) => {
@@ -55377,9 +50303,9 @@ ${events}
     }
     function getMemberScoreItems(filterItems, scorer) {
       return filterItems.filter(
-        (item) => {
+        (item2) => {
           var _a2;
-          return (_a2 = item == null ? void 0 : item.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer}.`);
+          return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer}.`);
         }
       );
     }
@@ -55418,16 +50344,16 @@ ${events}
         type: "text",
         boost: 10
       });
-      const makeCanonicalNameCompletion = (item, { autoSpaceIf = () => false } = {}) => ({
-        label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
+      const makeCanonicalNameCompletion = (item2, { autoSpaceIf = () => false } = {}) => ({
+        label: item2.canonicalName + (autoSpaceIf(item2) ? " " : ""),
         type: "variable",
-        info: item.tooltip,
+        info: item2.tooltip,
         boost: 20
       });
-      const makeMemberAccessCompletion = (item) => ({
-        label: item.qualifiedName.split(".")[1],
+      const makeMemberAccessCompletion = (item2) => ({
+        label: item2.qualifiedName.split(".")[1],
         type: "variable",
-        info: item.tooltip,
+        info: item2.tooltip,
         boost: 20
       });
       const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
@@ -55438,7 +50364,7 @@ ${events}
         makeSampleFunctionCompletion
       );
       const variableCompletionItems = filterItems.map(
-        (item) => makeCanonicalNameCompletion(item)
+        (item2) => makeCanonicalNameCompletion(item2)
       );
       const defaultCompletionItems = [
         ...keywordCompletionItems,
@@ -55469,7 +50395,7 @@ ${events}
               break;
             }
           }
-          return filterItems.find((item) => item.canonicalName == name2);
+          return filterItems.find((item2) => item2.canonicalName == name2);
         }
         return void 0;
       };
@@ -55516,8 +50442,8 @@ ${events}
       const noCompletions = () => context.explicit ? defaultCompletions() : null;
       const newExpressionCompletions = () => makeCompletions([
         ...filterItems.map(
-          (item) => makeCanonicalNameCompletion(item, {
-            autoSpaceIf: (item2) => completingAtEnd && item2.scoreType != kScoreTypeBoolean
+          (item2) => makeCanonicalNameCompletion(item2, {
+            autoSpaceIf: (item3) => completingAtEnd && item3.scoreType != kScoreTypeBoolean
           })
         ),
         ...sampleFunctionCompletionItems
@@ -55570,10 +50496,10 @@ ${events}
         if (scoreType == kScoreTypeBoolean) return logicalOpCompletions();
       }
       if (((_i = prevToken(1)) == null ? void 0 : _i.type) == "relation") {
-        const item = findFilterItem(2);
-        if (item) {
-          if ((_j = item == null ? void 0 : item.categories) == null ? void 0 : _j.length) {
-            return rhsCompletions(item.categories);
+        const item2 = findFilterItem(2);
+        if (item2) {
+          if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
+            return rhsCompletions(item2.categories);
           } else {
             return noCompletions();
           }
@@ -55801,8 +50727,8 @@ Supported expressions:
   • Set operations: in, not in; e.g. “x in (2, 3, 5)”
   • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
 `.trim();
-    const SelectScorer = ({ scores, score: score2, setScore }) => {
-      const scorers = scores.reduce((accum, scorer) => {
+    const SelectScorer = ({ scores: scores2, score: score2, setScore }) => {
+      const scorers = scores2.reduce((accum, scorer) => {
         if (!accum.find((sc) => {
           return scorer.scorer === sc.scorer;
         })) {
@@ -55824,16 +50750,16 @@ Supported expressions:
           >Score:</span
         >
         <${ScoreSelector}
-          scores=${scores}
-          selectedIndex=${scoreIndex(score2, scores)}
+          scores=${scores2}
+          selectedIndex=${scoreIndex(score2, scores2)}
           selectedIndexChanged=${(index) => {
-          setScore(scores[index]);
+          setScore(scores2[index]);
         }}
         />
       </div>
     `;
       } else {
-        const scorerScores = scores.filter((sc) => {
+        const scorerScores = scores2.filter((sc) => {
           return sc.scorer === score2.scorer;
         });
         const selectors = [
@@ -55877,7 +50803,7 @@ Supported expressions:
       }
     };
     const ScoreSelector = ({
-      scores,
+      scores: scores2,
       selectedIndex,
       selectedIndexChanged,
       style: style2
@@ -55886,12 +50812,12 @@ Supported expressions:
     class="form-select form-select-sm"
     aria-label=".select-scorer-label"
     style=${{ fontSize: FontSize.smaller, ...style2 }}
-    value=${scores[selectedIndex].name}
+    value=${scores2[selectedIndex].name}
     onChange=${(e2) => {
         selectedIndexChanged(e2.target.selectedIndex);
       }}
   >
-    ${scores.map((score2) => {
+    ${scores2.map((score2) => {
         return m$1`<option value="${score2.name}">${score2.name}</option>`;
       })}
   </select>`;
@@ -55911,10 +50837,10 @@ Supported expressions:
       })}
   </select>`;
     };
-    const scoreIndex = (score2, scores) => scores.findIndex((sc) => {
+    const scoreIndex = (score2, scores2) => scores2.findIndex((sc) => {
       return sc.name === score2.name && sc.scorer === score2.scorer;
     });
-    const scorerIndex = (score2, scores) => scores.findIndex((sc) => {
+    const scorerIndex = (score2, scores2) => scores2.findIndex((sc) => {
       return sc.scorer === score2.scorer;
     });
     const SampleTools = (props) => {
@@ -55929,7 +50855,7 @@ Supported expressions:
         sampleDescriptor,
         score: score2,
         setScore,
-        scores
+        scores: scores2
       } = props;
       const hasEpochs = epochs > 1;
       const tools = [];
@@ -55940,10 +50866,10 @@ Supported expressions:
       filterChanged=${filterChanged}
     />`
       );
-      if (scores.length > 1) {
+      if (scores2.length > 1) {
         tools.push(
           m$1`<${SelectScorer}
-        scores=${scores}
+        scores=${scores2}
         score=${score2}
         setScore=${setScore}
       />`
@@ -56005,6 +50931,7 @@ Supported expressions:
       refreshLog,
       capabilities,
       offcanvas,
+      setOffcanvas,
       samplesDescriptor,
       selectedSampleIndex,
       setSelectedSampleIndex,
@@ -56023,7 +50950,7 @@ Supported expressions:
       setFilter,
       score: score2,
       setScore,
-      scores,
+      scores: scores2,
       selectedTab,
       setSelectedTab,
       sampleScrollPositionRef,
@@ -56100,7 +51027,7 @@ Supported expressions:
               setSort=${setSort}
               score=${score2}
               setScore=${setScore}
-              scores=${scores}
+              scores=${scores2}
               sampleDescriptor=${samplesDescriptor}
             />`
               ];
@@ -56236,7 +51163,7 @@ Supported expressions:
         setFilter,
         setSort,
         setScore,
-        scores,
+        scores2,
         evalSpec,
         evalPlan,
         evalResults,
@@ -56265,6 +51192,7 @@ Supported expressions:
     setSelectedTab=${setSelectedTab}
     workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
     setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
+    setOffcanvas=${setOffcanvas}
   />`;
     };
     const WorkspaceDisplay = ({
@@ -56282,6 +51210,7 @@ Supported expressions:
       setSelectedTab,
       divRef,
       offcanvas,
+      setOffcanvas,
       workspaceTabScrollPositionRef,
       setWorkspaceTabScrollPosition
     }) => {
@@ -56347,8 +51276,8 @@ Supported expressions:
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-
       offcanvas=${offcanvas}
+      setOffcanvas=${setOffcanvas}
     />
     <div ref=${divRef} class="workspace" style=${{
           paddingTop: "0rem",
@@ -56450,7 +51379,7 @@ Supported expressions:
       const [filter, setFilter] = h((initialState2 == null ? void 0 : initialState2.filter) || {});
       const [epoch, setEpoch] = h((initialState2 == null ? void 0 : initialState2.epoch) || "all");
       const [sort, setSort] = h((initialState2 == null ? void 0 : initialState2.sort) || kDefaultSort);
-      const [scores, setScores] = h((initialState2 == null ? void 0 : initialState2.scores) || []);
+      const [scores2, setScores] = h((initialState2 == null ? void 0 : initialState2.scores) || []);
       const [score2, setScore] = h(initialState2 == null ? void 0 : initialState2.score);
       const [filteredSamples, setFilteredSamples] = h(
         (initialState2 == null ? void 0 : initialState2.filteredSamples) || []
@@ -56481,7 +51410,7 @@ Supported expressions:
           filter,
           epoch,
           sort,
-          scores,
+          scores: scores2,
           score: score2,
           filteredSamples,
           groupBy,
@@ -56512,7 +51441,7 @@ Supported expressions:
         filter,
         epoch,
         sort,
-        scores,
+        scores2,
         score2,
         filteredSamples,
         groupBy,
@@ -56563,7 +51492,7 @@ Supported expressions:
         filter,
         epoch,
         sort,
-        scores,
+        scores2,
         score2,
         filteredSamples,
         groupBy,
@@ -56600,7 +51529,7 @@ Supported expressions:
           }
           return true;
         });
-        const { sorted, order: order2 } = sortSamples(sort, filtered, samplesDescriptor);
+        const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
         let grouping = "none";
         if (((_b3 = samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor) == null ? void 0 : _b3.epochs) > 1) {
           if (byEpoch(sort) || epoch !== "all") {
@@ -56611,16 +51540,16 @@ Supported expressions:
         }
         setFilteredSamples(sorted);
         setGroupBy(grouping);
-        setGroupByOrder(order2);
+        setGroupByOrder(order);
       }, [selectedLog, filter, sort, epoch]);
       const evalDescriptor = T$1(() => {
         var _a3, _b3, _c2, _d2;
         return createEvalDescriptor(
-          scores,
+          scores2,
           (_a3 = selectedLog.contents) == null ? void 0 : _a3.sampleSummaries,
           ((_d2 = (_c2 = (_b3 = selectedLog.contents) == null ? void 0 : _b3.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1
         );
-      }, [selectedLog, scores]);
+      }, [selectedLog, scores2]);
       const samplesDescriptor = T$1(() => {
         return createSamplesDescriptor(evalDescriptor, score2);
       }, [evalDescriptor, score2]);
@@ -56703,9 +51632,9 @@ Supported expressions:
               const headers = await api2.get_log_headers(fileList);
               setLogHeaders((prev) => {
                 const updatedHeaders = {};
-                headers.forEach((header, index) => {
+                headers.forEach((header2, index) => {
                   const logFile = fileList[index];
-                  updatedHeaders[logFile] = header;
+                  updatedHeaders[logFile] = header2;
                 });
                 return { ...prev, ...updatedHeaders };
               });
@@ -56917,7 +51846,6 @@ Supported expressions:
               setCapabilities({ downloadFiles: false, webWorkers: false });
             }
           }
-          setOffcanvas(true);
           const logPath = urlParams.get("task_file");
           const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
           const load = resolvedLogPath ? async () => {
@@ -56974,20 +51902,17 @@ Supported expressions:
         loadLogsAndState();
       }, []);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
-      const sidebar = !fullScreen && selectedLog.contents ? m$1`
+      const sidebar2 = !fullScreen && selectedLog.contents ? m$1`
           <${Sidebar}
             logs=${logs}
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
+            setOffcanvas=${setOffcanvas}
             selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
         setSelectedLogIndex(index);
-        var myOffcanvas = document.getElementById("sidebarOffCanvas");
-        var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-        if (bsOffcanvas) {
-          bsOffcanvas.hide();
-        }
+        setOffcanvas(false);
       }}
           />
         ` : "";
@@ -57003,7 +51928,7 @@ Supported expressions:
       const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
       return m$1`
     <${AppErrorBoundary}>
-    ${sidebar}
+    ${sidebar2}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
         if (!getVscodeApi()) {
           return;
@@ -57042,6 +51967,7 @@ Supported expressions:
               samplesDescriptor=${samplesDescriptor}
               refreshLog=${refreshLog}
               offcanvas=${offcanvas}
+              setOffcanvas=${setOffcanvas}
               capabilities=${capabilities}
               selected=${selectedLogIndex}
               selectedSample=${selectedSample}
@@ -57062,7 +51988,7 @@ Supported expressions:
               setFilter=${setFilter}
               score=${score2}
               setScore=${setScore}
-              scores=${scores}
+              scores=${scores2}
               sampleScrollPositionRef=${sampleScrollPosition}
               setSampleScrollPosition=${setSampleScrollPosition}
               workspaceTabScrollPositionRef=${workspaceTabScrollPosition}

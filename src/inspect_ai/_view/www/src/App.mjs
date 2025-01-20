@@ -6,7 +6,6 @@ import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";
 // @ts-ignore
-import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
   useCallback,
@@ -30,7 +29,7 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { filterSamples } from "./samples/tools/filters";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
-import { Sidebar } from "./sidebar/Sidebar.mjs";
+import { Sidebar } from "./sidebar/Sidebar";
 import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
@@ -741,8 +740,6 @@ export function App({
         }
       }
 
-      setOffcanvas(true);
-
       // If the URL provides a task file, load that
       const logPath = urlParams.get("task_file");
 
@@ -831,16 +828,11 @@ export function App({
             logHeaders=${logHeaders}
             loading=${headersLoading}
             offcanvas=${offcanvas}
+            setOffcanvas=${setOffcanvas}
             selectedIndex=${selectedLogIndex}
             onSelectedIndexChanged=${(index) => {
               setSelectedLogIndex(index);
-
-              // hide the sidebar offcanvas
-              var myOffcanvas = document.getElementById("sidebarOffCanvas");
-              var bsOffcanvas = Offcanvas.getInstance(myOffcanvas);
-              if (bsOffcanvas) {
-                bsOffcanvas.hide();
-              }
+              setOffcanvas(false);
             }}
           />
         `
@@ -918,6 +910,7 @@ export function App({
               samplesDescriptor=${samplesDescriptor}
               refreshLog=${refreshLog}
               offcanvas=${offcanvas}
+              setOffcanvas=${setOffcanvas}
               capabilities=${capabilities}
               selected=${selectedLogIndex}
               selectedSample=${selectedSample}

@@ -1,5 +1,3 @@
-
-
 /**
  * Resolves individual value by replacing protocol references with attachment content
  */
@@ -19,10 +17,7 @@ export const resolveAttachments = (
   if (value && typeof value === "object") {
     const resolvedObject: Record<string, unknown> = {};
     for (const key of Object.keys(value)) {
-      resolvedObject[key] = resolveAttachments(
-        value[key],
-        attachments,
-      );
+      resolvedObject[key] = resolveAttachments(value[key], attachments);
     }
     return resolvedObject;
   }

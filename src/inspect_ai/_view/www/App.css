@@ -104,9 +104,16 @@ body[class^="vscode-"] .app-main-grid {
   font-size: var(--inspect-font-size-smaller);
 }
 
-.text-wrap {
+.text-truncate {
   white-space: nowrap;
   text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.three-line-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
@@ -373,12 +380,6 @@ body {
 
 #sidebarToggle > i.bi {
   font-size: 1.5em;
-}
-
-.sidebar {
-  --bs-offcanvas-width: var(--sidebar-width);
-  width: var(--sidebar-width);
-  overflow-y: auto;
 }
 
 .nav-link.active {
