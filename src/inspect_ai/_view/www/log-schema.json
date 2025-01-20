@@ -2696,6 +2696,18 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
         "cache": {
           "anyOf": [
             {
@@ -2734,6 +2746,7 @@
         "tool_choice",
         "config",
         "output",
+        "error",
         "cache",
         "call"
       ],

@@ -52,6 +52,17 @@ if output.stop_reason == "model_length":
     # do something to recover from context window overflow
 ```
 
+If you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of `stop_reason` that indicate that the the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the [basic agent](agents.qmd#sec-basic-agent) checks for `stop_reason` and exits under the following conditions:
+
+```python
+# check for stop reasons that indicate we should terminate
+if state.output.stop_reason == "model_length":
+    transcript().info(
+        f"Agent terminated (reason: {state.output.stop_reason})"
+    )
+    break
+```
+
 Here are the possible values for `StopReason` :
 
 | Stop Reason | Description |
